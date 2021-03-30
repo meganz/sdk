@@ -4934,6 +4934,8 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  */
 - (void)isMasterKeyExported;
 
+#ifdef ENABLE_CHAT
+
 /**
  * @brief Enable or disable the generation of rich previews
  *
@@ -5107,6 +5109,8 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * the application has to answer before send a message of this type.
  */
 - (void)isGeolocationEnabled;
+
+#endif
 
 /**
  * @brief Set My Chat Files target folder.
@@ -8286,6 +8290,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  */
 + (nullable NSString *)mimeTypeByExtension:(NSString *)extension;
 
+#ifdef ENABLE_CHAT
 /**
  * @brief Register a device token for iOS push notifications
  *
@@ -8341,6 +8346,8 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * @param deviceToken NSString representing the device token to be registered.
  */
 - (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken;
+
+#endif
 
 /**
  * @brief Get the MEGA Achievements of the account logged in
@@ -8868,7 +8875,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * @param state BackUpState type backup state
  * @param delegate MEGARequestDelegate to track this request
 */
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate;
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Unregister a backup already registered for the Backup Centre
