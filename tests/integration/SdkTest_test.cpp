@@ -5035,13 +5035,14 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     err = synchronousRemoveBackup(0, mBackupId, nullptr);
     ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
     err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1);
-    ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
+    ASSERT_EQ(MegaError::API_ENOENT, err) << "updateBackup for deleted backup should have produced ENOENT but got error: " << err;
 
-    // create a backup with a big status: should report an error
-    err = synchronousSetBackup(0,
-            nullptr,
-            backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), 255/*state*/, subState);
-    ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+    // We can't test this, as reviewer wants an assert to fire for EARGS
+    //// create a backup with a big status: should report an error
+    //err = synchronousSetBackup(0,
+    //        nullptr,
+    //        backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), 255/*state*/, subState);
+    //ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     gTestingInvalidArgs = false;
 }
