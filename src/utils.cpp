@@ -49,11 +49,22 @@ string toNodeHandle(NodeHandle nodeHandle)
 {
     return toNodeHandle(nodeHandle.as8byte());
 }
+
 string toHandle(handle h)
 {
     char base64Handle[14];
     Base64::btoa((byte*)&(h), sizeof h, base64Handle);
     return string(base64Handle);
+}
+
+std::ostream& operator<<(std::ostream& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
 }
 
 string backupTypeToStr(BackupType type)
