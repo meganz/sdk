@@ -24489,11 +24489,8 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr /* can 
     }
     else
     {
-        FileSystemType fsType = syncPtr ? syncPtr->mFilesystemType :
-                                client->fsaccess->getlocalfstype(config.getLocalPath());
-
         //using leaf name of localpath as name:
-        setName(config.getLocalPath().leafName().toName(*client->fsaccess, fsType).c_str());
+        setName(config.getLocalPath().leafName().toName(*client->fsaccess).c_str());
     }
     this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
@@ -24786,12 +24783,9 @@ bool MegaRegExpPrivate::match(const char *itemToMatch)
             case PCRE_ERROR_NOMEMORY     : LOG_debug << "PCRE: Ran out of memory";                       break;
             default                      : LOG_debug << "PCRE: Unknown error";                           break;
         }
-
-        return false;
     }
 #endif
-
-    return 0;
+    return false;
 }
 
 int MegaRegExpPrivate::compile()

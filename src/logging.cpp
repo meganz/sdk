@@ -47,8 +47,6 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
     return s << toNodeHandle(h);
 }
 
-
-
 Logger *SimpleLogger::logger = nullptr;
 
 // by the default, display logs with level equal or less than logInfo
