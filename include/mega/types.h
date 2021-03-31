@@ -132,7 +132,6 @@ struct PendingContactRequest;
 class TransferList;
 struct Achievement;
 class SyncConfig;
-class SimpleLogger;
 
 namespace UserAlert
 {
@@ -282,7 +281,6 @@ inline bool operator==(NodeHandle a, NodeHandle b) { return a.eq(b); }
 inline bool operator==(NodeHandle a, handle b) { return a.eq(b); }
 inline bool operator!=(NodeHandle a, handle b) { return a.ne(b); }
 std::ostream& operator<<(std::ostream&, NodeHandle h);
-SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
 
 // (can use unordered_set if available)
 typedef set<handle> handle_set;
