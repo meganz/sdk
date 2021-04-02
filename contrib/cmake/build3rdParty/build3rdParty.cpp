@@ -30,6 +30,7 @@ namespace fs = std::__fs::filesystem;
 enum class Platform {
     platform_windows,    // platform_ prefix to avoid #define subsitutions on linux
     platform_osx,
+    platform_ios,
     platform_linux,
 };
 
@@ -40,6 +41,8 @@ Platform::platform_windows
 #include <TargetConditionals.h>
     #if TARGET_OS_MAC
 Platform::platform_osx
+    #elif TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
+Platform::platform_ios
     #endif
 #elif __linux__
 Platform::platform_linux
@@ -205,6 +208,8 @@ string platformToString(Platform p)
         return "windows";
         case Platform::platform_osx:
         return "osx";
+        case Platform::platform_ios:
+        return "ios";
         case Platform::platform_linux:
         return "linux";
         default:
