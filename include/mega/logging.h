@@ -104,8 +104,6 @@
     #include <QString>
 #endif
 
-#include "mega/utils.h"
-
 #if ((defined(ANDROID) || defined(__ANDROID__)) && defined(ENABLE_CRASHLYTICS))
 #include "../../third_party/crashlytics.h"
 #endif
