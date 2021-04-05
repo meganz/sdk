@@ -1295,7 +1295,7 @@ struct StandardClient : public MegaApp
 
     struct SyncInfo
     {
-        handle h;
+        NodeHandle h;
         fs::path localpath;
     };
 
@@ -1384,7 +1384,7 @@ struct StandardClient : public MegaApp
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                SyncConfig syncConfig{LocalPath::fromPath(localpath.u8string(), *client.fsaccess), localpath.u8string(), m->nodehandle, subfoldername, 0};
+                SyncConfig syncConfig{LocalPath::fromPath(localpath.u8string(), *client.fsaccess), localpath.u8string(), NodeHandle().set6byte(m->nodehandle), subfoldername, 0};
                 error e = client.addsync(syncConfig, true, addSyncCompletion);
                 return !e;
             }
@@ -1799,7 +1799,7 @@ struct StandardClient : public MegaApp
         }
 
         // compare model against nodes representing remote state
-        if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodebyhandle(si.h)))
+        if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodeByHandle(si.h)))
         {
             return false;
         }

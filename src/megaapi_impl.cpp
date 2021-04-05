@@ -1906,10 +1906,6 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_DEVICE_NAMES;
     }
-    if (user->changed.backupNames)
-    {
-        changed |= MegaUser::CHANGE_TYPE_BACKUP_NAMES;
-    }
     if (user->changed.cookieSettings)
     {
         changed |= MegaUser::CHANGE_TYPE_COOKIE_SETTINGS;
@@ -5941,7 +5937,6 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
         case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
-        case MegaApi::USER_ATTR_BACKUP_NAMES:
             scope = '*';
             break;
 
@@ -13584,17 +13579,6 @@ void MegaApiImpl::backupput_result(const Error& e, handle backupId)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
-{
-    if (requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
-
-
-    assert(e != API_OK || backupId == request->getParentHandle());
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
 void MegaApiImpl::backupremove_result(const Error& e, handle backupId)
 {
     if (requestMap.find(client->restag) == requestMap.end()) return;
@@ -13984,7 +13968,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             const char* backupName = request->getName();
             auto localPath = LocalPath::fromPath(request->getFile(), *client->fsaccess);
             auto regExp = request->getRegExp(); // not currently in use, but ready for addition
-            SyncConfig syncConfig( localPath, backupName, backupHandle, remotePath.get(),
+            SyncConfig syncConfig( localPath, backupName, NodeHandle().set6byte(backupHandle), remotePath.get(),
                                     0, regExpToVector(regExp), true, SyncConfig::TYPE_BACKUP );
 
             client->addsync(syncConfig, false,
@@ -15227,8 +15211,7 @@ void MegaApiImpl::getua_result(error e)
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                   || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
-                  || request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-                  || request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES)
+                  || request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
@@ -15545,7 +15528,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 break;
             }
             case MegaApi::USER_ATTR_ALIAS:
-            case MegaApi::USER_ATTR_BACKUP_NAMES:
             {
                 // If a handle was set in the request, we have to find it in the corresponding map and return it
                 const char *h = request->getText();
@@ -20202,8 +20184,7 @@ void MegaApiImpl::sendPendingRequests()
                 User *ownUser = client->finduser(client->me);
                 if (type == ATTR_ALIAS
                         || type == ATTR_CAMERA_UPLOADS_FOLDER
-                        || type == ATTR_DEVICE_NAMES
-                        || type == ATTR_BACKUP_NAMES)
+                        || type == ATTR_DEVICE_NAMES)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {
@@ -21660,7 +21641,7 @@ void MegaApiImpl::sendPendingRequests()
 
 
             SyncConfig syncConfig{LocalPath::fromPath(localPath, *client->fsaccess),
-                                  name, request->getNodeHandle(), remotePath.get(),
+                                  name, NodeHandle().set6byte(request->getNodeHandle()), remotePath.get(),
                                   0, regExpToVector(request->getRegExp())};
 
             client->addsync(syncConfig, false,
@@ -21751,7 +21732,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
-                                  name, request->getNodeHandle(), remotePath ? remotePath : "",
+                                  name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
                                   regExpToVector(request->getRegExp()), enabled);
 
@@ -23052,13 +23033,22 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT:
         {
-            handle remoteNode = request->getNodeHandle();
+            NodeHandle remoteNode = NodeHandle().set6byte(request->getNodeHandle());
             const char* backupName = request->getName();
             const char* localFolder = request->getFile();
-            const char* extraData = request->getText();
             int backupType = static_cast<int>(request->getTotalBytes());
             BackupType bType = static_cast<BackupType>(backupType);
             handle backupId = request->getParentHandle();
+
+            CommandBackupPut::BackupInfo info;
+            info.backupId = backupId;
+            info.type = bType;
+            info.backupName = backupName ? backupName : "";
+            info.nodeHandle = remoteNode;
+            info.localFolder = localFolder ? LocalPath::fromPath(localFolder, *client->fsaccess) : LocalPath();
+            info.deviceId = client->getDeviceidHash();
+            info.state = request->getAccess();
+            info.subState = request->getNumDetails();
 
             bool isNew = request->getFlag();
             if (isNew) // Register a new sync/backup
@@ -23067,17 +23057,14 @@ void MegaApiImpl::sendPendingRequests()
                      && backupType != MegaApi::BACKUP_TYPE_MEDIA_UPLOADS)
                         || !localFolder
                         || !backupName
-                        || ISUNDEF(remoteNode)
+                        || remoteNode.isUndef()
                         || !ISUNDEF(backupId))  // new backups don't have a backup id yet
                 {
                     e = API_EARGS;
                     break;
                 }
 
-                client->reqs.add(new CommandBackupPut(client, bType, backupName, remoteNode,
-                                                      localFolder, client->getDeviceidHash(),
-                                                      request->getAccess(), request->getNumDetails(),
-                                                      extraData ? extraData : string(), nullptr));
+                client->reqs.add(new CommandBackupPut(client, info, nullptr));
             }
             else // update an existing sync/backup
             {
@@ -23090,15 +23077,7 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->reqs.add(new CommandBackupPut(client,
-                                                      (MegaHandle)request->getParentHandle(),
-                                                      bType,
-                                                      request->getNodeHandle(),
-                                                      localFolder,
-                                                      client->getDeviceidHash().c_str(),
-                                                      request->getAccess(),
-                                                      request->getNumDetails(),
-                                                      extraData, nullptr));
+                client->reqs.add(new CommandBackupPut(client, info, nullptr));
             }
             break;
         }
@@ -23316,7 +23295,7 @@ void MegaApiImpl::dismissBanner(int id, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
     request->setTotalBytes(backupType);
@@ -23325,7 +23304,6 @@ void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* l
     request->setName(backupName ? Base64::btoa(backupName).c_str() : nullptr);
     request->setAccess(state);
     request->setNumDetails(subState);
-    request->setText(extraData);
     request->setFlag(true); // indicates it's a new backup
 
     requestQueue.push(request);
@@ -23340,7 +23318,7 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listene
     waiter->notify();
 }
 
-void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder,  const char* backupName, int state, int subState, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
     request->setParentHandle(backupId);
@@ -23360,6 +23338,11 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
         request->setFile(localFolder);
     }
 
+    if (backupName)
+    {
+        request->setName(backupName);
+    }
+
     if (state >= 0)
     {
         request->setAccess(state);
@@ -23368,11 +23351,6 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
     if (subState >= 0)
     {
         request->setNumDetails(subState);
-    }
-
-    if (extraData)
-    {
-        request->setText(extraData);
     }
 
     requestQueue.push(request);
@@ -23389,30 +23367,6 @@ void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progr
     request->setTransferTag(downs);
     request->setNumber(ts);
     request->setNodeHandle(lastNode);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::getBackupName(MegaHandle backupId, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_BACKUP_NAMES);
-    request->setNodeHandle(backupId);
-    request->setText(Base64Str<MegaClient::BACKUPHANDLE>(backupId));
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
-    MegaStringMapPrivate stringMap;
-    string buf = backupName ? Base64::btoa(backupName) : Base64::btoa("");    // backup name is null to remove it
-    stringMap.set(Base64Str<MegaClient::BACKUPHANDLE>(backupId), Base64::btoa(buf).c_str());
-    request->setMegaStringMap(&stringMap);
-    request->setParamType(MegaApi::USER_ATTR_BACKUP_NAMES);
-    request->setNodeHandle(backupId);
-    request->setText(backupName);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -24461,7 +24415,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr /* can 
     , mActive(syncPtr && syncPtr->state >= 0)
     , mEnabled(config.getEnabled())
 {
-    this->megaHandle = config.getRemoteNode();
+    this->megaHandle = config.getRemoteNode().as8byte();
     this->localFolder = NULL;
     setLocalFolder(config.getLocalPath().toPath(*client->fsaccess).c_str());
     this->mName= NULL;
@@ -24746,7 +24700,7 @@ bool MegaRegExpPrivate::match(const char *itemToMatch)
     result = pcre_exec(reCompiled,
                        reOptimization,
                        itemToMatch,
-                       strlen(itemToMatch),
+                       int(strlen(itemToMatch)),
                        0,
                        PCRE_ANCHORED,
                        strVector,
@@ -24771,9 +24725,9 @@ bool MegaRegExpPrivate::match(const char *itemToMatch)
 
         return false;
     }
+#else
+    return false;
 #endif
-
-    return 0;
 }
 
 int MegaRegExpPrivate::compile()
