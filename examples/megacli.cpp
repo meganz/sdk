@@ -68,9 +68,6 @@ using std::setw;
 using std::hex;
 using std::dec;
 
-// just to check warnings as errors
-size_t nnn = -1;
-
 MegaClient* client;
 MegaClient* clientFolder;
 
@@ -78,7 +75,6 @@ int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
 bool gVerboseMode = false;
-
 
 // new account signup e-mail address and name
 static string signupemail, signupname;
