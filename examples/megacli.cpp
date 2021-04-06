@@ -68,6 +68,9 @@ using std::setw;
 using std::hex;
 using std::dec;
 
+// just to check warnings as errors
+size_t nnn = -1;
+
 MegaClient* client;
 MegaClient* clientFolder;
 
