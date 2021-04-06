@@ -3,6 +3,7 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <sstream>
 #include <fstream>
 
 using namespace std;
@@ -27,8 +28,10 @@ namespace fs = std::experimental::filesystem;
 namespace fs = std::__fs::filesystem;
 #endif
 
+// platform_ prefix to avoid #define subsitutions on linux
 enum class Platform {
-    platform_windows,    // platform_ prefix to avoid #define subsitutions on linux
+    platform_all, // special value to indicate build on all platforms
+    platform_windows,
     platform_osx,
     platform_ios,
     platform_linux,
@@ -66,6 +69,7 @@ fs::path initialDir = fs::current_path();
 fs::path vcpkgDir = fs::current_path() / "vcpkg";
 fs::path cloneDir = fs::current_path() / "vcpkg_clone";
 
+vector<string> split(const string& input, char separator);
 string platformToString(Platform p);
 bool readCommandLine(int argc, char* argv[]);
 void execute(string command);
@@ -201,6 +205,20 @@ catch (exception& e)
     return 1;
 }
 
+vector<string> split(const string& input, char sep)
+{
+    vector<string> result;
+    string token;
+    istringstream tokenStream(input);
+
+    while (std::getline(tokenStream, token, sep))
+    {
+        result.push_back(token);
+    }
+
+    return result;
+}
+
 string platformToString(Platform p)
 {
     switch (p) {
@@ -315,31 +333,60 @@ bool readCommandLine(int argc, char* argv[])
         while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
         if (s.empty()) continue;
 
-        // check if port should be skipped for this platform
+        fs::path patchFile;
+
+        // check if we have include/exclude or patch expressions for this platform
         if (s.find(" ") != string::npos)
         {
-            string platformTest = s.substr(s.find_last_of(' ') + 1);
-            s.erase(s.find_first_of(' '));
-            if (!platformTest.empty() && platformTest[0] == '!')
-            {
-                if (platformTest.substr(1) == platformToString(buildPlatform))
-                {
-                    cout << "Skipping " << s << " because " << platformTest <<"\n";
-                    continue;
-                }
-            }
-            else
-            {
-                if (platformTest != platformToString(buildPlatform))
-                {
-                    cout << "Skipping " << s << " because " << platformTest << "\n";
-                    continue;
-                }
-            }
-        }
+           vector<string> platformExpressions = split(s.substr(s.find(" ") + 1), ' ');
 
-        // if not, extract the exclude expressions so we don't have to worry about them
-        s = s.substr(0, s.find("!"));
+           bool shouldBuild = true;
+
+           for (const string& rawExpr : platformExpressions)
+           {
+               vector<string> expr = split(rawExpr, ':');
+
+               // Allow specifying a patchfile alone to have it apply to all platforms
+               if (expr.size() == 1)
+               {
+                   if (fs::path(expr[0]).extension() == ".patch")
+                   {
+                       patchFile = expr[0];
+                       continue;
+                   }
+
+                   cout << "Platform expression must be colon-delimited or specify single patch file\n";
+                   exit(1);
+               }
+
+               if (expr.size() != 2)
+               {
+                   cout << "Malformed platform or patch expression " << rawExpr << "\n";
+                   exit(1);
+               }
+
+               const string& exprPlatform = expr[0];
+
+
+               if (exprPlatform != "all" && exprPlatform != platformToString(buildPlatform)) continue;
+
+               const string& exprArg = expr[1];
+
+               if (exprArg == "on") shouldBuild = true;
+               else if (exprArg == "off") shouldBuild = false;
+               else if (fs::path(exprArg).extension() == ".patch") patchFile = exprArg;
+               else
+               {
+                   cout << "Argument of platform expr must be 'on', 'off', or 'filename.patch', got '" << exprArg << "'\n";
+                   exit(1);
+               }
+           }
+
+           if (!shouldBuild) continue;
+
+           // now trim the platform expressions so we can ignore them going forward
+           s = s.substr(0, s.find(" "));
+       }
 
         // extract port/version map
         auto slashpos = s.find("/");
@@ -349,9 +396,7 @@ bool readCommandLine(int argc, char* argv[])
             return 1;
         }
         string portname = s.substr(0, slashpos);
-
-        auto colonpos = s.find(':');
-        string portversion = s.substr(slashpos + 1, colonpos - (slashpos + 1));
+        string portversion = s.substr(slashpos + 1);
 
         auto existing = ports.find(portname);
         if (existing != ports.end() && existing->second != portversion)
@@ -363,21 +408,20 @@ bool readCommandLine(int argc, char* argv[])
 
         if (build) continue;
 
-        if (colonpos != string::npos)
+        if (!patchFile.empty())
         {
-            fs::path patch = s.substr(colonpos + 1);
             auto existingPatch = patches.find(portname);
-            if (existingPatch != patches.end() && existingPatch->second != patch)
+            if (existingPatch != patches.end() && existingPatch->second != patchFile)
             {
-                cout << "Conflicting patch files: " << patch << " and " << existingPatch->second << " for " << portname << "\n";
+                cout << "Conflicting patch files: " << patchFile << " and " << existingPatch->second << " for " << portname << "\n";
                 return 1;
             }
-            if (!fs::exists(patchPath / patch))
+            if (!fs::exists(patchPath / patchFile))
             {
-                cout << "Nonexistent patch " << patch << " for " << portname << ", patches must be in " << patchPath.u8string() << "\n";
+                cout << "Nonexistent patch " << patchFile << " for " << portname << ", patches must be in " << patchPath.u8string() << "\n";
             }
-            cout << "Got patch " << patch << " for " << portname << "\n";
-            patches[portname] = patchPath / patch;
+            cout << "Got patch " << patchFile << " for " << portname << "\n";
+            patches[portname] = patchPath / patchFile;
         }
     }
 
