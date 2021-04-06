@@ -1913,19 +1913,22 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, bool writable, const char* personal_representation)
+CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
     byte asymmkey[AsymmCipher::MAXKEYLENGTH];
     int t = 0;
 
-    tag = client->restag;
+    tag = ctag;
 
     sh = n->nodehandle;
     user = u;
     access = a;
     mWritable = writable;
+
+    completion = move(f);
+    assert(completion);
 
     cmd("s2");
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
@@ -2039,7 +2042,7 @@ bool CommandSetShare::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->share_result(r.errorOrOK());
+        completion(r.errorOrOK(), mWritable);
         return true;
     }
 
@@ -2062,8 +2065,8 @@ bool CommandSetShare::procresult(Result r)
                         n->sharekey->setkey(key);
 
                         // repeat attempt with corrected share key
-                        client->restag = tag;
-                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), mWritable, personal_representation.c_str()));
+                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), mWritable, personal_representation.c_str(),
+                                         tag, move(completion)));
                         return false;
                     }
                 }
@@ -2082,11 +2085,11 @@ bool CommandSetShare::procresult(Result r)
             case 'r':
                 if (client->json.enterarray())
                 {
-                    int i = 0;
-
                     while (client->json.isnumeric())
                     {
-                        client->app->share_result(i++, (error)client->json.getint());
+                        // intermediate result updates, not final completion
+                        // we used to call share_result but it wasn't used
+                        client->json.getint();
                     }
 
                     client->json.leavearray();
@@ -2106,7 +2109,7 @@ bool CommandSetShare::procresult(Result r)
                 break;
 
             case EOO:
-                client->app->share_result(API_OK, mWritable);
+                completion(API_OK, mWritable);
                 return true;
 
             default:
@@ -4850,8 +4853,16 @@ bool CommandGetUserSessions::procresult(Result r)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets, bool writable)
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable,
+    int ctag, std::function<void(Error, handle, handle)> f)
 {
+    h = n->nodehandle;
+    ets = cets;
+    tag = ctag;
+    mWritable = writable;
+    completion = move(f);
+    assert(completion);
+
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
 
@@ -4870,17 +4881,13 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets, b
         arg("w", "1");
     }
 
-    this->h = n->nodehandle;
-    this->ets = ets;
-    this->tag = client->reqtag;
-    mWritable = writable;
 }
 
 bool CommandSetPH::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->exportnode_result(r.errorOrOK());
+        completion(r.errorOrOK(), UNDEF, UNDEF);
         return true;
     }
 
@@ -4906,8 +4913,8 @@ bool CommandSetPH::procresult(Result r)
             {
                 if (authKey.empty())
                 {
-                    client->app->exportnode_result(API_EINTERNAL);
-                    return true;
+                    completion(API_EINTERNAL, UNDEF, UNDEF);
+                    return false;
                 }
                 exit = true;
                 break;
@@ -4915,8 +4922,8 @@ bool CommandSetPH::procresult(Result r)
             default:
                 if (!client->json.storeobject())
                 {
-                    client->app->exportnode_result(API_EINTERNAL);
-                    return true;
+                    completion(API_EINTERNAL, UNDEF, UNDEF);
+                    return false;
                 }
             }
         }
@@ -4928,8 +4935,8 @@ bool CommandSetPH::procresult(Result r)
 
     if (ISUNDEF(ph))
     {
-        client->app->exportnode_result(API_EINTERNAL);
-        return true;
+        completion(API_EINTERNAL, UNDEF, UNDEF);
+        return false;
     }
 
     Node *n = client->nodebyhandle(h);
@@ -4940,8 +4947,7 @@ bool CommandSetPH::procresult(Result r)
         client->notifynode(n);
     }
 
-    client->app->exportnode_result(h, ph);
-
+    completion(API_OK, h, ph);
     return true;
 }
 
