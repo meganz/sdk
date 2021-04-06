@@ -230,6 +230,9 @@ if (WIN32)
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0" )
     endif()
 
+    # warnings as errors, just for windows builds, as warnings keep creeping in.  Best if we address them once in the original MR.
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /WX" )
+
     # accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
     add_definitions( -DNOMINMAX )
@@ -498,7 +501,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
             ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
             ImportStdVcpkgLibrary(icudt        icudtd icudt libicudata libicudata)
-            
+
             # pdfium will use bzip2 if present
             ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
 

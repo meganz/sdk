@@ -2453,9 +2453,9 @@ bool Syncs::hasRunningSyncs()
     return false;
 }
 
-unsigned Syncs::numRunningSyncs()
+size_t Syncs::numRunningSyncs()
 {
-    unsigned n = 0;
+    size_t n = 0;
     for (auto& s : mSyncVec)
     {
         if (s->mSync) ++n;
@@ -2463,7 +2463,7 @@ unsigned Syncs::numRunningSyncs()
     return n;
 }
 
-unsigned Syncs::numSyncs()
+size_t Syncs::numSyncs()
 {
     return mSyncVec.size();
 }

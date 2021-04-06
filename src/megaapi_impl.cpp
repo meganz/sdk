@@ -24761,7 +24761,7 @@ bool MegaRegExpPrivate::match(const char *itemToMatch)
     result = pcre_exec(reCompiled,
                        reOptimization,
                        itemToMatch,
-                       strlen(itemToMatch),
+                       static_cast<int>(strlen(itemToMatch)),
                        0,
                        PCRE_ANCHORED,
                        strVector,
