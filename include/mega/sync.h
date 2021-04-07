@@ -365,7 +365,6 @@ protected :
 
 private:
     LocalPath mLocalPath;
-    SyncBackupState mBackupState;
 };
 
 class SyncConfigIOContext;
