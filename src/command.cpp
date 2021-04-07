@@ -109,7 +109,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 #ifdef ENABLE_SYNC
     if (errorDetected && errorDetails == API_EBUSINESSPASTDUE)
     {
-        client->syncs.disableSyncs(BUSINESS_EXPIRED, true);  // keep enabled for auto-resume
+        client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
     }
 #endif
     return errorDetected;
@@ -142,6 +142,11 @@ void Command::arg(const char* name, const char* value, int quotes)
 void Command::arg(const char* name, const byte* value, int len)
 {
     jsonWriter.arg(name, value, len);
+}
+
+void Command::arg(const char* name, NodeHandle h)
+{
+    jsonWriter.arg(name, h);
 }
 
 // 64-bit signed integer

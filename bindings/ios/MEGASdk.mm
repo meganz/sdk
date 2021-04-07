@@ -591,12 +591,12 @@ using namespace mega;
 
 - (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
     [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
-    self.megaApi->logout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->logout(false, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)logout {
     [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
-    self.megaApi->logout();
+    self.megaApi->logout(false, NULL);
 }
 
 - (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
@@ -1387,6 +1387,8 @@ using namespace mega;
     self.megaApi->isMasterKeyExported();
 }
 
+#ifdef ENABLE_CHAT
+
 - (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->enableRichPreviews(enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1434,6 +1436,8 @@ using namespace mega;
 - (void)isGeolocationEnabled {
     self.megaApi->isGeolocationEnabled();
 }
+
+#endif
 
 - (void)setMyChatFilesFolderWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setMyChatFilesFolder(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -2429,6 +2433,8 @@ using namespace mega;
     return ret;
 }
 
+#ifdef ENABLE_CHAT
+
 - (void)registeriOSdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -2444,6 +2450,8 @@ using namespace mega;
 - (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken {
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSVoIP, deviceToken ? [deviceToken UTF8String] : NULL);
 }
+
+#endif
 
 - (void)getAccountAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getAccountAchievements([self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -2553,11 +2561,11 @@ using namespace mega;
 #pragma mark - Backup Heartbeat
 
 - (void)registerBackup:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path name:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->setBackup((int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, 0, NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    self.megaApi->setBackup((int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, 0, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, (int)state, 0, NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path backupName:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, 0, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)unregisterBackup:(MEGAHandle)backupId delegate:(id<MEGARequestDelegate>)delegate {

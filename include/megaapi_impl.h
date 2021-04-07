@@ -50,6 +50,10 @@
 #include <fcntl.h>
 #endif
 
+#ifdef TARGET_OS_IPHONE
+#include "mega/gfx/GfxProcCG.h"
+#endif
+
 ////////////////////////////// SETTINGS //////////////////////////////
 ////////// Support for threads and mutexes
 //Choose one of these options.
@@ -2787,13 +2791,10 @@ class MegaApiImpl : public MegaApp
         void getBanners(MegaRequestListener *listener);
         void dismissBanner(int id, MegaRequestListener *listener);
 
-        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char *backupName, int state, int subState, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener);
-
-        void getBackupName(MegaHandle backupId, MegaRequestListener* listener = nullptr);
-        void setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener = nullptr);
 
         void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
         void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
@@ -3181,7 +3182,7 @@ protected:
         void syncupdate_active(handle backupId, bool active) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const UnifiedSync& us, bool attempted) override;
+        void sync_auto_resume_result(const UnifiedSync& us, bool attempted, bool hadAnError) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
@@ -3223,7 +3224,6 @@ protected:
 #endif
 
         void backupput_result(const Error&, handle backupId) override;
-        void backupupdate_result(const Error&, handle) override;
         void backupremove_result(const Error&, handle) override;
 
 protected:
