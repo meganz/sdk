@@ -51,4 +51,4 @@ private:
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
 
-mega::FSACCESS_CLASS makeFsAccess();
+::mega::FSACCESS_CLASS makeFsAccess();
