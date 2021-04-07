@@ -2904,10 +2904,10 @@ void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
 
 void Syncs::purgeSyncs()
 {
+    if (!mSyncConfigStore) return;
+
     // Remove all syncs.
     removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
-
-    assert(mSyncConfigStore);
 
     // Truncate internal sync config database.
     mSyncConfigStore->write(LocalPath(), SyncConfigVector());
@@ -2915,8 +2915,12 @@ void Syncs::purgeSyncs()
     // Remove all drives.
     for (auto& drive : mSyncConfigStore->knownDrives())
     {
-        // This does not flush.
-        mSyncConfigStore->removeDrive(drive);
+        // Never remove internal drive.
+        if (!drive.empty())
+        {
+            // This does not flush.
+            mSyncConfigStore->removeDrive(drive);
+        }
     }
 }
 
