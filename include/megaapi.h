@@ -13549,21 +13549,26 @@ class MegaApi
          *
          * The sync/backup's name is optional. If not provided, it will take the name of the leaf folder of
          * the local path. In example, for "/home/user/Documents", it will become "Documents".
-*
+         *
+         * The remote sync root folder should be INVALID_HANDLE for syncs of TYPE_BACKUP. The handle of the
+         * remote node, which is created as part of this request, will be set to the MegaRequest::getNodeHandle.
+         *
          * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getName - Returns the name of the sync
-         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
-         *  or any other particular condition in case of API_OK
+         * - MegaRequest::getParamType - Returns the type of the sync
+         * - MegaRequest::getRegExp - Returns the regular expresions to handle excluded files/folders
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
+         *  or any other particular condition in case of API_OK
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId
-         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
           * On the onRequestFinish error, the error code associated to the MegaError can be:
           * - MegaError::API_EARGS - If the local folder was not set.
@@ -13578,15 +13583,14 @@ class MegaApi
           * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
           * or device name was empty.
          *
-         * @param localFolder Path of the Local folder to sync/backup.
-         * @param name Name given to the sync.  You can pass NULL, and the folder name will be used instead.
-         * @param megaHandle Handle of MEGA folder.  If you have a MegaNode for that folder, use its getHandle()
-         * @param isBackup Set this true for the sync to be a Backup.  Backups only send changes to the cloud, any other cloud side change cancels them.
+         * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
+         * @param localSyncRootFolder Path of the Local folder to sync/backup.
+         * @param name Name given to the sync. You can pass NULL, and the folder name will be used instead.
+         * @param remoteSyncRootFolder Handle of MEGA folder. If you have a MegaNode for that folder, use its getHandle()
          * @param driveRootIfExternal Only relevant for backups, and only if the backup is on an external disk. Otherwise use NULL.
+         * @param regExp Regular expressions to handle excluded files/folders
          * @param listener MegaRequestListener to track this request
-         *
          */
-
         void syncFolder(MegaSync::SyncType syncType, const char *localSyncRootFolder, const char *name, MegaHandle remoteSyncRootFolder,
             const char* driveRootIfExternal,
 #ifdef USE_PCRE
