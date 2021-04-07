@@ -163,6 +163,15 @@ bool WaitFor(std::function<bool()>&& f, unsigned millisec)
     }
 }
 
+MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+{
+#if defined(ENABLE_SYNC) && defined(__APPLE__)
+    return new MegaApi(appKey, basePath, userAgent, gFseventsFd, workerThreadCount);
+#else
+    return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
+#endif
+}
+
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 
@@ -941,7 +950,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         }
         ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
 
-        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+        megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         mApi[index].megaApi = megaApi[index].get();
 
         megaApi[index]->setLoggingName(to_string(index).c_str());
@@ -4127,7 +4136,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                     exitresumecount += 1;
                     WaitMillisec(100);
 
-                    megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+                    megaApi[0].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
                     mApi[0].megaApi = megaApi[0].get();
                     megaApi[0]->addListener(this);
                     megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
