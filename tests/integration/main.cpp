@@ -285,3 +285,13 @@ fs::path makeNewTestRoot()
     assert(b);
     return p;
 }
+
+using ::mega::FSACCESS_CLASS;
+FSACCESS_CLASS makeFsAccess()
+{
+#ifndef __APPLE__
+    return FSACCESS_CLASS;
+#else
+    return FSACCESS_CLASS(gFseventsFd);
+#endif
+}
