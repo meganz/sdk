@@ -21,7 +21,7 @@ else()
     message(FATAL_ERROR "Microsoft Visual Studio 2019 or 2017 could not be found")
 endif()
 
-set(VCPKG_TARGET_ARCHITECTURE x64)
+set(VCPKG_TARGET_ARCHITECTURE x86)
 set(VCPKG_CRT_LINKAGE static)
 set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -D_ITERATOR_DEBUG_LEVEL=0")
