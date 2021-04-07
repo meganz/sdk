@@ -1891,7 +1891,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mLocalPath = Utilities::randomPath();
         config.mName = Utilities::randomBase64();
         config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
-        config.mRemoteNode = UNDEF;
+        config.mRemoteNode = NodeHandle();
         config.mWarning = NO_SYNC_WARNING;
         config.mSyncType = SyncConfig::TYPE_TWOWAY;
         config.mBackupState = SYNC_BACKUP_NONE;
@@ -1906,7 +1906,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mName = Utilities::randomBase64();
         config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
         config.mRegExps = {"a", "b"};
-        config.mRemoteNode = 3;
+        config.mRemoteNode.set6byte(3);
         config.mWarning = LOCAL_IS_FAT;
         config.mSyncType = SyncConfig::TYPE_BACKUP;
         config.mBackupId = SYNC_BACKUP_MIRROR;
@@ -1997,7 +1997,7 @@ TEST_F(SyncConfigStoreTest, Read)
 
         config.mBackupId = 1;
         config.mLocalPath = Utilities::randomPath();
-        config.mRemoteNode = 2;
+        config.mRemoteNode.set6byte(2);
 
         written.emplace_back(config);
 
@@ -2150,7 +2150,7 @@ TEST_F(SyncConfigStoreTest, WriteDirty)
         config.mBackupId = 1;
         config.mExternalDrivePath = Utilities::randomPath();
         config.mLocalPath = Utilities::randomPath(config.mExternalDrivePath);
-        config.mRemoteNode = 2;
+        config.mRemoteNode.set6byte(2);
 
         configs.emplace_back(config);
 
@@ -2158,7 +2158,7 @@ TEST_F(SyncConfigStoreTest, WriteDirty)
         config.mBackupId = 2;
         config.mExternalDrivePath.clear();
         config.mLocalPath = Utilities::randomPath();
-        config.mRemoteNode = 3;
+        config.mRemoteNode.set6byte(3);
 
         configs.emplace_back(config);
         internal.emplace_back(config);
@@ -2253,7 +2253,7 @@ TEST_F(SyncConfigStoreTest, Write)
 
         config.mBackupId = 2;
         config.mLocalPath = Utilities::randomPath();
-        config.mRemoteNode = 3;
+        config.mRemoteNode.set6byte(3);
 
         configs.emplace_back(config);
     }

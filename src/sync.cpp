@@ -494,7 +494,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 SyncConfig::SyncConfig(LocalPath localPath,
                        std::string name,
-                       const handle remoteNode,
+                       NodeHandle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
@@ -555,12 +555,12 @@ const LocalPath& SyncConfig::getLocalPath() const
     return mLocalPath;
 }
 
-handle SyncConfig::getRemoteNode() const
+NodeHandle SyncConfig::getRemoteNode() const
 {
     return mRemoteNode;
 }
 
-void SyncConfig::setRemoteNode(const handle &remoteNode)
+void SyncConfig::setRemoteNode(NodeHandle remoteNode)
 {
     mRemoteNode = remoteNode;
 }
@@ -1159,7 +1159,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
 
         if (notifyApp)
         {
-            bool wasActive = oldstate == SYNC_ACTIVE;
+            bool wasActive = oldstate == SYNC_ACTIVE || oldstate == SYNC_INITIALSCAN;
             bool nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
@@ -2223,15 +2223,15 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
         if (mConfig.getRemoteNode() != n->nodehandle)
         {
-            mConfig.setRemoteNode(n->nodehandle);
+            mConfig.setRemoteNode(NodeHandle().set6byte(n->nodehandle));
             changed = true;
         }
     }
     else //unset remote node: failed!
     {
-        if (mConfig.getRemoteNode() != UNDEF)
+        if (!mConfig.getRemoteNode().isUndef())
         {
-            mConfig.setRemoteNode(UNDEF);
+            mConfig.setRemoteNode(NodeHandle());
             changed = true;
         }
     }
@@ -2265,19 +2265,22 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     if (overStorage)
     {
         mConfig.mError = STORAGE_OVERQUOTA;
+        mConfig.mEnabled = false;
     }
     else if (businessExpired)
     {
         mConfig.mError = BUSINESS_EXPIRED;
+        mConfig.mEnabled = false;
     }
     else if (blocked)
     {
         mConfig.mError = ACCOUNT_BLOCKED;
+        mConfig.mEnabled = false;
     }
 
     if (mConfig.mError)
     {
-        // save configuration but avoid creating active sync, and set as temporarily disabled.
+        // save configuration but avoid creating active sync:
         mClient.syncs.saveSyncConfig(mConfig);
         return API_EFAILED;
     }
@@ -2901,35 +2904,6 @@ void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
 
 void Syncs::purgeSyncs()
 {
-    if (mSyncVec.empty())
-    {
-        return;
-    }
-
-    // accumulate all changes for *!bn to update it in one shoot
-    set<string> backupIds;
-    for (auto &it : mSyncVec)
-    {
-        backupIds.insert(string(Base64Str<MegaClient::BACKUPHANDLE>(it->mConfig.getBackupId())));
-    }
-    attr_t attrType = ATTR_BACKUP_NAMES;
-    User *ownUser = mClient.finduser(mClient.me);
-    const std::string *oldValue = ownUser->getattr(attrType);
-    if (oldValue && ownUser->isattrvalid(attrType))
-    {
-        std::unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(oldValue, &mClient.key));
-        for (auto &backupId : backupIds) tlv->reset(backupId);
-
-        // serialize and encrypt the TLV container
-        std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(mClient.rng, &mClient.key));
-        mClient.putua(attrType, (byte *)container->data(), unsigned(container->size()));
-    }
-    else
-    {
-        assert(false);
-        LOG_err << "Backup names not available upon purge syncs";
-    }
-
     // Remove all syncs.
     removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
 
@@ -3093,7 +3067,7 @@ void Syncs::resumeResumableSyncsOnStartup()
         {
             if (unifiedSync->mConfig.mOrigninalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
             {
-                auto node = mClient.nodebyhandle(unifiedSync->mConfig.getRemoteNode());
+                auto node = mClient.nodeByHandle(unifiedSync->mConfig.getRemoteNode());
                 unifiedSync->updateSyncRemoteLocation(node, false); //updates cache & notice app of this change
                 if (node)
                 {
@@ -3115,8 +3089,18 @@ void Syncs::resumeResumableSyncsOnStartup()
                 }
             }
 
+            bool hadAnError = unifiedSync->mConfig.getError() != NO_SYNC_ERROR;
+
             if (unifiedSync->mConfig.getEnabled())
             {
+                // Right now, syncs are disabled upon all errors but, after sync-rework, syncs
+                // could be kept as enabled but failed due to a temporary/recoverable error and
+                // the SDK may auto-resume them if the error condition vanishes
+                // (ie. an expired business account automatically disable syncs, but once
+                // the user has paid, we may auto-resume).
+                // TODO: remove assertion if it no longer applies:
+                assert(!hadAnError);
+
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
@@ -3125,12 +3109,12 @@ void Syncs::resumeResumableSyncsOnStartup()
                 unifiedSync->enableSync(false, false);
                 LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
-                mClient.app->sync_auto_resume_result(*unifiedSync, true);
+                mClient.app->sync_auto_resume_result(*unifiedSync, true, hadAnError);
             }
             else
             {
                 LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
-                mClient.app->sync_auto_resume_result(*unifiedSync, false);
+                mClient.app->sync_auto_resume_result(*unifiedSync, false, hadAnError);
             }
         }
     }
@@ -3864,12 +3848,7 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
             break;
 
         case TYPE_TARGET_HANDLE:
-            config.mRemoteNode = reader.gethandle(MegaClient::NODEHANDLE);
-            if ((config.mRemoteNode & 0xFFFFFFFFFFFF) == (UNDEF & 0xFFFFFFFFFFFF))
-            {
-                // we can have a much nicer solution when NodeHandle is merged from the sync rework branch
-                config.mRemoteNode = UNDEF;
-            }
+            config.mRemoteNode = reader.getNodeHandle();
             break;
 
         case TYPE_TARGET_PATH:
@@ -3944,7 +3923,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
-    writer.arg("th", config.mRemoteNode, MegaClient::NODEHANDLE);
+    writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
     writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);

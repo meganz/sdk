@@ -59,7 +59,7 @@ public:
 
     SyncConfig(LocalPath localPath,
         string syncName,
-        const handle remoteNode,
+        NodeHandle remoteNode,
         const string& remotePath,
         const fsfp_t localFingerprint,
         vector<string> regExps = {},
@@ -81,8 +81,8 @@ public:
     const LocalPath& getLocalPath() const;
 
     // the remote path of the sync
-    handle getRemoteNode() const;
-    void setRemoteNode(const handle& remoteNode);
+    NodeHandle getRemoteNode() const;
+    void setRemoteNode(NodeHandle remoteNode);
 
     // the fingerprint of the local sync root folder
     fsfp_t getLocalFingerprint() const;
@@ -129,11 +129,11 @@ public:
     // the local path of the sync
     LocalPath mLocalPath;
 
-    // name of the sync (if localpath is not adecuate)
+    // name of the sync (if localpath is not adequate)
     string mName;
 
     // the remote handle of the sync
-    handle mRemoteNode;
+    NodeHandle mRemoteNode;
 
     // the path to the remote node, as last known (not definitive)
     string mOrigninalPathOfRemoteRootNode;

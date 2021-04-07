@@ -76,7 +76,6 @@ std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
 bool gVerboseMode = false;
 
-
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
@@ -393,18 +392,20 @@ void DemoApp::syncupdate_active(handle backupId, bool active)
     cout << "Sync is now active: " << active << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
+void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted, bool hadAnError)
 {
     handle backupId = s.mConfig.getBackupId();
     if (attempted)
     {
         cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
-             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError()
+             << " hadAnErrorBefore: " << hadAnError << " Running: " << !!s.mSync << endl;
     }
     else
     {
         cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess) << " enabled: "
-            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError()
+            << " hadAnErrorBefore: " << hadAnError << " Running: " << !!s.mSync << endl;
     }
 }
 
@@ -4914,9 +4915,7 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_BACKUP_NAMES
-                    || attrtype == ATTR_DEVICE_NAMES
-                    || attrtype == ATTR_ALIAS)
+            if (attrtype == ATTR_DEVICE_NAMES || attrtype == ATTR_ALIAS)
             {
                 std::string key = s.words[3].s;
                 std::string value = Base64::btoa(s.words[4].s);
@@ -8437,7 +8436,7 @@ void exec_syncadd(autocomplete::ACState& s)
     auto config =
       SyncConfig(sourcePath,
                  sourcePath.leafName().toPath(*client->fsaccess),
-                 targetNode->nodehandle,
+                 NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
                  string_vector(),
