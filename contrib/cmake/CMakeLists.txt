@@ -23,11 +23,11 @@ project(MegaSDK)
 
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
-if (CMAKE_HOST_APPLE)
+if(CMAKE_HOST_APPLE)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
     set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
-ENDIF()
+endif()
 
 set (USE_ASIO 1 CACHE STRING "Only needed For tcprelay test tool")
 set (USE_CURL 1 CACHE STRING "Always needed (turning it off would mean using WinHTTP instead but that has not been maintained for a while)")
@@ -145,14 +145,17 @@ ENDIF(WIN32)
 if (USE_QT)
 
     #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
-    if (CMAKE_HOST_WIN32 AND (NOT DEFINED CMAKE_PREFIX_PATH) )
-        if (build_64_bit)
-            set (QT_BASE_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015" CACHE STRING "Specify your QT install folder if it is nonstandard")
-            set(CMAKE_PREFIX_PATH "${QT_BASE_PATH};${CMAKE_PREFIX_PATH}")
-        else()
-            set (QT_BASE_PATH "C:/Qt/Qt5.6.3/5.6.3/msvc2015" CACHE STRING "Specify your QT install folder if it is nonstandard")
-            set(CMAKE_PREFIX_PATH "${QT_BASE_PATH};${CMAKE_PREFIX_PATH}")
+    if (NOT DEFINED CMAKE_PREFIX_PATH AND NOT DEFINED QT_DIR)
+        if (CMAKE_HOST_WIN32 )
+            if (build_64_bit)
+                set (QT_DIR "C:/Qt/5.12.10/msvc2017_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            else()
+                set (QT_DIR "C:/Qt/5.12.10/msvc2017" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            ENDIF()
+        ELSE()
+            set (QT_DIR "/Users/Shared/Qt/5.12.10/clang_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
         ENDIF()
+        set(CMAKE_PREFIX_PATH "${QT_DIR}/lib/cmake/Qt5;${CMAKE_PREFIX_PATH}")
     ENDIF()
 
     message(STATUS "CMAKE_PREFIX_PATH (should contain the QT install path): ${CMAKE_PREFIX_PATH}")
@@ -227,25 +230,28 @@ if (WIN32)
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0" )
     endif()
 
+    # warnings as errors, just for windows builds, as warnings keep creeping in.  Best if we address them once in the original MRs.
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /WX" )
+
     # accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
     add_definitions( -DNOMINMAX )
 
-	#Link against the static C/C++ libraries on windows. Though, if linking with prebuilt QT we need dynamic CRT
-	foreach(flag_var
-			CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-			CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-			CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-		if (MEGA_LINK_DYNAMIC_CRT)
-			if(${flag_var} MATCHES "/MT")
-				string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
-			endif()
-		else ()
-			if(${flag_var} MATCHES "/MD")
-				string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-			endif()
-		endif ()
-	endforeach(flag_var)
+    #Link against the static C/C++ libraries on windows. Though, if linking with prebuilt QT we need dynamic CRT
+    foreach(flag_var
+            CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+            CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+        if (MEGA_LINK_DYNAMIC_CRT)
+            if(${flag_var} MATCHES "/MT")
+                string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
+            endif()
+        else ()
+            if(${flag_var} MATCHES "/MD")
+                string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+            endif()
+        endif ()
+    endforeach(flag_var)
 
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
@@ -396,6 +402,42 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo libmediainfo${DEBUG_SUFIX} libmediainfo)
         ENDIF(USE_MEDIAINFO)
 
+        IF(USE_FREEIMAGE OR USE_PDFIUM)
+            # both these libaries have these common dependencies
+            ImportStdVcpkgLibrary(libpng      libpng16d        libpng16       libpng16d           libpng16)
+            ImportStdVcpkgLibrary(libopenjpeg openjp2          openjp2        libopenjp2          libopenjp2         )
+        endif()
+
+        IF(USE_LIBRAW OR USE_FREEIMAGE OR USE_PDFIUM)
+            ImportStdVcpkgLibrary(liblcms        lcmsd            lcms           liblcmsd            liblcms)
+            ImportStdVcpkgLibrary(libturbojpeg   turbojpegd       turbojpeg      libturbojpeg        libturbojpeg       )
+        ENDIF()
+
+        IF(USE_LIBRAW OR USE_FREEIMAGE)
+            # we might need libraw directly (eg MEGAsync) but also freeimage needs it
+            ImportStdVcpkgLibrary(libraw         rawd             raw            librawd             libraw)
+
+            # libraw needs jasper and lcms and libjpeg-turbo (all also part of freeimage)
+            ImportStdVcpkgLibrary(libjasper      jasperd          jasper         libjasperd          libjasper)
+
+            IF(USE_LIBRAW)
+                SET(raw_deps libjasper libturbojpeg liblcms)
+
+                IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
+                    include(CheckCXXCompilerFlag)
+
+                    check_cxx_compiler_flag(-fgomp HAS_FGOMP)
+                    check_cxx_compiler_flag(-fopenmp HAS_FOPENMP)
+
+                    set(Mega_PlatformSpecificLibs
+                        ${Mega_PlatformSpecificLibs}
+                        $<$<BOOL:${HAS_FGOMP}>:-fgomp>
+                        $<$<BOOL:${HAS_FOPENMP}>:-fopenmp>)
+                ENDIF()
+            ENDIF(USE_LIBRAW)
+
+        ENDIF()
+
         IF(USE_FREEIMAGE)
             ImportStdVcpkgLibrary(freeimage             FreeImaged       FreeImage      libFreeImaged       libFreeImage       )
             ImportStdVcpkgLibrary(freeimage_Iex         Iex-2_5_d        Iex-2_5        libIex-2_5_d        libIex-2_5         )
@@ -405,16 +447,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_IlmThread   IlmThread-2_5_d  IlmThread-2_5  libIlmThread-2_5_d  libIlmThread-2_5   )
             ImportStdVcpkgLibrary(freeimage_Imath       IMath-2_5_d      IMath-2_5      libImath-2_5_d      libImath-2_5       )
             ImportStdVcpkgLibrary(freeimage_jpeg        jpegd            jpeg           libjpeg             libjpeg            )
-            ImportStdVcpkgLibrary(freeimage_turbojpeg   turbojpegd       turbojpeg      libturbojpeg        libturbojpeg       )
             ImportStdVcpkgLibrary(freeimage_jpegxr      jpegxrd          jpegxr         libjpegxrd          libjpegxr          )
             ImportStdVcpkgLibrary(freeimage_jxrglue     jxrglued         jxrglue        libjxrglued         libjxrglue         )
-            ImportStdVcpkgLibrary(freeimage_openjp2     openjp2          openjp2        libopenjp2          libopenjp2         )
             ImportStdVcpkgLibrary(freeimage_half        half-2_5_d       half-2_5       libHalf-2_5_d       libHalf-2_5        )
-            ImportStdVcpkgLibrary(freeimage_jasper      jasperd          jasper         libjasperd          libjasper          )
-            ImportStdVcpkgLibrary(freeimage_libpng      libpng16d        libpng16       libpng16d           libpng16           )
             ImportStdVcpkgLibrary(freeimage_lzma        lzmad            lzma           liblzmad            liblzma            )
-            ImportStdVcpkgLibrary(freeimage_lcms2       lcmsd            lcms           liblcmsd            liblcms            )
-            ImportStdVcpkgLibrary(freeimage_raw         rawd             raw            librawd             libraw             )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
             ImportStdVcpkgLibrary(freeimage_tiffxx      tiffxxd          tiffxx         libtiffxxd          libtiffxx          )
             ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
@@ -423,11 +459,11 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmuxd      libwebpmux     libwebpmuxd         libwebpmux         )
 
             set (freeimage_deps freeimage_Iex  freeimage_IlmImf freeimage_IlmImfUtil
-                freeimage_IlmThread freeimage_jpeg freeimage_openjp2
-                freeimage_half freeimage_libpng freeimage_lcms2 freeimage_raw freeimage_tiff
+                freeimage_IlmThread libturbojpeg libopenjpeg
+                freeimage_half libpng liblcms libraw freeimage_tiff
                 freeimage_tiffxx freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux
                 freeimage_jpeg freeimage_Imath freeimage_lzma
-                freeimage_jasper freeimage_turbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
+                libjasper libturbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
@@ -458,42 +494,14 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(pcrecpp  pcrecppd pcrecpp libpcrecpp libpcrecpp)
         ENDIF(USE_PCRE)
 
-        IF(USE_LIBRAW)
-            ImportStdVcpkgLibrary(raw                  rawd raw librawd libraw)
-            ImportStdVcpkgLibrary(raw_lcms           lcmsd lcms liblcmsd liblcms)
-
-            IF(NOT CMAKE_HOST_APPLE)
-            ImportStdVcpkgLibrary(raw_jasper           jasperd jasper libjasperd libjasper)
-            ImportStdVcpkgLibrary(raw_libjpeg_turbo    turbojpegd turbojpeg libturbojpeg libturbojpeg)
-            SET(raw_deps raw_jasper raw_libjpeg_turbo raw_lcms)
-            else()
-                SET(raw_deps  raw_lcms)
-            endif()
-
-            IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
-                include(CheckCXXCompilerFlag)
-
-                check_cxx_compiler_flag(-fgomp HAS_FGOMP)
-                check_cxx_compiler_flag(-fopenmp HAS_FOPENMP)
-
-                set(Mega_PlatformSpecificLibs
-                      ${Mega_PlatformSpecificLibs}
-                      $<$<BOOL:${HAS_FGOMP}>:-fgomp>
-                      $<$<BOOL:${HAS_FOPENMP}>:-fopenmp>)
-            ENDIF()
-
-        ENDIF(USE_LIBRAW)
-
         IF(USE_PDFIUM)
             ImportStdVcpkgLibrary(pdfium       pdfium pdfium libpdfium libpdfium)
 
+            #liblcms and libturbojpeg already added above.  also libopenjpeg
             ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
             ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
-            ImportStdVcpkgLibrary(icudt        icudtd icudt libicudt libicudt)
-            ImportStdVcpkgLibrary(lcms         lcmsd lcms liblcmsd liblcms)
-            ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg libjpeg libjpeg)
-            ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 libopenjp2 libopenjp2)
-            
+            ImportStdVcpkgLibrary(icudt        icudtd icudt libicudata libicudata)
+
             # pdfium will use bzip2 if present
             ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
 
@@ -505,7 +513,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
             ENDIF()
 
-            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu icudt lcms turbojpeg openjpeg bzip2 freeimage_libpng)
+            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu icudt liblcms libturbojpeg libopenjpeg bzip2 libpng)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
@@ -739,7 +747,7 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_SQLITE}:sqlite3>
                         $<${USE_LIBUV}:uv>
                         $<${USE_PCRE}:pcre pcrecpp>
-                        $<${USE_LIBRAW}:raw> $<${USE_LIBRAW}:${raw_deps}>
+                        $<${USE_LIBRAW}:libraw> $<${USE_LIBRAW}:${raw_deps}>
                         $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:${freeimage_deps}>
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
                         $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
@@ -799,6 +807,15 @@ if ( ENABLE_CODECOVERAGE )
 endif ( CMAKE_COMPILER_IS_GNUCXX )
 
 endif (ENABLE_CODECOVERAGE )
+
+if(IOS)
+    # build with some of these settings as required
+    # -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_Swift_COMPILER_TARGET=arm64-apple-ios7.0.0 -DCMAKE_OSX_SYSROOT=iphoneos -DVCPKG_TRIPLET=arm64-ios-mega
+    add_definitions( -DUSE_IOS )
+    include_directories( ${MegaDir}/bindings/ios/ ${MegaDir}/bindings/ios/Private )
+    add_executable(simple_ios_build_test ${MegaDir}/bindings/ios/MEGASdk.mm )
+    target_link_libraries(simple_ios_build_test Mega )
+endif()
 
 #test apps
 add_executable(test_unit

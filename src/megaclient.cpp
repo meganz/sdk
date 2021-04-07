@@ -4167,8 +4167,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mPublicLinks.clear();
     mCachedStatus.clear();
     scpaused = false;
-    mSendingBackupName = false;
-    mPendingBackupNames.clear();
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -5214,7 +5212,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
         if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
         {
-            syncs.disableSyncs(STORAGE_OVERQUOTA, true);
+            syncs.disableSyncs(STORAGE_OVERQUOTA, false);
         }
 #endif
 
@@ -5229,9 +5227,6 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         case STORAGE_PAYWALL:
         case STORAGE_RED:
             // Transition from OQ.
-#ifdef ENABLE_SYNC
-            syncs.enableResumeableSyncs();
-#endif // ENABLE_SYNC
             abortbackoff(true);
         default:
             break;
@@ -5937,7 +5932,6 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
                                     case ATTR_MY_BACKUPS_FOLDER:     // fall-through
-                                    case ATTR_BACKUP_NAMES:          // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
@@ -6891,11 +6885,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(BUSINESS_EXPIRED, true);  // do try to resume again on start
-        }
-        if (prevBizStatus == BIZ_STATUS_EXPIRED) //taransitioning to not expired
-        {
-            syncs.enableResumeableSyncs(); //BUSINESS_EXPIRED
+            syncs.disableSyncs(BUSINESS_EXPIRED, false);
         }
 #endif
     }
@@ -7028,7 +7018,7 @@ void MegaClient::notifypurge(void)
         // check for renamed/moved sync root folders
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
-            Node* n = nodebyhandle(us.mConfig.getRemoteNode());
+            Node* n = nodeByHandle(us.mConfig.getRemoteNode());
             if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
             {
                 bool removed = n->changed.removed;
@@ -11230,9 +11220,6 @@ void MegaClient::unblock()
 {
     LOG_verbose << "Unblocking MegaClient";
     setBlocked(false);
-#ifdef ENABLE_SYNC
-    syncs.enableResumeableSyncs();
-#endif
 }
 
 error MegaClient::changepw(const char* password, const char *pin)
@@ -13036,7 +13023,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
-    remotenode = nodebyhandle(syncConfig.getRemoteNode());
+    remotenode = nodeByHandle(syncConfig.getRemoteNode());
     inshare = false;
     if (!remotenode)
     {
@@ -13209,15 +13196,10 @@ void MegaClient::ensureSyncUserAttributesCompleted(Error e)
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
 {
     string deviceIdHash = getDeviceidHash();
-    string extraData; // Empty extra data for the moment, in the future, any should come in config
+    BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
 
-    reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
-                                   , config.mName.c_str(), config.getRemoteNode()
-                                   , config.getLocalPath().toPath(*fsaccess), deviceIdHash.c_str()
-                                   , BackupInfoSync::getSyncState(config, this)
-                                   , config.getError()
-                                   , extraData
-                                   , [this, config, completion](Error e, handle backupId) {
+    reqs.add( new CommandBackupPut(this, info,
+                                  [this, config, completion](Error e, handle backupId) {
         if (!e)
         {
             if (ISUNDEF(backupId))
@@ -13251,15 +13233,10 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     else // API_OK (success)
     {
         string deviceIdHash = getDeviceidHash();
-        string extraData; // Empty extra data for the moment, in the future, any should come in SyncConfig
+        BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
 
-        reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
-                                       , config.mName.c_str(), config.getRemoteNode()
-                                       , config.getLocalPath().toPath(*fsaccess).c_str(), deviceIdHash.c_str()
-                                       , BackupInfoSync::getSyncState(config, this)
-                                       , config.getError()
-                                       , extraData
-                                       , [this, config, completion, notifyApp](Error e, handle backupId) mutable {
+        reqs.add( new CommandBackupPut(this, info,
+                                      [this, config, completion, notifyApp](Error e, handle backupId) mutable {
             if (ISUNDEF(backupId) && !e)
             {
                 e = API_EFAILED;
