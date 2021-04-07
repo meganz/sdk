@@ -2451,7 +2451,7 @@ void MegaClient::exec()
             syncops = true;
         }
 
-        // sync timer: try to transition into mirroring mode.
+        // sync timer: try to transition into monitoring mode.
         if (mSyncMonitorRetry && mSyncMonitorTimer.armed())
         {
             mSyncMonitorRetry = false;
@@ -13464,7 +13464,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
     mirrorStable &= !cxt.mActionsPerformed;
 
     // Scan queue must be empty.
-    mirrorStable &= mirrorStable && l->sync->dirnotify->empty();
+    mirrorStable &= l->sync->dirnotify->empty();
 
     // Monitor if the mirror is stable.
     if (mirrorStable)
