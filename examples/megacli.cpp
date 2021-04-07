@@ -3181,7 +3181,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_chatlu, sequence(text("chatlu"), param("publichandle")));
     p->Add(exec_chatlj, sequence(text("chatlj"), param("publichandle"), param("unifiedkey")));
 #endif
-    p->Add(exec_enabletransferresumption, sequence(text("enabletransferresumption"), opt(either(text("on"), text("off")))));
     p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
@@ -6652,20 +6651,6 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
         cout << (done ? "Success. " : "Failed. ");
     }
     cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
-}
-
-void exec_enabletransferresumption(autocomplete::ACState& s)
-{
-    if (s.words.size() > 1 && s.words[1].s == "off")
-    {
-        client->disabletransferresumption(NULL);
-        cout << "transfer resumption disabled" << endl;
-    }
-    else
-    {
-        client->enabletransferresumption(NULL);
-        cout << "transfer resumption enabled" << endl;
-    }
 }
 
 // callback for non-EAGAIN request-level errors

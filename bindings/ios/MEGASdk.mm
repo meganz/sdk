@@ -1795,22 +1795,6 @@ using namespace mega;
     self.megaApi->pauseTransferByTag((int)transferTag, pause);
 }
 
-- (void)enableTransferResumption:(NSString *)loggedOutId {
-    self.megaApi->enableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
-}
-
-- (void)enableTransferResumption {
-    self.megaApi->enableTransferResumption();
-}
-
-- (void)disableTransferResumption:(NSString *)loggedOutId {
-    self.megaApi->disableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
-}
-
-- (void)disableTransferResumption {
-    self.megaApi->disableTransferResumption();
-}
-
 - (BOOL)areTransferPausedForDirection:(NSInteger)direction {
     return self.megaApi->areTransfersPaused((int)direction);
 }
