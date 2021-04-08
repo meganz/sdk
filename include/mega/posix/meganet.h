@@ -210,6 +210,8 @@ public:
     // get max upload speed
     m_off_t getmaxuploadspeed() override;
 
+    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips) override;
+
     CurlHttpIO();
     ~CurlHttpIO();
 

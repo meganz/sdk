@@ -705,6 +705,7 @@ bool CommandGetFile::procresult(Result r)
     string filenamestring;
     string filefingerprint;
     std::vector<string> tempurls;
+    std::vector<string> tempips;
 
     for (;;)
     {
@@ -734,6 +735,23 @@ bool CommandGetFile::procresult(Result r)
                 }
                 e.setErrorCode(API_OK);
                 break;
+
+        case MAKENAMEID2('i', 'p'):
+            if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+            {
+                for (;;)
+                {
+                    std::string ti;
+                    if (!client->json.storeobject(&ti))
+                    {
+                        break;
+                    }
+                    tempips.push_back(ti);
+                }
+                client->json.leavearray();
+            }
+            e.setErrorCode(API_OK);
+            break;
 
             case 's':
                 s = client->json.getint();
@@ -801,6 +819,9 @@ bool CommandGetFile::procresult(Result r)
                 }
                 else
                 {
+                    // cache resolved URLs if received
+                    client->httpio->cacheresolvedurls(tempurls, move(tempips));
+
                     // decrypt at and set filename
                     SymmCipher key;
                     const char* eos = strchr(at, '"');
