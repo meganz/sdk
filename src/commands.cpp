@@ -1862,6 +1862,7 @@ bool CommandLogin::procresult(Result r)
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
+                client->openStatusTable(true);
                 client->app->login_result(API_OK);
                 return true;
 
@@ -5148,6 +5149,7 @@ bool CommandResumeEphemeralSession::procresult(Result r)
                 client->me = uh;
                 client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
 
+                client->openStatusTable(true);
                 client->app->ephemeral_result(uh, pw);
                 return true;
 
@@ -5543,7 +5545,6 @@ bool CommandFetchNodes::procresult(Result r)
 
                 client->mergenewshares(0);
                 client->applykeys();
-                client->initStatusTable();
                 client->initsc();
                 client->pendingsccommit = false;
                 client->fetchnodestag = tag;

@@ -5530,23 +5530,6 @@ bool MegaApiImpl::isBusinessAccountActive()
 
 int MegaApiImpl::getBusinessStatus()
 {
-    m_time_t now = m_time(nullptr);
-
-    // Check if current status has expired (based on ts of transition) and update status
-
-    BizStatus newBizStatus = client->mBizStatus;
-    if (client->mBizExpirationTs && client->mBizExpirationTs < now)
-    {
-        newBizStatus = BIZ_STATUS_EXPIRED;
-
-    }
-    else if (client->mBizGracePeriodTs && client->mBizGracePeriodTs < now)
-    {
-        newBizStatus = BIZ_STATUS_GRACE_PERIOD;
-    }
-
-    client->setBusinessStatus(newBizStatus);
-
     // Prevent return apps unknown status
     return (client->mBizStatus == BIZ_STATUS_UNKNOWN)
             ? BIZ_STATUS_INACTIVE
@@ -19884,12 +19867,6 @@ void MegaApiImpl::sendPendingRequests()
                     client->cachedscsn = UNDEF;
                 }
 
-                if (client->statusTable)
-                {
-                    client->statusTable->remove();
-                    client->statusTable.reset();
-                }
-
                 nocache = false;
             }
 
@@ -21760,13 +21737,13 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (value == 999)
                 {
-                    LOG_verbose << "Ignoring not valid status in migration: " << type << " = " << value;
+                    LOG_verbose << "Ignoring not valid status in migration: " << CacheableStatus::typeToStr(type) << " = " << value;
                     return API_OK; //received invalid value: not to be used
                 }
 
                 if (int64_t oldValue = client->mCachedStatus.lookup(type, 999) != 999)
                 {
-                    LOG_verbose << "Ignoring already present status in migration: " << type << " = " << value
+                    LOG_verbose << "Ignoring already present status in migration: " << CacheableStatus::typeToStr(type) << " = " << value
                                 << " existing = " << oldValue;
                     return API_OK;
                 }
