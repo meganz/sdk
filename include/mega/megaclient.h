@@ -1227,6 +1227,7 @@ public:
     void updatesc();
     void finalizesc(bool);
 
+    // truncates status table
     void initStatusTable();
 
     // flag to pause / resume the processing of action packets
