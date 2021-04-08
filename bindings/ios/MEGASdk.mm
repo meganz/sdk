@@ -591,12 +591,12 @@ using namespace mega;
 
 - (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
     [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
-    self.megaApi->logout(false, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->logout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)logout {
     [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
-    self.megaApi->logout(false, NULL);
+    self.megaApi->logout(NULL);
 }
 
 - (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
