@@ -750,7 +750,6 @@ bool CommandGetFile::procresult(Result r)
                 }
                 client->json.leavearray();
             }
-            e.setErrorCode(API_OK);
             break;
 
             case 's':
