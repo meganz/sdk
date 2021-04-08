@@ -2393,8 +2393,6 @@ class MegaApiImpl : public MegaApp
         void moveTransferToFirst(int transferTag, MegaRequestListener *listener = NULL);
         void moveTransferToLast(int transferTag, MegaRequestListener *listener = NULL);
         void moveTransferBefore(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
-        void enableTransferResumption(const char* loggedOutId);
-        void disableTransferResumption(const char* loggedOutId);
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);

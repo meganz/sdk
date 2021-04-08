@@ -372,7 +372,6 @@ void exec_chatl(autocomplete::ACState& s);
 void exec_chatsm(autocomplete::ACState& s);
 void exec_chatlu(autocomplete::ACState& s);
 void exec_chatlj(autocomplete::ACState& s);
-void exec_enabletransferresumption(autocomplete::ACState& s);
 void exec_setmaxdownloadspeed(autocomplete::ACState& s);
 void exec_setmaxuploadspeed(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);

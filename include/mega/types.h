@@ -856,7 +856,7 @@ public:
         STATUS_PRO_LEVEL = 4,
     };
 
-    CacheableStatus(int64_t type, int64_t value);
+    CacheableStatus(Type type, int64_t value);
 
     // serializes the object to a string
     bool serialize(string* data) override;
@@ -864,17 +864,20 @@ public:
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
     static CacheableStatus* unserialize(MegaClient *client, const std::string& data);
-    int64_t type() const;
+    Type type() const;
     int64_t value() const;
 
     void setValue(const int64_t value);
+
+    string typeToStr();
+    static string typeToStr(Type type);
 
 private:
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
-    int64_t mType = STATUS_UNKNOWN;
+    Type mType = STATUS_UNKNOWN;
     int64_t mValue = 0;
 
 };

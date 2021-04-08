@@ -1328,9 +1328,6 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     LocalNode* parent;
     string path;           // UTF-8 representation of tmppath
     LocalPath tmppath;     // full path represented by l + localpath
-    LocalPath newname;     // portion of tmppath not covered by the existing
-                           // LocalNode structure (always the last path component
-                           // that does not have a corresponding LocalNode yet)
 
     if (localname)
     {
@@ -1355,8 +1352,21 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             tmppath.appendWithSeparator(*input_localpath, false);
         }
 
-        // look up deepest existing LocalNode by path, store remainder (if any)
-        // in newname
+        string name = tmppath.leafName().toPath(*client->fsaccess);
+        path = tmppath.toPath(*client->fsaccess);
+
+        if (!client->app->sync_syncable(this, name.c_str(), tmppath))
+        {
+            LOG_debug << "Excluded: " << path;
+            return NULL;
+        }
+
+        // look up deepest existing LocalNode by path, store remainder (if any) in newname
+
+        LocalPath newname;     // portion of tmppath not covered by the existing
+                               // LocalNode structure (always the last path component
+                               // that does not have a corresponding LocalNode yet)
+
         LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &newname);
         size_t index = 0;
 
@@ -1365,29 +1375,19 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             LOG_warn << "Parent not detected yet. Unknown remainder: " << newname.toPath(*client->fsaccess);
             if (parent)
             {
-                LocalPath notifyPath = parent->getLocalPath();
-                notifyPath.appendWithSeparator(newname.subpathTo(index), true);
-                dirnotify->notify(DirNotify::DIREVENTS, l, std::move(notifyPath), true);
+                // Passing immediate == false, so that if we are being called from DIREVENTS,
+                // we will break the loop rather than always being called back for the item we just pushed
+                dirnotify->notify(DirNotify::DIREVENTS, parent, LocalPath(newname), false);
             }
             return NULL;
         }
 
         l = tmp;
 
-        path = tmppath.toPath(*client->fsaccess);
-
         // path invalid?
-        if ( ( !l && newname.empty() ) || !path.size())
+        if ((!l && newname.empty()) || !path.size())
         {
             LOG_warn << "Invalid path: " << path;
-            return NULL;
-        }
-
-        string name = !newname.empty() ? newname.toName(*client->fsaccess, mFilesystemType) : l->name;
-
-        if (!client->app->sync_syncable(this, name.c_str(), tmppath))
-        {
-            LOG_debug << "Excluded: " << path;
             return NULL;
         }
 

@@ -9506,10 +9506,6 @@ class MegaApi
         /**
          * @brief Check if the account is a business account.
          *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
-         *
          * @return returns true if it's a business account, otherwise false
          */
         bool isBusinessAccount();
@@ -9524,10 +9520,6 @@ class MegaApi
          *  - MegaApi::changeEmail
          *  - MegaApi::remove
          *  - MegaApi::removeVersion
-         *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
          *
          * @return returns true if it's a master account, false if it's a sub-user account
          */
@@ -9545,20 +9537,12 @@ class MegaApi
          *  - MegaApi::share
          *  - MegaApi::cleanRubbishBin
          *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
-         *
          * @return returns true if the account is active, otherwise false
          */
         bool isBusinessAccountActive();
 
         /**
          * @brief Get the status of a business account.
-         *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
          *
          * @return Returns the business account status, possible values:
          *      MegaApi::BUSINESS_STATUS_EXPIRED = -1
@@ -13019,50 +13003,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void pauseTransferByTag(int transferTag, bool pause, MegaRequestListener* listener = NULL);
-
-        /**
-         * @brief Enable the resumption of transfers
-         *
-         * This function enables the cache of transfers, so they can be resumed later.
-         * Additionally, if a previous cache already exists (from previous executions),
-         * then this function also resumes the existing cached transfers.
-         *
-         * @note Cached uploads expire after 24 hours since the last time they were active.
-         * @note Cached transfers related to files that have been modified since they were
-         * added to the cache are discarded, since the file has changed.
-         *
-         * A log in or a log out automatically disables this feature.
-         *
-         * When the MegaApi object is logged in, the cache of transfers is identified
-         * and protected using the session and the master key, so transfers won't
-         * be resumable using a different session or a different account. The
-         * recommended way of using this function to resume transfers for an account
-         * is calling it in the callback onRequestFinish related to MegaApi::fetchNodes
-         *
-         * When the MegaApi object is not logged in, it's still possible to use this
-         * feature. However, since there isn't any available data to identify
-         * and protect the cache, a default identifier and key are used. To improve
-         * the protection of the transfer cache and allow the usage of this feature
-         * with several non logged in instances of MegaApi at once without clashes,
-         * it's possible to set a custom identifier for the transfer cache in the
-         * optional parameter of this function. If that parameter is used, the
-         * encryption key for the transfer cache will be derived from it.
-         *
-         * @param loggedOutId Identifier for a non logged in instance of MegaApi.
-         * It doesn't have any effect if MegaApi is logged in.
-         */
-        void enableTransferResumption(const char* loggedOutId = NULL);
-
-        /**
-         * @brief Disable the resumption of transfers
-         *
-         * This function disables the resumption of transfers and also deletes
-         * the transfer cache if it exists. See also MegaApi.enableTransferResumption.
-         *
-         * @param loggedOutId Identifier for a non logged in instance of MegaApi.
-         * It doesn't have any effect if MegaApi is logged in.
-         */
-        void disableTransferResumption(const char* loggedOutId = NULL);
 
         /**
          * @brief Returns the state (paused/unpaused) of transfers

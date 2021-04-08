@@ -911,16 +911,16 @@ public:
         CacheableStatusMap(MegaClient *client) { mClient = client; }
 
         // returns the cached value for type, or defaultValue if not found
-        int64_t lookup(int64_t type, int64_t defaultValue);
+        int64_t lookup(CacheableStatus::Type type, int64_t defaultValue);
 
         // add/update cached status, both in memory and DB
-        bool addOrUpdate(int64_t type, int64_t value);
+        bool addOrUpdate(CacheableStatus::Type type, int64_t value);
 
         // adds a new item to the map. It also initializes dedicated vars in the client (used to load from DB)
-        void loadCachedStatus(int64_t type, int64_t value);
+        void loadCachedStatus(CacheableStatus::Type type, int64_t value);
 
         // for unserialize
-        CacheableStatus *getPtr(int64_t type);
+        CacheableStatus *getPtr(CacheableStatus::Type type);
 
         void clear() { map::clear(); }
 
@@ -1067,6 +1067,9 @@ private:
 
     // fetch statusTable from local cache
     bool fetchStatusTable(DbTable*);
+
+    // open/create status database table
+    void doOpenStatusTable();
 
     // remove old (2 days or more) transfers from cache, if they were not resumed
     void purgeOrphanTransfers(bool remove = false);
@@ -1221,14 +1224,16 @@ public:
     // open/create state cache database table
     void opensctable();
 
-    // open/create status database table
-    void openStatusTable();
+    // opens (or creates if non existing) a status database table.
+    //   if loadFromCache is true, it will load status from the table.
+    void openStatusTable(bool loadFromCache);
 
     // initialize/update state cache referenced sctable
     void initsc();
     void updatesc();
     void finalizesc(bool);
 
+    // truncates status table
     void initStatusTable();
 
     // flag to pause / resume the processing of action packets
@@ -1836,9 +1841,6 @@ public:
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
-    // indicates that the last update to mBizStatus comes from cache.
-    // Used to notify the apps in the very first non-cache update. For backwards compatibility.
-    bool mBizStatusLoadedFromCache = false;
 
     // list of handles of the Master business account/s
     std::set<handle> mBizMasters;
