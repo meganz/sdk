@@ -1607,7 +1607,7 @@ void CurlHttpIO::request_proxy_ip()
 #endif
 }
 
-bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* port)
+bool CurlHttpIO::crackurl(const string* url, string* scheme, string* hostname, int* port)
 {
     if (!url || !url->size() || !scheme || !hostname || !port)
     {
