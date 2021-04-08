@@ -1,0 +1,21 @@
+diff --git a/portfile.cmake b/portfile.cmake
+index e2d8323..06ef952 100644
+--- a/portfile.cmake
++++ b/portfile.cmake
+@@ -23,6 +23,15 @@ vcpkg_configure_cmake(
+     PREFER_NINJA
+     OPTIONS
+         -DBUILD_TESTING=OFF
++        -DHAVE_INLINE_ASM_EXITCODE=0
++        -DHAVE_INLINE_ASM_EXITCODE__TRYRUN_OUTPUT="success"
++        -DHAVE_WEAK_SYMBOLS_EXITCODE=0
++        -DHAVE_WEAK_SYMBOLS_EXITCODE__TRYRUN_OUTPUT="success"
++        -DHAVE_ATOMIC_OPS_EXITCODE=0
++        -DHAVE_ATOMIC_OPS_EXITCODE__TRYRUN_OUTPUT="success"
++        -DSTDC_LIMIT_MACROS_REQUIRED_EXITCODE=0
++        -DSTDC_LIMIT_MACROS_REQUIRED_EXITCODE__TRYRUN_OUTPUT="success"
++
+ )
+
+ vcpkg_install_cmake()
+

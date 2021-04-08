@@ -333,7 +333,7 @@ struct MEGA_API MegaApp
     virtual void syncs_disabled(SyncError) { }
 
     // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted) { }
+    virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted, bool hadAnError) { }
 
     // after a sync has been removed
     virtual void sync_removed(handle backupId) { }
@@ -413,7 +413,6 @@ struct MEGA_API MegaApp
     virtual void getmiscflags_result(error) { }
 
     virtual void backupput_result(const Error&, handle /*backup id*/) { }
-    virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
     virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual void getbanners_result(error) { }

@@ -216,7 +216,7 @@ struct DemoApp : public MegaApp
 #ifdef ENABLE_SYNC
     void syncupdate_stateconfig(handle backupId) override;
     void syncupdate_active(handle backupId, bool active) override;
-    void sync_auto_resume_result(const UnifiedSync&, bool attempted) override;
+    void sync_auto_resume_result(const UnifiedSync&, bool attempted, bool hadAnError) override;
     void sync_removed(handle backupId) override;
 
     void syncupdate_scanning(bool) override;
@@ -372,7 +372,6 @@ void exec_chatl(autocomplete::ACState& s);
 void exec_chatsm(autocomplete::ACState& s);
 void exec_chatlu(autocomplete::ACState& s);
 void exec_chatlj(autocomplete::ACState& s);
-void exec_enabletransferresumption(autocomplete::ACState& s);
 void exec_setmaxdownloadspeed(autocomplete::ACState& s);
 void exec_setmaxuploadspeed(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);
