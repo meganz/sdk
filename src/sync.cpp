@@ -494,7 +494,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 SyncConfig::SyncConfig(LocalPath localPath,
                        std::string name,
-                       const handle remoteNode,
+                       NodeHandle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
@@ -553,12 +553,12 @@ const LocalPath& SyncConfig::getLocalPath() const
     return mLocalPath;
 }
 
-handle SyncConfig::getRemoteNode() const
+NodeHandle SyncConfig::getRemoteNode() const
 {
     return mRemoteNode;
 }
 
-void SyncConfig::setRemoteNode(const handle &remoteNode)
+void SyncConfig::setRemoteNode(NodeHandle remoteNode)
 {
     mRemoteNode = remoteNode;
 }
@@ -2137,15 +2137,15 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
         if (mConfig.getRemoteNode() != n->nodehandle)
         {
-            mConfig.setRemoteNode(n->nodehandle);
+            mConfig.setRemoteNode(NodeHandle().set6byte(n->nodehandle));
             changed = true;
         }
     }
     else //unset remote node: failed!
     {
-        if (mConfig.getRemoteNode() != UNDEF)
+        if (!mConfig.getRemoteNode().isUndef())
         {
-            mConfig.setRemoteNode(UNDEF);
+            mConfig.setRemoteNode(NodeHandle());
             changed = true;
         }
     }
@@ -2596,7 +2596,7 @@ unsigned Syncs::numRunningSyncs()
 
 unsigned Syncs::numSyncs()
 {
-    return mSyncVec.size();
+    return unsigned(mSyncVec.size());
 }
 
 Sync* Syncs::firstRunningSync()
@@ -2693,35 +2693,6 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
 
 void Syncs::purgeSyncs()
 {
-    if (mSyncVec.empty())
-    {
-        return;
-    }
-
-    // accumulate all changes for *!bn to update it in one shoot
-    set<string> backupIds;
-    for (auto &it : mSyncVec)
-    {
-        backupIds.insert(string(Base64Str<MegaClient::BACKUPHANDLE>(it->mConfig.getBackupId())));
-    }
-    attr_t attrType = ATTR_BACKUP_NAMES;
-    User *ownUser = mClient.finduser(mClient.me);
-    const std::string *oldValue = ownUser->getattr(attrType);
-    if (oldValue && ownUser->isattrvalid(attrType))
-    {
-        std::unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(oldValue, &mClient.key));
-        for (auto &backupId : backupIds) tlv->reset(backupId);
-
-        // serialize and encrypt the TLV container
-        std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(mClient.rng, &mClient.key));
-        mClient.putua(attrType, (byte *)container->data(), unsigned(container->size()));
-    }
-    else
-    {
-        assert(false);
-        LOG_err << "Backup names not available upon purge syncs";
-    }
-
     // finally, remove all syncs as usual, unregistering (removeSyncByIndex())
     removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
 }
@@ -2862,7 +2833,7 @@ void Syncs::resumeResumableSyncsOnStartup()
         {
             if (unifiedSync->mConfig.mOrigninalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
             {
-                auto node = mClient.nodebyhandle(unifiedSync->mConfig.getRemoteNode());
+                auto node = mClient.nodeByHandle(unifiedSync->mConfig.getRemoteNode());
                 unifiedSync->updateSyncRemoteLocation(node, false); //updates cache & notice app of this change
                 if (node)
                 {
@@ -2871,8 +2842,18 @@ void Syncs::resumeResumableSyncsOnStartup()
                 }
             }
 
+            bool hadAnError = unifiedSync->mConfig.getError() != NO_SYNC_ERROR;
+
             if (unifiedSync->mConfig.getEnabled())
             {
+                // Right now, syncs are disabled upon all errors but, after sync-rework, syncs
+                // could be kept as enabled but failed due to a temporary/recoverable error and
+                // the SDK may auto-resume them if the error condition vanishes
+                // (ie. an expired business account automatically disable syncs, but once
+                // the user has paid, we may auto-resume).
+                // TODO: remove assertion if it no longer applies:
+                assert(!hadAnError);
+
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
@@ -2881,12 +2862,12 @@ void Syncs::resumeResumableSyncsOnStartup()
                 unifiedSync->enableSync(false, false);
                 LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
-                mClient.app->sync_auto_resume_result(*unifiedSync, true);
+                mClient.app->sync_auto_resume_result(*unifiedSync, true, hadAnError);
             }
             else
             {
                 LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
-                mClient.app->sync_auto_resume_result(*unifiedSync, false);
+                mClient.app->sync_auto_resume_result(*unifiedSync, false, hadAnError);
             }
         }
     }
@@ -2995,9 +2976,9 @@ const SyncConfig* JSONSyncConfigDB::getByBackupId(handle backupId) const
     return nullptr;
 }
 
-const SyncConfig* JSONSyncConfigDB::getByRootHandle(handle targetHandle) const
+const SyncConfig* JSONSyncConfigDB::getByRootHandle(NodeHandle targetHandle) const
 {
-    if (targetHandle == UNDEF)
+    if (targetHandle.isUndef())
     {
         return nullptr;
     }
@@ -3051,7 +3032,7 @@ error JSONSyncConfigDB::removeByBackupId(handle backupId)
     return removeByBackupId(backupId, true);
 }
 
-error JSONSyncConfigDB::removeByRootHandle(const handle targetHandle)
+error JSONSyncConfigDB::removeByRootHandle(NodeHandle targetHandle)
 {
     // Any config present with the given target handle?
     if (const auto* config = getByRootHandle(targetHandle))
@@ -3666,12 +3647,7 @@ bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) cons
             break;
 
         case TYPE_TARGET_HANDLE:
-            config.mRemoteNode = reader.gethandle(MegaClient::NODEHANDLE);
-            if ((config.mRemoteNode & 0xFFFFFFFFFFFF) == (UNDEF & 0xFFFFFFFFFFFF))
-            {
-                // we can have a much nicer solution when NodeHandle is merged from the sync rework branch
-                config.mRemoteNode = UNDEF;
-            }
+            config.mRemoteNode = reader.getNodeHandle();
             break;
 
         case TYPE_TARGET_PATH:
@@ -3737,7 +3713,7 @@ void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
-    writer.arg("th", config.mRemoteNode, MegaClient::NODEHANDLE);
+    writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
     writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);

@@ -49,11 +49,22 @@ string toNodeHandle(NodeHandle nodeHandle)
 {
     return toNodeHandle(nodeHandle.as8byte());
 }
+
 string toHandle(handle h)
 {
     char base64Handle[14];
     Base64::btoa((byte*)&(h), sizeof h, base64Handle);
     return string(base64Handle);
+}
+
+std::ostream& operator<<(std::ostream& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
 }
 
 string backupTypeToStr(BackupType type)
@@ -2466,6 +2477,34 @@ void MegaClientAsyncQueue::asyncThreadLoop()
 bool islchex(const int c)
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+}
+
+std::string getSafeUrl(const std::string &posturl)
+{
+    string safeurl = posturl;
+    size_t sid = safeurl.find("sid=");
+    if (sid != string::npos)
+    {
+        sid += 4;
+        size_t end = safeurl.find("&", sid);
+        if (end == string::npos)
+        {
+            end = safeurl.size();
+        }
+        memset((char *)safeurl.data() + sid, 'X', end - sid);
+    }
+    size_t authKey = safeurl.find("n=");
+    if (authKey != string::npos)
+    {
+        authKey += 2/*n=*/ + 8/*public handle*/;
+        size_t end = safeurl.find("&", authKey);
+        if (end == string::npos)
+        {
+            end = safeurl.size();
+        }
+        memset((char *)safeurl.data() + authKey, 'X', end - authKey);
+    }
+    return safeurl;
 }
 
 } // namespace
