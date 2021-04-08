@@ -591,12 +591,12 @@ using namespace mega;
 
 - (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
     [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
-    self.megaApi->logout(false, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->logout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)logout {
     [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
-    self.megaApi->logout(false, NULL);
+    self.megaApi->logout(NULL);
 }
 
 - (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
@@ -1793,22 +1793,6 @@ using namespace mega;
 
 - (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause {
     self.megaApi->pauseTransferByTag((int)transferTag, pause);
-}
-
-- (void)enableTransferResumption:(NSString *)loggedOutId {
-    self.megaApi->enableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
-}
-
-- (void)enableTransferResumption {
-    self.megaApi->enableTransferResumption();
-}
-
-- (void)disableTransferResumption:(NSString *)loggedOutId {
-    self.megaApi->disableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
-}
-
-- (void)disableTransferResumption {
-    self.megaApi->disableTransferResumption();
 }
 
 - (BOOL)areTransferPausedForDirection:(NSInteger)direction {

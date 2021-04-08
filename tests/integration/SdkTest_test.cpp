@@ -536,13 +536,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 
-    case MegaRequest::TYPE_FETCH_NODES:
-        if (apiIndex == 0)
-        {
-            megaApi[0]->enableTransferResumption();
-        }
-        break;
-
     case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
         if (mApi[apiIndex].lastError == API_OK)
         {
