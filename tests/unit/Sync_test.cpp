@@ -1997,7 +1997,7 @@ TEST_F(JSONSyncConfigDBTest, AddWithTarget)
     EXPECT_EQ(*c, config);
 
     // Has a config been added?
-    EXPECT_EQ(configDB.configs().size(), 1);
+    EXPECT_EQ(configDB.configs().size(), 1u);
 
     // Is the database dirty?
     EXPECT_TRUE(configDB.dirty());
@@ -2029,7 +2029,7 @@ TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
     EXPECT_EQ(*c, config);
 
     // Has a config been added?
-    EXPECT_EQ(configDB.configs().size(), 1);
+    EXPECT_EQ(configDB.configs().size(), 1u);
 
     // Is the database dirty?
     EXPECT_TRUE(configDB.dirty());
@@ -2063,7 +2063,7 @@ TEST_F(JSONSyncConfigDBTest, Clear)
     EXPECT_NE(configDB.add(configB, false), nullptr);
 
     // Verify configs have been added.
-    EXPECT_EQ(configDB.configs().size(), 2);
+    EXPECT_EQ(configDB.configs().size(), 2u);
 
     // Database shouldn't be dirty.
     EXPECT_FALSE(configDB.dirty());
