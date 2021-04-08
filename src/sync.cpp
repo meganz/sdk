@@ -1267,6 +1267,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
         }
 
         string name = tmppath.leafName().toPath(*client->fsaccess);
+        path = tmppath.toPath(*client->fsaccess);
 
         if (!client->app->sync_syncable(this, name.c_str(), tmppath))
         {
@@ -1296,8 +1297,6 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
         }
 
         l = tmp;
-
-        path = tmppath.toPath(*client->fsaccess);
 
         // path invalid?
         if ((!l && newname.empty()) || !path.size())
