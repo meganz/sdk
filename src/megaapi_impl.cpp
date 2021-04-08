@@ -1297,6 +1297,12 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& loc
 
         for (unsigned int i = 0; i < excludedPaths.size(); i++)
         {
+            auto ex = LocalPath::fromPath(excludedPaths[i], *client->fsaccess);
+            if (ex.isContainingPathOf(localpath))
+            {
+                return false;
+            }
+
             if (WildcardMatch(utf8path.c_str(), excludedPaths[i].c_str()))
             {
                 return false;
