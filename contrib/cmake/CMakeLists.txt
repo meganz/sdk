@@ -12,6 +12,7 @@
 
 # check the ./build3rdParty.cmd script in this folder for how to (relatively) easily build the dependencies, typically in a 3rdParty folder outside of the SDK repo.
 
+
 if (WIN32)
 cmake_minimum_required(VERSION 3.15)
 cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
@@ -66,6 +67,7 @@ option(USE_THIRDPARTY_FROM_VCPKG
 ${WIN32})
 
 message(STATUS " Using 3rd party from vcpkg = ${USE_THIRDPARTY_FROM_VCPKG}")
+message(STATUS " CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
 
 if (WIN32)
     set (NO_READLINE 1 CACHE STRING "")
@@ -75,9 +77,11 @@ if (WIN32)
             SET (WebRtcDir "${Mega3rdPartyDir}/libwebrtc/build32debug")
         ENDIF()
     ENDIF()
-else(WIN32)
+elseif(IOS)
+    set(NO_READLINE 1)
+else()
     set(NO_READLINE 0)
-endif(WIN32)
+endif()
 
 if (USE_WEBRTC)
     if ("${WebRtcDir}" STREQUAL "")

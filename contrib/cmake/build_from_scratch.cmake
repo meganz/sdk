@@ -79,6 +79,7 @@ set(_3rdparty_tool_common_args
     --ports "${_script_cwd}/preferred-ports-sdk.txt"
     --triplet ${_triplet}
     --sdkroot ${_sdk_dir}
+    --platform ios
 )
 
 execute_checked_command(
@@ -176,6 +177,10 @@ else()
                 ${_common_cmake_args}
                 -B ${_build_dir}
                 "-DCMAKE_BUILD_TYPE=${_config}"
+                "-DCMAKE_SYSTEM_NAME=iOS"
+                "-DCMAKE_SYSTEM_VERSION=13.0"
+                "-DCMAKE_SYSTEM_ARCHITECTURES=arm64"
+                "-DNO_READLINE=1"
         )
 
         execute_checked_command(

@@ -37,7 +37,7 @@ enum class Platform {
     platform_linux,
 };
 
-constexpr Platform buildPlatform =
+Platform buildPlatform =
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 Platform::platform_windows
 #elif __APPLE__
@@ -195,9 +195,10 @@ try
                 #endif
             }
         }
+        return 0;
     }
 
-    return 0;
+    return 1;
 }
 catch (exception& e)
 {
@@ -234,6 +235,18 @@ string platformToString(Platform p)
         throw std::logic_error("Unhandled platform enumerator");
     }
 }
+
+Platform stringToPlatform(string s)
+{
+cout << "checking platform " << s;
+        if (s == "windows") return Platform::platform_windows;
+        if (s == "osx") return Platform::platform_osx;
+        if (s == "ios") return Platform::platform_ios;
+        if (s == "linux") return Platform::platform_linux;
+        throw std::logic_error("Unhandled platform enumerator");
+        return Platform::platform_linux;
+}
+
 
 void execute(string command)
 {
@@ -294,6 +307,11 @@ bool readCommandLine(int argc, char* argv[])
         {
             build = true;
         }
+        else if (std::string(*it) == "--platform")
+        {
+            if (++it == myargv1.end()) return showSyntax();
+            buildPlatform = stringToPlatform(*it);
+        }
         else
         {
             myargv2.push_back(*it);
@@ -333,31 +351,24 @@ bool readCommandLine(int argc, char* argv[])
         while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
         if (s.empty()) continue;
 
-        fs::path patchFile;
+        vector<string> platformExpressions = split(s, ' ');
+cout << "split: ";
+for (auto s : platformExpressions) cout << " '" << s << "'";
+cout << endl;
+        if (platformExpressions.empty()) continue;
+
+        s = platformExpressions.front();
+        platformExpressions.erase(platformExpressions.begin());
 
         // check if we have include/exclude or patch expressions for this platform
-        if (s.find(" ") != string::npos)
+        fs::path patchFile = "";
         {
-           vector<string> platformExpressions = split(s.substr(s.find(" ") + 1), ' ');
-
            bool shouldBuild = true;
 
            for (const string& rawExpr : platformExpressions)
            {
+cout << "considering " << rawExpr << endl;
                vector<string> expr = split(rawExpr, ':');
-
-               // Allow specifying a patchfile alone to have it apply to all platforms
-               if (expr.size() == 1)
-               {
-                   if (fs::path(expr[0]).extension() == ".patch")
-                   {
-                       patchFile = expr[0];
-                       continue;
-                   }
-
-                   cout << "Platform expression must be colon-delimited or specify single patch file\n";
-                   exit(1);
-               }
 
                if (expr.size() != 2)
                {
@@ -366,26 +377,31 @@ bool readCommandLine(int argc, char* argv[])
                }
 
                const string& exprPlatform = expr[0];
-
+               const string& exprArg = expr[1];
 
                if (exprPlatform != "all" && exprPlatform != platformToString(buildPlatform)) continue;
 
-               const string& exprArg = expr[1];
-
-               if (exprArg == "on") shouldBuild = true;
-               else if (exprArg == "off") shouldBuild = false;
-               else if (fs::path(exprArg).extension() == ".patch") patchFile = exprArg;
-               else
+               if (exprArg == "on") {
+                  shouldBuild = true;
+cout << "build" << endl;
+}
+               else if (exprArg == "off") {
+cout << "don't build" << endl; 
+shouldBuild = false;
+}
+               else if (fs::path(expr[1]).extension() != ".patch")
                {
-                   cout << "Argument of platform expr must be 'on', 'off', or 'filename.patch', got '" << exprArg << "'\n";
+                   cout << "Not a patch file: " << expr[1] << " for " << s << endl;
                    exit(1);
+               }  
+               else {
+                   patchFile = exprArg;
+                   shouldBuild = true;
+cout << "build with patch " << patchFile << endl;
                }
            }
 
            if (!shouldBuild) continue;
-
-           // now trim the platform expressions so we can ignore them going forward
-           s = s.substr(0, s.find(" "));
        }
 
         // extract port/version map
@@ -393,7 +409,7 @@ bool readCommandLine(int argc, char* argv[])
         if (slashpos == string::npos)
         {
             cout << "bad port: " << s << endl;
-            return 1;
+            exit(1);
         }
         string portname = s.substr(0, slashpos);
         string portversion = s.substr(slashpos + 1);
