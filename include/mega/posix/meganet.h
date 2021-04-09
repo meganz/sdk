@@ -29,7 +29,10 @@
 #endif
 
 #include <curl/curl.h>
+
+#ifdef MEGA_USE_C_ARES
 #include <ares.h>
+#endif
 
 namespace mega {
 
@@ -88,7 +91,9 @@ protected:
     CURLM* curlm[3];
 
     CURLSH* curlsh;
+#ifdef MEGA_USE_C_ARES
     ares_channel ares;
+#endif
     string proxyurl;
     string proxyscheme;
     string proxyhost;
@@ -98,11 +103,15 @@ protected:
     string proxypassword;
     int proxyinflight;
     dstime ipv6deactivationtime;
+#ifdef MEGA_USE_C_ARES
     dstime lastdnspurge;
+#endif
     bool ipv6proxyenabled;
     bool ipv6requestsenabled;
     std::queue<CurlHttpContext *> pendingrequests;
+#ifdef MEGA_USE_C_ARES
     std::map<string, CurlDNSEntry> dnscache;
+#endif
     int pkpErrors;
 
     void send_pending_requests();
@@ -143,35 +152,45 @@ protected:
     static int cert_verify_callback(X509_STORE_CTX*, void*);
 #endif
 
+#ifdef MEGA_USE_C_ARES
     static void proxy_ready_callback(void*, int, int, struct hostent*);
     static void ares_completed_callback(void*, int, int, struct hostent*);
+#endif
+
     static void send_request(CurlHttpContext*);
     void request_proxy_ip();
     static struct curl_slist* clone_curl_slist(struct curl_slist*);
     static bool crackurl(string*, string*, string*, int*);
     static int debug_callback(CURL*, curl_infotype, char*, size_t, void*);
     bool ipv6available();
+#ifdef MEGA_USE_C_ARES
     void filterDNSservers();
+#endif
 
     bool curlipv6;
     bool reset;
     bool statechange;
     bool dnsok;
+#ifdef MEGA_USE_C_ARES
     string dnsservers;
+#endif
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
     WAIT_CLASS* waiter;
     bool disconnecting;
 
+#ifdef MEGA_USE_C_ARES
     void addaresevents(Waiter *waiter);
+    void closearesevents();
+    void processaresevents();
+    SockInfoMap aressockets;
+    m_time_t arestimeout;
+#endif
     void addcurlevents(Waiter *waiter, direction_t d);
     int checkevents(Waiter*) override;
-    void closearesevents();
     void closecurlevents(direction_t d);
-    void processaresevents();
     void processcurlevents(direction_t d);
     typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
-    SockInfoMap aressockets;
     SockInfoMap curlsockets[3];
     m_time_t curltimeoutreset[3];
     bool arerequestspaused[3];
@@ -180,7 +199,6 @@ protected:
     m_off_t partialdata[2];
     m_off_t maxspeed[2];
     bool curlsocketsprocessed;
-    m_time_t arestimeout;
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0) override;
@@ -195,7 +213,9 @@ public:
 
     void setuseragent(string*) override;
     void setproxy(Proxy*);
+#ifdef MEGA_USE_C_ARES
     void setdnsservers(const char*);
+#endif
     void disconnect() override;
 
     // set max download speed
@@ -246,9 +266,12 @@ struct MEGA_API CurlHttpContext
     string posturl;
     unsigned len;
     const char* data;
+#ifdef MEGA_USE_C_ARES
     int ares_pending;
+#endif
 };
 
+#ifdef MEGA_USE_C_ARES
 struct MEGA_API CurlDNSEntry
 {
     CurlDNSEntry();
@@ -262,6 +285,7 @@ struct MEGA_API CurlDNSEntry
 
     bool mNeedsResolvingAgain = false;
 };
+#endif
 
 } // namespace
 

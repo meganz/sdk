@@ -20598,11 +20598,13 @@ void MegaApiImpl::sendPendingRequests()
                     servers = dnsservers;
                 }
 #ifndef __MINGW32__
+#ifdef MEGA_USE_C_ARES
                 if (servers.size())
                 {
                     LOG_debug << "Using DNS servers " << servers;
                     httpio->setdnsservers(servers.c_str());
                 }
+#endif
 #endif
             }
 

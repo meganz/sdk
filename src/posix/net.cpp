@@ -259,7 +259,9 @@ CurlHttpIO::CurlHttpIO()
     pkpErrors = 0;
 
     WAIT_CLASS::bumpds();
+#ifdef MEGA_USE_C_ARES
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
+#endif
 
     curlMutex.lock();
 
@@ -289,7 +291,9 @@ CurlHttpIO::CurlHttpIO()
     if (++instanceCount == 1)
     {
         curl_global_init(CURL_GLOBAL_DEFAULT);
+#ifdef MEGA_USE_C_ARES
         ares_library_init(ARES_LIB_INIT_ALL);
+#endif
 
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
         initialize_android();
@@ -306,12 +310,16 @@ CurlHttpIO::CurlHttpIO()
     numconnections[PUT] = 0;
     curlsocketsprocessed = true;
 
+#ifdef MEGA_USE_C_ARES
     struct ares_options options;
     options.tries = 2;
     ares_init_options(&ares, &options, ARES_OPT_TRIES);
     arestimeout = -1;
+#endif
 
+#ifdef MEGA_USE_C_ARES
     filterDNSservers();
+#endif
 
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETFUNCTION, api_socket_callback);
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETDATA, this);
@@ -387,17 +395,14 @@ bool CurlHttpIO::ipv6available()
     return ipv6_works;
 }
 
+#ifdef MEGA_USE_C_ARES
 void CurlHttpIO::filterDNSservers()
 {
-    // in iOS, DNS resolution is done by cUrl directly (c-ares is not involved at all)
-#ifdef TARGET_OS_IPHONE
-    return;
-#endif
-
     string newservers;
     string serverlist;
     set<string> serverset;
     vector<string> filteredservers;
+
     ares_addr_node *servers;
     ares_addr_node *server;
     if (ares_get_servers(ares, &servers) == ARES_SUCCESS)
@@ -562,6 +567,8 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 #endif
 }
 
+#endif // #ifdef MEGA_USE_C_ARES
+
 void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 {
     CodeCounter::ScopeTimer ccst(countAddCurlEventsCode);
@@ -616,6 +623,7 @@ int CurlHttpIO::checkevents(Waiter*)
     return 0;
 }
 
+#ifdef MEGA_USE_C_ARES
 void CurlHttpIO::closearesevents()
 {
 #if defined(_WIN32)
@@ -626,6 +634,7 @@ void CurlHttpIO::closearesevents()
 #endif
     aressockets.clear();
 }
+#endif
 
 void CurlHttpIO::closecurlevents(direction_t d)
 {
@@ -639,6 +648,7 @@ void CurlHttpIO::closecurlevents(direction_t d)
     socketmap.clear();
 }
 
+#ifdef MEGA_USE_C_ARES
 void CurlHttpIO::processaresevents()
 {
     CodeCounter::ScopeTimer ccst(countProcessAresEventsCode);
@@ -678,6 +688,7 @@ void CurlHttpIO::processaresevents()
         ares_process_fd(ares, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
     }
 }
+#endif
 
 void CurlHttpIO::processcurlevents(direction_t d)
 {
@@ -743,13 +754,17 @@ void CurlHttpIO::processcurlevents(direction_t d)
 CurlHttpIO::~CurlHttpIO()
 {
     disconnecting = true;
+#ifdef MEGA_USE_C_ARES
     ares_destroy(ares);
+#endif
     curl_multi_cleanup(curlm[API]);
     curl_multi_cleanup(curlm[GET]);
     curl_multi_cleanup(curlm[PUT]);
     curl_share_cleanup(curlsh);
 
+#ifdef MEGA_USE_C_ARES
     closearesevents();
+#endif
     closecurlevents(API);
     closecurlevents(GET);
     closecurlevents(PUT);
@@ -761,7 +776,9 @@ CurlHttpIO::~CurlHttpIO()
     curlMutex.lock();
     if (--instanceCount == 0)
     {
+#ifdef MEGA_USE_C_ARES
         ares_library_cleanup();
+#endif
         curl_global_cleanup();
     }
     curlMutex.unlock();
@@ -777,6 +794,7 @@ void CurlHttpIO::setuseragent(string* u)
     useragent = *u;
 }
 
+#ifdef MEGA_USE_C_ARES
 void CurlHttpIO::setdnsservers(const char* servers)
 {
     if (servers)
@@ -793,6 +811,7 @@ void CurlHttpIO::setdnsservers(const char* servers)
         ares_set_servers_csv(ares, servers);
     }
 }
+#endif
 
 void CurlHttpIO::disconnect()
 {
@@ -800,7 +819,9 @@ void CurlHttpIO::disconnect()
     disconnecting = true;
     assert(!numconnections[API] && !numconnections[GET] && !numconnections[PUT]);
 
+#ifdef MEGA_USE_C_ARES
     ares_destroy(ares);
+#endif
     curl_multi_cleanup(curlm[API]);
     curl_multi_cleanup(curlm[GET]);
     curl_multi_cleanup(curlm[PUT]);
@@ -813,11 +834,14 @@ void CurlHttpIO::disconnect()
         numconnections[PUT] = 0;
     }
 
+#ifdef MEGA_USE_C_ARES
     closearesevents();
+#endif
     closecurlevents(API);
     closecurlevents(GET);
     closecurlevents(PUT);
 
+#ifdef MEGA_USE_C_ARES
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
     if (DNS_CACHE_EXPIRES)
     {
@@ -830,14 +854,17 @@ void CurlHttpIO::disconnect()
             dnsPair.second.mNeedsResolvingAgain= true;
         }
     }
+#endif
 
     curlm[API] = curl_multi_init();
     curlm[GET] = curl_multi_init();
     curlm[PUT] = curl_multi_init();
+#ifdef MEGA_USE_C_ARES
     struct ares_options options;
     options.tries = 2;
     ares_init_options(&ares, &options, ARES_OPT_TRIES);
     arestimeout = -1;
+#endif
 
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETFUNCTION, api_socket_callback);
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETDATA, this);
@@ -868,6 +895,7 @@ void CurlHttpIO::disconnect()
     arerequestspaused[PUT] = false;
 
     disconnecting = false;
+#ifdef MEGA_USE_C_ARES
     if (dnsservers.size())
     {
         LOG_debug << "Using custom DNS servers: " << dnsservers;
@@ -877,6 +905,7 @@ void CurlHttpIO::disconnect()
     {
         filterDNSservers();
     }
+#endif
 
     if (proxyurl.size() && !proxyip.size())
     {
@@ -915,7 +944,9 @@ void CurlHttpIO::addevents(Waiter* w, int)
     waiter = (WAIT_CLASS*)w;
     long curltimeoutms = -1;
 
+#ifdef MEGA_USE_C_ARES
     addaresevents(waiter);
+#endif
     addcurlevents(waiter, API);
 
 #ifdef WIN32
@@ -989,6 +1020,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
     }
     curlsocketsprocessed = false;
 
+#ifdef MEGA_USE_C_ARES
     timeval tv;
     if (ares_timeout(ares, NULL, &tv))
     {
@@ -1008,8 +1040,10 @@ void CurlHttpIO::addevents(Waiter* w, int)
     {
         arestimeout = -1;
     }
+#endif
 }
 
+#ifdef MEGA_USE_C_ARES
 void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
 {
     // the name of a proxy has been resolved
@@ -1330,6 +1364,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         LOG_debug << "Waiting for the completion of the c-ares request";
     }
 }
+#endif
 
 struct curl_slist* CurlHttpIO::clone_curl_slist(struct curl_slist* inlist)
 {
@@ -1384,6 +1419,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
     httpctx->posturl = req->posturl;
 
+#ifdef MEGA_USE_C_ARES
     if(httpio->proxyip.size())
     {
         LOG_debug << "Using the hostname instead of the IP";
@@ -1394,8 +1430,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
-    
-#ifndef TARGET_OS_IPHONE
     else
     {
         LOG_err << "No IP nor proxy available";
@@ -1567,7 +1601,10 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_slist_free_all(httpctx->headers);
 
         httpctx->req = NULL;
+
+#ifdef MEGA_USE_C_ARES
         if (!httpctx->ares_pending)
+#endif
         {
             delete httpctx;
         }
@@ -1589,12 +1626,13 @@ void CurlHttpIO::request_proxy_ip()
     CurlHttpContext* httpctx = new CurlHttpContext;
     httpctx->httpio = this;
     httpctx->hostname = proxyhost;
-    httpctx->ares_pending = 1;
-    
 
-#if TARGET_OS_IPHONE
+
+#ifndef MEGA_USE_C_ARES
     send_request(httpctx);
 #else
+    httpctx->ares_pending = 1;
+
     if (ipv6proxyenabled)
     {
         httpctx->ares_pending++;
@@ -1764,7 +1802,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->headers = NULL;
     httpctx->isIPv6 = false;
     httpctx->isCachedIp = false;
+#ifdef MEGA_USE_C_ARES
     httpctx->ares_pending = 0;
+#endif
     httpctx->d = (req->type == REQ_JSON || req->method == METHOD_NONE) ? API : ((data ? len : req->out->size()) ? PUT : GET);
     req->httpiohandle = (void*)httpctx;
 
@@ -1793,6 +1833,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         ipv6requestsenabled = true;
     }
 
+#ifdef MEGA_USE_C_ARES
     if (reset)
     {
         LOG_debug << "Error in c-ares. Reinitializing...";
@@ -1854,6 +1895,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
         lastdnspurge = Waiter::ds;
     }
+#endif
 
     req->in.clear();
     req->status = REQ_INFLIGHT;
@@ -1876,6 +1918,12 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     httpctx->hostheader = "Host: ";
     httpctx->hostheader.append(httpctx->hostname);
+
+
+#ifndef MEGA_USE_C_ARES
+    send_request(httpctx);
+#else
+
     httpctx->ares_pending = 1;
 
     CurlDNSEntry* dnsEntry = NULL;
@@ -1912,9 +1960,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         return;
     }
 
-#if TARGET_OS_IPHONE
-    send_request(httpctx);
-#else
     if (ipv6requestsenabled)
     {
         httpctx->ares_pending++;
@@ -1990,7 +2035,11 @@ void CurlHttpIO::cancel(HttpReq* req)
 
         httpctx->req = NULL;
 
-        if ((req->status == REQ_FAILURE || httpctx->curl) && !httpctx->ares_pending)
+        if ((req->status == REQ_FAILURE || httpctx->curl)
+#ifdef MEGA_USE_C_ARES
+            && !httpctx->ares_pending
+#endif
+            )
         {
             delete httpctx;
         }
@@ -2027,7 +2076,9 @@ bool CurlHttpIO::doio()
     bool result;
     statechange = false;
 
+#ifdef MEGA_USE_C_ARES
     processaresevents();
+#endif
 
     result = statechange;
     statechange = false;
@@ -2227,6 +2278,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
             if (req->status == REQ_FAILURE && !req->httpstatus)
             {
+#ifdef MEGA_USE_C_ARES
                 CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
                 if (httpctx)
                 {
@@ -2289,6 +2341,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         }
                     }
                 }
+#endif
             }
         }
         else
@@ -2313,7 +2366,9 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 req->httpiohandle = NULL;
 
                 httpctx->req = NULL;
+#ifdef MEGA_USE_C_ARES
                 if (!httpctx->ares_pending)
+#endif
                 {
                     delete httpctx;
                 }
@@ -2358,7 +2413,9 @@ void CurlHttpIO::drop_pending_requests()
         }
 
         httpctx->req = NULL;
+#ifdef MEGA_USE_C_ARES
         if (!httpctx->ares_pending)
+#endif
         {
             delete httpctx;
         }
@@ -2616,6 +2673,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
 
 int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
 {
+#ifdef MEGA_USE_C_ARES
     HttpReq *req = (HttpReq*)clientp;
     CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
     CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
@@ -2624,11 +2682,7 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
     {
         httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain = false;
         httpctx->ares_pending = 1;
-        
 
-#if TARGET_OS_IPHONE
-        send_request(httpctx);
-#else
         if (httpio->ipv6requestsenabled)
         {
             httpctx->ares_pending++;
@@ -2638,8 +2692,8 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
 
         LOG_debug << "Resolving IPv4 address for " << httpctx->hostname << " during connection";
         ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
-#endif
     }
+#endif
 
     return CURL_SOCKOPT_OK;
 }
@@ -2829,6 +2883,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 }
 #endif
 
+#ifdef MEGA_USE_C_ARES
 CurlDNSEntry::CurlDNSEntry()
 {
     ipv4timestamp = 0;
@@ -2844,6 +2899,7 @@ bool CurlDNSEntry::isIPv6Expired()
 {
     return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
 }
+#endif
 
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
 
