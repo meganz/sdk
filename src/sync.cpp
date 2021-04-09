@@ -2402,6 +2402,12 @@ error Syncs::backupCloseDrive(LocalPath drivePath)
     // Ensure the drive path is in normalized form.
     drivePath = NormalizeAbsolute(drivePath);
 
+    // Is this drive actually loaded?
+    if (!store->driveKnown(drivePath))
+    {
+        return API_ENOENT;
+    }
+
     auto result = store->write(drivePath, configsForDrive(drivePath));
     store->removeDrive(drivePath);
 
