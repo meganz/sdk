@@ -275,7 +275,7 @@ public:
 
     bool ephemeralSession = false;
 
-    static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
+    static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
 
@@ -476,7 +476,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
-    void removeOutSharesFromSubtree(Node* n);
+    void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
@@ -571,15 +571,18 @@ public:
     error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, bool writable = false, const char* = NULL);
+    void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
+	    int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, bool writable = false);
-    void getpubliclink(Node* n, int del, m_time_t ets, bool writable = false); // auxiliar method to add req
+    error exportnode(Node*, int, m_time_t, bool writable,
+	    int tag, std::function<void(Error, handle, handle)> completion);
+    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable,
+	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
@@ -900,16 +903,16 @@ public:
         CacheableStatusMap(MegaClient *client) { mClient = client; }
 
         // returns the cached value for type, or defaultValue if not found
-        int64_t lookup(int64_t type, int64_t defaultValue);
+        int64_t lookup(CacheableStatus::Type type, int64_t defaultValue);
 
         // add/update cached status, both in memory and DB
-        bool addOrUpdate(int64_t type, int64_t value);
+        bool addOrUpdate(CacheableStatus::Type type, int64_t value);
 
         // adds a new item to the map. It also initializes dedicated vars in the client (used to load from DB)
-        void loadCachedStatus(int64_t type, int64_t value);
+        void loadCachedStatus(CacheableStatus::Type type, int64_t value);
 
         // for unserialize
-        CacheableStatus *getPtr(int64_t type);
+        CacheableStatus *getPtr(CacheableStatus::Type type);
 
         void clear() { map::clear(); }
 
@@ -1056,6 +1059,9 @@ private:
 
     // fetch statusTable from local cache
     bool fetchStatusTable(DbTable*);
+
+    // open/create status database table
+    void doOpenStatusTable();
 
     // remove old (2 days or more) transfers from cache, if they were not resumed
     void purgeOrphanTransfers(bool remove = false);
@@ -1210,14 +1216,16 @@ public:
     // open/create state cache database table
     void opensctable();
 
-    // open/create status database table
-    void openStatusTable();
+    // opens (or creates if non existing) a status database table.
+    //   if loadFromCache is true, it will load status from the table.
+    void openStatusTable(bool loadFromCache);
 
     // initialize/update state cache referenced sctable
     void initsc();
     void updatesc();
     void finalizesc(bool);
 
+    // truncates status table
     void initStatusTable();
 
     // flag to pause / resume the processing of action packets
@@ -1809,9 +1817,6 @@ public:
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
-    // indicates that the last update to mBizStatus comes from cache.
-    // Used to notify the apps in the very first non-cache update. For backwards compatibility.
-    bool mBizStatusLoadedFromCache = false;
 
     // list of handles of the Master business account/s
     std::set<handle> mBizMasters;

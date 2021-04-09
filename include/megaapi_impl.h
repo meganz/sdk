@@ -2393,8 +2393,6 @@ class MegaApiImpl : public MegaApp
         void moveTransferToFirst(int transferTag, MegaRequestListener *listener = NULL);
         void moveTransferToLast(int transferTag, MegaRequestListener *listener = NULL);
         void moveTransferBefore(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
-        void enableTransferResumption(const char* loggedOutId);
-        void disableTransferResumption(const char* loggedOutId);
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
@@ -3047,10 +3045,6 @@ protected:
         void fetchnodes_result(const Error&) override;
         void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
 
-        // share update result
-        void share_result(error, bool writable = false) override;
-        void share_result(int, error, bool writable = false) override;
-
         // contact request results
         void setpcr_result(handle, error, opcactions_t) override;
         void updatepcr_result(error, ipcactions_t) override;
@@ -3094,10 +3088,6 @@ protected:
 #endif
 
         void getuseremail_result(string *, error) override;
-
-        // file node export result
-        void exportnode_result(error) override;
-        void exportnode_result(handle, handle) override;
 
         // exported link access result
         void openfilelink_result(const Error&) override;

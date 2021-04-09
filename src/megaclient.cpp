@@ -1193,7 +1193,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
-    mBizStatusLoadedFromCache = false;
 
     overquotauntil = 0;
     ststatus = STORAGE_UNKNOWN;
@@ -1291,7 +1290,7 @@ MegaClient::~MegaClient()
 }
 
 
-std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
+std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
     string strlink = "https://mega.nz/";
     string nodeType;
@@ -4162,7 +4161,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
-    mBizStatusLoadedFromCache = false;
     mBizMasters.clear();
     mPublicLinks.clear();
     mCachedStatus.clear();
@@ -4454,14 +4452,10 @@ bool MegaClient::procsc()
                                 whyamiblocked();// lets query again, to trigger transition and restoreSyncs
                             }
 
-#ifdef ENABLE_SYNC
-#ifndef __ANDROID__
-                            //TODO: remove android control after android gives green light to this.
                             enabletransferresumption();
-#endif
+#ifdef ENABLE_SYNC
                             syncs.resumeResumableSyncsOnStartup();
 #endif
-
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 
@@ -5351,12 +5345,12 @@ void MegaClient::sc_updatenode()
     }
 }
 
-void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t value)
+void MegaClient::CacheableStatusMap::loadCachedStatus(CacheableStatus::Type type, int64_t value)
 {
     auto it = insert(pair<int64_t, CacheableStatus>(type, CacheableStatus(type, value)));
     assert(it.second);
 
-    LOG_verbose << "Loaded status from cache: " << type << " = " << value;
+    LOG_verbose << "Loaded status from cache: " << CacheableStatus::typeToStr(type) << " = " << value;
 
     switch(type)
     {
@@ -5368,7 +5362,6 @@ void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t valu
         case CacheableStatus::Type::STATUS_BUSINESS:
         {
             mClient->mBizStatus = static_cast<BizStatus>(value);
-            mClient->mBizStatusLoadedFromCache = true;
             break;
         }
         default:
@@ -5376,7 +5369,7 @@ void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t valu
     }
 }
 
-bool MegaClient::CacheableStatusMap::addOrUpdate(int64_t type, int64_t value)
+bool MegaClient::CacheableStatusMap::addOrUpdate(CacheableStatus::Type type, int64_t value)
 {
     bool changed = false;
 
@@ -5395,26 +5388,28 @@ bool MegaClient::CacheableStatusMap::addOrUpdate(int64_t type, int64_t value)
         changed = true;
     }
 
+    assert(mClient->statusTable && "Updating status without status table");
+
     if (changed && mClient->statusTable)
     {
         DBTableTransactionCommitter committer(mClient->statusTable);
-        LOG_verbose << "Adding/updating status to database: " << type << " = " << value;
+        LOG_verbose << "Adding/updating status to database: " << status.typeToStr() << " = " << value;
         if (!mClient->statusTable->put(MegaClient::CACHEDSTATUS, &it_bool.first->second, &mClient->key))
         {
-            LOG_err << "Failed to add/update status to db: " << type << " = " << value;
+            LOG_err << "Failed to add/update status to db: " << status.typeToStr() << " = " << value;
         }
     }
 
     return changed;
 }
 
-int64_t MegaClient::CacheableStatusMap::lookup(int64_t type, int64_t defaultValue)
+int64_t MegaClient::CacheableStatusMap::lookup(CacheableStatus::Type type, int64_t defaultValue)
 {
     auto it = find(type);
     return it == end() ? defaultValue : it->second.value();
 }
 
-CacheableStatus *MegaClient::CacheableStatusMap::getPtr(int64_t type)
+CacheableStatus *MegaClient::CacheableStatusMap::getPtr(CacheableStatus::Type type)
 {
     auto it = find(type);
     return it == end() ? nullptr : &it->second;
@@ -6890,11 +6885,10 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #endif
     }
 
-    if (mBizStatusLoadedFromCache || prevBizStatus != mBizStatus) //has changed, or first set
+    if (prevBizStatus != BIZ_STATUS_UNKNOWN && prevBizStatus != mBizStatus) //has changed
     {
         app->notify_business_status(mBizStatus);
     }
-    mBizStatusLoadedFromCache = false;
 }
 
 void MegaClient::sc_ub()
@@ -7520,7 +7514,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     if (p->firstancestor()->type == RUBBISHNODE)
     {
         // similar to the webclient, send `s2` along with `m` if the node is moving to the rubbish
-        removeOutSharesFromSubtree(n);
+        removeOutSharesFromSubtree(n, 0);
     }
 
     Node *prevParent = NULL;
@@ -7595,7 +7589,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     return API_OK;
 }
 
-void MegaClient::removeOutSharesFromSubtree(Node* n)
+void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 {
     if (n->pendingshares)
     {
@@ -7603,7 +7597,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->pcr)
             {
-                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN);
+                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool){});
             }
         }
     }
@@ -7614,18 +7608,18 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->user)
             {
-                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN);
+                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool){});
             }
             else // folder links are a shared folder without user
             {
-                setshare(n, nullptr, ACCESS_UNKNOWN);
+                setshare(n, nullptr, ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool) {});
             }
         }
     }
 
     for (auto& c : n->children)
     {
-        removeOutSharesFromSubtree(c);
+        removeOutSharesFromSubtree(c, tag);
     }
 }
 
@@ -8867,6 +8861,19 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
     return API_EARGS;
 }
 
+void MegaClient::openStatusTable(bool loadFromCache)
+{
+    if (statusTable)
+    {
+        statusTable.reset();
+    }
+    doOpenStatusTable();
+    if (loadFromCache && statusTable)
+    {
+        fetchStatusTable(statusTable.get());
+    }
+}
+
 void MegaClient::checkForResumeableSCDatabase()
 {
     // see if we can resume from an already cached set of nodes for this folder
@@ -8903,6 +8910,10 @@ error MegaClient::folderaccess(const char *folderlink, const char * authKey)
         mFolderLink.mPublicHandle = h;
         // mFolderLink.mAccountAuth remain unchanged, since it can be reused for multiple links
         key.setkey(folderkey);
+
+        // upon loginToFolder, don't load the existing (if any) cache, since it's generated by
+        // a previous "session" and it could be outdated. Better to create a fresh one
+        openStatusTable(false);
     }
 
     return e;
@@ -9009,7 +9020,6 @@ void MegaClient::login(string session)
         rng.genblock(sek, sizeof sek);
 
         reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
-        getuserdata(reqtag);
         fetchtimezone();
     }
     else if (!session.empty() && session[0] == 2)
@@ -9049,6 +9059,7 @@ void MegaClient::login(string session)
             checkForResumeableSCDatabase();
 
             restag = reqtag;
+            openStatusTable(true);
             app->login_result(API_OK);
         }
     }
@@ -9248,7 +9259,7 @@ void MegaClient::opensctable()
     }
 }
 
-void MegaClient::openStatusTable()
+void MegaClient::doOpenStatusTable()
 {
     if (dbaccess && !statusTable)
     {
@@ -9263,6 +9274,10 @@ void MegaClient::openStatusTable()
         {
             dbname.resize(NODEHANDLE * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
+        }
+        else
+        {
+            assert(false && "attempted to open status table without sid nor folderlink");
         }
 
         if (dbname.size())
@@ -9681,8 +9696,10 @@ void MegaClient::rewriteforeignkeys(Node* n)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
-void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation)
+void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
 {
+    assert(completion);
+
     size_t total = n->outshares ? n->outshares->size() : 0;
     total += n->pendingshares ? n->pendingshares->size() : 0;
     if (a == ACCESS_UNKNOWN && total == 1)
@@ -9692,7 +9709,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, reqtag, writable, personal_representation));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, move(completion)));
 }
 
 // Add/delete/remind outgoing pending contact request
@@ -10881,7 +10898,8 @@ void MegaClient::querytransferquota(m_off_t size)
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
+error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
+    int tag, std::function<void(Error, handle, handle)> completion)
 {
     if (n->plink && !del && !n->plink->takendown
             && (ets == n->plink->ets) && !n->plink->isExpired()
@@ -10893,8 +10911,8 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
             LOG_warn << "Rejecting public link request when ODQ paywall";
             return API_EPAYWALL;
         }
-        restag = reqtag;
-        app->exportnode_result(n->nodehandle, n->plink->ph);
+        restag = tag;
+        completion(API_OK, n->nodehandle, n->plink->ph);
         return API_OK;
     }
 
@@ -10907,7 +10925,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
     switch (n->type)
     {
     case FILENODE:
-        getpubliclink(n, del, ets, writable);
+        requestPublicLink(n, del, ets, writable, tag, move(completion));
         break;
 
     case FOLDERNODE:
@@ -10915,17 +10933,43 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
         {
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
-            getpubliclink(n, del, ets, writable);
-            setshare(n, NULL, ACCESS_UNKNOWN, writable);
+            NodeHandle h = n->nodeHandle();
+            requestPublicLink(n, del, ets, writable, tag, [this, completion, writable, tag, h](Error e, handle, handle){
+                Node* n = nodeByHandle(h);
+                if (e || !n)
+                {
+                    completion(e, UNDEF, UNDEF);
+                }
+                else
+                {
+                    setshare(n, NULL, ACCESS_UNKNOWN, writable, nullptr, tag, [completion](Error e, bool) {
+                        completion(e, UNDEF, UNDEF);
+                        });
+                }
+            });
         }
         else
         {
-            // exporting folder - need to create share first
-            setshare(n, NULL, writable ? FULL : RDONLY, writable);
-            // getpubliclink() is called as _result() of the share
+            // Exporting folder - need to create share first
+			// If share creation is successful, the share completion function calls requestPublicLink
 
+            handle h = n->nodehandle;
+
+            setshare(n, NULL, writable ? FULL : RDONLY, writable, nullptr, tag, [this, h, ets, tag, writable, completion](Error e, bool){
+                if (e)
+                {
+                    completion(e, UNDEF, UNDEF);
+                }
+                else if (Node* node = nodebyhandle(h))
+                {
+                    requestPublicLink(node, false, ets, writable, tag, completion);
+                }
+                else
+                {
+                    completion(API_ENOENT, UNDEF, UNDEF);
+                }
+            });
         }
-
         break;
 
     default:
@@ -10935,9 +10979,9 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
     return API_OK;
 }
 
-void MegaClient::getpubliclink(Node* n, int del, m_time_t ets, bool writable)
+void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, int tag, std::function<void(Error, handle, handle)> f)
 {
-    reqs.add(new CommandSetPH(this, n, del, ets, writable));
+    reqs.add(new CommandSetPH(this, n, del, ets, writable, tag, move(f)));
 }
 
 // open exported file link
@@ -11074,7 +11118,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
         }
 
         Base64Str<FILENODEKEYLENGTH> keyStr(key);
-        decryptedLink->assign(MegaClient::getPublicLink(mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, keyStr));
+        decryptedLink->assign(publicLinkURL(mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, keyStr));
     }
 
     return API_OK;
@@ -11426,7 +11470,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     LOG_info << "Loading session from local cache";
 
-    mCachedStatus.clear();
     sctable->rewind();
 
     bool hasNext = sctable->next(&id, &data, &key);
@@ -11772,55 +11815,65 @@ void MegaClient::fetchnodes(bool nocache)
         sctable->truncate();
     }
 
-    openStatusTable();
-
     // only initial load from local cache
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() ) &&
             !nodes.size() && !ISUNDEF(cachedscsn) &&
-            sctable && fetchsc(sctable) &&
-            statusTable && fetchStatusTable(statusTable.get()))
+            sctable && fetchsc(sctable))
     {
-        WAIT_CLASS::bumpds();
-        fnstats.mode = FetchNodesStats::MODE_DB;
-        fnstats.cache = FetchNodesStats::API_NO_CACHE;
-        fnstats.nodesCached = nodes.size();
-        fnstats.timeToCached = Waiter::ds - fnstats.startTime;
-        fnstats.timeToResult = fnstats.timeToCached;
+        // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
+        // ensuring no new request happens in between
+        auto fetchnodesTag = reqtag;
+        getuserdata(0, [this, fetchnodesTag](string*, string*, string*, error e) {
 
-        restag = reqtag;
-        statecurrent = false;
+            restag = fetchnodesTag;
 
-        assert(sctable->inTransaction());
-        pendingsccommit = false;
-
-        // allow sc requests to start
-        scsn.setScsn(cachedscsn);
-        LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
-
-        if (loggedIntoWritableFolder())
-        {
-            // If logged into writable folder, we need the sharekey set in the root node
-            // so as to include it in subsequent put nodes
-            if (Node* n = nodebyhandle(*rootnodes))
+            // upon ug completion
+            if (e != API_OK)
             {
-                n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                LOG_err << "Session load failed: unable not get user data";
+                app->fetchnodes_result(API_EINTERNAL);
+                return; //from completion function
             }
-        }
+
+            WAIT_CLASS::bumpds();
+            fnstats.mode = FetchNodesStats::MODE_DB;
+            fnstats.cache = FetchNodesStats::API_NO_CACHE;
+            fnstats.nodesCached = nodes.size();
+            fnstats.timeToCached = Waiter::ds - fnstats.startTime;
+            fnstats.timeToResult = fnstats.timeToCached;
+
+            statecurrent = false;
+
+            assert(sctable->inTransaction());
+            pendingsccommit = false;
+
+            // allow sc requests to start
+            scsn.setScsn(cachedscsn);
+            LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
+
+            if (loggedIntoWritableFolder())
+            {
+                // If logged into writable folder, we need the sharekey set in the root node
+                // so as to include it in subsequent put nodes
+                if (Node* n = nodebyhandle(*rootnodes))
+                {
+                    n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                }
+            }
+
+            enabletransferresumption();
 
 #ifdef ENABLE_SYNC
-#ifndef __ANDROID__
-        //TODO: remove android control after android gives green light to this.
-        enabletransferresumption();
+            syncs.resetSyncConfigDb();
+            syncs.resumeResumableSyncsOnStartup();
 #endif
-        syncs.resetSyncConfigDb();
-        syncs.resumeResumableSyncsOnStartup();
-#endif
-        app->fetchnodes_result(API_OK);
+            app->fetchnodes_result(API_OK);
 
-        loadAuthrings();
+            loadAuthrings();
 
-        WAIT_CLASS::bumpds();
-        fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+            WAIT_CLASS::bumpds();
+            fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+        });
     }
     else if (!fetchingnodes)
     {
@@ -11857,7 +11910,16 @@ void MegaClient::fetchnodes(bool nocache)
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
 
-            getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error){
+            getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error e){
+
+                if (e != API_OK)
+                {
+                    LOG_err << "Pre-failing fetching nodes: unable not get user data";
+                    restag = fetchtag;
+                    app->fetchnodes_result(API_EINTERNAL);
+                    return;
+                }
+
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
                 // So only submit the request after `ug` completes, otherwise everything is interleaved
                 reqs.add(new CommandFetchNodes(this, fetchtag, nocache));
