@@ -49,11 +49,22 @@ string toNodeHandle(NodeHandle nodeHandle)
 {
     return toNodeHandle(nodeHandle.as8byte());
 }
+
 string toHandle(handle h)
 {
     char base64Handle[14];
     Base64::btoa((byte*)&(h), sizeof h, base64Handle);
     return string(base64Handle);
+}
+
+std::ostream& operator<<(std::ostream& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
 }
 
 string backupTypeToStr(BackupType type)
@@ -2262,8 +2273,9 @@ void NodeCounter::operator -= (const NodeCounter& o)
 }
 
 
-CacheableStatus::CacheableStatus(int64_t type, int64_t value)
-    : mType{type}, mValue{value}
+CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
+    : mType(type)
+    , mValue(value)
 { }
 
 
@@ -2276,11 +2288,11 @@ bool CacheableStatus::serialize(std::string* data)
 
 CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
 {
-    int64_t type;
+    int64_t typeBuf;
     int64_t value;
 
-    CacheableReader reader{data};
-    if (!reader.unserializei64(type))
+    CacheableReader reader(data);
+    if (!reader.unserializei64(typeBuf))
     {
         return nullptr;
     }
@@ -2289,6 +2301,7 @@ CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const st
         return nullptr;
     }
 
+    CacheableStatus::Type type = static_cast<CacheableStatus::Type>(typeBuf);
     client->mCachedStatus.loadCachedStatus(type, value);
     return client->mCachedStatus.getPtr(type);
 }
@@ -2306,7 +2319,7 @@ int64_t CacheableStatus::value() const
     return mValue;
 }
 
-int64_t CacheableStatus::type() const
+CacheableStatus::Type CacheableStatus::type() const
 {
     return mType;
 }
@@ -2314,6 +2327,30 @@ int64_t CacheableStatus::type() const
 void CacheableStatus::setValue(const int64_t value)
 {
     mValue = value;
+}
+
+std::string CacheableStatus::typeToStr()
+{
+    return CacheableStatus::typeToStr(mType);
+}
+
+std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
+{
+    switch (type)
+    {
+    case STATUS_UNKNOWN:
+        return "unknown";
+    case STATUS_STORAGE:
+        return "storage";
+    case STATUS_BUSINESS:
+        return "business";
+    case STATUS_BLOCKED:
+        return "blocked";
+    case STATUS_PRO_LEVEL:
+        return "pro-level";
+    default:
+        return "undefined";
+    }
 }
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)

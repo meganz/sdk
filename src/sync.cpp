@@ -494,7 +494,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 SyncConfig::SyncConfig(LocalPath localPath,
                        std::string name,
-                       const handle remoteNode,
+                       NodeHandle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
@@ -553,12 +553,12 @@ const LocalPath& SyncConfig::getLocalPath() const
     return mLocalPath;
 }
 
-handle SyncConfig::getRemoteNode() const
+NodeHandle SyncConfig::getRemoteNode() const
 {
     return mRemoteNode;
 }
 
-void SyncConfig::setRemoteNode(const handle &remoteNode)
+void SyncConfig::setRemoteNode(NodeHandle remoteNode)
 {
     mRemoteNode = remoteNode;
 }
@@ -1242,9 +1242,6 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     LocalNode* parent;
     string path;           // UTF-8 representation of tmppath
     LocalPath tmppath;     // full path represented by l + localpath
-    LocalPath newname;     // portion of tmppath not covered by the existing
-                           // LocalNode structure (always the last path component
-                           // that does not have a corresponding LocalNode yet)
 
     if (localname)
     {
@@ -1269,8 +1266,21 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             tmppath.appendWithSeparator(*input_localpath, false);
         }
 
-        // look up deepest existing LocalNode by path, store remainder (if any)
-        // in newname
+        string name = tmppath.leafName().toPath(*client->fsaccess);
+        path = tmppath.toPath(*client->fsaccess);
+
+        if (!client->app->sync_syncable(this, name.c_str(), tmppath))
+        {
+            LOG_debug << "Excluded: " << path;
+            return NULL;
+        }
+
+        // look up deepest existing LocalNode by path, store remainder (if any) in newname
+
+        LocalPath newname;     // portion of tmppath not covered by the existing
+                               // LocalNode structure (always the last path component
+                               // that does not have a corresponding LocalNode yet)
+
         LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &newname);
         size_t index = 0;
 
@@ -1279,29 +1289,19 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             LOG_warn << "Parent not detected yet. Unknown remainder: " << newname.toPath(*client->fsaccess);
             if (parent)
             {
-                LocalPath notifyPath = parent->getLocalPath();
-                notifyPath.appendWithSeparator(newname.subpathTo(index), true);
-                dirnotify->notify(DirNotify::DIREVENTS, l, std::move(notifyPath), true);
+                // Passing immediate == false, so that if we are being called from DIREVENTS,
+                // we will break the loop rather than always being called back for the item we just pushed
+                dirnotify->notify(DirNotify::DIREVENTS, parent, LocalPath(newname), false);
             }
             return NULL;
         }
 
         l = tmp;
 
-        path = tmppath.toPath(*client->fsaccess);
-
         // path invalid?
-        if ( ( !l && newname.empty() ) || !path.size())
+        if ((!l && newname.empty()) || !path.size())
         {
             LOG_warn << "Invalid path: " << path;
-            return NULL;
-        }
-
-        string name = !newname.empty() ? newname.toName(*client->fsaccess, mFilesystemType) : l->name;
-
-        if (!client->app->sync_syncable(this, name.c_str(), tmppath))
-        {
-            LOG_debug << "Excluded: " << path;
             return NULL;
         }
 
@@ -2137,15 +2137,15 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
         if (mConfig.getRemoteNode() != n->nodehandle)
         {
-            mConfig.setRemoteNode(n->nodehandle);
+            mConfig.setRemoteNode(NodeHandle().set6byte(n->nodehandle));
             changed = true;
         }
     }
     else //unset remote node: failed!
     {
-        if (mConfig.getRemoteNode() != UNDEF)
+        if (!mConfig.getRemoteNode().isUndef())
         {
-            mConfig.setRemoteNode(UNDEF);
+            mConfig.setRemoteNode(NodeHandle());
             changed = true;
         }
     }
@@ -2596,7 +2596,7 @@ unsigned Syncs::numRunningSyncs()
 
 unsigned Syncs::numSyncs()
 {
-    return mSyncVec.size();
+    return unsigned(mSyncVec.size());
 }
 
 Sync* Syncs::firstRunningSync()
@@ -2693,35 +2693,6 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
 
 void Syncs::purgeSyncs()
 {
-    if (mSyncVec.empty())
-    {
-        return;
-    }
-
-    // accumulate all changes for *!bn to update it in one shoot
-    set<string> backupIds;
-    for (auto &it : mSyncVec)
-    {
-        backupIds.insert(string(Base64Str<MegaClient::BACKUPHANDLE>(it->mConfig.getBackupId())));
-    }
-    attr_t attrType = ATTR_BACKUP_NAMES;
-    User *ownUser = mClient.finduser(mClient.me);
-    const std::string *oldValue = ownUser->getattr(attrType);
-    if (oldValue && ownUser->isattrvalid(attrType))
-    {
-        std::unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(oldValue, &mClient.key));
-        for (auto &backupId : backupIds) tlv->reset(backupId);
-
-        // serialize and encrypt the TLV container
-        std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(mClient.rng, &mClient.key));
-        mClient.putua(attrType, (byte *)container->data(), unsigned(container->size()));
-    }
-    else
-    {
-        assert(false);
-        LOG_err << "Backup names not available upon purge syncs";
-    }
-
     // finally, remove all syncs as usual, unregistering (removeSyncByIndex())
     removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
 }
@@ -2862,7 +2833,7 @@ void Syncs::resumeResumableSyncsOnStartup()
         {
             if (unifiedSync->mConfig.mOrigninalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
             {
-                auto node = mClient.nodebyhandle(unifiedSync->mConfig.getRemoteNode());
+                auto node = mClient.nodeByHandle(unifiedSync->mConfig.getRemoteNode());
                 unifiedSync->updateSyncRemoteLocation(node, false); //updates cache & notice app of this change
                 if (node)
                 {
@@ -3005,9 +2976,9 @@ const SyncConfig* JSONSyncConfigDB::getByBackupId(handle backupId) const
     return nullptr;
 }
 
-const SyncConfig* JSONSyncConfigDB::getByRootHandle(handle targetHandle) const
+const SyncConfig* JSONSyncConfigDB::getByRootHandle(NodeHandle targetHandle) const
 {
-    if (targetHandle == UNDEF)
+    if (targetHandle.isUndef())
     {
         return nullptr;
     }
@@ -3061,7 +3032,7 @@ error JSONSyncConfigDB::removeByBackupId(handle backupId)
     return removeByBackupId(backupId, true);
 }
 
-error JSONSyncConfigDB::removeByRootHandle(const handle targetHandle)
+error JSONSyncConfigDB::removeByRootHandle(NodeHandle targetHandle)
 {
     // Any config present with the given target handle?
     if (const auto* config = getByRootHandle(targetHandle))
@@ -3676,12 +3647,7 @@ bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) cons
             break;
 
         case TYPE_TARGET_HANDLE:
-            config.mRemoteNode = reader.gethandle(MegaClient::NODEHANDLE);
-            if ((config.mRemoteNode & 0xFFFFFFFFFFFF) == (UNDEF & 0xFFFFFFFFFFFF))
-            {
-                // we can have a much nicer solution when NodeHandle is merged from the sync rework branch
-                config.mRemoteNode = UNDEF;
-            }
+            config.mRemoteNode = reader.getNodeHandle();
             break;
 
         case TYPE_TARGET_PATH:
@@ -3747,7 +3713,7 @@ void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
-    writer.arg("th", config.mRemoteNode, MegaClient::NODEHANDLE);
+    writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
     writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);

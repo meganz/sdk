@@ -50,6 +50,10 @@
 #include <fcntl.h>
 #endif
 
+#ifdef TARGET_OS_IPHONE
+#include "mega/gfx/GfxProcCG.h"
+#endif
+
 ////////////////////////////// SETTINGS //////////////////////////////
 ////////// Support for threads and mutexes
 //Choose one of these options.
@@ -2389,8 +2393,6 @@ class MegaApiImpl : public MegaApp
         void moveTransferToFirst(int transferTag, MegaRequestListener *listener = NULL);
         void moveTransferToLast(int transferTag, MegaRequestListener *listener = NULL);
         void moveTransferBefore(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
-        void enableTransferResumption(const char* loggedOutId);
-        void disableTransferResumption(const char* loggedOutId);
         bool areTransfersPaused(int direction);
         void setUploadLimit(int bpslimit);
         void setMaxConnections(int direction, int connections, MegaRequestListener* listener = NULL);
@@ -2789,13 +2791,10 @@ class MegaApiImpl : public MegaApp
         void getBanners(MegaRequestListener *listener);
         void dismissBanner(int id, MegaRequestListener *listener);
 
-        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char *backupName, int state, int subState, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener);
-
-        void getBackupName(MegaHandle backupId, MegaRequestListener* listener = nullptr);
-        void setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener = nullptr);
 
         void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
         void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
@@ -3046,10 +3045,6 @@ protected:
         void fetchnodes_result(const Error&) override;
         void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
 
-        // share update result
-        void share_result(error, bool writable = false) override;
-        void share_result(int, error, bool writable = false) override;
-
         // contact request results
         void setpcr_result(handle, error, opcactions_t) override;
         void updatepcr_result(error, ipcactions_t) override;
@@ -3093,10 +3088,6 @@ protected:
 #endif
 
         void getuseremail_result(string *, error) override;
-
-        // file node export result
-        void exportnode_result(error) override;
-        void exportnode_result(handle, handle) override;
 
         // exported link access result
         void openfilelink_result(const Error&) override;
@@ -3225,7 +3216,6 @@ protected:
 #endif
 
         void backupput_result(const Error&, handle backupId) override;
-        void backupupdate_result(const Error&, handle) override;
         void backupremove_result(const Error&, handle) override;
 
 protected:

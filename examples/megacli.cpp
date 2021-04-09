@@ -76,7 +76,6 @@ std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
 bool gVerboseMode = false;
 
-
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
@@ -100,11 +99,6 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 
 // change email link to be confirmed
 static string changeemail, changecode;
-
-// chained folder link creation
-static handle hlink = UNDEF;
-static int del = 0;
-static int ets = 0;
 
 // import welcome pdf at account creation
 static bool pdf_to_import = false;
@@ -170,7 +164,7 @@ std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string 
     }
     else
     {
-        return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
+        return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
     }
 
     bool syncDeletions = false;
@@ -188,7 +182,7 @@ std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string 
         }
         else
         {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
         }
 
         if (overwrite == "on")
@@ -201,11 +195,11 @@ std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string 
         }
         else
         {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig(LocalPath(), "", UNDEF, "", 0, {}, true, syncType));
+    return std::make_pair(true, SyncConfig(LocalPath(), "", NodeHandle(), "", 0, {}, true, syncType));
 }
 
 #endif
@@ -1196,51 +1190,6 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
             i->second(n);
             gOnPutNodeTag.erase(i);
         }
-    }
-}
-
-void DemoApp::share_result(error e, bool writable)
-{
-    if (e)
-    {
-        cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        if (hlink != UNDEF)
-        {
-            if (!del)
-            {
-                Node *n = client->nodebyhandle(hlink);
-                if (!n)
-                {
-                    cout << "Node was not found. (" << Base64Str<sizeof hlink>(hlink) << ")" << endl;
-
-                    hlink = UNDEF;
-                    del = ets = 0;
-                    return;
-                }
-
-                client->getpubliclink(n, del, ets, writable);
-            }
-            else
-            {
-                hlink = UNDEF;
-                del = ets = 0;
-            }
-        }
-    }
-}
-
-void DemoApp::share_result(int, error e, bool writable)
-{
-    if (e)
-    {
-        cout << "Share creation/modification failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        cout << "Share creation/modification succeeded" << endl;
     }
 }
 
@@ -2684,7 +2633,7 @@ void exec_treecompare(autocomplete::ACState& s)
 }
 
 
-bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, int filesize, int& totalfilecount, int& totalfoldercount)
+bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, uint64_t filesize, int& totalfilecount, int& totalfoldercount)
 {
     fs::path p = targetfolder / fs::u8path(prefix);
     if (!fs::is_directory(p) && !fs::create_directory(p))
@@ -2696,8 +2645,10 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersp
         string filename = prefix + "_file_" + std::to_string(++totalfilecount);
         fs::path fp = p / fs::u8path(filename);
         ofstream fs(fp.u8string(), std::ios::binary);
+        char buffer[64 * 1024];
+        fs.rdbuf()->pubsetbuf(buffer, sizeof(buffer));
 
-        for (unsigned j = filesize / sizeof(int); j--; )
+        for (auto j = filesize / sizeof(int); j--; )
         {
             fs.write((char*)&totalfilecount, sizeof(int));
         }
@@ -2718,11 +2669,12 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersp
 void exec_generatetestfilesfolders(autocomplete::ACState& s)
 {
     string param, nameprefix = "test";
-    int folderdepth = 1, folderwidth = 1, filecount = 100, filesize = 1024;
+    int folderdepth = 1, folderwidth = 1, filecount = 100;
+    int64_t filesize = 1024;
     if (s.extractflagparam("-folderdepth", param)) folderdepth = atoi(param.c_str());
     if (s.extractflagparam("-folderwidth", param)) folderwidth = atoi(param.c_str());
     if (s.extractflagparam("-filecount", param)) filecount = atoi(param.c_str());
-    if (s.extractflagparam("-filesize", param)) filesize = atoi(param.c_str());
+    if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
     if (s.extractflagparam("-nameprefix", param)) nameprefix = param;
 
     fs::path p = pathFromLocalPath(s.words[1].s, true);
@@ -3182,7 +3134,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_chatlu, sequence(text("chatlu"), param("publichandle")));
     p->Add(exec_chatlj, sequence(text("chatlj"), param("publichandle"), param("unifiedkey")));
 #endif
-    p->Add(exec_enabletransferresumption, sequence(text("enabletransferresumption"), opt(either(text("on"), text("off")))));
     p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
@@ -4611,6 +4562,8 @@ void exec_mount(autocomplete::ACState& s)
 
 void exec_share(autocomplete::ACState& s)
 {
+    bool writable = false;
+
     switch (s.words.size())
     {
     case 1:		// list all shares (incoming and outgoing)
@@ -4693,7 +4646,16 @@ void exec_share(autocomplete::ACState& s)
                     }
                 }
 
-                client->setshare(n, s.words[2].s.c_str(), a, personal_representation);
+                client->setshare(n, s.words[2].s.c_str(), a, writable, personal_representation, gNextClientTag++, [](Error e, bool){
+                    if (e)
+                    {
+                        cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+                    }
+                    else
+                    {
+                        cout << "Share creation/modification succeeded." << endl;
+                    }
+                });
             }
         }
         else
@@ -4971,9 +4933,7 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_BACKUP_NAMES
-                    || attrtype == ATTR_DEVICE_NAMES
-                    || attrtype == ATTR_ALIAS)
+            if (attrtype == ATTR_DEVICE_NAMES || attrtype == ATTR_ALIAS)
             {
                 std::string key = s.words[3].s;
                 std::string value = Base64::btoa(s.words[4].s);
@@ -5794,8 +5754,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
 
 void exec_export(autocomplete::ACState& s)
 {
-    hlink = UNDEF;
-    del = ets = 0;
+    void exportnode_result(Error e, handle h, handle ph);
 
     Node* n;
     int deltmp = 0;
@@ -5819,15 +5778,11 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable)))
+        if ((e = client->exportnode(n, deltmp, etstmp, writable, gNextClientTag++, [](Error e, handle h, handle ph){
+            exportnode_result(e, h, ph);
+        })))
         {
             cout << s.words[1].s << ": Export rejected (" << errorstring(e) << ")" << endl;
-        }
-        else
-        {
-            hlink = n->nodehandle;
-            ets = etstmp;
-            del = deltmp;
         }
     }
     else
@@ -6406,7 +6361,6 @@ void exec_handles(autocomplete::ACState& s)
     }
 }
 
-
 #if defined(WIN32) && defined(NO_READLINE)
 void exec_codepage(autocomplete::ACState& s)
 {
@@ -6655,20 +6609,6 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
         cout << (done ? "Success. " : "Failed. ");
     }
     cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
-}
-
-void exec_enabletransferresumption(autocomplete::ACState& s)
-{
-    if (s.words.size() > 1 && s.words[1].s == "off")
-    {
-        client->disabletransferresumption(NULL);
-        cout << "transfer resumption disabled" << endl;
-    }
-    else
-    {
-        client->enabletransferresumption(NULL);
-        cout << "transfer resumption enabled" << endl;
-    }
 }
 
 // callback for non-EAGAIN request-level errors
@@ -7157,20 +7097,15 @@ void DemoApp::changepw_result(error e)
     }
 }
 
-// node export failed
-void DemoApp::exportnode_result(error e)
+
+void exportnode_result(Error e, handle h, handle ph)
 {
     if (e)
     {
         cout << "Export failed: " << errorstring(e) << endl;
+        return;
     }
 
-    del = ets = 0;
-    hlink = UNDEF;
-}
-
-void DemoApp::exportnode_result(handle h, handle ph)
-{
     Node* n;
 
     if ((n = client->nodebyhandle(h)))
@@ -7182,20 +7117,17 @@ void DemoApp::exportnode_result(handle h, handle ph)
         if (n->type != FILENODE && !n->sharekey)
         {
             cout << "No key available for exported folder" << endl;
-
-            del = ets = 0;
-            hlink = UNDEF;
             return;
         }
 
         string publicLink;
         if (n->type == FILENODE)
         {
-            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
         }
         else
         {
-            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
         }
 
         cout << publicLink;
@@ -7219,9 +7151,6 @@ void DemoApp::exportnode_result(handle h, handle ph)
     {
         cout << "Exported node no longer available" << endl;
     }
-
-    del = ets = 0;
-    hlink = UNDEF;
 }
 
 // the requested link could not be opened
@@ -8463,7 +8392,7 @@ void exec_syncadd(autocomplete::ACState& s)
     // Create a suitable sync config.
     SyncConfig config(LocalPath::fromPath(sourcePath, *client->fsaccess),
                  sourcePath,
-                 targetNode->nodehandle,
+                 NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
                  string_vector(),

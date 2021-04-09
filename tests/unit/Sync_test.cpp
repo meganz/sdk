@@ -1882,7 +1882,7 @@ TEST_F(JSONSyncConfigIOContextTest, Serialize)
         config.mLocalPath = Utilities::randomPath();
         config.mName = Utilities::randomBase64();
         config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
-        config.mRemoteNode = UNDEF;
+        config.mRemoteNode = NodeHandle();
         config.mWarning = NO_SYNC_WARNING;
         config.mSyncType = SyncConfig::TYPE_TWOWAY;
 
@@ -1896,7 +1896,7 @@ TEST_F(JSONSyncConfigIOContextTest, Serialize)
         config.mName = Utilities::randomBase64();
         config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
         config.mRegExps = {"a", "b"};
-        config.mRemoteNode = 3;
+        config.mRemoteNode = ::mega::NodeHandle().set6byte(3);
         config.mWarning = LOCAL_IS_FAT;
         config.mSyncType = SyncConfig::TYPE_BACKUP;
 
@@ -1989,7 +1989,7 @@ TEST_F(JSONSyncConfigDBTest, AddWithTarget)
     config.mLocalPath = LocalPath();
     config.mEnabled = true;
     config.mBackupId = 0;
-    config.mRemoteNode = 1;
+    config.mRemoteNode = ::mega::NodeHandle().set6byte(1);
 
     // Add config to database.
     const auto* c = configDB.add(config);
@@ -1997,7 +1997,7 @@ TEST_F(JSONSyncConfigDBTest, AddWithTarget)
     EXPECT_EQ(*c, config);
 
     // Has a config been added?
-    EXPECT_EQ(configDB.configs().size(), 1);
+    EXPECT_EQ(configDB.configs().size(), 1u);
 
     // Is the database dirty?
     EXPECT_TRUE(configDB.dirty());
@@ -2021,7 +2021,7 @@ TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
     config.mLocalPath = LocalPath();
     config.mEnabled = true;
     config.mBackupId = 0;
-    config.mRemoteNode = UNDEF;
+    config.mRemoteNode = NodeHandle();
 
     // Add config to database.
     const auto* c = configDB.add(config);
@@ -2029,7 +2029,7 @@ TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
     EXPECT_EQ(*c, config);
 
     // Has a config been added?
-    EXPECT_EQ(configDB.configs().size(), 1);
+    EXPECT_EQ(configDB.configs().size(), 1u);
 
     // Is the database dirty?
     EXPECT_TRUE(configDB.dirty());
@@ -2038,7 +2038,7 @@ TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
     EXPECT_EQ(configDB.getByBackupId(config.mBackupId), c);
 
     // No mapping should ever be created for an UNDEF handle.
-    EXPECT_EQ(configDB.getByRootHandle(UNDEF), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(NodeHandle()), nullptr);
 }
 
 TEST_F(JSONSyncConfigDBTest, Clear)
@@ -2052,18 +2052,18 @@ TEST_F(JSONSyncConfigDBTest, Clear)
     configA.mExternalDrivePath = drivePath();
     configA.mLocalPath = Utilities::randomPath();
     configA.mBackupId = 0;
-    configA.mRemoteNode = 1;
+    configA.mRemoteNode = ::mega::NodeHandle().set6byte(1);
 
     configB.mExternalDrivePath = drivePath();
     configB.mLocalPath = Utilities::randomPath();
     configB.mBackupId = 2;
-    configB.mRemoteNode = 3;
+    configB.mRemoteNode = ::mega::NodeHandle().set6byte(3);
 
     EXPECT_NE(configDB.add(configA, false), nullptr);
     EXPECT_NE(configDB.add(configB, false), nullptr);
 
     // Verify configs have been added.
-    EXPECT_EQ(configDB.configs().size(), 2);
+    EXPECT_EQ(configDB.configs().size(), 2u);
 
     // Database shouldn't be dirty.
     EXPECT_FALSE(configDB.dirty());
@@ -2112,7 +2112,7 @@ TEST_F(JSONSyncConfigDBTest, Read)
     config.mExternalDrivePath = drivePath();
     config.mLocalPath = Utilities::randomPath();
     config.mBackupId = 1;
-    config.mRemoteNode = 2;
+    config.mRemoteNode = ::mega::NodeHandle().set6byte(2);
 
     // Add the config to the database.
     EXPECT_NE(configDB.add(config), nullptr);
@@ -2200,7 +2200,7 @@ TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
 
     config.mExternalDrivePath = drivePath();
     config.mBackupId = 1;
-    config.mRemoteNode = 2;
+    config.mRemoteNode = ::mega::NodeHandle().set6byte(2);
 
     EXPECT_NE(configDB.add(config, false), nullptr);
 
@@ -2260,7 +2260,7 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
     configBefore.mExternalDrivePath = drivePath();
     configBefore.mLocalPath = Utilities::randomPath();
     configBefore.mBackupId = 1;
-    configBefore.mRemoteNode = 2;
+    configBefore.mRemoteNode = ::mega::NodeHandle().set6byte(2);
 
     EXPECT_NE(configDB.add(configBefore), nullptr);
 
@@ -2278,7 +2278,7 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
     // Change the config's target handle.
     SyncConfig configAfter = configBefore;
 
-    configAfter.mRemoteNode = 3;
+    configAfter.mRemoteNode = ::mega::NodeHandle().set6byte(3);
 
     EXPECT_NE(configDB.add(configAfter, false), nullptr);
 
@@ -2368,7 +2368,7 @@ TEST_F(JSONSyncConfigDBTest, RemoveByBackupID)
     config.mExternalDrivePath = drivePath();
     config.mLocalPath = Utilities::randomPath();
     config.mBackupId = 1;
-    config.mRemoteNode = 2;
+    config.mRemoteNode = ::mega::NodeHandle().set6byte(2);
 
     EXPECT_NE(configDB.add(config, false), nullptr);
 
@@ -2409,7 +2409,7 @@ TEST_F(JSONSyncConfigDBTest, RemoveByUnknownBackupID)
 
         config.mExternalDrivePath = drivePath();
         config.mBackupId = 0;
-        config.mRemoteNode = 1;
+        config.mRemoteNode = ::mega::NodeHandle().set6byte(1);
 
         EXPECT_NE(configDB.add(config, false), nullptr);
 
@@ -2432,7 +2432,7 @@ TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandle)
 
     config.mExternalDrivePath = drivePath();
     config.mBackupId = 0;
-    config.mRemoteNode = 1;
+    config.mRemoteNode = ::mega::NodeHandle().set6byte(1);
 
     EXPECT_NE(configDB.add(config, false), nullptr);
 
@@ -2457,7 +2457,7 @@ TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandleWhenEmpty)
 {
     JSONSyncConfigDB configDB(dbPath(), drivePath());
 
-    EXPECT_EQ(configDB.removeByRootHandle(0), API_ENOENT);
+    EXPECT_EQ(configDB.removeByRootHandle(::mega::NodeHandle().set6byte(0)), API_ENOENT);
 
     EXPECT_FALSE(configDB.dirty());
 }
@@ -2472,7 +2472,7 @@ TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTargetHandle)
 
         config.mExternalDrivePath = drivePath();
         config.mBackupId = 0;
-        config.mRemoteNode = 1;
+        config.mRemoteNode = ::mega::NodeHandle().set6byte(1);
 
         EXPECT_NE(configDB.add(config, false), nullptr);
         
@@ -2480,7 +2480,7 @@ TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTargetHandle)
         EXPECT_FALSE(configDB.dirty());
     }
 
-    EXPECT_EQ(configDB.removeByRootHandle(0), API_ENOENT);
+    EXPECT_EQ(configDB.removeByRootHandle(::mega::NodeHandle().set6byte(0)), API_ENOENT);
 
     // Database shouldn't be dirty.
     EXPECT_FALSE(configDB.dirty());
@@ -2496,7 +2496,7 @@ TEST_F(JSONSyncConfigDBTest, Truncate)
     config.mExternalDrivePath = drivePath();
     config.mEnabled = false;
     config.mBackupId = 0;
-    config.mRemoteNode = 1;
+    config.mRemoteNode = ::mega::NodeHandle().set6byte(1);
 
     const auto* c = configDB.add(config);
     ASSERT_NE(c, nullptr);
@@ -2585,7 +2585,7 @@ TEST_F(JSONSyncConfigDBTest, Update)
     configBefore.mExternalDrivePath = drivePath();
     configBefore.mEnabled = false;
     configBefore.mBackupId = 0;
-    configBefore.mRemoteNode = 1;
+    configBefore.mRemoteNode = ::mega::NodeHandle().set6byte(1);
 
     const auto* c = configDB.add(configBefore, false);
     ASSERT_NE(c, nullptr);
@@ -2622,7 +2622,7 @@ TEST_F(JSONSyncConfigDBTest, UpdateChangeTargetHandle)
 
     configBefore.mExternalDrivePath = drivePath();
     configBefore.mBackupId = 0;
-    configBefore.mRemoteNode = 0;
+    configBefore.mRemoteNode = ::mega::NodeHandle().set6byte(0);
 
     const auto* c = configDB.add(configBefore, false);
     ASSERT_NE(c, nullptr);
@@ -2634,7 +2634,7 @@ TEST_F(JSONSyncConfigDBTest, UpdateChangeTargetHandle)
     // Update config.
     SyncConfig configAfter = configBefore;
 
-    configAfter.mRemoteNode = 1;
+    configAfter.mRemoteNode = ::mega::NodeHandle().set6byte(1);
 
     // Update the config in the database.
     EXPECT_EQ(configDB.add(configAfter), c);
@@ -2662,7 +2662,7 @@ TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
 
     configBefore.mExternalDrivePath = drivePath();
     configBefore.mBackupId = 0;
-    configBefore.mRemoteNode = 0;
+    configBefore.mRemoteNode = ::mega::NodeHandle().set6byte(0);
 
     const auto* c = configDB.add(configBefore, false);
     ASSERT_NE(c, nullptr);
@@ -2674,7 +2674,7 @@ TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
     // Update config.
     SyncConfig configAfter = configBefore;
 
-    configAfter.mRemoteNode = UNDEF;
+    configAfter.mRemoteNode = NodeHandle();
 
     // Update the config in the database.
     EXPECT_EQ(configDB.add(configAfter), c);
@@ -2690,7 +2690,7 @@ TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
     EXPECT_EQ(configDB.getByRootHandle(configBefore.mRemoteNode), nullptr);
 
     // No mapping ever exists for UNDEF target handle.
-    EXPECT_EQ(configDB.getByRootHandle(UNDEF), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(NodeHandle()), nullptr);
 }
 
 TEST_F(JSONSyncConfigDBTest, WriteFail)

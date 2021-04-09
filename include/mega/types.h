@@ -132,7 +132,6 @@ struct PendingContactRequest;
 class TransferList;
 struct Achievement;
 class SyncConfig;
-class SimpleLogger;
 
 namespace UserAlert
 {
@@ -269,20 +268,19 @@ class NodeHandle
     // This class helps avoid issues when we don't save/restore the top 2 bytes when using an 8 byte uint64 to represent it
     uint64_t h = 0xFFFFFFFFFFFFFFFF;
 public:
-    bool isUndef() { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
+    bool isUndef() const { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
     NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0 || n == 0xFFFFFFFFFFFFFFFF); return *this; }
-    bool eq(NodeHandle b) { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
-    bool eq(handle b) { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
-    bool ne(handle b) { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    bool eq(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
+    bool eq(handle b) const { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
+    bool ne(handle b) const { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
     bool operator<(const NodeHandle& rhs) const { return h < rhs.h; }
-    handle as8byte() { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
+    handle as8byte() const { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
 };
 
 inline bool operator==(NodeHandle a, NodeHandle b) { return a.eq(b); }
 inline bool operator==(NodeHandle a, handle b) { return a.eq(b); }
 inline bool operator!=(NodeHandle a, handle b) { return a.ne(b); }
 std::ostream& operator<<(std::ostream&, NodeHandle h);
-SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
 
 // (can use unordered_set if available)
 typedef set<handle> handle_set;
@@ -595,7 +593,7 @@ typedef enum {
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
-    ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
+    //ATTR_BACKUP_NAMES = 32,                 // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34         // private - byte array - non-versioned
 
@@ -845,7 +843,7 @@ public:
         STATUS_PRO_LEVEL = 4,
     };
 
-    CacheableStatus(int64_t type, int64_t value);
+    CacheableStatus(Type type, int64_t value);
 
     // serializes the object to a string
     bool serialize(string* data) override;
@@ -853,17 +851,20 @@ public:
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
     static CacheableStatus* unserialize(MegaClient *client, const std::string& data);
-    int64_t type() const;
+    Type type() const;
     int64_t value() const;
 
     void setValue(const int64_t value);
+
+    string typeToStr();
+    static string typeToStr(Type type);
 
 private:
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
-    int64_t mType = STATUS_UNKNOWN;
+    Type mType = STATUS_UNKNOWN;
     int64_t mValue = 0;
 
 };
