@@ -2882,6 +2882,8 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
                 mSyncVec[i]->mConfig.setEnabled(enabled);
                 mSyncVec[i]->changedConfigState(true);
             }
+
+            mHeartBeatMonitor->updateOrRegisterSync(*mSyncVec[i]);
         }
     }
 }
