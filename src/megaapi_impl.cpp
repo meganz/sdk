@@ -946,7 +946,7 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
     }
 
     char *base64k = getBase64Key();
-    string strlink = MegaClient::getPublicLink(mNewLinkFormat, static_cast<nodetype_t>(type), plink->ph, (includeKey ? base64k : nullptr));
+    string strlink = MegaClient::publicLinkURL(mNewLinkFormat, static_cast<nodetype_t>(type), plink->ph, (includeKey ? base64k : nullptr));
     delete [] base64k;
 
     return MegaApi::strdup(strlink.c_str());
@@ -6670,7 +6670,7 @@ void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *l
 const char *MegaApiImpl::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
 {
     handle ph = MegaApi::base64ToHandle(publicHandle);
-    string link = client->getPublicLink(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
+    string link = client->publicLinkURL(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
     return MegaApi::strdup(link.c_str());
 }
 
@@ -14014,46 +14014,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     }
 }
 
-void MegaApiImpl::share_result(error e, bool writable)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_EXPORT) &&
-                    (request->getType() != MegaRequest::TYPE_SHARE))) return;
-
-    // exportnode_result will be called to end the request.
-    if (!e && request->getType() == MegaRequest::TYPE_EXPORT)
-    {
-        Node* node = client->nodebyhandle(request->getNodeHandle());
-        if (!node)
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
-            return;
-        }
-
-        if (!request->getAccess())
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
-            return;
-        }
-
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
-        assert(writable == request->getFlag());
-        client->getpubliclink(node, false, request->getNumber(), request->getFlag());
-        client->reqtag = creqtag;
-
-        return;
-    }
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::share_result(int, error, bool writable)
-{
-    //The other callback will be called at the end of the request
-}
-
 void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -14840,64 +14800,6 @@ void MegaApiImpl::changepw_result(error result)
     if(!request || request->getType() != MegaRequest::TYPE_CHANGE_PW) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
-}
-
-// node export failed
-void MegaApiImpl::exportnode_result(error result)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
-}
-
-void MegaApiImpl::exportnode_result(handle h, handle ph)
-{
-    Node* n;
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
-
-    if ((n = client->nodebyhandle(h)))
-    {
-        char key[FILENODEKEYLENGTH*4/3+3];
-
-        // the key
-        if (n->type == FILENODE)
-        {
-            if(n->nodekey().size() >= FILENODEKEYLENGTH)
-            {
-                Base64::btoa((const byte*)n->nodekey().data(), FILENODEKEYLENGTH, key);
-            }
-            else
-            {
-                key[0]=0;
-            }
-        }
-        else if (n->sharekey)
-        {
-            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
-        }
-        else
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
-            return;
-        }
-
-        string link = client->getPublicLink(client->mNewLinkFormat, n->type, ph, key);
-        request->setLink(link.c_str());
-        if (n->plink && n->plink->mAuthKey.size())
-        {
-            request->setPrivateKey(n->plink->mAuthKey.c_str());
-        }
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
-    }
-    else
-    {
-        request->setNodeHandle(UNDEF);
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
-    }
 }
 
 // the requested link could not be opened
@@ -19806,7 +19708,11 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (e == API_OK)
-                client->setshare(node, email, a);
+            {
+                client->setshare(node, email, a, false, nullptr, nextTag, [this, request](Error e, bool){
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            }
             break;
         }
         case MegaRequest::TYPE_IMPORT_LINK:
@@ -19868,7 +19774,59 @@ void MegaApiImpl::sendPendingRequests()
             Node* node = client->nodebyhandle(request->getNodeHandle());
             if(!node) { e = API_EARGS; break; }
 
-            e = client->exportnode(node, !request->getAccess(), request->getNumber(), request->getFlag());
+			bool writable = request->getFlag();
+            // exportnode() will take care of creating a share first, should it be a folder
+            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, nextTag, [this, request, writable](Error e, handle h, handle ph){
+
+                if (e || !request->getAccess()) // disable export doesn't return h and ph
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }
+                else
+                {
+                    // This block of code used to be inside exportnode_result
+                    if (Node* n = client->nodebyhandle(h))
+                    {
+                        char key[FILENODEKEYLENGTH*4/3+3];
+
+                        // the key
+                        if (n->type == FILENODE)
+                        {
+                            if(n->nodekey().size() >= FILENODEKEYLENGTH)
+                            {
+                                Base64::btoa((const byte*)n->nodekey().data(), FILENODEKEYLENGTH, key);
+                            }
+                            else
+                            {
+                                key[0]=0;
+                            }
+                        }
+                        else if (n->sharekey)
+                        {
+                            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
+                        }
+                        else
+                        {
+                            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
+                            return;
+                        }
+
+                        string link = client->publicLinkURL(client->mNewLinkFormat, n->type, ph, key);
+                        request->setLink(link.c_str());
+				        if (n->plink && n->plink->mAuthKey.size())
+				        {
+				            request->setPrivateKey(n->plink->mAuthKey.c_str());
+				        }
+
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
+                    }
+                    else
+                    {
+                        request->setNodeHandle(UNDEF);
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
+                    }
+                }
+            });
             break;
         }
         case MegaRequest::TYPE_FETCH_NODES:
@@ -29078,7 +29036,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         else
         {
             handle h = MegaApi::base64ToHandle(httpctx->nodehandle.c_str());
-            string link = MegaClient::getPublicLink(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
+            string link = MegaClient::publicLinkURL(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
             httpctx->transfer.reset(new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD));

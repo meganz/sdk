@@ -286,7 +286,7 @@ public:
 
     bool ephemeralSession = false;
 
-    static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
+    static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
 
@@ -487,7 +487,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
-    void removeOutSharesFromSubtree(Node* n);
+    void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
@@ -582,15 +582,18 @@ public:
     error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, bool writable = false, const char* = NULL);
+    void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
+	    int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, bool writable = false);
-    void getpubliclink(Node* n, int del, m_time_t ets, bool writable = false); // auxiliar method to add req
+    error exportnode(Node*, int, m_time_t, bool writable,
+	    int tag, std::function<void(Error, handle, handle)> completion);
+    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable,
+	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
