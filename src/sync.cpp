@@ -2830,9 +2830,9 @@ void Syncs::purgeRunningSyncs()
 void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
 {
     bool anySyncDisabled = false;
-    disableSelectedSyncs([&](SyncConfig&, Sync* s){
+    disableSelectedSyncs([&](SyncConfig& config, Sync*){
 
-        if (s)
+        if (config.getEnabled())
         {
             anySyncDisabled = true;
             return true;
