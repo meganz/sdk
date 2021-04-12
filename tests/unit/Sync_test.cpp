@@ -2183,8 +2183,11 @@ TEST_F(SyncConfigStoreTest, WriteDirty)
     // First attempt to write dirty databases should fail.
     store.writeDirtyDrives(configs);
 
-    // Store should remain dirty.
-    EXPECT_TRUE(store.dirty());
+    // Store should be clean.
+    EXPECT_FALSE(store.dirty());
+
+    // Mark drive as dirty.
+    store.markDriveDirty(LocalPath());
 
     // Second attempt to write dirty databases should succeed.
     store.writeDirtyDrives(configs);
@@ -2218,8 +2221,11 @@ TEST_F(SyncConfigStoreTest, WriteEmpty)
     // Write should fail.
     EXPECT_EQ(store.write(LocalPath(), configs), API_EWRITE);
 
-    // Store should remain dirty.
-    EXPECT_TRUE(store.dirty());
+    // Store should be clean.
+    EXPECT_FALSE(store.dirty());
+
+    // Mark drive as dirty.
+    store.markDriveDirty(LocalPath());
 
     // Next attempt to remove should succeed.
     EXPECT_CALL(ioContext(),
@@ -2279,8 +2285,11 @@ TEST_F(SyncConfigStoreTest, Write)
     // Write should fail.
     EXPECT_EQ(store.write(LocalPath(), configs), API_EWRITE);
 
-    // Store should remain dirty.
-    EXPECT_TRUE(store.dirty());
+    // Store should be clean.
+    EXPECT_FALSE(store.dirty());
+
+    // Mark drive as dirty.
+    store.markDriveDirty(LocalPath());
 
     // Attempts to write the first slot should succeed.
     EXPECT_CALL(ioContext(),

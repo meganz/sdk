@@ -702,6 +702,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Backup externally modified";
     case BACKUP_SOURCE_NOT_BELOW_DRIVE:
         return "Backup source path not below drive path.";
+    case SYNC_CONFIG_WRITE_FAILURE:
+        return "Unable to write sync config to disk.";
     default:
         return "Undefined error";
     }
@@ -2551,14 +2553,44 @@ bool Syncs::syncConfigStoreDirty()
     return mSyncConfigStore && mSyncConfigStore->dirty();
 }
 
-void Syncs::syncConfigStoreFlush()
+bool Syncs::syncConfigStoreFlush()
 {
     // No need to flush if the store's not dirty.
-    if (syncConfigStoreDirty())
-    {
-        LOG_debug << "Flushing config store changes.";
-        mSyncConfigStore->writeDirtyDrives(allConfigs());
-    }
+    if (!syncConfigStoreDirty()) return true;
+
+    // Try and flush changes to disk.
+    LOG_debug << "Attempting to flush config store changes.";
+
+    auto failed = mSyncConfigStore->writeDirtyDrives(allConfigs());
+
+    if (failed.empty()) return true;
+
+    LOG_warn << "Failed to flush "
+             << failed.size()
+             << " drive(s).";
+
+    // Disable syncs present on drives that we couldn't write.
+    size_t disabled = 0;
+
+    disableSelectedSyncs(
+      [&](SyncConfig& config, Sync*)
+      {
+          auto matched = failed.count(config.mExternalDrivePath);
+
+          disabled += matched;
+
+          return matched;
+      },
+      SYNC_CONFIG_WRITE_FAILURE,
+      false);
+
+    LOG_warn << "Disabled "
+             << disabled
+             << " sync(s) on "
+             << failed.size()
+             << " drive(s).";
+
+    return false;
 }
 
 error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
@@ -3260,14 +3292,14 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 
     auto& drive = mKnownDrives[drivePath];
 
+    // Always mark drives as clean.
+    // This is to avoid us attempting to flush a failing drive forever.
+    drive.dirty = false;
+
     if (configs.empty())
     {
         error e = mIOContext.remove(drive.dbPath);
-        if (!e)
-        {
-            drive.dirty = false;
-        }
-        else
+        if (e)
         {
             LOG_warn << "Unable to remove sync configs at: "
                      << drivePath.toPath() << " error " << e;
@@ -3293,7 +3325,6 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 
         // start using a different slot (a different file)
         drive.slot = (drive.slot + 1) % NUM_CONFIG_SLOTS;
-        drive.dirty = false;
 
         // remove the existing slot (if any), since it is obsolete now
         mIOContext.remove(drive.dbPath, drive.slot);
@@ -3336,27 +3367,39 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
     return API_OK;
 }
 
-void SyncConfigStore::writeDirtyDrives(const SyncConfigVector& configs)
+auto SyncConfigStore::writeDirtyDrives(const SyncConfigVector& configs) -> DriveSet
 {
+    DriveSet failed;
+
     for (auto& d : mKnownDrives)
     {
-        if (d.second.dirty)
+        if (!d.second.dirty) continue;
+
+        const auto& drivePath = d.second.drivePath;
+
+        SyncConfigVector v;
+
+        for (auto& c : configs)
         {
-            SyncConfigVector v;
-            for (auto& c : configs)
+            if (c.mExternalDrivePath == drivePath)
             {
-                if (c.mExternalDrivePath == d.second.drivePath)
-                {
-                    v.push_back(c);
-                }
-            }
-            error e = write(d.second.drivePath, v);
-            if (e)
-            {
-                LOG_err << "Could not write sync configs at " << d.second.drivePath.toPath() << " error " << e;
+                v.push_back(c);
             }
         }
+
+        error e = write(d.second.drivePath, v);
+        if (e)
+        {
+            LOG_err << "Could not write sync configs at "
+                    << drivePath.toPath()
+                    << " error "
+                    << e;
+
+            failed.emplace(drivePath);
+        }
     }
+
+    return failed;
 }
 
 

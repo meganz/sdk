@@ -371,6 +371,17 @@ class SyncConfigIOContext;
 
 class SyncConfigStore {
 public:
+    // How we compare drive paths.
+    struct DrivePathComparator
+    {
+        bool operator()(const LocalPath& lhs, const LocalPath& rhs) const
+        {
+            return platformCompareUtf(lhs, false, rhs, false) < 0;
+        }
+    }; // DrivePathComparator
+
+    using DriveSet = set<LocalPath, DrivePathComparator>;
+
     SyncConfigStore(const LocalPath& dbPath, SyncConfigIOContext& ioContext);
     ~SyncConfigStore();
 
@@ -396,7 +407,7 @@ public:
     bool removeDrive(const LocalPath& drivePath);
 
     // update configs on disk for any drive marked as dirty
-    void writeDirtyDrives(const SyncConfigVector& configs);
+    auto writeDirtyDrives(const SyncConfigVector& configs) -> DriveSet;
 
 private:
     // Metadata regarding a given drive.
@@ -413,15 +424,6 @@ private:
 
         bool dirty = false;
     }; // DriveInfo
-
-    // How we compare drive paths.
-    struct DrivePathComparator
-    {
-        bool operator()(const LocalPath& lhs, const LocalPath& rhs) const
-        {
-            return platformCompareUtf(lhs, false, rhs, false) < 0;
-        }
-    }; // DrivePathComparator
 
     using DriveInfoMap = map<LocalPath, DriveInfo, DrivePathComparator>;
 
@@ -640,7 +642,7 @@ struct Syncs
     bool syncConfigStoreDirty();
 
     // Attempts to flush the internal configuration database to disk.
-    void syncConfigStoreFlush();
+    bool syncConfigStoreFlush();
 
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
