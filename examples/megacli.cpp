@@ -8379,7 +8379,7 @@ void exec_syncadd(autocomplete::ACState& s)
     {
         if (!backup)
         {
-            cerr << "Sorry, eternal syncs must be backups for now" << endl;
+            cerr << "Sorry, external syncs must be backups for now" << endl;
         }
 
         config.mExternalDrivePath = std::move(drivePath);
@@ -8585,18 +8585,6 @@ void exec_syncxable(autocomplete::ACState& s)
     // sync disable id [error]
     // sync fail id [error]
 
-    // Find the specified sync.
-    auto* sync = client->syncs.runningSyncByBackupId(backupId);
-
-    // Have we found the backup sync?
-    if (!sync)
-    {
-        cerr << "No sync found with the id "
-             << Base64Str<sizeof(handle)>(backupId)
-             << endl;
-        return;
-    }
-
     int error = NO_SYNC_ERROR;
 
     // Has the user provided a specific error code?
@@ -8609,17 +8597,31 @@ void exec_syncxable(autocomplete::ACState& s)
     // Disable or fail?
     if (command == "fail")
     {
+        // Find the specified sync.
+        auto* sync = client->syncs.runningSyncByBackupId(backupId);
+
+        // Have we found the backup sync?
+        if (!sync)
+        {
+            cerr << "No sync found with the id "
+                 << Base64Str<sizeof(handle)>(backupId)
+                 << endl;
+            return;
+        }
+
         client->failSync(sync, static_cast<SyncError>(error));
         return;
     }
-
-    client->syncs.disableSelectedSyncs(
-      [&](SyncConfig&, Sync* s)
-      {
-          return s == sync;
-      },
-      static_cast<SyncError>(error),
-      false);
+    else    // command == "disable"
+    {
+        client->syncs.disableSelectedSyncs(
+          [&backupId](SyncConfig& config, Sync*)
+          {
+              return config.getBackupId() == backupId;
+          },
+          static_cast<SyncError>(error),
+          false);
+    }
 }
 
 #endif // ENABLE_SYNC
