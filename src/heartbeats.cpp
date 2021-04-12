@@ -369,8 +369,12 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 void BackupMonitor::beat()
 {
 #ifdef ENABLE_SYNC
+    // Only send heartbeats for enabled active syncs.
     mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
-        beatBackupInfo(us);
+        if (us.mSync && us.mConfig.getEnabled())
+        {
+            beatBackupInfo(us);
+        }
     });
 #endif
 }
