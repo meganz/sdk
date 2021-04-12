@@ -22017,7 +22017,6 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_SEND_DEV_COMMAND:
         {
-            const char *email = request->getEmail();
             const char *command = request->getName();
             if (!command)
             {
@@ -22025,10 +22024,11 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+#ifdef DEBUG
+            const char *email = request->getEmail();
             long long q = request->getTotalBytes();
             int bs = request->getAccess();
             int us = request->getNumDetails();
-#ifdef DEBUG
 
             bool isOdqSubcmd = !strcmp(command, "aodq");
             bool isTqSubcmd = !strcmp(command, "tq");

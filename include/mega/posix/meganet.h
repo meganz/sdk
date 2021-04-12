@@ -179,6 +179,8 @@ protected:
     WAIT_CLASS* waiter;
     bool disconnecting;
 
+    typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
+
 #ifdef MEGA_USE_C_ARES
     void addaresevents(Waiter *waiter);
     void closearesevents();
@@ -190,7 +192,6 @@ protected:
     int checkevents(Waiter*) override;
     void closecurlevents(direction_t d);
     void processcurlevents(direction_t d);
-    typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
     SockInfoMap curlsockets[3];
     m_time_t curltimeoutreset[3];
     bool arerequestspaused[3];
