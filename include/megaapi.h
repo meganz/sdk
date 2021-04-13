@@ -18286,6 +18286,13 @@ class MegaApi
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
 
         /**
+         * @brief Call the low level function getrlimit() for NOFILE, needed for some platforms.
+         *
+         * @return The current limit for the number of open files (and sockets) for the app, or -1 if error.
+         */
+        int platformGetRLimitNumFile() const;
+
+        /**
          * @brief Requests a list of all Smart Banners available for current user.
          *
          * The response value is stored as a MegaBannerList.

@@ -4289,6 +4289,11 @@ bool MegaApi::platformSetRLimitNumFile(int newNumFileLimit) const
     return pImpl->platformSetRLimitNumFile(newNumFileLimit);
 }
 
+int MegaApi::platformGetRLimitNumFile() const
+{
+    return pImpl->platformGetRLimitNumFile();
+}
+
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
 {
     pImpl->sendSMSVerificationCode(phoneNumber, listener, reverifying_whitelisted);

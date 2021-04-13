@@ -10788,6 +10788,33 @@ public class MegaApiJava {
     }
 
     /**
+     * Call the low level function getrlimit() for NOFILE, needed for some platforms.
+     *
+     * @return The current limit for the number of open files (and sockets) for the app, or -1 if error.
+     */
+    public int platformGetRLimitNumFile() {
+        return megaApi.platformGetRLimitNumFile();
+    }
+
+    /**
+     * Call the low level function setrlimit() for NOFILE, needed for some platforms.
+     *
+     * Particularly on phones, the system default limit for the number of open files (and sockets)
+     * is quite low.   When the SDK can be working on many files and many sockets at once,
+     * we need a higher limit.   Those limits need to take into account the needs of the whole
+     * app and not just the SDK, of course.   This function is provided in order that the app
+     * can make that call and set appropriate limits.
+     *
+     * @param newNumFileLimit The new limit of file and socket handles for the whole app.
+     *
+     * @return True when there were no errors setting the new limit (even when clipped to the maximum
+     * allowed value). It returns false when setting a new limit failed.
+     */
+    public boolean platformSetRLimitNumFile(int newNumFileLimit) {
+        return megaApi.platformSetRLimitNumFile(newNumFileLimit);
+    }
+
+    /**
      * Requests a list of all Smart Banners available for current user.
      *
      * The response value is stored as a MegaBannerList.
