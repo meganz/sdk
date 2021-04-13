@@ -3387,7 +3387,7 @@ auto SyncConfigStore::writeDirtyDrives(const SyncConfigVector& configs) -> Drive
             }
         }
 
-        error e = write(d.second.drivePath, v);
+        error e = write(drivePath, v);
         if (e)
         {
             LOG_err << "Could not write sync configs at "
