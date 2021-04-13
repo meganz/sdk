@@ -1073,7 +1073,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
 
         if (notifyApp)
         {
-            bool wasActive = oldstate == SYNC_ACTIVE;
+            bool wasActive = oldstate == SYNC_ACTIVE || oldstate == SYNC_INITIALSCAN;
             bool nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
