@@ -2565,7 +2565,7 @@ bool Syncs::syncConfigStoreFlush()
 
     if (failed.empty()) return true;
 
-    LOG_warn << "Failed to flush "
+    LOG_err << "Failed to flush "
              << failed.size()
              << " drive(s).";
 
