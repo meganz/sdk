@@ -3308,22 +3308,54 @@ MegaNode *MegaApi::getSyncedNode(string *path)
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, name, megaFolder, NULL, listener);
+    // deprecated
+    pImpl->syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, nullptr, megaFolder, NULL, listener);
+    // deprecated
+    pImpl->syncFolder(localFolder, nullptr, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
 {
+    // deprecated
     pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
+    // deprecated
     pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
+}
+
+
+void MegaApi::syncFolder(MegaSync::SyncType syncType, const char* localFolder, const char* name, MegaHandle megaHandle,
+    const char* driveRootIfExternal,
+#ifdef USE_PCRE
+    MegaRegExp* regExp,
+#else
+    void* regExp,
+#endif
+    MegaRequestListener* listener)
+{
+#ifdef USE_PCRE
+    assert(!regExp);
+    regExp = nullptr;
+#endif
+    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::Type(syncType), (MegaRegExp*)regExp, listener);
+}
+
+
+void MegaApi::loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
+{
+    pImpl->loadExternalBackupSyncsFromExternalDrive(externalDriveRoot, listener);
+}
+
+void MegaApi::closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
+{
+    pImpl->closeExternalBackupSyncsFromExternalDrive(externalDriveRoot, listener);
 }
 
 void MegaApi::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -3346,7 +3378,8 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, nullptr, megaFolder, regExp, listener);
+    // deprecated
+    pImpl->syncFolder(localFolder, nullptr, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, regExp, listener);
 }
 #endif
 
@@ -3492,10 +3525,6 @@ void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 }
 #endif
 
-void MegaApi::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
-{
-    pImpl->syncFolder(localFolder, backupName, INVALID_HANDLE, SyncConfig::TYPE_BACKUP, nullptr, listener);
-}
 #endif
 
 

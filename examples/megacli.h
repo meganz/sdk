@@ -389,10 +389,8 @@ void exec_banner(autocomplete::ACState& s);
 #ifdef ENABLE_SYNC
 
 void exec_syncadd(autocomplete::ACState& s);
-void exec_syncbackupadd(autocomplete::ACState& s);
-void exec_syncbackupremove(autocomplete::ACState& s);
-void exec_syncbackuprestore(autocomplete::ACState& s);
-void exec_syncconfig(autocomplete::ACState& s);
+void exec_syncclosedrive(autocomplete::ACState& s);
+void exec_syncopendrive(autocomplete::ACState& s);
 void exec_synclist(autocomplete::ACState& s);
 void exec_syncremove(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
