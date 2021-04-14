@@ -720,7 +720,10 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     transfer->ultoken.reset();
                                 }
                             }
+                        }
 
+                        if (reqs[i]->in.size() != 1 || reqs[i]->in[0] != '0')
+                        {
                             LOG_debug << "Error uploading chunk: " << reqs[i]->in;
                             error e = (error)atoi(reqs[i]->in.c_str());
                             if (e == API_EKEY)
