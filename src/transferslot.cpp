@@ -745,7 +745,8 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 if (e == DAEMON_EFAILED)
                                 {
                                     // megad returning -4 should result in restarting the transfer
-                                    client->sendevent(99440, "Retry requested by storage server", 0);
+                                    string event = "Unexpected upload chunk confirmation length: " + reqs[i]->in.size();
+                                    client->sendevent(99441, event.c_str(), 0);
                                 }
                                 else
                                 {
