@@ -671,12 +671,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     LOG_debug << "New style upload token";
                                     memcpy(transfer->ultoken.get(), reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
                                 }
-                                else
-                                {
-                                    LOG_debug << "Old style upload token: " << reqs[i]->in;
-                                    tokenOK = (Base64::atob(reqs[i]->in.data(), transfer->ultoken.get(), NewNode::UPLOADTOKENLEN)
-                                               == NewNode::OLDUPLOADTOKENLEN);
-                                }
 
                                 if (tokenOK)
                                 {
