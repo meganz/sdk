@@ -282,7 +282,7 @@ public:
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
-    ~MegaFolderUploadController();
+    virtual ~MegaFolderUploadController();
     void complete(Error e);
 
 protected:
@@ -487,7 +487,7 @@ class MegaFolderDownloadController : public MegaTransferListener, public MegaRec
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    ~MegaFolderDownloadController();
+    virtual ~MegaFolderDownloadController();
     void start(MegaNode *node) override;
     void cancel() override;
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
