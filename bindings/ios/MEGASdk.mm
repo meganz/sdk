@@ -220,6 +220,11 @@ using namespace mega;
     return self;
 }
 
+- (void)deleteMegaApi {    
+    delete _megaApi;
+    pthread_mutex_destroy(&listenerMutex);
+}
+
 - (void)dealloc {
     delete _megaApi;
     pthread_mutex_destroy(&listenerMutex);
