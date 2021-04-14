@@ -249,6 +249,7 @@ CONFIG(USE_PDFIUM) {
     #make sure we get the vcpkg built icu libraries and not a system one with the same name
     vcpkg {
         win32 {
+            vcpkg:LIBS += -lbz2$$DEBUG_SUFFIX_WO -licudt$$DEBUG_SUFFIX_WO
             debug: LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
             !debug: LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
             #QMAKE_LFLAGS_WINDOWS += /VERBOSE
