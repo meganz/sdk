@@ -2575,11 +2575,14 @@ bool Syncs::syncConfigStoreFlush()
     disableSelectedSyncs(
       [&](SyncConfig& config, Sync*)
       {
+          // But only if they're not already disabled.
+          if (!config.getEnabled()) return false;
+
           auto matched = failed.count(config.mExternalDrivePath);
 
           disabled += matched;
 
-          return matched;
+          return matched > 0;
       },
       SYNC_CONFIG_WRITE_FAILURE,
       false);
