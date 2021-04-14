@@ -40,7 +40,7 @@ namespace mega {
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
-string MegaClient::APIURL = "https://g.api.mega.co.nz/";
+string MegaClient::APIURL = "https://staging.api.mega.co.nz/";
 
 // root URL for GeLB requests
 string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
@@ -1229,7 +1229,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     userid = 0;
 
-    connections[PUT] = 3;
+    connections[PUT] = 6;
     connections[GET] = 4;
 
     int i;
