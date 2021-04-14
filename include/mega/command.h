@@ -63,6 +63,7 @@ public:
 
     void arg(const char*, const char*, int = 1);
     void arg(const char*, const byte*, int);
+    void arg(const char*, NodeHandle);
     void arg(const char*, m_off_t);
     void addcomma();
     void appendraw(const char*);
@@ -622,12 +623,16 @@ class MEGA_API CommandSetShare : public Command
     string personal_representation;
     bool mWritable = false;
 
+
+    std::function<void(Error, bool writable)> completion;
+
     bool procuserresult(MegaClient*);
 
 public:
     bool procresult(Result) override;
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, bool writable, const char* = NULL);
+    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, bool writable, const char*,
+	    int tag, std::function<void(Error, bool writable)> f);
 };
 
 class MEGA_API CommandGetUserData : public Command
@@ -727,11 +732,13 @@ class MEGA_API CommandSetPH : public Command
     handle h;
     m_time_t ets;
     bool mWritable = false;
+    std::function<void(Error, handle, handle)> completion;
 
 public:
     bool procresult(Result) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable = false);
+    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable,
+	    int ctag, std::function<void(Error, handle, handle)> f);
 };
 
 class MEGA_API CommandGetPH : public Command
@@ -1323,24 +1330,23 @@ class MEGA_API CommandBackupPut : public Command
 public:
     bool procresult(Result) override;
 
-    // Register a new Sync
-    CommandBackupPut(MegaClient* client, BackupType type, const std::string& backupName, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData, std::function<void(Error, handle /*backup id*/)> completion);
+    struct BackupInfo
+    {
+        // if left as UNDEF, you are registering a new Sync/Backup
+        handle backupId = UNDEF;
 
-    // Update a Backup
-    // Params that keep the same value are passed with invalid value to avoid to send to the server
-    // Invalid values:
-    // - type: BackupType::INVALID
-    // - nodeHandle: UNDEF
-    // - localFolder: nullptr
-    // - deviceId: nullptr
-    // - state: -1
-    // - subState: -1
-    // - extraData: nullptr
-    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, std::function<void(Error, handle /*backup id*/)> completion);
+        // if registering a new Sync/Backup, these must be set
+        // otherwise, leave as is to not send an update for that field.
+        BackupType type = BackupType::INVALID;
+        string backupName = "";
+        NodeHandle nodeHandle; // undef by default
+        LocalPath localFolder; // empty
+        string deviceId = "";
+        int state = -1;
+        int subState = -1;
+    };
 
-private:
-    bool mUpdate = false;
-    string mBackupName;
+    CommandBackupPut(MegaClient* client, const BackupInfo&, std::function<void(Error, handle /*backup id*/)> completion);
 };
 
 class MEGA_API CommandBackupRemove : public Command

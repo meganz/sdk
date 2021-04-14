@@ -76,7 +76,6 @@ std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
 bool gVerboseMode = false;
 
-
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
@@ -100,11 +99,6 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 
 // change email link to be confirmed
 static string changeemail, changecode;
-
-// chained folder link creation
-static handle hlink = UNDEF;
-static int del = 0;
-static int ets = 0;
 
 // import welcome pdf at account creation
 static bool pdf_to_import = false;
@@ -140,72 +134,6 @@ std::string syncConfigToString(const SyncConfig& config)
         description.append(" DOWN");
     }
     return description;
-}
-
-// creates a NewSyncConfig object from config options as strings.
-// returns a pair where `first` is success and `second` is the sync config.
-std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
-{
-    auto toLower = [](std::string& s)
-    {
-        for (char& c : s) { c = static_cast<char>(tolower(c)); };
-    };
-
-    toLower(type);
-    toLower(syncDel);
-    toLower(overwrite);
-
-    SyncConfig::Type syncType;
-    if (type == "up")
-    {
-        syncType = SyncConfig::TYPE_UP;
-    }
-    else if (type == "down")
-    {
-        syncType = SyncConfig::TYPE_DOWN;
-    }
-    else if (type == "twoway")
-    {
-        syncType = SyncConfig::TYPE_TWOWAY;
-    }
-    else
-    {
-        return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
-    }
-
-    bool syncDeletions = false;
-    bool forceOverwrite = false;
-
-    if (syncType != SyncConfig::TYPE_TWOWAY)
-    {
-        if (syncDel == "on")
-        {
-            syncDeletions = true;
-        }
-        else if (syncDel == "off")
-        {
-            syncDeletions = false;
-        }
-        else
-        {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
-        }
-
-        if (overwrite == "on")
-        {
-            forceOverwrite = true;
-        }
-        else if (overwrite == "off")
-        {
-            forceOverwrite = false;
-        }
-        else
-        {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
-        }
-    }
-
-    return std::make_pair(true, SyncConfig(LocalPath(), "", UNDEF, "", 0, {}, true, syncType));
 }
 
 #endif
@@ -459,18 +387,20 @@ void DemoApp::syncupdate_active(handle backupId, bool active)
     cout << "Sync is now active: " << active << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
+void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted, bool hadAnError)
 {
     handle backupId = s.mConfig.getBackupId();
     if (attempted)
     {
         cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
-             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError()
+             << " hadAnErrorBefore: " << hadAnError << " Running: " << !!s.mSync << endl;
     }
     else
     {
         cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess) << " enabled: "
-            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError()
+            << " hadAnErrorBefore: " << hadAnError << " Running: " << !!s.mSync << endl;
     }
 }
 
@@ -1194,51 +1124,6 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
             i->second(n);
             gOnPutNodeTag.erase(i);
         }
-    }
-}
-
-void DemoApp::share_result(error e, bool writable)
-{
-    if (e)
-    {
-        cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        if (hlink != UNDEF)
-        {
-            if (!del)
-            {
-                Node *n = client->nodebyhandle(hlink);
-                if (!n)
-                {
-                    cout << "Node was not found. (" << Base64Str<sizeof hlink>(hlink) << ")" << endl;
-
-                    hlink = UNDEF;
-                    del = ets = 0;
-                    return;
-                }
-
-                client->getpubliclink(n, del, ets, writable);
-            }
-            else
-            {
-                hlink = UNDEF;
-                del = ets = 0;
-            }
-        }
-    }
-}
-
-void DemoApp::share_result(int, error e, bool writable)
-{
-    if (e)
-    {
-        cout << "Share creation/modification failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        cout << "Share creation/modification succeeded" << endl;
     }
 }
 
@@ -2682,7 +2567,7 @@ void exec_treecompare(autocomplete::ACState& s)
 }
 
 
-bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, int filesize, int& totalfilecount, int& totalfoldercount)
+bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, uint64_t filesize, int& totalfilecount, int& totalfoldercount)
 {
     fs::path p = targetfolder / fs::u8path(prefix);
     if (!fs::is_directory(p) && !fs::create_directory(p))
@@ -2694,8 +2579,10 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersp
         string filename = prefix + "_file_" + std::to_string(++totalfilecount);
         fs::path fp = p / fs::u8path(filename);
         ofstream fs(fp.u8string(), std::ios::binary);
+        char buffer[64 * 1024];
+        fs.rdbuf()->pubsetbuf(buffer, sizeof(buffer));
 
-        for (unsigned j = filesize / sizeof(int); j--; )
+        for (auto j = filesize / sizeof(int); j--; )
         {
             fs.write((char*)&totalfilecount, sizeof(int));
         }
@@ -2716,11 +2603,12 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersp
 void exec_generatetestfilesfolders(autocomplete::ACState& s)
 {
     string param, nameprefix = "test";
-    int folderdepth = 1, folderwidth = 1, filecount = 100, filesize = 1024;
+    int folderdepth = 1, folderwidth = 1, filecount = 100;
+    int64_t filesize = 1024;
     if (s.extractflagparam("-folderdepth", param)) folderdepth = atoi(param.c_str());
     if (s.extractflagparam("-folderwidth", param)) folderwidth = atoi(param.c_str());
     if (s.extractflagparam("-filecount", param)) filecount = atoi(param.c_str());
-    if (s.extractflagparam("-filesize", param)) filesize = atoi(param.c_str());
+    if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
     if (s.extractflagparam("-nameprefix", param)) nameprefix = param;
 
     fs::path p = pathFromLocalPath(s.words[1].s, true);
@@ -3088,11 +2976,25 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
+    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
+
     p->Add(exec_syncadd,
            sequence(text("sync"),
                     text("add"),
+                    opt(flag("-backup")),
+                    opt(sequence(flag("-external"), param("drivePath"))),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
+
+    p->Add(exec_syncclosedrive,
+           sequence(text("sync"),
+                    text("closedrive"),
+                    localFSFolder("drive")));
+
+    p->Add(exec_syncopendrive,
+           sequence(text("sync"),
+                    text("opendrive"),
+                    localFSFolder("drive")));
 
     p->Add(exec_synclist,
            sequence(text("sync"), text("list")));
@@ -3109,9 +3011,6 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(param("error"))),
                            sequence(text("enable"),
                                     param("id")))));
-
-    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
-
 #endif
 
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
@@ -3180,7 +3079,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_chatlu, sequence(text("chatlu"), param("publichandle")));
     p->Add(exec_chatlj, sequence(text("chatlj"), param("publichandle"), param("unifiedkey")));
 #endif
-    p->Add(exec_enabletransferresumption, sequence(text("enabletransferresumption"), opt(either(text("on"), text("off")))));
     p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
@@ -4609,6 +4507,8 @@ void exec_mount(autocomplete::ACState& s)
 
 void exec_share(autocomplete::ACState& s)
 {
+    bool writable = false;
+
     switch (s.words.size())
     {
     case 1:		// list all shares (incoming and outgoing)
@@ -4691,7 +4591,16 @@ void exec_share(autocomplete::ACState& s)
                     }
                 }
 
-                client->setshare(n, s.words[2].s.c_str(), a, personal_representation);
+                client->setshare(n, s.words[2].s.c_str(), a, writable, personal_representation, gNextClientTag++, [](Error e, bool){
+                    if (e)
+                    {
+                        cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+                    }
+                    else
+                    {
+                        cout << "Share creation/modification succeeded." << endl;
+                    }
+                });
             }
         }
         else
@@ -4969,9 +4878,7 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_BACKUP_NAMES
-                    || attrtype == ATTR_DEVICE_NAMES
-                    || attrtype == ATTR_ALIAS)
+            if (attrtype == ATTR_DEVICE_NAMES || attrtype == ATTR_ALIAS)
             {
                 std::string key = s.words[3].s;
                 std::string value = Base64::btoa(s.words[4].s);
@@ -5792,8 +5699,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
 
 void exec_export(autocomplete::ACState& s)
 {
-    hlink = UNDEF;
-    del = ets = 0;
+    void exportnode_result(Error e, handle h, handle ph);
 
     Node* n;
     int deltmp = 0;
@@ -5817,15 +5723,11 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable)))
+        if ((e = client->exportnode(n, deltmp, etstmp, writable, gNextClientTag++, [](Error e, handle h, handle ph){
+            exportnode_result(e, h, ph);
+        })))
         {
             cout << s.words[1].s << ": Export rejected (" << errorstring(e) << ")" << endl;
-        }
-        else
-        {
-            hlink = n->nodehandle;
-            ets = etstmp;
-            del = deltmp;
         }
     }
     else
@@ -6404,7 +6306,6 @@ void exec_handles(autocomplete::ACState& s)
     }
 }
 
-
 #if defined(WIN32) && defined(NO_READLINE)
 void exec_codepage(autocomplete::ACState& s)
 {
@@ -6653,20 +6554,6 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
         cout << (done ? "Success. " : "Failed. ");
     }
     cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
-}
-
-void exec_enabletransferresumption(autocomplete::ACState& s)
-{
-    if (s.words.size() > 1 && s.words[1].s == "off")
-    {
-        client->disabletransferresumption(NULL);
-        cout << "transfer resumption disabled" << endl;
-    }
-    else
-    {
-        client->enabletransferresumption(NULL);
-        cout << "transfer resumption enabled" << endl;
-    }
 }
 
 // callback for non-EAGAIN request-level errors
@@ -7155,20 +7042,15 @@ void DemoApp::changepw_result(error e)
     }
 }
 
-// node export failed
-void DemoApp::exportnode_result(error e)
+
+void exportnode_result(Error e, handle h, handle ph)
 {
     if (e)
     {
         cout << "Export failed: " << errorstring(e) << endl;
+        return;
     }
 
-    del = ets = 0;
-    hlink = UNDEF;
-}
-
-void DemoApp::exportnode_result(handle h, handle ph)
-{
     Node* n;
 
     if ((n = client->nodebyhandle(h)))
@@ -7180,20 +7062,17 @@ void DemoApp::exportnode_result(handle h, handle ph)
         if (n->type != FILENODE && !n->sharekey)
         {
             cout << "No key available for exported folder" << endl;
-
-            del = ets = 0;
-            hlink = UNDEF;
             return;
         }
 
         string publicLink;
         if (n->type == FILENODE)
         {
-            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
         }
         else
         {
-            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
         }
 
         cout << publicLink;
@@ -7217,9 +7096,6 @@ void DemoApp::exportnode_result(handle h, handle ph)
     {
         cout << "Exported node no longer available" << endl;
     }
-
-    del = ets = 0;
-    hlink = UNDEF;
 }
 
 // the requested link could not be opened
@@ -8434,6 +8310,28 @@ void exec_banner(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
+void sync_completion(UnifiedSync* us, const SyncError&, error result)
+{
+    if (!us)
+    {
+        cerr << "Sync could not be added: "
+             << errorstring(result)
+             << endl;
+    }
+    else if (us->mSync)
+    {
+        cerr << "Sync added and running: "
+             << toHandle(us->mConfig.mBackupId)
+             << endl;
+    }
+    else
+    {
+        cerr << "Sync added but could not be started: "
+             << errorstring(result)
+             << endl;
+    }
+}
+
 void exec_syncadd(autocomplete::ACState& s)
 {
     if (client->loggedin() != FULLACCOUNT)
@@ -8443,8 +8341,13 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
+    string drive;
+    bool backup = s.extractflag("-backup");
+    bool external = s.extractflagparam("-external", drive);
+
     // sync add source target
-    string sourcePath = s.words[2].s;
+    LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
+    LocalPath sourcePath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
     string targetPath = s.words[3].s;
 
     // Does the target node exist?
@@ -8458,32 +8361,83 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
+    // Necessary so that we can reliably extract the leaf name.
+    sourcePath = NormalizeAbsolute(sourcePath);
+
     // Create a suitable sync config.
-    SyncConfig config(LocalPath::fromPath(sourcePath, *client->fsaccess),
-                 sourcePath,
-                 targetNode->nodehandle,
+    auto config =
+      SyncConfig(sourcePath,
+                 sourcePath.leafName().toPath(*client->fsaccess),
+                 NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
                  string_vector(),
                  true,
-                 SyncConfig::TYPE_TWOWAY);
+                 backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
-    // Try and add the new sync.   All validation is performed in this function
-    client->addsync(config, true,
-                    [&](mega::UnifiedSync *, const SyncError &, error e) {
-        if (!e)
+    if (external)
+    {
+        if (!backup)
         {
-            cout << "Sync added" << endl;
+            cerr << "Sorry, external syncs must be backups for now" << endl;
         }
-        else
-        {
-            cerr << "Sync could not be added: "
-                 << errorstring(e)
-                 << endl;
-        }
-    });
+
+        config.mExternalDrivePath = std::move(drivePath);
+    }
+
+    // Try and add the new sync.
+	// All validation is performed in this function.
+    client->addsync(config, false, sync_completion);
 }
 
+void exec_syncclosedrive(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate backup syncs."
+             << endl;
+        return;
+    }
+
+    // sync backup remove drive
+    const auto drivePath =
+      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+
+    const auto result = client->syncs.backupCloseDrive(drivePath);
+
+    if (result)
+    {
+        cerr << "Unable to remove backup database: "
+             << errorstring(result)
+             << endl;
+    }
+}
+
+void exec_syncopendrive(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to restore backup syncs."
+             << endl;
+        return;
+    }
+
+    // sync backup restore drive
+    const auto drivePath =
+      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+
+    auto result = client->syncs.backupOpenDrive(drivePath);
+
+    if (result)
+    {
+        cerr << "Unable to restore backups from '"
+             << s.words[2].s
+             << "': "
+             << errorstring(result)
+             << endl;
+    }
+}
 
 void exec_synclist(autocomplete::ACState& s)
 {
@@ -8494,6 +8448,12 @@ void exec_synclist(autocomplete::ACState& s)
              << endl;
         return;
     }
+
+    if (client->syncs.numSyncs() == 0)
+    {
+        cout << "No syncs configured yet" << endl;
+        return;
+     }
 
     client->syncs.forEachUnifiedSync(
       [](UnifiedSync& us)
@@ -8568,14 +8528,6 @@ void exec_syncremove(autocomplete::ACState& s)
     handle backupId = 0;
     Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
 
-    // Make sure the sync isn't active.
-    if (client->syncs.runningSyncByBackupId(backupId))
-    {
-        cerr << "Cannot remove config as sync is active."
-             << endl;
-        return;
-    }
-
     // Try and remove the config.
     bool found = false;
 
@@ -8591,7 +8543,7 @@ void exec_syncremove(autocomplete::ACState& s)
 
     if (!found)
     {
-        cerr << "No sync config exists with the tag "
+        cerr << "No sync config exists with the backupId "
              << Base64Str<sizeof(handle)>(backupId)
              << endl;
         return;
@@ -8633,18 +8585,6 @@ void exec_syncxable(autocomplete::ACState& s)
     // sync disable id [error]
     // sync fail id [error]
 
-    // Find the specified sync.
-    auto* sync = client->syncs.runningSyncByBackupId(backupId);
-
-    // Have we found the backup sync?
-    if (!sync)
-    {
-        cerr << "No sync found with the id "
-             << Base64Str<sizeof(handle)>(backupId)
-             << endl;
-        return;
-    }
-
     int error = NO_SYNC_ERROR;
 
     // Has the user provided a specific error code?
@@ -8657,17 +8597,31 @@ void exec_syncxable(autocomplete::ACState& s)
     // Disable or fail?
     if (command == "fail")
     {
+        // Find the specified sync.
+        auto* sync = client->syncs.runningSyncByBackupId(backupId);
+
+        // Have we found the backup sync?
+        if (!sync)
+        {
+            cerr << "No sync found with the id "
+                 << Base64Str<sizeof(handle)>(backupId)
+                 << endl;
+            return;
+        }
+
         client->failSync(sync, static_cast<SyncError>(error));
         return;
     }
-
-    client->syncs.disableSelectedSyncs(
-      [&](SyncConfig&, Sync* s)
-      {
-          return s == sync;
-      },
-      static_cast<SyncError>(error),
-      false);
+    else    // command == "disable"
+    {
+        client->syncs.disableSelectedSyncs(
+          [&backupId](SyncConfig& config, Sync*)
+          {
+              return config.getBackupId() == backupId;
+          },
+          static_cast<SyncError>(error),
+          false);
+    }
 }
 
 #endif // ENABLE_SYNC

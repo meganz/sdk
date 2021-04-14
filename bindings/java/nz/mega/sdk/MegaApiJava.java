@@ -84,7 +84,7 @@ public class MegaApiJava {
 
     public final static int ATTR_TYPE_THUMBNAIL = MegaApi.ATTR_TYPE_THUMBNAIL;
     public final static int ATTR_TYPE_PREVIEW = MegaApi.ATTR_TYPE_PREVIEW;
-    
+
     public final static int USER_ATTR_AVATAR = MegaApi.USER_ATTR_AVATAR;
     public final static int USER_ATTR_FIRSTNAME = MegaApi.USER_ATTR_FIRSTNAME;
     public final static int USER_ATTR_LASTNAME = MegaApi.USER_ATTR_LASTNAME;
@@ -110,7 +110,7 @@ public class MegaApiJava {
     public final static int USER_ATTR_ALIAS = MegaApi.USER_ATTR_ALIAS;
     public final static int USER_ATTR_DEVICE_NAMES = MegaApi.USER_ATTR_DEVICE_NAMES;
     public final static int USER_ATTR_MY_BACKUPS_FOLDER = MegaApi.USER_ATTR_MY_BACKUPS_FOLDER;
-    public final static int USER_ATTR_BACKUP_NAMES = MegaApi.USER_ATTR_BACKUP_NAMES;
+    // deprecated: public final static int USER_ATTR_BACKUP_NAMES = MegaApi.USER_ATTR_BACKUP_NAMES;
     public final static int USER_ATTR_COOKIE_SETTINGS = MegaApi.USER_ATTR_COOKIE_SETTINGS;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
@@ -129,7 +129,7 @@ public class MegaApiJava {
     public final static int PAYMENT_METHOD_CREDIT_CARD = MegaApi.PAYMENT_METHOD_CREDIT_CARD;
     public final static int PAYMENT_METHOD_CENTILI = MegaApi.PAYMENT_METHOD_CENTILI;
     public final static int PAYMENT_METHOD_WINDOWS_STORE = MegaApi.PAYMENT_METHOD_WINDOWS_STORE;
-	
+
     public final static int TRANSFER_METHOD_NORMAL = MegaApi.TRANSFER_METHOD_NORMAL;
     public final static int TRANSFER_METHOD_ALTERNATIVE_PORT = MegaApi.TRANSFER_METHOD_ALTERNATIVE_PORT;
     public final static int TRANSFER_METHOD_AUTO = MegaApi.TRANSFER_METHOD_AUTO;
@@ -240,11 +240,11 @@ public class MegaApiJava {
 
     /**
      * Constructor suitable for most applications.
-     * 
+     *
      * @param appKey
      *            AppKey of your application.
      *            Generate an AppKey for free here: https://mega.co.nz/#sdk
-     * 
+     *
      * @param basePath
      *            Base path to store the local cache.
      *            If you pass null to this parameter, the SDK won't use any local cache.
@@ -260,23 +260,23 @@ public class MegaApiJava {
      * You can build the SDK with one of the provided built-in graphics processors. If none are available
      * in your app, you can implement the MegaGfxProcessor interface to provide a custom processor. Please
      * read the documentation of MegaGfxProcessor carefully to ensure that your implementation is valid.
-     * 
+     *
      * @param appKey
      *            AppKey of your application.
      *            Generate an AppKey for free here: https://mega.co.nz/#sdk
-     * 
+     *
      * @param userAgent
      *            User agent to use in network requests.
      *            If you pass null to this parameter, a default user agent will be used.
-     * 
+     *
      * @param basePath
      *            Base path to store the local cache.
      *            If you pass null to this parameter, the SDK won't use any local cache.
-     * 
+     *
      * @param gfxProcessor
      *            Image processor. The SDK will use it to generate previews and thumbnails.
      *            If you pass null to this parameter, the SDK will try to use the built-in image processors.
-     * 
+     *
      */
     public MegaApiJava(String appKey, String userAgent, String basePath, MegaGfxProcessor gfxProcessor) {
         this.gfxProcessor = gfxProcessor;
@@ -285,7 +285,7 @@ public class MegaApiJava {
 
     /**
      * Constructor suitable for most applications.
-     * 
+     *
      * @param appKey
      *            AppKey of your application.
      *            Generate an AppKey for free here: https://mega.co.nz/#sdk
@@ -302,7 +302,7 @@ public class MegaApiJava {
      * Register a listener to receive all events (requests, transfers, global, synchronization).
      * <p>
      * You can use MegaApiJava.removeListener() to stop receiving events.
-     * 
+     *
      * @param listener
      *            Listener that will receive all events (requests, transfers, global, synchronization).
      */
@@ -314,7 +314,7 @@ public class MegaApiJava {
      * Register a listener to receive all events about requests.
      * <p>
      * You can use MegaApiJava.removeRequestListener() to stop receiving events.
-     * 
+     *
      * @param listener
      *            Listener that will receive all events about requests.
      */
@@ -326,7 +326,7 @@ public class MegaApiJava {
      * Register a listener to receive all events about transfers.
      * <p>
      * You can use MegaApiJava.removeTransferListener() to stop receiving events.
-     * 
+     *
      * @param listener
      *            Listener that will receive all events about transfers.
      */
@@ -338,7 +338,7 @@ public class MegaApiJava {
      * Register a listener to receive global events.
      * <p>
      * You can use MegaApiJava.removeGlobalListener() to stop receiving events.
-     * 
+     *
      * @param listener
      *            Listener that will receive global events.
      */
@@ -350,13 +350,13 @@ public class MegaApiJava {
      * Unregister a listener.
      * <p>
      * Stop receiving events from the specified listener.
-     * 
+     *
      * @param listener
      *            Object that is unregistered.
      */
     public void removeListener(MegaListenerInterface listener) {
     	ArrayList<DelegateMegaListener> listenersToRemove = new ArrayList<DelegateMegaListener>();
-    	
+
         synchronized (activeMegaListeners) {
             Iterator<DelegateMegaListener> it = activeMegaListeners.iterator();
             while (it.hasNext()) {
@@ -367,17 +367,17 @@ public class MegaApiJava {
                 }
             }
         }
-        
+
         for (int i=0;i<listenersToRemove.size();i++){
         	megaApi.removeListener(listenersToRemove.get(i));
-        }        	
+        }
     }
 
     /**
      * Unregister a MegaRequestListener.
      * <p>
      * Stop receiving events from the specified listener.
-     * 
+     *
      * @param listener
      *            Object that is unregistered.
      */
@@ -393,7 +393,7 @@ public class MegaApiJava {
                 }
             }
         }
-        
+
         for (int i=0;i<listenersToRemove.size();i++){
         	megaApi.removeRequestListener(listenersToRemove.get(i));
         }
@@ -403,13 +403,13 @@ public class MegaApiJava {
      * Unregister a MegaTransferListener.
      * <p>
      * Stop receiving events from the specified listener.
-     * 
+     *
      * @param listener
      *            Object that is unregistered.
      */
     public void removeTransferListener(MegaTransferListenerInterface listener) {
     	ArrayList<DelegateMegaTransferListener> listenersToRemove = new ArrayList<DelegateMegaTransferListener>();
-    	
+
         synchronized (activeTransferListeners) {
             Iterator<DelegateMegaTransferListener> it = activeTransferListeners.iterator();
             while (it.hasNext()) {
@@ -420,7 +420,7 @@ public class MegaApiJava {
                 }
             }
         }
-        
+
         for (int i=0;i<listenersToRemove.size();i++){
         	megaApi.removeTransferListener(listenersToRemove.get(i));
         }
@@ -430,13 +430,13 @@ public class MegaApiJava {
      * Unregister a MegaGlobalListener.
      * <p>
      * Stop receiving events from the specified listener.
-     * 
+     *
      * @param listener
      *            Object that is unregistered.
      */
     public void removeGlobalListener(MegaGlobalListenerInterface listener) {
     	ArrayList<DelegateMegaGlobalListener> listenersToRemove = new ArrayList<DelegateMegaGlobalListener>();
-    	
+
         synchronized (activeGlobalListeners) {
             Iterator<DelegateMegaGlobalListener> it = activeGlobalListeners.iterator();
             while (it.hasNext()) {
@@ -447,7 +447,7 @@ public class MegaApiJava {
                 }
             }
         }
-        
+
         for (int i=0;i<listenersToRemove.size();i++){
             megaApi.removeGlobalListener(listenersToRemove.get(i));
         }
@@ -463,7 +463,7 @@ public class MegaApiJava {
      * This is a time consuming operation (especially for low-end mobile devices). Since the resulting key is
      * required to log in, this function allows to do this step in a separate function. You should run this function
      * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApiJava.fastLogin().
-     * 
+     *
      * @param base64pwkey
      *            Private key returned by MegaApiJava.getBase64PwKey().
      * @return Base64-encoded hash.
@@ -533,7 +533,7 @@ public class MegaApiJava {
      * <p>
      * The returned value can be used to recover a MegaNode using MegaApiJava.getNodeByHandle().
      * You can revert this operation using MegaApiJava.handleToBase64().
-     * 
+     *
      * @param base64Handle
      *            Base64-encoded node handle.
      * @return Node handle.
@@ -558,7 +558,7 @@ public class MegaApiJava {
      * Converts a MegaHandle to a Base64-encoded string.
      * <p>
      * You can revert this operation using MegaApiJava.base64ToHandle().
-     * 
+     *
      * @param handle
      *            to be converted.
      * @return Base64-encoded node handle.
@@ -572,7 +572,7 @@ public class MegaApiJava {
      * <p>
      * You take the ownership of the returned value.
      * You can revert this operation using MegaApiJava.base64ToHandle().
-     * 
+     *
      * @param handle
      *            handle to be converted.
      * @return Base64-encoded user handle.
@@ -586,7 +586,7 @@ public class MegaApiJava {
      * <p>
      * It's recommended to call this function with random data to
      * enhance security.
-     * 
+     *
      * @param data
      *            Byte array with random data.
      * @param size
@@ -1008,7 +1008,7 @@ public class MegaApiJava {
      * <p>
      * If the email/password are not valid the error code provided in onRequestFinish() is
      * MegaError.API_ENOENT.
-     * 
+     *
      * @param email
      *            Email of the user.
      * @param password
@@ -1042,7 +1042,7 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getEmail() - Returns the string "FOLDER". <br>
      * - MegaRequest.getLink() - Returns the public link to the folder.
-     * 
+     *
      * @param megaFolderLink
      *            link to a folder in MEGA.
      * @param listener
@@ -1057,7 +1057,7 @@ public class MegaApiJava {
      * <p>
      * After a successful login, you should call MegaApiJava.fetchNodes() to get filesystem and
      * start working with the folder.
-     * 
+     *
      * @param megaFolderLink
      *            link to a folder in MEGA.
      */
@@ -1076,7 +1076,7 @@ public class MegaApiJava {
      * <p>
      * If the email/stringHash/base64pwKey are not valid the error code provided in onRequestFinish() is
      * MegaError.API_ENOENT.
-     * 
+     *
      * @param email
      *            Email of the user.
      * @param stringHash
@@ -1092,7 +1092,7 @@ public class MegaApiJava {
 
     /**
      * Log in to a MEGA account using precomputed keys.
-     * 
+     *
      * @param email
      *            Email of the user.
      * @param stringHash
@@ -1110,7 +1110,7 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest.TYPE_LOGIN.
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getSessionKey() - Returns the session key.
-     * 
+     *
      * @param session
      *            Session key previously dumped with MegaApiJava.dumpSession().
      * @param listener
@@ -1122,7 +1122,7 @@ public class MegaApiJava {
 
     /**
      * Log in to a MEGA account using a session key.
-     * 
+     *
      * @param session
      *            Session key previously dumped with MegaApiJava.dumpSession().
      */
@@ -1132,7 +1132,7 @@ public class MegaApiJava {
 
     /**
      * Close a MEGA session.
-     * 
+     *
      * All clients using this session will be automatically logged out.
      * <p>
      * You can get session information using MegaApiJava.getExtendedAccountDetails().
@@ -1141,7 +1141,7 @@ public class MegaApiJava {
      * MegaAccountSession.getHandle provides the handle that this function needs.
      * <p>
      * If you use mega.INVALID_HANDLE, all sessions except the current one will be closed.
-     * 
+     *
      * @param sessionHandle
      *            of the session. Use mega.INVALID_HANDLE to cancel all sessions except the current one.
      * @param listener
@@ -1162,7 +1162,7 @@ public class MegaApiJava {
      * MegaAccountSession.getHandle provides the handle that this function needs.
      * <p>
      * If you use mega.INVALID_HANDLE, all sessions except the current one will be closed.
-     * 
+     *
      * @param sessionHandle
      *            of the session. Use mega.INVALID_HANDLE to cancel all sessions except the current one.
      */
@@ -1180,7 +1180,7 @@ public class MegaApiJava {
      * - MegaRequest.getName() - Returns the name of the logged user. <br>
      * - MegaRequest.getPassword() - Returns the the public RSA key of the account, Base64-encoded. <br>
      * - MegaRequest.getPrivateKey() - Returns the private RSA key of the account, Base64-encoded.
-     * 
+     *
      * @param listener
      *            MegaRequestListenerInterface to track this request.
      */
@@ -1190,7 +1190,7 @@ public class MegaApiJava {
 
     /**
      * Get data about the logged account.
-     * 
+     *
      */
     public void getUserData() {
         megaApi.getUserData();
@@ -1207,7 +1207,7 @@ public class MegaApiJava {
      * is MegaError.API_OK: <br>
      * - MegaRequest.getText() - Returns the XMPP ID of the contact. <br>
      * - MegaRequest.getPassword() - Returns the public RSA key of the contact, Base64-encoded.
-     * 
+     *
      * @param user
      *            Contact to get the data.
      * @param listener
@@ -1219,7 +1219,7 @@ public class MegaApiJava {
 
     /**
      * Get data about a contact.
-     * 
+     *
      * @param user
      *            Contact to get the data.
      */
@@ -1238,7 +1238,7 @@ public class MegaApiJava {
      * is MegaError.API_OK: <br>
      * - MegaRequest.getText() - Returns the XMPP ID of the contact. <br>
      * - MegaRequest.getPassword() - Returns the public RSA key of the contact, Base64-encoded.
-     * 
+     *
      * @param user
      *            Email or Base64 handle of the contact.
      * @param listener
@@ -1250,7 +1250,7 @@ public class MegaApiJava {
 
     /**
      * Get data about a contact.
-     * 
+     *
      * @param user
      *            Email or Base64 handle of the contact.
      */
@@ -1343,7 +1343,7 @@ public class MegaApiJava {
      * <p>
      * You have to be logged in to get a valid session key. Otherwise,
      * this function returns null.
-     * 
+     *
      * @return Current session key.
      */
     public String dumpSession() {
@@ -1592,7 +1592,7 @@ public class MegaApiJava {
      * is MegaError.API_OK: <br>
      * - MegaRequest.getEmail() - Return the email associated with the confirmation link. <br>
      * - MegaRequest.getName() - Returns the name associated with the confirmation link.
-     * 
+     *
      * @param link
      *            Confirmation link.
      * @param listener
@@ -1604,7 +1604,7 @@ public class MegaApiJava {
 
     /**
      * Get information about a confirmation link.
-     * 
+     *
      * @param link
      *            Confirmation link.
      */
@@ -1624,7 +1624,7 @@ public class MegaApiJava {
      * is MegaError.API_OK: <br>
      * - MegaRequest.getEmail() - Email of the account. <br>
      * - MegaRequest.getName() - Name of the user.
-     * 
+     *
      * @param link
      *            Confirmation link.
      * @param password
@@ -1638,7 +1638,7 @@ public class MegaApiJava {
 
     /**
      * Confirm a MEGA account using a confirmation link and the user password.
-     * 
+     *
      * @param link
      *            Confirmation link.
      * @param password
@@ -1660,7 +1660,7 @@ public class MegaApiJava {
      * is MegaError.API_OK: <br>
      * - MegaRequest.getEmail() - Email of the account. <br>
      * - MegaRequest.getName() - Name of the user.
-     * 
+     *
      * @param link
      *            Confirmation link.
      * @param base64pwkey
@@ -1674,7 +1674,7 @@ public class MegaApiJava {
 
     /**
      * Confirm a MEGA account using a confirmation link and a precomputed key.
-     * 
+     *
      * @param link
      *            Confirmation link.
      * @param base64pwkey
@@ -1918,7 +1918,7 @@ public class MegaApiJava {
      * Set proxy settings.
      * <p>
      * The SDK will start using the provided proxy settings as soon as this function returns.
-     * 
+     *
      * @param proxySettings
      *            settings.
      * @see MegaProxy
@@ -1929,11 +1929,11 @@ public class MegaApiJava {
 
     /**
      * Try to detect the system's proxy settings.
-     * 
+     *
      * Automatic proxy detection is currently supported on Windows only.
      * On other platforms, this function will return a MegaProxy object
      * of type MegaProxy.PROXY_NONE.
-     * 
+     *
      * @return MegaProxy object with the detected proxy settings.
      */
     public MegaProxy getAutoProxySettings() {
@@ -1942,7 +1942,7 @@ public class MegaApiJava {
 
     /**
      * Check if the MegaApi object is logged in.
-     * 
+     *
      * @return 0 if not logged in. Otherwise, a number >= 0.
      */
     public int isLoggedIn() {
@@ -2200,16 +2200,16 @@ public class MegaApiJava {
 
     /**
      * Returns the email of the currently open account.
-     * 
+     *
      * If the MegaApi object is not logged in or the email is not available,
      * this function returns null.
-     * 
+     *
      * @return Email of the account.
      */
     public String getMyEmail() {
         return megaApi.getMyEmail();
     }
-    
+
     /**
      * Returns the user handle of the currently open account
      *
@@ -2233,7 +2233,7 @@ public class MegaApiJava {
     public long getMyUserHandleBinary(){
         return megaApi.getMyUserHandleBinary();
     }
-    
+
     /**
      * Get the MegaUser of the currently open account
      *
@@ -2436,7 +2436,7 @@ public class MegaApiJava {
      * This function sets the log level of the logging system. If you set a log listener using
      * MegaApiJava.setLoggerObject(), you will receive logs with the same or a lower level than
      * the one passed to this function.
-     * 
+     *
      * @param logLevel
      *            Active log level. These are the valid values for this parameter: <br>
      *            - MegaApiJava.LOG_LEVEL_FATAL = 0. <br>
@@ -2497,7 +2497,7 @@ public class MegaApiJava {
      * <p>
      * This log will be received by the active logger object (MegaApiJava.setLoggerObject()) if
      * the log level is the same or lower than the active log level (MegaApiJava.setLogLevel()).
-     * 
+     *
      * @param logLevel
      *            Log level for this message.
      * @param message
@@ -2516,7 +2516,7 @@ public class MegaApiJava {
      * <p>
      * This log will be received by the active logger object (MegaApiJava.setLoggerObject()) if
      * the log level is the same or lower than the active log level (MegaApiJava.setLogLevel()).
-     * 
+     *
      * @param logLevel
      *            Log level for this message.
      * @param message
@@ -2533,7 +2533,7 @@ public class MegaApiJava {
      * <p>
      * This log will be received by the active logger object (MegaApiJava.setLoggerObject()) if
      * the log level is the same or lower than the active log level (MegaApiJava.setLogLevel()).
-     * 
+     *
      * @param logLevel
      *            Log level for this message.
      * @param message
@@ -3310,7 +3310,7 @@ public class MegaApiJava {
      * - MegaRequest.getNodeHandle() - Returns the handle of the node. <br>
      * - MegaRequest.getFile() - Returns the destination path. <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.ATTR_TYPE_THUMBNAIL.
-     * 
+     *
      * @param node
      *            Node to get the thumbnail.
      * @param dstFilePath
@@ -3318,7 +3318,7 @@ public class MegaApiJava {
      *            If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "0.jpg")
      *            will be used as the file name inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
-     * 
+     *
      * @param listener
      *            MegaRequestListener to track this request.
      */
@@ -3331,7 +3331,7 @@ public class MegaApiJava {
      * <p>
      * If the node does not have a thumbnail the request fails with the MegaError.API_ENOENT
      * error code.
-     * 
+     *
      * @param node
      *            Node to get the thumbnail.
      * @param dstFilePath
@@ -3355,7 +3355,7 @@ public class MegaApiJava {
      * - MegaRequest.getNodeHandle() - Returns the handle of the node. <br>
      * - MegaRequest.getFile() - Returns the destination path. <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.ATTR_TYPE_PREVIEW.
-     * 
+     *
      * @param node
      *            Node to get the preview.
      * @param dstFilePath
@@ -3363,7 +3363,7 @@ public class MegaApiJava {
      *            If this path is a local folder, it must end with a '\' or '/' character and (Base64-encoded handle + "1.jpg")
      *            will be used as the file name inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
-     * 
+     *
      * @param listener
      *            MegaRequestListener to track this request.
      */
@@ -3376,7 +3376,7 @@ public class MegaApiJava {
      * <p>
      * If the node does not have a preview the request fails with the MegaError.API_ENOENT
      * error code.
-     * 
+     *
      * @param node
      *            Node to get the preview.
      * @param dstFilePath
@@ -3396,7 +3396,7 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getFile() - Returns the destination path. <br>
      * - MegaRequest.getEmail() - Returns the email of the user.
-     * 
+     *
      * @param user
      *            MegaUser to get the avatar.
      * @param dstFilePath
@@ -3404,7 +3404,7 @@ public class MegaApiJava {
      *            If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
      *            will be used as the file name inside that folder. If the path does not finish with
      *            one of these characters, the file will be downloaded to a file in that path.
-     * 
+     *
      * @param listener
      *            MegaRequestListener to track this request.
      */
@@ -3414,7 +3414,7 @@ public class MegaApiJava {
 
     /**
      * Get the avatar of a MegaUser.
-     * 
+     *
      * @param user
      *            MegaUser to get the avatar.
      * @param dstFilePath
@@ -3426,7 +3426,7 @@ public class MegaApiJava {
     public void getUserAvatar(MegaUser user, String dstFilePath) {
         megaApi.getUserAvatar(user, dstFilePath);
     }
-    
+
     /**
      * Get the avatar of any user in MEGA
      *
@@ -3447,7 +3447,7 @@ public class MegaApiJava {
     public void getUserAvatar(String email_or_handle, String dstFilePath, MegaRequestListenerInterface listener) {
     	megaApi.getUserAvatar(email_or_handle, dstFilePath, createDelegateRequestListener(listener));
     }
-    
+
     /**
      * Get the avatar of any user in MEGA
      *
@@ -3461,7 +3461,7 @@ public class MegaApiJava {
     public void getUserAvatar(String email_or_handle, String dstFilePath) {
     	megaApi.getUserAvatar(email_or_handle, dstFilePath);
     }
-    
+
     /**
      * Get the avatar of the active account
      *
@@ -3480,7 +3480,7 @@ public class MegaApiJava {
     public void getUserAvatar(String dstFilePath, MegaRequestListenerInterface listener) {
     	megaApi.getUserAvatar(dstFilePath, createDelegateRequestListener(listener));
     }
-    
+
     /**
      * Get the avatar of the active account
      *
@@ -3894,7 +3894,7 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getNodeHandle() - Returns the handle of the node. <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.ATTR_TYPE_THUMBNAIL.
-     * 
+     *
      * @param node
      *            Node to cancel the retrieval of the thumbnail.
      * @param listener
@@ -3907,7 +3907,7 @@ public class MegaApiJava {
 
     /**
      * Cancel the retrieval of a thumbnail.
-     * 
+     *
      * @param node
      *            Node to cancel the retrieval of the thumbnail.
      * @see #getThumbnail(MegaNode node, String dstFilePath)
@@ -3923,7 +3923,7 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getNodeHandle - Returns the handle of the node. <br>
      * - MegaRequest.getParamType - Returns MegaApiJava.ATTR_TYPE_PREVIEW.
-     * 
+     *
      * @param node
      *            Node to cancel the retrieval of the preview.
      * @param listener
@@ -3936,7 +3936,7 @@ public class MegaApiJava {
 
     /**
      * Cancel the retrieval of a preview.
-     * 
+     *
      * @param node
      *            Node to cancel the retrieval of the preview.
      * @see MegaApi#getPreview(MegaNode node, String dstFilePath)
@@ -3947,13 +3947,13 @@ public class MegaApiJava {
 
     /**
      * Set the thumbnail of a MegaNode.
-     * 
+     *
      * The associated request type with this request is MegaRequest.TYPE_SET_ATTR_FILE
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getNodeHandle() - Returns the handle of the node. <br>
      * - MegaRequest.getFile() - Returns the source path. <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.ATTR_TYPE_THUMBNAIL.
-     * 
+     *
      * @param node
      *            MegaNode to set the thumbnail.
      * @param srcFilePath
@@ -3967,7 +3967,7 @@ public class MegaApiJava {
 
     /**
      * Set the thumbnail of a MegaNode.
-     * 
+     *
      * @param node
      *            MegaNode to set the thumbnail.
      * @param srcFilePath
@@ -3985,7 +3985,7 @@ public class MegaApiJava {
      * - MegaRequest.getNodeHandle() - Returns the handle of the node. <br>
      * - MegaRequest.getFile() - Returns the source path. <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.ATTR_TYPE_PREVIEW.
-     * 
+     *
      * @param node
      *            MegaNode to set the preview.
      * @param srcFilePath
@@ -3999,7 +3999,7 @@ public class MegaApiJava {
 
     /**
      * Set the preview of a MegaNode.
-     * 
+     *
      * @param node
      *            MegaNode to set the preview.
      * @param srcFilePath
@@ -4015,7 +4015,7 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest.TYPE_SET_ATTR_USER.
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getFile() - Returns the source path.
-     * 
+     *
      * @param srcFilePath
      *            Source path of the file that will be set as avatar.
      * @param listener
@@ -4027,7 +4027,7 @@ public class MegaApiJava {
 
     /**
      * Set the avatar of the MEGA account.
-     * 
+     *
      * @param srcFilePath
      *            Source path of the file that will be set as avatar.
      */
@@ -4434,7 +4434,7 @@ public class MegaApiJava {
      * to successfully complete this request.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_FETCH_NODES.
-     * 
+     *
      * @param listener
      *            MegaRequestListener to track this request.
      */
@@ -4624,7 +4624,7 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received in onRequestFinish() when the error code
      * is MegaError.API_OK: <br>
      * - MegaRequest.getPricing() - MegaPricing object with all pricing plans.
-     * 
+     *
      * @param listener
      *            MegaRequestListener to track this request.
      */
@@ -5102,7 +5102,7 @@ public class MegaApiJava {
      * With the master key, it's possible to start the recovery of an account when the
      * password is lost: <br>
      * - https://mega.co.nz/#recovery.
-     * 
+     *
      * @return Base64-encoded master key.
      */
     public String exportMasterKey() {
@@ -5785,14 +5785,14 @@ public class MegaApiJava {
     public void replyContactRequest(MegaContactRequest request, int action) {
         megaApi.replyContactRequest(request, action);
     }
-    
+
     /**
      * Remove a contact to the MEGA account.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_REMOVE_CONTACT.
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getEmail() - Returns the email of the contact.
-     * 
+     *
      * @param user
      *            Email of the contact.
      * @param listener
@@ -5817,9 +5817,9 @@ public class MegaApiJava {
 
     /**
      * Logout of the MEGA account.
-     * 
+     *
      * The associated request type with this request is MegaRequest.TYPE_LOGOUT
-     * 
+     *
      * @param listener
      *            MegaRequestListener to track this request.
      */
@@ -5838,7 +5838,7 @@ public class MegaApiJava {
      * Logout of the MEGA account without invalidating the session.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_LOGOUT.
-     * 
+     *
      * @param listener
      *            MegaRequestListener to track this request.
      */
@@ -5848,7 +5848,7 @@ public class MegaApiJava {
 
     /**
      * Logout of the MEGA account without invalidating the session.
-     * 
+     *
      */
     public void localLogout() {
         megaApi.localLogout();
@@ -5888,7 +5888,7 @@ public class MegaApiJava {
      * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_FEEDBACK. <br>
      * - MegaRequest.getText() - Returns the comment about the app. <br>
      * - MegaRequest.getNumber() - Returns the rating for the app.
-     * 
+     *
      * @param rating
      *            Integer to rate the app. Valid values: from 1 to 5.
      * @param comment
@@ -5897,7 +5897,7 @@ public class MegaApiJava {
      *            MegaRequestListener to track this request.
      * @deprecated This function is for internal usage of MEGA apps. This feedback
      *             is sent to MEGA servers.
-     * 
+     *
      */
     @Deprecated public void submitFeedback(int rating, String comment, MegaRequestListenerInterface listener) {
         megaApi.submitFeedback(rating, comment, createDelegateRequestListener(listener));
@@ -5907,14 +5907,14 @@ public class MegaApiJava {
      * Submit feedback about the app.
      * <p>
      * The User-Agent is used to identify the app. It can be set in MegaApiJava.MegaApi().
-     * 
+     *
      * @param rating
      *            Integer to rate the app. Valid values: from 1 to 5.
      * @param comment
      *            Comment about the app.
      * @deprecated This function is for internal usage of MEGA apps. This feedback
      *             is sent to MEGA servers.
-     * 
+     *
      */
     @Deprecated public void submitFeedback(int rating, String comment) {
         megaApi.submitFeedback(rating, comment);
@@ -5929,7 +5929,7 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_DEBUG. <br>
      * - MegaRequest.getText() - Returns the debug message.
-     * 
+     *
      * @param text
      *            Debug message
      * @param listener
@@ -5950,7 +5950,7 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_DEBUG. <br>
      * - MegaRequest.getText() - Returns the debug message.
-     * 
+     *
      * @param text
      *            Debug message.
      * @deprecated This function is for internal usage of MEGA apps. This feedback
@@ -5959,7 +5959,7 @@ public class MegaApiJava {
     @Deprecated public void reportDebugEvent(String text) {
         megaApi.reportDebugEvent(text);
     }
-    
+
     /**
      * Use HTTPS communications only
      *
@@ -5979,7 +5979,7 @@ public class MegaApiJava {
     public void useHttpsOnly(boolean httpsOnly) {
     	megaApi.useHttpsOnly(httpsOnly);
     }
-    
+
     /**
      * Check if the SDK is using HTTPS communications only
      *
@@ -6333,6 +6333,65 @@ public class MegaApiJava {
     }
 
     /**
+     * Upload a file or a folder
+     *
+     * This method should be used ONLY to share by chat a local file. In case the file
+     * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+     * this method will force a new upload from the scratch (ensuring the file attributes are set),
+     * instead of doing a remote copy.
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath         Local path of the file or folder
+     * @param parent            Parent node for the file or folder in the MEGA account
+     * @param appData           Custom app data to save in the MegaTransfer object
+     *                          The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     *                          related to the transfer. If a transfer is started with exactly the same data
+     *                          (local path and target parent) as another one in the transfer queue, the new transfer
+     *                          fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     *                          the appData of the old transfer, using a '!' separator if the old transfer had already
+     *                          appData.
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     */
+    public void startUploadForChat(String localPath, MegaNode parent, String appData, boolean isSourceTemporary) {
+        megaApi.startUploadForChat(localPath, parent, appData, isSourceTemporary);
+    }
+
+    /**
+     * Upload a file or a folder
+     *
+     * This method should be used ONLY to share by chat a local file. In case the file
+     * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+     * this method will force a new upload from the scratch (ensuring the file attributes are set),
+     * instead of doing a remote copy.
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath         Local path of the file or folder
+     * @param parent            Parent node for the file or folder in the MEGA account
+     * @param appData           Custom app data to save in the MegaTransfer object
+     *                          The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     *                          related to the transfer. If a transfer is started with exactly the same data
+     *                          (local path and target parent) as another one in the transfer queue, the new transfer
+     *                          fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     *                          the appData of the old transfer, using a '!' separator if the old transfer had already
+     *                          appData.
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param fileName          Custom file name for the file or folder in MEGA
+     */
+    public void startUploadForChat(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName) {
+        megaApi.startUploadForChat(localPath, parent, appData, isSourceTemporary, fileName);
+    }
+
+    /**
      * Download a file or a folder from MEGA
      *
      *If the status of the business account is expired, onTransferFinish will be called with the error
@@ -6485,7 +6544,7 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest.TYPE_CANCEL_TRANSFER
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getTransferTag() - Returns the tag of the cancelled transfer (MegaTransfer.getTag).
-     * 
+     *
      * @param transfer
      *            MegaTransfer object that identifies the transfer.
      *            You can get this object in any MegaTransferListener callback or any MegaListener callback
@@ -6499,7 +6558,7 @@ public class MegaApiJava {
 
     /**
      * Cancel a transfer.
-     * 
+     *
      * @param transfer
      *            MegaTransfer object that identifies the transfer.
      *            You can get this object in any MegaTransferListener callback or any MegaListener callback
@@ -6913,11 +6972,11 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest.TYPE_CANCEL_TRANSFER
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getTransferTag() - Returns the tag of the cancelled transfer (MegaTransfer.getTag).
-     * 
+     *
      * @param transferTag
      *            tag that identifies the transfer.
      *            You can get this tag using MegaTransfer.getTag().
-     * 
+     *
      * @param listener
      *            MegaRequestListener to track this request.
      */
@@ -6927,7 +6986,7 @@ public class MegaApiJava {
 
     /**
      * Cancel the transfer with a specific tag.
-     * 
+     *
      * @param transferTag
      *            tag that identifies the transfer.
      *            You can get this tag using MegaTransfer.getTag().
@@ -6942,13 +7001,13 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest.TYPE_CANCEL_TRANSFERS
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getParamType() - Returns the first parameter.
-     * 
+     *
      * @param direction
      *            Type of transfers to cancel.
      *            Valid values are: <br>
      *            - MegaTransfer.TYPE_DOWNLOAD = 0. <br>
      *            - MegaTransfer.TYPE_UPLOAD = 1.
-     * 
+     *
      * @param listener
      *            MegaRequestListener to track this request.
      */
@@ -6958,7 +7017,7 @@ public class MegaApiJava {
 
     /**
      * Cancel all transfers of the same type.
-     * 
+     *
      * @param direction
      *            Type of transfers to cancel.
      *            Valid values are: <br>
@@ -6975,7 +7034,7 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest.TYPE_PAUSE_TRANSFERS
      * Valid data in the MegaRequest object received on callbacks: <br>
      * - MegaRequest.getFlag() - Returns the first parameter.
-     * 
+     *
      * @param pause
      *            true to pause all transfers / false to resume all transfers.
      * @param listener
@@ -6987,14 +7046,14 @@ public class MegaApiJava {
 
     /**
      * Pause/resume all transfers.
-     * 
+     *
      * @param pause
      *            true to pause all transfers / false to resume all transfers.
      */
     public void pauseTransfers(boolean pause) {
         megaApi.pauseTransfers(pause);
     }
-    
+
     /**
      * Pause/resume all transfers in one direction (uploads or downloads)
      *
@@ -7014,10 +7073,10 @@ public class MegaApiJava {
     public void pauseTransfers(boolean pause, int direction, MegaRequestListenerInterface listener) {
     	megaApi.pauseTransfers(pause, direction, createDelegateRequestListener(listener));
     }
-    
+
     /**
      * Pause/resume all transfers in one direction (uploads or downloads)
-     * 
+     *
      * @param pause true to pause transfers / false to resume transfers
      * @param direction Direction of transfers to pause/resume
      * Valid values for this parameter are:
@@ -7076,101 +7135,6 @@ public class MegaApiJava {
         megaApi.pauseTransferByTag(transferTag, pause, createDelegateRequestListener(listener));
     }
 
-
-    /**
-     * Enable the resumption of transfers
-     *
-     * This function enables the cache of transfers, so they can be resumed later.
-     * Additionally, if a previous cache already exists (from previous executions),
-     * then this function also resumes the existing cached transfers.
-     *
-     * Cached downloads expire after 10 days since the last time they were active.
-     * Cached uploads expire after 24 hours since the last time they were active.
-     * Cached transfers related to files that have been modified since they were
-     * added to the cache are discarded, since the file has changed.
-     *
-     * A log in or a log out automatically disables this feature.
-     *
-     * When the MegaApi object is logged in, the cache of transfers is identified
-     * and protected using the session and the master key, so transfers won't
-     * be resumable using a different session or a different account. The
-     * recommended way of using this function to resume transfers for an account
-     * is calling it in the callback onRequestFinish related to MegaApi::fetchNodes
-     *
-     * When the MegaApi object is not logged in, it's still possible to use this
-     * feature. However, since there isn't any available data to identify
-     * and protect the cache, a default identifier and key are used. To improve
-     * the protection of the transfer cache and allow the usage of this feature
-     * with several non logged in instances of MegaApi at once without clashes,
-     * it's possible to set a custom identifier for the transfer cache in the
-     * optional parameter of this function. If that parameter is used, the
-     * encryption key for the transfer cache will be derived from it.
-     *
-     */
-    public void enableTransferResumption(){
-        megaApi.enableTransferResumption();
-    }
-
-    /**
-     * Enable the resumption of transfers
-     *
-     * This function enables the cache of transfers, so they can be resumed later.
-     * Additionally, if a previous cache already exists (from previous executions),
-     * then this function also resumes the existing cached transfers.
-     *
-     * Cached downloads expire after 10 days since the last time they were active.
-     * Cached uploads expire after 24 hours since the last time they were active.
-     * Cached transfers related to files that have been modified since they were
-     * added to the cache are discarded, since the file has changed.
-     *
-     * A log in or a log out automatically disables this feature.
-     *
-     * When the MegaApi object is logged in, the cache of transfers is identified
-     * and protected using the session and the master key, so transfers won't
-     * be resumable using a different session or a different account. The
-     * recommended way of using this function to resume transfers for an account
-     * is calling it in the callback onRequestFinish related to MegaApi::fetchNodes
-     *
-     * When the MegaApi object is not logged in, it's still possible to use this
-     * feature. However, since there isn't any available data to identify
-     * and protect the cache, a default identifier and key are used. To improve
-     * the protection of the transfer cache and allow the usage of this feature
-     * with several non logged in instances of MegaApi at once without clashes,
-     * it's possible to set a custom identifier for the transfer cache in the
-     * optional parameter of this function. If that parameter is used, the
-     * encryption key for the transfer cache will be derived from it.
-     *
-     * @param loggedOutId Identifier for a non logged in instance of MegaApi.
-     * It doesn't have any effect if MegaApi is logged in.
-     */
-    public void enableTransferResumption(String loggedOutId){
-        megaApi.enableTransferResumption(loggedOutId);
-    }
-
-    /**
-     * Disable the resumption of transfers
-     *
-     * This function disables the resumption of transfers and also deletes
-     * the transfer cache if it exists. See also MegaApi.enableTransferResumption.
-     *
-     */
-    public void disableTransferResumption(){
-        megaApi.disableTransferResumption();
-    }
-
-    /**
-     * Disable the resumption of transfers
-     *
-     * This function disables the resumption of transfers and also deletes
-     * the transfer cache if it exists. See also MegaApi.enableTransferResumption.
-     *
-     * @param loggedOutId Identifier for a non logged in instance of MegaApi.
-     * It doesn't have any effect if MegaApi is logged in.
-     */
-    public void disableTransferResumption(String loggedOutId){
-        megaApi.disableTransferResumption(loggedOutId);
-    }
-
     /**
      * Returns the state (paused/unpaused) of transfers
      * @param direction Direction of transfers to check
@@ -7183,14 +7147,13 @@ public class MegaApiJava {
     public boolean areTransfersPaused(int direction) {
     	return megaApi.areTransfersPaused(direction);
     }
-    
 
     /**
      * Set the upload speed limit.
      * <p>
      * The limit will be applied on the server side when starting a transfer. Thus the limit won't be
      * applied for already started uploads and it's applied per storage server.
-     * 
+     *
      * @param bpslimit
      *            -1 to automatically select the limit, 0 for no limit, otherwise the speed limit
      *            in bytes per second.
@@ -7198,7 +7161,7 @@ public class MegaApiJava {
     public void setUploadLimit(int bpslimit) {
         megaApi.setUploadLimit(bpslimit);
     }
-    
+
     /**
      * Set the transfer method for downloads
      *
@@ -7223,7 +7186,7 @@ public class MegaApiJava {
     public void setDownloadMethod(int method) {
     	megaApi.setDownloadMethod(method);
     }
-    
+
     /**
      * Set the transfer method for uploads
      *
@@ -7248,7 +7211,7 @@ public class MegaApiJava {
     public void setUploadMethod(int method) {
     	megaApi.setUploadMethod(method);
     }
-    
+
     /**
      * Get the active transfer method for downloads
      *
@@ -7273,7 +7236,7 @@ public class MegaApiJava {
     public int getDownloadMethod() {
     	return megaApi.getDownloadMethod();
     }
-    
+
     /**
      * Get the active transfer method for uploads
      *
@@ -7301,19 +7264,19 @@ public class MegaApiJava {
 
     /**
      * Get all active transfers.
-     * 
+     *
      * @return List with all active transfers.
      */
     public ArrayList<MegaTransfer> getTransfers() {
         return transferListToArray(megaApi.getTransfers());
     }
-    
+
     /**
      * Get all active transfers based on the type.
-     * 
+     *
      * @param type
      *            MegaTransfer.TYPE_DOWNLOAD || MegaTransfer.TYPE_UPLOAD.
-     * 
+     *
      * @return List with all active download or upload transfers.
      */
     public ArrayList<MegaTransfer> getTransfers(int type) {
@@ -7324,12 +7287,12 @@ public class MegaApiJava {
      * Get the transfer with a transfer tag.
      * <p>
      * MegaTransfer.getTag() can be used to get the transfer tag.
-     * 
+     *
      * @param transferTag
      *            tag to check.
      * @return MegaTransfer object with that tag, or null if there is not any
      *         active transfer with it.
-     * 
+     *
      */
     public MegaTransfer getTransferByTag(int transferTag) {
         return megaApi.getTransferByTag(transferTag);
@@ -7457,7 +7420,7 @@ public class MegaApiJava {
 
     /**
      * Force a loop of the SDK thread.
-     * 
+     *
      * @deprecated This function is only here for debugging purposes. It will probably
      *             be removed in future updates.
      */
@@ -7467,7 +7430,7 @@ public class MegaApiJava {
 
     /**
      * Check if the SDK is waiting for the server.
-     * 
+     *
      * @return true if the SDK is waiting for the server to complete a request.
      */
     public int isWaiting() {
@@ -7518,7 +7481,7 @@ public class MegaApiJava {
 
     /**
      * Get the number of queued uploads since the last call to MegaApiJava.resetTotalDownloads().
-     * 
+     *
      * @return Number of queued uploads since the last call to MegaApiJava.resetTotalDownloads().
      * Function related to statistics will be reviewed in future updates. They
      *             could change or be removed in the current form.
@@ -7531,10 +7494,10 @@ public class MegaApiJava {
      * Reset the number of total downloads.
      * <p>
      * This function resets the number returned by MegaApiJava.getTotalDownloads().
-     * 
+     *
      * Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
-     * 
+     *
      */
     public void resetTotalDownloads() {
         megaApi.resetTotalDownloads();
@@ -7544,7 +7507,7 @@ public class MegaApiJava {
      * Reset the number of total uploads.
      * <p>
      * This function resets the number returned by MegaApiJava.getTotalUploads().
-     * 
+     *
      * Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      */
@@ -7616,10 +7579,10 @@ public class MegaApiJava {
      * This function forces a count of the pending downloads/uploads. It could
      * affect the return value of MegaApiJava.getNumPendingDownloads() and
      * MegaApiJava.getNumPendingUploads().
-     * 
+     *
      * @deprecated Function related to statistics will be reviewed in future updates to
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
-     * 
+     *
      */
     public void updateStats() {
         megaApi.updateStats();
@@ -7670,7 +7633,7 @@ public class MegaApiJava {
      * this function returns 0.
      * <p>
      * This function does not search recursively, only returns the direct child nodes.
-     * 
+     *
      * @param parent
      *            Parent node.
      * @return Number of child nodes.
@@ -7686,7 +7649,7 @@ public class MegaApiJava {
      * this function returns 0.
      * <p>
      * This function does not search recursively, only returns the direct child files.
-     * 
+     *
      * @param parent
      *            Parent node.
      * @return Number of child files.
@@ -7702,7 +7665,7 @@ public class MegaApiJava {
      * this function returns 0.
      * <p>
      * This function does not search recursively, only returns the direct child folders.
-     * 
+     *
      * @param parent
      *            Parent node.
      * @return Number of child folders.
@@ -7712,49 +7675,78 @@ public class MegaApiJava {
     }
 
     /**
-     * Get all children of a MegaNode.
-     * <p>
-     * If the parent node does not exist or it is not a folder, this function
-     * returns null.
-     * 
-     * @param parent
-     *            Parent node.
-     * @param order
-     *            Order for the returned list.
-     *            Valid values for this parameter are: <br>
-     *            - MegaApiJava.ORDER_NONE = 0.
-     *            Undefined order. <br>
-     * 
-     *            - MegaApiJava.ORDER_DEFAULT_ASC = 1.
-     *            Folders first in alphabetical order, then files in the same order. <br>
-     * 
-     *            - MegaApiJava.ORDER_DEFAULT_DESC = 2.
-     *            Files first in reverse alphabetical order, then folders in the same order. <br>
-     * 
-     *            - MegaApiJava.ORDER_SIZE_ASC = 3.
-     *            Sort by size, ascending. <br>
-     * 
-     *            - MegaApiJava.ORDER_SIZE_DESC = 4.
-     *            Sort by size, descending. <br>
-     * 
-     *            - MegaApiJava.ORDER_CREATION_ASC = 5.
-     *            Sort by creation time in MEGA, ascending. <br>
-     * 
-     *            - MegaApiJava.ORDER_CREATION_DESC = 6
-     *            Sort by creation time in MEGA, descending <br>
-     * 
-     *            - MegaApiJava.ORDER_MODIFICATION_ASC = 7.
-     *            Sort by modification time of the original file, ascending. <br>
-     * 
-     *            - MegaApiJava.ORDER_MODIFICATION_DESC = 8.
-     *            Sort by modification time of the original file, descending. <br>
-     * 
-     *            - MegaApiJava.ORDER_ALPHABETICAL_ASC = 9.
-     *            Sort in alphabetical order, ascending. <br>
-     * 
-     *            - MegaApiJava.ORDER_ALPHABETICAL_DESC = 10.
-     *            Sort in alphabetical order, descending.
-     * @return List with all child MegaNode objects.
+     * Get all children of a MegaNode
+     *
+     * If the parent node doesn't exist or it isn't a folder, this function
+     * returns NULL
+     *
+     * You take the ownership of the returned value
+     *
+     * @param parent Parent node
+     * @param order  Order for the returned list
+     *               Valid values for this parameter are:
+     *               - MegaApi::ORDER_NONE = 0
+     *               Undefined order
+     *
+     *               - MegaApi::ORDER_DEFAULT_ASC = 1
+     *               Folders first in alphabetical order, then files in the same order
+     *
+     *               - MegaApi::ORDER_DEFAULT_DESC = 2
+     *               Files first in reverse alphabetical order, then folders in the same order
+     *
+     *               - MegaApi::ORDER_SIZE_ASC = 3
+     *               Sort by size, ascending
+     *
+     *               - MegaApi::ORDER_SIZE_DESC = 4
+     *               Sort by size, descending
+     *
+     *               - MegaApi::ORDER_CREATION_ASC = 5
+     *               Sort by creation time in MEGA, ascending
+     *
+     *               - MegaApi::ORDER_CREATION_DESC = 6
+     *               Sort by creation time in MEGA, descending
+     *
+     *               - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *               Sort by modification time of the original file, ascending
+     *
+     *               - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *               Sort by modification time of the original file, descending
+     *
+     *               - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *               Same behavior than MegaApi::ORDER_DEFAULT_ASC
+     *
+     *               - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *               Same behavior than MegaApi::ORDER_DEFAULT_DESC
+     *
+     *               - MegaApi::ORDER_PHOTO_ASC = 11
+     *               Sort with photos first, then by date ascending
+     *
+     *               - MegaApi::ORDER_PHOTO_DESC = 12
+     *               Sort with photos first, then by date descending
+     *
+     *               - MegaApi::ORDER_VIDEO_ASC = 13
+     *               Sort with videos first, then by date ascending
+     *
+     *               - MegaApi::ORDER_VIDEO_DESC = 14
+     *               Sort with videos first, then by date descending
+     *
+     *               - MegaApi::ORDER_LABEL_ASC = 17
+     *               Sort by color label, ascending
+     *
+     *               - MegaApi::ORDER_LABEL_DESC = 18
+     *               Sort by color label, descending
+     *
+     *               - MegaApi::ORDER_FAV_ASC = 19
+     *               Sort nodes with favourite attr first
+     *
+     *               - MegaApi::ORDER_FAV_DESC = 20
+     *               Sort nodes with favourite attr last
+     *
+     *               Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+     *               are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+     *               They will be eventually removed.
+     *
+     * @return List with all child MegaNode objects
      */
     public ArrayList<MegaNode> getChildren(MegaNode parent, int order) {
         return nodeListToArray(megaApi.getChildren(parent, order));
@@ -7811,42 +7803,70 @@ public class MegaApiJava {
      * You take the ownership of the returned value
      *
      * @param parent Parent node
-     * @param order Order for the returned lists
-     * Valid values for this parameter are:
-     * - MegaApi::ORDER_NONE = 0
-     * Undefined order
+     * @param order  Order for the returned lists
+     *               Valid values for this parameter are:
+     *               - MegaApi::ORDER_NONE = 0
+     *               Undefined order
      *
-     * - MegaApi::ORDER_DEFAULT_ASC = 1
-     * Folders first in alphabetical order, then files in the same order
+     *               - MegaApi::ORDER_DEFAULT_ASC = 1
+     *               Folders first in alphabetical order, then files in the same order
      *
-     * - MegaApi::ORDER_DEFAULT_DESC = 2
-     * Files first in reverse alphabetical order, then folders in the same order
+     *               - MegaApi::ORDER_DEFAULT_DESC = 2
+     *               Files first in reverse alphabetical order, then folders in the same order
      *
-     * - MegaApi::ORDER_SIZE_ASC = 3
-     * Sort by size, ascending
+     *               - MegaApi::ORDER_SIZE_ASC = 3
+     *               Sort by size, ascending
      *
-     * - MegaApi::ORDER_SIZE_DESC = 4
-     * Sort by size, descending
+     *               - MegaApi::ORDER_SIZE_DESC = 4
+     *               Sort by size, descending
      *
-     * - MegaApi::ORDER_CREATION_ASC = 5
-     * Sort by creation time in MEGA, ascending
+     *               - MegaApi::ORDER_CREATION_ASC = 5
+     *               Sort by creation time in MEGA, ascending
      *
-     * - MegaApi::ORDER_CREATION_DESC = 6
-     * Sort by creation time in MEGA, descending
+     *               - MegaApi::ORDER_CREATION_DESC = 6
+     *               Sort by creation time in MEGA, descending
      *
-     * - MegaApi::ORDER_MODIFICATION_ASC = 7
-     * Sort by modification time of the original file, ascending
+     *               - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *               Sort by modification time of the original file, ascending
      *
-     * - MegaApi::ORDER_MODIFICATION_DESC = 8
-     * Sort by modification time of the original file, descending
+     *               - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *               Sort by modification time of the original file, descending
      *
-     * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     * Sort in alphabetical order, ascending
+     *               - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *               Same behavior than MegaApi::ORDER_DEFAULT_ASC
      *
-     * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     * Sort in alphabetical order, descending
+     *               - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *               Same behavior than MegaApi::ORDER_DEFAULT_DESC
      *
-     * @return MegaChildren object with two ArrayLists: fileList and FolderList
+     *               Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+     *               are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+     *               They will be eventually removed.
+     *
+     *               - MegaApi::ORDER_PHOTO_ASC = 11
+     *               Sort with photos first, then by date ascending
+     *
+     *               - MegaApi::ORDER_PHOTO_DESC = 12
+     *               Sort with photos first, then by date descending
+     *
+     *               - MegaApi::ORDER_VIDEO_ASC = 13
+     *               Sort with videos first, then by date ascending
+     *
+     *               - MegaApi::ORDER_VIDEO_DESC = 14
+     *               Sort with videos first, then by date descending
+     *
+     *               - MegaApi::ORDER_LABEL_ASC = 17
+     *               Sort by color label, ascending
+     *
+     *               - MegaApi::ORDER_LABEL_DESC = 18
+     *               Sort by color label, descending
+     *
+     *               - MegaApi::ORDER_FAV_ASC = 19
+     *               Sort nodes with favourite attr first
+     *
+     *               - MegaApi::ORDER_FAV_DESC = 20
+     *               Sort nodes with favourite attr last
+     *
+     * @return Lists with files and folders child MegaNode objects
      */
     public MegaChildren getFileFolderChildren(MegaNode parent, int order){
         MegaChildren children = new MegaChildren();
@@ -7864,10 +7884,10 @@ public class MegaApiJava {
      * <p>
      * If the parent node does not exist or if it is not a folder, this function.
      * returns null.
-     * 
+     *
      * @param parent
      *            Parent node.
-     * 
+     *
      * @return List with all child MegaNode objects.
      */
     public ArrayList<MegaNode> getChildren(MegaNode parent) {
@@ -7886,7 +7906,7 @@ public class MegaApiJava {
      * Get the child node with the provided name.
      * <p>
      * If the node does not exist, this function returns null.
-     * 
+     *
      * @param parent
      *            node.
      * @param name
@@ -7902,7 +7922,7 @@ public class MegaApiJava {
      * <p>
      * If the node does not exist in the account or
      * it is a root node, this function returns null.
-     * 
+     *
      * @param node
      *            MegaNode to get the parent.
      * @return The parent of the provided node.
@@ -7917,7 +7937,7 @@ public class MegaApiJava {
      * If the node does not exist, this function returns null.
      * You can recover the node later using MegaApi.getNodeByPath()
      * unless the path contains names with '/', '\' or ':' characters.
-     * 
+     *
      * @param node
      *            MegaNode for which the path will be returned.
      * @return The path of the node.
@@ -7935,7 +7955,7 @@ public class MegaApiJava {
      * <p>
      * Paths with names containing '/', '\' or ':' are not compatible
      * with this function.
-     * 
+     *
      * @param path
      *            Path to check.
      * @param baseFolder
@@ -7955,10 +7975,10 @@ public class MegaApiJava {
      * <p>
      * Paths with names containing '/', '\' or ':' are not compatible
      * with this function.
-     * 
+     *
      * @param path
      *            Path to check.
-     * 
+     *
      * @return The MegaNode object in the path, otherwise null.
      */
     public MegaNode getNodeByPath(String path) {
@@ -7971,7 +7991,7 @@ public class MegaApiJava {
      * You can get the handle of a MegaNode using MegaNode.getHandle(). The same handle
      * can be got in a Base64-encoded string using MegaNode.getBase64Handle(). Conversions
      * between these formats can be done using MegaApiJava.base64ToHandle() and MegaApiJava.handleToBase64().
-     * 
+     *
      * @param handle
      *            Node handle to check.
      * @return MegaNode object with the handle, otherwise null.
@@ -7995,7 +8015,7 @@ public class MegaApiJava {
 
     /**
      * Get all contacts of this MEGA account.
-     * 
+     *
      * @return List of MegaUser object with all contacts of this account.
      */
     public ArrayList<MegaUser> getContacts() {
@@ -8006,7 +8026,7 @@ public class MegaApiJava {
      * Get the MegaUser that has a specific email address.
      * <p>
      * You can get the email of a MegaUser using MegaUser.getEmail().
-     * 
+     *
      * @param email
      *            Email address to check.
      * @return MegaUser that has the email address, otherwise null.
@@ -8037,7 +8057,7 @@ public class MegaApiJava {
 
     /**
      * Get a list with all inbound shares from one MegaUser.
-     * 
+     *
      * @param user MegaUser sharing folders with this account.
      * @return List of MegaNode objects that this user is sharing with this account.
      */
@@ -8063,7 +8083,7 @@ public class MegaApiJava {
 
     /**
      * Get a list with all inbound shares.
-     * 
+     *
      * @return List of MegaNode objects that other users are sharing with this account.
      */
     public ArrayList<MegaNode> getInShares() {
@@ -8084,7 +8104,7 @@ public class MegaApiJava {
     public ArrayList<MegaNode> getInShares(int order) {
         return nodeListToArray(megaApi.getInShares(order));
     }
-    
+
     /**
      * Get a list with all active inboud sharings
      *
@@ -8156,7 +8176,7 @@ public class MegaApiJava {
      * For nodes that are being shared, you can get a a list of MegaShare
      * objects using MegaApiJava.getOutShares(), or a list of MegaNode objects
      * using MegaApi::getInShares
-     * 
+     *
      * @param node Node to check.
      * @return true is the MegaNode is being shared, otherwise false.
      * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
@@ -8165,7 +8185,7 @@ public class MegaApiJava {
     public boolean isShared(MegaNode node) {
         return megaApi.isShared(node);
     }
-    
+
     /**
      * Check if a MegaNode is being shared with other users
      *
@@ -8180,7 +8200,7 @@ public class MegaApiJava {
     public boolean isOutShare(MegaNode node) {
     	return megaApi.isOutShare(node);
     }
-    
+
     /**
      * Check if a MegaNode belong to another User, but it is shared with you
      *
@@ -8195,7 +8215,7 @@ public class MegaApiJava {
     public boolean isInShare(MegaNode node) {
     	return megaApi.isInShare(node);
     }
-    
+
     /**
      * Check if a MegaNode is pending to be shared with another User. This situation
      * happens when a node is to be shared with a User which is not a contact yet.
@@ -8212,7 +8232,7 @@ public class MegaApiJava {
 
     /**
      * Get a list with all active and pending outbound sharings
-     * 
+     *
      * @return List of MegaShare objects.
      */
     public ArrayList<MegaShare> getOutShares() {
@@ -8272,7 +8292,7 @@ public class MegaApiJava {
     public ArrayList<MegaShare> getPendingOutShares(MegaNode node) {
         return shareListToArray(megaApi.getPendingOutShares(node));
     }
-    
+
     /**
      * Get a list with all public links
      *
@@ -8299,7 +8319,7 @@ public class MegaApiJava {
     public ArrayList<MegaNode> getPublicLinks(int order) {
         return nodeListToArray(megaApi.getPublicLinks(order));
     }
-    
+
     /**
      * Get a list with all incoming contact requests.
      *
@@ -8324,7 +8344,7 @@ public class MegaApiJava {
 
     /**
      * Get the access level of a MegaNode.
-     * 
+     *
      * @param node
      *            MegaNode to check.
      * @return Access level of the node.
@@ -8345,7 +8365,7 @@ public class MegaApiJava {
      * If the MegaNode is a file, this function returns the size of the file.
      * If it's a folder, this function returns the sum of the sizes of all nodes
      * in the node tree.
-     * 
+     *
      * @param node
      *            Parent node.
      * @return Size of the node tree.
@@ -8362,7 +8382,7 @@ public class MegaApiJava {
      * using MegaApiJava.getNodeByFingerprint().
      * <p>
      * If the file can't be found or can't be opened, this function returns null.
-     * 
+     *
      * @param filePath
      *            Local file path.
      * @return Base64-encoded fingerprint for the file.
@@ -8375,7 +8395,7 @@ public class MegaApiJava {
      * Get a Base64-encoded fingerprint for a node.
      * <p>
      * If the node does not exist or does not have a fingerprint, this function returns null.
-     * 
+     *
      * @param node
      *            Node for which we want to get the fingerprint.
      * @return Base64-encoded fingerprint for the file.
@@ -8388,7 +8408,7 @@ public class MegaApiJava {
      * Returns a node with the provided fingerprint.
      * <p>
      * If there is not any node in the account with that fingerprint, this function returns null.
-     * 
+     *
      * @param fingerprint
      *            Fingerprint to check.
      * @return MegaNode object with the provided fingerprint.
@@ -8401,7 +8421,7 @@ public class MegaApiJava {
      * Returns a node with the provided fingerprint in a preferred parent folder.
      * <p>
      * If there is not any node in the account with that fingerprint, this function returns null.
-     * 
+     *
      * @param fingerprint
      *            Fingerprint to check.
      * @param preferredParent
@@ -8411,7 +8431,7 @@ public class MegaApiJava {
     public MegaNode getNodeByFingerprint(String fingerprint, MegaNode preferredParent) {
         return megaApi.getNodeByFingerprint(fingerprint, preferredParent);
     }
-    
+
     /**
      * Returns all nodes that have a fingerprint
      *
@@ -8440,7 +8460,7 @@ public class MegaApiJava {
     public MegaNode getExportableNodeByFingerprint(String fingerprint, String name) {
     	return megaApi.getExportableNodeByFingerprint(fingerprint, name);
     }
-    
+
     /**
      * Returns a node with the provided fingerprint that can be exported
      *
@@ -8454,13 +8474,13 @@ public class MegaApiJava {
     public MegaNode getExportableNodeByFingerprint(String fingerprint) {
     	return megaApi.getExportableNodeByFingerprint(fingerprint);
     }
-    
-    
+
+
     /**
      * Check if the account already has a node with the provided fingerprint.
      * <p>
      * A fingerprint for a local file can be generated using MegaApiJava.getFingerprint().
-     * 
+     *
      * @param fingerprint
      *            Fingerprint to check.
      * @return true if the account contains a node with the same fingerprint.
@@ -8468,7 +8488,7 @@ public class MegaApiJava {
     public boolean hasFingerprint(String fingerprint) {
         return megaApi.hasFingerprint(fingerprint);
     }
-    
+
     /**
      * getCRC Get the CRC of a file
      *
@@ -8483,7 +8503,7 @@ public class MegaApiJava {
     public String getCRC(String filePath) {
     	return megaApi.getCRC(filePath);
     }
-    
+
     /**
      * Get the CRC from a fingerprint
      *
@@ -8493,7 +8513,7 @@ public class MegaApiJava {
     public String getCRCFromFingerprint(String fingerprint) {
     	return megaApi.getCRCFromFingerprint(fingerprint);
     }
-    
+
     /**
      * getCRC Get the CRC of a node
      *
@@ -8508,7 +8528,7 @@ public class MegaApiJava {
     public String getCRC(MegaNode node) {
     	return megaApi.getCRC(node);
     }
-    
+
     /**
      * getNodeByCRC Returns a node with the provided CRC
      *
@@ -8526,7 +8546,7 @@ public class MegaApiJava {
 
     /**
      * Check if a node has an access level.
-     * 
+     *
      * @param node
      *            Node to check.
      * @param level
@@ -8549,7 +8569,7 @@ public class MegaApiJava {
 
     /**
      * Check if a node can be moved to a target node.
-     * 
+     *
      * @param node
      *            Node to check.
      * @param target
@@ -8565,7 +8585,7 @@ public class MegaApiJava {
     public MegaError checkMove(MegaNode node, MegaNode target) {
         return megaApi.checkMove(node, target);
     }
-    
+
     /**
      * Check if the MEGA filesystem is available in the local computer
      *
@@ -8576,14 +8596,14 @@ public class MegaApiJava {
      */
     public boolean isFilesystemAvailable() {
     	return megaApi.isFilesystemAvailable();
-    }    
+    }
 
     /**
      * Returns the root node of the account.
      * <p>
      * If you haven't successfully called MegaApiJava.fetchNodes() before,
      * this function returns null.
-     * 
+     *
      * @return Root node of the account.
      */
     public MegaNode getRootNode() {
@@ -8625,7 +8645,7 @@ public class MegaApiJava {
      * <p>
      * If you haven't successfully called MegaApiJava.fetchNodes() before,
      * this function returns null.
-     * 
+     *
      * @return Inbox node of the account.
      */
     public MegaNode getInboxNode() {
@@ -8637,13 +8657,13 @@ public class MegaApiJava {
      * <p>
      * If you haven't successfully called MegaApiJava.fetchNodes() before,
      * this function returns null.
-     * 
+     *
      * @return Rubbish node of the account.
      */
     public MegaNode getRubbishNode() {
         return megaApi.getRubbishNode();
     }
-    
+
     /**
      * Get the time (in seconds) during which transfers will be stopped due to a bandwidth overquota
      * @return Time (in seconds) during which transfers will be stopped, otherwise 0
@@ -8653,54 +8673,80 @@ public class MegaApiJava {
     }
 
     /**
-     * Search nodes containing a search string in their name.
-     * <p>
+     * Search nodes containing a search string in their name
+     *
      * The search is case-insensitive.
      *
-     * @param parent
-     *            The parent node of the tree to explore.
-     * @param searchString
-     *            Search string. The search is case-insensitive.
-     * @param recursive
-     *            true if you want to search recursively in the node tree.
-     *            false if you want to search in the children of the node only.
+     * You take the ownership of the returned value.
      *
-     * @param order Order for the returned list
-     * Valid values for this parameter are:
-     * - MegaApi::ORDER_NONE = 0
-     *  Undefined order
+     * @param parent       The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param recursive    True if you want to search recursively in the node tree.
+     *                     False if you want to search in the children of the node only
+     * @param order        Order for the returned list
+     *                     Valid values for this parameter are:
+     *                     - MegaApi::ORDER_NONE = 0
+     *                     Undefined order
      *
-     *  - MegaApi::ORDER_DEFAULT_ASC = 1
-     *  Folders first in alphabetical order, then files in the same order
+     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
+     *                     Folders first in alphabetical order, then files in the same order
      *
-     *  - MegaApi::ORDER_DEFAULT_DESC = 2
-     *  Files first in reverse alphabetical order, then folders in the same order
+     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
+     *                     Files first in reverse alphabetical order, then folders in the same order
      *
-     *  - MegaApi::ORDER_SIZE_ASC = 3
-     *  Sort by size, ascending
+     *                     - MegaApi::ORDER_SIZE_ASC = 3
+     *                     Sort by size, ascending
      *
-     *  - MegaApi::ORDER_SIZE_DESC = 4
-     *  Sort by size, descending
+     *                     - MegaApi::ORDER_SIZE_DESC = 4
+     *                     Sort by size, descending
      *
-     *  - MegaApi::ORDER_CREATION_ASC = 5
-     *  Sort by creation time in MEGA, ascending
+     *                     - MegaApi::ORDER_CREATION_ASC = 5
+     *                     Sort by creation time in MEGA, ascending
      *
-     *  - MegaApi::ORDER_CREATION_DESC = 6
-     *  Sort by creation time in MEGA, descending
+     *                     - MegaApi::ORDER_CREATION_DESC = 6
+     *                     Sort by creation time in MEGA, descending
      *
-     *  - MegaApi::ORDER_MODIFICATION_ASC = 7
-     *  Sort by modification time of the original file, ascending
+     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *                     Sort by modification time of the original file, ascending
      *
-     *  - MegaApi::ORDER_MODIFICATION_DESC = 8
-     *  Sort by modification time of the original file, descending
+     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *                     Sort by modification time of the original file, descending
      *
-     *  - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *  Sort in alphabetical order, ascending
+     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
      *
-     *  - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *  Sort in alphabetical order, descending
+     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
      *
-     * @return List of nodes that contain the desired string in their name.
+     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+     *                     They will be eventually removed.
+     *
+     *                     - MegaApi::ORDER_PHOTO_ASC = 11
+     *                     Sort with photos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_PHOTO_DESC = 12
+     *                     Sort with photos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_VIDEO_ASC = 13
+     *                     Sort with videos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_VIDEO_DESC = 14
+     *                     Sort with videos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_LABEL_ASC = 17
+     *                     Sort by color label, ascending
+     *
+     *                     - MegaApi::ORDER_LABEL_DESC = 18
+     *                     Sort by color label, descending
+     *
+     *                     - MegaApi::ORDER_FAV_ASC = 19
+     *                     Sort nodes with favourite attr first
+     *
+     *                     - MegaApi::ORDER_FAV_DESC = 20
+     *                     Sort nodes with favourite attr last
+     *
+     * @return List of nodes that contain the desired string in their name
      */
     public ArrayList<MegaNode> search(MegaNode parent, String searchString, boolean recursive, int order) {
         return nodeListToArray(megaApi.search(parent, searchString, recursive, order));
@@ -8717,45 +8763,73 @@ public class MegaApiJava {
      * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
      * this method returns.
      *
-     * @param node The parent node of the tree to explore
+     * @param node         The parent node of the tree to explore
      * @param searchString Search string. The search is case-insensitive
-     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
-     * @param recursive True if you want to seach recursively in the node tree.
-     * False if you want to seach in the children of the node only
-     * @param order Order for the returned list
-     * Valid values for this parameter are:
-     * - MegaApi::ORDER_NONE = 0
-     * Undefined order
+     * @param cancelToken  MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive    True if you want to search recursively in the node tree.
+     *                     False if you want to search in the children of the node only
+     * @param order        Order for the returned list
+     *                     Valid values for this parameter are:
+     *                     - MegaApi::ORDER_NONE = 0
+     *                     Undefined order
      *
-     * - MegaApi::ORDER_DEFAULT_ASC = 1
-     * Folders first in alphabetical order, then files in the same order
+     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
+     *                     Folders first in alphabetical order, then files in the same order
      *
-     * - MegaApi::ORDER_DEFAULT_DESC = 2
-     * Files first in reverse alphabetical order, then folders in the same order
+     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
+     *                     Files first in reverse alphabetical order, then folders in the same order
      *
-     * - MegaApi::ORDER_SIZE_ASC = 3
-     * Sort by size, ascending
+     *                     - MegaApi::ORDER_SIZE_ASC = 3
+     *                     Sort by size, ascending
      *
-     * - MegaApi::ORDER_SIZE_DESC = 4
-     * Sort by size, descending
+     *                     - MegaApi::ORDER_SIZE_DESC = 4
+     *                     Sort by size, descending
      *
-     * - MegaApi::ORDER_CREATION_ASC = 5
-     * Sort by creation time in MEGA, ascending
+     *                     - MegaApi::ORDER_CREATION_ASC = 5
+     *                     Sort by creation time in MEGA, ascending
      *
-     * - MegaApi::ORDER_CREATION_DESC = 6
-     * Sort by creation time in MEGA, descending
+     *                     - MegaApi::ORDER_CREATION_DESC = 6
+     *                     Sort by creation time in MEGA, descending
      *
-     * - MegaApi::ORDER_MODIFICATION_ASC = 7
-     * Sort by modification time of the original file, ascending
+     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *                     Sort by modification time of the original file, ascending
      *
-     * - MegaApi::ORDER_MODIFICATION_DESC = 8
-     * Sort by modification time of the original file, descending
+     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *                     Sort by modification time of the original file, descending
      *
-     * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     * Sort in alphabetical order, ascending
+     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
      *
-     * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     * Sort in alphabetical order, descending
+     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
+     *
+     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+     *                     They will be eventually removed.
+     *
+     *                     - MegaApi::ORDER_PHOTO_ASC = 11
+     *                     Sort with photos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_PHOTO_DESC = 12
+     *                     Sort with photos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_VIDEO_ASC = 13
+     *                     Sort with videos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_VIDEO_DESC = 14
+     *                     Sort with videos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_LABEL_ASC = 17
+     *                     Sort by color label, ascending
+     *
+     *                     - MegaApi::ORDER_LABEL_DESC = 18
+     *                     Sort by color label, descending
+     *
+     *                     - MegaApi::ORDER_FAV_ASC = 19
+     *                     Sort nodes with favourite attr first
+     *
+     *                     - MegaApi::ORDER_FAV_DESC = 20
+     *                     Sort nodes with favourite attr last
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -8764,84 +8838,83 @@ public class MegaApiJava {
     }
 
     /**
-     * Search nodes containing a search string in their name.
-     * <p>
-     * The search is case-insensitive.
-     * 
-     * @param parent
-     *            The parent node of the tree to explore.
-     * @param searchString
-     *            Search string. The search is case-insensitive.
-     * @param recursive
-     *            true if you want to search recursively in the node tree.
-     *            false if you want to search in the children of the node only.
-     * 
-     * @return List of nodes that contain the desired string in their name.
-     */
-    public ArrayList<MegaNode> search(MegaNode parent, String searchString, boolean recursive) {
-        return nodeListToArray(megaApi.search(parent, searchString, recursive));
-    }
-
-    /**
-     * Search nodes containing a search string in their name.
-     * <p>
-     * The search is case-insensitive.
-     * 
-     * @param parent
-     *            The parent node of the tree to explore.
-     * @param searchString
-     *            Search string. The search is case-insensitive.
-     * 
-     * @return List of nodes that contain the desired string in their name.
-     */
-    public ArrayList<MegaNode> search(MegaNode parent, String searchString) {
-        return nodeListToArray(megaApi.search(parent, searchString));
-    }
-
-    /**
-     * Search nodes containing a search string in their name.
-     * <p>
+     * Search nodes containing a search string in their name
+     *
      * The search is case-insensitive.
      *
-     * @param searchString
-     *            Search string. The search is case-insensitive.
+     * The search will consider every accessible node for the account:
+     * - Cloud drive
+     * - Inbox
+     * - Rubbish bin
+     * - Incoming shares from other users
      *
-     * @param order Order for the returned list
-     * Valid values for this parameter are:
-     * - MegaApi::ORDER_NONE = 0
-     *  Undefined order
+     * You take the ownership of the returned value.
      *
-     *  - MegaApi::ORDER_DEFAULT_ASC = 1
-     *  Folders first in alphabetical order, then files in the same order
+     * @param searchString Search string. The search is case-insensitive
+     * @param order        Order for the returned list
+     *                     Valid values for this parameter are:
+     *                     - MegaApi::ORDER_NONE = 0
+     *                     Undefined order
      *
-     *  - MegaApi::ORDER_DEFAULT_DESC = 2
-     *  Files first in reverse alphabetical order, then folders in the same order
+     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
+     *                     Folders first in alphabetical order, then files in the same order
      *
-     *  - MegaApi::ORDER_SIZE_ASC = 3
-     *  Sort by size, ascending
+     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
+     *                     Files first in reverse alphabetical order, then folders in the same order
      *
-     *  - MegaApi::ORDER_SIZE_DESC = 4
-     *  Sort by size, descending
+     *                     - MegaApi::ORDER_SIZE_ASC = 3
+     *                     Sort by size, ascending
      *
-     *  - MegaApi::ORDER_CREATION_ASC = 5
-     *  Sort by creation time in MEGA, ascending
+     *                     - MegaApi::ORDER_SIZE_DESC = 4
+     *                     Sort by size, descending
      *
-     *  - MegaApi::ORDER_CREATION_DESC = 6
-     *  Sort by creation time in MEGA, descending
+     *                     - MegaApi::ORDER_CREATION_ASC = 5
+     *                     Sort by creation time in MEGA, ascending
      *
-     *  - MegaApi::ORDER_MODIFICATION_ASC = 7
-     *  Sort by modification time of the original file, ascending
+     *                     - MegaApi::ORDER_CREATION_DESC = 6
+     *                     Sort by creation time in MEGA, descending
      *
-     *  - MegaApi::ORDER_MODIFICATION_DESC = 8
-     *  Sort by modification time of the original file, descending
+     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *                     Sort by modification time of the original file, ascending
      *
-     *  - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *  Sort in alphabetical order, ascending
+     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *                     Sort by modification time of the original file, descending
      *
-     *  - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *  Sort in alphabetical order, descending
+     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
      *
-     * @return List of nodes that contain the desired string in their name.
+     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
+     *
+     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+     *                     They will be eventually removed.
+     *
+     *                     - MegaApi::ORDER_PHOTO_ASC = 11
+     *                     Sort with photos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_PHOTO_DESC = 12
+     *                     Sort with photos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_VIDEO_ASC = 13
+     *                     Sort with videos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_VIDEO_DESC = 14
+     *                     Sort with videos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_LABEL_ASC = 17
+     *                     Sort by color label, ascending
+     *
+     *                     - MegaApi::ORDER_LABEL_DESC = 18
+     *                     Sort by color label, descending
+     *
+     *                     - MegaApi::ORDER_FAV_ASC = 19
+     *                     Sort nodes with favourite attr first
+     *
+     *                     - MegaApi::ORDER_FAV_DESC = 20
+     *                     Sort nodes with favourite attr last
+     *
+     * @return List of nodes that contain the desired string in their name
      */
     public ArrayList<MegaNode> search(String searchString, int order) {
         return nodeListToArray(megaApi.search(searchString, order));
@@ -8853,10 +8926,10 @@ public class MegaApiJava {
      * The search is case-insensitive.
      *
      * The search will consider every accessible node for the account:
-     *  - Cloud drive
-     *  - Inbox
-     *  - Rubbish bin
-     *  - Incoming shares from other users
+     * - Cloud drive
+     * - Inbox
+     * - Rubbish bin
+     * - Incoming shares from other users
      *
      * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
      * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
@@ -8865,41 +8938,69 @@ public class MegaApiJava {
      * You take the ownership of the returned value.
      *
      * @param searchString Search string. The search is case-insensitive
-     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
-     * @param order Order for the returned list
-     * Valid values for this parameter are:
-     * - MegaApi::ORDER_NONE = 0
-     * Undefined order
+     * @param cancelToken  MegaCancelToken to be able to cancel the processing at any time.
+     * @param order        Order for the returned list
+     *                     Valid values for this parameter are:
+     *                     - MegaApi::ORDER_NONE = 0
+     *                     Undefined order
      *
-     * - MegaApi::ORDER_DEFAULT_ASC = 1
-     * Folders first in alphabetical order, then files in the same order
+     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
+     *                     Folders first in alphabetical order, then files in the same order
      *
-     * - MegaApi::ORDER_DEFAULT_DESC = 2
-     * Files first in reverse alphabetical order, then folders in the same order
+     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
+     *                     Files first in reverse alphabetical order, then folders in the same order
      *
-     * - MegaApi::ORDER_SIZE_ASC = 3
-     * Sort by size, ascending
+     *                     - MegaApi::ORDER_SIZE_ASC = 3
+     *                     Sort by size, ascending
      *
-     * - MegaApi::ORDER_SIZE_DESC = 4
-     * Sort by size, descending
+     *                     - MegaApi::ORDER_SIZE_DESC = 4
+     *                     Sort by size, descending
      *
-     * - MegaApi::ORDER_CREATION_ASC = 5
-     * Sort by creation time in MEGA, ascending
+     *                     - MegaApi::ORDER_CREATION_ASC = 5
+     *                     Sort by creation time in MEGA, ascending
      *
-     * - MegaApi::ORDER_CREATION_DESC = 6
-     * Sort by creation time in MEGA, descending
+     *                     - MegaApi::ORDER_CREATION_DESC = 6
+     *                     Sort by creation time in MEGA, descending
      *
-     * - MegaApi::ORDER_MODIFICATION_ASC = 7
-     * Sort by modification time of the original file, ascending
+     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *                     Sort by modification time of the original file, ascending
      *
-     * - MegaApi::ORDER_MODIFICATION_DESC = 8
-     * Sort by modification time of the original file, descending
+     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *                     Sort by modification time of the original file, descending
      *
-     * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     * Sort in alphabetical order, ascending
+     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
      *
-     * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     * Sort in alphabetical order, descending
+     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
+     *
+     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+     *                     They will be eventually removed.
+     *
+     *                     - MegaApi::ORDER_PHOTO_ASC = 11
+     *                     Sort with photos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_PHOTO_DESC = 12
+     *                     Sort with photos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_VIDEO_ASC = 13
+     *                     Sort with videos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_VIDEO_DESC = 14
+     *                     Sort with videos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_LABEL_ASC = 17
+     *                     Sort by color label, ascending
+     *
+     *                     - MegaApi::ORDER_LABEL_DESC = 18
+     *                     Sort by color label, descending
+     *
+     *                     - MegaApi::ORDER_FAV_ASC = 19
+     *                     Sort nodes with favourite attr first
+     *
+     *                     - MegaApi::ORDER_FAV_DESC = 20
+     *                     Sort nodes with favourite attr last
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -8907,32 +9008,262 @@ public class MegaApiJava {
         return nodeListToArray(megaApi.search(searchString, cancelToken, order));
     }
 
-
     /**
-     * Search nodes containing a search string in their name
+     * Search nodes on incoming shares containing a search string in their name
      *
      * The search is case-insensitive.
      *
-     * The search will consider every accessible node for the account:
-     *  - Cloud drive
-     *  - Inbox
-     *  - Rubbish bin
-     *  - Incoming shares from other users
+     * The method will search exclusively on incoming shares
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
      *
      * You take the ownership of the returned value.
      *
      * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken  MegaCancelToken to be able to cancel the processing at any time.
+     * @param order        Order for the returned list
+     *                     Valid values for this parameter are:
+     *                     - MegaApi::ORDER_NONE = 0
+     *                     Undefined order
+     *
+     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
+     *                     Folders first in alphabetical order, then files in the same order
+     *
+     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
+     *                     Files first in reverse alphabetical order, then folders in the same order
+     *
+     *                     - MegaApi::ORDER_SIZE_ASC = 3
+     *                     Sort by size, ascending
+     *
+     *                     - MegaApi::ORDER_SIZE_DESC = 4
+     *                     Sort by size, descending
+     *
+     *                     - MegaApi::ORDER_CREATION_ASC = 5
+     *                     Sort by creation time in MEGA, ascending
+     *
+     *                     - MegaApi::ORDER_CREATION_DESC = 6
+     *                     Sort by creation time in MEGA, descending
+     *
+     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *                     Sort by modification time of the original file, ascending
+     *
+     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *                     Sort by modification time of the original file, descending
+     *
+     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
+     *
+     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
+     *
+     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+     *                     They will be eventually removed.
+     *
+     *                     - MegaApi::ORDER_PHOTO_ASC = 11
+     *                     Sort with photos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_PHOTO_DESC = 12
+     *                     Sort with photos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_VIDEO_ASC = 13
+     *                     Sort with videos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_VIDEO_DESC = 14
+     *                     Sort with videos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_LABEL_ASC = 17
+     *                     Sort by color label, ascending
+     *
+     *                     - MegaApi::ORDER_LABEL_DESC = 18
+     *                     Sort by color label, descending
+     *
+     *                     - MegaApi::ORDER_FAV_ASC = 19
+     *                     Sort nodes with favourite attr first
+     *
+     *                     - MegaApi::ORDER_FAV_DESC = 20
+     *                     Sort nodes with favourite attr last
      *
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> search(String searchString) {
-        return nodeListToArray(megaApi.search(searchString));
+    public ArrayList<MegaNode> searchOnInShares(String searchString, MegaCancelToken cancelToken, int order) {
+        return nodeListToArray(megaApi.searchOnInShares(searchString, cancelToken, order));
+    }
+
+    /**
+     * Search nodes on outbound shares containing a search string in their name
+     *
+     * The search is case-insensitive.
+     *
+     * The method will search exclusively on outbound shares
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken  MegaCancelToken to be able to cancel the processing at any time.
+     * @param order        Order for the returned list
+     *                     Valid values for this parameter are:
+     *                     - MegaApi::ORDER_NONE = 0
+     *                     Undefined order
+     *
+     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
+     *                     Folders first in alphabetical order, then files in the same order
+     *
+     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
+     *                     Files first in reverse alphabetical order, then folders in the same order
+     *
+     *                     - MegaApi::ORDER_SIZE_ASC = 3
+     *                     Sort by size, ascending
+     *
+     *                     - MegaApi::ORDER_SIZE_DESC = 4
+     *                     Sort by size, descending
+     *
+     *                     - MegaApi::ORDER_CREATION_ASC = 5
+     *                     Sort by creation time in MEGA, ascending
+     *
+     *                     - MegaApi::ORDER_CREATION_DESC = 6
+     *                     Sort by creation time in MEGA, descending
+     *
+     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *                     Sort by modification time of the original file, ascending
+     *
+     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *                     Sort by modification time of the original file, descending
+     *
+     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
+     *
+     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
+     *
+     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+     *                     They will be eventually removed.
+     *
+     *                     - MegaApi::ORDER_PHOTO_ASC = 11
+     *                     Sort with photos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_PHOTO_DESC = 12
+     *                     Sort with photos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_VIDEO_ASC = 13
+     *                     Sort with videos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_VIDEO_DESC = 14
+     *                     Sort with videos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_LABEL_ASC = 17
+     *                     Sort by color label, ascending
+     *
+     *                     - MegaApi::ORDER_LABEL_DESC = 18
+     *                     Sort by color label, descending
+     *
+     *                     - MegaApi::ORDER_FAV_ASC = 19
+     *                     Sort nodes with favourite attr first
+     *
+     *                     - MegaApi::ORDER_FAV_DESC = 20
+     *                     Sort nodes with favourite attr last
+     *
+     * @return List of nodes that contain the desired string in their name
+     */
+    public ArrayList<MegaNode> searchOnOutShares(String searchString, MegaCancelToken cancelToken, int order) {
+        return nodeListToArray(megaApi.searchOnOutShares(searchString, cancelToken, order));
+    }
+
+    /**
+     * Search nodes on public links containing a search string in their name
+     *
+     * The search is case-insensitive.
+     *
+     * The method will search exclusively on public links
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken  MegaCancelToken to be able to cancel the processing at any time.
+     * @param order        Order for the returned list
+     *                     Valid values for this parameter are:
+     *                     - MegaApi::ORDER_NONE = 0
+     *                     Undefined order
+     *
+     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
+     *                     Folders first in alphabetical order, then files in the same order
+     *
+     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
+     *                     Files first in reverse alphabetical order, then folders in the same order
+     *
+     *                     - MegaApi::ORDER_SIZE_ASC = 3
+     *                     Sort by size, ascending
+     *
+     *                     - MegaApi::ORDER_SIZE_DESC = 4
+     *                     Sort by size, descending
+     *
+     *                     - MegaApi::ORDER_CREATION_ASC = 5
+     *                     Sort by creation time in MEGA, ascending
+     *
+     *                     - MegaApi::ORDER_CREATION_DESC = 6
+     *                     Sort by creation time in MEGA, descending
+     *
+     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *                     Sort by modification time of the original file, ascending
+     *
+     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *                     Sort by modification time of the original file, descending
+     *
+     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
+     *
+     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
+     *
+     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+     *                     They will be eventually removed.
+     *
+     *                     - MegaApi::ORDER_PHOTO_ASC = 11
+     *                     Sort with photos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_PHOTO_DESC = 12
+     *                     Sort with photos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_VIDEO_ASC = 13
+     *                     Sort with videos first, then by date ascending
+     *
+     *                     - MegaApi::ORDER_VIDEO_DESC = 14
+     *                     Sort with videos first, then by date descending
+     *
+     *                     - MegaApi::ORDER_LABEL_ASC = 17
+     *                     Sort by color label, ascending
+     *
+     *                     - MegaApi::ORDER_LABEL_DESC = 18
+     *                     Sort by color label, descending
+     *
+     *                     - MegaApi::ORDER_FAV_ASC = 19
+     *                     Sort nodes with favourite attr first
+     *
+     *                     - MegaApi::ORDER_FAV_DESC = 20
+     *                     Sort nodes with favourite attr last
+     *
+     * @return List of nodes that contain the desired string in their name
+     */
+    public ArrayList<MegaNode> searchOnPublicLinks(String searchString, MegaCancelToken cancelToken, int order) {
+        return nodeListToArray(megaApi.searchOnPublicLinks(searchString, cancelToken, order));
     }
 
     /**
      * Allow to search nodes with the following options:
      * - Search given a parent node of the tree to explore, or on the contrary search in a
-     *   specific target (root nodes, inshares, outshares, public links)
+     * specific target (root nodes, inshares, outshares, public links)
      * - Search recursively
      * - Containing a search string in their name
      * - Filter by the type of the node
@@ -8958,80 +9289,77 @@ public class MegaApiJava {
      * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
      * this method returns.
      *
-     * @param node The parent node of the tree to explore
+     * @param node         The parent node of the tree to explore
      * @param searchString Search string. The search is case-insensitive
-     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
-     * @param recursive True if you want to seach recursively in the node tree.
-     * False if you want to seach in the children of the node only
-     * @param order Order for the returned list
-     * Valid values for this parameter are:
-     * - MegaApi::ORDER_NONE = 0
-     * Undefined order
+     * @param cancelToken  MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive    True if you want to search recursively in the node tree.
+     *                     False if you want to search in the children of the node only
+     * @param order        Order for the returned list
+     *                     Valid values for this parameter are:
+     *                     - MegaApi::ORDER_NONE = 0
+     *                     Undefined order
      *
-     * - MegaApi::ORDER_DEFAULT_ASC = 1
-     * Folders first in alphabetical order, then files in the same order
+     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
+     *                     Folders first in alphabetical order, then files in the same order
      *
-     * - MegaApi::ORDER_DEFAULT_DESC = 2
-     * Files first in reverse alphabetical order, then folders in the same order
+     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
+     *                     Files first in reverse alphabetical order, then folders in the same order
      *
-     * - MegaApi::ORDER_SIZE_ASC = 3
-     * Sort by size, ascending
+     *                     - MegaApi::ORDER_SIZE_ASC = 3
+     *                     Sort by size, ascending
      *
-     * - MegaApi::ORDER_SIZE_DESC = 4
-     * Sort by size, descending
+     *                     - MegaApi::ORDER_SIZE_DESC = 4
+     *                     Sort by size, descending
      *
-     * - MegaApi::ORDER_CREATION_ASC = 5
-     * Sort by creation time in MEGA, ascending
+     *                     - MegaApi::ORDER_CREATION_ASC = 5
+     *                     Sort by creation time in MEGA, ascending
      *
-     * - MegaApi::ORDER_CREATION_DESC = 6
-     * Sort by creation time in MEGA, descending
+     *                     - MegaApi::ORDER_CREATION_DESC = 6
+     *                     Sort by creation time in MEGA, descending
      *
-     * - MegaApi::ORDER_MODIFICATION_ASC = 7
-     * Sort by modification time of the original file, ascending
+     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *                     Sort by modification time of the original file, ascending
      *
-     * - MegaApi::ORDER_MODIFICATION_DESC = 8
-     * Sort by modification time of the original file, descending
+     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *                     Sort by modification time of the original file, descending
      *
-     * - MegaApi::ORDER_PHOTO_ASC = 11
-     * Sort with photos first, then by date ascending
+     *                     - MegaApi::ORDER_PHOTO_ASC = 11
+     *                     Sort with photos first, then by date ascending
      *
-     * - MegaApi::ORDER_PHOTO_DESC = 12
-     * Sort with photos first, then by date descending
+     *                     - MegaApi::ORDER_PHOTO_DESC = 12
+     *                     Sort with photos first, then by date descending
      *
-     * - MegaApi::ORDER_VIDEO_ASC = 13
-     * Sort with videos first, then by date ascending
+     *                     - MegaApi::ORDER_VIDEO_ASC = 13
+     *                     Sort with videos first, then by date ascending
      *
-     * - MegaApi::ORDER_VIDEO_DESC = 14
-     * Sort with videos first, then by date descending
+     *                     - MegaApi::ORDER_VIDEO_DESC = 14
+     *                     Sort with videos first, then by date descending
      *
-     * - MegaApi::ORDER_LABEL_ASC = 17
-     * Sort by color label, ascending
+     *                     - MegaApi::ORDER_LABEL_ASC = 17
+     *                     Sort by color label, ascending
      *
-     * - MegaApi::ORDER_LABEL_DESC = 18
-     * Sort by color label, descending
+     *                     - MegaApi::ORDER_LABEL_DESC = 18
+     *                     Sort by color label, descending
      *
-     * - MegaApi::ORDER_FAV_ASC = 19
-     * Sort nodes with favourite attr first
+     *                     - MegaApi::ORDER_FAV_ASC = 19
+     *                     Sort nodes with favourite attr first
      *
-     * - MegaApi::ORDER_FAV_DESC = 20
-     * Sort nodes with favourite attr last
-     *
-     * @param type Type of nodes requested in the search
-     * Valid values for this parameter are:
-     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
-     * - MegaApi::FILE_TYPE_PHOTO = 1
-     * - MegaApi::FILE_TYPE_AUDIO = 2
-     * - MegaApi::FILE_TYPE_VIDEO = 3
-     * - MegaApi::FILE_TYPE_DOCUMENT = 4
-     *
-     * @param target Target type where this method will search
-     * Valid values for this parameter are
-     * - SEARCH_TARGET_INSHARE = 0
-     * - SEARCH_TARGET_OUTSHARE = 1
-     * - SEARCH_TARGET_PUBLICLINK = 2
-     * - SEARCH_TARGET_ROOTNODE = 3
-     * - SEARCH_TARGET_ALL = 4
-     *
+     *                     - MegaApi::ORDER_FAV_DESC = 20
+     *                     Sort nodes with favourite attr last
+     * @param type         Type of nodes requested in the search
+     *                     Valid values for this parameter are:
+     *                     - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     *                     - MegaApi::FILE_TYPE_PHOTO = 1
+     *                     - MegaApi::FILE_TYPE_AUDIO = 2
+     *                     - MegaApi::FILE_TYPE_VIDEO = 3
+     *                     - MegaApi::FILE_TYPE_DOCUMENT = 4
+     * @param target       Target type where this method will search
+     *                     Valid values for this parameter are
+     *                     - SEARCH_TARGET_INSHARE = 0
+     *                     - SEARCH_TARGET_OUTSHARE = 1
+     *                     - SEARCH_TARGET_PUBLICLINK = 2
+     *                     - SEARCH_TARGET_ROOTNODE = 3
+     *                     - SEARCH_TARGET_ALL = 4
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
@@ -9411,7 +9739,7 @@ public class MegaApiJava {
 
     /**
      * Process a node tree using a MegaTreeProcessor implementation.
-     * 
+     *
      * @param parent
      *            The parent node of the tree to explore.
      * @param processor
@@ -9419,7 +9747,7 @@ public class MegaApiJava {
      * @param recursive
      *            true if you want to recursively process the whole node tree.
      *            false if you want to process the children of the node only.
-     * 
+     *
      * @return true if all nodes were processed. false otherwise (the operation can be
      *         cancelled by MegaTreeProcessor.processMegaNode()).
      */
@@ -9433,12 +9761,12 @@ public class MegaApiJava {
 
     /**
      * Process a node tree using a MegaTreeProcessor implementation.
-     * 
+     *
      * @param parent
      *            The parent node of the tree to explore.
      * @param processor
      *            MegaTreeProcessor that will receive callbacks for every node in the tree.
-     * 
+     *
      * @return true if all nodes were processed. false otherwise (the operation can be
      *         cancelled by MegaTreeProcessor.processMegaNode()).
      */
@@ -9505,7 +9833,7 @@ public class MegaApiJava {
 
     /**
      * Get the SDK version.
-     * 
+     *
      * @return SDK version.
      */
     public String getVersion() {
@@ -9514,7 +9842,7 @@ public class MegaApiJava {
 
     /**
      * Get the User-Agent header used by the SDK.
-     * 
+     *
      * @return User-Agent used by the SDK.
      */
     public String getUserAgent() {
@@ -9660,7 +9988,7 @@ public class MegaApiJava {
     public void getContactLinksOption(MegaRequestListenerInterface listener){
         megaApi.getContactLinksOption(createDelegateRequestListener(listener));
     }
-    
+
     /**
      * Keep retrying when public key pinning fails
      *
@@ -9679,7 +10007,7 @@ public class MegaApiJava {
     public void retrySSLerrors(boolean enable) {
     	megaApi.retrySSLerrors(enable);
     }
-    
+
     /**
      * Enable / disable the public key pinning
      *
@@ -9761,7 +10089,7 @@ public class MegaApiJava {
      * If the input pointer is null, this function will return null.
      * If the input character array is not a valid base64 string
      * the effect is undefined.
-     * 
+     *
      * @param base64
      *            null-terminated Base64 character array.
      * @return null-terminated Base32 character array.
@@ -9772,11 +10100,11 @@ public class MegaApiJava {
 
     /**
      * Convert a Base32 string to Base64.
-     * 
+     *
      * If the input pointer is null, this function will return null.
      * If the input character array is not a valid base32 string
      * the effect is undefined.
-     * 
+     *
      * @param base32
      *            null-terminated Base32 character array.
      * @return null-terminated Base64 character array.
@@ -9793,7 +10121,7 @@ public class MegaApiJava {
     public static void removeRecursively(String localPath) {
         MegaApi.removeRecursively(localPath);
     }
-    
+
     /**
      * Check if the connection with MEGA servers is OK
      *
@@ -10376,7 +10704,7 @@ public class MegaApiJava {
     public void getMegaAchievements() {
         megaApi.getMegaAchievements();
     }
-    
+
     /**
      * Set original fingerprint for MegaNode
      *
@@ -10384,22 +10712,22 @@ public class MegaApiJava {
      * @param fingerprint
      * @param listener
      */
-    
+
     public void setOriginalFingerprint(MegaNode node, String fingerprint, MegaRequestListenerInterface listener){
         megaApi.setOriginalFingerprint(node,fingerprint,createDelegateRequestListener(listener));
     }
-    
+
     /**
      * Get MegaNode list by original fingerprint
      *
      * @param originalfingerprint
      * @param parent
      */
-    
+
     public MegaNodeList getNodesByOriginalFingerprint(String originalfingerprint, MegaNode parent){
         return megaApi.getNodesByOriginalFingerprint(originalfingerprint, parent);
     }
-    
+
     /**
      * @brief Retrieve basic information about a folder link
      *
@@ -10460,6 +10788,33 @@ public class MegaApiJava {
     }
 
     /**
+     * Call the low level function getrlimit() for NOFILE, needed for some platforms.
+     *
+     * @return The current limit for the number of open files (and sockets) for the app, or -1 if error.
+     */
+    public int platformGetRLimitNumFile() {
+        return megaApi.platformGetRLimitNumFile();
+    }
+
+    /**
+     * Call the low level function setrlimit() for NOFILE, needed for some platforms.
+     *
+     * Particularly on phones, the system default limit for the number of open files (and sockets)
+     * is quite low.   When the SDK can be working on many files and many sockets at once,
+     * we need a higher limit.   Those limits need to take into account the needs of the whole
+     * app and not just the SDK, of course.   This function is provided in order that the app
+     * can make that call and set appropriate limits.
+     *
+     * @param newNumFileLimit The new limit of file and socket handles for the whole app.
+     *
+     * @return True when there were no errors setting the new limit (even when clipped to the maximum
+     * allowed value). It returns false when setting a new limit failed.
+     */
+    public boolean platformSetRLimitNumFile(int newNumFileLimit) {
+        return megaApi.platformSetRLimitNumFile(newNumFileLimit);
+    }
+
+    /**
      * Requests a list of all Smart Banners available for current user.
      *
      * The response value is stored as a MegaBannerList.
@@ -10514,7 +10869,7 @@ public class MegaApiJava {
     public void dismissBanner(int id) {
         megaApi.dismissBanner(id);
     }
-    
+
     /****************************************************************************************************/
     // INTERNAL METHODS
     /****************************************************************************************************/
@@ -10715,7 +11070,7 @@ public class MegaApiJava {
     public String smsVerifiedPhoneNumber() {
         return megaApi.smsVerifiedPhoneNumber();
     }
-    
+
     /**
      * Requests the contacts that are registered at MEGA (currently verified through SMS)
      *
@@ -10725,7 +11080,7 @@ public class MegaApiJava {
     public void getRegisteredContacts(MegaStringMap contacts, nz.mega.sdk.MegaRequestListenerInterface listener) {
         megaApi.getRegisteredContacts(contacts, createDelegateRequestListener(listener));
     }
-    
+
     /**
      * Requests the currently available country calling codes
      *
@@ -10737,8 +11092,8 @@ public class MegaApiJava {
 
     /**
      * Get the state to see whether blocked account could do SMS verification
-     * 
-     * @return the state 
+     *
+     * @return the state
      */
     public int smsAllowedState() {
         return megaApi.smsAllowedState();
@@ -10794,7 +11149,6 @@ public class MegaApiJava {
      * - MegaRequest::getName - Returns the backup name of the remote location
      * - MegaRequest::getAccess - Returns the backup state
      * - MegaRequest::getFile - Returns the path of the local folder
-     * - MegaRequest::getText - Returns the extraData associated with the request
      * - MegaRequest::getTotalBytes - Returns the backup type
      * - MegaRequest::getNumDetails - Returns the backup substate
      * - MegaRequest::getFlag - Returns true
@@ -10806,13 +11160,12 @@ public class MegaApiJava {
      * @param backupName Name of the backup
      * @param state state
      * @param subState subState
-     * @param extraData A binary array converted into B64 (optional)
      * @param listener MegaRequestListener to track this request
      */
     public void setBackup(int backupType, long targetNode, String localFolder, String backupName,
-        int state, int subState, String extraData, MegaRequestListenerInterface listener) {
+        int state, int subState, MegaRequestListenerInterface listener) {
         megaApi.setBackup(backupType, targetNode, localFolder, backupName, state, subState,
-            extraData, createDelegateRequestListener(listener));
+            createDelegateRequestListener(listener));
     }
 
     /**
@@ -10843,7 +11196,6 @@ public class MegaApiJava {
      * - MegaRequest::getFile - Returns the path of the local folder
      * - MegaRequest::getAccess - Returns the backup state
      * - MegaRequest::getNumDetails - Returns the backup substate
-     * - MegaRequest::getText - Returns the extraData associated with the request
      * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
      *
      * @param backupId backup id identifying the backup to be updated
@@ -10852,14 +11204,13 @@ public class MegaApiJava {
      * @param localFolder Local path of the folder
      * @param state backup state
      * @param subState backup subState
-     * @param extraData A binary array converted into B64 (optional)
      * @param listener MegaRequestListener to track this request
      */
     public void updateBackup(long backupId, int backupType, long targetNode, String localFolder,
-        int state, int subState, String extraData,
+        String backupName, int state, int subState,
         MegaRequestListenerInterface listener) {
-        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, state,
-            subState, extraData, createDelegateRequestListener(listener));
+        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, backupName, state,
+            subState, createDelegateRequestListener(listener));
     }
 
     /**

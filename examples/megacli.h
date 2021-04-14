@@ -163,9 +163,6 @@ struct DemoApp : public MegaApp
 
     void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
 
-    void share_result(error, bool writable) override;
-    void share_result(int, error, bool writable) override;
-
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
 
@@ -192,9 +189,6 @@ struct DemoApp : public MegaApp
     // sessionid is undef if all sessions except the current were killed
     void sessions_killed(handle sessionid, error e) override;
 
-    void exportnode_result(error) override;
-    void exportnode_result(handle, handle) override;
-
     void openfilelink_result(const Error&) override;
     void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
@@ -216,7 +210,7 @@ struct DemoApp : public MegaApp
 #ifdef ENABLE_SYNC
     void syncupdate_stateconfig(handle backupId) override;
     void syncupdate_active(handle backupId, bool active) override;
-    void sync_auto_resume_result(const UnifiedSync&, bool attempted) override;
+    void sync_auto_resume_result(const UnifiedSync&, bool attempted, bool hadAnError) override;
     void sync_removed(handle backupId) override;
 
     void syncupdate_scanning(bool) override;
@@ -372,7 +366,6 @@ void exec_chatl(autocomplete::ACState& s);
 void exec_chatsm(autocomplete::ACState& s);
 void exec_chatlu(autocomplete::ACState& s);
 void exec_chatlj(autocomplete::ACState& s);
-void exec_enabletransferresumption(autocomplete::ACState& s);
 void exec_setmaxdownloadspeed(autocomplete::ACState& s);
 void exec_setmaxuploadspeed(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);
@@ -396,10 +389,8 @@ void exec_banner(autocomplete::ACState& s);
 #ifdef ENABLE_SYNC
 
 void exec_syncadd(autocomplete::ACState& s);
-void exec_syncbackupadd(autocomplete::ACState& s);
-void exec_syncbackupremove(autocomplete::ACState& s);
-void exec_syncbackuprestore(autocomplete::ACState& s);
-void exec_syncconfig(autocomplete::ACState& s);
+void exec_syncclosedrive(autocomplete::ACState& s);
+void exec_syncopendrive(autocomplete::ACState& s);
 void exec_synclist(autocomplete::ACState& s);
 void exec_syncremove(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);

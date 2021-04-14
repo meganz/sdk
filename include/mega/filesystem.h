@@ -153,6 +153,7 @@ public:
     // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
     // No escaping or unescaping is done.
     string toPath(const FileSystemAccess& fsaccess) const;
+    string toPath() const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.

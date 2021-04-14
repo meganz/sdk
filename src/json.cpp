@@ -346,6 +346,11 @@ handle JSON::gethandle(int size)
     return UNDEF;
 }
 
+NodeHandle JSON::getNodeHandle()
+{
+    return NodeHandle().set6byte(gethandle(6));
+}
+
 // decode integer
 m_off_t JSON::getint()
 {
@@ -702,6 +707,12 @@ void JSONWriter::arg(const char* name, handle h, int len)
 
     arg(name, buf);
 }
+
+void JSONWriter::arg(const char* name, NodeHandle h)
+{
+    arg(name, h.as8byte(), 6);
+}
+
 
 void JSONWriter::arg(const char* name, const byte* value, int len)
 {

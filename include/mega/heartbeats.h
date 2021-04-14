@@ -123,40 +123,8 @@ public:
 };
 #endif
 
-/**
- * @brief Information for registration/update of a backup
- */
-class BackupInfo
-{
-public:
-    BackupInfo(BackupType type, string backupName, LocalPath localFolder, handle megaHandle, int state, int substate, string extra);
-
-    BackupType type() const;
-
-    string backupName() const;
-
-    LocalPath localFolder() const;
-
-    handle megaHandle() const;
-
-    int state() const;
-
-    int subState() const;
-
-    string extra() const;
-
-protected:
-    BackupType mType;
-    string mBackupName;
-    LocalPath mLocalFolder;
-    handle mMegaHandle;
-    int mState;
-    int mSubState;
-    string mExtra;
-};
-
 #ifdef ENABLE_SYNC
-class BackupInfoSync : public BackupInfo
+class BackupInfoSync : public CommandBackupPut::BackupInfo
 {
 public:
     enum State
@@ -170,14 +138,12 @@ public:
         PAUSE_FULL = 7,         // Active but transfers paused in the SDK
     };
 
-    BackupInfoSync(UnifiedSync&);
+    BackupInfoSync(const SyncConfig& config, const string& device, int calculatedState);
 
     static BackupType getSyncType(const SyncConfig& config);
     static int getSyncState (UnifiedSync&);
     static int getSyncState(SyncError error, syncstate_t state, MegaClient *client);
     static int getSyncState(const SyncConfig& config, MegaClient *client);
-    static int getSyncSubstatus (UnifiedSync&);
-    string getSyncExtraData(UnifiedSync&);
 
     bool operator==(const BackupInfoSync& o) const;
     bool operator!=(const BackupInfoSync& o) const;
@@ -198,13 +164,9 @@ public:
     void updateOrRegisterSync(UnifiedSync&);
 
 private:
-    void digestPutResult(handle backupId, UnifiedSync* syncPtr);
-
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
     mega::MegaClient *mClient = nullptr;
-
-    void updateBackupInfo(handle backupId, const BackupInfo &info);
 
 #ifdef ENABLE_SYNC
     void beatBackupInfo(UnifiedSync& us);

@@ -85,6 +85,14 @@ class MegaApi;
 
 class MegaSemaphore;
 
+#if defined(SWIG)
+    #define MEGA_DEPRECATED
+#elif defined(WIN32)
+    #define MEGA_DEPRECATED [[deprecated]]
+#else
+    #define MEGA_DEPRECATED
+#endif
+
 /**
  * @brief Interface to provide an external GFX processor
  *
@@ -1272,7 +1280,7 @@ class MegaUser
             CHANGE_TYPE_ALIAS                       = 0x1000000,
             CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
-            CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,
+            //CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,  // this bit can be used for another type of change. Please, recycle :)
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
         };
 
@@ -3026,6 +3034,7 @@ class MegaRequest
             TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
             TYPE_FETCH_GOOGLE_ADS, TYPE_QUERY_GOOGLE_ADS,
             TYPE_GET_ATTR_NODE, TYPE_EXECUTE_ON_THREAD,
+            TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS, TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3423,8 +3432,6 @@ class MegaRequest
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
          * - MegaApi::setBackup - Returns the cron like time string to define period
-         * - MegaApi::setBackup - Returns the extraData associated with the request
-         * - MegaApi::updateBackup - Returns the extraData associated with the request
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -5157,7 +5164,7 @@ public:
         BUSINESS_EXPIRED = 10, //Business account expired
         FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
         REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
-        REMOTE_PATH_DELETED = 13, //Remote path has been deleted
+        //REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
         SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
         LOCAL_FINGERPRINT_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
         PUT_NODES_ERROR = 16, // Error processing put nodes result
@@ -5172,6 +5179,7 @@ public:
         TOO_MANY_ACTION_PACKETS = 25, // Too many changes in account, local state discarded
         LOGGED_OUT = 26, // Logged out
         WHOLE_ACCOUNT_REFETCHED = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
+        BACKUP_MODIFIED = 28, // Backup has been externally modified.
     };
 
     enum Warning
@@ -5286,7 +5294,6 @@ public:
      *  - BUSINESS_EXPIRED = 10: Business account expired
      *  - FOREIGN_TARGET_OVERSTORAGE = 11: Sync transfer fails (upload into an inshare whose account is overquota)
      *  - REMOTE_PATH_HAS_CHANGED = 12: Remote path changed
-     *  - REMOTE_PATH_DELETED = 13: Remote path has been deleted
      *  - SHARE_NON_FULL_ACCESS = 14: Existing inbound share sync or part thereof lost full access
      *  - LOCAL_FINGERPRINT_MISMATCH = 15: Filesystem fingerprint does not match the one stored for the synchronization
      *  - PUT_NODES_ERROR = 16:  Error processing put nodes result
@@ -7588,7 +7595,7 @@ class MegaApi
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
-            USER_ATTR_BACKUP_NAMES = 32,         // private - byte array
+            // USER_ATTR_BACKUP_NAMES = 32,         // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34 // private - byte array
         };
@@ -9500,10 +9507,6 @@ class MegaApi
         /**
          * @brief Check if the account is a business account.
          *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
-         *
          * @return returns true if it's a business account, otherwise false
          */
         bool isBusinessAccount();
@@ -9518,10 +9521,6 @@ class MegaApi
          *  - MegaApi::changeEmail
          *  - MegaApi::remove
          *  - MegaApi::removeVersion
-         *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
          *
          * @return returns true if it's a master account, false if it's a sub-user account
          */
@@ -9539,20 +9538,12 @@ class MegaApi
          *  - MegaApi::share
          *  - MegaApi::cleanRubbishBin
          *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
-         *
          * @return returns true if the account is active, otherwise false
          */
         bool isBusinessAccountActive();
 
         /**
          * @brief Get the status of a business account.
-         *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
          *
          * @return Returns the business account status, possible values:
          *      MegaApi::BUSINESS_STATUS_EXPIRED = -1
@@ -12568,6 +12559,35 @@ class MegaApi
         void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener = nullptr);
 
         /**
+         * @brief Upload a file or a folder
+         *
+         * This method should be used ONLY to share by chat a local file. In case the file
+         * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+         * this method will force a new upload from the scratch (ensuring the file attributes are set),
+         * instead of doing a remote copy.
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param fileName Custom file name for the file or folder in MEGA
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = nullptr);
+
+        /**
          * @brief Download a file or a folder from MEGA
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
@@ -12984,50 +13004,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void pauseTransferByTag(int transferTag, bool pause, MegaRequestListener* listener = NULL);
-
-        /**
-         * @brief Enable the resumption of transfers
-         *
-         * This function enables the cache of transfers, so they can be resumed later.
-         * Additionally, if a previous cache already exists (from previous executions),
-         * then this function also resumes the existing cached transfers.
-         *
-         * @note Cached uploads expire after 24 hours since the last time they were active.
-         * @note Cached transfers related to files that have been modified since they were
-         * added to the cache are discarded, since the file has changed.
-         *
-         * A log in or a log out automatically disables this feature.
-         *
-         * When the MegaApi object is logged in, the cache of transfers is identified
-         * and protected using the session and the master key, so transfers won't
-         * be resumable using a different session or a different account. The
-         * recommended way of using this function to resume transfers for an account
-         * is calling it in the callback onRequestFinish related to MegaApi::fetchNodes
-         *
-         * When the MegaApi object is not logged in, it's still possible to use this
-         * feature. However, since there isn't any available data to identify
-         * and protect the cache, a default identifier and key are used. To improve
-         * the protection of the transfer cache and allow the usage of this feature
-         * with several non logged in instances of MegaApi at once without clashes,
-         * it's possible to set a custom identifier for the transfer cache in the
-         * optional parameter of this function. If that parameter is used, the
-         * encryption key for the transfer cache will be derived from it.
-         *
-         * @param loggedOutId Identifier for a non logged in instance of MegaApi.
-         * It doesn't have any effect if MegaApi is logged in.
-         */
-        void enableTransferResumption(const char* loggedOutId = NULL);
-
-        /**
-         * @brief Disable the resumption of transfers
-         *
-         * This function disables the resumption of transfers and also deletes
-         * the transfer cache if it exists. See also MegaApi.enableTransferResumption.
-         *
-         * @param loggedOutId Identifier for a non logged in instance of MegaApi.
-         * It doesn't have any effect if MegaApi is logged in.
-         */
-        void disableTransferResumption(const char* loggedOutId = NULL);
 
         /**
          * @brief Returns the state (paused/unpaused) of transfers
@@ -13480,114 +13456,91 @@ class MegaApi
 
 
         /**
-         * @brief Synchronize a local folder and a folder in MEGA
-         *
-         * This function should be used to add a new synchronized folders. To resume a previously
-         * added synchronized folder, use MegaApi::enableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getName - Returns the name of the sync
-         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
-         *  or any other particular condition in case of API_OK
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
-         * if the sync was added with no errors
-         * - MegaRequest::getParentHandle - Returns the sync backupId
-         *
-         * @param localFolder Local folder
-         * @param name Name given to the sync
-         * @param megaFolder MEGA folder
-         * @param listener MegaRequestListener to track this request
-         *
+        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        void syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+        MEGA_DEPRECATED
+        void syncFolder(const char* localFolder, const char* name, MegaNode* megaFolder, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Synchronize a local folder and a folder in MEGA
-         *
-         * This function should be used to add a new synchronized folders. To resume a previously
-         * added synchronized folder, use MegaApi::enableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getName - Returns the name of the sync
-         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
-         *  or any other particular condition in case of API_OK
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
-         * if the sync was added with no errors
-         * - MegaRequest::getParentHandle - Returns the sync backupId
-         *
-         * @param localFolder Local folder
-         * @param megaFolder MEGA folder
-         * @param listener MegaRequestListener to track this request
-         *
+        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+        MEGA_DEPRECATED
+        void syncFolder(const char* localFolder, MegaNode* megaFolder, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Synchronize a local folder and a folder in MEGA
-         *
-         * This function should be used to add a new synchronized folders. To resume a previously
-         * added synchronized folder, use MegaApi::resumeSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getName - Returns the name of the sync
-         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
-         *  or any other particular condition in case of API_OK
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
-         * if the sync was added with no errors
-         * - MegaRequest::getParentHandle - Returns the sync backupId
-         *
-         * @param localFolder Local folder
-         * @param megaHandle Handle of MEGA folder
-         * @param listener MegaRequestListener to track this request
-         *
+        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        void syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener = NULL);
+        MEGA_DEPRECATED
+        void syncFolder(const char* localFolder, MegaHandle megaHandle, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Synchronize a local folder and a folder in MEGA
+        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
+         */
+        MEGA_DEPRECATED
+        void syncFolder(const char* localFolder, const char* name, MegaHandle megaHandle, MegaRequestListener* listener = NULL);
+
+
+        /**
+         * @brief Start a Sync or Backup between a local folder and a folder in MEGA
          *
-         * This function should be used to add a new synchronized folders. To resume a previously
-         * added synchronized folder, use MegaApi::resumeSync
+         * This function should be used to add a new synchronization/backup task for the MegaApi.
+         * To resume a previously configured task folder, use MegaApi::enableSync.
+         *
+         * Both TYPE_TWOWAY and TYPE_BACKUP are supported for the first parameter.
+         *
+         * The sync/backup's name is optional. If not provided, it will take the name of the leaf folder of
+         * the local path. In example, for "/home/user/Documents", it will become "Documents".
+         *
+         * The remote sync root folder should be INVALID_HANDLE for syncs of TYPE_BACKUP. The handle of the
+         * remote node, which is created as part of this request, will be set to the MegaRequest::getNodeHandle.
          *
          * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getName - Returns the name of the sync
-         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
-         *  or any other particular condition in case of API_OK
+         * - MegaRequest::getParamType - Returns the type of the sync
+         * - MegaRequest::getRegExp - Returns the regular expresions to handle excluded files/folders
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
+         *  or any other particular condition in case of API_OK
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId
          *
-         * @param localFolder Local folder
-         * @param name Name given to the sync
-         * @param megaHandle Handle of MEGA folder
-         * @param listener MegaRequestListener to track this request
+          * On the onRequestFinish error, the error code associated to the MegaError can be:
+          * - MegaError::API_EARGS - If the local folder was not set.
+          * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
+          * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
+          * wrong 'dev-id' tag.
+          * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
+          * the handle.
+          * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+          * - or the node could not be found.
+          * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
+          * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
+          * or device name was empty.
          *
+         * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
+         * @param localSyncRootFolder Path of the Local folder to sync/backup.
+         * @param name Name given to the sync. You can pass NULL, and the folder name will be used instead.
+         * @param remoteSyncRootFolder Handle of MEGA folder. If you have a MegaNode for that folder, use its getHandle()
+         * @param driveRootIfExternal Only relevant for backups, and only if the backup is on an external disk. Otherwise use NULL.
+         * @param regExp Regular expressions to handle excluded files/folders
+         * @param listener MegaRequestListener to track this request
          */
-        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener = NULL);
+        void syncFolder(MegaSync::SyncType syncType, const char *localSyncRootFolder, const char *name, MegaHandle remoteSyncRootFolder,
+            const char* driveRootIfExternal,
+#ifdef USE_PCRE
+            MegaRegExp* regExp,
+#else
+            void* regExp,
+#endif
+            MegaRequestListener *listener);
+
 
         /**
          * @brief Copy sync data to SDK cache.
@@ -13669,32 +13622,57 @@ class MegaApi
          */
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
-#ifdef USE_PCRE
         /**
-         * @brief Synchronize a local folder and a folder in MEGA, having an exclusion list
+         * @brief Check the external drive specified to see if it has any Backup Syncs set up on it.
          *
-         * This function should be used to add a new synchronized pair of folders. To resume a previously
-         * added synchronized folder, use MegaApi::enableSync
+         * If any are present, their configurations will be loaded, in a disabled state.
+         * External Backups will overwrite whatever is in the corrsponding cloud folder, making it the same on disk.
+         * Therefore you must check with the user if they wish to resume any or all of them, otherwise they may lose data.
+         * You can find the one added by iterating all syncs and checking the external drive path for each.
+         * For those that the user wishes to resume, use MegaApi::enableSync()
          *
-         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * The associated request type with this request is MegaRequest::TYPE_LOAD_EXTERNAL_BACKUPS
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
-         *  or any other particular condition in case of API_OK
+         * - MegaRequest::getFile - Returns the path of the drive root
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
-         * if the sync was added with no errors
-         * - MegaRequest::getParentHandle - Returns the sync backupId
+         * - The MegaSync records have been added.  You can access them with MegaApi::getSyncs()
+         *   and check each one's drive path.
          *
-         * @param localFolder Local folder
-         * @param megaFolder MEGA folder
-         * @param regExp Regular expressions to handle excluded files/folders
+         * @param externalDriveRoot The filesystem path to the root of the external drive.
          * @param listener MegaRequestListener to track this request
          *
          */
+        void loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
+
+
+        /**
+         * @brief Prepare any external backup syncs on the specified drive, for that drive be ejected/disconnected
+         *
+         * If any are present and active, the sync activity is stopped, any changes to sync/backup config for
+         * those backups is flushed to disk,and all assoicated file/folder handles are closed, allowing the
+         * drive to be ejected.   All backup sync configs from that drive are removed from memory.
+         *
+         * This function may also be useful if the user just prefers not to have any sync/backup activity
+         * going on ont that disk.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOAD_EXTERNAL_BACKUPS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFile - Returns the path of the drive root
+         *
+         * @param externalDriveRoot The filesystem path to the root of the external drive.
+         * @param listener MegaRequestListener to track this request
+         *
+         */
+        void closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
+
+
+#ifdef USE_PCRE
+        /**
+        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one above.
+         */
+        MEGA_DEPRECATED
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
 
 #endif
@@ -14051,44 +14029,6 @@ class MegaApi
          */
         char *getBlockedPath();
 
-        /**
-         * @brief Start backup for the given folder, to "My Backups" remote destination
-         *
-         * The backup's folder name is optional. If not provided, it will take the name of the leaf folder of
-         * the local path. In example, for "/home/user/Documents", it will become "Documents".
-         *
-         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
-         * Valid data in the MegaRequest object received on all callbacks:
-         * - MegaRequest::getName - Returns the backup name at the remote location
-         * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNodeHandle - Returns the node handle of the remote backup (last leaf, in case
-         *   multiple folders have been created for the remote backup path)
-         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
-         *   if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the tag asociated with the backup
-         *
-         * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_EARGS - If the local folder was not set.
-         * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
-         * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-         * wrong 'dev-id' tag.
-         * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
-         * the handle.
-         * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
-         * - or the node could not be found.
-         * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
-         * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
-         * or device name was empty.
-         *
-         * @param localFolder The local folder to be backed up
-         * @param backupName The remote folder to be used for this backup (optional)
-         * @param listener MegaRequestListener to track this request
-         */
-        void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
 #endif
 
         /**
@@ -14452,7 +14392,7 @@ class MegaApi
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -14538,7 +14478,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15370,8 +15310,8 @@ class MegaApi
          *
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
-         * @param recursive True if you want to seach recursively in the node tree.
-         * False if you want to seach in the children of the node only
+         * @param recursive True if you want to search recursively in the node tree.
+         * False if you want to search in the children of the node only
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -15407,7 +15347,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15453,8 +15393,8 @@ class MegaApi
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
-         * @param recursive True if you want to seach recursively in the node tree.
-         * False if you want to seach in the children of the node only
+         * @param recursive True if you want to search recursively in the node tree.
+         * False if you want to search in the children of the node only
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -15490,7 +15430,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15571,7 +15511,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15657,7 +15597,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15739,7 +15679,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15821,7 +15761,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15903,7 +15843,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15967,8 +15907,8 @@ class MegaApi
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
-         * @param recursive True if you want to seach recursively in the node tree.
-         * False if you want to seach in the children of the node only
+         * @param recursive True if you want to search recursively in the node tree.
+         * False if you want to search in the children of the node only
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -18341,6 +18281,13 @@ class MegaApi
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
 
         /**
+         * @brief Call the low level function getrlimit() for NOFILE, needed for some platforms.
+         *
+         * @return The current limit for the number of open files (and sockets) for the app, or -1 if error.
+         */
+        int platformGetRLimitNumFile() const;
+
+        /**
          * @brief Requests a list of all Smart Banners available for current user.
          *
          * The response value is stored as a MegaBannerList.
@@ -18375,10 +18322,6 @@ class MegaApi
          *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
          *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
          *
-         * Note that the backup name is not registered in the API as part of the data of this
-         * backup. It will be stored in a user's attribute after this request finished. For
-         * more information, see \c MegaApi::setBackupName and MegaApi::getBackupName.
-         *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns the backupId
@@ -18386,7 +18329,6 @@ class MegaApi
          * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getText - Returns the extraData associated with the request
          * - MegaRequest::getTotalBytes - Returns the backup type
          * - MegaRequest::getNumDetails - Returns the backup substate
          * - MegaRequest::getFlag - Returns true
@@ -18398,10 +18340,9 @@ class MegaApi
          * @param backupName Name of the backup
          * @param state state
          * @param subState subState
-         * @param extraData A binary array converted into B64 (optional)
          * @param listener MegaRequestListener to track this request
         */
-        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Update the information about a registered backup for Backup Centre
@@ -18415,35 +18356,33 @@ class MegaApi
          *    Invalid values:
          *    - type: BACKUP_TYPE_INVALID
          *    - nodeHandle: UNDEF
+         *    - backupName: nullptr
          *    - localFolder: nullptr
          *    - deviceId: nullptr
          *    - state: -1
          *    - subState: -1
-         *    - extraData: nullptr
-         *
-         * If you want to update the backup name, use \c MegaApi::setBackupName.
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns the backupId
          * - MegaRequest::getTotalBytes - Returns the backup type
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
+         * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getNumDetails - Returns the backup substate
-         * - MegaRequest::getText - Returns the extraData associated with the request
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * @param backupId backup id identifying the backup to be updated
          * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
+         * @param backupName Name of the backup
          * @param state backup state
          * @param subState backup subState
-         * @param extraData A binary array converted into B64 (optional)
          * @param listener MegaRequestListener to track this request
         */
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder,  const char* backupName, int state, int subState, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Unregister a backup already registered for the Backup Centre
@@ -18495,41 +18434,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener = nullptr);
-
-        /**
-         * @brief Gets the backup name corresponding to a backup id
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_BACKUP_NAMES
-         * - MegaRequest::getNodeHandle - backup id in binary
-         * - MegaRequest::getText - backup id encoded in B64
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getName - Returns the backup name
-         *
-         * If the backup name doesn't exists the request will fail with the error code MegaError::API_ENOENT.
-         *
-         * @param backupId backup id identifying the backup
-         * @param listener MegaRequestListener to track this request
-         */
-        void getBackupName(MegaHandle backupId, MegaRequestListener* listener = nullptr);
-
-        /**
-         * @brief Set or reset a backup name
-         *
-         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_BACKUP_NAMES
-         * - MegaRequest::getNodeHandle - Returns the backup handle in binary
-         * - MegaRequest::getText - Returns the backup name
-         *
-         * @param backupId backup id identifying the backup
-         * @param backupName backup name to be set, or null to reset the existing
-         * @param listener MegaRequestListener to track this request
-         */
-        void setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Fetch Google ads
