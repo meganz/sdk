@@ -7983,6 +7983,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - URL to open the desired page with the same account
          *
+         * If the account is not fully confirmed, but still in the singup process, this method will
+         * return API_EACCESS.
+         *
          * You take the ownership of the returned value.
          *
          * @param path Path inside https://mega.nz/# that we want to open with the current session

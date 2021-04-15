@@ -22102,6 +22102,13 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
+            // only accounts fully confirmed are allowed to transfer a session,
+            // since the transfer requires the RSA keypair to be available
+            if (loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
             client->copysession();
             break;
         }
