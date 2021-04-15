@@ -982,7 +982,7 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
     if (separatorAlways || localpath.size())
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
-        if (!endsInSeparator())
+        if (!(endsInSeparator() || additionalPath.beginsWithSeparator()))
         {
             localpath.append(1, localPathSeparator);
         }
@@ -997,8 +997,7 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
     if (!localpath.empty() && localpath[0] != localPathSeparator)
     {
         // no additional separator if there is already one before
-
-        if (!additionalPath.endsInSeparator())
+        if (!(beginsWithSeparator() || additionalPath.endsInSeparator()))
         {
             localpath.insert(0, 1, localPathSeparator);
         }
