@@ -68,6 +68,9 @@ struct MEGA_API TransferSlot
     // max request size for downloads and uploads
     static const m_off_t MAX_REQ_SIZE;
 
+    // maximum gap between chunks for uploads
+    static const m_off_t MAX_GAP_SIZE;
+
     m_off_t maxRequestSize;
 
     m_off_t progressreported;

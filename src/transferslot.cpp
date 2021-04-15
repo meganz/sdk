@@ -68,6 +68,8 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
 #endif
 
+const m_off_t MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB
+
 TransferSlot::TransferSlot(Transfer* ctransfer)
     : fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
     , retrybt(ctransfer->client->rng, ctransfer->client->transferSlotsBackoff)
@@ -870,6 +872,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
                 case REQ_UPLOAD_PREPARED_BUT_WAIT:
                 {
+                    assert(transfer->type == PUT);
                     break;
                 }
                 case REQ_DECRYPTED:
@@ -1249,38 +1252,41 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         }
     }
 
-    // Get the number of reqs in flight and the position of the earliest for...
-    int numInflight = 0;
-    m_off_t earliestPosInFlight = 0;
-    for (int i = connections; i--; )
+    if (transfer->type == PUT)
     {
-        if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
+        // Get the number of reqs in flight and the position of the earliest for...
+        int numInflight = 0;
+        m_off_t earliestPosInFlight = 0;
+        for (int i = connections; i--; )
         {
-            if (!numInflight || earliestPosInFlight > reqs[i]->pos)
+            if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
             {
-                earliestPosInFlight = reqs[i]->pos;
+                if (!numInflight || earliestPosInFlight > reqs[i]->pos)
+                {
+                    earliestPosInFlight = reqs[i]->pos;
+                }
+                ++numInflight;
             }
-            ++numInflight;
         }
-    }
-    // ...avoid a gap greater than 256MB between start-pos of the earliest and the end-pos of the latest request
-    // (the request should wait, so the gap doesn't grow over that limit)
-    for (int i = connections; i--; )
-    {
-        if (reqs[i])
+        // ...avoid a gap greater than 256MB between start-pos of the earliest and the end-pos of the latest request
+        // (the request should wait, so the gap doesn't grow over that limit)
+        for (int i = connections; i--; )
         {
-            if (reqs[i]->status == REQ_PREPARED &&
-                (numInflight && !earliestUploadCompleted &&
-                earliestPosInFlight + 256*1024*1024 < (reqs[i]->pos + reqs[i]->size)))
+            if (reqs[i])
             {
-                LOG_debug << "Connection " << i << " delaying until earliest completes. pos=" << reqs[i]->pos;
-                reqs[i]->status = REQ_UPLOAD_PREPARED_BUT_WAIT;
-            }
-            else if (reqs[i]->status == REQ_UPLOAD_PREPARED_BUT_WAIT &&
-                (!numInflight || earliestUploadCompleted))
-            {
-                LOG_debug << "Connection " << i << " resumes. pos=" << reqs[i]->pos;
-                reqs[i]->status = REQ_PREPARED;
+                if (reqs[i]->status == REQ_PREPARED &&
+                    (numInflight && !earliestUploadCompleted &&
+                    earliestPosInFlight + MAX_GAP_SIZE < (reqs[i]->pos + reqs[i]->size)))
+                {
+                    LOG_debug << "Connection " << i << " delaying until earliest completes. pos=" << reqs[i]->pos;
+                    reqs[i]->status = REQ_UPLOAD_PREPARED_BUT_WAIT;
+                }
+                else if (reqs[i]->status == REQ_UPLOAD_PREPARED_BUT_WAIT &&
+                    (!numInflight || earliestUploadCompleted))
+                {
+                    LOG_debug << "Connection " << i << " resumes. pos=" << reqs[i]->pos;
+                    reqs[i]->status = REQ_PREPARED;
+                }
             }
         }
     }
