@@ -215,6 +215,17 @@ public:
 
 std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
+class SyncdownContext
+{
+public:
+    SyncdownContext()
+      : mActionsPerformed(false)
+    {
+    }
+
+    bool mActionsPerformed;
+}; // SyncdownContext
+
 class MEGA_API MegaClient
 {
 public:
@@ -1475,6 +1486,21 @@ public:
     bool syncscanfailed;
     BackoffTimer syncscanbt;
 
+    // Sync monitor timer.
+    //
+    // Meaningful only to backup syncs.
+    //
+    // Set when a backup is mirroring and syncdown(...) returned after
+    // having made changes to bring the cloud in line with local disk.
+    //
+    // That is, the backup remains in the mirror state.
+    //
+    // The timer is used to force another call to syncdown(...) so that we
+    // can give the sync a chance to transition into the monitor state,
+    // regardless of whether the local disk has changed.
+    bool mSyncMonitorRetry;
+    BackoffTimer mSyncMonitorTimer;
+
     // vanished from a local synced folder
     localnode_set localsyncnotseen;
 
@@ -1509,7 +1535,8 @@ public:
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, LocalPath&, bool);
+    bool syncdown(LocalNode*, LocalPath&, SyncdownContext& cxt);
+    bool syncdown(LocalNode*, LocalPath&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);

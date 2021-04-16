@@ -274,7 +274,8 @@ CONFIG(USE_PDFIUM) {
         }
     }
 
-    vcpkg:unix:!macx:LIBS += -lpng -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
+    vcpkg:unix:!macx:LIBS += -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
+    vcpkg:unix:LIBS += -lpng
     # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
     vcpkg:win32:LIBS += -lGdi32  -llibpng16$$DEBUG_SUFFIX
     vcpkg:DEFINES += HAVE_PDFIUM
@@ -351,7 +352,10 @@ CONFIG(USE_FFMPEG) {
         vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/ffmpeg
         else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
         LIBS += -lavcodec -lavformat -lavutil -lswscale
-        vcpkg:macx:LIBS += -lswrescale -lbz2
+        vcpkg:macx {
+            debug:LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libbz2d.a
+            else:LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libbz2.a
+        }
     }
 }
 
@@ -570,10 +574,13 @@ vcpkg {
     INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libsodium
 
     CONFIG(USE_CURL) {
-        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
+        !macx:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
         INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/cares
         win32:LIBS +=  -llibcurl$$DASH_DEBUG_SUFFIX -lcares -llibcrypto -llibssl
-        else:LIBS +=  -lcurl$$DASH_DEBUG_SUFFIX -lcares -lcrypto -lssl
+        else {
+            LIBS +=  -lcurl$$DASH_DEBUG_SUFFIX -lcares
+            !macx:LIBS += -lcrypto -lssl
+        }
     }
 
     CONFIG(USE_PCRE) {
