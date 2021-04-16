@@ -220,6 +220,11 @@ using namespace mega;
     return self;
 }
 
+- (void)deleteMegaApi {    
+    delete _megaApi;
+    pthread_mutex_destroy(&listenerMutex);
+}
+
 - (void)dealloc {
     delete _megaApi;
     pthread_mutex_destroy(&listenerMutex);
@@ -1236,7 +1241,7 @@ using namespace mega;
 }
 
 - (void)getUserAttributeType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getUserAttribute((int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->getUserAttribute((int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value {

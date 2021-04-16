@@ -215,6 +215,17 @@ public:
 
 std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
+class SyncdownContext
+{
+public:
+    SyncdownContext()
+      : mActionsPerformed(false)
+    {
+    }
+
+    bool mActionsPerformed;
+}; // SyncdownContext
+
 class MEGA_API MegaClient
 {
 public:
@@ -368,8 +379,8 @@ public:
     // dump current session
     int dumpsession(string&);
 
-    // create a copy of the current session
-    void copysession();
+    // create a copy of the current session. EACCESS for not fully confirmed accounts
+    error copysession();
 
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
@@ -379,8 +390,7 @@ public:
 
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
-    // if the second parameter isn't NULL, it's used as session id instead of the current one
-    string *sessiontransferdata(const char*, string* = NULL);
+    string sessiontransferdata(const char*, string*);
 
     // Kill session id
     void killsession(handle session);
@@ -941,6 +951,9 @@ public:
     // root URL for chat stats
     static string CHATSTATSURL;
 
+    // root URL for Website
+    static string MEGAURL;
+
     // file that is blocking the sync engine
     LocalPath blockedfile;
 
@@ -1473,6 +1486,21 @@ public:
     bool syncscanfailed;
     BackoffTimer syncscanbt;
 
+    // Sync monitor timer.
+    //
+    // Meaningful only to backup syncs.
+    //
+    // Set when a backup is mirroring and syncdown(...) returned after
+    // having made changes to bring the cloud in line with local disk.
+    //
+    // That is, the backup remains in the mirror state.
+    //
+    // The timer is used to force another call to syncdown(...) so that we
+    // can give the sync a chance to transition into the monitor state,
+    // regardless of whether the local disk has changed.
+    bool mSyncMonitorRetry;
+    BackoffTimer mSyncMonitorTimer;
+
     // vanished from a local synced folder
     localnode_set localsyncnotseen;
 
@@ -1507,7 +1535,8 @@ public:
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, LocalPath&, bool);
+    bool syncdown(LocalNode*, LocalPath&, SyncdownContext& cxt);
+    bool syncdown(LocalNode*, LocalPath&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);

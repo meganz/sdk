@@ -7749,6 +7749,24 @@ bool MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
 #endif
 }
 
+int MegaApiImpl::platformGetRLimitNumFile() const
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return -1;
+    }
+
+    return int(rl.rlim_cur);
+#else
+    LOG_err << "Code for calling getrlimit is not available yet (or not relevant) on this platform";
+    return -1;
+#endif
+}
+
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
@@ -8727,9 +8745,22 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
     waiter->notify();
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
 {
-    syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, regExp, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS, listener);
+    request->setFile(externalDriveRoot);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS, listener);
+    request->setFile(externalDriveRoot);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -14310,28 +14341,14 @@ void MegaApiImpl::copysession_result(string *session, error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_SESSION_TRANSFER_URL)) return;
 
-    const char *path = request->getText();
-    string *data = NULL;
     if(e == API_OK)
     {
-        data = client->sessiontransferdata(path, session);
-    }
+        const char *path = request->getText();
+        string data = client->sessiontransferdata(path, session);
+        data.insert(0, MegaClient::MEGAURL+"/#sitetransfer!");
 
-    if(data)
-    {
-        data->insert(0, "https://mega.nz/#sitetransfer!");
+        request->setLink(data.c_str());
     }
-    else
-    {
-        data = new string("https://mega.nz/#");
-        if(path)
-        {
-            data->append(path);
-        }
-    }
-
-    request->setLink(data->c_str());
-    delete data;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -21617,6 +21634,42 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
+        case MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS:
+        {
+            const char* externalDrive = request->getFile();
+            if (!externalDrive)
+            {
+                e = API_EARGS;
+                break;
+            }
+            else
+            {
+                e = client->syncs.backupOpenDrive(LocalPath::fromPath(externalDrive, *client->fsaccess));
+            }
+            if (!e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            }
+            break;
+        }
+        case MegaRequest::TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS:
+        {
+            const char* externalDrive = request->getFile();
+            if (!externalDrive)
+            {
+                e = API_EARGS;
+                break;
+            }
+            else
+            {
+                e = client->syncs.backupCloseDrive(LocalPath::fromPath(externalDrive, *client->fsaccess));
+            }
+            if (!e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            }
+            break;
+        }
         case MegaRequest::TYPE_COPY_SYNC_CONFIG:
         {
             const char *localPath = request->getFile();
@@ -22086,7 +22139,20 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
-            client->copysession();
+            e = client->copysession();
+
+            if (e == API_ENOENT)    // no session to copy because not logged in
+            {
+                string url = MegaClient::MEGAURL + "/#";
+                auto path = request->getText();
+                if (path) url.append(path);
+                request->setLink(url.c_str());
+
+                e = API_OK;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                break;
+            }
+
             break;
         }
         case MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL:
@@ -23090,7 +23156,7 @@ void MegaApiImpl::sendPendingRequests()
         }
 
 #ifdef ENABLE_SYNC
-        client->syncs.syncConfigDBFlush();
+        client->syncs.syncConfigStoreFlush();
 #endif
     }
 }
@@ -28876,7 +28942,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         LOG_debug << "Favicon requested";
         response << "HTTP/1.1 301 Moved Permanently\r\n"
-                    "Location: https://mega.nz/favicon.ico\r\n"
+                    "Location: ";
+        response << MegaClient::MEGAURL;
+        response << "/favicon.ico\r\n"
                     "Connection: close\r\n"
                     "\r\n";
 

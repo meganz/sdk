@@ -293,6 +293,12 @@ CurlHttpIO::CurlHttpIO()
         curl_global_init(CURL_GLOBAL_DEFAULT);
 #ifdef MEGA_USE_C_ARES
         ares_library_init(ARES_LIB_INIT_ALL);
+                
+        const char *aresversion = ares_version(NULL);
+        if (aresversion)
+        {
+            LOG_debug << "c-ares version: " << aresversion;
+        }
 #endif
 
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00

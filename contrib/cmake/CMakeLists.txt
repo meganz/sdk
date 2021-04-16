@@ -77,7 +77,7 @@ if (WIN32)
         ENDIF()
     ENDIF()
 else(WIN32)
-    set(NO_READLINE 0)
+    set(NO_READLINE 0 CACHE STRING "")
 endif(WIN32)
 
 if (USE_WEBRTC)
@@ -168,7 +168,11 @@ if (USE_QT)
 
     # get qt version
     if ("${QT_QMAKE_EXECUTABLE}" STREQUAL "")
-        set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake.exe")
+        if(WIN32)
+            set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake.exe")
+        else()
+            set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake")
+        endif()
     endif()
 
     execute_process(COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_VERSION OUTPUT_VARIABLE QT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -507,7 +511,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
 
             # pkgconfig might not be needed anymore? - suppressed by our build3rdparty project
-            IF (CMAKE_HOST_UNIX)
+            IF (CMAKE_HOST_UNIX AND NOT CMAKE_HOST_APPLE)
                 set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
                 include(FindPkgConfig)
                 pkg_check_modules(FTYPECONF freetype2)

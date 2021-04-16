@@ -279,19 +279,6 @@ BackupMonitor::BackupMonitor(MegaClient *client)
 {
 }
 
-void BackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
-{
-#ifdef ENABLE_SYNC
-    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
-        if (&us == syncPtr)
-        {
-            us.mConfig.setBackupId(backupId);
-            mClient->syncs.saveSyncConfig(us.mConfig);
-        }
-    });
-#endif
-}
-
 #ifdef ENABLE_SYNC
 
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
@@ -384,8 +371,12 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 void BackupMonitor::beat()
 {
 #ifdef ENABLE_SYNC
+    // Only send heartbeats for enabled active syncs.
     mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
-        beatBackupInfo(us);
+        if (us.mSync && us.mConfig.getEnabled())
+        {
+            beatBackupInfo(us);
+        }
     });
 #endif
 }
