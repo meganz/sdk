@@ -25701,7 +25701,7 @@ bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
             // generate new subtree
             unique_ptr<Tree> newTreeNode(new Tree);
             newTreeNode->folderName = localname.toName(*fsaccess, tree.fsType);
-            newTreeNode->fsType = tree.fsType;
+            newTreeNode->fsType = fsaccess->getlocalfstype(localPath);
 
             // generate fresh random key and node attributes
             MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, newTreeNode->folderName, rng, tmpnodecipher);
