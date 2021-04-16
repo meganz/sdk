@@ -379,8 +379,8 @@ public:
     // dump current session
     int dumpsession(string&);
 
-    // create a copy of the current session
-    void copysession();
+    // create a copy of the current session. EACCESS for not fully confirmed accounts
+    error copysession();
 
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
@@ -390,8 +390,7 @@ public:
 
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
-    // if the second parameter isn't NULL, it's used as session id instead of the current one
-    string *sessiontransferdata(const char*, string* = NULL);
+    string sessiontransferdata(const char*, string*);
 
     // Kill session id
     void killsession(handle session);
@@ -951,6 +950,9 @@ public:
 
     // root URL for chat stats
     static string CHATSTATSURL;
+
+    // root URL for Website
+    static string MEGAURL;
 
     // file that is blocking the sync engine
     LocalPath blockedfile;

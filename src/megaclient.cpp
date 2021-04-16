@@ -48,6 +48,9 @@ string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 // root URL for chat stats
 string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
+// root URL for Website
+string MegaClient::MEGAURL = "https://mega.nz";
+
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
 
@@ -1294,7 +1297,7 @@ MegaClient::~MegaClient()
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
-    string strlink = "https://mega.nz/";
+    string strlink = MegaClient::MEGAURL + "/";
     string nodeType;
     if (newLinkFormat)
     {
@@ -9176,18 +9179,21 @@ void MegaClient::resetSmsVerifiedPhoneNumber()
     reqs.add(new CommandResetSmsVerifiedPhoneNumber(this));
 }
 
-void MegaClient::copysession()
+error MegaClient::copysession()
 {
-    reqs.add(new CommandCopySession(this));
-}
-
-string *MegaClient::sessiontransferdata(const char *url, string *session)
-{
-    if (!session && loggedin() != FULLACCOUNT)
+    // only accounts fully confirmed are allowed to transfer a session,
+    // since the transfer requires the RSA keypair to be available
+    if (loggedin() != FULLACCOUNT)
     {
-        return NULL;
+        return (loggedin() == NOTLOGGEDIN) ? API_ENOENT : API_EACCESS;
     }
 
+    reqs.add(new CommandCopySession(this));
+    return API_OK;
+}
+
+string MegaClient::sessiontransferdata(const char *url, string *session)
+{
     std::stringstream ss;
 
     // open array
@@ -9199,18 +9205,7 @@ string *MegaClient::sessiontransferdata(const char *url, string *session)
     ss << aeskey << ",\"";
 
     // add session ID
-    if (session)
-    {
-        ss << *session;
-    }
-    else
-    {
-        string sids;
-        sids.resize(sid.size() * 4 / 3 + 4);
-        sids.resize(Base64::btoa((byte *)sid.data(), int(sid.size()), (char *)sids.data()));
-        ss << sids;
-    }
-    ss << "\",\"";
+    ss << *session << "\",\"";
 
     // add URL
     if (url)
@@ -9221,11 +9216,11 @@ string *MegaClient::sessiontransferdata(const char *url, string *session)
 
     // standard Base64 encoding
     string json = ss.str();
-    string *base64 = new string;
-    base64->resize(json.size() * 4 / 3 + 4);
-    base64->resize(Base64::btoa((byte *)json.data(), int(json.size()), (char *)base64->data()));
-    std::replace(base64->begin(), base64->end(), '-', '+');
-    std::replace(base64->begin(), base64->end(), '_', '/');
+    string base64;
+    base64.resize(json.size() * 4 / 3 + 4);
+    base64.resize(Base64::btoa((byte *)json.data(), int(json.size()), (char *)base64.data()));
+    std::replace(base64.begin(), base64.end(), '-', '+');
+    std::replace(base64.begin(), base64.end(), '_', '/');
     return base64;
 }
 
@@ -11216,7 +11211,8 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         Base64::btoa(encLinkBytes, encLink);
 
         encryptedLink->clear();
-        encryptedLink->append("https://mega.nz/#P!");
+        encryptedLink->append(MegaClient::MEGAURL);
+        encryptedLink->append("/#P!");
         encryptedLink->append(encLink);
     }
 
