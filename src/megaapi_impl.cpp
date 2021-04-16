@@ -1265,56 +1265,72 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
     return !*pszMatch;
 }
 
-bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& localpath)
+bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpath)
 {
-    // Don't sync these system files from OS X
-    if (!strcmp(name, "Icon\x0d"))
-    {
-        return false;
-    }
+    // Convenience.
+    const auto& root = sync->localroot->localname;
 
-    for (unsigned int i = 0; i < excludedNames.size(); i++)
+    // Regenerate regex list.
+    unique_ptr<MegaRegExp> regexp;
+
+#ifdef USE_PCRE
+    regexp = make_unique<MegaRegExp>();
+
+    for (const auto& re : sync->getConfig().getRegExps())
     {
-        if (WildcardMatch(name, excludedNames[i].c_str()))
+        regexp->addRegExp(re.c_str());
+    }
+#endif // USE_PCRE
+
+    // Check whether any path components are excluded.
+    auto path = localpath;
+
+    while (path != root)
+    {
+        // Where does this component's name start?
+        auto nameIndex = path.getLeafnameByteIndex(*fsAccess);
+
+        // Extract component's name.
+        auto name = path.subpathFrom(nameIndex).toPath(*fsAccess);
+
+        // Skip these system files on OS X.
+        if (name == "Icon\x0d")
         {
             return false;
         }
-    }
 
-    MegaRegExp *regExp = NULL;
-#ifdef USE_PCRE
-    auto re = make_unique<MegaRegExp>(); // TODO: reconstructing this is far from optimal. reconsider placing it in SyncConfig (updated with mRegExps updates?)
-    for (const auto& v : sync->getConfig().getRegExps())
-    {
-        re->addRegExp(v.c_str());
-    }
-    regExp = re.get();
-#endif
-
-    if (regExp || excludedPaths.size())
-    {
-        string utf8path = localpath.toPath(*fsAccess);
-
-        for (unsigned int i = 0; i < excludedPaths.size(); i++)
+        // Is this component's name excluded by any filename filters?
+        for (const auto& xname : excludedNames)
         {
-            auto ex = LocalPath::fromPath(excludedPaths[i], *client->fsaccess);
-            if (ex.isContainingPathOf(localpath))
-            {
-                return false;
-            }
-
-            if (WildcardMatch(utf8path.c_str(), excludedPaths[i].c_str()))
+            if (WildcardMatch(name.c_str(), xname.c_str()))
             {
                 return false;
             }
         }
 
-#ifdef USE_PCRE
-        if (regExp && regExp->match(utf8path.c_str()))
+        if (regexp || !excludedPaths.empty())
         {
-            return false;
+            // Translate current path into something we can match.
+            auto temp = path.toPath(*fsAccess);
+
+            // Is this path excluded by any path filters?
+            for (const auto& xpath : excludedPaths)
+            {
+                if (WildcardMatch(temp.c_str(), xpath.c_str()))
+                {
+                    return false;
+                }
+            }
+
+            // Is the path matched by any regular expressions?
+            if (regexp && regexp->match(temp.c_str()))
+            {
+                return false;
+            }
         }
-#endif
+
+        // Climb to the next component.
+        path.truncate(nameIndex - 1);
     }
 
     return true;
