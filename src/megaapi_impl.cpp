@@ -1282,6 +1282,28 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpa
     }
 #endif // USE_PCRE
 
+    // Is this path excluded by any regexp or path filters?
+    if (regexp || !excludedPaths.empty())
+    {
+        // Translate current path into something we can match.
+        auto temp = localpath.toPath(*fsAccess);
+
+        // Is this path excluded by any path filters?
+        for (const auto& xpath : excludedPaths)
+        {
+            if (WildcardMatch(temp.c_str(), xpath.c_str()))
+            {
+                return false;
+            }
+        }
+
+        // Is the path matched by any regular expressions?
+        if (regexp && regexp->match(temp.c_str()))
+        {
+            return false;
+        }
+    }
+
     // Check whether any path components are excluded.
     auto path = localpath;
 
@@ -1303,27 +1325,6 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpa
         for (const auto& xname : excludedNames)
         {
             if (WildcardMatch(name.c_str(), xname.c_str()))
-            {
-                return false;
-            }
-        }
-
-        if (regexp || !excludedPaths.empty())
-        {
-            // Translate current path into something we can match.
-            auto temp = path.toPath(*fsAccess);
-
-            // Is this path excluded by any path filters?
-            for (const auto& xpath : excludedPaths)
-            {
-                if (WildcardMatch(temp.c_str(), xpath.c_str()))
-                {
-                    return false;
-                }
-            }
-
-            // Is the path matched by any regular expressions?
-            if (regexp && regexp->match(temp.c_str()))
             {
                 return false;
             }
