@@ -14331,12 +14331,10 @@ void MegaApiImpl::copysession_result(string *session, error e)
     if(e == API_OK)
     {
         const char *path = request->getText();
-        unique_ptr<string> data;
+        string data = client->sessiontransferdata(path, session);
+        data.insert(0, MegaClient::MEGAURL+"/#sitetransfer!");
 
-        data.reset(client->sessiontransferdata(path, session));
-        data->insert(0, MegaClient::MEGAURL+"/#sitetransfer!");
-
-        request->setLink(data->c_str());
+        request->setLink(data.c_str());
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

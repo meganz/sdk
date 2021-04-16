@@ -379,7 +379,7 @@ public:
 
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
-    string *sessiontransferdata(const char*, string*);
+    string sessiontransferdata(const char*, string*);
 
     // Kill session id
     void killsession(handle session);
