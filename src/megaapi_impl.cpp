@@ -22104,7 +22104,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             // only accounts fully confirmed are allowed to transfer a session,
             // since the transfer requires the RSA keypair to be available
-            if (loggedin() != FULLACCOUNT)
+            if (client->loggedin() != FULLACCOUNT)
             {
                 e = API_EACCESS;
                 break;
