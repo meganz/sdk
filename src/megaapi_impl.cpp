@@ -1291,6 +1291,13 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpa
         // Is this path excluded by any path filters?
         for (const auto& xpath : excludedPaths)
         {
+            auto xp = LocalPath::fromPath(xpath, *fsAccess);
+
+            if (xp.isContainingPathOf(localpath))
+            {
+                return false;
+            }
+
             if (WildcardMatch(temp.c_str(), xpath.c_str()))
             {
                 return false;
