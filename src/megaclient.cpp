@@ -9162,18 +9162,21 @@ void MegaClient::resetSmsVerifiedPhoneNumber()
     reqs.add(new CommandResetSmsVerifiedPhoneNumber(this));
 }
 
-void MegaClient::copysession()
+error MegaClient::copysession()
 {
+    // only accounts fully confirmed are allowed to transfer a session,
+    // since the transfer requires the RSA keypair to be available
+    if (loggedin() != FULLACCOUNT)
+    {
+        return (loggedin() == NOTLOGGEDIN) ? API_ENOENT : API_EACCESS;
+    }
+
     reqs.add(new CommandCopySession(this));
+    return API_OK;
 }
 
 string *MegaClient::sessiontransferdata(const char *url, string *session)
 {
-    if (!session && loggedin() != FULLACCOUNT)
-    {
-        return NULL;
-    }
-
     std::stringstream ss;
 
     // open array
@@ -9185,18 +9188,7 @@ string *MegaClient::sessiontransferdata(const char *url, string *session)
     ss << aeskey << ",\"";
 
     // add session ID
-    if (session)
-    {
-        ss << *session;
-    }
-    else
-    {
-        string sids;
-        sids.resize(sid.size() * 4 / 3 + 4);
-        sids.resize(Base64::btoa((byte *)sid.data(), int(sid.size()), (char *)sids.data()));
-        ss << sids;
-    }
-    ss << "\",\"";
+    ss << *session << "\",\"";
 
     // add URL
     if (url)
