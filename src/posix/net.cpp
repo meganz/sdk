@@ -290,6 +290,13 @@ CurlHttpIO::CurlHttpIO()
     {
         curl_global_init(CURL_GLOBAL_DEFAULT);
         ares_library_init(ARES_LIB_INIT_ALL);
+        
+        const char *aresversion = ares_version(NULL);
+        if (aresversion)
+        {
+            LOG_debug << "c-ares version: " << aresversion;
+        }
+        
 
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
         initialize_android();
