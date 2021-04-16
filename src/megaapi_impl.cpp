@@ -1314,7 +1314,7 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpa
     // Check whether any path components are excluded.
     auto path = localpath;
 
-    while (path != root)
+    while (root.isContainingPathOf(path) && path != root)
     {
         // Where does this component's name start?
         auto nameIndex = path.getLeafnameByteIndex(*fsAccess);
