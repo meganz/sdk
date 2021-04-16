@@ -5704,6 +5704,7 @@ CommandCopySession::CommandCopySession(MegaClient *client)
     tag = client->reqtag;
 }
 
+// for ephemeral accounts, it returns "tsid" instead of "csid" -> not supported, will return API_EINTERNAL
 bool CommandCopySession::procresult(Result r)
 {
     string session;
@@ -5712,6 +5713,7 @@ bool CommandCopySession::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
+        assert(r.errorOrOK() != API_OK); // API shouldn't return OK, but a session
         client->app->copysession_result(NULL, r.errorOrOK());
         return true;
     }
