@@ -940,6 +940,9 @@ public:
     // root URL for chat stats
     static string CHATSTATSURL;
 
+    // root URL for Website
+    static string MEGAURL;
+
     // file that is blocking the sync engine
     LocalPath blockedfile;
 

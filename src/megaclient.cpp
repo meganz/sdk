@@ -48,6 +48,9 @@ string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 // root URL for chat stats
 string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
+// root URL for Website
+string MegaClient::MEGAURL = "https://mega.nz";
+
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
 
@@ -1292,7 +1295,7 @@ MegaClient::~MegaClient()
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
-    string strlink = "https://mega.nz/";
+    string strlink = MegaClient::MEGAURL + "/";
     string nodeType;
     if (newLinkFormat)
     {
@@ -11194,7 +11197,8 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         Base64::btoa(encLinkBytes, encLink);
 
         encryptedLink->clear();
-        encryptedLink->append("https://mega.nz/#P!");
+        encryptedLink->append(MegaClient::MEGAURL);
+        encryptedLink->append("/#P!");
         encryptedLink->append(encLink);
     }
 
