@@ -1267,23 +1267,16 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
 
 bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpath)
 {
-    // Convenience.
-    const auto& root = sync->localroot->localname;
+    auto regexp = make_unique<MegaRegExp>();
 
     // Regenerate regex list.
-    unique_ptr<MegaRegExp> regexp;
-
-#ifdef USE_PCRE
-    regexp = make_unique<MegaRegExp>();
-
     for (const auto& re : sync->getConfig().getRegExps())
     {
         regexp->addRegExp(re.c_str());
     }
-#endif // USE_PCRE
 
     // Is this path excluded by any regexp or path filters?
-    if (regexp || !excludedPaths.empty())
+    if (regexp->getNumRegExp() > 0 || !excludedPaths.empty())
     {
         // Translate current path into something we can match.
         auto temp = localpath.toPath(*fsAccess);
@@ -1305,7 +1298,7 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpa
         }
 
         // Is the path matched by any regular expressions?
-        if (regexp && regexp->match(temp.c_str()))
+        if (regexp->match(temp.c_str()))
         {
             return false;
         }
@@ -1313,6 +1306,9 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpa
 
     // Check whether any path components are excluded.
     auto path = localpath;
+
+    // Convenience.
+    const auto& root = sync->localroot->localname;
 
     while (root.isContainingPathOf(path) && path != root)
     {
