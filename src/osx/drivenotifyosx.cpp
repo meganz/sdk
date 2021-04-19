@@ -234,29 +234,18 @@ DriveNotifyOsx::DriveNotifyOsx()
     mNetworkCbs(*this)
 {}
 
-bool DriveNotifyOsx::startNotifier()
+bool DriveNotifyOsx::notifierSetup()
 {
-    if (mEventSinkThread.joinable() || mStop.load()) return false;
-
     mPhysicalCbs.registerCallbacks(mSession);
     mNetworkCbs.registerCallbacks(mSession);
-
-    mEventSinkThread = std::thread(&DriveNotifyOsx::doInThread, this);
 
     return true;
 }
 
-void DriveNotifyOsx::stopNotifier()
+void DriveNotifyOsx::notifierTeardown()
 {
-    if (!mEventSinkThread.joinable()) return;
-
-    mStop.store(true);
-    mEventSinkThread.join();
-
     mPhysicalCbs.unregisterCallbacks(mSession);
     mNetworkCbs.unregisterCallbacks(mSession);
-
-    mStop.store(false);
 }
 
 void DriveNotifyOsx::doInThread()
@@ -267,7 +256,7 @@ void DriveNotifyOsx::doInThread()
 
     // CFRunLoopRunInMode will run for the special setting of 0 seconds, which means process
     // precisely one event before returning.
-    while (!mStop.load() && CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, true))
+    while (!shouldStop() && CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, true))
         ;
 
     CFRunLoopStop(currentThread);

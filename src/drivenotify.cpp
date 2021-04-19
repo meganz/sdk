@@ -49,6 +49,29 @@ namespace mega {
         mInfoQueue.swap(temp); // clear the container
     }
 
+    bool DriveNotify::startNotifier()
+    {
+        if (mEventSinkThread.joinable() || mStop.load()) return false;
+
+        if (!notifierSetup()) return false;
+
+        mEventSinkThread = thread(&DriveNotify::doInThread, this);
+
+        return true;
+    }
+
+    void DriveNotify::stopNotifier()
+    {
+        if (!mEventSinkThread.joinable()) return;
+
+        mStop.store(true);
+        mEventSinkThread.join();
+
+        notifierTeardown();
+
+        mStop.store(false);
+    }
+
     std::pair<DriveInfo::StringType, bool> DriveNotify::get()
     {
         // sync access

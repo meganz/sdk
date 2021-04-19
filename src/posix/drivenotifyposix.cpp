@@ -36,10 +36,8 @@ namespace mega {
     // DriveNotifyPosix
     /////////////////////////////////////////////
 
-    bool DriveNotifyPosix::startNotifier()
+    void DriveNotifyPosix::notifierSetup()
     {
-        if (mEventSinkThread.joinable() || mStop.load())  return false;
-
         // init udev resource
         mUdev = udev_new();
         if (!mUdev)  return false;  // is udevd daemon running?
@@ -65,26 +63,12 @@ namespace mega {
         // SUBSYSTEM=="block", ATTRS{idDevtype}=="partition"
         udev_monitor_filter_add_match_subsystem_devtype(mUdevMon, "block", "partition");
         udev_monitor_enable_receiving(mUdevMon);
-
-        // start worker thread
-        mEventSinkThread = std::thread(&DriveNotifyPosix::doInThread, this);
-
-        return true;
     }
 
 
 
-    void DriveNotifyPosix::stopNotifier()
+    void DriveNotifyPosix::notifierTeardown()
     {
-        // begin the stopping routine
-        mStop.store(true);
-
-        // stop the worker thread
-        if (mEventSinkThread.joinable())
-        {
-            mEventSinkThread.join();
-        }
-
         // release udev monitor
         if (mUdevMon)
         {
@@ -99,9 +83,6 @@ namespace mega {
             udev_unref(mUdev);
             mUdev = nullptr;
         }
-
-        // end the stopping routine
-        mStop.store(false); // and allow reusing this instance
     }
 
 
@@ -109,7 +90,7 @@ namespace mega {
     void DriveNotifyPosix::doInThread()
     {
         int fd = udev_monitor_get_fd(mUdevMon);
-        while (!mStop.load())
+        while (!shouldStop())
         {
             // use a blocking call, with a timeout, to check for device events
             fd_set fds;
@@ -272,13 +253,6 @@ namespace mega {
 
         const char* removable = udev_device_get_sysattr_value(parent, "removable");
         return removable && !strcmp(removable, "1");
-    }
-
-
-
-    DriveNotifyPosix::~DriveNotifyPosix()
-    {
-        stop();
     }
 
 } // namespace

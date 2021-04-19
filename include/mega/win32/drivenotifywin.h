@@ -43,14 +43,7 @@ namespace mega {
         ~DriveNotifyWin() override { stop(); }
 
     protected:
-        bool startNotifier() override;
-        void stopNotifier() override;
-
-    private:
-        bool doInThread();
-
-        std::atomic_bool mStop;
-        std::thread mEventSinkThread;
+        void doInThread() override;
 
         enum EventType
         {

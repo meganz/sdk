@@ -242,20 +242,15 @@ class DriveNotifyOsx : public DriveNotify {
 public:
     DriveNotifyOsx();
 
-    ~DriveNotifyOsx() override { stop(); }
-
 protected:
     // Provide access to add(DriveInfo&&) method
     friend MediaTypeCallbacks;
 
-    bool startNotifier() override;
-    void stopNotifier() override;
+    bool notifierSetup() override;
+    void notifierTeardown() override;
 
 private:
     void doInThread();
-
-    std::atomic_bool mStop{false};
-    std::thread mEventSinkThread;
 
     // Disk Arbitration framework session object
     UniqueCFRef<DASessionRef> mSession;
