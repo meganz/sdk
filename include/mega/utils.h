@@ -34,8 +34,6 @@
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
 
-#include "mega/logging.h"
-
 // Needed for Windows Phone (MSVS 2013 - C++ version 9.8)
 #if defined(_WIN32) && _MSC_VER <= 1800 && __cplusplus < 201103L && !defined(_TIMESPEC_DEFINED) && ! __struct_timespec_defined
 struct timespec
@@ -62,6 +60,9 @@ std::string toNodeHandle(NodeHandle nodeHandle);
 std::string toHandle(handle h);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
+class SimpleLogger;
+SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
+
 std::string backupTypeToStr(BackupType type);
 
 struct MEGA_API ChunkedHash
@@ -846,6 +847,9 @@ inline int hexval(const int c)
 }
 
 bool islchex(const int c);
+
+// gets a safe url by replacing private parts to be used in logs
+std::string getSafeUrl(const std::string &posturl);
 
 } // namespace
 

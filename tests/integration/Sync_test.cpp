@@ -43,7 +43,11 @@ using namespace ::mega;
 using namespace ::std;
 
 
-typedef std::shared_ptr<promise<bool>> PromiseBoolSP;
+template<typename T>
+using shared_promise = std::shared_ptr<promise<T>>;
+
+using PromiseBoolSP   = shared_promise<bool>;
+using PromiseHandleSP = shared_promise<handle>;
 
 PromiseBoolSP newPromiseBoolSP()
 {
@@ -920,7 +924,7 @@ struct StandardClient : public MegaApp
     static bool debugging;  // turn this on to prevent the main thread timing out when stepping in the MegaClient
 
     template <class PROMISE_VALUE>
-    future<PROMISE_VALUE> thread_do(std::function<void(MegaClient&, std::shared_ptr<promise<PROMISE_VALUE>>)> f)
+    future<PROMISE_VALUE> thread_do(std::function<void(MegaClient&, shared_promise<PROMISE_VALUE>)> f)
     {
         unique_lock<mutex> guard(functionDoneMutex);
         std::shared_ptr<promise<PROMISE_VALUE>> promiseSP(new promise<PROMISE_VALUE>());
@@ -938,7 +942,7 @@ struct StandardClient : public MegaApp
     }
 
     template <class PROMISE_VALUE>
-    future<PROMISE_VALUE> thread_do(std::function<void(StandardClient&, std::shared_ptr<promise<PROMISE_VALUE>>)> f)
+    future<PROMISE_VALUE> thread_do(std::function<void(StandardClient&, shared_promise<PROMISE_VALUE>)> f)
     {
         unique_lock<mutex> guard(functionDoneMutex);
         std::shared_ptr<promise<PROMISE_VALUE>> promiseSP(new promise<PROMISE_VALUE>());
@@ -1388,7 +1392,7 @@ struct StandardClient : public MegaApp
 
     struct SyncInfo
     {
-        handle h;
+        NodeHandle h;
         fs::path localpath;
     };
 
@@ -1470,7 +1474,77 @@ struct StandardClient : public MegaApp
         }
     }
 
-    bool setupSync_inthread(const string& subfoldername, const fs::path& localpath,
+    bool backupAdd_inthread(const string& drivePath,
+                            string sourcePath,
+                            const string& targetPath,
+                            SyncCompletionFunction completion)
+    {
+        auto* rootNode = client.nodebyhandle(basefolderhandle);
+
+        // Root isn't in the cloud.
+        if (!rootNode)
+        {
+            return false;
+        }
+
+        auto* targetNode = drillchildnodebyname(rootNode, targetPath);
+
+        // Target path doesn't exist.
+        if (!targetNode)
+        {
+            return false;
+        }
+
+
+        auto config =
+          SyncConfig(LocalPath::fromPath(sourcePath, *client.fsaccess),
+                     sourcePath,
+                     targetNode->nodeHandle(),
+                     targetPath,
+                     0,
+                     string_vector(),
+                     true,
+                     SyncConfig::TYPE_BACKUP);
+
+        // Populate drive path.
+        config.mExternalDrivePath =
+          LocalPath::fromPath(drivePath, *client.fsaccess);
+
+        // Try and add the backup.
+        return client.addsync(config, true, completion) == API_OK;
+    }
+
+    handle backupAdd_mainthread(const string& drivePath,
+                                const string& sourcePath,
+                                const string& targetPath)
+    {
+        const fs::path dp = fsBasePath / fs::u8path(drivePath);
+        const fs::path sp = fsBasePath / fs::u8path(sourcePath);
+
+        fs::create_directories(dp);
+        fs::create_directories(sp);
+
+        auto result =
+          thread_do<handle>(
+            [&](StandardClient& client, PromiseHandleSP result)
+            {
+                auto completion =
+                  [=](UnifiedSync* us, const SyncError& se, error e)
+                  {
+                    auto success = !!us && !se && !e;
+                    result->set_value(success ? us->mConfig.mBackupId : UNDEF);
+                  };
+
+                  client.backupAdd_inthread(dp.u8string(),
+                                            sp.u8string(),
+                                            targetPath,
+                                            std::move(completion));
+            });
+
+        return result.get();
+    }
+
+    bool setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
                             SyncCompletionFunction addSyncCompletion)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
@@ -1478,7 +1552,16 @@ struct StandardClient : public MegaApp
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
                 cout << clientname << "Setting up sync from " << m->displaypath() << " to " << localpath << endl;
-                SyncConfig syncConfig{LocalPath::fromPath(localpath.u8string(), *client.fsaccess), localpath.u8string(), m->nodehandle, subfoldername, 0};
+                auto syncConfig = 
+                    SyncConfig(LocalPath::fromPath(localpath.u8string(), *client.fsaccess),
+                               localpath.u8string(),
+                               NodeHandle().set6byte(m->nodehandle),
+                               subfoldername,
+                               0,
+                               string_vector(),
+                               true,
+                               isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
+				
                 error e = client.addsync(syncConfig, true, addSyncCompletion);
                 return !e;
             }
@@ -1937,7 +2020,7 @@ struct StandardClient : public MegaApp
         }
 
         // compare model against nodes representing remote state
-        if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodebyhandle(si.h)))
+        if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodeByHandle(si.h)))
         {
             return false;
         }
@@ -2118,7 +2201,7 @@ struct StandardClient : public MegaApp
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, promise<Error>& pb)
     {
         resultproc.prepresult(COMPLETION, ++next_request_tag,
-            [&](){ client.getpubliclink(n, del, expiry, writable, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
+            [&](){ client.requestPublicLink(n, del, expiry, writable, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
             nullptr);
     }
 
@@ -2282,13 +2365,13 @@ struct StandardClient : public MegaApp
     //    return setupSync_mainthread(localsyncrootfolder, remotesyncrootfolder, syncid);
     //}
 
-    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder)
+    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, const bool isBackup = false)
     {
         fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
-        auto fb = thread_do<handle>([=](StandardClient& mc, std::shared_ptr<promise<handle>> pb)
+        auto fb = thread_do<handle>([=](StandardClient& mc, PromiseHandleSP pb)
             {
-                mc.setupSync_inthread(remotesyncrootfolder, syncdir,
+                mc.setupSync_inthread(remotesyncrootfolder, syncdir, isBackup,
                     [pb](UnifiedSync* us, const SyncError& se, error e)
                     {
                         pb->set_value(us != nullptr && !e && !se ? us->mConfig.getBackupId() : UNDEF);
@@ -2309,7 +2392,6 @@ struct StandardClient : public MegaApp
         fb = thread_do<bool>([backupId, mnode, ignoreDebris, confirm](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris)); });
         return fb.get();
     }
-
 };
 
 
@@ -3968,7 +4050,6 @@ GTEST_TEST(Sync, BasicSync_CreateRenameAndDeleteLink)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-
 #ifndef WIN32
 
 // what is supposed to happen for this one?  It seems that the `linked` symlink is no longer ignored on windows?  client2 is affected!
@@ -4087,6 +4168,122 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
 #endif
 
 #endif
+
+TEST(Sync, BasicSync_NewVersionsCreatedWhenFilesModified)
+{
+    // Convenience.
+    using FileFingerprintPtr = unique_ptr<FileFingerprint>;
+
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = std::chrono::seconds(4);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Helper for generating fingerprints.
+    auto fingerprint =
+      [&c](const fs::path& fsPath) -> FileFingerprintPtr
+      {
+          // Convenience.
+          auto& fsAccess = *c.client.fsaccess;
+
+          // Needed so we can access the filesystem.
+          auto fileAccess = fsAccess.newfileaccess(false);
+
+          // Translate input path into something useful.
+          auto path = LocalPath::fromPath(fsPath.u8string(), fsAccess);
+
+          // Try and open file for reading.
+          if (fileAccess->fopen(path, true, false))
+          {
+              auto fingerprint = ::mega::make_unique<FileFingerprint>();
+
+              // Generate fingerprint.
+              if (fingerprint->genfingerprint(fileAccess.get()))
+              {
+                  return fingerprint;
+              }
+          }
+
+          return nullptr;
+      };
+
+    // Fingerprints for each revision.
+    vector<FileFingerprintPtr> fingerprints;
+
+    // Log client in.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+
+    // Add and start sync.
+    const auto id = c.setupSync_mainthread("s", "x");
+    ASSERT_NE(id, UNDEF);
+
+    const auto SYNCROOT = c.syncSet(id).localpath;
+
+    // Create and populate model.
+    Model model;
+
+    model.addfile("f", "a");
+    model.generate(SYNCROOT);
+
+    // Keep track of fingerprint.
+    fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
+    ASSERT_TRUE(fingerprints.back());
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Check that the file made it to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Create a new revision of f.
+    model.addfile("f", "b");
+    model.generate(SYNCROOT);
+
+    // Update fingerprint.
+    fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
+    ASSERT_TRUE(fingerprints.back());
+
+    // Wait for change to propagate.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Validate model.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Create yet anothet revision of f.
+    model.addfile("f", "c");
+    model.generate(SYNCROOT);
+
+    // Update fingerprint.
+    fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
+    ASSERT_TRUE(fingerprints.back());
+
+    // Wait for change to propagate.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Validate model.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on f's node.
+    auto *f = c.drillchildnodebyname(c.gettestbasenode(), "x/f");
+    ASSERT_TRUE(f);
+
+    // Validate the version chain.
+    auto i = fingerprints.crbegin();
+    auto matched = true;
+
+    while (f && i != fingerprints.crend())
+    {
+        matched &= *f == **i++;
+
+        f = f->children.empty() ? nullptr : f->children.front();
+    }
+
+    matched &= !f && i == fingerprints.crend();
+    ASSERT_TRUE(matched);
+}
 
 TEST(Sync, DetectsAndReportsNameClashes)
 {
@@ -4610,6 +4807,8 @@ TEST(Sync, RemotesWithEscapesSynchronizeCorrectly)
 
 struct TwoWaySyncSymmetryCase
 {
+    enum SyncType { type_twoWay, type_backupSync, type_numTypes };
+
     enum Action { action_rename, action_moveWithinSync, action_moveOutOfSync, action_moveIntoSync, action_delete, action_numactions };
 
     enum MatchState { match_exact,      // the sync destination has the exact same file/folder at the same relative path
@@ -4617,10 +4816,12 @@ struct TwoWaySyncSymmetryCase
                       match_newer,      // the sync destination has a newer file/folder at the same relative path
                       match_absent };   // the sync destination has no node at the same relative path
 
+    SyncType syncType = type_twoWay;
     Action action = action_rename;
     bool selfChange = false; // changed by our own client or another
     bool up = false;  // or down - sync direction
     bool file = false;  // or folder.  Which one this test changes
+    bool isExternal = false;
     bool pauseDuringAction = false;
     Model localModel;
     Model remoteModel;
@@ -4645,7 +4846,20 @@ struct TwoWaySyncSymmetryCase
     State& state;
     TwoWaySyncSymmetryCase(State& wholestate) : state(wholestate) {}
 
-    // todo: remote changes made by client (of this sync) or other client
+    std::string typeName()
+    {
+        switch (syncType)
+        {
+        case type_twoWay:
+            return "twoWay_";
+        case type_backupSync:
+            return isExternal ? "external_backup_"
+                              : "internal_backup_";
+        default:
+            assert(false);
+            return "";
+        }
+    }
 
     std::string actionName()
     {
@@ -4674,7 +4888,7 @@ struct TwoWaySyncSymmetryCase
 
     std::string name()
     {
-        return  actionName() +
+        return  typeName() + actionName() +
                 (up?"_up" : "_down") +
                 (selfChange?"_self":"_other") +
                 (file?"_file":"_folder") +
@@ -4727,7 +4941,9 @@ struct TwoWaySyncSymmetryCase
         // for subsequent, duplicate in the cloud with this test's name.
 
         Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        ASSERT_NE(testRoot, nullptr);
         Node* n2 = changeClient().drillchildnodebyname(testRoot, state.remoteBaseFolder);
+        ASSERT_NE(n2, nullptr);
         if (state.first_test_name.empty())
         {
             state.first_test_name = name();
@@ -4764,6 +4980,7 @@ struct TwoWaySyncSymmetryCase
             ASSERT_TRUE(!ec);
 
             Node* n1 = changeClient().drillchildnodebyname(testRoot, state.remoteBaseFolder + "/" + state.first_test_name);
+            ASSERT_NE(n1, nullptr);
             changeClient().cloudCopyTreeAs(n1, n2, name(), cloudCopySetupPromise);
             ASSERT_TRUE(cloudCopySetupPromise->get_future().get());
             out() << "Copied cloud tree for " << name() << endl;
@@ -4780,33 +4997,128 @@ struct TwoWaySyncSymmetryCase
 
     }
 
+    bool isBackup() const
+    {
+        return syncType == type_backupSync;
+    }
+
+    bool isExternalBackup() const
+    {
+        return isExternal && isBackup();
+    }
+
+    bool isInternalBackup() const
+    {
+        return !isExternal && isBackup();
+    }
+
+    bool shouldRecreateOnResume() const
+    {
+        if (pauseDuringAction)
+        {
+            return isExternalBackup();
+        }
+
+        return false;
+    }
+
+    bool shouldDisableSync() const
+    {
+        if (up)
+        {
+            return false;
+        }
+
+        if (pauseDuringAction)
+        {
+            return isInternalBackup();
+        }
+
+        return isBackup();
+    }
+
+    bool shouldUpdateDestination() const
+    {
+        return up || !isBackup();
+    }
+
+    bool shouldUpdateModel() const
+    {
+        return up
+               || !pauseDuringAction
+               || !isExternalBackup();
+    }
+
+    fs::path localSyncRootPath()
+    {
+        return localTestBasePath() / "f";
+    }
+
+    string remoteSyncRootPath()
+    {
+        return remoteTestBasePath + "/f";
+    }
+
+    Node* remoteSyncRoot()
+    {
+        Node* root = client1().client.nodebyhandle(client1().basefolderhandle);
+        if (root)
+        {
+            return client1().drillchildnodebyname(root, remoteSyncRootPath());
+        }
+
+        return nullptr;
+    }
+
+    handle BackupAdd(const string& drivePath, const string& sourcePath, const string& targetPath)
+    {
+        return client1().backupAdd_mainthread(drivePath, sourcePath, targetPath);
+    }
+
+    handle SetupSync(const string& sourcePath, const string& targetPath)
+    {
+        return client1().setupSync_mainthread(sourcePath, targetPath, isBackup());
+    }
+
     void SetupTwoWaySync()
     {
-        string localname, syncrootpath((localTestBasePath() / "f").u8string());
-        client1().client.fsaccess->path2local(&syncrootpath, &localname);
+        ASSERT_NE(remoteSyncRoot(), nullptr);
 
-        Node* testRoot = client1().client.nodebyhandle(client1().basefolderhandle);
-        Node* n = client1().drillchildnodebyname(testRoot, remoteTestBasePath + "/f");
-        ASSERT_TRUE(!!n);
+        string basePath   = client1().fsBasePath.u8string();
+        string drivePath  = localTestBasePath().u8string();
+        string sourcePath = localSyncRootPath().u8string();
+        string targetPath = remoteSyncRootPath();
 
-        //SyncConfig config(syncrootpath, n->nodehandle, 0, {}, (SyncConfig::TYPE_TWOWAY), false, false);
+        drivePath.erase(0, basePath.size() + 1);
+        sourcePath.erase(0, basePath.size() + 1);
 
-        auto lsfr = syncrootpath.erase(0, client1().fsBasePath.u8string().size()+1);
-        auto rsfr = remoteTestBasePath + "/f";
+        if (isExternalBackup())
+        {
+            backupId = BackupAdd(drivePath, sourcePath, targetPath);
+        }
+        else
+        {
+            backupId = SetupSync(sourcePath, targetPath);
+        }
 
-        backupId = client1().setupSync_mainthread(lsfr, rsfr);
         ASSERT_NE(backupId, UNDEF);
     }
 
-    //void PauseTwoWaySync()
-    //{
-    //    client1().delSync_mainthread(sync_tag, true);
-    //}
+    void PauseTwoWaySync()
+    {
+        if (shouldRecreateOnResume())
+        {
+            client1().delSync_mainthread(backupId, true);
+        }
+    }
 
-    //void ResumeTwoWaySync()
-    //{
-    //    SetupTwoWaySync();
-    //}
+    void ResumeTwoWaySync()
+    {
+        if (shouldRecreateOnResume())
+        {
+            SetupTwoWaySync();
+        }
+    }
 
     void remote_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
@@ -5179,13 +5491,19 @@ struct TwoWaySyncSymmetryCase
             {
                 if (file)
                 {
-                    source_rename("f/f_0/file0_f_0", "file0_f_0_renamed", true, true, true);
-                    destinationModel().emulate_rename("f/f_0/file0_f_0", "file0_f_0_renamed");
+                    source_rename("f/f_0/file0_f_0", "file0_f_0_renamed", shouldUpdateModel(), true, true);
+                    if (shouldUpdateDestination())
+                    {
+                        destinationModel().emulate_rename("f/f_0/file0_f_0", "file0_f_0_renamed");
+                    }
                 }
                 else
                 {
-                    source_rename("f/f_0", "f_0_renamed", true, true, false);
-                    destinationModel().emulate_rename("f/f_0", "f_0_renamed");
+                    source_rename("f/f_0", "f_0_renamed", shouldUpdateModel(), true, false);
+                    if (shouldUpdateDestination())
+                    {
+                        destinationModel().emulate_rename("f/f_0", "f_0_renamed");
+                    }
                 }
             }
             break;
@@ -5198,13 +5516,19 @@ struct TwoWaySyncSymmetryCase
             {
                 if (file)
                 {
-                    source_move("f/f_1/file0_f_1", "f/f_0", true, true, false);
-                    destinationModel().emulate_move("f/f_1/file0_f_1", "f/f_0");
+                    source_move("f/f_1/file0_f_1", "f/f_0", shouldUpdateModel(), true, false);
+                    if (shouldUpdateDestination())
+                    {
+                        destinationModel().emulate_move("f/f_1/file0_f_1", "f/f_0");
+                    }
                 }
                 else
                 {
-                    source_move("f/f_1", "f/f_0", true, true, false);
-                    destinationModel().emulate_move("f/f_1", "f/f_0");
+                    source_move("f/f_1", "f/f_0", shouldUpdateModel(), true, false);
+                    if (shouldUpdateDestination())
+                    {
+                        destinationModel().emulate_move("f/f_1", "f/f_0");
+                    }
                 }
             }
             break;
@@ -5217,13 +5541,19 @@ struct TwoWaySyncSymmetryCase
             {
                 if (file)
                 {
-                    source_move("f/f_0/file0_f_0", "outside", true, false, false);
-                    destinationModel().emulate_delete("f/f_0/file0_f_0");
+                    source_move("f/f_0/file0_f_0", "outside", shouldUpdateModel(), false, false);
+                    if (shouldUpdateDestination())
+                    {
+                        destinationModel().emulate_delete("f/f_0/file0_f_0");
+                    }
                 }
                 else
                 {
-                    source_move("f/f_0", "outside", true, false, false);
-                    destinationModel().emulate_delete("f/f_0");
+                    source_move("f/f_0", "outside", shouldUpdateModel(), false, false);
+                    if (shouldUpdateDestination())
+                    {
+                        destinationModel().emulate_delete("f/f_0");
+                    }
                 }
             }
             break;
@@ -5236,14 +5566,20 @@ struct TwoWaySyncSymmetryCase
             {
                 if (file)
                 {
-                    source_move("outside/file0_outside", "f/f_0", true, false, false);
-                    destinationModel().emulate_copy("outside/file0_outside", "f/f_0");
+                    source_move("outside/file0_outside", "f/f_0", shouldUpdateModel(), false, false);
+                    if (shouldUpdateDestination())
+                    {
+                        destinationModel().emulate_copy("outside/file0_outside", "f/f_0");
+                    }
                 }
                 else
                 {
-                    source_move("outside", "f/f_0", true, false, false);
-                    destinationModel().emulate_delete("f/f_0/outside");
-                    destinationModel().emulate_copy("outside", "f/f_0");
+                    source_move("outside", "f/f_0", shouldUpdateModel(), false, false);
+                    if (shouldUpdateDestination())
+                    {
+                        destinationModel().emulate_delete("f/f_0/outside");
+                        destinationModel().emulate_copy("outside", "f/f_0");
+                    }
                 }
             }
             break;
@@ -5256,13 +5592,19 @@ struct TwoWaySyncSymmetryCase
             {
                 if (file)
                 {
-                    source_delete("f/f_0/file0_f_0", true, true);
-                    destinationModel().emulate_delete("f/f_0/file0_f_0");
+                    source_delete("f/f_0/file0_f_0", shouldUpdateModel(), true);
+                    if (shouldUpdateDestination())
+                    {
+                        destinationModel().emulate_delete("f/f_0/file0_f_0");
+                    }
                 }
                 else
                 {
-                    source_delete("f/f_0", true, true);
-                    destinationModel().emulate_delete("f/f_0");
+                    source_delete("f/f_0", shouldUpdateModel(), true);
+                    if (shouldUpdateDestination())
+                    {
+                        destinationModel().emulate_delete("f/f_0");
+                    }
                 }
             }
             break;
@@ -5316,13 +5658,36 @@ struct TwoWaySyncSymmetryCase
         }
 
         out() << "Checking twoway sync "<< name() << endl;
-        bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
-        bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
-        bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true); // todo: later enable debris checks
-        EXPECT_EQ(localfs, localnode);
-        EXPECT_EQ(localnode, remote);
-        EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
-        finalResult = localfs && localnode && remote;
+        Sync* sync = client1().syncByBackupId(backupId);
+
+        if (shouldDisableSync())
+        {
+            bool lfs = client1().confirmModel(backupId, localModel.findnode("f"), localSyncRootPath(), true);
+            bool rnt = client1().confirmModel(backupId, remoteModel.findnode("f"), remoteSyncRoot());
+
+            EXPECT_EQ(sync, nullptr) << "Sync isn't disabled: " << name();
+            EXPECT_TRUE(lfs) << "Couldn't confirm LFS: " << name();
+            EXPECT_TRUE(rnt) << "Couldn't confirm RNT: " << name();
+
+            finalResult = sync == nullptr;
+            finalResult &= lfs;
+            finalResult &= rnt;
+        }
+        else
+        {
+            EXPECT_NE(sync, (Sync*)nullptr);
+            EXPECT_TRUE(sync && sync->state == SYNC_ACTIVE);
+
+            bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
+            bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
+            bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true); // todo: later enable debris checks
+            EXPECT_EQ(localfs, localnode);
+            EXPECT_EQ(localnode, remote);
+            EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
+
+            finalResult = localfs && localnode && remote && sync && sync->state == SYNC_ACTIVE;
+        }
+
     }
 };
 
@@ -5362,46 +5727,63 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 
     std::map<std::string, TwoWaySyncSymmetryCase> cases;
 
-    // to investigate just one sync case, put its name here,
-    // otherwise we loop to generate all combinations (except those excluded)
-    static string singleNamedTest = "";//"delete_down_other_file_resumed";
+    static set<string> tests = {
+    }; // tests
 
-    for (int selfChange = 0; selfChange < 2; ++selfChange)
+    for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
     {
-        //if (!selfChange) continue;
+        //if (syncType != TwoWaySyncSymmetryCase::type_backupSync) continue;
 
-        for (int up = 0; up < 2; ++up)
+        for (int selfChange = 0; selfChange < 2; ++selfChange)
         {
-            //if (up) continue;
+            //if (!selfChange) continue;
 
-            for (int action = 0; action < (int)TwoWaySyncSymmetryCase::action_numactions; ++action)
+            for (int up = 0; up < 2; ++up)
             {
+                //if (!up) continue;
+
+                for (int action = 0; action < (int)TwoWaySyncSymmetryCase::action_numactions; ++action)
+                {
                 //if (action != TwoWaySyncSymmetryCase::action_moveIntoSync) continue;
                 //if (action != TwoWaySyncSymmetryCase::action_rename) continue;
                 //if (action != TwoWaySyncSymmetryCase::action_delete) continue;
 
                 for (int file = 0; file < 2; ++file)
-                {
-                    //if (file) continue;
-
-                    for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
                     {
-                        //if (pauseDuringAction) continue;
+                        //if (!file) continue;
 
-                        // we can't make changes if the client is not running
-                        if (pauseDuringAction && selfChange) continue;
-
-                        TwoWaySyncSymmetryCase testcase(allstate);
-                        testcase.selfChange = selfChange != 0;
-                        testcase.up = up;
-                        testcase.action = TwoWaySyncSymmetryCase::Action(action);
-                        testcase.file = file;
-                        testcase.pauseDuringAction = pauseDuringAction;
-                        testcase.printTreesBeforeAndAfter = !singleNamedTest.empty();
-
-                        if (singleNamedTest.empty() || testcase.name() == singleNamedTest)
+                        for (int isExternal = 0; isExternal < 2; ++isExternal)
                         {
-                            cases.emplace(testcase.name(), move(testcase));
+                            //if (!isExternal) continue;
+
+                            if (isExternal && syncType != TwoWaySyncSymmetryCase::type_backupSync)
+                            {
+                                continue;
+                            }
+
+                            for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
+                            {
+                                if (pauseDuringAction) continue;
+
+                                // we can't make changes if the client is not running
+                                if (pauseDuringAction && selfChange) continue;
+
+                                TwoWaySyncSymmetryCase testcase(allstate);
+                                testcase.syncType = TwoWaySyncSymmetryCase::SyncType(syncType);
+                                testcase.selfChange = selfChange != 0;
+                                testcase.up = up;
+                                testcase.action = TwoWaySyncSymmetryCase::Action(action);
+                                testcase.file = file;
+                                testcase.isExternal = isExternal;
+                                testcase.pauseDuringAction = pauseDuringAction;
+                                testcase.printTreesBeforeAndAfter = !tests.empty();
+
+                                if (tests.empty() || tests.count(testcase.name()) > 0)
+                                {
+                                    auto name = testcase.name();
+                                    cases.emplace(name, move(testcase));
+                                }
+                            }
                         }
                     }
                 }
@@ -5409,8 +5791,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
         }
     }
 
-
-    out() << "Creating initial local files/folders for " << cases.size() << " Two-way sync test cases" << endl;
+    out() << "Creating initial local files/folders for " << cases.size() << " sync test cases" << endl;
     for (auto& testcase : cases)
     {
         testcase.second.SetupForSync();
@@ -5460,6 +5841,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
 
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
+    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
 
     out() << "Checking intial state" << endl;
     for (auto& testcase : cases)
@@ -5485,19 +5867,22 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
         testcase.second.CheckSetup(allstate, false);
     }
 
-    // save session and local log out A1R to set up for resume
-    string session;
-    clientA1Resume.client.dumpsession(session);
-    clientA1Resume.localLogout();
 
     int paused = 0;
     for (auto& testcase : cases)
     {
         if (testcase.second.pauseDuringAction)
         {
+            testcase.second.PauseTwoWaySync();
             ++paused;
         }
     }
+
+    // save session and local log out A1R to set up for resume
+    string session;
+    clientA1Resume.client.dumpsession(session);
+    clientA1Resume.localLogout();
+
     if (paused)
     {
         out() << "Paused " << paused << " Two-way syncs" << endl;
@@ -5513,6 +5898,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     }
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA2);   // leave out clientA1Resume as it's 'paused' (locallogout'd) for now
     CatchupClients(&clientA1Steady, &clientA2);
+    waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA2);   // leave out clientA1Resume as it's 'paused' (locallogout'd) for now
 
     // resume A1R session (with sync), see if A2 nodes and localnodes get in sync again
     ASSERT_TRUE(clientA1Resume.login_fetchnodes(session));
@@ -5523,6 +5909,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     {
         if (testcase.second.pauseDuringAction)
         {
+            testcase.second.ResumeTwoWaySync();
             ++resumed;
         }
     }
@@ -5538,6 +5925,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
 
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
+    waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
 
     out() << "Checking local and remote state in each sub-test" << endl;
 

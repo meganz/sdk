@@ -53,7 +53,8 @@ class MEGA_API PubKeyActionCreateShare : public PubKeyAction
 public:
     void proc(MegaClient*, User*);
 
-    PubKeyActionCreateShare(handle, accesslevel_t, int, bool writable, const char*, std::function<void(Error, bool writable)> completion);
+    PubKeyActionCreateShare(handle, accesslevel_t, int, bool writable, const char*,
+	    std::function<void(Error, bool writable)> completion);
 };
 
 class MEGA_API PubKeyActionSendShareKey : public PubKeyAction

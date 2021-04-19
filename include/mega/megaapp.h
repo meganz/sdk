@@ -128,9 +128,6 @@ struct MEGA_API MegaApp
     // node addition has failed
     virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride = false) { }
 
-    // share update changes (not the final callback though)
-    virtual void share_result(int, error, bool writable) { }
-
     // outgoing pending contact result
     virtual void setpcr_result(handle, error, opcactions_t) { }
     // incoming pending contact result
@@ -409,7 +406,6 @@ struct MEGA_API MegaApp
     virtual void getmiscflags_result(error) { }
 
     virtual void backupput_result(const Error&, handle /*backup id*/) { }
-    virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
     virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual void getbanners_result(error) { }

@@ -77,7 +77,6 @@ std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
 bool gVerboseMode = false;
 
-
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
@@ -101,7 +100,6 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 
 // change email link to be confirmed
 static string changeemail, changecode;
-
 // import welcome pdf at account creation
 static bool pdf_to_import = false;
 
@@ -136,72 +134,6 @@ std::string syncConfigToString(const SyncConfig& config)
         description.append(" DOWN");
     }
     return description;
-}
-
-// creates a NewSyncConfig object from config options as strings.
-// returns a pair where `first` is success and `second` is the sync config.
-std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
-{
-    auto toLower = [](std::string& s)
-    {
-        for (char& c : s) { c = static_cast<char>(tolower(c)); };
-    };
-
-    toLower(type);
-    toLower(syncDel);
-    toLower(overwrite);
-
-    SyncConfig::Type syncType;
-    if (type == "up")
-    {
-        syncType = SyncConfig::TYPE_UP;
-    }
-    else if (type == "down")
-    {
-        syncType = SyncConfig::TYPE_DOWN;
-    }
-    else if (type == "twoway")
-    {
-        syncType = SyncConfig::TYPE_TWOWAY;
-    }
-    else
-    {
-        return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
-    }
-
-    bool syncDeletions = false;
-    bool forceOverwrite = false;
-
-    if (syncType != SyncConfig::TYPE_TWOWAY)
-    {
-        if (syncDel == "on")
-        {
-            syncDeletions = true;
-        }
-        else if (syncDel == "off")
-        {
-            syncDeletions = false;
-        }
-        else
-        {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
-        }
-
-        if (overwrite == "on")
-        {
-            forceOverwrite = true;
-        }
-        else if (overwrite == "off")
-        {
-            forceOverwrite = false;
-        }
-        else
-        {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
-        }
-    }
-
-    return std::make_pair(true, SyncConfig(LocalPath(), "", UNDEF, "", 0, {}, true, syncType));
 }
 
 #endif
@@ -3090,11 +3022,25 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
+    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
+
     p->Add(exec_syncadd,
            sequence(text("sync"),
                     text("add"),
+                    opt(flag("-backup")),
+                    opt(sequence(flag("-external"), param("drivePath"))),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
+
+    p->Add(exec_syncclosedrive,
+           sequence(text("sync"),
+                    text("closedrive"),
+                    localFSFolder("drive")));
+
+    p->Add(exec_syncopendrive,
+           sequence(text("sync"),
+                    text("opendrive"),
+                    localFSFolder("drive")));
 
     p->Add(exec_synclist,
            sequence(text("sync"), text("list")));
@@ -3111,8 +3057,6 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(param("error"))),
                            sequence(text("enable"),
                                     param("id")))));
-
-    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
 
     p->Add(exec_syncpause, sequence(text("syncpause"), param("id")));
     p->Add(exec_syncresume, sequence(text("syncresume"), param("id")));
@@ -3184,7 +3128,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_chatlu, sequence(text("chatlu"), param("publichandle")));
     p->Add(exec_chatlj, sequence(text("chatlj"), param("publichandle"), param("unifiedkey")));
 #endif
-    p->Add(exec_enabletransferresumption, sequence(text("enabletransferresumption"), opt(either(text("on"), text("off")))));
     p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
@@ -5108,9 +5051,7 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_BACKUP_NAMES
-                    || attrtype == ATTR_DEVICE_NAMES
-                    || attrtype == ATTR_ALIAS)
+            if (attrtype == ATTR_DEVICE_NAMES || attrtype == ATTR_ALIAS)
             {
                 std::string key = s.words[3].s;
                 std::string value = Base64::btoa(s.words[4].s);
@@ -6788,20 +6729,6 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
     cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
 }
 
-void exec_enabletransferresumption(autocomplete::ACState& s)
-{
-    if (s.words.size() > 1 && s.words[1].s == "off")
-    {
-        client->disabletransferresumption(NULL);
-        cout << "transfer resumption disabled" << endl;
-    }
-    else
-    {
-        client->enabletransferresumption(NULL);
-        cout << "transfer resumption enabled" << endl;
-    }
-}
-
 // callback for non-EAGAIN request-level errors
 // in most cases, retrying is futile, so the application exits
 // this can occur e.g. with syntactically malformed requests (due to a bug), an invalid application key
@@ -7314,11 +7241,11 @@ void exportnode_result(Error e, handle h, handle ph)
         string publicLink;
         if (n->type == FILENODE)
         {
-            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
         }
         else
         {
-            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
         }
 
         cout << publicLink;
@@ -7330,7 +7257,7 @@ void exportnode_result(Error e, handle h, handle ph)
             if (authKey.size())
             {
                 string authToken(publicLink);
-                authToken = authToken.substr(strlen("https://mega.nz/folder/")).append(":").append(authKey);
+                authToken = authToken.substr(MegaClient::MEGAURL.size()+strlen("/folder/")).append(":").append(authKey);
                 cout << "\n          AuthToken = " << authToken;
             }
         }
@@ -8601,6 +8528,28 @@ void exec_banner(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
+void sync_completion(UnifiedSync* us, const SyncError&, error result)
+{
+    if (!us)
+    {
+        cerr << "Sync could not be added: "
+             << errorstring(result)
+             << endl;
+    }
+    else if (us->mSync)
+    {
+        cerr << "Sync added and running: "
+             << toHandle(us->mConfig.mBackupId)
+             << endl;
+    }
+    else
+    {
+        cerr << "Sync added but could not be started: "
+             << errorstring(result)
+             << endl;
+    }
+}
+
 void exec_syncadd(autocomplete::ACState& s)
 {
     if (client->loggedin() != FULLACCOUNT)
@@ -8610,8 +8559,13 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
+    string drive;
+    bool backup = s.extractflag("-backup");
+    bool external = s.extractflagparam("-external", drive);
+
     // sync add source target
-    string sourcePath = s.words[2].s;
+    LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
+    LocalPath sourcePath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
     string targetPath = s.words[3].s;
 
     // Does the target node exist?
@@ -8625,32 +8579,83 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
+    // Necessary so that we can reliably extract the leaf name.
+    sourcePath = NormalizeAbsolute(sourcePath);
+
     // Create a suitable sync config.
-    SyncConfig config(LocalPath::fromPath(sourcePath, *client->fsaccess),
-                 sourcePath,
-                 targetNode->nodehandle,
+    auto config =
+      SyncConfig(sourcePath,
+                 sourcePath.leafName().toPath(*client->fsaccess),
+                 NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
                  string_vector(),
                  true,
-                 SyncConfig::TYPE_TWOWAY);
+                 backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
-    // Try and add the new sync.   All validation is performed in this function
-    client->addsync(config, true,
-                    [&](mega::UnifiedSync *, const SyncError &, error e) {
-        if (!e)
+    if (external)
+    {
+        if (!backup)
         {
-            cout << "Sync added" << endl;
+            cerr << "Sorry, external syncs must be backups for now" << endl;
         }
-        else
-        {
-            cerr << "Sync could not be added: "
-                 << errorstring(e)
-                 << endl;
-        }
-    });
+
+        config.mExternalDrivePath = std::move(drivePath);
+    }
+
+    // Try and add the new sync.
+	// All validation is performed in this function.
+    client->addsync(config, false, sync_completion);
 }
 
+void exec_syncclosedrive(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate backup syncs."
+             << endl;
+        return;
+    }
+
+    // sync backup remove drive
+    const auto drivePath =
+      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+
+    const auto result = client->syncs.backupCloseDrive(drivePath);
+
+    if (result)
+    {
+        cerr << "Unable to remove backup database: "
+             << errorstring(result)
+             << endl;
+    }
+}
+
+void exec_syncopendrive(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to restore backup syncs."
+             << endl;
+        return;
+    }
+
+    // sync backup restore drive
+    const auto drivePath =
+      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+
+    auto result = client->syncs.backupOpenDrive(drivePath);
+
+    if (result)
+    {
+        cerr << "Unable to restore backups from '"
+             << s.words[2].s
+             << "': "
+             << errorstring(result)
+             << endl;
+    }
+}
 
 void exec_synclist(autocomplete::ACState& s)
 {
@@ -8798,18 +8803,6 @@ void exec_syncxable(autocomplete::ACState& s)
     // sync disable id [error]
     // sync fail id [error]
 
-    // Find the specified sync.
-    auto* sync = client->syncs.runningSyncByBackupId(backupId);
-
-    // Have we found the backup sync?
-    if (!sync)
-    {
-        cerr << "No sync found with the id "
-             << Base64Str<sizeof(handle)>(backupId)
-             << endl;
-        return;
-    }
-
     int error = NO_SYNC_ERROR;
 
     // Has the user provided a specific error code?
@@ -8822,17 +8815,31 @@ void exec_syncxable(autocomplete::ACState& s)
     // Disable or fail?
     if (command == "fail")
     {
+        // Find the specified sync.
+        auto* sync = client->syncs.runningSyncByBackupId(backupId);
+
+        // Have we found the backup sync?
+        if (!sync)
+        {
+            cerr << "No sync found with the id "
+                 << Base64Str<sizeof(handle)>(backupId)
+                 << endl;
+            return;
+        }
+
         client->failSync(sync, static_cast<SyncError>(error));
         return;
     }
-
-    client->syncs.disableSelectedSyncs(
-      [&](SyncConfig&, Sync* s)
-      {
-          return s == sync;
-      },
-      static_cast<SyncError>(error),
-      false);
+    else    // command == "disable"
+    {
+        client->syncs.disableSelectedSyncs(
+          [&backupId](SyncConfig& config, Sync*)
+          {
+              return config.getBackupId() == backupId;
+          },
+          static_cast<SyncError>(error),
+          false);
+    }
 }
 
 #endif // ENABLE_SYNC

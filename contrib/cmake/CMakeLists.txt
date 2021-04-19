@@ -76,7 +76,7 @@ if (WIN32)
         ENDIF()
     ENDIF()
 else(WIN32)
-    set(NO_READLINE 0)
+    set(NO_READLINE 0 CACHE STRING "")
 endif(WIN32)
 
 if (USE_WEBRTC)
@@ -167,7 +167,11 @@ if (USE_QT)
 
     # get qt version
     if ("${QT_QMAKE_EXECUTABLE}" STREQUAL "")
-        set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake.exe")
+        if(WIN32)
+            set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake.exe")
+        else()
+            set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake")
+        endif()
     endif()
 
     execute_process(COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_VERSION OUTPUT_VARIABLE QT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -230,7 +234,7 @@ if (WIN32)
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0" )
     endif()
 
-    # warnings as errors, just for windows builds, as warnings keep creeping in.  Best if we address them once in the original MR.
+    # warnings as errors, just for windows builds, as warnings keep creeping in.  Best if we address them once in the original MRs.
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /WX" )
 
     # accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
@@ -506,7 +510,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
 
             # pkgconfig might not be needed anymore? - suppressed by our build3rdparty project
-            IF (CMAKE_HOST_UNIX)
+            IF (CMAKE_HOST_UNIX AND NOT CMAKE_HOST_APPLE)
                 set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
                 include(FindPkgConfig)
                 pkg_check_modules(FTYPECONF freetype2)
@@ -807,6 +811,15 @@ if ( ENABLE_CODECOVERAGE )
 endif ( CMAKE_COMPILER_IS_GNUCXX )
 
 endif (ENABLE_CODECOVERAGE )
+
+if(IOS)
+    # build with some of these settings as required
+    # -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_Swift_COMPILER_TARGET=arm64-apple-ios7.0.0 -DCMAKE_OSX_SYSROOT=iphoneos -DVCPKG_TRIPLET=arm64-ios-mega
+    add_definitions( -DUSE_IOS )
+    include_directories( ${MegaDir}/bindings/ios/ ${MegaDir}/bindings/ios/Private )
+    add_executable(simple_ios_build_test ${MegaDir}/bindings/ios/MEGASdk.mm )
+    target_link_libraries(simple_ios_build_test Mega )
+endif()
 
 #test apps
 add_executable(test_unit

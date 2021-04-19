@@ -170,6 +170,11 @@ void Command::arg(const char* name, const byte* value, int len)
     jsonWriter.arg(name, value, len);
 }
 
+void Command::arg(const char* name, NodeHandle h)
+{
+    jsonWriter.arg(name, h);
+}
+
 // 64-bit signed integer
 void Command::arg(const char* name, m_off_t n)
 {
