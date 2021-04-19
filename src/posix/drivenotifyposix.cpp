@@ -21,7 +21,6 @@
 
 #ifdef USE_DRIVE_NOTIFICATIONS
 
-
 #include "mega/drivenotify.h"
 #include <libudev.h> // Ubuntu: sudo apt-get install libudev-dev
 #include <mntent.h>
@@ -29,257 +28,242 @@
 #include <chrono>
 
 
-
 namespace mega {
 
+//
+// DriveNotifyPosix
+/////////////////////////////////////////////
+
+bool DriveNotifyPosix::startNotifier()
+{
+    if (mEventSinkThread.joinable() || mStop.load())  return false;
+
+    // init udev resource
+    mUdev = udev_new();
+    if (!mUdev)  return false;  // is udevd daemon running?
+
+    cacheMountedPartitions();
+
+    // init udev monitor
+    mUdevMon = udev_monitor_new_from_netlink(mUdev, "udev");
+    if (!mUdevMon)
+    {
+        udev_unref(mUdev);
+        mUdev = nullptr;
+        return false;
+    }
+
+    // On unix systems you need to define your udev rules to allow notifications for
+    // your device.
     //
-    // DriveNotifyPosix
-    /////////////////////////////////////////////
+    // i.e. on Ubuntu create file "100-megasync-udev.rules" either in
+    // /etc/udev/rules.d/        OR
+    // /usr/lib/udev/rules.d/
+    // and add line:
+    // SUBSYSTEM=="block", ATTRS{idDevtype}=="partition"
+    udev_monitor_filter_add_match_subsystem_devtype(mUdevMon, "block", "partition");
+    udev_monitor_enable_receiving(mUdevMon);
 
-    bool DriveNotifyPosix::startNotifier()
+    // start worker thread
+    mEventSinkThread = std::thread(&DriveNotifyPosix::doInThread, this);
+
+    return true;
+}
+
+void DriveNotifyPosix::stopNotifier()
+{
+    // begin the stopping routine
+    mStop.store(true);
+
+    // stop the worker thread
+    if (mEventSinkThread.joinable())
     {
-        if (mEventSinkThread.joinable() || mStop.load())  return false;
-
-        // init udev resource
-        mUdev = udev_new();
-        if (!mUdev)  return false;  // is udevd daemon running?
-
-        cacheMountedPartitions();
-
-        // init udev monitor
-        mUdevMon = udev_monitor_new_from_netlink(mUdev, "udev");
-        if (!mUdevMon)
-        {
-            udev_unref(mUdev);
-            mUdev = nullptr;
-            return false;
-        }
-
-        // On unix systems you need to define your udev rules to allow notifications for
-        // your device.
-        //
-        // i.e. on Ubuntu create file "100-megasync-udev.rules" either in
-        // /etc/udev/rules.d/        OR
-        // /usr/lib/udev/rules.d/
-        // and add line:
-        // SUBSYSTEM=="block", ATTRS{idDevtype}=="partition"
-        udev_monitor_filter_add_match_subsystem_devtype(mUdevMon, "block", "partition");
-        udev_monitor_enable_receiving(mUdevMon);
-
-        // start worker thread
-        mEventSinkThread = std::thread(&DriveNotifyPosix::doInThread, this);
-
-        return true;
+        mEventSinkThread.join();
     }
 
-
-
-    void DriveNotifyPosix::stopNotifier()
+    // release udev monitor
+    if (mUdevMon)
     {
-        // begin the stopping routine
-        mStop.store(true);
-
-        // stop the worker thread
-        if (mEventSinkThread.joinable())
-        {
-            mEventSinkThread.join();
-        }
-
-        // release udev monitor
-        if (mUdevMon)
-        {
-            udev_monitor_filter_remove(mUdevMon);
-            udev_monitor_unref(mUdevMon);
-            mUdevMon = nullptr;
-        }
-
-        // release udev resource
-        if (mUdev)
-        {
-            udev_unref(mUdev);
-            mUdev = nullptr;
-        }
-
-        // end the stopping routine
-        mStop.store(false); // and allow reusing this instance
+        udev_monitor_filter_remove(mUdevMon);
+        udev_monitor_unref(mUdevMon);
+        mUdevMon = nullptr;
     }
 
-
-
-    void DriveNotifyPosix::doInThread()
+    // release udev resource
+    if (mUdev)
     {
-        int fd = udev_monitor_get_fd(mUdevMon);
-        while (!mStop.load())
+        udev_unref(mUdev);
+        mUdev = nullptr;
+    }
+
+    // end the stopping routine
+    mStop.store(false); // and allow reusing this instance
+}
+
+void DriveNotifyPosix::doInThread()
+{
+    int fd = udev_monitor_get_fd(mUdevMon);
+    while (!mStop.load())
+    {
+        // use a blocking call, with a timeout, to check for device events
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(fd, &fds);
+
+        timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 250 * 1000; // 250ms
+
+        int ret = select(fd+1, &fds, nullptr, nullptr, &tv);
+        if (ret <= 0 || !FD_ISSET(fd, &fds))  continue;
+
+        // get any [dis]connected device
+        udev_device* dev = udev_monitor_receive_device(mUdevMon);
+        if (dev)
         {
-            // use a blocking call, with a timeout, to check for device events
-            fd_set fds;
-            FD_ZERO(&fds);
-            FD_SET(fd, &fds);
+            evaluateDevice(dev);
 
-            timeval tv;
-            tv.tv_sec = 0;
-            tv.tv_usec = 250 * 1000; // 250ms
+            udev_device_unref(dev);
+        }
+    }
+}
 
-            int ret = select(fd+1, &fds, nullptr, nullptr, &tv);
-            if (ret <= 0 || !FD_ISSET(fd, &fds))  continue;
+void DriveNotifyPosix::evaluateDevice(udev_device* dev)  // dev must Not be null
+{
+    // filter "partition" events
+    const char* devtype = udev_device_get_devtype(dev); // "partition"
+    if(strcmp(devtype, "partition"))  return;
 
-            // get any [dis]connected device
-            udev_device* dev = udev_monitor_receive_device(mUdevMon);
-            if (dev)
+    // filter "add"/"remove" actions
+    const char* action = udev_device_get_action(dev); // "add" / "remove"
+    bool added = !strcmp(action, "add");
+    bool removed = !added && !strcmp(action, "remove");
+    if (!(added || removed))  return; // ignore other possible actions
+
+    // get device location
+    const char* devNode = udev_device_get_devnode(dev); // "/dev/sda1"
+    if (!devNode)  return; // did something go wrong?
+
+    const std::string& devNodeStr(devNode);
+
+    // gather drive info
+    DriveInfo drvInfo;
+    drvInfo.connected = added;
+
+    // get the mount point
+    if (removed)
+    {
+        // get it from the cache, because it will have already been removed from
+        // the relevant locations by the time getMountPoint() will attempt to read it
+        drvInfo.mountPoint = mMounted[devNodeStr];
+        mMounted.erase(devNodeStr); // remove from cache
+    }
+
+    else // added
+    {
+        // reading it might happen before the relevant locations have been updated,
+        // so allow retrying a few times, say at 100ms intervals
+        for (int i = 0; i < 5; ++i)
+        {
+            drvInfo.mountPoint = getMountPoint(devNodeStr);
+
+            if (!drvInfo.mountPoint.empty())
             {
-                evaluateDevice(dev);
-
-                udev_device_unref(dev);
-            }
-        }
-    }
-
-
-
-    void DriveNotifyPosix::evaluateDevice(udev_device* dev)  // dev must Not be null
-    {
-        // filter "partition" events
-        const char* devtype = udev_device_get_devtype(dev); // "partition"
-        if(strcmp(devtype, "partition"))  return;
-
-        // filter "add"/"remove" actions
-        const char* action = udev_device_get_action(dev); // "add" / "remove"
-        bool added = !strcmp(action, "add");
-        bool removed = !added && !strcmp(action, "remove");
-        if (!(added || removed))  return; // ignore other possible actions
-
-        // get device location
-        const char* devNode = udev_device_get_devnode(dev); // "/dev/sda1"
-        if (!devNode)  return; // did something go wrong?
-
-        const std::string& devNodeStr(devNode);
-
-        // gather drive info
-        DriveInfo drvInfo;
-        drvInfo.connected = added;
-
-        // get the mount point
-        if (removed)
-        {
-            // get it from the cache, because it will have already been removed from
-            // the relevant locations by the time getMountPoint() will attempt to read it
-            drvInfo.mountPoint = mMounted[devNodeStr];
-            mMounted.erase(devNodeStr); // remove from cache
-        }
-
-        else // added
-        {
-            // reading it might happen before the relevant locations have been updated,
-            // so allow retrying a few times, say at 100ms intervals
-            for (int i = 0; i < 5; ++i)
-            {
-                drvInfo.mountPoint = getMountPoint(devNodeStr);
-
-                if (!drvInfo.mountPoint.empty())
-                {
-                    mMounted[devNodeStr] = drvInfo.mountPoint; // cache it
-                    break;
-                }
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-        }
-
-        // send notification
-        if (!drvInfo.mountPoint.empty())
-        {
-            add(std::move(drvInfo));
-        }
-    }
-
-
-
-    std::string DriveNotifyPosix::getMountPoint(const std::string& device)
-    {
-        std::string mountPoint;
-
-        // go to all mounts
-        FILE* fsMounts = setmntent("/proc/mounts", "r");
-        if (!fsMounts) // this should never happen
-        {
-            // make another attempt
-            fsMounts = setmntent("/etc/mtab", "r");
-            if (!fsMounts)  return mountPoint;
-        }
-
-        // search mount point for the current device
-        for (mntent* mnt = getmntent(fsMounts); mnt; mnt = getmntent(fsMounts))
-        {
-            if (device == mnt->mnt_fsname)
-            {
-                mountPoint = mnt->mnt_dir;
+                mMounted[devNodeStr] = drvInfo.mountPoint; // cache it
                 break;
             }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
-
-        endmntent(fsMounts); // closes the file descriptor
-
-        return mountPoint;
     }
 
-
-
-    void DriveNotifyPosix::cacheMountedPartitions()
+    // send notification
+    if (!drvInfo.mountPoint.empty())
     {
-        // enumerate all mounted partitions
-        udev_enumerate* enumerate = udev_enumerate_new(mUdev);
+        add(std::move(drvInfo));
+    }
+}
 
-        udev_enumerate_add_match_subsystem(enumerate, "block");
-        udev_enumerate_add_match_property(enumerate, "DEVTYPE", "partition");
-        udev_enumerate_scan_devices(enumerate);
+std::string DriveNotifyPosix::getMountPoint(const std::string& device)
+{
+    std::string mountPoint;
 
-        udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
-        udev_list_entry *entry;
+    // go to all mounts
+    FILE* fsMounts = setmntent("/proc/mounts", "r");
+    if (!fsMounts) // this should never happen
+    {
+        // make another attempt
+        fsMounts = setmntent("/etc/mtab", "r");
+        if (!fsMounts)  return mountPoint;
+    }
 
-        udev_list_entry_foreach(entry, devices) // for loop
+    // search mount point for the current device
+    for (mntent* mnt = getmntent(fsMounts); mnt; mnt = getmntent(fsMounts))
+    {
+        if (device == mnt->mnt_fsname)
         {
-            // get a partition
-            const char* entryName = udev_list_entry_get_name(entry);
-            udev_device* blockDev = udev_device_new_from_syspath(mUdev, entryName);
-            if (!blockDev)  continue;
+            mountPoint = mnt->mnt_dir;
+            break;
+        }
+    }
 
-            // filter only removable ones
-            if (isRemovable(blockDev))
+    endmntent(fsMounts); // closes the file descriptor
+
+    return mountPoint;
+}
+
+void DriveNotifyPosix::cacheMountedPartitions()
+{
+    // enumerate all mounted partitions
+    udev_enumerate* enumerate = udev_enumerate_new(mUdev);
+
+    udev_enumerate_add_match_subsystem(enumerate, "block");
+    udev_enumerate_add_match_property(enumerate, "DEVTYPE", "partition");
+    udev_enumerate_scan_devices(enumerate);
+
+    udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
+    udev_list_entry *entry;
+
+    udev_list_entry_foreach(entry, devices) // for loop
+    {
+        // get a partition
+        const char* entryName = udev_list_entry_get_name(entry);
+        udev_device* blockDev = udev_device_new_from_syspath(mUdev, entryName);
+        if (!blockDev)  continue;
+
+        // filter only removable ones
+        if (isRemovable(blockDev))
+        {
+            // get partition node
+            const char* devNode = udev_device_get_devnode(blockDev); // "/dev/sda1"
+
+            // cache mount point
+            std::string mountPoint = getMountPoint(devNode);
+            if (!mountPoint.empty())
             {
-                // get partition node
-                const char* devNode = udev_device_get_devnode(blockDev); // "/dev/sda1"
-
-                // cache mount point
-                std::string mountPoint = getMountPoint(devNode);
-                if (!mountPoint.empty())
-                {
-                    mMounted[devNode] = mountPoint;
-                }
+                mMounted[devNode] = mountPoint;
             }
-
-            udev_device_unref(blockDev);
         }
 
-        udev_enumerate_unref(enumerate);
+        udev_device_unref(blockDev);
     }
 
+    udev_enumerate_unref(enumerate);
+}
 
+bool DriveNotifyPosix::isRemovable(udev_device* part)
+{
+    udev_device* parent = udev_device_get_parent(part); // do not unref this one!
+    if (!parent)  return false;
 
-    bool DriveNotifyPosix::isRemovable(udev_device* part)
-    {
-        udev_device* parent = udev_device_get_parent(part); // do not unref this one!
-        if (!parent)  return false;
+    const char* removable = udev_device_get_sysattr_value(parent, "removable");
+    return removable && !strcmp(removable, "1");
+}
 
-        const char* removable = udev_device_get_sysattr_value(parent, "removable");
-        return removable && !strcmp(removable, "1");
-    }
-
-
-
-    DriveNotifyPosix::~DriveNotifyPosix()
-    {
-        stop();
-    }
+DriveNotifyPosix::~DriveNotifyPosix()
+{
+    stop();
+}
 
 } // namespace
 

@@ -37,32 +37,32 @@ struct udev_device;
 
 namespace mega {
 
-    // Posix: Platform specific definition
-    //
-    // Not implemented.
-    class DriveNotifyPosix : public DriveNotify
-    {
-    public:
-        ~DriveNotifyPosix() override;
+// Posix: Platform specific definition
+//
+// Not implemented.
+class DriveNotifyPosix : public DriveNotify
+{
+public:
+    ~DriveNotifyPosix() override;
 
-    protected:
-        bool startNotifier() override;
-        void stopNotifier() override;
+protected:
+    bool startNotifier() override;
+    void stopNotifier() override;
 
-    private:
-        void cacheMountedPartitions();
-        bool isRemovable(udev_device* part);
-        void doInThread();
-        void evaluateDevice(udev_device* dev);  // dev must Not be null
-        std::string getMountPoint(const std::string& device);
+private:
+    void cacheMountedPartitions();
+    bool isRemovable(udev_device* part);
+    void doInThread();
+    void evaluateDevice(udev_device* dev);  // dev must Not be null
+    std::string getMountPoint(const std::string& device);
 
-        std::atomic_bool mStop;
-        std::thread mEventSinkThread;
+    std::atomic_bool mStop;
+    std::thread mEventSinkThread;
 
-        udev* mUdev = nullptr;
-        udev_monitor* mUdevMon = nullptr;
-        std::map<std::string, std::string> mMounted;
-    };
+    udev* mUdev = nullptr;
+    udev_monitor* mUdevMon = nullptr;
+    std::map<std::string, std::string> mMounted;
+};
 
 } // namespace
 

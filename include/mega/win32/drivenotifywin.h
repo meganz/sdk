@@ -33,55 +33,55 @@
 
 namespace mega {
 
-    // Windows: Platform specific definition
-    //
-    // Uses WMI. Use 'wbemtest' tool to run WQL queries, for testing and comparison.
-    class DriveNotifyWin : public DriveNotify
+// Windows: Platform specific definition
+//
+// Uses WMI. Use 'wbemtest' tool to run WQL queries, for testing and comparison.
+class DriveNotifyWin : public DriveNotify
+{
+public:
+    DriveNotifyWin() : mStop(false) {}
+    ~DriveNotifyWin() override { stop(); }
+
+protected:
+    bool startNotifier() override;
+    void stopNotifier() override;
+
+private:
+    bool doInThread();
+
+    std::atomic_bool mStop;
+    std::thread mEventSinkThread;
+
+    enum EventType
     {
-    public:
-        DriveNotifyWin() : mStop(false) {}
-        ~DriveNotifyWin() override { stop(); }
-
-    protected:
-        bool startNotifier() override;
-        void stopNotifier() override;
-
-    private:
-        bool doInThread();
-
-        std::atomic_bool mStop;
-        std::thread mEventSinkThread;
-
-        enum EventType
-        {
-            UNKNOWN_EVENT,
-            DRIVE_CONNECTED_EVENT,
-            DRIVE_DISCONNECTED_EVENT
-        };
+        UNKNOWN_EVENT,
+        DRIVE_CONNECTED_EVENT,
+        DRIVE_DISCONNECTED_EVENT
     };
+};
 
 
 
-    // Class for listing drives available at any moment.
-    // This class queries 'Win32_LogicalDisk' for drives available to the user, that are assigned a drive letter.
-    // In the same way, for further information about the partition and physical drive, other providers can be queried:
-    // - Win32_LogicalDiskToPartition
-    // - Win32_DiskPartition
-    // - Win32_DiskDriveToDiskPartition
-    // - Win32_DiskDrive
-    // - Win32_MappedLogicalDisk -- only for mapped drives
-    //
-    // Other non-WMI Volume Management functions available under MS Windows:
-    // https://docs.microsoft.com/en-us/windows/win32/fileio/volume-management-functions
-    // Nice article about possible Dynamic Disk Structures:
-    // https://www.apriorit.com/dev-blog/345-dynamic-disk-structure-parser
-    class VolumeQuery
-    {
-    public:
-        // Query 'Win32_LogicalDisk' for all drives with a drive letter assigned.
-        // Returns a map of {drive-letter (i.e. L"C:"), DriveInfo} pairs.
-        std::map<std::wstring, DriveInfo> query();
-    };
+// Class for listing drives available at any moment.
+// This class queries 'Win32_LogicalDisk' for drives available to the user, that are assigned a drive letter.
+// In the same way, for further information about the partition and physical drive, other providers can be queried:
+// - Win32_LogicalDiskToPartition
+// - Win32_DiskPartition
+// - Win32_DiskDriveToDiskPartition
+// - Win32_DiskDrive
+// - Win32_MappedLogicalDisk -- only for mapped drives
+//
+// Other non-WMI Volume Management functions available under MS Windows:
+// https://docs.microsoft.com/en-us/windows/win32/fileio/volume-management-functions
+// Nice article about possible Dynamic Disk Structures:
+// https://www.apriorit.com/dev-blog/345-dynamic-disk-structure-parser
+class VolumeQuery
+{
+public:
+    // Query 'Win32_LogicalDisk' for all drives with a drive letter assigned.
+    // Returns a map of {drive-letter (i.e. L"C:"), DriveInfo} pairs.
+    std::map<std::wstring, DriveInfo> query();
+};
 
 } // namespace
 
