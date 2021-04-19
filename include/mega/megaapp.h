@@ -128,10 +128,6 @@ struct MEGA_API MegaApp
     // node addition has failed
     virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride = false) { }
 
-    // share update result
-    virtual void share_result(error, bool writable = false) { }
-    virtual void share_result(int, error, bool writable = false) { }
-
     // outgoing pending contact result
     virtual void setpcr_result(handle, error, opcactions_t) { }
     // incoming pending contact result
@@ -178,10 +174,6 @@ struct MEGA_API MegaApp
 #endif
 
     virtual void getuseremail_result(string *, error) { }
-
-    // file node export result
-    virtual void exportnode_result(error) { }
-    virtual void exportnode_result(handle, handle) { }
 
     // exported link access result
     virtual void openfilelink_result(const Error&) { }
@@ -333,7 +325,7 @@ struct MEGA_API MegaApp
     virtual void syncs_disabled(SyncError) { }
 
     // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted) { }
+    virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted, bool hadAnError) { }
 
     // after a sync has been removed
     virtual void sync_removed(handle backupId) { }
@@ -413,7 +405,6 @@ struct MEGA_API MegaApp
     virtual void getmiscflags_result(error) { }
 
     virtual void backupput_result(const Error&, handle /*backup id*/) { }
-    virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
     virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual void getbanners_result(error) { }
