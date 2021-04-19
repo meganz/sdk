@@ -1,0 +1,102 @@
+diff --git a/fix-xbm-eof.patch b/fix-xbm-eof.patch
+new file mode 100644
+index 0000000..981aeda
+--- /dev/null
++++ b/fix-xbm-eof.patch
+@@ -0,0 +1,17 @@
++diff --git a/Source/FreeImage/PluginXBM.cpp b/Source/FreeImage/PluginXBM.cpp
++index 0aac48c..1df96d2 100644
++--- a/Source/FreeImage/PluginXBM.cpp
+++++ b/Source/FreeImage/PluginXBM.cpp
++@@ -72,7 +72,11 @@ Get a char from the stream
++ static int 
++ readChar(FreeImageIO *io, fi_handle handle) {
++ 	BYTE c;
++-	io->read_proc(&c, 1, 1, handle);
+++	auto nRead = io->read_proc(&c, 1, 1, handle);
+++	if (nRead != 1)
+++	{
+++		return EOF;
+++	}
++ 	return c;
++ }
++
+diff --git a/fix-xbm-msvc-compiler-bug.patch b/fix-xbm-msvc-compiler-bug.patch
+new file mode 100644
+index 0000000..5f73cd7
+--- /dev/null
++++ b/fix-xbm-msvc-compiler-bug.patch
+@@ -0,0 +1,36 @@
++diff --git a/Source/FreeImage/PluginXBM.cpp b/Source/FreeImage/PluginXBM.cpp
++index 1df96d2..ec0b63a 100644
++--- a/Source/FreeImage/PluginXBM.cpp
+++++ b/Source/FreeImage/PluginXBM.cpp
++@@ -98,7 +98,11 @@ readXBMFile(FreeImageIO *io, fi_handle handle, int *widthP, int *heightP, char *
++ 	int raster_length, v;
++ 	int bytes, bytes_per_line, padding;
++ 	int c1, c2, value1, value2;
++-	int hex_table[256];
+++
+++    // declaring this array volatile avoids an msvc compiler bug that skips the assignment of index 0x30 to 0 with optimizations on
+++	// bug was in at least MSVC2017 and MSVC2019 up to 16.9.2, compiler versions eg. 19.16.27026.1 , 19.00.24234.1
+++	volatile int hex_table[256];
+++
++ 	BOOL found_declaration;
++ 	/* in scanning through the bitmap file, we have found the first
++ 	 line of the C declaration of the array (the "static char ..."
++@@ -169,7 +173,6 @@ readXBMFile(FreeImageIO *io, fi_handle handle, int *widthP, int *heightP, char *
++ 	for ( c1 = 0; c1 < 256; c1++ ) {
++ 		hex_table[c1] = 256;
++ 	}
++-	hex_table['0'] = 0;
++ 	hex_table['1'] = 1;
++ 	hex_table['2'] = 2;
++ 	hex_table['3'] = 3;
++@@ -192,6 +195,10 @@ readXBMFile(FreeImageIO *io, fi_handle handle, int *widthP, int *heightP, char *
++ 	hex_table['e'] = 14;
++ 	hex_table['f'] = 15;
++
+++    // moving this assignment to the end avoids an msvc compiler bug that skips the assignment with optimizations on
+++	// bug was in at least MSVC2017 and MSVC2019 up to 16.9.2, compiler versions eg. 19.16.27026.1 , 19.00.24234.1
+++	hex_table['0'] = 0;
+++
++ 	if(version == 10) {
++ 		for( bytes = 0, ptr = *dataP; bytes < raster_length; bytes += 2 ) {
++ 			while( ( c1 = readChar(io, handle) ) != 'x' ) {
+diff --git a/portfile.cmake b/portfile.cmake
+index ce1b868..5fc0681 100644
+--- a/portfile.cmake
++++ b/portfile.cmake
+@@ -18,6 +18,8 @@ vcpkg_from_sourceforge(
+         fix-function-overload.patch
+         use-typedef-as-already-declared.patch
+         use-functions-to-override-libtiff-warning-error-handlers.patch
++        fix-xbm-eof.patch
++        fix-xbm-msvc-compiler-bug.patch
+ )
+
+ file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
+@@ -47,5 +49,23 @@ vcpkg_install_cmake()
+ vcpkg_fixup_cmake_targets()
+
+ vcpkg_copy_pdbs()
++
++file(READ "${CURRENT_PACKAGES_DIR}/include/FreeImage.h" _header_data)
++string(REPLACE
++    "typedef int32_t BOOL;"
++    "#define BOOL int32_t"
++    _header_data
++    "${_header_data}"
++)
++
++string(REPLACE
++    "#endif // FREEIMAGE_H"
++    "#undef BOOL
++    #endif // FREEIMAGE_H"
++    _header_data
++    "${_header_data}"
++)
++
++file(WRITE "${CURRENT_PACKAGES_DIR}/include/FreeImage.h" "${_header_data}")
+
+ file(INSTALL ${SOURCE_PATH}/license-fi.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT} RENAME copyright)
