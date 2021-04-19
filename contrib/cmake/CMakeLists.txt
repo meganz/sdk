@@ -807,7 +807,7 @@ target_compile_definitions(Mega PUBLIC
                 $<${HAVE_LIBUV}:HAVE_LIBUV>
                 $<${USE_CPPTHREAD}:USE_CPPTHREAD>
                 $<${USE_QT}:USE_QT>
-                $<${USE_DRIVE_NOTIFICATIONS}:USE_DRIVE_NOTIFICATIONS>)
+                $<${USE_DRIVE_NOTIFICATIONS}:USE_DRIVE_NOTIFICATIONS>
                 $<${USE_PCRE}:USE_PCRE>
                 $<${USE_PDFIUM}:HAVE_PDFIUM>)
 
