@@ -522,6 +522,7 @@ struct Syncs
 
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
+    unsigned numSyncs();
     Sync* firstRunningSync();
     Sync* runningSyncByBackupId(handle backupId) const;
     SyncConfig* syncConfigByBackupId(handle backupId) const;
@@ -546,6 +547,8 @@ struct Syncs
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+
+    void purgeSyncs();
 
     void resetSyncConfigDb();
     void clear();

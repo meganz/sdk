@@ -7219,6 +7219,12 @@ Node* MegaClient::nodebyhandle(handle h) const
     return nullptr;
 }
 
+Node* MegaClient::nodeByHandle(NodeHandle h) const
+{
+    if (h.isUndef()) return nullptr;
+    return nodebyhandle(h.as8byte());
+}
+
 // server-client deletion
 Node* MegaClient::sc_deltree()
 {

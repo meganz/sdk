@@ -1385,6 +1385,7 @@ public:
     // remove node subtree
     void deltree(handle);
 
+    Node* nodeByHandle(NodeHandle) const;
     Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
