@@ -36,7 +36,7 @@ namespace mega {
 // DriveNotifyPosix
 /////////////////////////////////////////////
 
-void DriveNotifyPosix::notifierSetup()
+bool DriveNotifyPosix::notifierSetup()
 {
     // init udev resource
     mUdev = udev_new();
@@ -63,6 +63,8 @@ void DriveNotifyPosix::notifierSetup()
     // SUBSYSTEM=="block", ATTRS{idDevtype}=="partition"
     udev_monitor_filter_add_match_subsystem_devtype(mUdevMon, "block", "partition");
     udev_monitor_enable_receiving(mUdevMon);
+
+    return true;
 }
 
 
