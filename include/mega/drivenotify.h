@@ -28,6 +28,7 @@
 #include <queue>
 #include <mutex>
 #include <thread>
+#include <atomic>
 
 namespace mega {
 
