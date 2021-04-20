@@ -3123,7 +3123,7 @@ class MegaRequest
          * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
          * - MegaApi::fetchGoogleAds - Returns public handle that the user is visiting (optionally)
          * - MegaApi::queryGoogleAds - Returns public handle that the user is visiting (optionally)
-         * - MegaApi::getChatLinkURL - Returns the call identifier (if a call exists)
+         * - MegaApi::getChatLinkURL - Returns the public handle
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3178,6 +3178,7 @@ class MegaRequest
          * - MegaApi::sendBackupHeartbeat - Returns the backupId
          * - MegaApi::syncFolder - Returns the backupId asociated with the sync
          * - MegaApi::copySyncDataToCache - Returns the backupId asociated with the sync
+         * - MegaApi::getChatLinkURL - Returns the chatid
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3500,7 +3501,7 @@ class MegaRequest
          * - MegaApi::moveTransferBefore - Returns false (it means that it's a manual move)
          * - MegaApi::moveTransferBeforeByTag - Returns false (it means that it's a manual move)
          * - MegaApi::setBackup - Returns if backups that should have happen in the past should be taken care of
-         * - MegaApi::getChatLinkURL - Returns true (it means that it's a meeting room)
+         * - MegaApi::getChatLinkURL - Returns a vector with one element (callid), if call doesn't exit it will be NULL
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3783,6 +3784,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::getFavourites - A list of MegaHandle objects
+         * - MegaApi::getChatLinkURL - Returns a vector with the callid (if call exits in other case it will be NULL)
          *
          * @return MegaHandle list
          */
@@ -17991,6 +17993,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Returns the public hanle
          * - MegaRequest::getLink - Returns the URL to connect to chatd for the chat link
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getAccess - Returns the shard
@@ -17998,7 +18001,7 @@ class MegaApi
          * - MegaRequest::getNumDetails - Returns the current number of participants
          * - MegaRequest::getNumber - Returns the creation timestamp
          * - MegaRequest::getFlag - Returns if chatRoom is a meeting Room
-         * - MegaRequest::getNodeHandle - Return the call identifier (if exists)
+         * - MegaRequest::getMegaHandleList - Returns a vector with one element (callid), if call doesn't exit it will be NULL
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - If the public handle is not valid or the chatroom does not exists.

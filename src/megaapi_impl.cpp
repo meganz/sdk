@@ -13115,7 +13115,9 @@ void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, str
         request->setNumDetails(numPeers);
         request->setNumber(ts);
         request->setFlag(meetingRoom);
-        request->setNodeHandle(callid);
+        std::vector<MegaHandle> handleList;
+        handleList.push_back(callid);
+        request->setMegaHandleList(handleList);
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
