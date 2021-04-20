@@ -733,13 +733,7 @@ struct StandardClient : public MegaApp
     StandardClient(const fs::path& basepath, const string& name)
         : client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
-        , fsaccess(
-#ifndef __APPLE__
-            new FSACCESS_CLASS
-#else
-            new FSACCESS_CLASS(gFseventsFd)
-#endif
-            )
+        , fsaccess(new FSACCESS_CLASS(makeFsAccess()))
         , client(this,
                  &waiter,
                  httpio.get(),

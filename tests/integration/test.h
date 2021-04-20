@@ -3,6 +3,7 @@
 #include <thread>
 #include <vector>
 
+#include "megafs.h"
 #include "stdfs.h"
 
 
@@ -49,3 +50,5 @@ private:
 
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
+
+::mega::FSACCESS_CLASS makeFsAccess();
