@@ -985,6 +985,9 @@ public:
     // stop receiving external drive [dis]connect notifications
     void stopDriveMonitor();
 
+    // returns true if drive monitor is started
+    bool driveMonitorEnabled();
+
 private:
 #ifdef USE_DRIVE_NOTIFICATIONS
     DriveInfoCollector mDriveInfoCollector;

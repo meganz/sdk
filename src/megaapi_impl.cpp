@@ -23449,6 +23449,12 @@ void MegaApiImpl::stopDriveMonitor()
     client->stopDriveMonitor();
 }
 
+bool MegaApiImpl::driveMonitorEnabled()
+{
+    SdkMutexGuard g(sdkMutex);
+    return client->driveMonitorEnabled();
+}
+
 #ifdef USE_DRIVE_NOTIFICATIONS
 void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
 {

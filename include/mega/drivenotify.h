@@ -68,6 +68,8 @@ public:
     bool start(std::function<void()> notify);
     void stop();
 
+    bool enabled() { return mEventSinkThread.joinable(); }
+
     std::pair<DriveInfo::StringType, bool> get();
 
     virtual ~DriveNotify() { stop(); }

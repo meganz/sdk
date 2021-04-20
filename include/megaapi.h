@@ -18561,6 +18561,12 @@ class MegaApi
          */
         void stopDriveMonitor();
 
+        /**
+         * @brief Check if drive monitor is running
+         * @return True if it is running, false otherwise.
+         */
+        bool driveMonitorEnabled();
+
  private:
         MegaApiImpl *pImpl;
         friend class MegaApiImpl;

@@ -2807,6 +2807,7 @@ class MegaApiImpl : public MegaApp
 
         bool startDriveMonitor();
         void stopDriveMonitor();
+        bool driveMonitorEnabled();
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
