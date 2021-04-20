@@ -1337,7 +1337,7 @@ TEST_F(SdkTest, SdkTestKillSession)
                         {
                             return mApi[1].megaApi->isLoggedIn()  == 0;
                         },
-                        8 * 1000));
+                        80 * 1000));
 
     // Log out the primary account.
     logout(0, false, maxTimeout);
