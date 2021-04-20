@@ -3124,7 +3124,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
-    p->Add(exec_drivemonitor, sequence(text("drivemonitor"), either(text("on"), text("off"))));
+    p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -6561,17 +6561,25 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
 void exec_drivemonitor(autocomplete::ACState& s)
 {
 #ifdef USE_DRIVE_NOTIFICATIONS
-    if (s.words[1].s == "off")
+
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    if (turnon)
+    {
+        // start receiving notifications
+        if (!client->startDriveMonitor())
+        {
+            // return immediately, when this functionality was not implemented
+            cout << "Failed starting drive notifications" << endl;
+        }
+    }
+    else if (turnoff)
     {
         client->stopDriveMonitor();
     }
 
-    // start receiving notifications
-    else if (!client->startDriveMonitor())
-    {
-        // return immediately, when this functionality was not implemented
-        std::cout << "Failed starting drive notifications" << std::endl;
-    }
+    cout << "Drive monitor " << (client->driveMonitorEnabled() ? "on" : "off") << endl;
 #else
     std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
 #endif // USE_DRIVE_NOTIFICATIONS
