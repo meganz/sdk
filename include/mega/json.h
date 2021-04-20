@@ -65,6 +65,7 @@ struct MEGA_API JSON
     // MegaClient::NODEHANDLE
     bool ishandle(int = 6);
     handle gethandle(int = 6);
+    NodeHandle getNodeHandle();
 
     bool enterarray();
     bool leavearray();
@@ -107,6 +108,7 @@ public:
     void arg(const char*, const string&, int = 1);
     void arg(const char*, const char*, int = 1);
     void arg(const char*, handle, int);
+    void arg(const char*, NodeHandle);
     void arg(const char*, const byte*, int);
     void arg(const char*, m_off_t);
     void arg_B64(const char*, const string&);
