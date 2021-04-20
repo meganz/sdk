@@ -21,6 +21,7 @@
 
 #ifdef USE_DRIVE_NOTIFICATIONS
 
+
 #include <combaseapi.h>
 #include <comutil.h>
 #include <wbemcli.h>
@@ -31,6 +32,7 @@
 
 using namespace std;
 using namespace Microsoft::WRL; // ComPtr
+
 
 
 namespace mega {
@@ -80,14 +82,14 @@ void DriveNotifyWin::stopNotifier()
 
 
 
-bool DriveNotifyWin::doInThread()
+void DriveNotifyWin::doInThread()
 {
     // init com
-    if (!WinWmi::InitializeCom())  return false;
+    if (!WinWmi::InitializeCom())  return;
 
     IWbemLocator* pLocator = nullptr;
     IWbemServices* pService = nullptr;
-    if (!WinWmi::GetWbemService(&pLocator, &pService)) { CoUninitialize(); return false; }
+    if (!WinWmi::GetWbemService(&pLocator, &pService)) { CoUninitialize(); return; }
 
     // BSTR is wchar_t*. Use the latter to avoid including even more obscure headers.
     wchar_t foolBstrWql[] = L"WQL";
@@ -116,13 +118,13 @@ bool DriveNotifyWin::doInThread()
         pLocator->Release();
         CoUninitialize();
 
-        return false;
+        return;
     }
 
     // fetch results
     IWbemClassObject* pQueryObject = nullptr; // keep it outside the loop, to *not* be initialized every time
     ULONG returnedObjectCount = 0;
-    while (pEnumerator && !mStop.load())
+    while (pEnumerator && !shouldStop())
     {
         // poll for one event at a time
         result = pEnumerator->Next(500 /*ms*/, 1, &pQueryObject, &returnedObjectCount);
@@ -179,7 +181,7 @@ bool DriveNotifyWin::doInThread()
     pLocator->Release();
     CoUninitialize();
 
-    return SUCCEEDED(result);
+    return;
 }
 
 
@@ -207,7 +209,7 @@ map<wstring, DriveInfo> VolumeQuery::query()
 
     // build query
     wchar_t foolBstrQuery[] = L"SELECT DeviceID, Description, DriveType, MediaType,"
-                                    L" ProviderName, Size, SystemName, VolumeSerialNumber"
+                              L" ProviderName, Size, SystemName, VolumeSerialNumber"
                               L" FROM Win32_LogicalDisk";
     wchar_t* bstrQuery = foolBstrQuery;
 

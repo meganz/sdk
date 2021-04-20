@@ -757,9 +757,14 @@ CONFIG(USE_DRIVE_NOTIFICATIONS) {
         SOURCES += src/win32/drivenotifywin.cpp
         LIBS += -lwbemuuid
     }
-    unix {
+    unix:!macx {
         HEADERS += include/mega/posix/drivenotifyposix.h
         SOURCES += src/posix/drivenotifyposix.cpp
         LIBS += -ludev
+    }
+    macx {
+        HEADERS += include/mega/osx/drivenotifyosx.h
+        SOURCES += src/osx/drivenotifyosx.cpp
+        LIBS += -framework DiskArbitration -framework CoreFoundation
     }
 }

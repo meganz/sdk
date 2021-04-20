@@ -28,56 +28,79 @@ using namespace std;
 
 namespace mega {
 
-    bool DriveNotify::start(function<void()> notify)
+bool DriveNotify::start(function<void()> notify)
+{
+    lock_guard<mutex> lock(mSyncAccessMutex);
+
+    // start the notifier
+    bool started = startNotifier();
+    if (started)
     {
-        lock_guard<mutex> lock(mSyncAccessMutex);
-
-        // start the notifier
-        bool started = startNotifier();
-        if (started)
-        {
-            mNotifyOnInfo = notify;
-        }
-
-        return started;
+        mNotifyOnInfo = notify;
     }
 
-    void DriveNotify::stop()
+    return started;
+}
+
+void DriveNotify::stop()
+{
+    stopNotifier();
+    decltype(mInfoQueue) temp;
+    mInfoQueue.swap(temp); // clear the container
+}
+
+bool DriveNotify::startNotifier()
+{
+    if (mEventSinkThread.joinable() || mStop.load()) return false;
+
+    if (!notifierSetup()) return false;
+
+    mEventSinkThread = thread(&DriveNotify::doInThread, this);
+
+    return true;
+}
+
+void DriveNotify::stopNotifier()
+{
+    if (!mEventSinkThread.joinable()) return;
+
+    mStop.store(true);
+    mEventSinkThread.join();
+
+    notifierTeardown();
+
+    mStop.store(false);
+}
+
+std::pair<DriveInfo::StringType, bool> DriveNotify::get()
+{
+    // sync access
+    lock_guard<mutex> lock(mSyncAccessMutex);
+
+    // no entry, return invalid data
+    if (mInfoQueue.empty())  return pair<DriveInfo::StringType, bool>();
+
+    // get the oldest entry
+    const DriveInfo& drive = mInfoQueue.front();
+    pair<DriveInfo::StringType, bool> info(move(drive.mountPoint), drive.connected);
+    mInfoQueue.pop();
+
+    return info;
+}
+
+void DriveNotify::add(DriveInfo&& info)
+{
+    // sync access
     {
-        stopNotifier();
-        decltype(mInfoQueue) temp;
-        mInfoQueue.swap(temp); // clear the container
-    }
-
-    std::pair<DriveInfo::StringType, bool> DriveNotify::get()
-    {
-        // sync access
-        lock_guard<mutex> lock(mSyncAccessMutex);
-
-        // no entry, return invalid data
-        if (mInfoQueue.empty())  return pair<DriveInfo::StringType, bool>();
-
-        // get the oldest entry
-        const DriveInfo& drive = mInfoQueue.front();
-        pair<DriveInfo::StringType, bool> info(move(drive.mountPoint), drive.connected);
-        mInfoQueue.pop();
-
-        return info;
-    }
-
-    void DriveNotify::add(DriveInfo&& info)
-    {
-        // sync access
-        {
         lock_guard<mutex> lock(mSyncAccessMutex);
 
         // save the new info
         mInfoQueue.emplace(move(info));
-        }
-
-        // notify that new info was received
-        mNotifyOnInfo();
     }
+
+    // notify that new info was received
+    mNotifyOnInfo();
+}
 
 } // namespace mega
 

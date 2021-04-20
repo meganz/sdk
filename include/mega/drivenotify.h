@@ -27,6 +27,8 @@
 #include <string>
 #include <queue>
 #include <mutex>
+#include <thread>
+#include <atomic>
 
 namespace mega {
 
@@ -68,17 +70,27 @@ public:
 
     std::pair<DriveInfo::StringType, bool> get();
 
-    // This will most likely need to be overridden to call stop().
-    virtual ~DriveNotify() = default;
+    virtual ~DriveNotify() { stop(); }
 
 protected:
-    virtual bool startNotifier() = 0;
-    virtual void stopNotifier() = 0;
+    bool shouldStop() { return mStop.load(); }
+
+    bool startNotifier();
+    virtual bool notifierSetup() { return true; }
+
+    void stopNotifier();
+    virtual void notifierTeardown() {}
+
     void add(DriveInfo&& info);
+
+    virtual void doInThread() = 0;
 
 private:
     std::queue<DriveInfo> mInfoQueue;
     std::mutex mSyncAccessMutex;
+
+    std::atomic_bool mStop{false};
+    std::thread mEventSinkThread;
 
     std::function<void()> mNotifyOnInfo;
 };
@@ -90,6 +102,11 @@ private:
 #include "mega/win32/drivenotifywin.h"
 namespace mega {
     using DriveInfoCollector = DriveNotifyWin;
+}
+#elif __APPLE__
+#include "mega/osx/drivenotifyosx.h"
+namespace mega {
+    using DriveInfoCollector = DriveNotifyOsx;
 }
 #else
 #include "mega/posix/drivenotifyposix.h"

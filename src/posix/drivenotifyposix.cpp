@@ -21,11 +21,13 @@
 
 #ifdef USE_DRIVE_NOTIFICATIONS
 
+
 #include "mega/drivenotify.h"
 #include <libudev.h> // Ubuntu: sudo apt-get install libudev-dev
 #include <mntent.h>
 #include <cstring>
 #include <chrono>
+
 
 
 namespace mega {
@@ -34,10 +36,8 @@ namespace mega {
 // DriveNotifyPosix
 /////////////////////////////////////////////
 
-bool DriveNotifyPosix::startNotifier()
+bool DriveNotifyPosix::notifierSetup()
 {
-    if (mEventSinkThread.joinable() || mStop.load())  return false;
-
     // init udev resource
     mUdev = udev_new();
     if (!mUdev)  return false;  // is udevd daemon running?
@@ -64,23 +64,13 @@ bool DriveNotifyPosix::startNotifier()
     udev_monitor_filter_add_match_subsystem_devtype(mUdevMon, "block", "partition");
     udev_monitor_enable_receiving(mUdevMon);
 
-    // start worker thread
-    mEventSinkThread = std::thread(&DriveNotifyPosix::doInThread, this);
-
     return true;
 }
 
-void DriveNotifyPosix::stopNotifier()
+
+
+void DriveNotifyPosix::notifierTeardown()
 {
-    // begin the stopping routine
-    mStop.store(true);
-
-    // stop the worker thread
-    if (mEventSinkThread.joinable())
-    {
-        mEventSinkThread.join();
-    }
-
     // release udev monitor
     if (mUdevMon)
     {
@@ -95,15 +85,14 @@ void DriveNotifyPosix::stopNotifier()
         udev_unref(mUdev);
         mUdev = nullptr;
     }
-
-    // end the stopping routine
-    mStop.store(false); // and allow reusing this instance
 }
+
+
 
 void DriveNotifyPosix::doInThread()
 {
     int fd = udev_monitor_get_fd(mUdevMon);
-    while (!mStop.load())
+    while (!shouldStop())
     {
         // use a blocking call, with a timeout, to check for device events
         fd_set fds;
@@ -127,6 +116,8 @@ void DriveNotifyPosix::doInThread()
         }
     }
 }
+
+
 
 void DriveNotifyPosix::evaluateDevice(udev_device* dev)  // dev must Not be null
 {
@@ -184,6 +175,8 @@ void DriveNotifyPosix::evaluateDevice(udev_device* dev)  // dev must Not be null
     }
 }
 
+
+
 std::string DriveNotifyPosix::getMountPoint(const std::string& device)
 {
     std::string mountPoint;
@@ -211,6 +204,8 @@ std::string DriveNotifyPosix::getMountPoint(const std::string& device)
 
     return mountPoint;
 }
+
+
 
 void DriveNotifyPosix::cacheMountedPartitions()
 {
@@ -251,6 +246,8 @@ void DriveNotifyPosix::cacheMountedPartitions()
     udev_enumerate_unref(enumerate);
 }
 
+
+
 bool DriveNotifyPosix::isRemovable(udev_device* part)
 {
     udev_device* parent = udev_device_get_parent(part); // do not unref this one!
@@ -258,11 +255,6 @@ bool DriveNotifyPosix::isRemovable(udev_device* part)
 
     const char* removable = udev_device_get_sysattr_value(parent, "removable");
     return removable && !strcmp(removable, "1");
-}
-
-DriveNotifyPosix::~DriveNotifyPosix()
-{
-    stop();
 }
 
 } // namespace

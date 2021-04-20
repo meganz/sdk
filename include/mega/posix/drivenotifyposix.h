@@ -42,22 +42,17 @@ namespace mega {
 // Not implemented.
 class DriveNotifyPosix : public DriveNotify
 {
-public:
-    ~DriveNotifyPosix() override;
-
 protected:
-    bool startNotifier() override;
-    void stopNotifier() override;
+    bool notifierSetup() override;
+    void notifierTeardown() override;
+
+    void doInThread() override;
 
 private:
     void cacheMountedPartitions();
     bool isRemovable(udev_device* part);
-    void doInThread();
     void evaluateDevice(udev_device* dev);  // dev must Not be null
     std::string getMountPoint(const std::string& device);
-
-    std::atomic_bool mStop;
-    std::thread mEventSinkThread;
 
     udev* mUdev = nullptr;
     udev_monitor* mUdevMon = nullptr;
