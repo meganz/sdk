@@ -23,7 +23,7 @@ project(MegaSDK)
 
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
-if(CMAKE_HOST_APPLE)
+if (CMAKE_HOST_APPLE)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
     set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
@@ -45,6 +45,7 @@ set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
 set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
 set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
+set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
@@ -807,9 +808,9 @@ target_compile_definitions(Mega PUBLIC
                 $<${HAVE_LIBUV}:HAVE_LIBUV>
                 $<${USE_CPPTHREAD}:USE_CPPTHREAD>
                 $<${USE_QT}:USE_QT>
-                $<${USE_DRIVE_NOTIFICATIONS}:USE_DRIVE_NOTIFICATIONS>
                 $<${USE_PCRE}:USE_PCRE>
-                $<${USE_PDFIUM}:HAVE_PDFIUM>)
+                $<${USE_PDFIUM}:HAVE_PDFIUM>
+                $<${USE_DRIVE_NOTIFICATIONS}:USE_DRIVE_NOTIFICATIONS>)
 
 if (WIN32)
     target_link_libraries(Mega PUBLIC crypt32.lib)

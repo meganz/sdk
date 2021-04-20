@@ -6558,21 +6558,6 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
     cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
 }
 
-void exec_enabletransferresumption(autocomplete::ACState& s)
-{
-    if (s.words.size() > 1 && s.words[1].s == "off")
-    {
-        client->disabletransferresumption(NULL);
-        cout << "transfer resumption disabled" << endl;
-    }
-    else
-    {
-        client->enabletransferresumption(NULL);
-        cout << "transfer resumption enabled" << endl;
-    }
-}
-
-
 void exec_drivemonitor(autocomplete::ACState& s)
 {
 #ifdef USE_DRIVE_NOTIFICATIONS
@@ -6598,7 +6583,6 @@ void DemoApp::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
     std::cout << "Drive " << (appeared ? "connected" : "disconnected") << ": " << driveRoot.platformEncoded() << endl;
 }
 #endif // USE_DRIVE_NOTIFICATIONS
-
 
 // callback for non-EAGAIN request-level errors
 // in most cases, retrying is futile, so the application exits

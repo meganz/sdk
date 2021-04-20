@@ -100,17 +100,17 @@ void DriveNotifyWin::doInThread()
                               L" Within 3 Where"
                               L"     TargetInstance isa 'Win32_LogicalDisk'"
                               L"     and (__CLASS='__InstanceCreationEvent'"      // added a drive
-            L"       or __CLASS='__InstanceDeletionEvent')";    // removed a drive
+                              L"       or __CLASS='__InstanceDeletionEvent')";    // removed a drive
     wchar_t* bstrQuery = foolBstrQuery; // avoid compiler warning
 
     // run query
     IEnumWbemClassObject* pEnumerator = nullptr;
     HRESULT result = pService->ExecNotificationQuery(
-                bstrWql,                                                  // strQueryLanguage
-                bstrQuery,                                                // strQuery
-                WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,    // lFlags
-                nullptr,                                                  // pCtx
-                &pEnumerator);                                            // ppEnum
+        bstrWql,                                                  // strQueryLanguage
+        bstrQuery,                                                // strQuery
+        WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,    // lFlags
+        nullptr,                                                  // pCtx
+        &pEnumerator);                                            // ppEnum
 
     if (FAILED(result))
     {
@@ -142,8 +142,8 @@ void DriveNotifyWin::doInThread()
         if (eventClass.empty())  continue; // ignore any errors
 
         EventType eventType = eventClass == L"__InstanceCreationEvent" ? DRIVE_CONNECTED_EVENT :
-                                                                         eventClass == L"__InstanceDeletionEvent" ? DRIVE_DISCONNECTED_EVENT :
-                                                                                                                    UNKNOWN_EVENT;
+                              eventClass == L"__InstanceDeletionEvent" ? DRIVE_DISCONNECTED_EVENT :
+                                                                         UNKNOWN_EVENT;
 
         if (eventType == UNKNOWN_EVENT)  continue; // ignore
 
@@ -217,11 +217,11 @@ map<wstring, DriveInfo> VolumeQuery::query()
 
     // run query
     result = pService->ExecQuery(
-                bstrWql,                                    // strQueryLanguage
-                bstrQuery,                                  // strQuery
-                WBEM_FLAG_FORWARD_ONLY,                     // lFlags
-                nullptr,                                    // pCtx
-                &pEnumerator);                              // ppEnum
+        bstrWql,                                    // strQueryLanguage
+        bstrQuery,                                  // strQuery
+        WBEM_FLAG_FORWARD_ONLY,                     // lFlags
+        nullptr,                                    // pCtx
+        &pEnumerator);                              // ppEnum
 
     if (FAILED(result))
     {
@@ -333,16 +333,16 @@ bool WinWmi::InitializeCom()
     if (FAILED(result))  return false;
 
     result = CoInitializeSecurity(
-                nullptr,                        // pSecDesc
-                -1,                             // cAuthSvc (COM authentication)
-                nullptr,                        // asAuthSvc
-                nullptr,                        // pReserved1
-                RPC_C_AUTHN_LEVEL_DEFAULT,      // dwAuthnLevel
-                RPC_C_IMP_LEVEL_IMPERSONATE,    // dwImpLevel
-                nullptr,                        // pAuthList
-                EOAC_NONE,                      // dwCapabilities
-                nullptr                         // Reserved
-                );
+        nullptr,                        // pSecDesc
+        -1,                             // cAuthSvc (COM authentication)
+        nullptr,                        // asAuthSvc
+        nullptr,                        // pReserved1
+        RPC_C_AUTHN_LEVEL_DEFAULT,      // dwAuthnLevel
+        RPC_C_IMP_LEVEL_IMPERSONATE,    // dwImpLevel
+        nullptr,                        // pAuthList
+        EOAC_NONE,                      // dwCapabilities
+        nullptr                         // Reserved
+    );
 
     if (FAILED(result) && result != RPC_E_TOO_LATE)
     {
@@ -359,7 +359,7 @@ bool WinWmi::InitializeCom()
 bool WinWmi::GetWbemService(IWbemLocator** ppLocator, IWbemServices** ppService)
 {
     HRESULT result = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER,
-                                      IID_IWbemLocator, reinterpret_cast<LPVOID*>(ppLocator));
+        IID_IWbemLocator, reinterpret_cast<LPVOID*>(ppLocator));
 
     if (FAILED(result))  return false;
 
@@ -367,15 +367,15 @@ bool WinWmi::GetWbemService(IWbemLocator** ppLocator, IWbemServices** ppService)
     wchar_t foolBstr[] = L"ROOT\\CIMV2";
     wchar_t* bstr = foolBstr; // avoid compiler warning
     result = (*ppLocator)->ConnectServer(
-                bstr,                       // strNetworkResource
-                nullptr,                    // strUser
-                nullptr,                    // strPassword
-                nullptr,                    // strLocale
-                0,                          // lSecurityFlags
-                nullptr,                    // strAuthority
-                nullptr,                    // pCtx
-                ppService                   // ppNamespace
-                );
+        bstr,                       // strNetworkResource
+        nullptr,                    // strUser
+        nullptr,                    // strPassword
+        nullptr,                    // strLocale
+        0,                          // lSecurityFlags
+        nullptr,                    // strAuthority
+        nullptr,                    // pCtx
+        ppService                   // ppNamespace
+    );
 
     if (FAILED(result))
     {
@@ -385,15 +385,15 @@ bool WinWmi::GetWbemService(IWbemLocator** ppLocator, IWbemServices** ppService)
     }
 
     result = CoSetProxyBlanket(
-                *ppService,                     // pProxy
-                RPC_C_AUTHN_WINNT,              // dwAuthnSvc
-                RPC_C_AUTHZ_NONE,               // dwAuthzSvc
-                nullptr,                        // pServerPrincName
-                RPC_C_AUTHN_LEVEL_CALL,         // dwAuthnLevel
-                RPC_C_IMP_LEVEL_IMPERSONATE,    // dwImpLevel
-                nullptr,                        // pAuthInfo
-                EOAC_NONE                       // dwCapabilities
-                );
+        *ppService,                     // pProxy
+        RPC_C_AUTHN_WINNT,              // dwAuthnSvc
+        RPC_C_AUTHZ_NONE,               // dwAuthzSvc
+        nullptr,                        // pServerPrincName
+        RPC_C_AUTHN_LEVEL_CALL,         // dwAuthnLevel
+        RPC_C_IMP_LEVEL_IMPERSONATE,    // dwImpLevel
+        nullptr,                        // pAuthInfo
+        EOAC_NONE                       // dwCapabilities
+    );
 
     if (FAILED(result))
     {
