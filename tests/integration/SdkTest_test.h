@@ -97,6 +97,8 @@ struct TransferTracker : public ::mega::MegaTransferListener
     }
 };
 
+typedef std::function<void(MegaError& e, MegaRequest& request)> OnReqFinish;
+
 struct RequestTracker : public ::mega::MegaRequestListener
 {
     std::atomic<bool> started = { false };
@@ -107,9 +109,12 @@ struct RequestTracker : public ::mega::MegaRequestListener
 
     MegaRequest *request = nullptr;
 
-    RequestTracker(MegaApi *api): mApi(api)
-    {
+    OnReqFinish onFinish;
 
+    RequestTracker(MegaApi *api, OnReqFinish finish = nullptr)
+        : mApi(api)
+        , onFinish(finish)
+    {
     }
 
     ~RequestTracker() override
@@ -123,6 +128,8 @@ struct RequestTracker : public ::mega::MegaRequestListener
     }
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e) override
     {
+        if (onFinish) onFinish(*e, *request);
+
         result = e->getErrorCode();
         this->request = request->copy();
         finished = true;
@@ -141,6 +148,25 @@ struct RequestTracker : public ::mega::MegaRequestListener
             return -999; // local timeout
         }
         return f.get();
+    }
+};
+
+
+struct OneShotListener : public ::mega::MegaRequestListener
+{
+    // on request completion, executes the lambda and deletes itself.
+
+    std::function<void(MegaError& e, MegaRequest& request)> mFunc;
+
+    OneShotListener(std::function<void(MegaError& e, MegaRequest& request)> f)
+    : mFunc(f)
+    {
+    }
+
+    void onRequestFinish(MegaApi* api, MegaRequest* request, MegaError* e) override
+    {
+        mFunc(*e, *request);
+        delete this;
     }
 };
 
@@ -202,8 +228,6 @@ public:
     std::unique_ptr<MegaEvent> lastEvent;
 
     MegaHandle mBackupId = UNDEF;
-    std::vector<std::pair<string, MegaHandle> > mBackupNameToBackupId;
-    std::set<MegaHandle> mBackupIds;
     unique_ptr<MegaHandleList> mMegaFavNodeList;
 
 protected:
@@ -295,8 +319,6 @@ public:
 #endif
     template<typename ... Args> int synchronousSetDeviceName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setDeviceName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetDeviceName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getDeviceName(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousSetBackupName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setBackupName(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousGetBackupName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getBackupName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setUserAlias(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAlias(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousQueryGoogleAds(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_QUERY_GOOGLE_ADS, [this, apiIndex, args...]() { megaApi[apiIndex]->queryGoogleAds(args...); }); return mApi[apiIndex].lastError; }
@@ -322,7 +344,9 @@ public:
     template<typename ... requestArgs> int synchronousDisableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableSync(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousEnableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->enableSync(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails() ; return rt.result; }
     template<typename ... requestArgs> int synchronousKillSession(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->killSession(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int synchronousSetBackup(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->setBackup(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousSetBackup(unsigned apiIndex, OnReqFinish f, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get(), f);  megaApi[apiIndex]->setBackup(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doExportNode(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->exportNode(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doDisableExport(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableExport(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetNodeFavourite(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->setNodeFavourite(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousGetFavourites(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->getFavourites(args..., &rt); return rt.waitForResult(); }
 

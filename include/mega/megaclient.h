@@ -513,11 +513,6 @@ public:
     bool syncsup;
 
 #endif
-    // backup names pending to be sent
-    string_map mPendingBackupNames;
-
-    // true if setting the backup name for any backup id is in progress
-    bool mSendingBackupName = false;
 
     // if set, symlinks will be followed except in recursive deletions
     // (give the user ample warning about possible sync repercussions)
@@ -1390,6 +1385,7 @@ public:
     // remove node subtree
     void deltree(handle);
 
+    Node* nodeByHandle(NodeHandle) const;
     Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC

@@ -1272,7 +1272,7 @@ class MegaUser
             CHANGE_TYPE_ALIAS                       = 0x1000000,
             CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
-            CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,
+            //CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,  // this bit can be used for another type of change. Please, recycle :)
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
         };
 
@@ -3422,8 +3422,6 @@ class MegaRequest
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
          * - MegaApi::setBackup - Returns the cron like time string to define period
-         * - MegaApi::setBackup - Returns the extraData associated with the request
-         * - MegaApi::updateBackup - Returns the extraData associated with the request
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -7586,7 +7584,7 @@ class MegaApi
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
-            USER_ATTR_BACKUP_NAMES = 32,         // private - byte array
+            // USER_ATTR_BACKUP_NAMES = 32,         // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34 // private - byte array
         };
@@ -18337,10 +18335,6 @@ class MegaApi
          *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
          *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
          *
-         * Note that the backup name is not registered in the API as part of the data of this
-         * backup. It will be stored in a user's attribute after this request finished. For
-         * more information, see \c MegaApi::setBackupName and MegaApi::getBackupName.
-         *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns the backupId
@@ -18348,7 +18342,6 @@ class MegaApi
          * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getText - Returns the extraData associated with the request
          * - MegaRequest::getTotalBytes - Returns the backup type
          * - MegaRequest::getNumDetails - Returns the backup substate
          * - MegaRequest::getFlag - Returns true
@@ -18360,10 +18353,9 @@ class MegaApi
          * @param backupName Name of the backup
          * @param state state
          * @param subState subState
-         * @param extraData A binary array converted into B64 (optional)
          * @param listener MegaRequestListener to track this request
         */
-        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Update the information about a registered backup for Backup Centre
@@ -18377,35 +18369,33 @@ class MegaApi
          *    Invalid values:
          *    - type: BACKUP_TYPE_INVALID
          *    - nodeHandle: UNDEF
+         *    - backupName: nullptr
          *    - localFolder: nullptr
          *    - deviceId: nullptr
          *    - state: -1
          *    - subState: -1
-         *    - extraData: nullptr
-         *
-         * If you want to update the backup name, use \c MegaApi::setBackupName.
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns the backupId
          * - MegaRequest::getTotalBytes - Returns the backup type
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
+         * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getNumDetails - Returns the backup substate
-         * - MegaRequest::getText - Returns the extraData associated with the request
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * @param backupId backup id identifying the backup to be updated
          * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
+         * @param backupName Name of the backup
          * @param state backup state
          * @param subState backup subState
-         * @param extraData A binary array converted into B64 (optional)
          * @param listener MegaRequestListener to track this request
         */
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder,  const char* backupName, int state, int subState, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Unregister a backup already registered for the Backup Centre
@@ -18457,41 +18447,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener = nullptr);
-
-        /**
-         * @brief Gets the backup name corresponding to a backup id
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_BACKUP_NAMES
-         * - MegaRequest::getNodeHandle - backup id in binary
-         * - MegaRequest::getText - backup id encoded in B64
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getName - Returns the backup name
-         *
-         * If the backup name doesn't exists the request will fail with the error code MegaError::API_ENOENT.
-         *
-         * @param backupId backup id identifying the backup
-         * @param listener MegaRequestListener to track this request
-         */
-        void getBackupName(MegaHandle backupId, MegaRequestListener* listener = nullptr);
-
-        /**
-         * @brief Set or reset a backup name
-         *
-         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_BACKUP_NAMES
-         * - MegaRequest::getNodeHandle - Returns the backup handle in binary
-         * - MegaRequest::getText - Returns the backup name
-         *
-         * @param backupId backup id identifying the backup
-         * @param backupName backup name to be set, or null to reset the existing
-         * @param listener MegaRequestListener to track this request
-         */
-        void setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Fetch Google ads

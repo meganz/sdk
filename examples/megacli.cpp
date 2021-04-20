@@ -170,7 +170,7 @@ std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string 
     }
     else
     {
-        return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
+        return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
     }
 
     bool syncDeletions = false;
@@ -188,7 +188,7 @@ std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string 
         }
         else
         {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
         }
 
         if (overwrite == "on")
@@ -201,11 +201,11 @@ std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string 
         }
         else
         {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig(LocalPath(), "", UNDEF, "", 0, {}, true, syncType));
+    return std::make_pair(true, SyncConfig(LocalPath(), "", NodeHandle(), "", 0, {}, true, syncType));
 }
 
 #endif
@@ -4971,9 +4971,7 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_BACKUP_NAMES
-                    || attrtype == ATTR_DEVICE_NAMES
-                    || attrtype == ATTR_ALIAS)
+            if (attrtype == ATTR_DEVICE_NAMES || attrtype == ATTR_ALIAS)
             {
                 std::string key = s.words[3].s;
                 std::string value = Base64::btoa(s.words[4].s);
@@ -8463,7 +8461,7 @@ void exec_syncadd(autocomplete::ACState& s)
     // Create a suitable sync config.
     SyncConfig config(LocalPath::fromPath(sourcePath, *client->fsaccess),
                  sourcePath,
-                 targetNode->nodehandle,
+                 NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
                  string_vector(),

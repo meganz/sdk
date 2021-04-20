@@ -59,7 +59,7 @@ public:
 
     SyncConfig(LocalPath localPath,
         string syncName,
-        const handle remoteNode,
+        NodeHandle remoteNode,
         const string& remotePath,
         const fsfp_t localFingerprint,
         vector<string> regExps = {},
@@ -81,8 +81,8 @@ public:
     const LocalPath& getLocalPath() const;
 
     // the remote path of the sync
-    handle getRemoteNode() const;
-    void setRemoteNode(const handle& remoteNode);
+    NodeHandle getRemoteNode() const;
+    void setRemoteNode(NodeHandle remoteNode);
 
     // the fingerprint of the local sync root folder
     fsfp_t getLocalFingerprint() const;
@@ -124,11 +124,11 @@ public:
     // the local path of the sync
     LocalPath mLocalPath;
 
-    // name of the sync (if localpath is not adecuate)
+    // name of the sync (if localpath is not adequate)
     string mName;
 
     // the remote handle of the sync
-    handle mRemoteNode;
+    NodeHandle mRemoteNode;
 
     // the path to the remote node, as last known (not definitive)
     string mOrigninalPathOfRemoteRootNode;
@@ -384,7 +384,7 @@ public:
     const SyncConfig* getByBackupId(handle backupId) const;
 
     // Get config by backup target handle.
-    const SyncConfig* getByRootHandle(handle targetHandle) const;
+    const SyncConfig* getByRootHandle(NodeHandle targetHandle) const;
 
     // Read this database from disk.
     error read(JSONSyncConfigIOContext& ioContext);
@@ -393,7 +393,7 @@ public:
     error removeByBackupId(handle backupId);
 
     // Remove config by backup target handle.
-    error removeByRootHandle(handle targetHandle);
+    error removeByRootHandle(NodeHandle targetHandle);
 
     // Clears database and removes slots from disk.
     error truncate(JSONSyncConfigIOContext& ioContext);
@@ -522,6 +522,7 @@ struct Syncs
 
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
+    unsigned numSyncs();
     Sync* firstRunningSync();
     Sync* runningSyncByBackupId(handle backupId) const;
     SyncConfig* syncConfigByBackupId(handle backupId) const;
@@ -546,6 +547,8 @@ struct Syncs
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+
+    void purgeSyncs();
 
     void resetSyncConfigDb();
     void clear();

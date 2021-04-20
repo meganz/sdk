@@ -5400,14 +5400,14 @@ void MegaApi::dismissBanner(int id, MegaRequestListener *listener)
     pImpl->dismissBanner(id, listener);
 }
 
-void MegaApi::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApi::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, MegaRequestListener* listener)
 {
-    pImpl->setBackup(backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
+    pImpl->setBackup(backupType, targetNode, localFolder, backupName, state, subState, listener);
 }
 
-void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder,  const char* backupName, int state, int subState, MegaRequestListener* listener)
 {
-    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, state, subState, extraData, listener);
+    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, backupName, state, subState, listener);
 }
 
 void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
@@ -5418,17 +5418,6 @@ void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
 void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener)
 {
     pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode, listener);
-}
-
-void MegaApi::getBackupName(MegaHandle backupId, MegaRequestListener* listener)
-{
-    pImpl->getBackupName(backupId, listener);
-}
-
-void MegaApi::setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener)
-{
-    pImpl->setBackupName(backupId, backupName, listener);
-
 }
 
 void MegaApi::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)

@@ -498,6 +498,9 @@ if(WIN32)
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
+    IF(HAVE_FFMPEG)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Mfplat.lib mfuuid.LIB strmiids.LIB)
+    ENDIF(HAVE_FFMPEG)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp
     ${MegaDir}/src/win32/consolewaiter.cpp
@@ -769,6 +772,15 @@ if ( ENABLE_CODECOVERAGE )
 endif ( CMAKE_COMPILER_IS_GNUCXX )
 
 endif (ENABLE_CODECOVERAGE )
+
+if(IOS)
+    # build with some of these settings as required
+    # -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_Swift_COMPILER_TARGET=arm64-apple-ios7.0.0 -DCMAKE_OSX_SYSROOT=iphoneos -DVCPKG_TRIPLET=arm64-ios-mega 
+    add_definitions( -DUSE_IOS )
+    include_directories( ${MegaDir}/bindings/ios/ ${MegaDir}/bindings/ios/Private )
+    add_executable(simple_ios_build_test ${MegaDir}/bindings/ios/MEGASdk.mm )
+    target_link_libraries(simple_ios_build_test Mega )
+endif()
 
 #test apps
 add_executable(test_unit

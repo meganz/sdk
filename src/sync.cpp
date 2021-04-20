@@ -494,7 +494,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 SyncConfig::SyncConfig(LocalPath localPath,
                        std::string name,
-                       const handle remoteNode,
+                       NodeHandle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
@@ -553,12 +553,12 @@ const LocalPath& SyncConfig::getLocalPath() const
     return mLocalPath;
 }
 
-handle SyncConfig::getRemoteNode() const
+NodeHandle SyncConfig::getRemoteNode() const
 {
     return mRemoteNode;
 }
 
-void SyncConfig::setRemoteNode(const handle &remoteNode)
+void SyncConfig::setRemoteNode(NodeHandle remoteNode)
 {
     mRemoteNode = remoteNode;
 }
@@ -2137,15 +2137,15 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
         if (mConfig.getRemoteNode() != n->nodehandle)
         {
-            mConfig.setRemoteNode(n->nodehandle);
+            mConfig.setRemoteNode(NodeHandle().set6byte(n->nodehandle));
             changed = true;
         }
     }
     else //unset remote node: failed!
     {
-        if (mConfig.getRemoteNode() != UNDEF)
+        if (!mConfig.getRemoteNode().isUndef())
         {
-            mConfig.setRemoteNode(UNDEF);
+            mConfig.setRemoteNode(NodeHandle());
             changed = true;
         }
     }
@@ -2594,6 +2594,11 @@ unsigned Syncs::numRunningSyncs()
     return n;
 }
 
+unsigned Syncs::numSyncs()
+{
+    return unsigned(mSyncVec.size());
+}
+
 Sync* Syncs::firstRunningSync()
 {
     for (auto& s : mSyncVec)
@@ -2684,6 +2689,12 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
             removeSyncByIndex(i);
         }
     }
+}
+
+void Syncs::purgeSyncs()
+{
+    // finally, remove all syncs as usual, unregistering (removeSyncByIndex())
+    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
 }
 
 void Syncs::removeSyncByIndex(size_t index)
@@ -2822,7 +2833,7 @@ void Syncs::resumeResumableSyncsOnStartup()
         {
             if (unifiedSync->mConfig.mOrigninalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
             {
-                auto node = mClient.nodebyhandle(unifiedSync->mConfig.getRemoteNode());
+                auto node = mClient.nodeByHandle(unifiedSync->mConfig.getRemoteNode());
                 unifiedSync->updateSyncRemoteLocation(node, false); //updates cache & notice app of this change
                 if (node)
                 {
@@ -2965,9 +2976,9 @@ const SyncConfig* JSONSyncConfigDB::getByBackupId(handle backupId) const
     return nullptr;
 }
 
-const SyncConfig* JSONSyncConfigDB::getByRootHandle(handle targetHandle) const
+const SyncConfig* JSONSyncConfigDB::getByRootHandle(NodeHandle targetHandle) const
 {
-    if (targetHandle == UNDEF)
+    if (targetHandle.isUndef())
     {
         return nullptr;
     }
@@ -3021,7 +3032,7 @@ error JSONSyncConfigDB::removeByBackupId(handle backupId)
     return removeByBackupId(backupId, true);
 }
 
-error JSONSyncConfigDB::removeByRootHandle(const handle targetHandle)
+error JSONSyncConfigDB::removeByRootHandle(NodeHandle targetHandle)
 {
     // Any config present with the given target handle?
     if (const auto* config = getByRootHandle(targetHandle))
@@ -3636,12 +3647,7 @@ bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) cons
             break;
 
         case TYPE_TARGET_HANDLE:
-            config.mRemoteNode = reader.gethandle(MegaClient::NODEHANDLE);
-            if ((config.mRemoteNode & 0xFFFFFFFFFFFF) == (UNDEF & 0xFFFFFFFFFFFF))
-            {
-                // we can have a much nicer solution when NodeHandle is merged from the sync rework branch
-                config.mRemoteNode = UNDEF;
-            }
+            config.mRemoteNode = reader.getNodeHandle();
             break;
 
         case TYPE_TARGET_PATH:
@@ -3707,7 +3713,7 @@ void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
-    writer.arg("th", config.mRemoteNode, MegaClient::NODEHANDLE);
+    writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
     writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);
