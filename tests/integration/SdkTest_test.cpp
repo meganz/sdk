@@ -288,27 +288,24 @@ void SdkTest::Cleanup()
     deleteFile(PUBLICFILE);
     deleteFile(AVATARDST);
 
+#ifdef ENABLE_SYNC
     std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
-
-    int index = 0;
     for (auto &m : megaApi)
     {
-#ifdef ENABLE_SYNC
-        auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
-        for (int i = syncs->size(); i--; )
+        if (m)
         {
-            delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
-            m->removeSync(syncs->get(i), delSyncTrackers.back().get());
+            auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
+            for (int i = syncs->size(); i--; )
+            {
+                delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
+                m->removeSync(syncs->get(i), delSyncTrackers.back().get());
+            }
         }
-#endif
-
-        ++index;
     }
-
     // wait for delsyncs to complete:
     for (auto& d : delSyncTrackers) d->waitForResult();
     WaitMillisec(5000);
-
+#endif
 
     if (megaApi[0])
     {
@@ -5540,6 +5537,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     // logout while the download (which consists of many transfers) is ongoing
 
     ASSERT_EQ(API_OK, doRequestLogout(0, false));
+    gSessionIDs[0] = "invalid";
 
     int result = downloadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);

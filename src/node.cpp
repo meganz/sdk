@@ -2005,6 +2005,8 @@ LocalNode::Upload::Upload(LocalNode& ln, FSNode& details, NodeHandle targetFolde
     chatauth = nullptr;
     transfer = nullptr;
     tag = 0;
+
+    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, size, 0);
 }
 
 void LocalNode::Upload::prepare()
