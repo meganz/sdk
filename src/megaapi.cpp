@@ -5488,7 +5488,7 @@ void MegaApi::stopDriveMonitor()
 
 bool MegaApi::driveMonitorEnabled()
 {
-    pImpl->driveMonitorEnabled();
+    return pImpl->driveMonitorEnabled();
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
