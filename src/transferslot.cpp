@@ -68,7 +68,7 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
 #endif
 
-const m_off_t MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB
+const m_off_t TransferSlot::MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
     : fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
@@ -661,65 +661,49 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN)
                         {
                             LOG_debug << "Upload token received";
-                            if (!transfer->ultoken)
-                            {
-                                transfer->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
-                            }
+                            transfer->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
+                            memcpy(transfer->ultoken.get(), reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
 
-                            bool tokenOK = true;
-                            if (reqs[i]->in.data()[NewNode::UPLOADTOKENLEN - 1] == 1)
-                            {
-                                LOG_debug << "New style upload token";
-                                memcpy(transfer->ultoken.get(), reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
-                            }
+                            errorcount = 0;
+                            transfer->failcount = 0;
 
-                            if (tokenOK)
+                            // any other connections that have not reported back yet, or we haven't processed yet,
+                            // must have completed also - make sure to include their chunk MACs in the mac-of-macs
+                            for (int j = connections; j--; )
                             {
-                                errorcount = 0;
-                                transfer->failcount = 0;
-
-                                // any other connections that have not reported back yet, or we haven't processed yet,
-                                // must have completed also - make sure to include their chunk MACs in the mac-of-macs
-                                for (int j = connections; j--; )
+                                if (j != i && reqs[j] &&
+                                        (reqs[j]->status == REQ_INFLIGHT
+                                    || reqs[j]->status == REQ_SUCCESS
+                                    || reqs[j]->status == REQ_FAILURE)) // could be a network error getting the result
                                 {
-                                    if (j != i && reqs[j] &&
-                                            (reqs[j]->status == REQ_INFLIGHT
-                                        || reqs[j]->status == REQ_SUCCESS
-                                        || reqs[j]->status == REQ_FAILURE)) // could be a network error getting the result
-                                    {
-                                        LOG_debug << "Including chunk MACs from incomplete/unprocessed (at this end) connection " << j;
-                                        transfer->progresscompleted += reqs[j]->size;
-                                        transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[j].get())->mChunkmacs);
-                                    }
+                                    LOG_debug << "Including chunk MACs from incomplete/unprocessed (at this end) connection " << j;
+                                    transfer->progresscompleted += reqs[j]->size;
+                                    transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[j].get())->mChunkmacs);
                                 }
-
-                                transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
-                                transfer->progresscompleted += reqs[i]->size;
-                                assert(transfer->progresscompleted == transfer->size);
-
-                                updatecontiguousprogress();
-
-                                memcpy(transfer->filekey, transfer->transferkey.data(), sizeof transfer->transferkey);
-                                ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
-                                ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
-                                SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
-
-                                client->transfercacheadd(transfer, &committer);
-
-                                if (transfer->progresscompleted != progressreported)
-                                {
-                                    progressreported = transfer->progresscompleted;
-                                    lastdata = Waiter::ds;
-
-                                    progress();
-                                }
-
-                                return transfer->complete(committer);
                             }
-                            else
+
+                            transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
+                            transfer->progresscompleted += reqs[i]->size;
+                            assert(transfer->progresscompleted == transfer->size);
+
+                            updatecontiguousprogress();
+
+                            memcpy(transfer->filekey, transfer->transferkey.data(), sizeof transfer->transferkey);
+                            ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
+                            ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
+                            SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
+
+                            client->transfercacheadd(transfer, &committer);
+
+                            if (transfer->progresscompleted != progressreported)
                             {
-                                transfer->ultoken.reset();
+                                progressreported = transfer->progresscompleted;
+                                lastdata = Waiter::ds;
+
+                                progress();
                             }
+
+                            return transfer->complete(committer);
                         }
 
                         if (reqs[i]->in.size() != 1 || reqs[i]->in[0] != '0')
@@ -745,8 +729,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 if (e == DAEMON_EFAILED)
                                 {
                                     // megad returning -4 should result in restarting the transfer
+                                    LOG_warn << "Upload piece failed with -4, the upload cannot be continued on that server";
                                     string event = "Unexpected upload chunk confirmation length: " + reqs[i]->in.size();
-                                    client->sendevent(99441, event.c_str(), 0);
+                                    client->sendevent(99441, event.c_str(), 0);  // old-style -4 (from requests with c= instead of d=) were/are reported as 99440
                                 }
                                 else
                                 {
