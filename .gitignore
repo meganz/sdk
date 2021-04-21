@@ -83,6 +83,7 @@ doc/example/lsmega
 *~
 Debug
 Release
+/build-x??-*-mega*/
 /contrib/QtCreator/build-*
 /contrib/QtCreator/MEGAsdk.pro.user
 /contrib/QtCreator/MEGAcli/MEGAcli.pro.user
@@ -103,3 +104,4 @@ megaclient_statecache*
 
 /third_party/Makefile
 /third_party/3rdparty
+/third_party/crashlytics*h
