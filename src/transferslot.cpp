@@ -730,7 +730,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 {
                                     // megad returning -4 should result in restarting the transfer
                                     LOG_warn << "Upload piece failed with -4, the upload cannot be continued on that server";
-                                    string event = "Unexpected upload chunk confirmation length: " + reqs[i]->in.size();
+                                    string event = "Unexpected upload chunk confirmation length: " + std::to_string(reqs[i]->in.size());
                                     client->sendevent(99441, event.c_str(), 0);  // old-style -4 (from requests with c= instead of d=) were/are reported as 99440
                                 }
                                 else
@@ -768,7 +768,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         bool earliestInFlight = true;
                         for (int j = connections; j--; )
                         {
-                            if (j != i &&
+                            if (j != i && reqs[j] && 
                                (reqs[j]->status == REQ_INFLIGHT || reqs[j]->status == REQ_SUCCESS) &&
                                (reqs[j]->pos < reqs[i]->pos))
                             {
