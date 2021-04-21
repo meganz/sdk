@@ -1409,7 +1409,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
-    
+
 #ifndef TARGET_OS_IPHONE
     else
     {
@@ -1473,7 +1473,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
@@ -1605,7 +1604,6 @@ void CurlHttpIO::request_proxy_ip()
     httpctx->httpio = this;
     httpctx->hostname = proxyhost;
     httpctx->ares_pending = 1;
-    
 
 #if TARGET_OS_IPHONE
     send_request(httpctx);
@@ -2639,7 +2637,6 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
     {
         httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain = false;
         httpctx->ares_pending = 1;
-        
 
 #if TARGET_OS_IPHONE
         send_request(httpctx);
