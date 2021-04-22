@@ -23,7 +23,8 @@
 #define GFX_PDFIUM_H 1
 
 #ifdef HAVE_PDFIUM
-#include <mega.h>
+#include <mega/filesystem.h>
+#include <mega/logging.h>
 #include <fpdfview.h>
 
 namespace mega {

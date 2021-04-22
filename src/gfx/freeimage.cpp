@@ -390,7 +390,6 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
 
     std::lock_guard<std::mutex> g(gfxMutex);
     int orientation;
-    PdfiumReader pdfReader;
     BYTE* data = static_cast<BYTE*>(pdfReader.readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess, LocalPath()));
 
     if (data == nullptr || !w || !h)
