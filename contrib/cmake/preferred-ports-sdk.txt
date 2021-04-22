@@ -51,6 +51,7 @@ lcms/c303dd024e2dc03a0665ddffbb12a1077933e649
 libjpeg-turbo/c303dd024e2dc03a0665ddffbb12a1077933e649
 openjpeg/c303dd024e2dc03a0665ddffbb12a1077933e649
 bzip2/c303dd024e2dc03a0665ddffbb12a1077933e649
+libpng/c303dd024e2dc03a0665ddffbb12a1077933e649
 
 #for megachat, not needed by sdk itself
 #libwebsockets/2.4.2

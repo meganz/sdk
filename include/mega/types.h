@@ -155,7 +155,11 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
+               REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED,
+               REQ_INFLIGHT,
+               REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO,
+               } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
@@ -354,6 +358,17 @@ typedef enum {
     SYNC_ACTIVE
 } syncstate_t;
 
+typedef enum
+{
+    // Sync is not operating in a backup capacity.
+    SYNC_BACKUP_NONE = 0,
+    // Sync is mirroring the local source.
+    SYNC_BACKUP_MIRROR = 1,
+    // Sync is monitoring (and propagating) local changes.
+    SYNC_BACKUP_MONITOR = 2
+}
+SyncBackupState;
+
 enum SyncError {
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
@@ -383,6 +398,9 @@ enum SyncError {
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
     WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
+    BACKUP_MODIFIED = 28,                   // Backup has been externally modified.
+    BACKUP_SOURCE_NOT_BELOW_DRIVE = 29,     // Backup source path not below drive path.
+    SYNC_CONFIG_WRITE_FAILURE = 30,         // Unable to write sync config to disk.
 };
 
 enum SyncWarning {
@@ -843,7 +861,7 @@ public:
         STATUS_PRO_LEVEL = 4,
     };
 
-    CacheableStatus(int64_t type, int64_t value);
+    CacheableStatus(Type type, int64_t value);
 
     // serializes the object to a string
     bool serialize(string* data) override;
@@ -851,17 +869,20 @@ public:
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
     static CacheableStatus* unserialize(MegaClient *client, const std::string& data);
-    int64_t type() const;
+    Type type() const;
     int64_t value() const;
 
     void setValue(const int64_t value);
+
+    string typeToStr();
+    static string typeToStr(Type type);
 
 private:
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
-    int64_t mType = STATUS_UNKNOWN;
+    Type mType = STATUS_UNKNOWN;
     int64_t mValue = 0;
 
 };

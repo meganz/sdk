@@ -24,6 +24,8 @@
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
 
+#include "megafs.h"
+
 namespace mega {
 
 namespace detail {
@@ -440,7 +442,7 @@ const char *FileSystemAccess::getPathSeparator()
 #endif
 }
 
-void FileSystemAccess::normalize(string* filename) const
+void FileSystemAccess::normalize(string* filename)
 {
     if (!filename) return;
 
@@ -982,7 +984,7 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
     if (separatorAlways || localpath.size())
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
-        if (!endsInSeparator())
+        if (!(endsInSeparator() || additionalPath.beginsWithSeparator()))
         {
             localpath.append(1, localPathSeparator);
         }
@@ -997,8 +999,7 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
     if (!localpath.empty() && localpath[0] != localPathSeparator)
     {
         // no additional separator if there is already one before
-
-        if (!additionalPath.endsInSeparator())
+        if (!(beginsWithSeparator() || additionalPath.endsInSeparator()))
         {
             localpath.insert(0, 1, localPathSeparator);
         }
@@ -1121,6 +1122,13 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
     string path;
     fsaccess.local2path(&localpath, &path);
     return path;
+}
+
+string LocalPath::toPath() const
+{
+    // only use this one for logging, until we find out if it works for all platforms
+    static FSACCESS_CLASS fsAccess;
+    return toPath(fsAccess);  // fsAccess synchronization not needed, only the data passed to it is modified
 }
 
 string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const
