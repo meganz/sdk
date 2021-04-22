@@ -24,6 +24,7 @@
 #define GFX_CLASS GfxProcFreeImage
 
 #include <FreeImage.h>
+#include "mega/gfx/gfx_pdfium.h"
 
 namespace mega {
 // bitmap graphics processor
@@ -42,10 +43,18 @@ protected:
     string sformats;
     const char* supportedformats();
 
-#ifdef HAVE_FFMPEG
+#if defined(HAVE_FFMPEG)  || defined(HAVE_PDFIUM)
     static std::mutex gfxMutex;
+#endif
+
+#ifdef HAVE_FFMPEG
     const char* supportedformatsFfmpeg();
     bool readbitmapFfmpeg(FileAccess*, const LocalPath&, int);
+#endif
+
+#ifdef HAVE_PDFIUM
+    const char* supportedformatsPDF();
+    bool readbitmapPdf(FileAccess*, const LocalPath&, int);
 #endif
 
 };
