@@ -380,6 +380,9 @@ public:
 
     MegaClient* client = nullptr;
 
+    // for logging
+    string syncname;
+
     // sync-wide directory notification provider
     std::unique_ptr<DirNotify> dirnotify;
 

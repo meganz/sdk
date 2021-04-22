@@ -5102,6 +5102,11 @@ struct TwoWaySyncSymmetryCase
         }
 
         ASSERT_NE(backupId, UNDEF);
+
+        if (Sync* sync = client1().syncByBackupId(backupId))
+        {
+            sync->syncname += "/" + name() + " ";
+        }
     }
 
     void PauseTwoWaySync()
