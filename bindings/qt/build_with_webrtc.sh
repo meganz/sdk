@@ -93,7 +93,7 @@ if [ ! -d "${CURRENTPATH}/webrtc" ] ; then
   rm -rf ${CURRENTPATH}/include/openssl
   ln -sf "${WEBRTC_SRC}/third_party/boringssl/src/include/openssl" ${CURRENTPATH}/include/openssl
   mkdir -p ${CURRENTPATH}/lib
-  # use libssl and libcrypto that have been embeded into libwebrtc
+  # use libssl and libcrypto that have been embedded into libwebrtc
   ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libssl.a
   ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libcrypto.a
   ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libwebrtc.a
