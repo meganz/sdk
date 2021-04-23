@@ -624,6 +624,7 @@ class MEGA_API CommandPutNodes : public Command
     handle targethandle;
 
     void removePendingDBRecordsAndTempFiles();
+    void performAppCallback(Error e, bool targetOverride = false);
 
 public:
     bool procresult(Result) override;

@@ -1197,6 +1197,22 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
     }
 }
 
+void CommandPutNodes::performAppCallback(Error e, bool targetOverride)
+{
+
+    // First disassociate the LocalNodes and NewNodes
+    // We needed them for internal processing (calling back the sync code etc)
+    // but the app should not know about them, and if it calls move(nn)
+    // then we may not remove newnode references from the LocalNodes in a timely fashion.
+
+    for (size_t i = 0; i < nn.size(); i++)
+    {
+        nn[i].localnode.reset();
+    }
+
+    client->app->putnodes_result(e, type, nn, targetOverride);
+}
+
 bool CommandPutNodes::procresult(Result r)
 {
     removePendingDBRecordsAndTempFiles();
@@ -1219,7 +1235,7 @@ bool CommandPutNodes::procresult(Result r)
 
                 if (!client->json.isnumeric())
                 {
-                    client->app->putnodes_result(API_EINTERNAL, type, nn);
+                    performAppCallback(API_EINTERNAL);
                     return false;
                 }
 
@@ -1247,7 +1263,7 @@ bool CommandPutNodes::procresult(Result r)
                 }
                 if (*client->json.pos != '}')
                 {
-                    client->app->putnodes_result(API_EINTERNAL, type, nn);
+                    performAppCallback(API_EINTERNAL);
                     return false;
                 }
                 break;
@@ -1272,17 +1288,22 @@ bool CommandPutNodes::procresult(Result r)
 	    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle);
 
 
+
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
-            client->app->putnodes_result(API_OK, type, nn, targetOverride);
+
+            // internal procesing first in case app takes nn back
             client->putnodes_sync_result(API_OK, nn);
+
+            // call app back.  It might move from nn.
+            performAppCallback(API_OK, targetOverride);
         }
         else
 #endif
         if (source == PUTNODES_APP)
         {
-            client->app->putnodes_result(emptyResponse ? API_ENOENT : API_OK, type, nn, targetOverride);
+            performAppCallback(emptyResponse ? API_ENOENT : API_OK, targetOverride);
         }
 #ifdef ENABLE_SYNC
         else
@@ -1307,21 +1328,15 @@ bool CommandPutNodes::procresult(Result r)
                 client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
             }
 
-            client->app->putnodes_result(r.errorOrOK(), type, nn);
-
-            for (size_t i = 0; i < nn.size(); i++)
-            {
-                nn[i].localnode.reset();
-            }
-
             client->putnodes_sync_result(r.errorOrOK(), nn);
+            performAppCallback(r.errorOrOK());
         }
         else
         {
 #endif
             if (source == PUTNODES_APP)
             {
-                client->app->putnodes_result(r.errorOrOK(), type, nn);
+                performAppCallback(r.errorOrOK());
             }
 #ifdef ENABLE_SYNC
             else
