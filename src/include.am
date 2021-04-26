@@ -94,12 +94,14 @@ if USE_DRIVE_NOTIFICATIONS
 src_libmega_la_SOURCES += src/drivenotify.cpp
 if WIN32
 src_libmega_la_SOURCES += src/win32/drivenotifywin.cpp
+src_libmega_la_LDFLAGS += -lwbemuuid
 else
 if DARWIN
 src_libmega_la_SOURCES += src/osx/drivenotifyosx.cpp
 src_libmega_la_LDFLAGS += -framework CoreFoundation -framework DiskArbitration
 else
 src_libmega_la_SOURCES += src/posix/drivenotifyposix.cpp
+src_libmega_la_LDFLAGS += -ludev
 endif
 endif
 endif
