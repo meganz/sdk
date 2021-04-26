@@ -562,7 +562,7 @@ public:
     bool isBackup() const;
 
     // Whether this is a backup sync and it is mirroring.
-    bool isBackupMirroring() const;
+    bool isBackupAndMirroring() const;
 
     // Whether this is a backup sync and it is monitoring.
     bool isBackupMonitoring() const;

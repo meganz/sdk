@@ -827,9 +827,10 @@ bool Sync::isBackup() const
     return getConfig().isBackup();
 }
 
-bool Sync::isBackupMirroring() const
+bool Sync::isBackupAndMirroring() const
 {
-    return getConfig().getBackupState() == SYNC_BACKUP_MIRROR;
+    return isBackup() &&
+           getConfig().getBackupState() == SYNC_BACKUP_MIRROR;
 }
 
 bool Sync::isBackupMonitoring() const
@@ -4005,7 +4006,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
                     }
                     rowSynced = true;
                 }
-                else if (cloudEqual)
+                else if (cloudEqual || isBackupAndMirroring())
                 {
                     // filesystem changed, put the change
                     rowSynced = resolve_upsync(row, parentRow, fullPath, committer);
@@ -4024,7 +4025,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
             else
             {
                 // cloud item absent
-                if (row.syncNode->syncedCloudNodeHandle.isUndef())
+                if (row.syncNode->syncedCloudNodeHandle.isUndef() || isBackupAndMirroring())
                 {
                     // cloud item did not exist before; upsync
                     rowSynced = resolve_upsync(row, parentRow, fullPath, committer);
