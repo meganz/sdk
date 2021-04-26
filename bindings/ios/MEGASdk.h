@@ -562,6 +562,11 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  */
 - (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath;
 
+/**
+ * @brief Delete MegaApi object
+ */
+- (void)deleteMegaApi;
+
 #pragma mark - Add and remove delegates
 
 /**

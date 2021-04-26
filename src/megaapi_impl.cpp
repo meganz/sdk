@@ -1265,56 +1265,76 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
     return !*pszMatch;
 }
 
-bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& localpath)
+bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpath)
 {
-    // Don't sync these system files from OS X
-    if (!strcmp(name, "Icon\x0d"))
+    auto regexp = make_unique<MegaRegExp>();
+
+    // Regenerate regex list.
+    for (const auto& re : sync->getConfig().getRegExps())
     {
-        return false;
+        regexp->addRegExp(re.c_str());
     }
 
-    for (unsigned int i = 0; i < excludedNames.size(); i++)
+    // Is this path excluded by any regexp or path filters?
+    if (regexp->getNumRegExp() > 0 || !excludedPaths.empty())
     {
-        if (WildcardMatch(name, excludedNames[i].c_str()))
+        // Translate current path into something we can match.
+        auto temp = localpath.toPath(*fsAccess);
+
+        // Is this path excluded by any path filters?
+        for (const auto& xpath : excludedPaths)
         {
-            return false;
-        }
-    }
+            auto xp = LocalPath::fromPath(xpath, *fsAccess);
 
-    MegaRegExp *regExp = NULL;
-#ifdef USE_PCRE
-    auto re = make_unique<MegaRegExp>(); // TODO: reconstructing this is far from optimal. reconsider placing it in SyncConfig (updated with mRegExps updates?)
-    for (const auto& v : sync->getConfig().getRegExps())
-    {
-        re->addRegExp(v.c_str());
-    }
-    regExp = re.get();
-#endif
-
-    if (regExp || excludedPaths.size())
-    {
-        string utf8path = localpath.toPath(*fsAccess);
-
-        for (unsigned int i = 0; i < excludedPaths.size(); i++)
-        {
-            auto ex = LocalPath::fromPath(excludedPaths[i], *client->fsaccess);
-            if (ex.isContainingPathOf(localpath))
+            if (xp.isContainingPathOf(localpath))
             {
                 return false;
             }
 
-            if (WildcardMatch(utf8path.c_str(), excludedPaths[i].c_str()))
+            if (WildcardMatch(temp.c_str(), xpath.c_str()))
             {
                 return false;
             }
         }
 
-#ifdef USE_PCRE
-        if (regExp && regExp->match(utf8path.c_str()))
+        // Is the path matched by any regular expressions?
+        if (regexp->match(temp.c_str()))
         {
             return false;
         }
-#endif
+    }
+
+    // Check whether any path components are excluded.
+    auto path = localpath;
+
+    // Convenience.
+    const auto& root = sync->localroot->localname;
+
+    while (root.isContainingPathOf(path) && path != root)
+    {
+        // Where does this component's name start?
+        auto nameIndex = path.getLeafnameByteIndex(*fsAccess);
+
+        // Extract component's name.
+        auto name = path.subpathFrom(nameIndex).toPath(*fsAccess);
+
+        // Skip these system files on OS X.
+        if (name == "Icon\x0d")
+        {
+            return false;
+        }
+
+        // Is this component's name excluded by any filename filters?
+        for (const auto& xname : excludedNames)
+        {
+            if (WildcardMatch(name.c_str(), xname.c_str()))
+            {
+                return false;
+            }
+        }
+
+        // Climb to the next component.
+        path.truncate(nameIndex - 1);
     }
 
     return true;
@@ -14341,28 +14361,14 @@ void MegaApiImpl::copysession_result(string *session, error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_SESSION_TRANSFER_URL)) return;
 
-    const char *path = request->getText();
-    string *data = NULL;
     if(e == API_OK)
     {
-        data = client->sessiontransferdata(path, session);
-    }
+        const char *path = request->getText();
+        string data = client->sessiontransferdata(path, session);
+        data.insert(0, MegaClient::MEGAURL+"/#sitetransfer!");
 
-    if(data)
-    {
-        data->insert(0, "https://mega.nz/#sitetransfer!");
+        request->setLink(data.c_str());
     }
-    else
-    {
-        data = new string("https://mega.nz/#");
-        if(path)
-        {
-            data->append(path);
-        }
-    }
-
-    request->setLink(data->c_str());
-    delete data;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -22151,7 +22157,20 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
-            client->copysession();
+            e = client->copysession();
+
+            if (e == API_ENOENT)    // no session to copy because not logged in
+            {
+                string url = MegaClient::MEGAURL + "/#";
+                auto path = request->getText();
+                if (path) url.append(path);
+                request->setLink(url.c_str());
+
+                e = API_OK;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                break;
+            }
+
             break;
         }
         case MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL:
@@ -28941,7 +28960,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         LOG_debug << "Favicon requested";
         response << "HTTP/1.1 301 Moved Permanently\r\n"
-                    "Location: https://mega.nz/favicon.ico\r\n"
+                    "Location: ";
+        response << MegaClient::MEGAURL;
+        response << "/favicon.ico\r\n"
                     "Connection: close\r\n"
                     "\r\n";
 

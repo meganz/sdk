@@ -980,3 +980,73 @@ TEST_F(SqliteDBTest, RootPath)
     EXPECT_EQ(dbAccess.rootPath(), rootPath);
 }
 
+#ifdef WIN32
+#define SEP "\\"
+#else // WIN32
+#define SEP "/"
+#endif // ! WIN32
+
+TEST(LocalPath, AppendWithSeparator)
+{
+    FSACCESS_CLASS fsAccess;
+    LocalPath source;
+    LocalPath target;
+
+    // Doesn't add a separator if the target is empty.
+    source = LocalPath::fromPath("a", fsAccess);
+    target.appendWithSeparator(source, false);
+
+    EXPECT_EQ(target.toPath(fsAccess), "a");
+
+    // Doesn't add a separator if the source begins with one.
+    source = LocalPath::fromPath(SEP "b", fsAccess);
+    target = LocalPath::fromPath("a", fsAccess);
+
+    target.appendWithSeparator(source, true);
+    EXPECT_EQ(target.toPath(fsAccess), "a" SEP "b");
+
+    // Doesn't add a separator if the target ends with one.
+    source = LocalPath::fromPath("b", fsAccess);
+    target = LocalPath::fromPath("a" SEP, fsAccess);
+
+    target.appendWithSeparator(source, true);
+    EXPECT_EQ(target.toPath(fsAccess), "a" SEP "b");
+
+    // Adds a separator when:
+    // - source doesn't begin with one.
+    // - target doesn't end with one.
+    target = LocalPath::fromPath("a", fsAccess);
+
+    target.appendWithSeparator(source, true);
+    EXPECT_EQ(target.toPath(fsAccess), "a" SEP "b");
+}
+
+TEST(LocalPath, PrependWithSeparator)
+{
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath source;
+    LocalPath target;
+
+    // No separator if target is empty.
+    source = LocalPath::fromPath("b", fsAccess);
+
+    target.prependWithSeparator(source);
+    EXPECT_EQ(target.toPath(fsAccess), "b");
+
+    // No separator if target begins with separator.
+    target = LocalPath::fromPath(SEP "a", fsAccess);
+
+    target.prependWithSeparator(source);
+    EXPECT_EQ(target.toPath(fsAccess), "b" SEP "a");
+
+    // No separator if source ends with separator.
+    source = LocalPath::fromPath("b" SEP, fsAccess);
+    target = LocalPath::fromPath("a", fsAccess);
+
+    target.prependWithSeparator(source);
+    EXPECT_EQ(target.toPath(fsAccess), "b" SEP "a");
+}
+
+#undef SEP
+
