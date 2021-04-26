@@ -42,8 +42,6 @@ bool DriveNotifyPosix::notifierSetup()
     mUdev = udev_new();
     if (!mUdev)  return false;  // is udevd daemon running?
 
-    cacheMountedPartitions();
-
     // init udev monitor
     mUdevMon = udev_monitor_new_from_netlink(mUdev, "udev");
     if (!mUdevMon)
@@ -52,6 +50,8 @@ bool DriveNotifyPosix::notifierSetup()
         mUdev = nullptr;
         return false;
     }
+
+    cacheMountedPartitions();
 
     // On unix systems you need to define your udev rules to allow notifications for
     // your device.
@@ -85,6 +85,8 @@ void DriveNotifyPosix::notifierTeardown()
         udev_unref(mUdev);
         mUdev = nullptr;
     }
+
+    mMounted.clear();
 }
 
 
@@ -149,7 +151,6 @@ void DriveNotifyPosix::evaluateDevice(udev_device* dev)  // dev must Not be null
         drvInfo.mountPoint = mMounted[devNodeStr];
         mMounted.erase(devNodeStr); // remove from cache
     }
-
     else // added
     {
         // reading it might happen before the relevant locations have been updated,
