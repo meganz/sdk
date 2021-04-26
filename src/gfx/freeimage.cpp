@@ -60,11 +60,14 @@ extern "C" {
 }
 #endif
 
-
 namespace mega {
 
 #if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
 std::mutex GfxProcFreeImage::gfxMutex;
+#endif
+
+#ifdef HAVE_PDFIUM
+PdfiumReader GfxProcFreeImage::pdfReader;
 #endif
 
 GfxProcFreeImage::GfxProcFreeImage()
@@ -434,7 +437,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     bool isImage = true;
     if (client->fsaccess->getextension(localname, extension))
     {
-        #ifdef HAVE_FFMPEG
+#ifdef HAVE_FFMPEG
         if ((ptr = strstr(supportedformatsFfmpeg(), extension.c_str())) && ptr[extension.size()] == '.')
         {
             isImage = false;
@@ -445,8 +448,8 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
         }
         else
         {
-        #endif
-            #ifdef HAVE_PDFIUM
+#endif
+#ifdef HAVE_PDFIUM
             if ((ptr = strstr(supportedformatsPDF(), extension.c_str())) && ptr[extension.size()] == '.')
             {
                 isImage = false;
@@ -455,10 +458,10 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
                     return false;
                 }
             }
-            #endif
-        #ifdef HAVE_FFMPEG
+#endif
+#ifdef HAVE_FFMPEG
         }
-        #endif
+#endif
     }
     if (isImage)
     {
@@ -486,11 +489,11 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
         {
             // load all other image types - for RAW formats, rely on embedded preview
             if (!(dib = FreeImage_LoadX(fif, localname.localpath.c_str(),
-                    #ifndef OLD_FREEIMAGE
+#ifndef OLD_FREEIMAGE
                                         (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
-                    #else
+#else
                                         0)))
-                    #endif
+#endif
             {
                 return false;
             }

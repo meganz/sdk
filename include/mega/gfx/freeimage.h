@@ -24,6 +24,8 @@
 #define GFX_CLASS GfxProcFreeImage
 
 #include <FreeImage.h>
+#include <mega/filesystem.h>
+#include <mega/gfx.h>
 #include "mega/gfx/gfx_pdfium.h"
 
 namespace mega {
@@ -32,7 +34,7 @@ class MEGA_API GfxProcFreeImage : public GfxProc
 {
     FIBITMAP* dib;
 #ifdef HAVE_PDFIUM
-    PdfiumReader pdfReader;
+    static PdfiumReader pdfReader;
 #endif
 
     bool readbitmap(FileAccess*, const LocalPath&, int);
