@@ -125,12 +125,12 @@ void DriveNotifyPosix::evaluateDevice(udev_device* dev)  // dev must Not be null
 {
     // filter "partition" events
     const char* devtype = udev_device_get_devtype(dev); // "partition"
-    if(strcmp(devtype, "partition"))  return;
+    if (!devtype || strcmp(devtype, "partition"))  return;
 
     // filter "add"/"remove" actions
     const char* action = udev_device_get_action(dev); // "add" / "remove"
-    bool added = !strcmp(action, "add");
-    bool removed = !added && !strcmp(action, "remove");
+    bool added = action && !strcmp(action, "add");
+    bool removed = action && !added && !strcmp(action, "remove");
     if (!(added || removed))  return; // ignore other possible actions
 
     // get device location
