@@ -1499,7 +1499,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
 
-
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
             curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096L);
@@ -1632,7 +1631,6 @@ void CurlHttpIO::request_proxy_ip()
     CurlHttpContext* httpctx = new CurlHttpContext;
     httpctx->httpio = this;
     httpctx->hostname = proxyhost;
-
 
 #ifndef MEGA_USE_C_ARES
     send_request(httpctx);
