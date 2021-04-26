@@ -21,6 +21,7 @@
 
 #include "mega/gfx/gfx_pdfium.h"
 
+#ifdef HAVE_PDFIUM
 namespace mega {
 
 std::mutex PdfiumReader::pdfMutex;
@@ -36,17 +37,6 @@ PdfiumReader::PdfiumReader()
     {
         FPDF_InitLibraryWithConfig(&config);
     }
-#ifdef _WIN32
-    //Remove temporary files from previous executions:
-    QDir dir(QDir::tempPath());
-    dir.setNameFilters(QStringList() << QString::fromUtf8(".megasyncpdftmp*"));
-    dir.setFilter(QDir::Files);
-    foreach(QString dirFile, dir.entryList())
-    {
-        LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile.toUtf8().constData();
-        dir.remove(dirFile);
-    }
-#endif
 
 }
 
@@ -59,39 +49,39 @@ PdfiumReader::~PdfiumReader()
 void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa, const LocalPath &workingDirFolder)
 {
 
+    std::lock_guard<std::mutex> g(pdfMutex);
+
+    FPDF_DOCUMENT pdf_doc = FPDF_LoadDocument(path.toPath(*fa).c_str(), nullptr);
 #ifdef _WIN32
-    FPDF_DOCUMENT pdf_doc  = FPDF_LoadDocument(imagePath.toLocal8Bit().constData(), NULL);
-    QString temporaryfile;
+    LocalPath tmpFile;
     bool removetemporaryfile = false;
-    QByteArray qba;
+    std::unique_ptr<byte[]> buffer;
 
-    if (pdf_doc == NULL && FPDF_GetLastError() == FPDF_ERR_FILE)
+    if (pdf_doc == nullptr && FPDF_GetLastError() == FPDF_ERR_FILE)
     {
-        QFile qf(imagePath);
-
-        if (qf.size() > MAX_PDF_MEM_SIZE )
+        std::unique_ptr<FileAccess> pdfFile = fa->newfileaccess();
+        if (pdfFile->fopen(path))
         {
+            if (pdfFile->size > MAX_PDF_MEM_SIZE)
             {
-                QTemporaryFile tmpfile(QDir::tempPath() + QDir::separator() + QString::fromUtf8( ".megasyncpdftmpXXXXXX"));
-                if (tmpfile.open())
+                LocalPath originPath = path;
+                tmpFile = workingDirFolder;
+                tmpFile.appendWithSeparator(LocalPath::fromPath(".megasyncpdftmpXXXXXX",*fa),false);
+                if (fa->copylocal(originPath, tmpFile, pdfFile->mtime))
                 {
-                    temporaryfile = tmpfile.fileName();
+                    pdf_doc  = FPDF_LoadDocument(tmpFile.toPath(*fa).c_str(), nullptr);
+                    removetemporaryfile = true;
                 }
             }
-            if (temporaryfile.size() && QFile::copy(imagePath,temporaryfile))
+            else if (pdfFile->openf())
             {
-                pdf_doc  = FPDF_LoadDocument(temporaryfile.toLocal8Bit().constData(), NULL);
-                removetemporaryfile = true;
+                buffer.reset(new byte[pdfFile->size]);
+                pdfFile->frawread(buffer.get(),pdfFile->size,0,true);
+                pdfFile->closef();
+                pdf_doc = FPDF_LoadMemDocument(buffer.get(), pdfFile->size, nullptr);
             }
         }
-        else if (qf.open(QIODevice::ReadOnly))
-        {
-            qba = qf.readAll();
-            pdf_doc  = FPDF_LoadMemDocument(qba.constData(), qba.size(), NULL);
-        }
     }
-#else
-    FPDF_DOCUMENT pdf_doc  = FPDF_LoadDocument(path.toPath(*fa).c_str(), nullptr);
 #endif
     if (pdf_doc != nullptr)
     {
@@ -112,13 +102,13 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 #ifdef _WIN32
                 if (removetemporaryfile)
                 {
-                    QFile::remove(temporaryfile);
+                    fa->unlinklocal(tmpFile);
                 }
 #endif
                     return nullptr;
                 }
 
-                // 4 bytes per pixel. BGRx/BGRA format.
+                // 4 bytes per pixel. BGRA format with 1. BGRx with 0
                 bitmap = FPDFBitmap_Create(w, h, 1);
                 if (!bitmap) //out of memory
                 {
@@ -128,7 +118,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 #ifdef _WIN32
                     if (removetemporaryfile)
                     {
-                        QFile::remove(temporaryfile);
+                        fa->unlinklocal(tmpFile);
                     }
 #endif
                     return nullptr;
@@ -143,10 +133,11 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 #ifdef _WIN32
                 if (removetemporaryfile)
                 {
-                    QFile::remove(temporaryfile);
+                    fa->unlinklocal(tmpFile);
                 }
 #endif
-
+                // Needed by Qt: ROTATION_DOWN = 3
+                orientation = 3;
                 return data;
             }
             else
@@ -169,7 +160,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 #ifdef _WIN32
     if (removetemporaryfile)
     {
-        QFile::remove(temporaryfile);
+        fa->unlinklocal(tmpFile);
     }
 #endif
 
@@ -179,7 +170,9 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 
 void PdfiumReader::freeBitmap()
 {
+    std::lock_guard<std::mutex> g(pdfMutex);
     FPDFBitmap_Destroy(bitmap);
 }
 
 } // namespace mega
+#endif

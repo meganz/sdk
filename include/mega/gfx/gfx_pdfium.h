@@ -27,6 +27,8 @@
 #include <mega/logging.h>
 #include <fpdfview.h>
 
+#define MAX_PDF_MEM_SIZE 1024*1024*100
+
 namespace mega {
 
 class PdfiumReader
