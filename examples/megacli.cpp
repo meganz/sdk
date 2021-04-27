@@ -115,6 +115,12 @@ int responseprogress = -1;
 //2FA pin attempts
 int attempts = 0;
 
+//Ephemeral account plus plus
+std::string name;
+std::string lastname;
+
+bool confirmEphemeralAccountPlusPlus = false;
+
 #ifdef ENABLE_SYNC
 
 // converts the given sync configuration to a string
@@ -1077,6 +1083,12 @@ void DemoApp::fetchnodes_result(const Error& e)
         {
             client->getwelcomepdf();
         }
+
+        if (client->ephemeralSessionPlusPlus)
+        {
+            client->putua(ATTR_FIRSTNAME, (const byte*)name.c_str(), unsigned(name.size()));
+            client->putua(ATTR_LASTNAME, (const byte*)lastname.c_str(), unsigned(lastname.size()));
+        }
     }
 }
 
@@ -1248,6 +1260,14 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
              << "\tperformance: " << bs[2] << endl
              << "\tadvertising: " << bs[3] << endl
              << "\tthird party: " << bs[4] << endl;
+    }
+
+    if (confirmEphemeralAccountPlusPlus)
+    {
+        if (type == ATTR_FIRSTNAME)
+        {
+            name = string((char*)data, l);
+        }
     }
 }
 
@@ -2933,8 +2953,9 @@ autocomplete::ACN autocompleteSyntax()
                                                       param("session"),
                                                       sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
-    p->Add(exec_beginEphemalAccountPlusPlus, sequence(text("beginEphemalAccountPlusPlus")));
+    p->Add(exec_beginEphemalAccountPlusPlus, sequence(text("beginEphemalAccountPlusPlus"), either(sequence(param("name"), param("lastname")))));
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
+    p->Add(exec_signupEphemeralPlusPlus, sequence(text("signupEphemeralPlusPlus"), either(sequence(param("email")))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -5576,7 +5597,6 @@ void exec_signup(autocomplete::ACState& s)
             cout << "Current account already confirmed." << endl;
             break;
 
-        case EPHEMERALACCOUNTPLUSPLUS:
         case EPHEMERALACCOUNT:
             if (s.words[1].s.find('@') + 1 && s.words[1].s.find('.') + 1)
             {
@@ -5591,6 +5611,10 @@ void exec_signup(autocomplete::ACState& s)
             {
                 cout << "Please enter a valid e-mail address." << endl;
             }
+            break;
+
+        case EPHEMERALACCOUNTPLUSPLUS:
+            cout << "Please confirm ephemeral account plus plus with signupEphemeralPlusPlus" << endl;
             break;
 
         case NOTLOGGEDIN:
@@ -5801,6 +5825,9 @@ void exec_logout(autocomplete::ACState& s)
         delete clientFolder;
         clientFolder = NULL;
     }
+
+    name.clear();
+    lastname.clear();
 }
 
 #ifdef ENABLE_CHAT
@@ -6489,6 +6516,9 @@ void exec_locallogout(autocomplete::ACState& s)
 
     cwd = NodeHandle();
     client->locallogout(false, true);
+
+    name.clear();
+    lastname.clear();
 }
 
 void exec_recentnodes(autocomplete::ACState& s)
@@ -6974,6 +7004,7 @@ void DemoApp::cancelsignup_result(error)
     signupemail.clear();
     signupname.clear();
     signupV2 = true;
+    confirmEphemeralAccountPlusPlus = false;
 }
 
 void DemoApp::whyamiblocked_result(int code)
@@ -8313,6 +8344,10 @@ void exec_banner(autocomplete::ACState& s)
 void exec_beginEphemalAccountPlusPlus(autocomplete::ACState &s)
 {
     cout << "Creating ephemeral session plus plus..." << endl;
+
+    name = s.words[1].s;
+    lastname = s.words[2].s;
+
     pdf_to_import = true;
     client->createephemeralPlusPlus();
 }
@@ -8633,3 +8668,28 @@ void exec_syncxable(autocomplete::ACState& s)
 }
 
 #endif // ENABLE_SYNC
+
+void exec_signupEphemeralPlusPlus(autocomplete::ACState &s)
+{
+    if (s.words[1].s.find('@') + 1 && s.words[1].s.find('.') + 1)
+    {
+        signupV2 = true;
+        signupemail = s.words[1].s;
+        if (name.empty())
+        {
+            User* u = client->ownuser();
+            if (!u)
+            {
+                cout << "Sigup Ephemeral plus plus is no possible" << endl;
+                return;
+            }
+
+            confirmEphemeralAccountPlusPlus = true;
+            client->getua(u, ATTR_FIRSTNAME);
+        }
+
+        signupname = name;
+        cout << endl;
+        setprompt(NEWPASSWORD);
+    }
+}
