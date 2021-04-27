@@ -8371,7 +8371,6 @@ void exec_syncadd(autocomplete::ACState& s)
                  NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
-                 string_vector(),
                  true,
                  backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 

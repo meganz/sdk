@@ -5105,42 +5105,6 @@ public:
     virtual MegaHandle getPrevParent() const;
 };
 
-class MegaRegExpPrivate;
-
-/**
- * @brief Provides a mechanism to handle Regular Expressions
- */
-class MegaRegExp
-{
-public:
-    MegaRegExp();
-    ~MegaRegExp();
-
-    /**
-     * @brief Creates a copy of this MegaRegExp object
-     *
-     * The resulting object is fully independent of the source MegaRegExp,
-     * it contains a copy of all internal attributes, so it will be valid after
-     * the original object is deleted.
-     *
-     * You are the owner of the returned object
-     *
-     * @return Copy of the MegaRegExp object
-     */
-    MegaRegExp *copy();
-
-    bool addRegExp(const char *regExp);
-    int getNumRegExp();
-    const char *getRegExp(int index);
-    bool match(const char *s);
-
-    const char *getFullPattern();
-
-private:
-    MegaRegExpPrivate *pImpl;
-    MegaRegExp(MegaRegExpPrivate *pImpl);
-};
-
 /**
  * @brief Provides information about a synchronization
  */
@@ -13505,7 +13469,6 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getParamType - Returns the type of the sync
-         * - MegaRequest::getRegExp - Returns the regular expresions to handle excluded files/folders
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -13534,16 +13497,10 @@ class MegaApi
          * @param name Name given to the sync. You can pass NULL, and the folder name will be used instead.
          * @param remoteSyncRootFolder Handle of MEGA folder. If you have a MegaNode for that folder, use its getHandle()
          * @param driveRootIfExternal Only relevant for backups, and only if the backup is on an external disk. Otherwise use NULL.
-         * @param regExp Regular expressions to handle excluded files/folders
          * @param listener MegaRequestListener to track this request
          */
         void syncFolder(MegaSync::SyncType syncType, const char *localSyncRootFolder, const char *name, MegaHandle remoteSyncRootFolder,
             const char* driveRootIfExternal,
-#ifdef USE_PCRE
-            MegaRegExp* regExp,
-#else
-            void* regExp,
-#endif
             MegaRequestListener *listener);
 
 
@@ -13671,16 +13628,6 @@ class MegaApi
          *
          */
         void closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
-
-
-#ifdef USE_PCRE
-        /**
-        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one above.
-         */
-        MEGA_DEPRECATED
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
-
-#endif
 
         /**
          * @brief Remove a synced folder
@@ -14008,15 +13955,6 @@ class MegaApi
          * @return Synchronization with the specified root local path
          */
         MegaSync *getSyncByPath(const char *localPath);
-
-#ifdef USE_PCRE
-        /**
-        * @brief Set a list of rules to exclude files and folders for a given synchronized folder
-        * @param sync Synchronization whose rules want to be updated
-        * @param regExp List of regular expressions (rules) to exclude file / folders
-        */
-        void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
-#endif
 
         /**
          * @brief Get the total number of local nodes in the account
