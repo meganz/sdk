@@ -8794,8 +8794,8 @@ class MegaApi
         /**
          * @brief Create ephemeral account plus plus
          *
-         * This kind account allows join to chat link and keeps the session in the device
-         * where it was created
+         * This kind of account allows to join chat links and to keep the session in the device
+         * where it was created.
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS.
          * Valid data in the MegaRequest object received on callbacks:
