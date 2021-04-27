@@ -116,8 +116,8 @@ int responseprogress = -1;
 int attempts = 0;
 
 //Ephemeral account plus plus
-std::string name;
-std::string lastname;
+std::string ephemeralName;
+std::string ephemeralLastName;
 
 bool confirmEphemeralAccountPlusPlus = false;
 
@@ -1086,8 +1086,8 @@ void DemoApp::fetchnodes_result(const Error& e)
 
         if (client->ephemeralSessionPlusPlus)
         {
-            client->putua(ATTR_FIRSTNAME, (const byte*)name.c_str(), unsigned(name.size()));
-            client->putua(ATTR_LASTNAME, (const byte*)lastname.c_str(), unsigned(lastname.size()));
+            client->putua(ATTR_FIRSTNAME, (const byte*)ephemeralName.c_str(), unsigned(ephemeralName.size()));
+            client->putua(ATTR_LASTNAME, (const byte*)ephemeralLastName.c_str(), unsigned(ephemeralLastName.size()));
         }
     }
 }
@@ -1266,7 +1266,7 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
     {
         if (type == ATTR_FIRSTNAME)
         {
-            name = string((char*)data, l);
+            ephemeralName = string((char*)data, l);
         }
     }
 }
@@ -5826,8 +5826,8 @@ void exec_logout(autocomplete::ACState& s)
         clientFolder = NULL;
     }
 
-    name.clear();
-    lastname.clear();
+    ephemeralName.clear();
+    ephemeralLastName.clear();
 }
 
 #ifdef ENABLE_CHAT
@@ -6517,8 +6517,8 @@ void exec_locallogout(autocomplete::ACState& s)
     cwd = NodeHandle();
     client->locallogout(false, true);
 
-    name.clear();
-    lastname.clear();
+    ephemeralName.clear();
+    ephemeralLastName.clear();
 }
 
 void exec_recentnodes(autocomplete::ACState& s)
@@ -8345,8 +8345,8 @@ void exec_beginEphemalAccountPlusPlus(autocomplete::ACState &s)
 {
     cout << "Creating ephemeral session plus plus..." << endl;
 
-    name = s.words[1].s;
-    lastname = s.words[2].s;
+    ephemeralName = s.words[1].s;
+    ephemeralLastName = s.words[2].s;
 
     pdf_to_import = true;
     client->createephemeralPlusPlus();
@@ -8675,7 +8675,7 @@ void exec_signupEphemeralPlusPlus(autocomplete::ACState &s)
     {
         signupV2 = true;
         signupemail = s.words[1].s;
-        if (name.empty())
+        if (ephemeralName.empty())
         {
             User* u = client->ownuser();
             if (!u)
@@ -8688,7 +8688,7 @@ void exec_signupEphemeralPlusPlus(autocomplete::ACState &s)
             client->getua(u, ATTR_FIRSTNAME);
         }
 
-        signupname = name;
+        signupname = ephemeralName;
         cout << endl;
         setprompt(NEWPASSWORD);
     }
