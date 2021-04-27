@@ -72,6 +72,7 @@ std::mutex GfxProcQT::gfxMutex;
 
 #ifdef HAVE_PDFIUM
 PdfiumReader GfxProcQT::pdfReader;
+bool GfxProcQT::oldTmpPdfCleaned = false;
 #endif
 
 /************* EXIF STUFF **************/
@@ -430,20 +431,24 @@ GfxProcQT::GfxProcQT()
     av_register_all();
     avcodec_register_all();
 //    av_log_set_level(AV_LOG_VERBOSE);
-    }
 #endif
 
 #if defined(_WIN32) and defined(HAVE_PDFIUM)
-    //Remove temporary files from previous executions:
-    QDir dir(QDir::tempPath());
-    dir.setNameFilters(QStringList() << QString::fromUtf8(".megasyncpdftmp*"));
-    dir.setFilter(QDir::Files);
-    foreach(QString dirFile, dir.entryList())
+    if (!oldTmpPdfCleaned)
     {
-        LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile.toUtf8().constData();
-        dir.remove(dirFile);
+        //Remove temporary files from previous executions:
+        QDir dir(QDir::tempPath());
+        dir.setNameFilters(QStringList() << QString::fromUtf8(".megasyncpdftmp*"));
+        dir.setFilter(QDir::Files);
+        foreach(QString dirFile, dir.entryList())
+        {
+            LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile.toUtf8().constData();
+            dir.remove(dirFile);
+        }
+        oldTmpPdfCleaned = true;
     }
 #endif
+    }
     image = NULL;
     orientation = -1;
     imageType = TYPE_NONE;

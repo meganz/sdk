@@ -53,7 +53,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 
     FPDF_DOCUMENT pdf_doc = FPDF_LoadDocument(path.toPath(*fa).c_str(), nullptr);
 #ifdef _WIN32
-    LocalPath tmpFile;
+    LocalPath tmpFilePath;
     bool removetemporaryfile = false;
     std::unique_ptr<byte[]> buffer;
 
@@ -65,11 +65,14 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
             if (pdfFile->size > MAX_PDF_MEM_SIZE)
             {
                 LocalPath originPath = path;
-                tmpFile = workingDirFolder;
-                tmpFile.appendWithSeparator(LocalPath::fromPath(".megasyncpdftmpXXXXXX",*fa),false);
-                if (fa->copylocal(originPath, tmpFile, pdfFile->mtime))
+                tmpFilePath = workingDirFolder;
+                tmpFilePath.appendWithSeparator(LocalPath::fromPath(".megasyncpdftmp",*fa),false);
+                LocalPath tmpName;
+                fa->tmpnamelocal(tmpName);
+                tmpFilePath.append(tmpName);
+                if (fa->copylocal(originPath, tmpFilePath, pdfFile->mtime))
                 {
-                    pdf_doc  = FPDF_LoadDocument(tmpFile.toPath(*fa).c_str(), nullptr);
+                    pdf_doc = FPDF_LoadDocument(tmpFilePath.toPath(*fa).c_str(), nullptr);
                     removetemporaryfile = true;
                 }
             }
@@ -102,7 +105,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 #ifdef _WIN32
                 if (removetemporaryfile)
                 {
-                    fa->unlinklocal(tmpFile);
+                    fa->unlinklocal(tmpFilePath);
                 }
 #endif
                     return nullptr;
@@ -118,7 +121,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 #ifdef _WIN32
                     if (removetemporaryfile)
                     {
-                        fa->unlinklocal(tmpFile);
+                        fa->unlinklocal(tmpFilePath);
                     }
 #endif
                     return nullptr;
@@ -133,7 +136,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 #ifdef _WIN32
                 if (removetemporaryfile)
                 {
-                    fa->unlinklocal(tmpFile);
+                    fa->unlinklocal(tmpFilePath);
                 }
 #endif
                 // Needed by Qt: ROTATION_DOWN = 3
@@ -160,7 +163,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 #ifdef _WIN32
     if (removetemporaryfile)
     {
-        fa->unlinklocal(tmpFile);
+        fa->unlinklocal(tmpFilePath);
     }
 #endif
 

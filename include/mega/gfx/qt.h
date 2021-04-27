@@ -66,6 +66,7 @@ class MEGA_API GfxProcQT : public GfxProc
     int imageType;
 #ifdef HAVE_PDFIUM
     static PdfiumReader pdfReader;
+    static bool oldTmpPdfCleaned;
 #endif
 
 public:
