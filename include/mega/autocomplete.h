@@ -201,11 +201,11 @@ namespace autocomplete {
     struct MEGA_API MegaFS : public ACNode
     {
         MegaClient* client;
-        ::mega::handle* cwd;
+        ::mega::NodeHandle* cwd;
         bool reportFiles = true;
         bool reportFolders = true;
         std::string descPref;
-        MegaFS(bool files, bool folders, MegaClient* a, ::mega::handle* curDirHandle, const std::string descriptionPrefix);
+        MegaFS(bool files, bool folders, MegaClient* a, ::mega::NodeHandle* curDirHandle, const std::string descriptionPrefix);
         bool addCompletions(ACState& s) override;
         std::ostream& describe(std::ostream& s) const override;
         bool match(ACState& s) const override;
@@ -263,9 +263,9 @@ namespace autocomplete {
     ACN localFSPath(const std::string descriptionPrefix = "");
     ACN localFSFile(const std::string descriptionPrefix = "");
     ACN localFSFolder(const std::string descriptionPrefix = "");
-    ACN remoteFSPath(MegaClient*, ::mega::handle*, const std::string descriptionPrefix = "");
-    ACN remoteFSFile(MegaClient*, ::mega::handle*, const std::string descriptionPrefix = "");
-    ACN remoteFSFolder(MegaClient*, ::mega::handle*, const std::string descriptionPrefix = "");
+    ACN remoteFSPath(MegaClient*, ::mega::NodeHandle*, const std::string descriptionPrefix = "");
+    ACN remoteFSFile(MegaClient*, ::mega::NodeHandle*, const std::string descriptionPrefix = "");
+    ACN remoteFSFolder(MegaClient*, ::mega::NodeHandle*, const std::string descriptionPrefix = "");
     ACN contactEmail(MegaClient*);
 
 }} //namespaces

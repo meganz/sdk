@@ -29,7 +29,17 @@ namespace mega {
 // linear non-strict JSON scanner
 struct MEGA_API JSON
 {
-    const char* pos = nullptr;
+    JSON()
+      : pos(nullptr)
+    {
+    }
+
+    explicit JSON(const string& data)
+      : pos(data.c_str())
+    {
+    }
+
+    const char* pos;
 
     bool isnumeric();
 
@@ -38,6 +48,9 @@ struct MEGA_API JSON
     m_off_t getint();
     double getfloat();
     const char* getvalue();
+
+    fsfp_t getfp();
+    uint64_t getuint64();
 
     nameid getnameid();
     nameid getnameid(const char*) const;
@@ -52,6 +65,7 @@ struct MEGA_API JSON
     // MegaClient::NODEHANDLE
     bool ishandle(int = 6);
     handle gethandle(int = 6);
+    NodeHandle getNodeHandle();
 
     bool enterarray();
     bool leavearray();
@@ -80,6 +94,57 @@ struct MEGA_API JSON
     // Only advance the pointer if it's an error (0, -1, -2, -3, ...)
     bool isNumericError(error& e);
 };
+
+class MEGA_API JSONWriter
+{
+public:
+    JSONWriter();
+
+    MEGA_DEFAULT_COPY_MOVE(JSONWriter);
+
+    void cmd(const char*);
+    void notself(MegaClient*);
+
+    void arg(const char*, const string&, int = 1);
+    void arg(const char*, const char*, int = 1);
+    void arg(const char*, handle, int);
+    void arg(const char*, NodeHandle);
+    void arg(const char*, const byte*, int);
+    void arg(const char*, m_off_t);
+    void arg_B64(const char*, const string&);
+    void arg_fsfp(const char*, fsfp_t);
+    void addcomma();
+    void appendraw(const char*);
+    void appendraw(const char*, int);
+    void beginarray();
+    void beginarray(const char*);
+    void endarray();
+    void beginobject();
+    void beginobject(const char*);
+    void endobject();
+    void element(int);
+    void element(handle, int = sizeof(handle));
+    void element(const byte*, int);
+    void element(const char*);
+    void element_B64(const string&);
+
+    void openobject();
+    void closeobject();
+
+    const byte* getbytes() const;
+    const string& getstring() const;
+
+    size_t size() const;
+
+private:
+    static const int MAXDEPTH = 8;
+
+    int elements();
+
+    string mJson;
+    std::array<signed char, MAXDEPTH> mLevels;
+    signed char mLevel;
+}; // JSONWriter
 
 } // namespace
 

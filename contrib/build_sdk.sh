@@ -845,7 +845,7 @@ freeimage_pkg() {
     fi
 
     # freeimage's LibPNG has a problem with deciding to use neon on 64 bit arm, resulting in a missing symbol
-    if [ "$ARCH" == "aarch64" ]; then
+    if [ "$ARCH" == "aarch64" -o "$ARCH" == "arm64" ]; then
         export CFLAGS="$CFLAGS -DPNG_ARM_NEON_OPT=0"
     fi 
 

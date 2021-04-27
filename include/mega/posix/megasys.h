@@ -40,6 +40,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <array>
 #include <string>   // the MEGA SDK assumes writable, contiguous string::data()
 #include <sstream>
 #include <fstream>
@@ -115,8 +116,11 @@
 #include <curl/curl.h>
 #include <stdexcept>
 
+
+#ifndef USE_POLL
 #ifndef FD_COPY
 #define FD_COPY(s, d) ( memcpy(( d ), ( s ), sizeof( fd_set )))
+#endif
 #endif
 
 #endif // MEGA_POSIX_OS_H

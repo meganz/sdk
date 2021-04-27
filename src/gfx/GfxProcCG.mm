@@ -62,30 +62,29 @@ const char* GfxProcCG::supportedformats() {
     if ([[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleExecutable"] isEqualToString:@"MEGAFiles"]) {
         return "";
     }
-    return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.";
+    return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.webp.";
 }
 
-bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
+bool GfxProcCG::readbitmap(FileAccess* fa, const LocalPath& name, int size) {
     string absolutename;
-    if (PosixFileSystemAccess::appbasepath) {
-        if (name->size() && name->at(0) != '/') {
-            absolutename = PosixFileSystemAccess::appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
-        }
+    NSString *sourcePath;
+    if (PosixFileSystemAccess::appbasepath && !name.beginsWithSeparator()) {
+        absolutename = PosixFileSystemAccess::appbasepath;
+        absolutename.append(name.platformEncoded());
+        sourcePath = [NSString stringWithCString:absolutename.c_str() encoding:[NSString defaultCStringEncoding]];
+    } else {
+        sourcePath = [NSString stringWithCString:name.platformEncoded().c_str() encoding:[NSString defaultCStringEncoding]];
     }
-    
-    NSString *sourcePath = [NSString stringWithCString:name->c_str() encoding:[NSString defaultCStringEncoding]];
     NSURL *sourceURL = [NSURL fileURLWithPath:sourcePath isDirectory:NO];
     if (sourceURL == nil) {
         return false;
     }
-    
+
     w = h = 0;
-    
+
     CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     CFDictionaryAddValue(imageOptions, kCGImageSourceShouldCache, kCFBooleanFalse);
-    
+
     CFStringRef fileExtension = (__bridge CFStringRef)[sourcePath pathExtension];
     CFStringRef fileUTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, fileExtension, NULL);
     if (UTTypeConformsTo(fileUTI, kUTTypeMovie)) {
@@ -104,16 +103,16 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
     } else {
         imageSource = CGImageSourceCreateWithURL((__bridge CFURLRef)sourceURL, imageOptions);
     }
-    
+
     if (fileUTI) {
         CFRelease(fileUTI);
     }
-    
+
     if (!imageSource) {
         CFRelease(imageOptions);
         return false;
     }
-    
+
     CFDictionaryRef imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, imageOptions);
     if (imageProperties) { // trying to get width and heigth from properties
         CFNumberRef width = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelWidth);
@@ -129,11 +128,11 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         }
         CFRelease(imageProperties);
     }
-    
+
     if (imageOptions) {
         CFRelease(imageOptions);
     }
-    
+
     if (!(w && h)) { // trying to get fake size from thumbnail
         CGImageRef thumbnail = createThumbnailWithMaxSize(size);
         if (!thumbnail) {
@@ -232,10 +231,10 @@ void ios_statsid(std::string *statsid) {
     [queryDictionary setObject:(__bridge id)(kSecAttrSynchronizableAny) forKey:(__bridge id)(kSecAttrSynchronizable)];
     [queryDictionary setObject:@YES forKey:(__bridge id)kSecReturnData];
     [queryDictionary setObject:(__bridge id)kSecMatchLimitOne forKey:(__bridge id)kSecMatchLimit];
-    
+
     CFTypeRef result = NULL;
     OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)queryDictionary, &result);
-    
+
     switch (status) {
         case errSecSuccess: {
             NSString *uuidString = [[NSString alloc] initWithData:(__bridge_transfer NSData *)result encoding:NSUTF8StringEncoding];
@@ -245,14 +244,14 @@ void ios_statsid(std::string *statsid) {
 
         case errSecItemNotFound: {
             NSString *uuidString = [[[NSUUID alloc] init] UUIDString];
-            
+
             NSData *uuidData = [uuidString dataUsingEncoding:NSUTF8StringEncoding];
             [queryDictionary setObject:uuidData forKey:(__bridge id)kSecValueData];
             [queryDictionary removeObjectForKey:(__bridge id)kSecReturnData];
             [queryDictionary removeObjectForKey:(__bridge id)kSecMatchLimit];
-            
+
             status = SecItemAdd((__bridge CFDictionaryRef)queryDictionary, NULL);
-            
+
             switch (status) {
                 case errSecSuccess: {
                     statsid->append([uuidString UTF8String]);

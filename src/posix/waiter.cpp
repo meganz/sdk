@@ -21,6 +21,11 @@
 
 #include "mega.h"
 
+
+#ifdef USE_POLL
+    #include <poll.h> //poll
+#endif
+
 namespace mega {
 dstime Waiter::ds;
 
@@ -53,10 +58,10 @@ void PosixWaiter::init(dstime ds)
 
     maxfd = -1;
 
-    FD_ZERO(&rfds);
-    FD_ZERO(&wfds);
-    FD_ZERO(&efds);
-    FD_ZERO(&ignorefds);
+    MEGA_FD_ZERO(&rfds);
+    MEGA_FD_ZERO(&wfds);
+    MEGA_FD_ZERO(&efds);
+    MEGA_FD_ZERO(&ignorefds);
 }
 
 // update monotonously increasing timestamp in deciseconds
@@ -80,11 +85,11 @@ void PosixWaiter::bumpmaxfd(int fd)
 
 // checks if an unfiltered fd is set
 // FIXME: use bitwise & instead of scanning
-bool PosixWaiter::fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const
+bool PosixWaiter::fd_filter(int nfds, mega_fd_set_t* fds, mega_fd_set_t* ignorefds) const
 {
     while (nfds--)
     {
-        if (FD_ISSET(nfds, fds) && !FD_ISSET(nfds, ignorefds)) return true;    
+        if (MEGA_FD_ISSET(nfds, fds) && !MEGA_FD_ISSET(nfds, ignorefds)) return true;
     }
 
     return false;
@@ -95,11 +100,12 @@ bool PosixWaiter::fd_filter(int nfds, fd_set* fds, fd_set* ignorefds) const
 // returns application-specific bitmask. bit 0 set indicates that exec() needs to be called.
 int PosixWaiter::wait()
 {
-    int numfd;
+    int numfd = 0;
     timeval tv;
 
     //Pipe added to rfds to be able to leave select() when needed
-    FD_SET(m_pipe[0], &rfds);
+    MEGA_FD_SET(m_pipe[0], &rfds);
+
     bumpmaxfd(m_pipe[0]);
 
     if (maxds + 1)
@@ -110,7 +116,38 @@ int PosixWaiter::wait()
         tv.tv_usec = us - tv.tv_sec * 1000000;
     }
 
+#ifdef USE_POLL
+    dstime ms = 1000 / 10 * maxds;
+
+    auto total = rfds.size() +  wfds.size() +  efds.size();
+    struct pollfd fds[total];
+
+    int polli = 0;
+    for (auto & fd : rfds)
+    {
+        fds[polli].fd = fd;
+        fds[polli].events = POLLIN_SET;
+        polli++;
+    }
+
+    for (auto & fd : wfds)
+    {
+        fds[polli].fd = fd;
+        fds[polli].events = POLLOUT_SET;
+        polli++;
+    }
+
+    for (auto & fd : efds)
+    {
+        fds[polli].fd = fd;
+        fds[polli].events = POLLEX_SET;
+        polli++;
+    }
+
+    numfd = poll(fds, total,  ms);
+#else
     numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
+#endif
 
     // empty pipe
     uint8_t buf;
@@ -132,9 +169,21 @@ int PosixWaiter::wait()
     }
 
     // request exec() to be run only if a non-ignored fd was triggered
+#ifdef USE_POLL
+    for (unsigned int i = 0 ; i < total ; i++)
+    {
+        if  ((fds[i].revents & (POLLIN_SET | POLLOUT_SET | POLLEX_SET) )  && !MEGA_FD_ISSET(fds[i].fd, &ignorefds) )
+        {
+            return NEEDEXEC;
+        }
+    }
+    return 0;
+#else
     return (fd_filter(maxfd + 1, &rfds, &ignorefds)
          || fd_filter(maxfd + 1, &wfds, &ignorefds)
          || fd_filter(maxfd + 1, &efds, &ignorefds)) ? NEEDEXEC : 0;
+
+#endif
 }
 
 void PosixWaiter::notify()

@@ -290,11 +290,18 @@ CurlHttpIO::CurlHttpIO()
     {
         curl_global_init(CURL_GLOBAL_DEFAULT);
         ares_library_init(ARES_LIB_INIT_ALL);
-    }
+        
+        const char *aresversion = ares_version(NULL);
+        if (aresversion)
+        {
+            LOG_debug << "c-ares version: " << aresversion;
+        }
+        
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
-    initialize_android();
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
+        initialize_android();
 #endif
+    };
 
     curlMutex.unlock();
 
@@ -539,12 +546,12 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 #else
             if (readable)
             {
-                FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
+                MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
                 ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
             }
             if (writeable)
             {
-                FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
+                MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
                 ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
             }
 #endif
@@ -587,13 +594,13 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 
         if (info.mode & SockInfo::READ)
         {
-            FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
+            MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
             ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
         }
 
         if (info.mode & SockInfo::WRITE)
         {
-            FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
+            MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
             ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
         }
 #endif
@@ -644,8 +651,8 @@ void CurlHttpIO::processaresevents()
     CodeCounter::ScopeTimer ccst(countProcessAresEventsCode);
 
 #ifndef _WIN32
-    fd_set *rfds = &((PosixWaiter *)waiter)->rfds;
-    fd_set *wfds = &((PosixWaiter *)waiter)->wfds;
+    auto *rfds = &((PosixWaiter *)waiter)->rfds;
+    auto *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
 
     for (auto& mapPair : aressockets)
@@ -663,11 +670,11 @@ void CurlHttpIO::processaresevents()
             ares_process_fd(ares, read ? info.fd : ARES_SOCKET_BAD, write ? info.fd : ARES_SOCKET_BAD);
         }
 #else
-        if (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)))
+        if (((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)))
         {
             ares_process_fd(ares,
-                            ((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) ? info.fd : ARES_SOCKET_BAD,
-                            ((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)) ? info.fd : ARES_SOCKET_BAD);
+                            ((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) ? info.fd : ARES_SOCKET_BAD,
+                            ((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)) ? info.fd : ARES_SOCKET_BAD);
         }
 #endif
     }
@@ -684,8 +691,8 @@ void CurlHttpIO::processcurlevents(direction_t d)
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
 
 #ifndef _WIN32
-    fd_set *rfds = &((PosixWaiter *)waiter)->rfds;
-    fd_set *wfds = &((PosixWaiter *)waiter)->wfds;
+    auto *rfds = &((PosixWaiter *)waiter)->rfds;
+    auto *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
 
     int dummy = 0;
@@ -709,11 +716,11 @@ void CurlHttpIO::processcurlevents(direction_t d)
                                    | (write ? CURL_CSELECT_OUT : 0), &dummy);
         }
 #else
-        if (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)))
+        if (((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)))
         {
             curl_multi_socket_action(curlm[d], info.fd,
-                                     (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) ? CURL_CSELECT_IN : 0)
-                                     | (((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)) ? CURL_CSELECT_OUT : 0),
+                                     (((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) ? CURL_CSELECT_IN : 0)
+                                     | (((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)) ? CURL_CSELECT_OUT : 0),
                                      &dummy);
         }
 #endif
@@ -1357,25 +1364,10 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 {
     CurlHttpIO* httpio = httpctx->httpio;
     HttpReq* req = httpctx->req;
-    int len = httpctx->len;
+    auto len = httpctx->len;
     const char* data = httpctx->data;
 
-    if (SimpleLogger::logCurrentLevel >= logDebug)
-    {
-        string safeurl = req->posturl;
-        size_t sid = safeurl.find("sid=");
-        if (sid != string::npos)
-        {
-            sid += 4;
-            size_t end = safeurl.find("&", sid);
-            if (end == string::npos)
-            {
-                end = safeurl.size();
-            }
-            memset((char *)safeurl.data() + sid, 'X', end - sid);
-        }
-        LOG_debug << httpctx->req->logname << "POST target URL: " << safeurl;
-    }
+    LOG_debug << httpctx->req->logname << "POST target URL: " << getSafeUrl(req->posturl);
 
     if (req->binary)
     {
@@ -1409,7 +1401,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
-    
+
 #ifndef TARGET_OS_IPHONE
     else
     {
@@ -1473,7 +1465,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
@@ -1605,7 +1596,6 @@ void CurlHttpIO::request_proxy_ip()
     httpctx->httpio = this;
     httpctx->hostname = proxyhost;
     httpctx->ares_pending = 1;
-    
 
 #if TARGET_OS_IPHONE
     send_request(httpctx);
@@ -2611,7 +2601,8 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         }
         else
         {
-            LOG_debug << "Setting curl socket " << s << " to " << what;
+            // Networking seems to be fine after performance improvments, no need for this logging anymore - but keep it in comments for a while to inform people debugging older logs
+            //LOG_debug << "Setting curl socket " << s << " to " << what;
         }
 
         auto& info = it->second;
@@ -2638,7 +2629,6 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
     {
         httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain = false;
         httpctx->ares_pending = 1;
-        
 
 #if TARGET_OS_IPHONE
         send_request(httpctx);
@@ -2676,7 +2666,7 @@ int CurlHttpIO::upload_socket_callback(CURL *e, curl_socket_t s, int what, void 
 int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
-    auto oldValue = httpio->curltimeoutreset[d];
+    //auto oldValue = httpio->curltimeoutreset[d];
     if (timeout_ms < 0)
     {
         httpio->curltimeoutreset[d] = -1;
@@ -2692,10 +2682,11 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_
         httpio->curltimeoutreset[d] = Waiter::ds + timeoutds;
     }
 
-    if (oldValue != httpio->curltimeoutreset[d])
-    {
-        LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " from " << timeout_ms << "(ms) at ds: " << Waiter::ds;
-    }
+    // Networking seems to be fine after performance improvments, no need for this logging anymore - but keep it in comments for a while to inform people debugging older logs
+    //if (oldValue != httpio->curltimeoutreset[d])
+    //{
+    //    LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " from " << timeout_ms << "(ms) at ds: " << Waiter::ds;
+    //}
     return 0;
 }
 
@@ -2858,12 +2849,22 @@ bool CurlDNSEntry::isIPv6Expired()
     return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
 }
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
+
 void CurlHttpIO::initialize_android()
 {
+    bool initialized = ares_library_android_initialized() == ARES_SUCCESS;
+    if (initialized)
+    {
+            LOG_warn << "initialize_android: already initialized";
+            crashlytics_log("initialize_android: already initialized");
+            return;
+    }
+
     if (!MEGAjvm)
     {
         LOG_err << "No JVM found";
+        crashlytics_log("No JVM found");
         return;
     }
 
@@ -2877,6 +2878,7 @@ void CurlHttpIO::initialize_android()
             if (MEGAjvm->AttachCurrentThread(&env, NULL) != JNI_OK)
             {
                 LOG_err << "Unable to attach the current thread";
+                crashlytics_log("Unable to attach the current thread");
                 return;
             }
             detach = true;
@@ -2884,6 +2886,7 @@ void CurlHttpIO::initialize_android()
         else if (result != JNI_OK)
         {
             LOG_err << "Unable to get JNI environment";
+            crashlytics_log("Unable to get JNI environment");
             return;
         }
 
@@ -2892,6 +2895,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get android/app/AppGlobals";
+            crashlytics_log("Failed to get android/app/AppGlobals");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2904,6 +2908,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get getInitialApplication()";
+            crashlytics_log("Failed to get getInitialApplication()");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2916,6 +2921,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get context";
+            crashlytics_log("Failed to get context");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2928,6 +2934,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get android/content/Context";
+            crashlytics_log("Failed to get android/content/Context");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2940,6 +2947,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get getSystemService()";
+            crashlytics_log("Failed to get getSystemService()");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2952,6 +2960,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get CONNECTIVITY_SERVICE";
+            crashlytics_log("Failed to get CONNECTIVITY_SERVICE");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2964,6 +2973,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get CONNECTIVITY_SERVICE value";
+            crashlytics_log("Failed to get CONNECTIVITY_SERVICE value");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2976,6 +2986,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get connectivityManager";
+            crashlytics_log("Failed to get connectivityManager");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2983,9 +2994,14 @@ void CurlHttpIO::initialize_android()
             return;
         }
 
-        ares_library_init_jvm(MEGAjvm);
+        // ares_library_init_jvm(MEGAjvm); --> already done at JNI_OnLoad()
         ares_library_init_android(connectivityManager);
-        assert(ares_library_android_initialized() == ARES_SUCCESS);
+        initialized = ares_library_android_initialized() == ARES_SUCCESS;
+        assert(initialized);
+        if (!initialized)
+        {
+            crashlytics_log("Failed to initialize c-ares for Android");
+        }
 
         if (detach)
         {

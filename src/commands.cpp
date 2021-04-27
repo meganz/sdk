@@ -30,6 +30,7 @@
 #include "mega/user.h"
 #include "mega.h"
 #include "mega/mediafileattribute.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
@@ -318,9 +319,9 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
     bool begun = false;
     for (auto &file : tslot->transfer->files)
     {
-        if (!ISUNDEF(file->h))
+        if (!file->h.isUndef())
         {
-            Node *node = client->nodebyhandle(file->h);
+            Node *node = client->nodeByHandle(file->h);
             if (node)
             {
                 handle rootnode = client->getrootnode(node)->nodehandle;
@@ -350,7 +351,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
         // Target user goes alone, not inside an array. Note: we are skipping this if a)more than two b)the array had been created for node handles
         for (auto &file : tslot->transfer->files)
         {
-            if (ISUNDEF(file->h) && file->targetuser.size())
+            if (file->h.isUndef() && file->targetuser.size())
             {
                 arg("t", file->targetuser.c_str());
                 break;
@@ -989,20 +990,10 @@ bool CommandSetAttr::procresult(Result r)
         Node* node = client->nodebyhandle(h);
         if(node)
         {
-            Sync* sync = NULL;
-            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-            {
-                if((*it)->tag == tag)
-                {
-                    sync = (*it);
-                    break;
-                }
-            }
-
-            if(sync)
-            {
-                client->app->syncupdate_remote_rename(sync, node, pa.c_str());
-            }
+            // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+            client->syncs.forEachRunningSyncContainingNode(node, [&](Sync* s) {
+                    client->app->syncupdate_remote_rename(s, node, pa.c_str());
+                });
         }
     }
 #endif
@@ -1119,7 +1110,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (type == NODE_HANDLE)
     {
         Node* tn;
-
         if ((tn = client->nodebyhandle(th)))
         {
             ShareNodeKeys snk;
@@ -1274,10 +1264,15 @@ bool CommandPutNodes::procresult(Result r)
 
     client->sendkeyrewrites();
 
+    // when the target has been removed, the API automatically adds the new node/s
+    // into the rubbish bin
+    Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
+    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle);
+
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        client->app->putnodes_result(e, type, nn);
+        client->app->putnodes_result(e, type, nn, targetOverride);
         client->putnodes_sync_result(e, nn);
     }
     else
@@ -1297,7 +1292,7 @@ bool CommandPutNodes::procresult(Result r)
             }
         }
 #endif
-        client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn);
+        client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn, targetOverride);
     }
 #ifdef ENABLE_SYNC
     else
@@ -1363,27 +1358,17 @@ bool CommandMoveNode::procresult(Result r)
                             {
                                 if (syncop)
                                 {
-                                    Sync* sync = NULL;
-                                    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
-                                    {
-                                        if ((*its)->tag == tag)
-                                        {
-                                            sync = (*its);
-                                            break;
-                                        }
-                                    }
-
-                                    if (sync)
-                                    {
+                                    // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+                                    client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
                                         if ((*it)->type == FOLDERNODE)
                                         {
-                                            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
+                                            s->client->app->syncupdate_remote_folder_deletion(s, n);
                                         }
                                         else
                                         {
-                                            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
+                                            s->client->app->syncupdate_remote_file_deletion(s, n);
                                         }
-                                    }
+                                    });
                                 }
 
                                 (*it)->syncdeleted = syncdel;
@@ -1419,20 +1404,10 @@ bool CommandMoveNode::procresult(Result r)
             Node *n = client->nodebyhandle(h);
             if(n)
             {
-                Sync *sync = NULL;
-                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-                {
-                    if((*it)->tag == tag)
-                    {
-                        sync = (*it);
-                        break;
-                    }
-                }
-
-                if(sync)
-                {
-                    client->app->syncupdate_remote_move(sync, n, client->nodebyhandle(pp));
-                }
+                // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+                client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
+                    client->app->syncupdate_remote_move(s, n, client->nodebyhandle(pp));
+                });
             }
         }
 #endif
@@ -1547,7 +1522,8 @@ bool CommandKillSessions::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandLogout::CommandLogout(MegaClient *client)
+CommandLogout::CommandLogout(MegaClient *client, bool keepSyncConfigsFile)
+    : mKeepSyncConfigsFile(keepSyncConfigsFile)
 {
     cmd("sml");
 
@@ -1566,8 +1542,13 @@ bool CommandLogout::procresult(Result r)
     }
     if(r.wasError(API_OK))
     {
-        // notify client after cache removal, as before
-        client->loggedout = true;
+        // We are logged out, but we mustn't call locallogout until we exit this call
+        // stack for processing CS batches, as it deletes data currently in use.
+        bool keepSyncConfigsFile = mKeepSyncConfigsFile;
+        client->mOnCSCompletion = [keepSyncConfigsFile](MegaClient* client){
+            client->locallogout(true, keepSyncConfigsFile);
+            client->app->logout_result(API_OK);
+        };
     }
     else
     {
@@ -1682,6 +1663,10 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
     if (!deviceIdHash.empty())
     {
         arg("si", deviceIdHash.c_str());
+    }
+    else
+    {
+        client->sendevent(99454, "Device-id not available at login");
     }
 
     tag = client->reqtag;
@@ -1800,7 +1785,7 @@ bool CommandLogin::procresult(Result r)
 
                 if (len_tsid)
                 {
-                    client->setsid(sidbuf, MegaClient::SIDLEN);
+                    client->sid.assign((const char *)sidbuf, MegaClient::SIDLEN);
 
                     // account does not have an RSA keypair set: verify
                     // password using symmetric challenge
@@ -1862,7 +1847,7 @@ bool CommandLogin::procresult(Result r)
                             return true;
                         }
 
-                        client->setsid(sidbuf, MegaClient::SIDLEN);
+                        client->sid.assign((const char *)sidbuf, MegaClient::SIDLEN);
                     }
                 }
 
@@ -1877,9 +1862,7 @@ bool CommandLogin::procresult(Result r)
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
-#ifdef ENABLE_SYNC
-                client->resetSyncConfigs();
-#endif
+                client->openStatusTable(true);
                 client->app->login_result(API_OK);
                 return true;
 
@@ -1931,18 +1914,22 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, const char* personal_representation)
+CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
     byte asymmkey[AsymmCipher::MAXKEYLENGTH];
     int t = 0;
 
-    tag = client->restag;
+    tag = ctag;
 
     sh = n->nodehandle;
     user = u;
     access = a;
+    mWritable = writable;
+
+    completion = move(f);
+    assert(completion);
 
     cmd("s2");
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
@@ -2056,7 +2043,7 @@ bool CommandSetShare::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->share_result(r.errorOrOK());
+        completion(r.errorOrOK(), mWritable);
         return true;
     }
 
@@ -2079,8 +2066,8 @@ bool CommandSetShare::procresult(Result r)
                         n->sharekey->setkey(key);
 
                         // repeat attempt with corrected share key
-                        client->restag = tag;
-                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
+                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), mWritable, personal_representation.c_str(),
+                                         tag, move(completion)));
                         return false;
                     }
                 }
@@ -2099,11 +2086,11 @@ bool CommandSetShare::procresult(Result r)
             case 'r':
                 if (client->json.enterarray())
                 {
-                    int i = 0;
-
                     while (client->json.isnumeric())
                     {
-                        client->app->share_result(i++, (error)client->json.getint());
+                        // intermediate result updates, not final completion
+                        // we used to call share_result but it wasn't used
+                        client->json.getint();
                     }
 
                     client->json.leavearray();
@@ -2123,7 +2110,7 @@ bool CommandSetShare::procresult(Result r)
                 break;
 
             case EOO:
-                client->app->share_result(API_OK);
+                completion(API_OK, mWritable);
                 return true;
 
             default:
@@ -2775,10 +2762,16 @@ bool CommandPutMultipleUAVer::procresult(Result r)
 }
 
 
-CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
+CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
+                                 std::function<void(Error)> completion)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
+
+    mCompletion = completion ? move(completion) :
+        [this](Error e) {
+            this->client->app->putua_result(e);
+        };
 
     cmd("upv");
 
@@ -2815,7 +2808,7 @@ bool CommandPutUAVer::procresult(Result r)
             u->invalidateattr(at);
         }
 
-        client->app->putua_result(r.errorOrOK());
+        mCompletion(r.errorOrOK());
     }
     else
     {
@@ -2824,14 +2817,14 @@ bool CommandPutUAVer::procresult(Result r)
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-            client->app->putua_result(API_EINTERNAL);
+            mCompletion(API_EINTERNAL);
             return false;
         }
         attr_t at = User::string2attr(string(ptr, (end-ptr)).c_str());
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-            client->app->putua_result(API_EINTERNAL);
+            mCompletion(API_EINTERNAL);
             return false;
         }
         string v = string(ptr, (end-ptr));
@@ -2839,7 +2832,7 @@ bool CommandPutUAVer::procresult(Result r)
         if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
         {
             LOG_err << "Error in CommandPutUA. Undefined attribute or version";
-            client->app->putua_result(API_EINTERNAL);
+            mCompletion(API_EINTERNAL);
             return false;
         }
         else
@@ -2861,19 +2854,34 @@ bool CommandPutUAVer::procresult(Result r)
                     LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua";
                 }
             }
+            else if (at == ATTR_UNSHAREABLE_KEY)
+            {
+                LOG_info << "Unshareable key successfully created";
+                client->unshareablekey.swap(av);
+            }
+            else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
+            {
+                LOG_info << "JSON config data successfully created.";
+            }
 
             client->notifyuser(u);
-            client->app->putua_result(API_OK);
+            mCompletion(API_OK);
         }
     }
     return true;
 }
 
 
-CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts)
+CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
+                           std::function<void(Error)> completion)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
+
+    mCompletion = completion ? move(completion) :
+                  [this](Error e){
+                        client->app->putua_result(e);
+                  };
 
     cmd("up");
 
@@ -2905,7 +2913,7 @@ bool CommandPutUA::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->putua_result(r.errorOrOK());
+        mCompletion(r.errorOrOK());
     }
     else
     {
@@ -2916,7 +2924,7 @@ bool CommandPutUA::procresult(Result r)
         if (!u)
         {
             LOG_err << "Own user not found when attempting to set user attributes";
-            client->app->putua_result(API_EACCESS);
+            mCompletion(API_EACCESS);
             return true;
         }
         u->setattr(at, &av, NULL);
@@ -2935,22 +2943,34 @@ bool CommandPutUA::procresult(Result r)
                 LOG_info << "File versioning is enabled";
             }
         }
-        else if (at == ATTR_UNSHAREABLE_KEY)
-        {
-            LOG_info << "Unshareable key successfully created";
-            client->unshareablekey.swap(av);
-        }
-        client->app->putua_result(API_OK);
+
+        mCompletion(API_OK);
     }
 
     return true;
 }
 
-CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag)
+CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag,
+                           CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV)
 {
     this->uid = uid;
     this->at = at;
     this->ph = ph ? string(ph) : "";
+
+    mCompletionErr = completionErr ? move(completionErr) :
+        [this](error e) {
+            client->app->getua_result(e);
+        };
+
+    mCompletionBytes = completionBytes ? move(completionBytes) :
+        [this](byte* b, unsigned l, attr_t e) {
+            client->app->getua_result(b, l, e);
+        };
+
+    mCompletionTLV = compltionTLV ? move(compltionTLV) :
+        [this](TLVstore* t, attr_t e) {
+            client->app->getua_result(t, e);
+        };
 
     if (ph && ph[0])
     {
@@ -2979,7 +2999,7 @@ bool CommandGetUA::procresult(Result r)
             u->removeattr(at);
         }
 
-        client->app->getua_result(r.errorOrOK());
+        mCompletionErr(r.errorOrOK());
 
         if (isFromChatPreview())    // if `mcuga` was sent, no need to do anything else
         {
@@ -3028,7 +3048,7 @@ bool CommandGetUA::procresult(Result r)
             ptr = client->json.getvalue();
             if (!ptr || !(end = strchr(ptr, '"')))
             {
-                client->app->getua_result(API_EINTERNAL);
+                mCompletionErr(API_EINTERNAL);
             }
             else
             {
@@ -3036,7 +3056,7 @@ bool CommandGetUA::procresult(Result r)
                 buf.assign(ptr, (end-ptr));
                 value.resize(buf.size() / 4 * 3 + 3);
                 value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
             }
             return true;
         }
@@ -3049,7 +3069,7 @@ bool CommandGetUA::procresult(Result r)
                 {
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
-                        client->app->getua_result(API_EINTERNAL);
+                        mCompletionErr(API_EINTERNAL);
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
@@ -3063,7 +3083,7 @@ bool CommandGetUA::procresult(Result r)
                 {
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
-                        client->app->getua_result(API_EINTERNAL);
+                        mCompletionErr(API_EINTERNAL);
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
@@ -3080,7 +3100,7 @@ bool CommandGetUA::procresult(Result r)
                     {
                         u->setattr(at, NULL, &version);
                         u->setTag(tag ? tag : -1);
-                        client->app->getua_result(API_ENOENT);
+                        mCompletionErr(API_ENOENT);
                         client->notifyuser(u);
                         return true;
                     }
@@ -3100,11 +3120,11 @@ bool CommandGetUA::procresult(Result r)
                     {
                         if (at == ATTR_AVATAR && buf == "none")
                         {
-                            client->app->getua_result(API_ENOENT);
+                            mCompletionErr(API_ENOENT);
                         }
                         else
                         {
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                         }
                         return true;
                     }
@@ -3114,11 +3134,11 @@ bool CommandGetUA::procresult(Result r)
                         case '*':   // private, encrypted
                         {
                             // decrypt the data and build the TLV records
-                            TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&value, &client->key);
+                            std::unique_ptr<TLVstore> tlvRecords { TLVstore::containerToTLVrecords(&value, &client->key) };
                             if (!tlvRecords)
                             {
                                 LOG_err << "Cannot extract TLV records for private attribute " << User::attr2string(at);
-                                client->app->getua_result(API_EINTERNAL);
+                                mCompletionErr(API_EINTERNAL);
                                 return false;
                             }
 
@@ -3126,12 +3146,12 @@ bool CommandGetUA::procresult(Result r)
                             string *tlvString = tlvRecords->tlvRecordsToContainer(client->rng, &client->key);
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
-                            client->app->getua_result(tlvRecords, at);
+                            mCompletionTLV(tlvRecords.get(), at);
 
                             if (User::isAuthring(at))
                             {
                                 client->mAuthRings.erase(at);
-                                client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+                                client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords.get()));
 
                                 if (client->mFetchingAuthrings && client->mAuthRings.size() == 3)
                                 {
@@ -3139,14 +3159,12 @@ bool CommandGetUA::procresult(Result r)
                                     client->fetchContactsKeys();
                                 }
                             }
-
-                            delete tlvRecords;
                             break;
                         }
                         case '+':   // public
                         {
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
                             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
@@ -3169,14 +3187,14 @@ bool CommandGetUA::procresult(Result r)
                         case '#':   // protected
                         {
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                             break;
                         }
                         case '^': // private, non-encrypted
                         {
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
                             if (at == ATTR_DISABLE_VERSIONS)
                             {
@@ -3202,12 +3220,12 @@ bool CommandGetUA::procresult(Result r)
                                     at != ATTR_BIRTHYEAR)     // private
                             {
                                 LOG_err << "Unknown received attribute: " << User::attr2string(at);
-                                client->app->getua_result(API_EINTERNAL);
+                                mCompletionErr(API_EINTERNAL);
                                 return false;
                             }
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                             break;
                         }
 
@@ -3234,7 +3252,9 @@ bool CommandGetUA::procresult(Result r)
             }   // switch (nameid)
         }
     }
-    return false;
+#ifndef WIN32
+    return false;  // unreachable code
+#endif
 }
 
 #ifdef DEBUG
@@ -3541,12 +3561,18 @@ void CommandPubKeyRequest::invalidateUser()
     u = NULL;
 }
 
-CommandGetUserData::CommandGetUserData(MegaClient *client)
+CommandGetUserData::CommandGetUserData(MegaClient *client, int tag, std::function<void(string*, string*, string*, error)> completion)
 {
     cmd("ug");
     arg("v", 1);
 
-    tag = client->reqtag;
+    this->tag = tag;
+
+    mCompletion = completion ? move(completion) :
+        [this](string* name, string* pubk, string* privk, error e) {
+            this->client->app->userdata_result(name, pubk, privk, e);
+        };
+
 }
 
 bool CommandGetUserData::procresult(Result r)
@@ -3597,6 +3623,15 @@ bool CommandGetUserData::procresult(Result r)
     string versionUnshareableKey;
     string deviceNames;
     string versionDeviceNames;
+    string myBackupsFolder;
+    string versionMyBackupsFolder;
+    string versionBackupNames;
+    string cookieSettings;
+    string versionCookieSettings;
+#ifdef ENABLE_SYNC
+    string jsonSyncConfigData;
+    string jsonSyncConfigDataVersion;
+#endif
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3610,7 +3645,7 @@ bool CommandGetUserData::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
-        client->app->userdata_result(NULL, NULL, NULL, r.wasError(API_OK) ? Error(API_ENOENT) : r.errorOrOK());
+        mCompletion(NULL, NULL, NULL, r.wasError(API_OK) ? Error(API_ENOENT) : r.errorOrOK());
         return true;
     }
 
@@ -3654,7 +3689,7 @@ bool CommandGetUserData::procresult(Result r)
             {
                 if (client->readmiscflags(&client->json) != API_OK)
                 {
-                    client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                    mCompletion(NULL, NULL, NULL, API_EINTERNAL);
                     return false;
                 }
                 client->json.leaveobject();
@@ -3720,6 +3755,16 @@ bool CommandGetUserData::procresult(Result r)
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
             break;
+
+        case MAKENAMEID5('*', '!', 'b', 'a', 'k'):
+            parseUserAttribute(myBackupsFolder, versionMyBackupsFolder);
+            break;
+
+#ifdef ENABLE_SYNC
+        case MAKENAMEID6('*', '~', 'j', 's', 'c', 'd'):
+            parseUserAttribute(jsonSyncConfigData, jsonSyncConfigDataVersion);
+            break;
+#endif
 
         case 'b':   // business account's info
             assert(!b);
@@ -3795,7 +3840,7 @@ bool CommandGetUserData::procresult(Result r)
                                         default:
                                             if (!client->json.storeobject())
                                             {
-                                                client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                                                mCompletion(NULL, NULL, NULL, API_EINTERNAL);
                                                 return false;
                                             }
                                     }
@@ -3812,7 +3857,7 @@ bool CommandGetUserData::procresult(Result r)
                         default:
                             if (!client->json.storeobject())
                             {
-                                client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                                mCompletion(NULL, NULL, NULL, API_EINTERNAL);
                                 return false;
                             }
                     }
@@ -3866,7 +3911,7 @@ bool CommandGetUserData::procresult(Result r)
                         default:
                             if (!client->json.storeobject())
                             {
-                                client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                                mCompletion(NULL, NULL, NULL, API_EINTERNAL);
                                 return false;
                             }
                     }
@@ -3875,6 +3920,10 @@ bool CommandGetUserData::procresult(Result r)
             }
             break;
         }
+
+        case MAKENAMEID5('^', '!', 'c', 's', 'p'):
+            parseUserAttribute(cookieSettings, versionCookieSettings);
+            break;
 
         case EOO:
         {
@@ -4035,6 +4084,21 @@ bool CommandGetUserData::procresult(Result r)
                     }
                 }
 
+                if (!myBackupsFolder.empty())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&myBackupsFolder, &client->key));
+                    if (tlvRecords)
+                    {
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, tlvString.get(), &versionMyBackupsFolder);
+                    }
+                    else
+                    {
+                        LOG_err << "Cannot extract TLV records for ATTR_MY_BACKUPS_FOLDER";
+                    }
+                }
+
                 if (aliases.size())
                 {
                     unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&aliases, &client->key));
@@ -4081,6 +4145,34 @@ bool CommandGetUserData::procresult(Result r)
                         LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
                     }
                 }
+
+                if (!cookieSettings.empty())
+                {
+                    changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
+                }
+
+#ifdef ENABLE_SYNC
+                if (!jsonSyncConfigData.empty())
+                {
+                    // Tell the rest of the SDK that the attribute's changed.
+                    changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_DATA,
+                                             &jsonSyncConfigData,
+                                             &jsonSyncConfigDataVersion);
+                }
+                else
+                {
+                    // This attribute is set only once. If not received from API,
+                    // it should not exist locally either
+                    assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
+
+                    client->ensureSyncUserAttributes([](Error e){
+                        if (e != API_OK)
+                        {
+                            LOG_err << "Couldn't create *~jscd user's attribute";
+                        }
+                    });
+                }
+#endif
 
                 if (changes > 0)
                 {
@@ -4176,7 +4268,7 @@ bool CommandGetUserData::procresult(Result r)
 
             }
 
-            client->app->userdata_result(&name, &pubk, &privk, API_OK);
+            mCompletion(&name, &pubk, &privk, API_OK);
             return true;
         }
         default:
@@ -4197,7 +4289,7 @@ bool CommandGetUserData::procresult(Result r)
                 default:
                     if (!client->json.storeobject())
                     {
-                        client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                        mCompletion(NULL, NULL, NULL, API_EINTERNAL);
                         return false;
                     }
                     break;
@@ -4591,6 +4683,19 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
 
+                if (mPro)
+                {
+                    // Pro level can change without a payment (ie. with coupons or by helpdesk)
+                    // and in those cases, the `psts` packet is not triggered. However, the SDK
+                    // should notify the app and resume transfers, etc.
+                    bool changed = client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL, details->pro_level);
+                    if (changed)
+                    {
+                        client->app->account_updated();
+                        client->abortbackoff(true);
+                    }
+                }
+
                 client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
                 return true;
 
@@ -4749,8 +4854,16 @@ bool CommandGetUserSessions::procresult(Result r)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable,
+    int ctag, std::function<void(Error, handle, handle)> f)
 {
+    h = n->nodehandle;
+    ets = cets;
+    tag = ctag;
+    mWritable = writable;
+    completion = move(f);
+    assert(completion);
+
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
 
@@ -4764,36 +4877,78 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
         arg("ets", ets);
     }
 
-    this->h = n->nodehandle;
-    this->ets = ets;
-    this->tag = client->reqtag;
+    if (writable)
+    {
+        arg("w", "1");
+    }
+
 }
 
 bool CommandSetPH::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->exportnode_result(r.errorOrOK());
+        completion(r.errorOrOK(), UNDEF, UNDEF);
         return true;
     }
 
-    handle ph = client->json.gethandle();
+    handle ph = UNDEF;
+    std::string authKey;
+
+    if (mWritable) // aparently, depending on 'w', the response can be [{"ph":"XXXXXXXX","w":"YYYYYYYYYYYYYYYYYYYYYY"}] or simply [XXXXXXXX]
+    {
+        bool exit = false;
+        while (!exit)
+        {
+            switch (client->json.getnameid())
+            {
+            case 'w':
+                client->json.storeobject(&authKey);
+                break;
+
+            case MAKENAMEID2('p', 'h'):
+                ph = client->json.gethandle();
+                break;
+
+            case EOO:
+            {
+                if (authKey.empty())
+                {
+                    completion(API_EINTERNAL, UNDEF, UNDEF);
+                    return false;
+                }
+                exit = true;
+                break;
+            }
+            default:
+                if (!client->json.storeobject())
+                {
+                    completion(API_EINTERNAL, UNDEF, UNDEF);
+                    return false;
+                }
+            }
+        }
+    }
+    else    // format: [XXXXXXXX]
+    {
+        ph = client->json.gethandle();
+    }
 
     if (ISUNDEF(ph))
     {
-        client->app->exportnode_result(API_EINTERNAL);
-        return true;
+        completion(API_EINTERNAL, UNDEF, UNDEF);
+        return false;
     }
 
     Node *n = client->nodebyhandle(h);
     if (n)
     {
-        n->setpubliclink(ph, time(nullptr), ets, false);
+        n->setpubliclink(ph, time(nullptr), ets, false, authKey);
         n->changed.publiclink = true;
         client->notifynode(n);
     }
 
-    client->app->exportnode_result(h, ph);
+    completion(API_OK, h, ph);
     return true;
 }
 
@@ -4986,7 +5141,7 @@ bool CommandResumeEphemeralSession::procresult(Result r)
                     return false;
                 }
 
-                client->setsid(sidbuf, sizeof sidbuf);
+                client->sid.assign((const char *)sidbuf, sizeof sidbuf);
 
                 client->key.setkey(pw);
                 client->key.ecb_decrypt(keybuf);
@@ -5002,6 +5157,7 @@ bool CommandResumeEphemeralSession::procresult(Result r)
                 client->me = uh;
                 client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
 
+                client->openStatusTable(true);
                 client->app->ephemeral_result(uh, pw);
                 return true;
 
@@ -5268,7 +5424,7 @@ bool CommandSetKeyPair::procresult(Result r)
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
+CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
 {
     cmd("f");
     arg("c", 1);
@@ -5282,7 +5438,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
     // The servers are more efficient with this command when it's the only one in the batch
     batchSeparately = true;
 
-    tag = client->reqtag;
+    this->tag = tag;
 }
 
 // purge and rebuild node/user tree
@@ -5404,7 +5560,6 @@ bool CommandFetchNodes::procresult(Result r)
 
                 client->mergenewshares(0);
                 client->applykeys();
-                client->initStatusTable();
                 client->initsc();
                 client->sctable->setVar(MegaClient::SESSIONTYPE, std::to_string(client->loggedin()));
                 client->pendingsccommit = false;
@@ -5559,6 +5714,7 @@ CommandCopySession::CommandCopySession(MegaClient *client)
     tag = client->reqtag;
 }
 
+// for ephemeral accounts, it returns "tsid" instead of "csid" -> not supported, will return API_EINTERNAL
 bool CommandCopySession::procresult(Result r)
 {
     string session;
@@ -5567,6 +5723,7 @@ bool CommandCopySession::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
+        assert(r.errorOrOK() != API_OK); // API shouldn't return OK, but a session
         client->app->copysession_result(NULL, r.errorOrOK());
         return true;
     }
@@ -6799,7 +6956,7 @@ bool CommandArchiveChat::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, int period)
+CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, unsigned period)
 {
     mChatid = chatid;
 
@@ -8099,71 +8256,54 @@ bool CommandFolderLinkInfo::procresult(Result r)
     }
 }
 
-// to register a new backup
-CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData)
-{
-    assert(type != BackupType::INVALID);
-
-    cmd("sp");
-
-    arg("t", type);
-    arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
-    arg("l", localFolder.c_str());
-    arg("d", deviceId.c_str());
-    arg("s", state);
-    arg("ss", subState);
-
-    if (!extraData.empty())
-        arg("e", extraData.c_str());
-
-    tag = client->reqtag;
-    mUpdate = false;
-}
-
-// to update an already registered backup
-CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, int state, int subState, const char* extraData)
+CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields, std::function<void(Error, handle /*backup id*/)> completion)
+    : mCompletion(completion)
 {
     cmd("sp");
 
-    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
-
-    if (type != BackupType::INVALID)
+    if (!ISUNDEF(fields.backupId))
     {
-        arg("t", type);
+        arg("id", (byte*)&fields.backupId, MegaClient::BACKUPHANDLE);
     }
 
-    if (nodeHandle != UNDEF)
+    if (fields.type != BackupType::INVALID)
     {
-        arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+        arg("t", fields.type);
     }
 
-    if (localFolder)
+    if (!fields.nodeHandle.isUndef())
     {
-        arg("l", localFolder);
+        arg("h", fields.nodeHandle);
     }
 
-    if (deviceId)
+    if (!fields.localFolder.empty())
     {
-        arg("d", deviceId);
+        string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", fields.localFolder.toPath(*client->fsaccess)));
+        arg("l", localFolderEncrypted.c_str());
     }
 
-    if (state >= 0)
+    if (!fields.deviceId.empty())
     {
-        arg("s", state);
+        arg("d", fields.deviceId.c_str());
     }
 
-    if (subState >= 0)
+    if (fields.state >= 0)
     {
-        arg("ss", subState);
+        arg("s", fields.state);
     }
 
-    if (extraData)
+    if (fields.subState >= 0)
     {
-        arg("e", extraData);
+        arg("ss", fields.subState);
+    }
+
+    if (!fields.backupName.empty())
+    {
+        string edEncrypted(client->cypherTLVTextWithMasterKey("bn", fields.backupName));
+        arg("e", edEncrypted.c_str());
     }
 
     tag = client->reqtag;
-    mUpdate = true;
 }
 
 bool CommandBackupPut::procresult(Result r)
@@ -8174,7 +8314,7 @@ bool CommandBackupPut::procresult(Result r)
 
     if (r.hasJsonItem())
     {
-        backupId = client->json.gethandle(MegaClient::USERHANDLE);
+        backupId = client->json.gethandle(MegaClient::BACKUPHANDLE);
         e = API_OK;
     }
     else
@@ -8182,52 +8322,152 @@ bool CommandBackupPut::procresult(Result r)
         e = r.errorOrOK();
     }
 
-    if (mUpdate)
-    {
-        client->app->backupupdate_result(e, backupId);
-    }
-    else
-    {
-        client->app->backupput_result(e, backupId);
-    }
+    assert(e != API_EARGS);  // if this happens, the API rejected the request because it wants more fields supplied
+
+    if (mCompletion) mCompletion(e, backupId);
+
+    client->app->backupput_result(e, backupId);
+
     return r.wasStrictlyError() || r.hasJsonItem();
 }
 
-CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode)
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
+    : mCompletion(f)
 {
     cmd("sphb");
 
-    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
     arg("s", status);
-    arg("p", progress);
+    if (progress != -1)
+    {
+        arg("p", progress);
+    }
     arg("qu", uploads);
     arg("qd", downloads);
-    arg("lts", ts);
-    arg("lh", (byte*)&lastNode, MegaClient::NODEHANDLE);
+    if (ts != -1)
+    {
+        arg("lts", ts);
+    }
+    if (!ISUNDEF(lastNode))
+    {
+        arg("lh", (byte*)&lastNode, MegaClient::NODEHANDLE);
+    }
 
     tag = client->reqtag;
 }
 
 bool CommandBackupPutHeartBeat::procresult(Result r)
 {
-    client->app->backupputheartbeat_result(r.errorOrOK());
+    if (mCompletion) mCompletion(r.errorOrOK());
     return r.wasErrorOrOK();
 }
 
 CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
-    : id(backupId)
+    : mBackupId(backupId)
 {
     cmd("sr");
-    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
 
     tag = client->reqtag;
 }
 
 bool CommandBackupRemove::procresult(Result r)
 {
-    client->app->backupremove_result(r.errorOrOK(), id);
+    client->app->backupremove_result(r.errorOrOK(), mBackupId);
     return r.wasErrorOrOK();
 }
+
+CommandBackupSyncFetch::CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)> f)
+    : completion(move(f))
+{
+    cmd("sf");
+}
+
+bool CommandBackupSyncFetch::procresult(Result r)
+{
+    vector<Data> data;
+    if (!r.hasJsonArray())
+    {
+        completion(r.errorOrOK(), data);
+    }
+    else
+    {
+        auto skipUnknownField = [&]() -> bool {
+            if (!client->json.storeobject())
+            {
+                completion(API_EINTERNAL, data);
+                return false;
+            }
+            return true;
+        };
+
+        auto cantLeaveObject = [&]() -> bool {
+            if (!client->json.leaveobject())
+            {
+                completion(API_EINTERNAL, data);
+                return true;
+            }
+            return false;
+        };
+
+        while (client->json.enterobject())
+        {
+            data.push_back(Data());
+            for (;;)
+            {
+                auto& d = data.back();
+                auto nid = client->json.getnameid();
+                if (nid == EOO) break;
+                switch (nid)
+                {
+                case MAKENAMEID2('i', 'd'):     d.backupId = client->json.gethandle(sizeof(handle)); break;
+                case MAKENAMEID1('t'):          d.backupType = static_cast<BackupType>(client->json.getint32()); break;
+                case MAKENAMEID1('h'):          d.rootNode = client->json.gethandle(MegaClient::NODEHANDLE); break;
+                case MAKENAMEID1('l'):          client->json.storeobject(&d.localFolder);
+                                                d.localFolder = client->decypherTLVTextWithMasterKey("lf", d.localFolder);
+                                                break;
+                case MAKENAMEID1('d'):          client->json.storeobject(&d.deviceId); break;
+                case MAKENAMEID1('s'):          d.syncState = client->json.getint32(); break;
+                case MAKENAMEID2('s', 's'):     d.syncSubstate = client->json.getint32(); break;
+                case MAKENAMEID1('e'):          client->json.storeobject(&d.extra);
+                                                d.extra = client->decypherTLVTextWithMasterKey("ed", d.extra);
+                                                break;
+                case MAKENAMEID2('h', 'b'):
+                {
+                    if (client->json.enterobject())
+                    {
+                        for (;;)
+                        {
+                            nid = client->json.getnameid();
+                            if (nid == EOO) break;
+                            switch (nid)
+                            {
+                            case MAKENAMEID2('t', 's'):     d.hbTimestamp = client->json.getint(); break;
+                            case MAKENAMEID1('s'):          d.hbStatus = client->json.getint32(); break;
+                            case MAKENAMEID1('p'):          d.hbProgress = client->json.getint32(); break;
+                            case MAKENAMEID2('q', 'u'):     d.uploads = client->json.getint32(); break;
+                            case MAKENAMEID2('q', 'd'):     d.downloads = client->json.getint32(); break;
+                            case MAKENAMEID3('l', 't', 's'):d.lastActivityTs = client->json.getint32(); break;
+                            case MAKENAMEID2('l', 'h'):     d.lastSyncedNodeHandle = client->json.gethandle(MegaClient::NODEHANDLE); break;
+                            default: if (!skipUnknownField()) return false;
+                            }
+                        }
+                        if (cantLeaveObject()) return false;
+                    }
+                }
+                break;
+
+                default: if (!skipUnknownField()) return false;
+                }
+            }
+            if (cantLeaveObject()) return false;
+        }
+
+        completion(API_OK, data);
+    }
+    return true;
+}
+
 
 CommandGetBanners::CommandGetBanners(MegaClient* client)
 {
@@ -8276,10 +8516,12 @@ bool CommandGetBanners::procresult(Result r)
 
             case MAKENAMEID1('t'):
                 client->json.storeobject(&title);
+                title = Base64::atob(title);
                 break;
 
             case MAKENAMEID1('d'):
                 client->json.storeobject(&description);
+                description = Base64::atob(description);
                 break;
 
             case MAKENAMEID3('i', 'm', 'g'):
@@ -8342,6 +8584,122 @@ bool CommandDismissBanner::procresult(Result r)
 {
     client->app->dismissbanner_result(r.errorOrOK());
     return r.wasErrorOrOK();
+}
+
+bool CommandFetchGoogleAds::procresult(Command::Result r)
+{
+    string_map result;
+    if (r.wasStrictlyError())
+    {
+        mCompletion(r.errorOrOK(), result);
+        return true;
+    }
+
+    bool error = false;
+
+    while (client->json.enterobject() && !error)
+    {
+        std::string id;
+        std::string iu;
+        bool exit = false;
+        while (!exit)
+        {
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID2('i', 'd'):
+                    client->json.storeobject(&id);
+                    break;
+
+                case MAKENAMEID2('i', 'u'):
+                    client->json.storeobject(&iu);
+                    break;
+
+                case EOO:
+                    exit = true;
+                    if (!id.empty() && !iu.empty())
+                    {
+                        result[id] = iu;
+                    }
+                    else
+                    {
+                        error = true;
+                        result.clear();
+                    }
+                    break;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        result.clear();
+                        mCompletion(API_EINTERNAL, result);
+                        return false;
+                    }
+                    break;
+            }
+        }
+
+        client->json.leaveobject();
+    }
+
+    mCompletion((error ? API_EINTERNAL : API_OK), result);
+
+    return !error;
+}
+
+CommandFetchGoogleAds::CommandFetchGoogleAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchGoogleAdsCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("adf");
+    arg("ad", adFlags);
+    arg("af", 2); // IU (mobile apps)
+
+    if (!ISUNDEF(publicHandle))
+    {
+        arg("p", publicHandle);
+    }
+
+    beginarray("au");
+    for (const std::string& adUnit : adUnits)
+    {
+        element(adUnit.c_str());
+    }
+    endarray();
+
+    tag = client->reqtag;
+}
+
+bool CommandQueryGoogleAds::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK(), 0);
+        return true;
+    }
+
+    if (!client->json.isnumeric())
+    {
+        // It's wrongly formatted, consume this one so the next command can be processed.
+        LOG_err << "Command response badly formatted";
+        mCompletion(API_EINTERNAL, 0);
+        return false;
+    }
+
+    int value = client->json.getint32();
+    mCompletion(API_OK, value);
+    return true;
+}
+
+CommandQueryGoogleAds::CommandQueryGoogleAds(MegaClient* client, int adFlags, handle publicHandle, CommandQueryGoogleAdsCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("ads");
+    arg("ad", adFlags);
+    if (!ISUNDEF(publicHandle))
+    {
+        arg("ph", publicHandle);
+    }
+
+    tag = client->reqtag;
 }
 
 } // namespace

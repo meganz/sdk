@@ -30,6 +30,10 @@
 #include "megaapi.h"
 #include "mega/mediafileattribute.h"
 
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+#include "mega/rotativeperformancelogger.h"
+#endif
+
 #include <iomanip>
 #include <algorithm>
 #include <functional>
@@ -63,25 +67,6 @@
 #endif
 
 #include "mega/mega_zxcvbn.h"
-
-namespace {
-
-#ifdef ENABLE_SYNC
-std::vector<std::string> regExpToVector(mega::MegaRegExp* regExp)
-{
-    std::vector<std::string> regExps;
-    if (regExp)
-    {
-        for (int i = 0; i < regExp->getNumRegExp(); ++i)
-        {
-            regExps.push_back(regExp->getRegExp(i));
-        }
-    }
-    return regExps;
-}
-#endif
-
-}
 
 namespace mega {
 
@@ -209,7 +194,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 
     if (node->isExported())
     {
-        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(), node->getExpirationTime(), node->isTakenDown());
+        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(),
+                                     node->getExpirationTime(), node->isTakenDown(), node->getWritableLinkAuthKey());
 
         if (type == FOLDERNODE)
         {
@@ -417,6 +403,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                     mLabel = static_cast<nodelabel_t>(lbl);
                 }
             }
+            else if (it->first == AttrMap::string2nameid("dev-id"))
+            {
+                mDeviceId = it->second;
+            }
         }
     }
 
@@ -486,9 +476,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->syncdeleted = (node->syncdeleted != SYNCDEL_NONE);
     if(node->localnode)
     {
-        LocalPath lp;
-        node->localnode->getlocalpath(lp, true);
-        localPath.swap(*lp.editStringDirect());
+        localPath = node->localnode->getLocalPath().platformEncoded();
         localPath.append("", 1);
     }
 #endif
@@ -674,16 +662,12 @@ MegaStringList *MegaNodePrivate::getCustomAttrNames()
         return new MegaStringList();
     }
 
-    vector<char*> names;
-    char *buf;
+    string_vector names;
     for (attr_map::iterator it = customAttrs->begin(); it != customAttrs->end(); it++)
     {
-        buf = new char[10];
-        int attrlen = AttrMap::nameid2string(it->first, buf);
-        buf[attrlen] = '\0';
-        names.push_back(buf);
+        names.push_back(AttrMap::nameid2string(it->first));
     }
-    return new MegaStringListPrivate(names.data(), int(names.size()));
+    return new MegaStringListPrivate(move(names));
 }
 
 const char *MegaNodePrivate::getCustomAttr(const char *attrName)
@@ -943,7 +927,7 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
     }
 
     char *base64k = getBase64Key();
-    string strlink = MegaClient::getPublicLink(mNewLinkFormat, static_cast<nodetype_t>(type), plink->ph, (includeKey ? base64k : nullptr));
+    string strlink = MegaClient::publicLinkURL(mNewLinkFormat, static_cast<nodetype_t>(type), plink->ph, (includeKey ? base64k : nullptr));
     delete [] base64k;
 
     return MegaApi::strdup(strlink.c_str());
@@ -952,6 +936,11 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
 int64_t MegaNodePrivate::getPublicLinkCreationTime()
 {
     return plink ? plink->cts : -1;
+}
+
+const char *MegaNodePrivate::getWritableLinkAuthKey()
+{
+    return (plink && !plink->mAuthKey.empty()) ? plink->mAuthKey.c_str() : nullptr;
 }
 
 bool MegaNodePrivate::isNewLinkFormat()
@@ -989,8 +978,10 @@ MegaHandle MegaNodePrivate::getOwner() const
     return owner;
 }
 
-const unsigned int MegaApiImpl::MAX_SESSION_LENGTH = 64;
-
+const char* MegaNodePrivate::getDeviceId() const
+{
+    return mDeviceId.c_str();
+}
 
 MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(MegaApi* capi)
     : api(MegaApiImpl::ImplOf(capi))
@@ -1086,8 +1077,8 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
 
     auto localfilename = LocalPath::fromPath(inputFilepath, *api->fsAccess);
 
-    char ext[MAXEXTENSIONLEN];
-    if (api->fsAccess->getextension(localfilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+    string ext;
+    if (api->fsAccess->getextension(localfilename, ext) && MediaProperties::isMediaFilenameExt(ext))
     {
         mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
 
@@ -1255,51 +1246,62 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
     return !*pszMatch;
 }
 
-bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& localpath)
+bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpath)
 {
-    // Don't sync these system files from OS X
-    if (!strcmp(name, "Icon\x0d"))
+    // Is this path excluded by any path filters?
+    if (!excludedPaths.empty())
     {
-        return false;
-    }
+        // Translate current path into something we can match.
+        auto temp = localpath.toPath(*fsAccess);
 
-    for (unsigned int i = 0; i < excludedNames.size(); i++)
-    {
-        if (WildcardMatch(name, excludedNames[i].c_str()))
+        // Is this path excluded by any path filters?
+        for (const auto& xpath : excludedPaths)
         {
-            return false;
+            auto xp = LocalPath::fromPath(xpath, *fsAccess);
+
+            if (xp.isContainingPathOf(localpath))
+            {
+                return false;
+            }
+
+            if (WildcardMatch(temp.c_str(), xpath.c_str()))
+            {
+                return false;
+            }
         }
     }
 
-    MegaRegExp *regExp = NULL;
-#ifdef USE_PCRE
-    //TODO: Relaying on MegaSyncPrivate for this makes no sense. While resuming syncs, there might not be a MegaSyncPrivate
-    // in the first place at this point when doing first scan. Per sync inclusions should be included in Sync object
-    MegaSyncPrivate* megaSync = (MegaSyncPrivate *)sync->appData;
-    if (megaSync)
-    {
-        regExp = megaSync->getRegExp();
-    }
-#endif
+    // Check whether any path components are excluded.
+    auto path = localpath;
 
-    if (regExp || excludedPaths.size())
-    {
-        string utf8path = localpath.toPath(*fsAccess);
+    // Convenience.
+    const auto& root = sync->localroot->localname;
 
-        for (unsigned int i = 0; i < excludedPaths.size(); i++)
+    while (root.isContainingPathOf(path) && path != root)
+    {
+        // Where does this component's name start?
+        auto nameIndex = path.getLeafnameByteIndex(*fsAccess);
+
+        // Extract component's name.
+        auto name = path.subpathFrom(nameIndex).toPath(*fsAccess);
+
+        // Skip these system files on OS X.
+        if (name == "Icon\x0d")
         {
-            if (WildcardMatch(utf8path.c_str(), excludedPaths[i].c_str()))
+            return false;
+        }
+
+        // Is this component's name excluded by any filename filters?
+        for (const auto& xname : excludedNames)
+        {
+            if (WildcardMatch(name.c_str(), xname.c_str()))
             {
                 return false;
             }
         }
 
-#ifdef USE_PCRE
-        if (regExp && regExp->match(utf8path.c_str()))
-        {
-            return false;
-        }
-#endif
+        // Climb to the next component.
+        path.truncate(nameIndex - 1);
     }
 
     return true;
@@ -1373,61 +1375,50 @@ int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
 
 bool MegaApiImpl::isIndexing()
 {
-    if(!client || client->syncs.size() == 0)
-    {
-        return false;
-    }
-
     if(client->syncscanstate)
     {
         return true;
     }
 
+    SdkMutexGuard g(sdkMutex);
     bool indexing = false;
-    sdkMutex.lock();
-    sync_list::iterator it = client->syncs.begin();
-    while(it != client->syncs.end())
-    {
-        Sync *sync = (*it);
+    client->syncs.forEachRunningSync([&](Sync* sync) {
+
         if(sync->state == SYNC_INITIALSCAN)
         {
             indexing = true;
-            break;
         }
-        it++;
-    }
-    sdkMutex.unlock();
+    });
     return indexing;
 }
 
 bool MegaApiImpl::isSyncing()
 {
-    if (!client->syncs.size())
-    {
-        return false;
-    }
     SdkMutexGuard g(sdkMutex);
+    bool syncing = false;
+    client->syncs.forEachRunningSync([&](Sync* sync) {
 
-    for (auto & sync : client->syncs)
-    {
         if (sync->localroot->ts == TREESTATE_SYNCING || sync->localroot->ts == TREESTATE_PENDING)
         {
-            return true;
+            syncing = true;
         }
-    }
-    return false;
+    });
+    return syncing;
 }
 
-MegaSync *MegaApiImpl::getSyncByTag(int tag)
+MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
 {
     SdkMutexGuard g(sdkMutex);
 
-    if (syncMap.find(tag) == syncMap.end())
-    {
-        return nullptr;
-    }
+    unique_ptr<MegaSync> ret;
+    client->syncs.forEachUnifiedSync([&](UnifiedSync& s){
+        if (s.mConfig.getBackupId() == backupId)
+        {
+            ret.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get(), client));
+        }
+    });
 
-    return syncMap.at(tag)->copy();
+    return ret.release();
 }
 
 MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
@@ -1439,18 +1430,16 @@ MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
 
     SdkMutexGuard g(sdkMutex);
     MegaHandle nodeHandle = node->getHandle();
-    std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
-    while(it != syncMap.end())
-    {
-        MegaSyncPrivate* sync = it->second;
-        if (sync->getMegaHandle() == nodeHandle)
-        {
-            return sync->copy();
-        }
-        it++;
-    }
 
-    return nullptr;
+    unique_ptr<MegaSync> ret;
+    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
+        if (us.mConfig.getRemoteNode() == nodeHandle)
+        {
+            ret.reset(new MegaSyncPrivate(us.mConfig, us.mSync.get(), client));
+        }
+    });
+
+    return ret.release();
 }
 
 MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
@@ -1460,22 +1449,17 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
         return NULL;
     }
 
-    MegaSync *result = NULL;
-    sdkMutex.lock();
-    std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
-    while(it != syncMap.end())
-    {
-        MegaSyncPrivate* sync = it->second;
-        if (!strcmp(localPath, sync->getLocalFolder()))
-        {
-            result = sync->copy();
-            break;
-        }
-        it++;
-    }
+    SdkMutexGuard g(sdkMutex);
 
-    sdkMutex.unlock();
-    return result;
+    unique_ptr<MegaSync> ret;
+    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
+        if (us.mConfig.getLocalPath().toPath(*client->fsaccess) == localPath)
+        {
+            ret.reset(new MegaSyncPrivate(us.mConfig, us.mSync.get(), client));
+        }
+    });
+
+    return ret.release();
 }
 
 char *MegaApiImpl::getBlockedPath()
@@ -1488,6 +1472,112 @@ char *MegaApiImpl::getBlockedPath()
     }
     sdkMutex.unlock();
     return path;
+}
+
+error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::backupFolder()
+{
+    // validate local path and backup name
+    if (!request->getFile())
+    {
+        return API_EARGS;
+    }
+
+    string localPath(request->getFile());
+    string backupName;
+    if (request->getName())
+    {
+        backupName.assign(request->getName());
+    }
+    else    // get the last leaf of local path
+    {
+        LocalPath p = LocalPath::fromPath(localPath, *client->fsaccess);
+        LocalPath l = p.leafName();
+        backupName = l.toPath(*client->fsaccess);
+        request->setName(backupName.c_str()); // use this in putnodes_result()
+    }
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    if (!PathIsRelativeA(localPath.c_str()) && ((localPath.size() < 2) || localPath.compare(0, 2, "\\\\")))
+    {
+        localPath.insert(0, "\\\\?\\");
+        request->setFile(localPath.c_str());
+    }
+#endif
+
+    // get current user
+    User* u = client->ownuser();
+
+    // get handle of remote "My Backups" folder, from user attributes
+    if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER)) { return API_EACCESS; }
+    const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+    if (!handleContainerStr) { return API_EACCESS; }
+
+    std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &client->key));
+    if (!tlvRecords || !tlvRecords->find("h")) { return API_EINTERNAL; }
+
+    handle h = 0; // make sure top two bytes are 0
+    memcpy(&h, tlvRecords->get("h").c_str(), MegaClient::NODEHANDLE);
+
+    if (!h || h == UNDEF) { return API_ENOENT; }
+
+    // get Node of remote "My Backups" folder
+    Node* myBackupsNode = client->nodebyhandle(h);
+    if (!myBackupsNode) { return API_ENOENT; }
+
+    // get 'device-id'
+    const string& deviceId = client->getDeviceid();
+    if (deviceId.empty()) { return API_EINCOMPLETE; }
+
+    // prepare for new nodes
+    vector<NewNode> newnodes;
+    nameid attrId = AttrMap::string2nameid("dev-id"); // "device-id" would be too long
+    std::function<void(AttrMap& attrs)> addAttrsFunc = [=](AttrMap& attrs)
+    {
+        attrs.map[attrId] = deviceId;
+    };
+
+    // serch for remote folder "My Backups"/`DEVICE_NAME`/
+    Node* deviceNameNode = client->childnodebyattribute(myBackupsNode, attrId, deviceId.c_str());
+    if (deviceNameNode) // validate this node
+    {
+        if (deviceNameNode->type != FOLDERNODE) { return API_EACCESS; }
+    }
+    else // create `DEVICE_NAME` remote dir
+    {
+        // get `DEVICE_NAME`, from user attributes
+        if (!u->isattrvalid(ATTR_DEVICE_NAMES)) { return API_EINCOMPLETE; }
+        const string* deviceNameContainerStr = u->getattr(ATTR_DEVICE_NAMES);
+        if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
+
+        tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
+        if (!tlvRecords || !tlvRecords->find(deviceId)) { return API_EINCOMPLETE; }
+
+        const string& deviceName = tlvRecords->get(deviceId);
+        if (deviceName.empty()) { return API_EINCOMPLETE; }
+
+        // add a new node for it
+        newnodes.emplace_back();
+        NewNode& newNode = newnodes.back();
+
+        client->putnodes_prepareOneFolder(&newNode, deviceName, addAttrsFunc);
+        newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
+    }
+
+    // create backupName remote dir
+    newnodes.emplace_back();
+    NewNode& backupNameNode = newnodes.back();
+
+    client->putnodes_prepareOneFolder(&backupNameNode, backupName, addAttrsFunc);
+    if (!deviceNameNode)
+    {
+        // Set parent handle if part of the new nodes array (it cannot be from an existing node)
+        backupNameNode.parenthandle = newnodes[0].nodehandle;
+    }
+
+    // create the new node(s)
+    client->putnodes(deviceNameNode ? deviceNameNode->nodehandle : myBackupsNode->nodehandle, move(newnodes));  // followup in putnodes_result()
+
+    return API_OK;
 }
 #endif
 
@@ -1808,6 +1898,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     if (user->changed.devicenames)
     {
         changed |= MegaUser::CHANGE_TYPE_DEVICE_NAMES;
+    }
+    if (user->changed.cookieSettings)
+    {
+        changed |= MegaUser::CHANGE_TYPE_COOKIE_SETTINGS;
     }
 }
 
@@ -2289,6 +2383,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setStartFirst(transfer->shouldStartFirst());
     this->setBackupTransfer(transfer->isBackupTransfer());
     this->setForeignOverquota(transfer->isForeignOverquota());
+    this->setForceNewUpload(transfer->isForceNewUpload());
     this->setLastError(transfer->lastError.get());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
@@ -2373,6 +2468,11 @@ bool MegaTransferPrivate::isBackupTransfer() const
 bool MegaTransferPrivate::isForeignOverquota() const
 {
     return foreignOverquota;
+}
+
+bool MegaTransferPrivate::isForceNewUpload() const
+{
+    return forceNewUpload;
 }
 
 bool MegaTransferPrivate::isSourceFileTemporary() const
@@ -2517,6 +2617,11 @@ unsigned long long MegaTransferPrivate::getPriority() const
 long long MegaTransferPrivate::getNotificationNumber() const
 {
     return notificationNumber;
+}
+
+bool MegaTransferPrivate::getTargetOverride() const
+{
+    return mTargetOverride;
 }
 
 bool MegaTransferPrivate::serialize(string *d)
@@ -2785,6 +2890,11 @@ void MegaTransferPrivate::setForeignOverquota(bool foreignOverquota)
     this->foreignOverquota = foreignOverquota;
 }
 
+void MegaTransferPrivate::setForceNewUpload(bool forceNewUpload)
+{
+    this->forceNewUpload = forceNewUpload;
+}
+
 void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
 {
     this->streamingTransfer = streamingTransfer;
@@ -2833,6 +2943,11 @@ void MegaTransferPrivate::setListener(MegaTransferListener *listener)
     this->listener = listener;
 }
 
+void MegaTransferPrivate::setTargetOverride(bool targetOverride)
+{
+    mTargetOverride = targetOverride;
+}
+
 void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperation> op, MegaNode* node)
 {
     assert(op && !recursiveOperation);
@@ -2848,6 +2963,16 @@ long long MegaTransferPrivate::getPlaceInQueue() const
 void MegaTransferPrivate::setPlaceInQueue(long long value)
 {
     placeInQueue = value;
+}
+
+void MegaTransferPrivate::setDoNotStopSubTransfers(bool doNotStopSubTransfers)
+{
+    mDoNotStopSubTransfers = doNotStopSubTransfers;
+}
+
+bool MegaTransferPrivate::getDoNotStopSubTransfers() const
+{
+    return mDoNotStopSubTransfers;
 }
 
 void MegaTransferPrivate::setPath(const char* path)
@@ -3103,10 +3228,6 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->tag = 0;
     this->transfer = 0;
     this->listener = listener;
-#ifdef ENABLE_SYNC
-    this->syncListener = NULL;
-    this->regExp = NULL;
-#endif
     this->backupListener = NULL;
     this->nodeHandle = UNDEF;
     this->link = NULL;
@@ -3223,11 +3344,6 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->setTransferredBytes(request->getTransferredBytes());
     this->listener = request->getListener();
 
-#ifdef ENABLE_SYNC
-    this->regExp = NULL;
-    this->setRegExp(request->getRegExp());
-    this->syncListener = request->getSyncListener();
-#endif
     this->backupListener = request->getBackupListener();
     this->megaPricing = (MegaPricingPrivate *)request->getPricing();
 
@@ -3259,6 +3375,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
     this->backgroundMediaUpload = NULL;
     this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
+    this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -3283,6 +3400,16 @@ AchievementsDetails *MegaRequestPrivate::getAchievementsDetails() const
 MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
 {
     return timeZoneDetails;
+}
+
+MegaStringList *MegaRequestPrivate::getMegaStringList() const
+{
+    return mStringList.get();
+}
+
+MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
+{
+    return mHandleList.get();
 }
 
 #ifdef ENABLE_CHAT
@@ -3398,39 +3525,20 @@ void MegaRequestPrivate::setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUplo
     backgroundMediaUpload = p;
 }
 
+void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
+{
+    mStringList.reset();
 
-#ifdef ENABLE_SYNC
-void MegaRequestPrivate::setSyncListener(MegaSyncListener *syncListener)
-{
-    this->syncListener = syncListener;
-}
-
-MegaSyncListener *MegaRequestPrivate::getSyncListener() const
-{
-    return syncListener;
-}
-MegaRegExp *MegaRequestPrivate::getRegExp() const
-{
-    return regExp;
-}
-
-void MegaRequestPrivate::setRegExp(MegaRegExp *regExp)
-{
-    if (this->regExp)
+    if (stringList)
     {
-        delete this->regExp;
-    }
-
-    if (!regExp)
-    {
-        this->regExp = NULL;
-    }
-    else
-    {
-        this->regExp = regExp->copy();
+       mStringList = unique_ptr<MegaStringList>(stringList->copy());
     }
 }
-#endif
+
+void MegaRequestPrivate::setMegaHandleList(const vector<handle> &handles)
+{
+    mHandleList.reset(new MegaHandleListPrivate(handles));
+}
 
 MegaBackupListener *MegaRequestPrivate::getBackupListener() const
 {
@@ -3473,9 +3581,6 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete timeZoneDetails;
     delete settings;
 
-#ifdef ENABLE_SYNC
-    delete regExp;
-#endif
 #ifdef ENABLE_CHAT
     delete chatPeerList;
     delete chatList;
@@ -3938,6 +4043,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT: return "BACKUP_PUT";
         case TYPE_BACKUP_REMOVE: return "BACKUP_REMOVE";
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
+        case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
+        case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
+        case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
         case TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS: return "CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS";
     }
     return "UNKNOWN";
@@ -4082,18 +4190,13 @@ const char *MegaStringMapPrivate::get(const char *key) const
 
 MegaStringList *MegaStringMapPrivate::getKeys() const
 {
-    vector<char*> keys;
-    char *buf;
-    for (string_map::const_iterator it = strMap.begin(); it != strMap.end(); it++)
+    string_vector keys;
+    for (auto& it : strMap)
     {
-        buf = new char[it->first.length()+1];
-        memcpy(buf, it->first.data(), it->first.length());
-        buf[it->first.length()] = 0;
-
-        keys.push_back(buf);
+        keys.push_back(it.first);
     }
 
-    return new MegaStringListPrivate(keys.data(), int(keys.size()));
+    return new MegaStringListPrivate(move(keys));
 }
 
 void MegaStringMapPrivate::set(const char *key, const char *value)
@@ -4127,66 +4230,40 @@ MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStrin
     delete keys;
 }
 
-MegaStringListPrivate::MegaStringListPrivate()
+MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
+    : mList(move(v))
 {
-    list = NULL;
-    s = 0;
-}
-
-MegaStringListPrivate::MegaStringListPrivate(const MegaStringListPrivate *stringList)
-{
-    s = stringList->size();
-    if (!s)
-    {
-        list = NULL;
-        return;
-    }
-
-    list = new const char*[s];
-    for (int i = 0; i < s; i++)
-        list[i] = MegaApi::strdup(stringList->get(i));
-}
-
-MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
-{
-    list = NULL;
-    s = size;
-    if (!size)
-    {
-        return;
-    }
-
-    list = new const char*[size];
-    for (int i = 0; i < size; i++)
-        list[i] = newlist[i];
-}
-
-MegaStringListPrivate::~MegaStringListPrivate()
-{
-    if(!list)
-        return;
-
-    for(int i=0; i<s; i++)
-        delete [] list[i];
-    delete [] list;
 }
 
 MegaStringList *MegaStringListPrivate::copy() const
 {
-    return new MegaStringListPrivate(this);
+    return new MegaStringListPrivate(*this);
 }
 
 const char *MegaStringListPrivate::get(int i) const
 {
-    if(!list || (i < 0) || (i >= s))
-        return NULL;
+    if((i < 0) || (i >= mList.size()))
+        return nullptr;
 
-    return list[i];
+    return mList[i].c_str();
 }
 
 int MegaStringListPrivate::size() const
 {
-    return s;
+    return int(mList.size());
+}
+
+void MegaStringListPrivate::add(const char *value)
+{
+    if (value)
+    {
+        mList.push_back(value);
+    }
+}
+
+const string_vector& MegaStringListPrivate::getVector()
+{
+    return mList;
 }
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
@@ -4230,12 +4307,12 @@ const MegaStringList* MegaStringListMapPrivate::get(const char* key) const
 
 MegaStringList *MegaStringListMapPrivate::getKeys() const
 {
-    vector<char*> list;
+    string_vector list;
     for (const auto& pair : mMap)
     {
-        list.emplace_back(MegaApi::strdup(pair.first.get()));
+        list.push_back(pair.first.get());
     }
-    return new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+    return new MegaStringListPrivate(move(list));
 }
 
 void MegaStringListMapPrivate::set(const char* key, const MegaStringList* value)
@@ -4861,7 +4938,7 @@ MegaFile *MegaFile::unserialize(string *d)
 
 MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, FileSystemType fsType) : MegaFile()
 {
-    h = n->nodehandle;
+    h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
 
     LocalPath lpName = LocalPath::fromName(n->displayname(), *client->fsaccess, fsType);
@@ -4870,10 +4947,10 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
     LocalPath finalPath;
     if(!dstPath.empty())
     {
-        if (dstPath.endsInSeparator(*client->fsaccess))
+        if (dstPath.endsInSeparator())
         {
             finalPath = dstPath;
-            finalPath.appendWithSeparator(lpName, true, client->fsaccess->localseparator);
+            finalPath.appendWithSeparator(lpName, true);
         }
         else finalPath = dstPath;
     }
@@ -4893,7 +4970,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
 
 MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPath) : MegaFile()
 {
-    h = n->getHandle();
+    h = NodeHandle().set6byte(n->getHandle());
 
     FileSystemType fsType = client->fsaccess->getlocalfstype(dstPath);
 
@@ -4903,10 +4980,10 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPa
     LocalPath finalPath;
     if(!dstPath.empty())
     {
-        if (dstPath.endsInSeparator(*client->fsaccess))
+        if (dstPath.endsInSeparator())
         {
             finalPath = dstPath;
-            finalPath.appendWithSeparator(lpName, true, client->fsaccess->localseparator);
+            finalPath.appendWithSeparator(lpName, true);
         }
         else finalPath = dstPath;
     }
@@ -5017,11 +5094,7 @@ void MegaFileGet::prepare()
 void MegaFileGet::updatelocalname()
 {
 #ifdef _WIN32
-    transfer->localfilename.editStringDirect()->append("", 1);
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-        SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-    transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+    RemoveHiddenFileAttribute(transfer->localfilename);
 #endif
 }
 
@@ -5030,11 +5103,7 @@ void MegaFileGet::progress()
 #ifdef _WIN32
     if(transfer->slot && !transfer->slot->progressreported)
     {
-        transfer->localfilename.editStringDirect()->append("", 1);
-        WIN32_FILE_ATTRIBUTE_DATA fad;
-        if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-            SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
-        transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+        AddHiddenFileAttribute(transfer->localfilename);
     }
 #endif
 }
@@ -5049,7 +5118,7 @@ void MegaFileGet::terminated()
     delete this;
 }
 
-MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime, bool isSourceTemporary, Node *pvNode)
+MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime, bool isSourceTemporary, Node *pvNode)
 
     : MegaFile()
 {
@@ -5249,21 +5318,12 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     fsAccess = new MegaFileSystemAccess(fseventsfd);
 #endif
 
+    dbAccess = nullptr;
     if (basePath)
     {
-        string sBasePath = basePath;
-        int lastIndex = int(sBasePath.size() - 1);
-        if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
-        {
-            string utf8Separator;
-            fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
-            sBasePath.append(utf8Separator);
-        }
-        dbAccess = new MegaDbAccess(&sBasePath);
-
+        dbAccess = new MegaDbAccess(LocalPath::fromPath(basePath, *fsAccess));
         this->basePath = basePath;
     }
-    else dbAccess = NULL;
 
     gfxAccess = NULL;
     if(processor)
@@ -5295,9 +5355,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpio->unlock();
 #endif
 
-    mHeartBeatMonitor = ::mega::make_unique<MegaBackupMonitor>(client);
-    listeners.insert(mHeartBeatMonitor.get());
-
     //Start blocking thread
     threadExit = 0;
     thread.start(threadEntryPoint, this);
@@ -5305,10 +5362,13 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
 MegaApiImpl::~MegaApiImpl()
 {
+    auto clientname = client->clientname;
+    LOG_debug << clientname << "~MegaApiImpl running";
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DELETE);
     requestQueue.push(request);
     waiter->notify();
     thread.join();
+    assert(client == nullptr);
 
     delete mPushSettings;
     delete mTimezones;
@@ -5325,7 +5385,9 @@ MegaApiImpl::~MegaApiImpl()
     delete httpio;
 #endif
 
+    LOG_debug << clientname << "~MegaApiImpl firing delete request completion";
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+    LOG_debug << clientname << "~MegaApiImpl completing";
 }
 
 MegaApiImpl* MegaApiImpl::ImplOf(MegaApi* api)
@@ -5363,6 +5425,11 @@ char* MegaApiImpl::getMyEmail()
     char *result = MegaApi::strdup(u->email.c_str());
     sdkMutex.unlock();
     return result;
+}
+
+int64_t MegaApiImpl::getAccountCreationTs()
+{
+    return client->accountsince;
 }
 
 char *MegaApiImpl::getMyUserHandle()
@@ -5422,23 +5489,6 @@ bool MegaApiImpl::isBusinessAccountActive()
 
 int MegaApiImpl::getBusinessStatus()
 {
-    m_time_t now = m_time(nullptr);
-
-    // Check if current status has expired (based on ts of transition) and update status
-
-    BizStatus newBizStatus = client->mBizStatus;
-    if (client->mBizExpirationTs && client->mBizExpirationTs < now)
-    {
-        newBizStatus = BIZ_STATUS_EXPIRED;
-
-    }
-    else if (client->mBizGracePeriodTs && client->mBizGracePeriodTs < now)
-    {
-        newBizStatus = BIZ_STATUS_GRACE_PERIOD;
-    }
-
-    client->setBusinessStatus(newBizStatus);
-
     // Prevent return apps unknown status
     return (client->mBizStatus == BIZ_STATUS_UNKNOWN)
             ? BIZ_STATUS_INACTIVE
@@ -5624,6 +5674,15 @@ void MegaApiImpl::setLoggingName(const char* loggingName)
     }
     sdkMutex.unlock();
 }
+
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds)
+{
+    mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
+    mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
+    MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance());
+}
+#endif
 
 long long MegaApiImpl::getSDKtime()
 {
@@ -5819,6 +5878,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
+        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
             scope = '*';
             break;
 
@@ -5830,6 +5890,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_RUBBISH_TIME:
         case MegaApi::USER_ATTR_STORAGE_STATE:
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
+        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
             scope = '^';
             break;
 
@@ -6052,65 +6113,36 @@ void MegaApiImpl::login(const char *login, const char *password, MegaRequestList
 
 char *MegaApiImpl::dumpSession()
 {
-    sdkMutex.lock();
-    byte session[MAX_SESSION_LENGTH];
-    char* buf = NULL;
-    int size;
-    size = client->dumpsession(session, sizeof session);
-    if (size > 0)
+    SdkMutexGuard g(sdkMutex);
+    string session;
+    if (client->dumpsession(session))
     {
-        buf = new char[sizeof(session) * 4 / 3 + 4];
-        Base64::btoa(session, size, buf);
+        return MegaApi::strdup(Base64::btoa(session).c_str());
     }
-
-    sdkMutex.unlock();
-    return buf;
+    return nullptr;
 }
 
 char *MegaApiImpl::getSequenceNumber()
 {
-    sdkMutex.lock();
-
-    char *scsn = MegaApi::strdup(client->scsn.text());
-
-    sdkMutex.unlock();
-
-    return scsn;
+    SdkMutexGuard g(sdkMutex);
+    return MegaApi::strdup(client->scsn.text());
 }
 
 char *MegaApiImpl::getAccountAuth()
 {
-    sdkMutex.lock();
-    char* buf = NULL;
-
+    SdkMutexGuard g(sdkMutex);
     if (client->loggedin())
     {
-        buf = new char[MAX_SESSION_LENGTH * 4 / 3 + 4];
-        Base64::btoa((const byte *)client->sid.data(), int(client->sid.size()), buf);
+        return MegaApi::strdup(Base64::btoa(client->sid).c_str());
     }
-
-    sdkMutex.unlock();
-    return buf;
+    return nullptr;
 }
 
 void MegaApiImpl::setAccountAuth(const char *auth)
 {
-    sdkMutex.lock();
-    if (!auth)
-    {
-        client->accountauth.clear();
-    }
-    else
-    {
-        client->accountauth = auth;
-    }
+    SdkMutexGuard g(sdkMutex);
 
-    handle h = client->getrootpublicfolder();
-    if (h != UNDEF)
-    {
-        client->setrootnode(h);
-    }
-    sdkMutex.unlock();
+    client->setFolderLinkAccountAuth(auth);
 }
 
 void MegaApiImpl::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
@@ -6408,6 +6440,7 @@ void MegaApiImpl::loop()
 
     sdkMutex.lock();
     delete client;
+    client = nullptr;
     sdkMutex.unlock();
 }
 
@@ -6559,10 +6592,11 @@ void MegaApiImpl::share(MegaNode *node, const char* email, int access, MegaReque
     waiter->notify();
 }
 
-void MegaApiImpl::loginToFolder(const char* megaFolderLink, MegaRequestListener *listener)
+void MegaApiImpl::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setLink(megaFolderLink);
+    request->setPassword(authKey);
     request->setEmail("FOLDER");
     requestQueue.push(request);
     waiter->notify();
@@ -6607,7 +6641,7 @@ void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *l
 const char *MegaApiImpl::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
 {
     handle ph = MegaApi::base64ToHandle(publicHandle);
-    string link = client->getPublicLink(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
+    string link = client->publicLinkURL(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
     return MegaApi::strdup(link.c_str());
 }
 
@@ -6780,6 +6814,11 @@ void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *li
     waiter->notify();
 }
 
+const char* MegaApiImpl::getDeviceId() const
+{
+    return MegaApi::strdup(client->getDeviceid().c_str());
+}
+
 void MegaApiImpl::getDeviceName(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
@@ -6853,6 +6892,24 @@ void MegaApiImpl::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener
     waiter->notify();
 }
 
+void MegaApiImpl::getFavourites(MegaNode* node, int count, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_NODE, listener);
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+    else
+    {
+        request->setNodeHandle(UNDEF);
+    }
+
+    request->setParamType(MegaApi::NODE_ATTR_FAV);
+    request->setNumDetails(count);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 static void encodeCoordinates(double latitude, double longitude, int& lat, int& lon)
 {
     lat = int(latitude);
@@ -6889,12 +6946,13 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double la
     waiter->notify();
 }
 
-void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
+void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
     if(node) request->setNodeHandle(node->getHandle());
     request->setNumber(expireTime);
     request->setAccess(1);
+    request->setFlag(writable);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7154,10 +7212,11 @@ void MegaApiImpl::changePassword(const char *oldPassword, const char *newPasswor
     waiter->notify();
 }
 
-void MegaApiImpl::logout(MegaRequestListener *listener)
+void MegaApiImpl::logout(bool keepSyncConfigsFile, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT, listener);
     request->setFlag(true);
+    request->setTransferTag(keepSyncConfigsFile);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7584,8 +7643,23 @@ void MegaApiImpl::abortPendingActions(error preverror)
         // clear existing transfers
         while (!transferMap.empty())
         {
-            auto transfer = transferMap.begin()->second;
+            MegaTransferPrivate* transfer = nullptr;
+
+            for (auto& t : transferMap)
+            {
+                // skip the folder upload/download records- their last sub-transfer will remove them too
+                if (!t.second->isRecursive())
+                {
+                    transfer = t.second;
+					break;
+                }
+            }
+            if (!transfer) break;
+
             transfer->setState(MegaTransfer::STATE_FAILED);
+
+            transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
+
             // this call can be recursive and remove multiple, eg with MegaFolderUploadController
             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
         }
@@ -7603,8 +7677,9 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
     bool hasThumbnail = (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
     string name = node.displayname();
-    bool isMedia = gfxAccess->isgfx(&name) || gfxAccess->isvideo(&name);
-    bool canForceUpload = transfer.isStreamingTransfer();
+    LocalPath lp = LocalPath::fromPath(name, *client->fsaccess);
+    bool isMedia = gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp);
+    bool canForceUpload = transfer.isForceNewUpload();
     bool isPdf = name.find(".pdf") != string::npos;
 
     return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
@@ -7642,6 +7717,24 @@ bool MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
 #else
     LOG_err << "Code for calling setrlimit is not available yet (or not relevant) on this platform";
     return false;
+#endif
+}
+
+int MegaApiImpl::platformGetRLimitNumFile() const
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return -1;
+    }
+
+    return int(rl.rlim_cur);
+#else
+    LOG_err << "Code for calling getrlimit is not available yet (or not relevant) on this platform";
+    return -1;
 #endif
 }
 
@@ -7747,20 +7840,6 @@ void MegaApiImpl::moveTransferBefore(int transferTag, int prevTransferTag, MegaR
     request->setNumber(prevTransferTag);
     requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::enableTransferResumption(const char *loggedOutId)
-{
-    sdkMutex.lock();
-    client->enabletransferresumption(loggedOutId);
-    sdkMutex.unlock();
-}
-
-void MegaApiImpl::disableTransferResumption(const char *loggedOutId)
-{
-    sdkMutex.lock();
-    client->disabletransferresumption(loggedOutId);
-    sdkMutex.unlock();
 }
 
 bool MegaApiImpl::areTransfersPaused(int direction)
@@ -8188,13 +8267,13 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     }
     sdkMutex.unlock();
 
-    vector<char*> listofpaths;
+    string_vector listofpaths;
 
     for(map<int64_t, string>::iterator itr = backupTimesPaths.begin(); itr != backupTimesPaths.end(); itr++)
     {
-        listofpaths.push_back(MegaApi::strdup(itr->second.c_str()));
+        listofpaths.push_back(itr->second);
     }
-    backupFolders = new MegaStringListPrivate(listofpaths.data(), int(listofpaths.size()));
+    backupFolders = new MegaStringListPrivate(move(listofpaths));
 
     return backupFolders;
 }
@@ -8288,10 +8367,6 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
                ? fileName
                : transfer->getFileName();
 
-       std::string path = localPath
-               ? localPath
-               : "";
-
        client->fsaccess->unescapefsincompatible(&auxName, fsType);
        transfer->setFileName(auxName.c_str());
     }
@@ -8303,7 +8378,7 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
         transfer->setFolderTransferTag(folderTransferTag);
     }
 
-    transfer->setStreamingTransfer(forceNewUpload);
+    transfer->setForceNewUpload(forceNewUpload);
 
     transferQueue.push(transfer);
     waiter->notify();
@@ -8453,7 +8528,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
         startUpload(t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), t->getTime(), 0,
-                          t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), t->isStreamingTransfer(),
+                          t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), t->isForceNewUpload(),
                           client->fsaccess->getlocalfstype(LocalPath::fromPath(t->getPath(), *fsAccess)), listener);
         delete parent;
     }
@@ -8469,7 +8544,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
         return false;
     }
 
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
 
     string utf8path = path;
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
@@ -8480,23 +8555,20 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     auto localpath = LocalPath::fromPath(utf8path, *fsAccess);
 
     Sync *sync = NULL;
-    for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-    {
-        if ((*it)->localroot->localname.isContainingPathOf(localpath, *fsAccess))
+    client->syncs.forEachRunningSync([&](Sync* s) {
+
+        if (s->localroot->localname.isContainingPathOf(localpath))
         {
-            sync = (*it);
-            break;
+            sync = s;
         }
-    }
+    });
 
     if(!sync)
     {
-        sdkMutex.unlock();
         return false;
     }
 
     bool result = sync->movetolocaldebris(localpath);
-    sdkMutex.unlock();
 
     return result;
 }
@@ -8533,31 +8605,30 @@ int MegaApiImpl::syncPathState(string* path)
     syncPathStateLockTimeout = false;
 
     int state = MegaApi::STATE_NONE;
-    if (client->syncs.empty())
+    if (client->syncs.isEmpty)
     {
         return state;
     }
 
-    LocalPath localpath = LocalPath::fromLocalname(*path);
+    LocalPath localpath = LocalPath::fromPlatformEncoded(*path);
 
-    for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-    {
-        Sync *sync = (*it);
-        if (!sync->localroot->localname.isContainingPathOf(localpath, *client->fsaccess))
+    client->syncs.forEachRunningSync_shortcircuit([&](Sync* sync) {
+
+        if (!sync->localroot->localname.isContainingPathOf(localpath))
         {
-            continue;
+            return true;
         }
 
-        if (sync->localdebris.isContainingPathOf(localpath, *client->fsaccess))
+        if (sync->localdebris.isContainingPathOf(localpath))
         {
             state = MegaApi::STATE_IGNORED;
-            break;
+            return false;
         }
 
         if (localpath == sync->localroot->localname)
         {
             state = sync->localroot->ts;
-            break;
+            return false;
         }
         else
         {
@@ -8568,9 +8639,7 @@ int MegaApiImpl::syncPathState(string* path)
             }
             else
             {
-                size_t index = fsAccess->lastpartlocal(path);
-                string name = path->substr(index);
-                fsAccess->local2name(&name, sync->mFilesystemType);
+                string name = localpath.leafName().toName(*fsAccess, sync->mFilesystemType);
                 if (is_syncable(sync, name.c_str(), localpath))
                 {
                     auto fa = fsAccess->newfileaccess();
@@ -8588,34 +8657,37 @@ int MegaApiImpl::syncPathState(string* path)
                     state = MegaApi::STATE_IGNORED;
                 }
             }
-            break;
+            return false;
         }
-    }
+    });
     return state;
 }
 
 
 MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
 {
-    sdkMutex.lock();
-    MegaNode *node = NULL;
-    for (sync_list::iterator it = client->syncs.begin(); (it != client->syncs.end()) && (node == NULL); it++)
-    {
-        Sync *sync = (*it);
-        if (path == sync->localroot->localname)
-        {
-            node = MegaNodePrivate::fromNode(sync->localroot->node);
-            break;
-        }
+    SdkMutexGuard g(sdkMutex);
 
-        LocalNode * localNode = sync->localnodebypath(NULL, path);
-        if(localNode) node = MegaNodePrivate::fromNode(localNode->node);
-    }
-    sdkMutex.unlock();
+    MegaNode *node = NULL;
+    client->syncs.forEachRunningSync([&](Sync* sync) {
+
+        if (!node)
+        {
+            if (path == sync->localroot->localname)
+            {
+                node = MegaNodePrivate::fromNode(sync->localroot->node);
+            }
+            else
+            {
+                LocalNode * localNode = sync->localnodebypath(NULL, path);
+                if(localNode) node = MegaNodePrivate::fromNode(localNode->node);
+            }
+        }
+    });
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
     request->setNodeHandle(megaHandle);
@@ -8637,15 +8709,28 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
     {
         request->setName(request->getFile());
     }
+    request->setParamType(type);
 
-    request->setRegExp(regExp);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
 {
-    syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, regExp, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS, listener);
+    request->setFile(externalDriveRoot);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS, listener);
+    request->setFile(externalDriveRoot);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -8693,11 +8778,6 @@ void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int busin
     waiter->notify();
 }
 
-void MegaApiImpl::setKeepSyncsAfterLogout(bool enable)
-{
-    client->setKeepSyncsAfterLogout(enable);
-}
-
 void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
@@ -8707,10 +8787,10 @@ void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::removeSync(int syncTag, MegaRequestListener *listener)
+void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
-    request->setNumDetails(syncTag);
+    request->setParentHandle(backupId);
     request->setFlag(true);
     requestQueue.push(request);
     waiter->notify();
@@ -8724,19 +8804,19 @@ void MegaApiImpl::disableSync(handle nodehandle, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::disableSync(int syncTag, MegaRequestListener *listener)
+void MegaApiImpl::disableSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DISABLE_SYNC, listener);
-    request->setNumDetails(syncTag);
+    request->setParentHandle(backupId);
     request->setFlag(false);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::enableSync(int syncTag, MegaRequestListener *listener)
+void MegaApiImpl::enableSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ENABLE_SYNC, listener);
-    request->setNumDetails(syncTag);
+    request->setParentHandle(backupId);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8746,21 +8826,21 @@ MegaSyncList *MegaApiImpl::getSyncs()
     SdkMutexGuard g(sdkMutex);
     vector<MegaSyncPrivate*> vMegaSyncs;
 
-    for (auto it = syncMap.begin(); it != syncMap.end(); it++)
-    {
-        vMegaSyncs.push_back(static_cast<MegaSyncPrivate*>(it->second));
-    }
+    client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
+        vMegaSyncs.push_back(new MegaSyncPrivate(s.mConfig, s.mSync.get(), client));
+    });
 
     MegaSyncList *syncList = new MegaSyncListPrivate(vMegaSyncs.data(), int(vMegaSyncs.size()));
+
+    for (auto p : vMegaSyncs) delete p;
+
     return syncList;
 }
 
 int MegaApiImpl::getNumActiveSyncs()
 {
-    sdkMutex.lock();
-    int num = int(client->syncs.size());
-    sdkMutex.unlock();
-    return num;
+    SdkMutexGuard g(sdkMutex);
+    return int(client->syncs.numRunningSyncs());
 }
 
 void MegaApiImpl::stopSyncs(MegaRequestListener *listener)
@@ -8858,25 +8938,6 @@ void MegaApiImpl::setExclusionUpperSizeLimit(long long limit)
     syncUpperSizeLimit = limit;
 }
 
-void MegaApiImpl::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
-{
-    if (!sync)
-    {
-        return;
-    }
-
-    int tag = sync->getTag();
-    sdkMutex.lock();
-    if (syncMap.find(tag) == syncMap.end())
-    {
-        sdkMutex.unlock();
-        return;
-    }
-    MegaSyncPrivate* megaSync = syncMap.at(tag);
-    megaSync->setRegExp(regExp);
-    sdkMutex.unlock();
-}
-
 string MegaApiImpl::getLocalPath(MegaNode *n)
 {
     if(!n) return string();
@@ -8888,11 +8949,9 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
         return string();
     }
 
-    string result;
-    LocalPath lp;
-    node->localnode->getlocalpath(lp, true);
-    result.swap(*lp.editStringDirect());
+    string result = node->localnode->getLocalPath().platformEncoded();
     result.append("", 1);
+
     sdkMutex.unlock();
     return result;
 }
@@ -8917,38 +8976,31 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
     }
 #endif
 
-    string name;
     LocalNode *parent = NULL;
     auto localpath = LocalPath::fromPath(utf8path, *fsAccess);
 
     bool result = false;
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
     if (size >= 0)
     {
         if (!is_syncable(size))
         {
-            sdkMutex.unlock();
             return false;
         }
     }
 
-    for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-    {
-        Sync *sync = (*it);
+    client->syncs.forEachRunningSync([&](Sync* sync) {
+
         if (sync->localnodebypath(NULL, localpath, &parent) || parent)
         {
-            if (sync->localdebris.isContainingPathOf(localpath, *fsAccess))
+            if (!sync->localdebris.isContainingPathOf(localpath))
             {
-                break;
+                auto temp = localpath.leafName();
+                auto name = temp.toName(*fsAccess, sync->mFilesystemType);
+                result = is_syncable(sync, name.c_str(), localpath);
             }
-
-            size_t lastpart = localpath.lastpartlocal(*fsAccess);
-            name = localpath.subpathFrom(lastpart).toName(*fsAccess, sync->mFilesystemType);
-            result = is_syncable(sync, name.c_str(), localpath);
-            break;
         }
-    }
-    sdkMutex.unlock();
+    });
     return result;
 }
 
@@ -9139,12 +9191,11 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8ImagePath, &localImagePath);
 
     string utf8DstPath = dstPath;
-    string localDstPath;
-    fsAccess->path2local(&utf8DstPath, &localDstPath);
+    LocalPath localDstPath = LocalPath::fromPath(utf8DstPath, *fsAccess);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::THUMBNAIL][0],
-            GfxProc::dimensions[GfxProc::THUMBNAIL][1], &localDstPath);
+    bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensions[GfxProc::THUMBNAIL][0],
+            GfxProc::dimensions[GfxProc::THUMBNAIL][1], localDstPath);
     sdkMutex.unlock();
 
     return result;
@@ -9162,12 +9213,11 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8ImagePath, &localImagePath);
 
     string utf8DstPath = dstPath;
-    string localDstPath;
-    fsAccess->path2local(&utf8DstPath, &localDstPath);
+    LocalPath localDstPath = LocalPath::fromPath(utf8DstPath, *fsAccess);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::PREVIEW][0],
-            GfxProc::dimensions[GfxProc::PREVIEW][1], &localDstPath);
+    bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensions[GfxProc::PREVIEW][0],
+            GfxProc::dimensions[GfxProc::PREVIEW][1], localDstPath);
     sdkMutex.unlock();
 
     return result;
@@ -9185,12 +9235,11 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8ImagePath, &localImagePath);
 
     string utf8DstPath = dstPath;
-    string localDstPath;
-    fsAccess->path2local(&utf8DstPath, &localDstPath);
+    LocalPath localDstPath = LocalPath::fromPath(utf8DstPath, *fsAccess);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
-            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], &localDstPath);
+    bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
+            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], localDstPath);
     sdkMutex.unlock();
 
     return result;
@@ -9391,7 +9440,7 @@ MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
 
     set<handle> handles = httpServer->getAllowedWebDavHandles();
 
-    vector<char *> listoflinks;
+    string_vector listoflinks;
 
     for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
     {
@@ -9399,12 +9448,13 @@ MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
         MegaNode *n = getNodeByHandle(h);
         if (n)
         {
-            listoflinks.push_back(httpServer->getWebDavLink(n));
+            unique_ptr<char[]> link(httpServer->getWebDavLink(n));
+            listoflinks.push_back(link.get());
         }
     }
     sdkMutex.unlock();
 
-    links = new MegaStringListPrivate(listoflinks.data(), int(listoflinks.size()));
+    links = new MegaStringListPrivate(move(listoflinks));
 
     return links;
 }
@@ -9769,7 +9819,7 @@ MegaStringList *MegaApiImpl::ftpServerGetLinks()
 
     set<handle> handles = ftpServer->getAllowedHandles();
 
-    vector<char *> listoflinks;
+    string_vector listoflinks;
 
     for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
     {
@@ -9777,13 +9827,13 @@ MegaStringList *MegaApiImpl::ftpServerGetLinks()
         MegaNode *n = getNodeByHandle(h);
         if (n)
         {
-            listoflinks.push_back(ftpServer->getLink(n));
-
+            unique_ptr<char[]> link(ftpServer->getLink(n));
+            listoflinks.push_back(link.get());
         }
     }
     sdkMutex.unlock();
 
-    links = new MegaStringListPrivate(listoflinks.data(), int(listoflinks.size()));
+    links = new MegaStringListPrivate(move(listoflinks));
 
     return links;
 }
@@ -10220,11 +10270,11 @@ void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListene
     waiter->notify();
 }
 
-void MegaApiImpl::setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener)
+void MegaApiImpl::setChatRetentionTime(MegaHandle chatid, unsigned period, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_RETENTION_TIME, listener);
     request->setNodeHandle(chatid);
-    request->setNumDetails(period);
+    request->setTotalBytes(period);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10407,6 +10457,24 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     MegaStringMapPrivate stringMap;
     stringMap.set("h", Base64Str<MegaClient::NODEHANDLE>(nodehandle));
     setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, &stringMap, listener);
+}
+
+void MegaApiImpl::getMyBackupsFolder(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    Base64Str<MegaClient::NODEHANDLE> b64Handle(nodehandle);
+
+    MegaStringMapPrivate stringMap;
+    stringMap.set("h", b64Handle);
+
+    setUserAttribute(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER, &stringMap, listener);
 }
 
 void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
@@ -11149,7 +11217,7 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
         }
         else
         {
-            h = MegaApiImpl::handleToBase64(client->getrootpublicfolder());
+            h = MegaApiImpl::handleToBase64(client->rootnodes[0]);
             node->setPublicAuth(h);
         }
         delete [] h;
@@ -11433,6 +11501,7 @@ bool MegaApiImpl::getLanguageCode(const char *languageCode, string *code)
                 *code = "se";
                 break;
 
+            case MAKENAMEID2('z', 'h'):
             case MAKENAMEID5('z', 'h', '_', 'c', 'n'):
             case MAKENAMEID5('z', 'h', '-', 'c', 'n'):
             case MAKENAMEID7('z', 'h', '_', 'h', 'a', 'n', 's'):
@@ -11583,8 +11652,13 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
+    if (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_FAV_DESC)
+    {
+        return new MegaNodeListPrivate();
+    }
+
     if (type != MegaApi::FILE_TYPE_DEFAULT
-            && (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_ALPHABETICAL_DESC))
+            && (order >= MegaApi::ORDER_PHOTO_ASC && order <= MegaApi::ORDER_VIDEO_DESC))
     {
         return new MegaNodeListPrivate();
     }
@@ -11665,9 +11739,17 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
             // Search on outshares
+            std::set<MegaHandle> outsharesHandles;
             unique_ptr<MegaShareList>shares (getOutShares(MegaApi::ORDER_NONE));
             for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
             {
+                handle h = shares->get(i)->getNodeHandle();
+                if (outsharesHandles.find(h) != outsharesHandles.end())
+                {
+                    // shares list includes an item per outshare AND per sharee/user
+                    continue;   // avoid duplicates
+                }
+                outsharesHandles.insert(h);
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
                 SearchTreeProcessor searchProcessor(client, searchString, type);
@@ -12126,7 +12208,7 @@ void MegaApiImpl::file_added(File *f)
 
         if (t->type == GET)
         {
-            transfer->setNodeHandle(f->h);
+            transfer->setNodeHandle(f->h.as8byte());
         }
         else
         {
@@ -12139,7 +12221,7 @@ void MegaApiImpl::file_added(File *f)
             else
 #endif
             {
-                transfer->setParentHandle(f->h);
+                transfer->setParentHandle(f->h.as8byte());
             }
         }
 
@@ -12149,7 +12231,7 @@ void MegaApiImpl::file_added(File *f)
         LocalNode *l = dynamic_cast<LocalNode *>(f);
         if (l)
         {
-            path = l->getLocalPath(true).toPath(*fsAccess);
+            path = l->getLocalPath().toPath(*fsAccess);
         }
         else
 #endif
@@ -13060,43 +13142,49 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 }
 
 #ifdef ENABLE_SYNC
-void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, SyncError syncerror, bool fireDisableEvent)
+
+MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(handle backupId)
 {
-    auto syncpair = syncMap.find(tag);
-    if( syncpair == syncMap.end())
+    if (mCachedMegaSyncPrivate && backupId == mCachedMegaSyncPrivate->getBackupId())
     {
-        LOG_err << " updating state for missing sync: tag = " << tag << " newstate = " << newstate << " err = " << syncerror;
-        assert(false);
-        return;
+        return mCachedMegaSyncPrivate.get();
     }
-    MegaSyncPrivate* megaSync = syncpair->second;
+    mCachedMegaSyncPrivate.reset();
 
-    //get previous state
-    auto previousState = megaSync->getState();
-    bool wasActive = megaSync->isActive(); // Beware: new sync is active (constructor set state to INITIAL_SCAN)
-    bool wasEnabled = megaSync->isEnabled();
-    bool wasTemporaryDisabled = megaSync->isTemporaryDisabled();
+    client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
+        if (s.mConfig.getBackupId() == backupId)
+        {
+            mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get(), client));
+        }
+    });
 
-    //apply state changes in megaSync object
-    megaSync->setState(newstate);
-    megaSync->setError(syncerror);
+    return mCachedMegaSyncPrivate.get();
+}
 
-    LOG_debug << "Sync state change: " << newstate << " syncError: " << syncerror << " Path: " << megaSync->getLocalFolder();
-    LOG_verbose << "Sync previous state change: " << previousState << " wasActive: " << wasActive << " wasEnabled: " << wasEnabled << " Path: " << megaSync->getLocalFolder();
+void MegaApiImpl::syncupdate_stateconfig(handle backupId)
+{
+    mCachedMegaSyncPrivate.reset();
 
-    fireOnSyncStateChanged(megaSync);
-
-    if (fireDisableEvent && ( (wasActive && !megaSync->isActive()) || (wasTemporaryDisabled && !megaSync->isEnabled()) ) )
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(backupId))
     {
-        // Special case: when a temporarily disabled (inactive) transitions to failed (inactive).
-        // TODO: note for reviewer: Consider passing a disablingState (with value TEMPORARY_DISABLED_TO_FAILED_TRANSITION)
-        // or simpler: a flag failed_to_reenable, or a separate callback: onReenableFailed
-        fireOnSyncDisabled(megaSync);
+        fireOnSyncStateChanged(megaSync);
     }
+}
 
-    if (!wasActive && megaSync->isActive())
+void MegaApiImpl::syncupdate_active(handle backupId, bool active)
+{
+    mCachedMegaSyncPrivate.reset();
+
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(backupId))
     {
-        fireOnSyncEnabled(megaSync);
+        if (!active)
+        {
+            fireOnSyncDisabled(megaSync);
+        }
+        else
+        {
+            fireOnSyncEnabled(megaSync);
+        }
     }
 }
 
@@ -13115,28 +13203,27 @@ void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *, cons
     LOG_debug << "Sync - local folder addition detected: " << path;
     client->abortbackoff(false);
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FOLDER_ADITION);
-    event->setPath(path);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FOLDER_ADITION);
+        event->setPath(path);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localNode)
 {
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath(true).toPath(*fsAccess);
+    string path = localNode->getLocalPath().toPath(*fsAccess);
     LOG_debug << "Sync - local folder deletion detected: " << path.c_str();
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FOLDER_DELETION);
-    event->setPath(path.c_str());
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FOLDER_DELETION);
+        event->setPath(path.c_str());
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *, const char* path)
@@ -13144,27 +13231,27 @@ void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *, const 
     LOG_debug << "Sync - local file addition detected: " << path;
     client->abortbackoff(false);
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_ADDITION);
-    event->setPath(path);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_ADDITION);
+        event->setPath(path);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNode)
 {
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath(true).toPath(*fsAccess);
+    string path = localNode->getLocalPath().toPath(*fsAccess);
     LOG_debug << "Sync - local file deletion detected: " << path.c_str();
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_DELETION);
-    event->setPath(path.c_str());
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_DELETION);
+        event->setPath(path.c_str());
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *, const char* path)
@@ -13172,53 +13259,53 @@ void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *, const ch
     LOG_debug << "Sync - local file change detected: " << path;
     client->abortbackoff(false);
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_CHANGED);
-    event->setPath(path);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_CHANGED);
+        event->setPath(path);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_local_move(Sync *sync, LocalNode *localNode, const char *to)
 {
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath(true).toPath(*fsAccess);
+    string path = localNode->getLocalPath().toPath(*fsAccess);
     LOG_debug << "Sync - local rename/move " << path.c_str() << " -> " << to;
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_MOVE);
-    event->setPath(path.c_str());
-    event->setNewPath(to);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_MOVE);
+        event->setPath(path.c_str());
+        event->setNewPath(to);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_get(Sync *sync, Node* node, const char *path)
 {
     LOG_debug << "Sync - requesting file " << path;
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_FILE_GET);
-    event->setNodeHandle(node->nodehandle);
-    event->setPath(path);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_FILE_GET);
+        event->setNodeHandle(node->nodehandle);
+        event->setPath(path);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_put(Sync *sync, LocalNode *, const char *path)
 {
     LOG_debug << "Sync - sending file " << path;
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_FILE_PUT);
-    event->setPath(path);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_FILE_PUT);
+        event->setPath(path);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_remote_file_addition(Sync *sync, Node *n)
@@ -13226,12 +13313,12 @@ void MegaApiImpl::syncupdate_remote_file_addition(Sync *sync, Node *n)
     LOG_debug << "Sync - remote file addition detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
     client->abortbackoff(false);
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FILE_ADDITION);
-    event->setNodeHandle(n->nodehandle);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FILE_ADDITION);
+        event->setNodeHandle(n->nodehandle);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_remote_file_deletion(Sync *sync, Node *n)
@@ -13239,12 +13326,12 @@ void MegaApiImpl::syncupdate_remote_file_deletion(Sync *sync, Node *n)
     LOG_debug << "Sync - remote file deletion detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
     client->abortbackoff(false);
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FILE_DELETION);
-    event->setNodeHandle(n->nodehandle);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FILE_DELETION);
+        event->setNodeHandle(n->nodehandle);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_remote_folder_addition(Sync *sync, Node *n)
@@ -13252,12 +13339,12 @@ void MegaApiImpl::syncupdate_remote_folder_addition(Sync *sync, Node *n)
     LOG_debug << "Sync - remote folder addition detected " << n->displayname();
     client->abortbackoff(false);
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FOLDER_ADDITION);
-    event->setNodeHandle(n->nodehandle);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FOLDER_ADDITION);
+        event->setNodeHandle(n->nodehandle);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_remote_folder_deletion(Sync *sync, Node *n)
@@ -13265,12 +13352,12 @@ void MegaApiImpl::syncupdate_remote_folder_deletion(Sync *sync, Node *n)
     LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
     client->abortbackoff(false);
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FOLDER_DELETION);
-    event->setNodeHandle(n->nodehandle);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FOLDER_DELETION);
+        event->setNodeHandle(n->nodehandle);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_remote_copy(Sync *, const char *name)
@@ -13286,13 +13373,13 @@ void MegaApiImpl::syncupdate_remote_move(Sync *sync, Node *n, Node *prevparent)
                  " to " << (n->parent ? n->parent->displayname() : "?");
     client->abortbackoff(false);
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_MOVE);
-    event->setNodeHandle(n->nodehandle);
-    event->setPrevParent(prevparent ? prevparent->nodehandle : UNDEF);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_MOVE);
+        event->setNodeHandle(n->nodehandle);
+        event->setPrevParent(prevparent ? prevparent->nodehandle : UNDEF);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_remote_rename(Sync *sync, Node *n, const char *prevname)
@@ -13300,23 +13387,23 @@ void MegaApiImpl::syncupdate_remote_rename(Sync *sync, Node *n, const char *prev
     LOG_debug << "Sync - remote rename from " << prevname << " to " << n->displayname();
     client->abortbackoff(false);
 
-    if(syncMap.find(sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
-
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_RENAME);
-    event->setNodeHandle(n->nodehandle);
-    event->setPrevName(prevname);
-    fireOnSyncEvent(megaSync, event);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
+    {
+        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_RENAME);
+        event->setNodeHandle(n->nodehandle);
+        event->setPrevName(prevname);
+        fireOnSyncEvent(megaSync, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 {
-    LocalPath localpath = l->getLocalPath(true);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(l->sync->getConfig().getBackupId()))
+    {
+        string s = l->getLocalPath().platformEncoded();
 
-    if(syncMap.find(l->sync->tag) == syncMap.end()) return;
-    MegaSyncPrivate* megaSync = syncMap.at(l->sync->tag);
-
-    fireOnFileSyncStateChanged(megaSync, localpath.editStringDirect(), (int)l->ts);
+        fireOnFileSyncStateChanged(megaSync, &s, (int)l->ts);
+    }
 }
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpath, Node *node)
@@ -13353,109 +13440,73 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpa
     return result;
 }
 
-void MegaApiImpl::sync_removed(int tag)
+void MegaApiImpl::sync_removed(handle backupId)
 {
-    eraseSync(tag);
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(backupId))
+    {
+        fireonSyncDeleted(megaSync);
+        mCachedMegaSyncPrivate.reset();
+    }
 }
 
-void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &syncError)
+void MegaApiImpl::sync_auto_resume_result(const UnifiedSync& us, bool attempted, bool hadAnError)
 {
-    MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getName().c_str(), config.getRemoteNode(), config.getTag());
+    mCachedMegaSyncPrivate.reset();
 
-    sync->setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
-    sync->setMegaFolder(config.getRemotePath().c_str());
-    if (!config.getRegExps().empty())
+    auto megaSync = cachedMegaSyncPrivateByBackupId(us.mConfig.getBackupId());
+
+    int additionState = MegaSync::FROM_CACHE;
+    if (attempted) // tried to auto-resume
     {
-        auto re = make_unique<MegaRegExp>();
-        for (const auto& v : config.getRegExps())
+        if (us.mSync) // succeeded
         {
-            re->addRegExp(v.c_str());
+            if (hadAnError) // succeed to resume, despite it failed due to a temporary error in the past
+            {
+                additionState = MegaSync::FROM_CACHE_REENABLED;
+            }
+            else // regular resumption succeded
+            {
+                additionState = MegaSync::FROM_CACHE;
+            }
         }
-        sync->setRegExp(re.get());
+        else // could not resume
+        {
+           if (hadAnError) // had a temporary error in the past: attempted to be reenabled but failed
+           {
+               additionState = MegaSync::REENABLED_FAILED;
+           }
+           else // regular resumption failed
+           {
+               additionState = MegaSync::FROM_CACHE_FAILED_TO_RESUME;
+           }
+        }
     }
 
-    sync->setState(state);
-    sync->setError(syncError);
-
-    bool failedToResume = config.isResumableAtStartup() && !sync->isActive(); //the sync could not be resumed
-    bool attemptedReenabling = config.isResumableAtStartup() && config.hasError();
-
-
-    auto existingpair = syncMap.find(config.getTag());
-    if (existingpair !=  syncMap.end())
-    {
-        MegaSyncPrivate* megaSync = existingpair->second;
-
-        LOG_warn << "overriding existing MegaSync "<< megaSync->getTag() << " old local: " << megaSync->getLocalFolder()
-                 << " newLocal: " << config.getLocalPath();
-        delete megaSync;
-    }
-    syncMap[config.getTag()] = sync;
-
-    if (attemptedReenabling && config.isResumableAtStartup()) //attempted to re-enable
-    {
-        fireOnSyncAdded(sync, failedToResume ? MegaSync::REENABLED_FAILED : MegaSync::FROM_CACHE_REENABLED);
-    }
-    else //resumed as was
-    {
-        fireOnSyncAdded(sync, failedToResume ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE);
-    }
+    fireOnSyncAdded(megaSync, additionState);
 }
 
 void MegaApiImpl::syncupdate_remote_root_changed(const SyncConfig &config)
 {
-    auto syncpair = syncMap.find(config.getTag());
-    if( syncpair == syncMap.end())
-    {
-        LOG_err << " updating state for changed missing sync: tag = " << config.getTag();
-        return;
-    }
-    MegaSyncPrivate* megaSync = syncpair->second;
+    mCachedMegaSyncPrivate.reset();
 
-    bool changed = false;
-
-    string oldpath = megaSync->getMegaFolder();
-    string newpath = config.getRemotePath();
-    if ( newpath != oldpath)
-    {
-        LOG_verbose << " remote path changed for moved sync: " << config.getTag() << " old: " << oldpath << " new: " << newpath;
-        megaSync->setMegaFolder(newpath.c_str());
-        changed = true;
-    }
-
-    auto oldhandle = megaSync->getMegaHandle();
-    auto newhandle = config.getRemoteNode();
-    if ( newhandle != oldhandle)
-    {
-        LOG_verbose << " remote handle changed for moved sync: " << config.getTag();
-        megaSync->setMegaHandle(newhandle);
-        changed = true;
-    }
-
-
-    if (changed)
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(config.getBackupId()))
     {
         fireOnSyncStateChanged(megaSync);
     }
-
 }
 
 void MegaApiImpl::syncs_restored()
 {
+    mCachedMegaSyncPrivate.reset();
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNCS_RESTORED);
     fireOnEvent(event);
 }
 
 void MegaApiImpl::syncs_disabled(SyncError syncError)
 {
+    mCachedMegaSyncPrivate.reset();
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNCS_DISABLED);
     event->setNumber(syncError);
-    fireOnEvent(event);
-}
-
-void MegaApiImpl::syncs_about_to_be_resumed()
-{
-    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_FIRST_SYNC_RESUMING);
     fireOnEvent(event);
 }
 
@@ -13482,26 +13533,6 @@ void MegaApiImpl::backupput_result(const Error& e, handle backupId)
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
 
     request->setParentHandle(backupId);
-    mHeartBeatMonitor->digestPutResult(backupId);
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
-{
-    if (requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
-
-    assert(backupId == request->getParentHandle());
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::backupputheartbeat_result(const Error& e)
-{
-    if (requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT)) return;
-
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
@@ -13512,16 +13543,6 @@ void MegaApiImpl::backupremove_result(const Error& e, handle backupId)
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_REMOVE)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::heartbeat()
-{
-    mHeartBeatMonitor->beat();
-}
-
-void MegaApiImpl::pause_state_changed()
-{
-    mHeartBeatMonitor->onPauseStateChanged(api);
 }
 
 // user addition/update (users never get deleted)
@@ -13666,16 +13687,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
 
         if (e == API_OK)
         {
-            // check if we fetched a folder link and the key is invalid
-            handle h = client->getrootpublicfolder();
-            if (h != UNDEF)
+            assert(!ISUNDEF(client->rootnodes[0]));    // is folder link fetched properly?
+
+            request->setNodeHandle(client->getFolderLinkPublicHandle());
+            if (client->isValidFolderLink())    // is the key for the folder link valid?
             {
-                request->setNodeHandle(client->getpublicfolderhandle());
-                Node *n = client->nodebyhandle(h);
-                if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-                {
-                    request->setFlag(true);
-                }
+                request->setFlag(true);
             }
         }
 
@@ -13705,16 +13722,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     {
         if (e == API_OK)
         {
-            // check if we fetched a folder link and the key is invalid
-            handle h = client->getrootpublicfolder();
-            if (h != UNDEF)
+            assert(!ISUNDEF(client->rootnodes[0]));    // is folder link fetched properly?
+
+            request->setNodeHandle(client->getFolderLinkPublicHandle());
+            if (client->isValidFolderLink())    // is the key for the folder link valid?
             {
-                request->setNodeHandle(client->getpublicfolderhandle());
-                Node *n = client->nodebyhandle(h);
-                if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-                {
-                    request->setFlag(true);
-                }
+                request->setFlag(true);
             }
         }
 
@@ -13811,7 +13824,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     }
 }
 
-void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<NewNode>& nn)
+void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<NewNode>& nn, bool targetOverride)
 {
     handle h = UNDEF;
     Node *n = NULL;
@@ -13856,6 +13869,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
         }
 
         transfer->setNodeHandle(h);
+        transfer->setTargetOverride(targetOverride);
         transfer->setTransferredBytes(transfer->getTotalBytes());
 
         if (!e)
@@ -13880,6 +13894,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     (request->getType() != MegaRequest::TYPE_MOVE) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
+                    (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
                     (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
 
 #ifdef ENABLE_SYNC
@@ -13889,6 +13904,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
         request->setNodeHandle(h);
+        request->setFlag(targetOverride);
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
@@ -13910,11 +13926,55 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     if (request->getType() != MegaRequest::TYPE_MOVE)
     {
         request->setNodeHandle(h);
+        request->setFlag(targetOverride);
         if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
             return;
         }
+#ifdef ENABLE_SYNC
+        else if (request->getType() == MegaRequest::TYPE_ADD_SYNC && e == API_OK)
+        {
+            // folders for the new backup have been created -> now proceed with the sync
+            handle backupHandle = nn.back().mAddedHandle;
+            request->setNodeHandle(backupHandle);
+            std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(backupHandle) };
+
+            // create the SyncConfig
+            const char* backupName = request->getName();
+            auto localPath = LocalPath::fromPath(request->getFile(), *client->fsaccess);
+            SyncConfig syncConfig( localPath, backupName, NodeHandle().set6byte(backupHandle), remotePath.get(),
+                                    0, true, SyncConfig::TYPE_BACKUP );
+
+            client->addsync(syncConfig, false,
+                                [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
+            {
+                request->setNumDetails(syncError);
+
+                if (!e && !unifiedSync)
+                {
+                    e = API_ENOENT;
+                }
+
+                if (unifiedSync)
+                {
+                    if (unifiedSync->mSync)
+                    {
+                        fsfp_t fsfp = unifiedSync->mSync->fsfp;
+                        request->setNumber(fsfp);
+                    }
+                    request->setParentHandle(unifiedSync->mConfig.getBackupId());
+
+                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig, unifiedSync->mSync.get(), client);
+
+                    fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+            return;
+        }
+#endif // ENABLE_SYNC
+
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     }
     else
@@ -13929,6 +13989,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             else
             {
                 request->setNodeHandle(h);
+                request->setFlag(targetOverride);
                 e = client->unlink(node, false, request->getTag());
             }
         }
@@ -13938,45 +13999,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
     }
-}
-
-void MegaApiImpl::share_result(error e)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_EXPORT) &&
-                    (request->getType() != MegaRequest::TYPE_SHARE))) return;
-
-    // exportnode_result will be called to end the request.
-    if (!e && request->getType() == MegaRequest::TYPE_EXPORT)
-    {
-        Node* node = client->nodebyhandle(request->getNodeHandle());
-        if (!node)
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
-            return;
-        }
-
-        if (!request->getAccess())
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
-            return;
-        }
-
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
-        client->getpubliclink(node, false, request->getNumber());
-        client->reqtag = creqtag;
-
-        return;
-    }
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::share_result(int, error)
-{
-    //The other callback will be called at the end of the request
 }
 
 void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
@@ -14288,28 +14310,14 @@ void MegaApiImpl::copysession_result(string *session, error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_SESSION_TRANSFER_URL)) return;
 
-    const char *path = request->getText();
-    string *data = NULL;
     if(e == API_OK)
     {
-        data = client->sessiontransferdata(path, session);
-    }
+        const char *path = request->getText();
+        string data = client->sessiontransferdata(path, session);
+        data.insert(0, MegaClient::MEGAURL+"/#sitetransfer!");
 
-    if(data)
-    {
-        data->insert(0, "https://mega.nz/#sitetransfer!");
+        request->setLink(data.c_str());
     }
-    else
-    {
-        data = new string("https://mega.nz/#");
-        if(path)
-        {
-            data->append(path);
-        }
-    }
-
-    request->setLink(data->c_str());
-    delete data;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -14317,13 +14325,7 @@ void MegaApiImpl::copysession_result(string *session, error e)
 void MegaApiImpl::clearing()
 {
 #ifdef ENABLE_SYNC
-    map<int, MegaSyncPrivate *>::iterator it;
-    for (it = syncMap.begin(); it != syncMap.end(); )
-    {
-        MegaSyncPrivate *sync = (MegaSyncPrivate *)it->second;
-        syncMap.erase(it++);
-        delete sync;
-    }
+    mCachedMegaSyncPrivate.reset();
 #endif
 }
 
@@ -14471,7 +14473,9 @@ void MegaApiImpl::request_error(error e)
     }
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
+    bool keepSyncConfigsFile = true;
     request->setFlag(false);
+    request->setTransferTag(keepSyncConfigsFile);
     request->setParamType(e);
 
     if (e == API_ESSL && client->sslfakeissuer.size())
@@ -14481,7 +14485,7 @@ void MegaApiImpl::request_error(error e)
 
     if (e == API_ESID)
     {
-        client->locallogout(true);
+        client->locallogout(true, keepSyncConfigsFile);
     }
     requestQueue.push(request);
     waiter->notify();
@@ -14694,6 +14698,10 @@ void MegaApiImpl::logout_result(error e)
         mPushSettings = NULL;
         delete mTimezones;
         mTimezones = NULL;
+
+#ifdef ENABLE_SYNC
+        mCachedMegaSyncPrivate.reset();
+#endif
     }
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -14765,60 +14773,6 @@ void MegaApiImpl::changepw_result(error result)
     if(!request || request->getType() != MegaRequest::TYPE_CHANGE_PW) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
-}
-
-// node export failed
-void MegaApiImpl::exportnode_result(error result)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
-}
-
-void MegaApiImpl::exportnode_result(handle h, handle ph)
-{
-    Node* n;
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
-
-    if ((n = client->nodebyhandle(h)))
-    {
-        char key[FILENODEKEYLENGTH*4/3+3];
-
-        // the key
-        if (n->type == FILENODE)
-        {
-            if(n->nodekey().size() >= FILENODEKEYLENGTH)
-            {
-                Base64::btoa((const byte*)n->nodekey().data(), FILENODEKEYLENGTH, key);
-            }
-            else
-            {
-                key[0]=0;
-            }
-        }
-        else if (n->sharekey)
-        {
-            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
-        }
-        else
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
-            return;
-        }
-
-        string link = client->getPublicLink(client->mNewLinkFormat, n->type, ph, key);
-        request->setLink(link.c_str());
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
-    }
-    else
-    {
-        request->setNodeHandle(UNDEF);
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
-    }
 }
 
 // the requested link could not be opened
@@ -15119,7 +15073,8 @@ void MegaApiImpl::getua_result(error e)
         }
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES)
+                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
+                  || request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
@@ -15299,6 +15254,12 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             }
             break;
 
+        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
+            {
+                e = getCookieSettings_getua_result(data, len, request);
+            }
+            break;
+
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         {
             request->setMegaPushNotificationSettings(pushSettings);
@@ -15406,9 +15367,10 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
             case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
+            case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
             {
                 // If attr is CAMERA_UPLOADS_FOLDER determine if we want to retrieve primary or secondary folder
-                // If attr is MY_CHAT_FILES_FOLDER there's no secondary folder
+                // If attr is MY_CHAT_FILES_FOLDER or MY_BACKUPS_FOLDER there's no secondary folder
                 const char *key = request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                         && request->getFlag()
                             ? "sh"
@@ -15430,19 +15392,19 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_ALIAS:
             {
-                // If a uh was set in the request, we have to find it in the aliases map and return it
-                const char *uh = request->getText();
-                if (uh)
+                // If a handle was set in the request, we have to find it in the corresponding map and return it
+                const char *h = request->getText();
+                if (h)
                 {
-                    const char *buf = stringMap->get(uh);
-                    if (!buf)
+                    string key{h};
+                    if (!tlv->find(key))
                     {
                         e = API_ENOENT;
                         break;
                     }
                     else
                     {
-                        request->setName(Base64::atob(buf).c_str());
+                        request->setName(Base64::atob(tlv->get(key)).c_str());
                     }
                 }
                 break;
@@ -15688,10 +15650,12 @@ void MegaApiImpl::whyamiblocked_result(int code)
                 && code != MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS
                 && code != MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL)
         {
-            client->locallogout(true);
+            bool keepSyncConfigsFile = true;
+            client->locallogout(true, keepSyncConfigsFile);
 
             MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
             logoutRequest->setFlag(false);
+            logoutRequest->setTransferTag(keepSyncConfigsFile);
             logoutRequest->setParamType(API_EBLOCKED);
             requestQueue.push(logoutRequest);
             waiter->notify();
@@ -15947,11 +15911,11 @@ void MegaApiImpl::getregisteredcontacts_result(error e, vector<tuple<string, str
                 auto stringTable = std::unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
                 for (const auto& row : *data)
                 {
-                    vector<char*> list;
-                    list.emplace_back(MegaApi::strdup(std::get<0>(row).c_str()));
-                    list.emplace_back(MegaApi::strdup(std::get<1>(row).c_str()));
-                    list.emplace_back(MegaApi::strdup(std::get<2>(row).c_str()));
-                    auto stringList = new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+                    string_vector list;
+                    list.emplace_back(std::get<0>(row));
+                    list.emplace_back(std::get<1>(row));
+                    list.emplace_back(std::get<2>(row));
+                    auto stringList = new MegaStringListPrivate(move(list));
                     stringTable->append(stringList);
                 }
                 request->setMegaStringTable(stringTable.get());
@@ -15974,12 +15938,12 @@ void MegaApiImpl::getcountrycallingcodes_result(error e, map<string, vector<stri
                 auto stringListMap = std::unique_ptr<MegaStringListMap>{MegaStringListMap::createInstance()};
                 for (const auto& pair : *data)
                 {
-                    vector<char*> list;
+                    string_vector list;
                     for (const auto& value : pair.second)
                     {
-                        list.emplace_back(MegaApi::strdup(value.c_str()));
+                        list.emplace_back(value);
                     }
-                    auto stringList = new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+                    auto stringList = new MegaStringListPrivate(move(list));
                     stringListMap->set(pair.first.c_str(), stringList);
                 }
                 request->setMegaStringListMap(stringListMap.get());
@@ -16234,38 +16198,6 @@ void MegaApiImpl::addGlobalListener(MegaGlobalListener* listener)
     sdkMutex.unlock();
 }
 
-#ifdef ENABLE_SYNC
-void MegaApiImpl::addSyncListener(MegaSyncListener *listener)
-{
-    if(!listener) return;
-
-    sdkMutex.lock();
-    syncListeners.insert(listener);
-    sdkMutex.unlock();
-}
-
-void MegaApiImpl::removeSyncListener(MegaSyncListener *listener)
-{
-    if(!listener) return;
-
-    sdkMutex.lock();
-    syncListeners.erase(listener);
-
-    std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
-    while(it != syncMap.end())
-    {
-        MegaSyncPrivate* sync = it->second;
-        if(sync->getListener() == listener)
-            sync->setListener(NULL);
-
-        it++;
-    }
-    requestQueue.removeListener(listener);
-
-    sdkMutex.unlock();
-}
-#endif
-
 void MegaApiImpl::removeListener(MegaListener* listener)
 {
     if(!listener) return;
@@ -16391,7 +16323,7 @@ MegaUserList *MegaApiImpl::getCurrentUsers()
 void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 {
     activeRequest = request;
-    LOG_info << "Request (" << request->getRequestString() << ") starting";
+    LOG_info << client->clientname << "Request (" << request->getRequestString() << ") starting";
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
     {
         (*it++)->onRequestStart(api, request);
@@ -16418,11 +16350,11 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<Me
 
     if(e->getErrorCode())
     {
-        LOG_warn << "Request (" << request->getRequestString() << ") finished with error: " << e->getErrorString();
+        LOG_warn << (client ? client->clientname : "") << "Request (" << request->getRequestString() << ") finished with error: " << e->getErrorString();
     }
     else
     {
-        LOG_info << "Request (" << request->getRequestString() << ") finished";
+        LOG_info << (client ? client->clientname : "") << "Request (" << request->getRequestString() << ") finished";
     }
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
@@ -16756,39 +16688,19 @@ void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 #ifdef ENABLE_SYNC
 void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncStateChanged(api, sync);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncStateChanged(api, sync);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncStateChanged(api, sync);
     }
 }
 
 void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncEvent(api, sync, event);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncEvent(api, sync, event);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncEvent(api, sync, event);
     }
 
     delete event;
@@ -16797,77 +16709,37 @@ void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 
 void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncAdded(api, sync, additionState);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncAdded(api, sync, additionState);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncAdded(api, sync, additionState);
     }
 }
 
 void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDisabled(api, sync);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncDisabled(api, sync);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncDisabled(api, sync);
     }
 }
 
 void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncEnabled(api, sync);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncEnabled(api, sync);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncEnabled(api, sync);
     }
 }
 
 void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDeleted(api, sync);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncDeleted(api, sync);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncDeleted(api, sync);
     }
 }
 
@@ -16886,36 +16758,10 @@ void MegaApiImpl::fireOnGlobalSyncStateChanged()
 
 void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncFileStateChanged(api, sync, localPath, newState);
-    }
-}
-
-void MegaApiImpl::eraseSync(int tag)
-{
-    unique_ptr<MegaSyncPrivate> sync;
-    auto it = syncMap.find(tag);
-    if (it != syncMap.end())
-    {
-        sync.reset(it->second);
-        if (client->syncConfigs)
-        {
-            client->syncConfigs->removeByTag(sync->getTag());
-        }
-        syncMap.erase(it);
-        fireonSyncDeleted(sync.get());
     }
 }
 
@@ -17135,7 +16981,8 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     else
     {
         transfer->setState(MegaTransfer::STATE_RETRYING);
-        transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
+        LOG_verbose << "processTransferFailed checking handle " << transfer->getParentHandle();
+        transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(NodeHandle().set6byte(transfer->getParentHandle())));
         fireOnTransferTemporaryError(transfer, std::move(megaError));
     }
 
@@ -18693,7 +18540,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
+                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName,
+                            NodeHandle().set6byte(transfer->getParentHandle()),
+                            uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
@@ -18807,7 +18656,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     else
                     {
                         wLocalPath = LocalPath::fromPath(".", *fsAccess);
-                        wLocalPath.appendWithSeparator(LocalPath::fromPath("", *fsAccess), true, fsAccess->localseparator);
+                        wLocalPath.appendWithSeparator(LocalPath::fromPath("", *fsAccess), true);
                     }
 
                     FileSystemType fsType = fsAccess->getlocalfstype(wLocalPath);
@@ -18847,7 +18696,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             name = LocalPath::fromName(transfer->getFileName(), *fsAccess, fsType);
                         }
                     }
-                    wLocalPath.appendWithSeparator(name, true, fsAccess->localseparator);
+                    wLocalPath.appendWithSeparator(name, true);
 
                     FileFingerprint *prevFp = NULL;
                     m_off_t size = 0;
@@ -19030,7 +18879,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 void MegaApiImpl::removeRecursively(const char *path)
 {
 #ifndef _WIN32
-    auto localpath = LocalPath::fromLocalname(path);
+    auto localpath = LocalPath::fromPlatformEncoded(path);
     PosixFileSystemAccess::emptydirlocal(localpath);
 #else
     string utf16path;
@@ -19038,7 +18887,7 @@ void MegaApiImpl::removeRecursively(const char *path)
     if (utf16path.size() > 1)
     {
         utf16path.resize(utf16path.size() - 1);
-        auto localpath = LocalPath::fromLocalname(utf16path);
+        auto localpath = LocalPath::fromPlatformEncoded(utf16path);
         WinFileSystemAccess::emptydirlocal(localpath);
     }
 #endif
@@ -19267,20 +19116,18 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
-            client->locallogout(false);
+            client->locallogout(false, true);
             if (sessionKey)
             {
-                byte session[MAX_SESSION_LENGTH];
-                int size = Base64::atob(sessionKey, (byte *)session, sizeof session);
-                client->login(session, size);
+                client->login(Base64::atob(string(sessionKey)));
             }
-            else if (login && (base64pwkey || password))
+            else if (login && (base64pwkey || password) && !megaFolderLink)
             {
                 client->prelogin(slogin.c_str());
             }
             else
             {
-                e = client->folderaccess(megaFolderLink);
+                e = client->folderaccess(megaFolderLink, password);
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -19476,12 +19323,9 @@ void MegaApiImpl::sendPendingRequests()
                         {
                             if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                             {
-                                e = API_OK; // there is already an identical node in the target folder
-                                // continue to complete the copy-delete
-                                client->restag = request->getTag();
-                                vector<NewNode> emptyVec;
-                                putnodes_result(API_OK, NODE_HANDLE, emptyVec);
-                                break;
+                                request->setNodeHandle(UNDEF);
+                                e = client->unlink(node, false, request->getTag());
+                                break;  // request finishes now if error, otherwise on unlink_result
                             }
 
                             if (!client->versions_disabled)
@@ -19855,7 +19699,11 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (e == API_OK)
-                client->setshare(node, email, a);
+            {
+                client->setshare(node, email, a, false, nullptr, nextTag, [this, request](Error e, bool){
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            }
             break;
         }
         case MegaRequest::TYPE_IMPORT_LINK:
@@ -19917,7 +19765,59 @@ void MegaApiImpl::sendPendingRequests()
             Node* node = client->nodebyhandle(request->getNodeHandle());
             if(!node) { e = API_EARGS; break; }
 
-            e = client->exportnode(node, !request->getAccess(), request->getNumber());
+			bool writable = request->getFlag();
+            // exportnode() will take care of creating a share first, should it be a folder
+            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, nextTag, [this, request, writable](Error e, handle h, handle ph){
+
+                if (e || !request->getAccess()) // disable export doesn't return h and ph
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }
+                else
+                {
+                    // This block of code used to be inside exportnode_result
+                    if (Node* n = client->nodebyhandle(h))
+                    {
+                        char key[FILENODEKEYLENGTH*4/3+3];
+
+                        // the key
+                        if (n->type == FILENODE)
+                        {
+                            if(n->nodekey().size() >= FILENODEKEYLENGTH)
+                            {
+                                Base64::btoa((const byte*)n->nodekey().data(), FILENODEKEYLENGTH, key);
+                            }
+                            else
+                            {
+                                key[0]=0;
+                            }
+                        }
+                        else if (n->sharekey)
+                        {
+                            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
+                        }
+                        else
+                        {
+                            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
+                            return;
+                        }
+
+                        string link = client->publicLinkURL(client->mNewLinkFormat, n->type, ph, key);
+                        request->setLink(link.c_str());
+				        if (n->plink && n->plink->mAuthKey.size())
+				        {
+				            request->setPrivateKey(n->plink->mAuthKey.c_str());
+				        }
+
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
+                    }
+                    else
+                    {
+                        request->setNodeHandle(UNDEF);
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
+                    }
+                }
+            });
             break;
         }
         case MegaRequest::TYPE_FETCH_NODES:
@@ -19933,13 +19833,6 @@ void MegaApiImpl::sendPendingRequests()
                     client->sctable = NULL;
                     client->pendingsccommit = false;
                     client->cachedscsn = UNDEF;
-                }
-
-                if (client->statusTable)
-                {
-                    client->statusTable->remove();
-                    delete client->statusTable;
-                    client->statusTable = NULL;
                 }
 
                 nocache = false;
@@ -20023,11 +19916,12 @@ void MegaApiImpl::sendPendingRequests()
 
             if(request->getFlag())
             {
-                client->logout();
+                bool keepSyncConfigsFile = request->getTransferTag();
+                client->logout(keepSyncConfigsFile);
             }
             else
             {
-                client->locallogout(false);
+                client->locallogout(false, true);
                 client->restag = nextTag;
                 logout_result(API_OK);
             }
@@ -20219,7 +20113,9 @@ void MegaApiImpl::sendPendingRequests()
 
                 std::unique_ptr<TLVstore> tlv;
                 User *ownUser = client->finduser(client->me);
-                if (type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER || type == ATTR_DEVICE_NAMES)
+                if (type == ATTR_ALIAS
+                        || type == ATTR_CAMERA_UPLOADS_FOLDER
+                        || type == ATTR_DEVICE_NAMES)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {
@@ -20231,6 +20127,31 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(type), &client->key));
                     }
+                }
+                else if (type == ATTR_MY_BACKUPS_FOLDER)
+                {
+                    // get back the handle value
+                    handle nodeHandle = 0;
+                    Base64::atob(stringMap->get("h"), (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+
+                    MegaNode* node = getNodeByHandle(nodeHandle);
+
+                    // a valid folder cannot be outside current account or in Rubbish
+                    if (!client->isPrivateNode(NodeHandle().set6byte(nodeHandle)) || isInRootnode(node, 2)
+#ifdef ENABLE_SYNC
+                        // or in a synced folder
+                        || isInsideSync(node)
+#endif
+                        )
+                    {
+                        e = API_EACCESS;
+                        break;
+                    }
+
+                    const string* attr = ownUser->getattr(type);
+                    if (attr)  tlv.reset(TLVstore::containerToTLVrecords(attr, &client->key));
+
+                    if (!tlv) { tlv.reset(new TLVstore); }
                 }
                 else
                 {
@@ -20323,6 +20244,10 @@ void MegaApiImpl::sendPendingRequests()
 
                     string tmp(value);
                     client->putua(type, (byte *)tmp.data(), unsigned(tmp.size()));
+                }
+                else if (type == ATTR_COOKIE_SETTINGS)
+                {
+                    setCookieSettings_sendPendingRequests(request);
                 }
                 else if (type == ATTR_PUSH_SETTINGS)
                 {
@@ -20588,6 +20513,43 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
+
+        case MegaRequest::TYPE_GET_ATTR_NODE:
+        {
+            int type = request->getParamType();
+
+            if (type == MegaApi::NODE_ATTR_FAV)
+            {
+                int count = request->getNumDetails();
+                MegaHandle folderHandle = request->getNodeHandle();
+                Node *node = nullptr;
+                if (!ISUNDEF(folderHandle))
+                {
+                    node = client->nodebyhandle(folderHandle);
+                    if (!node)
+                    {
+                        e = API_ENOENT;
+                        break;
+                    }
+                    if (node->type != FOLDERNODE)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+                }
+                else
+                {
+                    node = client->nodebyhandle(client->rootnodes[0]);
+                }
+                FavouriteProcessor processor(count);
+                processTree(node, &processor);
+                request->setMegaHandleList(processor.getHandles());
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            }
+            break;
+        }
+
         case MegaRequest::TYPE_CANCEL_ATTR_FILE:
         {
             int type = request->getParamType();
@@ -20763,7 +20725,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 requestMap[reqtag] = request;
 
-                client->locallogout(false);
+                client->locallogout(false, true);
 
                 if (resumeProcess)
                 {
@@ -21326,11 +21288,7 @@ void MegaApiImpl::sendPendingRequests()
                 #ifdef _WIN32
                     if (transfer->type == GET)
                     {
-                        transfer->localfilename.editStringDirect()->append("", 1);
-                        WIN32_FILE_ATTRIBUTE_DATA fad;
-                        if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-                            SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-                        transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+                        RemoveHiddenFileAttribute(transfer->localfilename);
                     }
                 #endif
 
@@ -21587,6 +21545,13 @@ void MegaApiImpl::sendPendingRequests()
 #ifdef ENABLE_SYNC
         case MegaRequest::TYPE_ADD_SYNC:
         {
+            SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
+            if (type == SyncConfig::TYPE_BACKUP)
+            {
+                e = backupFolder_sendPendingRequest(request);
+                break;
+            }
+
             const char *localPath = request->getFile();
             Node *node = client->nodebyhandle(request->getNodeHandle());
             if(!node || (node->type==FILENODE) || !localPath)
@@ -21597,84 +21562,54 @@ void MegaApiImpl::sendPendingRequests()
 
             const char *name = request->getName();
 
-            auto nextSyncTag = client->nextSyncTag();
-            MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, name, node->nodehandle, nextSyncTag);
-            sync->setListener(request->getSyncListener());
-            sync->setRegExp(request->getRegExp());
-
-            SyncError syncError = NO_SYNC_ERROR;
-
-            std::unique_ptr<char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
+            std::unique_ptr<char[]> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
             {
                 e = API_ENOENT;
-                syncError = REMOTE_NODE_NOT_FOUND;
-                request->setNumDetails(syncError);
+                request->setNumDetails(REMOTE_NODE_NOT_FOUND);
                 break;
             }
 
-            SyncConfig syncConfig{nextSyncTag, localPath, name, request->getNodeHandle(), remotePath.get(),
-                                  0, regExpToVector(request->getRegExp())};
 
-            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync);
-            request->setNumDetails(syncError);
-            if (!e || !isSyncErrorPermanent(syncError))
+            SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
+                                  name, NodeHandle().set6byte(request->getNodeHandle()), remotePath.get(),
+                                  0);
+
+            client->addsync(syncConfig, false,
+                                [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
-                auto newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
-                sync->setState(newstate);
-                if (!e)
+                request->setNumDetails(syncError);
+
+                if (!e && !unifiedSync)
                 {
-                    Sync *s = client->syncs.back();
-                    fsfp_t fsfp = s->fsfp;
-                    sync->setState(s->state); //override state with the actual one from the sync
-                    sync->setLocalFingerprint(fsfp);
-                    request->setNumber(fsfp);
+                    e = API_ENOENT;
                 }
-                sync->setError(syncError);
-                sync->setMegaFolderYielding(remotePath.release());
-                request->setTransferTag(nextSyncTag);
-                syncMap[nextSyncTag] = sync;
 
-                fireOnSyncAdded(sync, e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
-                e = API_OK; //we don't consider the addsync returned error as an error on the request: the sync was added (although temporarily disabled)
+                if (unifiedSync)
+                {
+                    if (unifiedSync->mSync)
+                    {
+                        fsfp_t fsfp = unifiedSync->mSync->fsfp;
+                        request->setNumber(fsfp);
+                    }
+                    request->setParentHandle(unifiedSync->mConfig.getBackupId());
+
+                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig, unifiedSync->mSync.get(), client);
+
+                    fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
+                }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                break;
-            }
-
-            delete sync;
+            });
             break;
         }
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
-            auto tag = request->getNumDetails();
-            auto sync_it = syncMap.find(tag);
-            if (sync_it == syncMap.end())
-            {
-                e = API_ENOENT;
-                break;
-            }
-            assert(sync_it->second);
+            auto backupId = request->getParentHandle();
+            UnifiedSync* us = nullptr;
 
-            SyncError syncError = NO_SYNC_ERROR;
+            e = client->syncs.enableSyncByBackupId(backupId, true, us);
 
-            MegaSync *megaSync = sync_it->second;
-            handle newHandle = UNDEF;
-            if (megaSync->getMegaHandle() == UNDEF)
-            {
-                LOG_verbose << "sync config has no remote: figuring a new one from last known remote path: " << megaSync->getMegaFolder();
-                MegaNode *n = getNodeByPath(megaSync->getMegaFolder());
-                if (n)
-                {
-                    newHandle = n->getHandle();
-                    delete n;
-                }
-            }
-
-            e = client->enableSync(tag, syncError, true, newHandle);
-            // Note: in case this fails with a non temporary error, this sets the sync
-            // to FAILED (which oddly entails: isEnabled = true: from the user perspective it has been enabled)
-
-            request->setNumDetails(syncError);
+            request->setNumDetails(us ? us->mConfig.getError() : UNKNOWN_ERROR);
 
             if (!e) //sync added (enabled) fine
             {
@@ -21682,6 +21617,42 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            break;
+        }
+        case MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS:
+        {
+            const char* externalDrive = request->getFile();
+            if (!externalDrive)
+            {
+                e = API_EARGS;
+                break;
+            }
+            else
+            {
+                e = client->syncs.backupOpenDrive(LocalPath::fromPath(externalDrive, *client->fsaccess));
+            }
+            if (!e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            }
+            break;
+        }
+        case MegaRequest::TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS:
+        {
+            const char* externalDrive = request->getFile();
+            if (!externalDrive)
+            {
+                e = API_EARGS;
+                break;
+            }
+            else
+            {
+                e = client->syncs.backupCloseDrive(LocalPath::fromPath(externalDrive, *client->fsaccess));
+            }
+            if (!e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            }
             break;
         }
         case MegaRequest::TYPE_COPY_SYNC_CONFIG:
@@ -21694,16 +21665,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             const char *name = request->getName();
-
             const char *remotePath = request->getLink();
 
-            auto nextSyncTag = client->nextSyncTag(10000);//We artificially start giving syncs number from 10k, to avoid clashing
-            //when mixed syncConfig vs app configs (i.e. new -> old -> new version)
-
             using CType = CacheableStatus::Type;
-            bool overStorage = client->mCachedStatus[CType::STATUS_STORAGE] ? (client->mCachedStatus[CType::STATUS_STORAGE]->value() >= MegaApi::STORAGE_STATE_RED) : false;
-            bool businessExpired = client->mCachedStatus[CType::STATUS_BUSINESS] ? (client->mCachedStatus[CType::STATUS_BUSINESS]->value() == BIZ_STATUS_EXPIRED) : false;
-            bool blocked = client->mCachedStatus[CType::STATUS_BLOCKED] ? (client->mCachedStatus[CType::STATUS_BLOCKED]->value()) : false;
+            bool overStorage = client->mCachedStatus.lookup(CType::STATUS_STORAGE, MegaApi::STORAGE_STATE_UNKNOWN) >= MegaApi::STORAGE_STATE_RED;
+            bool businessExpired = client->mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) == BIZ_STATUS_EXPIRED;
+            bool blocked = client->mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1;
 
             auto syncError = NO_SYNC_ERROR;
             // the order is important here: a user needs to resolve blocked in order to resolve storage
@@ -21729,32 +21696,36 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     syncError = UNKNOWN_TEMPORARY_ERROR;
                 }
-                enabled = true; //we consider enabled when it is temporary disabled
             }
 
-            SyncConfig syncConfig{nextSyncTag, localPath, name, request->getNodeHandle(), remotePath ? remotePath : "",
+            SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
+                                  name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
-                                  regExpToVector(request->getRegExp()), enabled};
+                                  enabled);
 
             if (temporaryDisabled)
             {
                 syncConfig.setError(syncError);
             }
 
-            if (client->syncConfigs)
-            {
-                client->syncConfigs->insert(syncConfig);
-            }
-            else
-            {
-                e = API_ENOENT;
-            }
+            client->ensureSyncUserAttributes([this, request, syncConfig](Error e){
 
-            if (!e)
-            {
-                request->setTransferTag(nextSyncTag);
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            }
+                if (e != API_OK)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    return;
+                }
+
+                client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
+                {
+                    if (!e == API_OK)
+                    {
+                        request->setParentHandle(backupId);
+                    }
+
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            });
             break;
         }
         case MegaRequest::TYPE_COPY_CACHED_STATUS:
@@ -21765,40 +21736,24 @@ void MegaApiImpl::sendPendingRequests()
             int blockedStatusValue =  static_cast<int>(number / 1000);
             int storageStatusValue = static_cast<int>(number % 1000);
 
-
-            using CS = CacheableStatus;
             using CType = CacheableStatus::Type;
-
             auto loadAndPersist = [this](CType type, int value) -> error
             {
                 if (value == 999)
                 {
-                    LOG_verbose << "Ignoring not valid status in migration: " << type << " = " << value;
+                    LOG_verbose << "Ignoring not valid status in migration: " << CacheableStatus::typeToStr(type) << " = " << value;
                     return API_OK; //received invalid value: not to be used
                 }
-                auto status = client->mCachedStatus[type];
-                if (status) // the sdk already has a cached value
+
+                if (int64_t oldValue = client->mCachedStatus.lookup(type, 999) != 999)
                 {
-                    LOG_verbose << "Ignoring already present status in migration: " << type << " = " << value << " existing = " << status->value();
+                    LOG_verbose << "Ignoring already present status in migration: " << CacheableStatus::typeToStr(type) << " = " << value
+                                << " existing = " << oldValue;
                     return API_OK;
                 }
-                status = std::make_shared<CS>(type, value);
 
-                client->loadCacheableStatus(status);
-
-                if (client->statusTable)
-                {
-                    DBTableTransactionCommitter committer(client->statusTable);
-                    LOG_verbose << "Adding/updating migrated status to database: " << status->type() << " = " << status->value();
-                    if (!(client->statusTable->put(MegaClient::CACHEDSTATUS, status.get(), &client->key)))
-                    {
-                        LOG_err << "Failed to add/update migrated status to db: "
-                                    << status->type() << " = " << status->value();
-                        return API_EINTERNAL;
-                }
+                client->mCachedStatus.loadCachedStatus(type, value);
                 return API_OK;
-                }
-                return API_ENOENT;
             };
 
             auto subE = loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);
@@ -21825,64 +21780,42 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            sync_list::iterator it = client->syncs.begin();
-            while (it != client->syncs.end())
-            {
-                Sync *sync = (*it);
-                it++;
-
-                client->delsync(sync);
-            }
+            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; } );
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
         {
             handle nodehandle = request->getNodeHandle();
-            int tag = request->getNumDetails();
+            auto backupId = request->getParentHandle();
 
-            if (tag == INVALID_SYNC_TAG && nodehandle == INVALID_HANDLE)
+            if (backupId == INVALID_HANDLE && nodehandle == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
             }
 
             bool found = false;
-            sync_list::iterator it = client->syncs.begin();
-            while(it != client->syncs.end())
-            {
-                Sync *sync = (*it);
-                it++;
+            client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync){
 
-                if ((tag && tag == sync->tag) //find matching (tag or node handle)
-                        || !sync->localroot->node || sync->localroot->node->nodehandle == nodehandle)
+                bool matched = (backupId != UNDEF && c.getBackupId() == backupId) ||
+                    (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
+
+                if (matched && sync)
                 {
-                    assert(!tag || tag == sync->tag);
-                    tag = sync->tag;
                     string path = sync->localroot->localname.toPath(*fsAccess);
                     if (!request->getFile() || sync->localroot->node)
                     {
                         request->setFile(path.c_str());
                     }
-
-                    //remove active sync
-                    client->delsync(sync);
-
-                    found = true;
-                    break;
                 }
-            }
+                found = found || matched;
+                return matched;
+            });
 
-            if (!found) // still can be in the configured syncs
+            if (!found)
             {
-                if (!tag) //no tag provided, look for handle
-                {
-                    e = client->removeSyncConfigByNodeHandle(nodehandle);
-                }
-                else
-                {
-                    e = client->removeSyncConfig(tag);
-                }
+                e = API_ENOENT;
             }
 
             if (!e)
@@ -21895,44 +21828,25 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_DISABLE_SYNC:
         {
             handle nodehandle = request->getNodeHandle();
-            int tag = request->getNumDetails();
+            auto backupId = request->getParentHandle();
 
-            if (tag == INVALID_SYNC_TAG && nodehandle == INVALID_HANDLE)
+            if (backupId == INVALID_HANDLE && nodehandle == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
             }
 
             bool found = false;
-            sync_list::iterator it = client->syncs.begin();
-            while(it != client->syncs.end())
-            {
-                Sync *sync = (*it);
-                it++;
 
-                if ((tag == sync->tag) //find matching (tag or node handle)
-                    || !sync->localroot->node || sync->localroot->node->nodehandle == nodehandle)
+            client->syncs.disableSelectedSyncs([&](SyncConfig& c, Sync* s) {
 
-                {
-                    client->disableSync(sync);
-                    found = true;
-                }
-            }
+                bool matched = (c.getBackupId() == backupId) ||
+                               (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
+                found = found || matched;  // no need to test s, auto tests check disable of disabled returns MegaError::API_OK
+                return matched;
+            }, NO_SYNC_ERROR, false);
 
-            if (!found) // still can be in non active syncs
-            {
-                if (!tag) //no tag provided, look for handle
-                {
-                    e = client->changeSyncStateByNodeHandle(nodehandle, SYNC_DISABLED, NO_SYNC_ERROR, false);
-
-                }
-                else
-                {
-                    e = client->changeSyncState(tag, SYNC_DISABLED, NO_SYNC_ERROR, false);
-                }
-            }
-
-            if (!e)
+            if (found)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                 break;
@@ -21941,7 +21855,7 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
-#endif
+#endif  // ENABLE_SYNC
         case MegaRequest::TYPE_REPORT_EVENT:
         {
             const char *details = request->getText();
@@ -22130,7 +22044,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if(!request->getFlag())
             {
-                client->getuserdata();
+                client->getuserdata(client->reqtag);
             }
             else
             {
@@ -22210,7 +22124,20 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
-            client->copysession();
+            e = client->copysession();
+
+            if (e == API_ENOENT)    // no session to copy because not logged in
+            {
+                string url = MegaClient::MEGAURL + "/#";
+                auto path = request->getText();
+                if (path) url.append(path);
+                request->setLink(url.c_str());
+
+                e = API_OK;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                break;
+            }
+
             break;
         }
         case MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL:
@@ -22607,7 +22534,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_SET_RETENTION_TIME:
         {
             MegaHandle chatid = request->getNodeHandle();
-            int period = request->getNumDetails();
+            unsigned period = static_cast <unsigned>(request->getTotalBytes());
 
             if (chatid == INVALID_HANDLE)
             {
@@ -23033,7 +22960,7 @@ void MegaApiImpl::sendPendingRequests()
             // the response to the code's verification, the following block can be deleted
             if (e == API_OK)
             {
-                client->reqs.add(new CommandGetUserData(client));
+                client->reqs.add(new CommandGetUserData(client, client->reqtag, nullptr));
             }
             break;
         }
@@ -23086,32 +23013,51 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT:
         {
-            BackupType bType = request->getTotalBytes() < INVALID || request->getTotalBytes() > CAMERA_UPLOAD ?
-                               INVALID : static_cast<BackupType>(request->getTotalBytes());
+            NodeHandle remoteNode = NodeHandle().set6byte(request->getNodeHandle());
+            const char* backupName = request->getName();
+            const char* localFolder = request->getFile();
+            int backupType = static_cast<int>(request->getTotalBytes());
+            BackupType bType = static_cast<BackupType>(backupType);
+            handle backupId = request->getParentHandle();
 
-            if (request->getParentHandle() == UNDEF) // Register a new sync
+            CommandBackupPut::BackupInfo info;
+            info.backupId = backupId;
+            info.type = bType;
+            info.backupName = backupName ? backupName : "";
+            info.nodeHandle = remoteNode;
+            info.localFolder = localFolder ? LocalPath::fromPath(localFolder, *client->fsaccess) : LocalPath();
+            info.deviceId = client->getDeviceidHash();
+            info.state = request->getAccess();
+            info.subState = request->getNumDetails();
+
+            bool isNew = request->getFlag();
+            if (isNew) // Register a new sync/backup
             {
-                string localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
-                string extraData(binaryToBase64(request->getText(), strlen(request->getText())));
-                client->reqs.add(new CommandBackupPut(client, bType, request->getNodeHandle(),
-                                                      localFolder, client->getDeviceidHash(),
-                                                      request->getAccess(), request->getNumDetails(), extraData));
+                if ((backupType != MegaApi::BACKUP_TYPE_CAMERA_UPLOADS
+                     && backupType != MegaApi::BACKUP_TYPE_MEDIA_UPLOADS)
+                        || !localFolder
+                        || !backupName
+                        || remoteNode.isUndef()
+                        || !ISUNDEF(backupId))  // new backups don't have a backup id yet
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                client->reqs.add(new CommandBackupPut(client, info, nullptr));
             }
-            else // update a backup
+            else // update an existing sync/backup
             {
-                const char* file = request->getFile();
-                unique_ptr<char[]> localFolder(file ? binaryToBase64(file, strlen(file)) : nullptr);
-                const char* extra = request->getText();
-                unique_ptr<char[]> extraData(extra ? binaryToBase64(extra, strlen(extra)) : nullptr);
-                client->reqs.add(new CommandBackupPut(client,
-                                                      (MegaHandle)request->getParentHandle(),
-                                                      bType,
-                                                      request->getNodeHandle(),
-                                                      localFolder.get(),
-                                                      client->getDeviceidHash().c_str(),
-                                                      request->getAccess(),
-                                                      request->getNumDetails(),
-                                                      extraData.get()));
+                if ((backupType != MegaApi::BACKUP_TYPE_CAMERA_UPLOADS
+                     && backupType != MegaApi::BACKUP_TYPE_MEDIA_UPLOADS
+                     && backupType != MegaApi::BACKUP_TYPE_INVALID)
+                        || ISUNDEF(backupId))   // existing backups must have a backup id
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                client->reqs.add(new CommandBackupPut(client, info, nullptr));
             }
             break;
         }
@@ -23129,7 +23075,57 @@ void MegaApiImpl::sendPendingRequests()
                                                            (uint32_t)request->getParamType(),
                                                            (uint32_t)request->getTransferTag(),
                                                            request->getNumber(),
-                                                           request->getNodeHandle()));
+                                                           request->getNodeHandle(),
+                                                           [this, request](Error e){
+                                                                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                                                           }));
+            break;
+        }
+        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
+        {
+                int flags = int(request->getNumber());
+                if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                const string_vector &vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
+                client->reqs.add(new CommandFetchGoogleAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
+                {
+                    if (e == API_OK)
+                    {
+                        std::unique_ptr<MegaStringMap> stringMap = std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
+                        for (const auto itMap : value)
+                        {
+                            stringMap->set(itMap.first.c_str(), itMap.second.c_str());
+                        }
+
+                        request->setMegaStringMap(stringMap.get());
+                    }
+
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }));
+            break;
+        }
+        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
+        {
+            int flags = int(request->getNumber());
+            if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandQueryGoogleAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
+            {
+                if (e == API_OK)
+                {
+                    request->setNumDetails(value);
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
             break;
         }
         case MegaRequest::TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS:
@@ -23149,6 +23145,10 @@ void MegaApiImpl::sendPendingRequests()
             LOG_err << "Error starting request: " << e;
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
+
+#ifdef ENABLE_SYNC
+        client->syncs.syncConfigStoreFlush();
+#endif
     }
 }
 
@@ -23281,16 +23281,17 @@ void MegaApiImpl::dismissBanner(int id, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
     request->setTotalBytes(backupType);
     request->setNodeHandle(targetNode);
     request->setFile(localFolder);
-    request->setName(deviceId);
+    request->setName(backupName ? Base64::btoa(backupName).c_str() : nullptr);
     request->setAccess(state);
     request->setNumDetails(subState);
-    request->setText(extraData);
+    request->setFlag(true); // indicates it's a new backup
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23303,7 +23304,7 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listene
     waiter->notify();
 }
 
-void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder,  const char* backupName, int state, int subState, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
     request->setParentHandle(backupId);
@@ -23323,9 +23324,9 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
         request->setFile(localFolder);
     }
 
-    if (deviceId)
+    if (backupName)
     {
-        request->setName(deviceId);
+        request->setName(backupName);
     }
 
     if (state >= 0)
@@ -23338,18 +23339,13 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
         request->setNumDetails(subState);
     }
 
-    if (extraData)
-    {
-        request->setText(extraData);
-    }
-
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
+void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT, listener);
     request->setParentHandle(backupId);
     request->setAccess(status);
     request->setNumDetails(progress);
@@ -23359,6 +23355,79 @@ void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progr
     request->setNodeHandle(lastNode);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_GOOGLE_ADS, listener);
+    request->setNumber(adFlags);
+    request->setMegaStringList(adUnits);
+    request->setNodeHandle(publicHandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GOOGLE_ADS, listener);
+    request->setNumber(adFlags);
+    request->setNodeHandle(publicHandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setCookieSettings(int settings, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_COOKIE_SETTINGS);
+    request->setNumDetails(settings);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setCookieSettings_sendPendingRequests(MegaRequestPrivate* request)
+{
+    auto tmp = std::to_string(request->getNumDetails());
+    client->putua(ATTR_COOKIE_SETTINGS, (byte *)tmp.data(), unsigned(tmp.size()));
+}
+
+void MegaApiImpl::getCookieSettings(MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_COOKIE_SETTINGS);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request)
+{
+    // make a copy to make sure we don't read too much from a non-null terminated string
+    unique_ptr<char[]> buff(new char[len + 1]);
+    buff[len] = 0;
+    char* startptr = buff.get();
+    strncpy(startptr, (const char*)data, len);
+
+    // get the value
+    char* endptr;
+    long value = strtol(startptr, &endptr, 10);
+
+    // validate the value
+    error e = API_OK;
+    if (endptr == startptr || *endptr != '\0' || value == LONG_MAX || value == LONG_MIN)
+    {
+        value = -1;
+        LOG_err << "Invalid value for Cookie Settings bitmap";
+        e = API_EINTERNAL;
+    }
+
+    request->setNumDetails(int(value));
+
+    return e;
+}
+
+bool MegaApiImpl::cookieBannerEnabled()
+{
+    return client->mCookieBannerEnabled;
 }
 
 void TreeProcCopy::allocnodes()
@@ -23374,6 +23443,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
     {
         string attrstring;
         SymmCipher key;
+        assert(nc > 0);
         NewNode* t = &nn[--nc];
 
         // copy node
@@ -23571,24 +23641,6 @@ void RequestQueue::removeListener(MegaRequestListener *listener)
 
     mutex.unlock();
 }
-
-#ifdef ENABLE_SYNC
-void RequestQueue::removeListener(MegaSyncListener *listener)
-{
-    mutex.lock();
-
-    std::deque<MegaRequestPrivate *>::iterator it = requests.begin();
-    while(it != requests.end())
-    {
-        MegaRequestPrivate *request = (*it);
-        if(request->getSyncListener()==listener)
-            request->setSyncListener(NULL);
-        it++;
-    }
-
-    mutex.unlock();
-}
-#endif
 
 void RequestQueue::removeListener(MegaBackupListener *listener)
 {
@@ -24344,54 +24396,61 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 }
 
 #ifdef ENABLE_SYNC
-MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag)
+MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr /* can be null */, MegaClient* client /* never null */)
+    : mType(static_cast<SyncType>(config.getType()))
+    , mActive(syncPtr && syncPtr->state >= 0)
+    , mEnabled(config.getEnabled())
 {
-    this->tag = tag;
-    this->megaHandle = nodehandle;
+    this->megaHandle = config.getRemoteNode().as8byte();
     this->localFolder = NULL;
-    setLocalFolder(path);
+    setLocalFolder(config.getLocalPath().toPath(*client->fsaccess).c_str());
     this->mName= NULL;
-    if (name && strlen(name))
+    if (!config.mName.empty())
     {
-        setName(name);
+        setName(config.mName.c_str());
     }
     else
     {
-        //using localpath as name:
-        setName(path);
+        FileSystemType fsType = syncPtr ? syncPtr->mFilesystemType :
+                                client->fsaccess->getlocalfstype(config.getLocalPath());
+
+        //using leaf name of localpath as name:
+        setName(config.getLocalPath().leafName().toName(*client->fsaccess, fsType).c_str());
     }
-    this->megaFolder = NULL;
-    this->state = SYNC_INITIALSCAN;
+    this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
-    this->regExp = NULL;
-    this->listener = NULL;
-    this->mError = 0;
+
+    setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
+    setLastKnownMegaFolder(config.mOrigninalPathOfRemoteRootNode.c_str());
+
+    setError(config.mError);
+    setWarning(config.mWarning);
+    setBackupId(config.mBackupId);
 }
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
+    : mType(sync->mType)
+    , mActive(sync->mActive)
+    , mEnabled(sync->mEnabled)
 {
-    this->regExp = NULL;
-    this->setTag(sync->getTag());
+    this->setBackupId(sync->getBackupId());
     this->localFolder = NULL;
     this->mName = NULL;
     this->setLocalFolder(sync->getLocalFolder());
     this->setName(sync->getName());
-    this->megaFolder = NULL;
-    this->setMegaFolder(sync->getMegaFolder());
+    this->lastKnownMegaFolder = NULL;
+    this->setLastKnownMegaFolder(sync->getLastKnownMegaFolder());
     this->setMegaHandle(sync->getMegaHandle());
     this->setLocalFingerprint(sync->getLocalFingerprint());
-    this->setState(sync->getState());
-    this->setListener(sync->getListener());
-    this->setRegExp(sync->getRegExp());
     this->setError(sync->getError());
+    this->setWarning(sync->getWarning());
 }
 
 MegaSyncPrivate::~MegaSyncPrivate()
 {
     delete [] localFolder;
     delete [] mName;
-    delete [] megaFolder;
-    delete regExp;
+    delete [] lastKnownMegaFolder;
 }
 
 MegaSync *MegaSyncPrivate::copy()
@@ -24437,27 +24496,18 @@ void MegaSyncPrivate::setName(const char *name)
     mName =  MegaApi::strdup(name);
 }
 
-const char *MegaSyncPrivate::getMegaFolder() const
+const char *MegaSyncPrivate::getLastKnownMegaFolder() const
 {
-    return megaFolder;
+    return lastKnownMegaFolder;
 }
 
-void MegaSyncPrivate::setMegaFolder(const char *path)
+void MegaSyncPrivate::setLastKnownMegaFolder(const char *path)
 {
-    if (megaFolder)
+    if (lastKnownMegaFolder)
     {
-        delete [] megaFolder;
+        delete [] lastKnownMegaFolder;
     }
-    megaFolder = MegaApi::strdup(path);
-}
-
-void MegaSyncPrivate::setMegaFolderYielding(char *path)
-{
-    if (megaFolder)
-    {
-        delete [] megaFolder;
-    }
-    megaFolder = path;
+    lastKnownMegaFolder = MegaApi::strdup(path);
 }
 
 long long MegaSyncPrivate::getLocalFingerprint() const
@@ -24470,258 +24520,14 @@ void MegaSyncPrivate::setLocalFingerprint(long long fingerprint)
     this->fingerprint = fingerprint;
 }
 
-int MegaSyncPrivate::getTag() const
+MegaHandle MegaSyncPrivate::getBackupId() const
 {
-    return tag;
+    return mBackupId;
 }
 
-void MegaSyncPrivate::setTag(int tag)
+void MegaSyncPrivate::setBackupId(MegaHandle backupId)
 {
-    this->tag = tag;
-}
-
-void MegaSyncPrivate::setListener(MegaSyncListener *listener)
-{
-    this->listener = listener;
-}
-
-MegaSyncListener *MegaSyncPrivate::getListener()
-{
-    return this->listener;
-}
-
-int MegaSyncPrivate::getState() const
-{
-    return state;
-}
-
-void MegaSyncPrivate::setState(int state)
-{
-    this->state = state;
-}
-
-MegaRegExpPrivate::MegaRegExpPrivate()
-{
-    patternUpdated = false;
-
-#ifdef USE_PCRE
-    options = PCRE_ANCHORED | PCRE_UTF8;
-    reCompiled = NULL;
-    reOptimization = NULL;
-#endif
-}
-
-MegaRegExpPrivate::~MegaRegExpPrivate()
-{
-#ifdef USE_PCRE
-    if (reCompiled != NULL)
-    {
-        pcre_free(reCompiled);
-    }
-    if (reOptimization != NULL)
-    {
-        pcre_free(reOptimization);
-    }
-#endif
-}
-
-MegaRegExpPrivate * MegaRegExpPrivate::copy()
-{
-    MegaRegExpPrivate *regExp = new MegaRegExpPrivate();
-
-    for (unsigned int i = 0; i < this->regExps.size(); i++)
-    {
-        regExp->addRegExp(this->getRegExp(i));
-    }
-
-    if (this->isPatternUpdated())
-    {
-        regExp->updatePattern();
-    }
-
-    return regExp;
-}
-
-const char *MegaRegExpPrivate::getFullPattern()
-{
-    if (!patternUpdated)
-    {
-        updatePattern();
-    }
-
-    return pattern.c_str();
-}
-
-
-bool MegaRegExpPrivate::addRegExp(const char *regExp)
-{
-    if (!checkRegExp(regExp))
-    {
-        return false;
-    }
-
-    regExps.push_back(regExp);
-    patternUpdated = false;
-
-    return true;
-}
-
-int MegaRegExpPrivate::getNumRegExp()
-{
-    return int(regExps.size());
-}
-
-const char * MegaRegExpPrivate::getRegExp(int index)
-{
-    return regExps.at(index).c_str();
-}
-
-/**
- * @brief Checks if the given regular expression is correct.
- * @param regExp Regular expression
- * @return True if the regular expression is correct. Otherwise, false.
- */
-bool MegaRegExpPrivate::checkRegExp(const char *regExp)
-{
-    if (!regExp)
-    {
-        return false;
-    }
-
-#ifdef USE_PCRE
-    const char *error;
-    int eoffset;
-
-    if (!pcre_compile(regExp, options, &error, &eoffset, NULL))
-    {
-        LOG_info << "Wrong expression " << regExp << ": " << error;
-        return false;
-    }
-#endif
-
-    return true;
-}
-
-/**
- * @brief This method clears the previous pattern and creates a new one based on the
- * current regular expressions included in @regExps
- * @return True if compilation of new pattern was successfull. Otherwise, false.
- */
-bool MegaRegExpPrivate::updatePattern()
-{
-    pattern.clear();
-    for (unsigned int i = 0; i < regExps.size(); i++)
-    {
-        string wrapped = "(?:";
-        wrapped += regExps.at(i);
-        wrapped += ")\\z";
-
-        pattern += wrapped + ((i==(regExps.size()-1)) ? "" :"|");
-    }
-
-    patternUpdated = true;
-    int result = compile();
-    return result == REGEXP_NO_ERROR || result == REGEXP_OPTIMIZATION_ERROR;
-}
-
-bool MegaRegExpPrivate::isPatternUpdated()
-{
-    return patternUpdated;
-}
-
-bool MegaRegExpPrivate::match(const char *itemToMatch)
-{
-    if (!patternUpdated)
-    {
-        updatePattern();
-    }
-
-#ifdef USE_PCRE
-    int strVector[30];
-    int result;
-
-    result = pcre_exec(reCompiled,
-                       reOptimization,
-                       itemToMatch,
-                       strlen(itemToMatch),
-                       0,
-                       PCRE_ANCHORED,
-                       strVector,
-                       30);
-
-    if (result >= 0) // We have a match
-    {
-        return true;
-    }
-    else            // Something bad happened..
-    {
-        switch(result)
-        {
-            case PCRE_ERROR_NOMATCH      : /*LOG_debug << "PCRE: String did not match the pattern";  */  break;
-            case PCRE_ERROR_NULL         : LOG_debug << "PCRE: Something was null";                      break;
-            case PCRE_ERROR_BADOPTION    : LOG_debug << "PCRE: A bad option was passed";                 break;
-            case PCRE_ERROR_BADMAGIC     : LOG_debug << "PCRE: Magic number bad (compiled re corrupt?)"; break;
-            case PCRE_ERROR_UNKNOWN_NODE : LOG_debug << "PCRE: Something kooky in the compiled re";      break;
-            case PCRE_ERROR_NOMEMORY     : LOG_debug << "PCRE: Ran out of memory";                       break;
-            default                      : LOG_debug << "PCRE: Unknown error";                           break;
-        }
-
-        return false;
-    }
-#endif
-
-    return 0;
-}
-
-int MegaRegExpPrivate::compile()
-{
-#ifdef USE_PCRE
-    const char *error;
-    int eoffset;
-
-    if (pattern.empty())
-    {
-        return MegaRegExpPrivate::REGEXP_EMPTY;
-    }
-
-    reCompiled = pcre_compile(pattern.c_str(), options, &error, &eoffset, NULL);
-    if (reCompiled == NULL)
-    {
-        LOG_debug << "PCRE error: Could not compile " << pattern.c_str() << ": " << error;
-        return MegaRegExpPrivate::REGEXP_COMPILATION_ERROR;
-    }
-
-    reOptimization = pcre_study(reCompiled, 0, &error);
-    if (error != NULL)
-    {
-        LOG_debug << "PCRE info: Could not study " << pattern.c_str() << ": " << error;
-        return MegaRegExpPrivate::REGEXP_OPTIMIZATION_ERROR;
-    }
-
-#endif
-    return MegaRegExpPrivate::REGEXP_NO_ERROR;
-}
-
-MegaRegExp *MegaSyncPrivate::getRegExp() const
-{
-    return regExp;
-}
-
-void MegaSyncPrivate::setRegExp(MegaRegExp *regExp)
-{
-    if (this->regExp)
-    {
-        delete this->regExp;
-    }
-
-    if (!regExp)
-    {
-        this->regExp = NULL;
-    }
-    else
-    {
-        this->regExp = regExp->copy();
-    }
+    this->mBackupId = backupId;
 }
 
 int MegaSyncPrivate::getError() const
@@ -24734,25 +24540,45 @@ void MegaSyncPrivate::setError(int error)
     mError = error;
 }
 
+int MegaSyncPrivate::getWarning() const
+{
+    return mWarning;
+}
+
+void MegaSyncPrivate::setWarning(int warning)
+{
+    mWarning = warning;
+}
+
+int MegaSyncPrivate::getType() const
+{
+    return mType;
+}
+
+void MegaSyncPrivate::setType(MegaSync::SyncType type)
+{
+    mType = type;
+}
+
 void MegaSyncPrivate::disable(int error)
 {
-    setState(SYNC_DISABLED);
+    mEnabled = false;
     setError(error);
 }
 
 bool MegaSyncPrivate::isEnabled() const
 {
-    return state != SYNC_CANCELED && (state != SYNC_DISABLED || mError != NO_SYNC_ERROR );
+    return mEnabled;;
 }
 
 bool MegaSyncPrivate::isActive() const
 {
-    return state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED;
+    return mActive;
 }
 
 bool MegaSyncPrivate::isTemporaryDisabled() const
 {
-    return state == SYNC_DISABLED && mError != NO_SYNC_ERROR;
+    return mEnabled && !mActive;
 }
 
 
@@ -25267,11 +25093,7 @@ void MegaFolderUploadController::cancel()
 #ifdef _WIN32
         if (transfer->type == GET)
         {
-            transfer->localfilename.editStringDirect()->append("", 1);
-            WIN32_FILE_ATTRIBUTE_DATA fad;
-            if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-                SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-            transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+            RemoveHiddenFileAttribute(transfer->localfilename);
         }
 #endif
 
@@ -25279,6 +25101,7 @@ void MegaFolderUploadController::cancel()
         subTransfer->setLastError(&megaError);
 
         bool found = false;
+        bool fireSubTransferFinish = false;
         file_list files = transfer->files;
         file_list::iterator iterator = files.begin();
         while (iterator != files.end())
@@ -25290,7 +25113,16 @@ void MegaFolderUploadController::cancel()
                 found = true;
                 if (!file->syncxfer)
                 {
-                    client->stopxfer(file, committer);
+                    if (!this->transfer->getDoNotStopSubTransfers())
+                    {
+                        client->stopxfer(file, committer);
+                    }
+                    else
+                    {
+                        //firing onTransferFinished without stopping (to preserve cache)
+                        subTransfer->setState(MegaTransfer::STATE_FAILED);
+                        fireSubTransferFinish = true;
+                    }
                 }
                 else
                 {
@@ -25306,8 +25138,14 @@ void MegaFolderUploadController::cancel()
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
+            fireSubTransferFinish = true;
+        }
+
+        if (fireSubTransferFinish)
+        {
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
         }
+
         cancelledSubTransfers++;
     }
 
@@ -25335,7 +25173,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
         while (da->dnext(localPath, localname, client->followsymlinks, &dirEntryType))
         {
             ScopedLengthRestore restoreLen(localPath);
-            localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
+            localPath.appendWithSeparator(localname, false);
 
             string name = localname.toName(*client->fsaccess, fsType);
             if (dirEntryType == FILENODE)
@@ -26126,7 +25964,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
             while (da->dnext(localPath, localname, client->followsymlinks))
             {
                 ScopedLengthRestore restoreLen(localPath);
-                localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
+                localPath.appendWithSeparator(localname, false);
 
                 //TODO: add exclude filters here
 
@@ -26601,7 +26439,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
     else
     {
         path = LocalPath::fromPath(".", *client->fsaccess);
-        path.appendWithSeparator(LocalPath::fromPath("", *client->fsaccess), true, client->fsaccess->localseparator);
+        path.appendWithSeparator(LocalPath::fromPath("", *client->fsaccess), true);
     }
 
     FileSystemType fsType = client->fsaccess->getlocalfstype(path);
@@ -26615,7 +26453,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         name = LocalPath::fromName(fileName, *client->fsaccess, fsType);
     }
 
-    path.appendWithSeparator(name, true, client->fsaccess->localseparator);
+    path.appendWithSeparator(name, true);
 
     path.ensureWinExtendedPathLenPrefix();
 
@@ -26663,19 +26501,14 @@ void MegaFolderDownloadController::cancel()
 
 #ifdef _WIN32
         if (transfer->type == GET)
-        {
-            transfer->localfilename.editStringDirect()->append("", 1);
-            WIN32_FILE_ATTRIBUTE_DATA fad;
-            if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-                SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-            transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
-        }
+            RemoveHiddenFileAttribute(transfer->localfilename);
 #endif
 
         MegaErrorPrivate megaError(API_EINCOMPLETE);
         subTransfer->setLastError(&megaError);
 
         bool found = false;
+        bool fireSubTransferFinish = false;
         file_list files = transfer->files;
         file_list::iterator iterator = files.begin();
         while (iterator != files.end())
@@ -26687,7 +26520,16 @@ void MegaFolderDownloadController::cancel()
                 found = true;
                 if (!file->syncxfer)
                 {
-                    client->stopxfer(file, committer);
+                    if (!this->transfer->getDoNotStopSubTransfers())
+                    {
+                        client->stopxfer(file, committer);
+                    }
+                    else
+                    {
+                        //firing onTransferFinished without stopping (to preserve cache)
+                        subTransfer->setState(MegaTransfer::STATE_FAILED);
+                        fireSubTransferFinish = true;
+                    }
                 }
                 else
                 {
@@ -26703,8 +26545,14 @@ void MegaFolderDownloadController::cancel()
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
+            fireSubTransferFinish = true;
+        }
+
+        if (fireSubTransferFinish)
+        {
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
         }
+
         cancelledSubTransfers++;
     }
 
@@ -26712,7 +26560,6 @@ void MegaFolderDownloadController::cancel()
 
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
-
 
 void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
 {
@@ -26777,7 +26624,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath&
         MegaNode *child = children->get(i);
 
         ScopedLengthRestore restoreLen(localpath);
-        localpath.appendWithSeparator(LocalPath::fromName(child->getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
+        localpath.appendWithSeparator(LocalPath::fromName(child->getName(), *client->fsaccess, fsType), true);
 
         string utf8path = localpath.toPath(*client->fsaccess);
 
@@ -27038,14 +26885,12 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
 
     if (basePath.size())
     {
-        string sBasePath = basePath;
-        int lastIndex = int(sBasePath.size() - 1);
-        if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
+        LocalPath lp = LocalPath::fromPath(basePath, *fsAccess);
+        if (!lp.endsInSeparator())
         {
-            string utf8Separator;
-            fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
-            sBasePath.append(utf8Separator);
+            lp.appendWithSeparator(LocalPath(), true);
         }
+        string sBasePath = lp.toPath(*fsAccess);
         this->basePath = sBasePath;
     }
     semaphoresdestroyed = false;
@@ -28341,9 +28186,9 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->server->fsAccess->tmpnamelocal(suffix);
             httpctx->tmpFileName.append(suffix.toPath(*httpctx->server->fsAccess));
 
-            char ext[MAXEXTENSIONLEN];
+            string ext;
             LocalPath localpath = LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess);
-            if (httpctx->server->fsAccess->getextension(localpath, ext, sizeof ext))
+            if (httpctx->server->fsAccess->getextension(localpath, ext))
             {
                 httpctx->tmpFileName.append(ext);
             }
@@ -28851,7 +28696,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         LOG_debug << "Favicon requested";
         response << "HTTP/1.1 301 Moved Permanently\r\n"
-                    "Location: https://mega.nz/favicon.ico\r\n"
+                    "Location: ";
+        response << MegaClient::MEGAURL;
+        response << "/favicon.ico\r\n"
                     "Connection: close\r\n"
                     "\r\n";
 
@@ -28964,7 +28811,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         else
         {
             handle h = MegaApi::base64ToHandle(httpctx->nodehandle.c_str());
-            string link = MegaClient::getPublicLink(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
+            string link = MegaClient::publicLinkURL(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
             httpctx->transfer.reset(new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD));
@@ -29399,8 +29246,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->tmpFileName=httpctx->server->basePath;
                 httpctx->tmpFileName.append("httputfile");
                 httpctx->tmpFileName.append(LocalPath::tmpNameLocal(*httpctx->server->fsAccess).toPath(*httpctx->server->fsAccess));
-                char ext[MAXEXTENSIONLEN];
-                if (httpctx->server->fsAccess->getextension(LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess), ext, sizeof ext))
+                string ext;
+                if (httpctx->server->fsAccess->getextension(LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess), ext))
                 {
                     httpctx->tmpFileName.append(ext);
                 }
@@ -32107,8 +31954,8 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             fds->fsAccess->tmpnamelocal(suffix);
             ftpdatactx->tmpFileName.append(suffix.toPath(*fds->fsAccess));
 
-            char ext[MAXEXTENSIONLEN];
-            if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromPath(fds->controlftpctx->arg1, *ftpdatactx->server->fsAccess), ext, sizeof ext))
+            string ext;
+            if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromPath(fds->controlftpctx->arg1, *ftpdatactx->server->fsAccess), ext))
             {
                 ftpdatactx->tmpFileName.append(ext);
             }
@@ -32917,7 +32764,6 @@ long long MegaSizeProcessor::getTotalBytes()
     return totalBytes;
 }
 
-
 MegaEventPrivate::MegaEventPrivate(int type)
 {
     this->type = type;
@@ -33017,6 +32863,11 @@ MegaHandleListPrivate::MegaHandleListPrivate()
 MegaHandleListPrivate::MegaHandleListPrivate(const MegaHandleListPrivate *hList)
 {
     mList = hList->mList;
+}
+
+MegaHandleListPrivate::MegaHandleListPrivate(const vector<handle> &handles)
+{
+    mList = handles;
 }
 
 MegaHandleListPrivate::~MegaHandleListPrivate()
@@ -33217,14 +33068,14 @@ MegaStringList *MegaAchievementsDetailsPrivate::getAwardEmails(unsigned int inde
     {
         if (details.awards.at(index).achievement_class == MEGA_ACHIEVEMENT_INVITE)
         {
-            vector<char*> data;
+            string_vector data;
             vector<string>::iterator it = details.awards.at(index).emails_invited.begin();
             while (it != details.awards.at(index).emails_invited.end())
             {
-                data.push_back(MegaApi::strdup(it->c_str()));
+                data.push_back(*it);
                 it++;
             }
-            return new MegaStringListPrivate(data.data(), int(data.size()));
+            return new MegaStringListPrivate(move(data));
         }
     }
 
@@ -34071,6 +33922,29 @@ void MegaCancelTokenPrivate::cancel(bool newValue)
 bool MegaCancelTokenPrivate::isCancelled() const
 {
     return cancelFlag;
+}
+
+FavouriteProcessor::FavouriteProcessor(int maxCount)
+    : mMaxCount(maxCount)
+{
+
+}
+
+bool FavouriteProcessor::processNode(Node *node)
+{
+    if (node == nullptr) return false;
+
+    auto it = node->attrs.map.find(AttrMap::string2nameid("fav"));
+    if (it != node->attrs.map.end() && (mMaxCount == 0 || handles.size() < mMaxCount))
+    {
+        handles.push_back(node->nodehandle);
+    }
+    return true;
+}
+
+const vector<handle>& FavouriteProcessor::getHandles() const
+{
+    return handles;
 }
 
 }
