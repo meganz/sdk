@@ -9351,6 +9351,11 @@ void MegaClient::doOpenStatusTable()
 
 void MegaClient::readSessionType()
 {
+    if (!sctable)
+    {
+        return;
+    }
+
     int sessionType = sctable->readSessionType();
     if (sessionType == -1 && ephemeralSession == true)
     {
