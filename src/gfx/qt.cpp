@@ -892,7 +892,12 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, FileSys
     std::lock_guard<std::mutex> g(gfxMutex);
     LocalPath path = LocalPath::fromPath(imagePath.toLocal8Bit().constData(), fa);
 
-    uchar* data = static_cast<uchar*>(pdfReader.readBitmapFromPdf(w, h, orientation, path, &fa, LocalPath::fromPath(QDir::tempPath().toLocal8Bit().constData(), fa)));
+#ifdef _WIN32
+    LocalPath workingDir = LocalPath::fromPath(QDir::tempPath().toLocal8Bit().constData(), fa);
+#else
+    LocalPath workingDir = LocalPath();
+#endif
+    uchar* data = static_cast<uchar*>(pdfReader.readBitmapFromPdf(w, h, orientation, path, &fa, workingDir));
 
     if (data == nullptr || !w || !h)
     {
