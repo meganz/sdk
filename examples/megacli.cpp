@@ -116,7 +116,7 @@ int responseprogress = -1;
 int attempts = 0;
 
 //Ephemeral account plus plus
-std::string ephemeralName;
+std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
 bool confirmEphemeralAccountPlusPlus = false;
@@ -1086,7 +1086,7 @@ void DemoApp::fetchnodes_result(const Error& e)
 
         if (client->ephemeralSessionPlusPlus)
         {
-            client->putua(ATTR_FIRSTNAME, (const byte*)ephemeralName.c_str(), unsigned(ephemeralName.size()));
+            client->putua(ATTR_FIRSTNAME, (const byte*)ephemeralFirstname.c_str(), unsigned(ephemeralFirstname.size()));
             client->putua(ATTR_LASTNAME, (const byte*)ephemeralLastName.c_str(), unsigned(ephemeralLastName.size()));
         }
     }
@@ -1266,7 +1266,7 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
     {
         if (type == ATTR_FIRSTNAME)
         {
-            ephemeralName = string((char*)data, l);
+            ephemeralFirstname = string((char*)data, l);
         }
     }
 }
@@ -2952,11 +2952,12 @@ autocomplete::ACN autocompleteSyntax()
                                                       sequence(exportedLink(false, true), opt(param("auth_key"))),
                                                       param("session"),
                                                       sequence(text("autoresume"), opt(param("id"))))));
-    p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
-    p->Add(exec_beginEphemalAccountPlusPlus, sequence(text("beginEphemalAccountPlusPlus"), either(sequence(param("name"), param("lastname")))));
+    p->Add(exec_begin, sequence(text("begin"), opt(flag("-e++")),
+                                either(sequence(param("firstname"), param("lastname")),     // to create an ephemeral++
+                                        param("ephemeralhandle#ephemeralpw"),               // to resume an ephemeral
+                                        param("session"))));                                 // to resume an ephemeral++
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
-    p->Add(exec_signupEphemeralPlusPlus, sequence(text("signupEphemeralPlusPlus"), either(sequence(param("email")))));
-    p->Add(exec_resumeEphemeralPlusPlus, sequence(text("resumeEphemeralPlusPlus"), either(sequence(param("session")))));
+
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -4499,26 +4500,43 @@ void exec_login(autocomplete::ACState& s)
 
 void exec_begin(autocomplete::ACState& s)
 {
+    bool ephemeralPlusPlus = s.extractflag("-e++");
     if (s.words.size() == 1)
     {
         cout << "Creating ephemeral session..." << endl;
         pdf_to_import = true;
         client->createephemeral();
     }
-    else if (s.words.size() == 2)
+    else if (s.words.size() == 2)   // resume session
     {
-        handle uh;
-        byte pw[SymmCipher::KEYLENGTH];
-
-        if (Base64::atob(s.words[1].s.c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
-            s.words[1].s.c_str() + 12, pw, sizeof pw) == sizeof pw)
+        if (ephemeralPlusPlus)
         {
-            client->resumeephemeral(uh, pw);
+            client->resumeephemeralPlusPlus(Base64::atob(s.words[1].s).c_str());
         }
         else
         {
-            cout << "Malformed ephemeral session identifier." << endl;
+            handle uh;
+            byte pw[SymmCipher::KEYLENGTH];
+
+            if (Base64::atob(s.words[1].s.c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
+                s.words[1].s.c_str() + 12, pw, sizeof pw) == sizeof pw)
+            {
+                client->resumeephemeral(uh, pw);
+            }
+            else
+            {
+                cout << "Malformed ephemeral session identifier." << endl;
+            }
         }
+    }
+    else if (ephemeralPlusPlus && s.words.size() == 3)  // begin -e++ firstname lastname
+    {
+        cout << "Creating ephemeral session plus plus..." << endl;
+
+        pdf_to_import = true;
+        ephemeralFirstname = s.words[1].s;
+        ephemeralLastName = s.words[2].s;
+        client->createephemeralPlusPlus();
     }
 }
 
@@ -5598,6 +5616,7 @@ void exec_signup(autocomplete::ACState& s)
             break;
 
         case EPHEMERALACCOUNT:
+        case EPHEMERALACCOUNTPLUSPLUS:
             if (s.words[1].s.find('@') + 1 && s.words[1].s.find('.') + 1)
             {
                 signupemail = s.words[1].s;
@@ -5611,10 +5630,6 @@ void exec_signup(autocomplete::ACState& s)
             {
                 cout << "Please enter a valid e-mail address." << endl;
             }
-            break;
-
-        case EPHEMERALACCOUNTPLUSPLUS:
-            cout << "Please confirm ephemeral account plus plus with signupEphemeralPlusPlus" << endl;
             break;
 
         case NOTLOGGEDIN:
@@ -5826,7 +5841,7 @@ void exec_logout(autocomplete::ACState& s)
         clientFolder = NULL;
     }
 
-    ephemeralName.clear();
+    ephemeralFirstname.clear();
     ephemeralLastName.clear();
 }
 
@@ -6517,7 +6532,7 @@ void exec_locallogout(autocomplete::ACState& s)
     cwd = NodeHandle();
     client->locallogout(false, true);
 
-    ephemeralName.clear();
+    ephemeralFirstname.clear();
     ephemeralLastName.clear();
 }
 
@@ -6991,8 +7006,17 @@ void DemoApp::confirmemaillink_result(error e)
 void DemoApp::ephemeral_result(handle uh, const byte* pw)
 {
     cout << "Ephemeral session established, session ID: ";
-    cout << Base64Str<MegaClient::USERHANDLE>(uh) << "#";
-    cout << Base64Str<SymmCipher::KEYLENGTH>(pw) << endl;
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        cout << Base64Str<MegaClient::USERHANDLE>(uh) << "#";
+        cout << Base64Str<SymmCipher::KEYLENGTH>(pw) << endl;
+    }
+    else
+    {
+        string session;
+        client->dumpsession(session);
+        cout << Base64::btoa(session) << endl;
+    }
 
     client->fetchnodes();
 }
@@ -8341,17 +8365,6 @@ void exec_banner(autocomplete::ACState& s)
     }
 }
 
-void exec_beginEphemalAccountPlusPlus(autocomplete::ACState &s)
-{
-    cout << "Creating ephemeral session plus plus..." << endl;
-
-    ephemeralName = s.words[1].s;
-    ephemeralLastName = s.words[2].s;
-
-    pdf_to_import = true;
-    client->createephemeralPlusPlus();
-}
-
 #ifdef ENABLE_SYNC
 
 void sync_completion(UnifiedSync* us, const SyncError&, error result)
@@ -8668,47 +8681,3 @@ void exec_syncxable(autocomplete::ACState& s)
 }
 
 #endif // ENABLE_SYNC
-
-void exec_signupEphemeralPlusPlus(autocomplete::ACState &s)
-{
-    if (s.words[1].s.find('@') + 1 && s.words[1].s.find('.') + 1)
-    {
-        signupV2 = true;
-        signupemail = s.words[1].s;
-        if (ephemeralName.empty())
-        {
-            User* u = client->ownuser();
-            if (!u)
-            {
-                cout << "Sigup Ephemeral plus plus is no possible" << endl;
-                return;
-            }
-
-            confirmEphemeralAccountPlusPlus = true;
-            client->getua(u, ATTR_FIRSTNAME);
-        }
-
-        signupname = ephemeralName;
-        cout << endl;
-        setprompt(NEWPASSWORD);
-    }
-}
-
-void exec_resumeEphemeralPlusPlus(autocomplete::ACState &s)
-{
-    if (client->loggedin() == NOTLOGGEDIN)
-    {
-        if (s.words.size() > 1)
-        {
-            client->resumeephemeralPlusPlus(Base64::atob(s.words[1].s).c_str());
-        }
-        else
-        {
-            cout << "      resumeEphemeralPlusPlus session" << endl;
-        }
-    }
-    else
-    {
-        cout << "Already logged in. Please log out first." << endl;
-    }
-}
