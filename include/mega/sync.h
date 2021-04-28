@@ -52,7 +52,6 @@ public:
         NodeHandle remoteNode,
         const string& remotePath,
         const fsfp_t localFingerprint,
-        vector<string> regExps = {},
         const bool enabled = true,
         const Type syncType = TYPE_TWOWAY,
         const SyncError error = NO_SYNC_ERROR,
@@ -77,10 +76,6 @@ public:
     // the fingerprint of the local sync root folder
     fsfp_t getLocalFingerprint() const;
     void setLocalFingerprint(fsfp_t fingerprint);
-
-    // returns the exclusion matching strings
-    const vector<string>& getRegExps() const;
-    void setRegExps(vector<string>&&);
 
     // returns the type of the sync
     Type getType() const;
@@ -130,9 +125,6 @@ public:
 
     // the local fingerprint
     fsfp_t mLocalFingerprint;
-
-    // list of regular expressions
-    vector<string> mRegExps; //TODO: rename this to wildcardExclusions?: they are not regexps AFAIK
 
     // type of the sync, defaults to bidirectional
     Type mSyncType;

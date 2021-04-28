@@ -1504,7 +1504,7 @@ struct StandardClient : public MegaApp
                      targetNode->nodeHandle(),
                      targetPath,
                      0,
-                     string_vector(),
+                     //string_vector(),
                      true,
                      SyncConfig::TYPE_BACKUP);
 
@@ -1560,7 +1560,7 @@ struct StandardClient : public MegaApp
                                NodeHandle().set6byte(m->nodehandle),
                                subfoldername,
                                0,
-                               string_vector(),
+                               //string_vector(),
                                true,
                                isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 				

@@ -9075,6 +9075,7 @@ void MegaClient::openStatusTable(bool loadFromCache)
     if (statusTable)
     {
         statusTable.reset();
+        mCachedStatus.clear();
     }
     doOpenStatusTable();
     if (loadFromCache && statusTable)
