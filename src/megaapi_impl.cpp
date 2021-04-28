@@ -16017,7 +16017,7 @@ void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const cha
         requestMap[nextTag] = request;
 
         sessiontype_t sessionType = client->loggedin();
-        assert(sessionType == sessiontype_t::EPHEMERALACCOUNT || sessionType == sessiontype_t::EPHEMERALACCOUNTPLUSPLUS);
+        assert(sessionType == EPHEMERALACCOUNT || sessionType == EPHEMERALACCOUNTPLUSPLUS);
 
         client->confirmsignuplink((const byte*)signupcode.data(), int(signupcode.size()), MegaClient::stringhash64(&signupemail,&pwcipher));
     }
