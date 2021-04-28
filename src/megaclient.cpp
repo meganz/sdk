@@ -8794,50 +8794,6 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     }
                 }
 
-                if (uh == me && ephemeralSessionPlusPlus && !u->isattrvalid(ATTR_KEYRING))
-                {
-                    string puEd255;
-                    string puCu255;
-                    string sigCu255;
-                    string sigPubk;
-
-                    // MegaClient::signkey & chatkey are created on putua::procresult()
-                    std::unique_ptr<EdDSA> signkey = make_unique<EdDSA>(rng);
-                    std::unique_ptr<ECDH> chatkey = make_unique<ECDH>();
-
-                    if (!chatkey->initializationOK || !signkey->initializationOK)
-                    {
-                        LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
-                        clearKeys();
-                    }
-                    else
-                    {
-
-                        // store keys into user attributes (skipping the procresult() <-- reqtag=0)
-                        userattr_map attrs;
-                        string buf;
-
-                        buf.assign((const char *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
-                        attrs[ATTR_ED25519_PUBK] = buf;
-
-                        buf.assign((const char *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
-                        attrs[ATTR_CU25519_PUBK] = buf;
-
-                        // prepare the TLV for private keys
-                        TLVstore tlvRecords;
-                        tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-                        tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
-                        std::unique_ptr<string> tlvContainer = std::unique_ptr<string>(tlvRecords.tlvRecordsToContainer(rng, &key));
-                        buf.assign(tlvContainer->data(), tlvContainer->size());
-                        attrs[ATTR_KEYRING] = buf;
-
-                        LOG_debug << "Send keys attributes";
-
-                        putua(&attrs, 0);
-                    }
-
-                }
-
                 if (notify)
                 {
                     notifyuser(u);
@@ -11996,7 +11952,8 @@ void MegaClient::fetchnodes(bool nocache)
                 reqs.add(new CommandFetchNodes(this, fetchtag, nocache));
             });
 
-            if (loggedin() == FULLACCOUNT)
+            if (loggedin() == FULLACCOUNT
+                    || loggedin() == EPHEMERALACCOUNTPLUSPLUS)  // need to create early the chat and sign keys
             {
                 fetchkeys();
                 loadAuthrings();
@@ -12183,7 +12140,8 @@ void MegaClient::initializekeys()
     else if (!signkey && !chatkey)       // THERE ARE NO KEYS
     {
         // Check completeness of keypairs
-        if (!pubk.isvalid() || puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size())
+        if (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size()
+                || (!pubk.isvalid() && loggedin() != EPHEMERALACCOUNTPLUSPLUS))  // E++ accounts don't have RSA keys
         {
             LOG_warn << "Public keys and/or signatures found without their respective private key.";
 
@@ -12213,10 +12171,13 @@ void MegaClient::initializekeys()
             tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
             string *tlvContainer = tlvRecords.tlvRecordsToContainer(rng, &key);
 
-            // prepare signatures
-            string pubkStr;
-            pubk.serializekeyforjs(pubkStr);
-            signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+            if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
+            {
+                // prepare signatures
+                string pubkStr;
+                pubk.serializekeyforjs(pubkStr);
+                signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+            }
             signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
 
             // store keys into user attributes (skipping the procresult() <-- reqtag=0)
@@ -12232,8 +12193,11 @@ void MegaClient::initializekeys()
             buf.assign((const char *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
             attrs[ATTR_CU25519_PUBK] = buf;
 
-            buf.assign(sigPubk.data(), sigPubk.size());
-            attrs[ATTR_SIG_RSA_PUBK] = buf;
+            if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
+            {
+                buf.assign(sigPubk.data(), sigPubk.size());
+                attrs[ATTR_SIG_RSA_PUBK] = buf;
+            }
 
             buf.assign(sigCu255.data(), sigCu255.size());
             attrs[ATTR_SIG_CU255_PUBK] = buf;
