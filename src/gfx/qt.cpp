@@ -856,14 +856,14 @@ const char *GfxProcQT::supportedformatsPDF()
 QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, FileSystemAccess &fa, QString imagePath)
 {
     std::lock_guard<std::mutex> g(gfxMutex);
-    LocalPath path = LocalPath::fromPath(imagePath.toLocal8Bit().constData(), fa);
+    LocalPath path = LocalPath::fromPath(imagePath.toUtf8().constData(), fa);
 
 #ifdef _WIN32
-    LocalPath workingDir = LocalPath::fromPath(QDir::tempPath().toLocal8Bit().constData(), fa);
+    LocalPath workingDir = LocalPath::fromPath(QDir::tempPath().toUtf8().constData(), fa);
 #else
     LocalPath workingDir = LocalPath();
 #endif
-    uchar* data = static_cast<uchar*>(pdfReader.readBitmapFromPdf(w, h, orientation, path, &fa, workingDir));
+    uchar* data = static_cast<uchar*>(PdfiumReader::readBitmapFromPdf(w, h, orientation, path, &fa, workingDir));
 
     if (data == nullptr || !w || !h)
     {
