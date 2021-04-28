@@ -579,7 +579,7 @@ add_definitions( -DHAVE_CONFIG_H) #otherwise, it won't be included in Windows bu
 
 SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/sodium.cpp)
 SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
-SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.cpp )
+SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.cpp ${MegaDir}/src/gfx/gfx_pdfium.cpp)
 
 add_library(Mega STATIC
             ${MegaDir}/include/megaapi.h
@@ -643,6 +643,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/gfx/GfxProcCG.h
             ${MegaDir}/include/mega/gfx/qt.h
             ${MegaDir}/include/mega/gfx/freeimage.h
+            ${MegaDir}/include/mega/gfx/gfx_pdfium.h
             ${MegaDir}/include/mega/gfx/external.h
             ${MegaDir}/include/mega/pubkeyaction.h
             ${MegaDir}/include/mega/mega_http_parser.h
