@@ -486,6 +486,6 @@ void SqliteDbTable::remove()
     auto localpath = LocalPath::fromPath(dbfile, *fsaccess);
     fsaccess->unlinklocal(localpath);
 }
-
 } // namespace
+
 #endif

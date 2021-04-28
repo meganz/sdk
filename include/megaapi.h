@@ -7658,14 +7658,6 @@ class MegaApi
         };
 
         enum {
-            SESSION_TYPE_NOTLOGGEDIN = 0,
-            SESSION_TYPE_EPHEMERALACCOUNT = 1,
-            SESSION_TYPE_CONFIRMEDACCOUNT = 2,
-            SESSION_TYPE_FULLACCOUNT = 3,
-            SESSION_TYPE_EPHEMERALACCOUNTPLUSPLUS = 4,
-        };
-
-        enum {
             BACKUP_TYPE_INVALID = -1,
             BACKUP_TYPE_TWO_WAY_SYNC = 0,
             BACKUP_TYPE_UP_SYNC = 1,
@@ -8887,7 +8879,7 @@ class MegaApi
 
 
         /**
-         * @brief Resume a registration process
+         * @brief Resume a registration process for an Ephemeral++ account
          *
          * When a user begins the account registration process by calling
          * MegaApi::createEphemeralAccountPlusPlus an ephemeral++ account is created.

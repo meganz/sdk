@@ -13738,7 +13738,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
 
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     }
-    else if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
+    else    // TYPE_CREATE_ACCOUNT
     {
         if (e != API_OK || request->getParamType() == 1)   // resuming ephemeral session
         {
@@ -15533,10 +15533,7 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)))
-    {
-        return;
-    }
+    if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
     // save uh and pwcipher for session resumption of ephemeral accounts
     char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];

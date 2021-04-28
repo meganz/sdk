@@ -1236,8 +1236,6 @@ public:
     //   if loadFromCache is true, it will load status from the table.
     void openStatusTable(bool loadFromCache);
 
-    void readSessionType();
-
     // initialize/update state cache referenced sctable
     void initsc();
     void updatesc();
