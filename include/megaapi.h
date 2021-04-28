@@ -8818,22 +8818,6 @@ class MegaApi
          */
         void createEphemeralAccountPlusPlus(const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
 
-
-        /**
-         * @brief Returns Session Type
-         *
-         * Valid values are:
-         *   - SESSION_TYPE_NOTLOGGEDIN = 0
-         *   - SESSION_TYPE_EPHEMERALACCOUNT = 1
-         *   - SESSION_TYPE_CONFIRMEDACCOUNT = 2
-         *   - SESSION_TYPE_FULLACCOUNT = 3
-         *   - SESSION_TYPE_EPHEMERALACCOUNTPLUSPLUS = 4
-         *
-         * @return The session type
-         */
-        int getSessionType();
-
-
         /**
          * @brief Initialize the creation of a new MEGA account, with firstname and lastname
          *

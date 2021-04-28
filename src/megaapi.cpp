@@ -2194,11 +2194,6 @@ void MegaApi::createEphemeralAccountPlusPlus(const char *firstname, const char *
     pImpl->createEphemeralAccountPlusPlus(firstname, lastname, listener);
 }
 
-int MegaApi::getSessionType()
-{
-    return pImpl->getSessionType();
-}
-
 void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
 {
     pImpl->createAccount(email, password, firstname, lastname, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);

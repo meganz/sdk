@@ -6168,15 +6168,6 @@ void MegaApiImpl::createEphemeralAccountPlusPlus(const char *firstname, const ch
     waiter->notify();
 }
 
-int MegaApiImpl::getSessionType()
-{
-    sdkMutex.lock();
-    int dev = static_cast<int>(client->loggedin());
-    sdkMutex.unlock();
-
-    return dev;
-}
-
 void MegaApiImpl::resumeCreateAccount(const char *sid, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
