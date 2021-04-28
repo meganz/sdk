@@ -2209,6 +2209,11 @@ void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener
     pImpl->resumeCreateAccount(sid, listener);
 }
 
+void MegaApi::resumeCreateAccountEphemeralPlusPlus(const char *sid, MegaRequestListener *listener)
+{
+    pImpl->resumeCreateAccountEphemeralPlusPlus(sid, listener);
+}
+
 void MegaApi::cancelCreateAccount(MegaRequestListener *listener)
 {
     pImpl->cancelCreateAccount(listener);

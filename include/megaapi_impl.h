@@ -2168,6 +2168,7 @@ class MegaApiImpl : public MegaApp
         void createEphemeralAccountPlusPlus(const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
         int getSessionType();
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
+        void resumeCreateAccountEphemeralPlusPlus(const char* sid, MegaRequestListener *listener = NULL);
         void cancelCreateAccount(MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
         void fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
@@ -2836,7 +2837,6 @@ protected:
         GfxProc *gfxAccess;
         string basePath;
         bool nocache;
-        bool mEphemeralPlusPlus = false;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;

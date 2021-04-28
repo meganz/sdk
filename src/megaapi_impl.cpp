@@ -4046,7 +4046,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
         case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
-        case TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS: return "CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS";
     }
     return "UNKNOWN";
 }
@@ -6161,9 +6160,10 @@ void MegaApiImpl::createAccount(const char* email, const char* password, const c
 
 void MegaApiImpl::createEphemeralAccountPlusPlus(const char *firstname, const char *lastname, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setName(firstname);
     request->setText(lastname);
+    request->setParamType(3);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6182,6 +6182,15 @@ void MegaApiImpl::resumeCreateAccount(const char *sid, MegaRequestListener *list
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setSessionKey(sid);
     request->setParamType(1);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resumeCreateAccountEphemeralPlusPlus(const char *sid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
+    request->setSessionKey(sid);
+    request->setParamType(4);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13712,8 +13721,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     }
     request = requestMap.at(client->restag);
     if (!request || ((request->getType() != MegaRequest::TYPE_FETCH_NODES) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
-                     request->getType() != MegaRequest::TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS))
+                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)))
     {
         return;
     }
@@ -13763,10 +13771,21 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                 client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())));
             }
 
-            // ...and finally send confirmation link
             client->reqtag = client->restag;
-            byte pwkey[SymmCipher::KEYLENGTH];
-            if (!request->getPrivateKey())
+            byte pwkey[SymmCipher::KEYLENGTH];            
+            if (request->getParamType() == 3)   // creation of account ephemeral++
+            {
+                // The session id cannot follow the same pattern, since no password is provided (yet)
+                // In consequence, the session resumption requires a regular session id (instead of the
+                // usual one with the user's handle and the pwd cipher)
+                string sid;
+                client->dumpsession(sid);
+                request->setPrivateKey(sid.c_str());
+
+                // Ephemeral++ don't have an email when account is created, so cannot send a signup link
+                client->getwelcomepdf();
+            }
+            else if (!request->getPrivateKey()) // ...and finally send confirmation link
             {
                 if (client->nsr_enabled)
                 {
@@ -13803,24 +13822,6 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             }
             client->reqtag = creqtag;
         }
-    }
-    else if (request->getType() == MegaRequest::TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS)
-    {
-        int creqtag = client->reqtag;
-        client->reqtag = 0;
-        string firstname = request->getName() ? request->getName() : "";
-        if (!firstname.empty())
-        {
-            client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), int(strlen(request->getName())), -1);
-        }
-        string lastname = request->getText() ? request->getText() : "";
-        if (!lastname.empty())
-        {
-            client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())));
-        }
-
-        client->reqtag = creqtag;
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     }
 }
 
@@ -15532,16 +15533,6 @@ void MegaApiImpl::ephemeral_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (mEphemeralPlusPlus)
-    {
-        if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS))) return;
-
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-        mEphemeralPlusPlus = false;
-        return;
-    }
-
-
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -15551,9 +15542,7 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request
-            || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)
-            && (request->getType() != MegaRequest::TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS)))
+    if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)))
     {
         return;
     }
@@ -20674,10 +20663,13 @@ void MegaApiImpl::sendPendingRequests()
             const char *email = request->getEmail();
             const char *password = request->getPassword();
             const char *name = request->getName();
+            const char *lastname = request->getText();
             const char *pwkey = request->getPrivateKey();
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
             bool cancelProcess = (request->getParamType() == 2);
+            bool createEphemeralPlusPlus = (request->getParamType() == 3);   // resume existing ephemeral++ account
+            bool resumeEphemeralPlusPlus = (request->getParamType() == 4);  // create account, but ephemeral++
             handle lastPublicHandle = request->getNodeHandle();
             int lastPublicHandleType = request->getAccess();
             int64_t lastAccessTimestamp =request->getTransferredBytes();
@@ -20692,7 +20684,8 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if ( (!resumeProcess && !cancelProcess && (!email || !name || (!password && !pwkey))) ||
-                 (resumeProcess && !sid) )
+                 ((resumeProcess || resumeEphemeralPlusPlus) && !sid) ||
+                 (createEphemeralPlusPlus && !(name && lastname)))
             {
                 e = API_EARGS; break;
             }
@@ -20730,6 +20723,14 @@ void MegaApiImpl::sendPendingRequests()
                 if (resumeProcess)
                 {
                     client->resumeephemeral(uh, pwbuf);
+                }
+                else if (resumeEphemeralPlusPlus)
+                {
+                    client->resumeephemeralPlusPlus(sid);
+                }
+                else if (createEphemeralPlusPlus)
+                {
+                    client->createephemeralPlusPlus();
                 }
                 else
                 {
@@ -23126,12 +23127,6 @@ void MegaApiImpl::sendPendingRequests()
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-        case MegaRequest::TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS:
-        {
-            mEphemeralPlusPlus = true;
-            client->createephemeralPlusPlus();
             break;
         }
         default:
