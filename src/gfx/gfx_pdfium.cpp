@@ -83,7 +83,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
             {
                 LocalPath originPath = path;
                 tmpFilePath = workingDirFolder;
-                tmpFilePath.appendWithSeparator(LocalPath::fromPath(".megasyncpdftmp",*fa),false);
+                tmpFilePath.appendWithSeparator(LocalPath::fromPath(".megasyncpdftmp", *fa),false);
                 if (fa->copylocal(originPath, tmpFilePath, pdfFile->mtime))
                 {
                     pdf_doc = FPDF_LoadDocument(tmpFilePath.toPath(*fa).c_str(), nullptr);
@@ -93,9 +93,9 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
             else if (pdfFile->openf())
             {
                 buffer.reset(new byte[pdfFile->size]);
-                pdfFile->frawread(buffer.get(),pdfFile->size,0,true);
+                pdfFile->frawread(buffer.get(), static_cast<unsigned>(pdfFile->size), static_cast<m_off_t>(0), true);
                 pdfFile->closef();
-                pdf_doc = FPDF_LoadMemDocument(buffer.get(), pdfFile->size, nullptr);
+                pdf_doc = FPDF_LoadMemDocument(buffer.get(), static_cast<int>(pdfFile->size), nullptr);
             }
         }
     }
