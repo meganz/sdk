@@ -13759,7 +13759,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             string lastname = request->getText() ? request->getText() : "";
             if (!lastname.empty())
             {
-                client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())));
+                client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())), -1);
             }
 
             client->reqtag = client->restag;
