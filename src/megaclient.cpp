@@ -9362,21 +9362,8 @@ void MegaClient::readSessionType()
         return;
     }
 
-    if (sessionType == EPHEMERALACCOUNT)
-    {
-        ephemeralSession = true;
-        ephemeralSessionPlusPlus = false;
-    }
-    else if (sessionType == EPHEMERALACCOUNTPLUSPLUS)
-    {
-        ephemeralSession = true;
-        ephemeralSessionPlusPlus = true;
-    }
-    else
-    {
-        ephemeralSession = false;
-        ephemeralSessionPlusPlus = false;
-    }
+    ephemeralSession = sessionType == EPHEMERALACCOUNT || sessionType == EPHEMERALACCOUNTPLUSPLUS;
+    ephemeralSessionPlusPlus = sessionType == EPHEMERALACCOUNTPLUSPLUS;
 }
 
 // verify a static symmetric password challenge
@@ -11312,13 +11299,9 @@ sessiontype_t MegaClient::loggedin()
         return NOTLOGGEDIN;
     }
 
-    if (ephemeralSession && !ephemeralSessionPlusPlus)
-    {
-        return EPHEMERALACCOUNT;
-    }
-    else if (ephemeralSessionPlusPlus && ephemeralSession)
-    {
-        return EPHEMERALACCOUNTPLUSPLUS;
+    if (ephemeralSession)
+    {        
+        return ephemeralSessionPlusPlus ? EPHEMERALACCOUNTPLUSPLUS : EPHEMERALACCOUNT;
     }
 
     if (!asymkey.isvalid())
@@ -12165,7 +12148,6 @@ void MegaClient::initializekeys()
         }
 
         // Verify signature for RSA public key
-        string sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
         if (pubk.isvalid() && sigPubk.empty())
         {
             string pubkStr;
