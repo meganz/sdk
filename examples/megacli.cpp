@@ -2956,6 +2956,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_beginEphemalAccountPlusPlus, sequence(text("beginEphemalAccountPlusPlus"), either(sequence(param("name"), param("lastname")))));
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
     p->Add(exec_signupEphemeralPlusPlus, sequence(text("signupEphemeralPlusPlus"), either(sequence(param("email")))));
+    p->Add(exec_resumeEphemeralPlusPlus, sequence(text("resumeEphemeralPlusPlus"), either(sequence(param("session")))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -4439,7 +4440,6 @@ void exec_mfae(autocomplete::ACState& s)
 void exec_login(autocomplete::ACState& s)
 {
     //bool fresh = s.extractflag("-fresh");
-
     if (client->loggedin() == NOTLOGGEDIN)
     {
         if (s.words.size() > 1)
@@ -8691,5 +8691,24 @@ void exec_signupEphemeralPlusPlus(autocomplete::ACState &s)
         signupname = ephemeralName;
         cout << endl;
         setprompt(NEWPASSWORD);
+    }
+}
+
+void exec_resumeEphemeralPlusPlus(autocomplete::ACState &s)
+{
+    if (client->loggedin() == NOTLOGGEDIN)
+    {
+        if (s.words.size() > 1)
+        {
+            client->resumeephemeralPlusPlus(Base64::atob(s.words[1].s).c_str());
+        }
+        else
+        {
+            cout << "      resumeEphemeralPlusPlus session" << endl;
+        }
+    }
+    else
+    {
+        cout << "Already logged in. Please log out first." << endl;
     }
 }

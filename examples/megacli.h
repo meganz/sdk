@@ -288,6 +288,7 @@ void exec_begin(autocomplete::ACState& s);
 void exec_beginEphemalAccountPlusPlus(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);
 void exec_signupEphemeralPlusPlus(autocomplete::ACState& s);
+void exec_resumeEphemeralPlusPlus(autocomplete::ACState& s);
 void exec_cancelsignup(autocomplete::ACState& s);
 void exec_confirm(autocomplete::ACState& s);
 void exec_session(autocomplete::ACState& s);
