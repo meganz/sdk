@@ -11236,9 +11236,14 @@ sessiontype_t MegaClient::loggedin()
         return NOTLOGGEDIN;
     }
 
+    if (ephemeralSessionPlusPlus)
+    {
+        return EPHEMERALACCOUNTPLUSPLUS;
+    }
+
     if (ephemeralSession)
     {        
-        return ephemeralSessionPlusPlus ? EPHEMERALACCOUNTPLUSPLUS : EPHEMERALACCOUNT;
+        return EPHEMERALACCOUNT;
     }
 
     if (!asymkey.isvalid())
