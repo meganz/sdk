@@ -149,14 +149,6 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
         return nullptr;
     }
 
-    const char* tableVar = "CREATE TABLE IF NOT EXISTS vars(name text PRIMARY KEY NOT NULL, value BLOB)";
-    result = sqlite3_exec(db, tableVar, nullptr, nullptr, nullptr);
-    if (result)
-    {
-        sqlite3_close(db);
-        return nullptr;
-    }
-
     return new SqliteDbTable(rng,
                              db,
                              fsAccess,
@@ -496,5 +488,4 @@ void SqliteDbTable::remove()
 }
 
 } // namespace
-
 #endif
