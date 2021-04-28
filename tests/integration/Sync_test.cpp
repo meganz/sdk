@@ -764,7 +764,7 @@ struct StandardClient : public MegaApp
         , resultproc(*this)
         , clientthread([this]() { threadloop(); })
     {
-        client.clientname = clientname;
+        client.clientname = clientname + " ";
 #ifdef GFX_CLASS
         gfx.startProcessingThread();
 #endif
@@ -814,7 +814,9 @@ struct StandardClient : public MegaApp
     void syncupdate_stalled(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_stalled()" << b << endl; } }
     void syncupdate_local_folder_addition(Sync* s, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " yncupdate_local_folder_addition() " << path.toPath(*client.fsaccess) << endl; }}
     void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << "syncupdate_local_folder_deletion() " << path.toPath(*client.fsaccess) << endl; }}
-    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " " << endl; }}
+    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { 
+        lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " " << endl; 
+    }}
     void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_deletion() " << path.toPath(*client.fsaccess) << endl; }}
     void syncupdate_local_file_change(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_change() " << path.toPath(*client.fsaccess) << endl; }}
     void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override
@@ -1669,11 +1671,11 @@ struct StandardClient : public MegaApp
             firstreported = true;
             out() << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) out() << ml << " ";
-            out() << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
+            out(false) << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) out() << " " << m.first;
-            out() << " and unmatched remote nodes:";
+            out(false) << " and unmatched remote nodes:";
             for (auto& i : ns) out() << " " << i.first;
-            out() << endl;
+            out(false) << endl;
         };
         return false;
     }
@@ -1793,11 +1795,11 @@ struct StandardClient : public MegaApp
             firstreported = true;
             out() << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) out() << ml << " ";
-            out() << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
+            out(false) << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) out() << " " << m.first;
-            out() << " and unmatched LocalNodes:";
+            out(false) << " and unmatched LocalNodes:";
             for (auto& i : ns) out() << " " << i.first;
-            out() << endl;
+            out(false) << endl;
         };
         return false;
     }
@@ -1905,11 +1907,11 @@ struct StandardClient : public MegaApp
             firstreported = true;
             out() << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) out() << ml << " ";
-            out() << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
+            out(false) << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) out() << " " << m.first;
-            out() << " and unmatched filesystem paths:";
+            out(false) << " and unmatched filesystem paths:";
             for (auto& i : ps) out() << " " << i.second.filename();
-            out() << " in " << p << endl;
+            out(false) << " in " << p << endl;
         };
         return false;
     }
@@ -5733,6 +5735,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     std::map<std::string, TwoWaySyncSymmetryCase> cases;
 
     static set<string> tests = {
+        //"external_backup_delete_down_other_file_steady"
     }; // tests
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
@@ -5872,6 +5875,20 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
         testcase.second.CheckSetup(allstate, false);
     }
 
+    out() << "Checking Backups are Monitoring" << endl;
+    bool anyNotMonitoring = false;
+    for (auto& testcase : cases)
+    {
+        if (Sync* sync = testcase.second.client1().syncByBackupId(testcase.second.backupId))
+        {
+            if (testcase.second.isBackup() && sync && !sync->isBackupMonitoring())
+            {
+                out() << " backup should be monitoring but isn't: " << testcase.second.name() << endl;
+                anyNotMonitoring = true;
+            }
+        }
+    }
+    ASSERT_FALSE(anyNotMonitoring);
 
     int paused = 0;
     for (auto& testcase : cases)
@@ -5931,6 +5948,21 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
+
+    out() << "Checking Backups are Monitoring" << endl;
+    anyNotMonitoring = false;
+    for (auto& testcase : cases)
+    {
+        if (Sync* sync = testcase.second.client1().syncByBackupId(testcase.second.backupId))
+        {
+            if (testcase.second.isBackup() && sync && !sync->isBackupMonitoring())
+            {
+                out() << " backup should be monitoring but isn't: " << testcase.second.name() << endl;
+                anyNotMonitoring = true;
+            }
+        }
+    }
+    ASSERT_FALSE(anyNotMonitoring);
 
     out() << "Checking local and remote state in each sub-test" << endl;
 

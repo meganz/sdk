@@ -838,7 +838,7 @@ bool Sync::isBackupMonitoring() const
     return getConfig().getBackupState() == SYNC_BACKUP_MONITOR;
 }
 
-void Sync::backupMonitor()
+void Sync::setBackupMonitoring()
 {
     auto& config = getConfig();
 

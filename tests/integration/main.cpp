@@ -19,8 +19,26 @@ std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 std::ofstream gUnopenedOfstream;
 
-std::ostream& out()
+std::string logTime()
 {
+    // why do the tests take so long to run?  Log some info about what is slow.
+    auto t = std::time(NULL);
+    char ts[50];
+    struct tm dt;
+    ::mega::m_gmtime(t, &dt);
+    if (!std::strftime(ts, sizeof(ts), "%H:%M:%S ", &dt))
+    {
+        ts[0] = '\0';
+    }
+    return ts;
+}
+
+std::ostream& out(bool withTime)
+{
+    if (withTime && gOutputToCout)
+    {
+        std::cout << logTime();
+    }
     if (gOutputToCout) return std::cout;
     else return gUnopenedOfstream;
 }

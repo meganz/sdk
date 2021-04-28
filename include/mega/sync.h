@@ -568,7 +568,7 @@ public:
     bool isBackupMonitoring() const;
 
     // Move the sync into the monitoring state.
-    void backupMonitor();
+    void setBackupMonitoring();
 
     UnifiedSync& mUnifiedSync;
 

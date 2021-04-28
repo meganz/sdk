@@ -2860,7 +2860,7 @@ void MegaClient::exec()
                         // Will be re-set if we can reach the scan target.
                         mSyncFlags->scanTargetReachable = false;
 
-                        sync->recursiveSync(row, pathBuffer, committer);
+                        bool allNodesSynced = sync->recursiveSync(row, pathBuffer, committer);
 
                         // Cancel the scan request if we couldn't reach the scan target.
                         if (sync->mScanRequest && !mSyncFlags->scanTargetReachable)
@@ -2882,6 +2882,20 @@ void MegaClient::exec()
                         if (doneScanning && sync->state == SYNC_INITIALSCAN)
                         {
                             sync->changestate(SYNC_ACTIVE, NO_SYNC_ERROR, true, true);
+                        }
+
+                        //if (allNodesSynced && sync->isBackupAndMirroring())
+                        //{
+                        //    sync->setBackupMonitoring();
+                        //}
+
+                        if (sync->isBackupAndMirroring() &&
+                            !sync->localroot->scanRequired() &&
+                            !sync->localroot->mightHaveMoves() && 
+                            !sync->localroot->syncRequired())
+
+                        {
+                            sync->setBackupMonitoring();
                         }
 
                     }
