@@ -45,9 +45,6 @@ public:
     void commit();
     void abort();
     void remove();
-    int readSessionType() override;
-    std::string getVar(const std::string& name) override;
-    bool setVar(const std::string& name, const std::string& value) override;
 
     SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
     ~SqliteDbTable();

@@ -48,8 +48,6 @@ string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 // root URL for chat stats
 string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
-string MegaClient::SESSIONTYPE = "SESSION_TYPE";
-
 // root URL for Website
 string MegaClient::MEGAURL = "https://mega.nz";
 
@@ -9349,23 +9347,6 @@ void MegaClient::doOpenStatusTable()
     }
 }
 
-void MegaClient::readSessionType()
-{
-    if (!sctable)
-    {
-        return;
-    }
-
-    int sessionType = sctable->readSessionType();
-    if (sessionType == -1 && ephemeralSession == true)
-    {
-        return;
-    }
-
-    ephemeralSession = sessionType == EPHEMERALACCOUNT || sessionType == EPHEMERALACCOUNTPLUSPLUS;
-    ephemeralSessionPlusPlus = sessionType == EPHEMERALACCOUNTPLUSPLUS;
-}
-
 // verify a static symmetric password challenge
 int MegaClient::checktsid(byte* sidbuf, unsigned len)
 {
@@ -11904,8 +11885,6 @@ void MegaClient::fetchnodes(bool nocache)
     {
         sctable->truncate();
     }
-
-    readSessionType();
 
     // only initial load from local cache
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&

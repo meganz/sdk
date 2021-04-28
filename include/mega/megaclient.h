@@ -975,8 +975,6 @@ public:
     // backoff for the expiration of cached user data
     BackoffTimer btugexpiration;
 
-    static string SESSIONTYPE;
-
     // if logged into public folder (which might optionally be writable)
     bool loggedIntoFolder() const;
 

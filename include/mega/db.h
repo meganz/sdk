@@ -75,11 +75,6 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
-    virtual int readSessionType() = 0;
-
-    virtual std::string getVar(const std::string& name) = 0;
-    virtual bool setVar(const std::string& name, const std::string& value) = 0;
-
     // whether an unmatched begin() has been issued
     virtual bool inTransaction() const = 0;
 
