@@ -65,7 +65,6 @@ class MEGA_API GfxProcQT : public GfxProc
     int orientation;
     int imageType;
 #ifdef HAVE_PDFIUM
-    static PdfiumReader pdfReader;
     static bool oldTmpPdfCleaned;
 #endif
 
@@ -109,7 +108,6 @@ protected:
 public:
     static int getExifOrientation(QString &filePath);
     QImage createThumbnail(QString imagePath);
-
 };
 } // namespace
 

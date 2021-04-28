@@ -71,7 +71,6 @@ std::mutex GfxProcQT::gfxMutex;
 #endif
 
 #ifdef HAVE_PDFIUM
-PdfiumReader GfxProcQT::pdfReader;
 bool GfxProcQT::oldTmpPdfCleaned = false;
 #endif
 
@@ -383,45 +382,6 @@ int GfxProcQT::processEXIF(QByteArray *data, int itemlen){
 }
 /************* END OF EXIF STUFF **************/
 
-// turn on PDFIUM_DELAY_LOAD_DLL if you are building XP-compatible apps and using pdfium.dll (which won't load on XP)
-#if PDFIUM_DELAY_LOAD_DLL
-typedef void (WINAPI *pFPDF_InitLibraryWithConfig) (const FPDF_LIBRARY_CONFIG* config);
-typedef void (WINAPI *pFPDF_DestroyLibrary) ();
-
-typedef FPDF_DOCUMENT (WINAPI *pFPDF_LoadDocument) (FPDF_STRING file_path, FPDF_BYTESTRING password);
-typedef unsigned long (WINAPI *pFPDF_GetLastError) ();
-typedef FPDF_DOCUMENT (WINAPI *pFPDF_LoadMemDocument) (const void* data_buf, int size, FPDF_BYTESTRING password);
-typedef int (WINAPI *pFPDF_GetPageCount) (FPDF_DOCUMENT document);
-typedef FPDF_PAGE (WINAPI *pFPDF_LoadPage) (FPDF_DOCUMENT document, int page_index);
-typedef double (WINAPI *pFPDF_GetPageWidth) (FPDF_PAGE page);
-typedef double (WINAPI *pFPDF_GetPageHeight) (FPDF_PAGE page);
-typedef FPDF_BITMAP (WINAPI *pFPDFBitmap_CreateEx) (int width, int height, int format, void* first_scan, int stride);
-typedef void (WINAPI *pFPDF_ClosePage) (FPDF_PAGE page);
-typedef void (WINAPI *pFPDF_CloseDocument) (FPDF_DOCUMENT document);
-typedef void (WINAPI *pFPDF_RenderPageBitmap) (FPDF_BITMAP bitmap, FPDF_PAGE page, int start_x, int start_y,
-                                               int size_x, int size_y, int rotate, int flags);
-typedef void (WINAPI *pFPDFBitmap_Destroy) (FPDF_BITMAP bitmap);
-
-std::mutex pdfiumMutex;
-pFPDF_InitLibraryWithConfig FPDF_InitLibraryWithConfig;
-pFPDF_DestroyLibrary FPDF_DestroyLibrary;
-pFPDF_LoadDocument FPDF_LoadDocument;
-pFPDF_GetLastError FPDF_GetLastError;
-pFPDF_LoadMemDocument FPDF_LoadMemDocument;
-pFPDF_GetPageCount FPDF_GetPageCount;
-pFPDF_LoadPage FPDF_LoadPage;
-pFPDF_GetPageWidth FPDF_GetPageWidth;
-pFPDF_GetPageHeight FPDF_GetPageHeight;
-pFPDFBitmap_CreateEx FPDFBitmap_CreateEx;
-pFPDF_ClosePage FPDF_ClosePage;
-pFPDF_CloseDocument FPDF_CloseDocument;
-pFPDF_RenderPageBitmap FPDF_RenderPageBitmap;
-pFPDFBitmap_Destroy FPDFBitmap_Destroy;
-
-bool pdfiumLoadedOk = false;
-bool pdfiumLoadAttempted = false;
-#endif
-
 /*GfxProc implementation*/
 GfxProcQT::GfxProcQT()
 {
@@ -433,7 +393,9 @@ GfxProcQT::GfxProcQT()
 //    av_log_set_level(AV_LOG_VERBOSE);
 #endif
 
-#if defined(_WIN32) and defined(HAVE_PDFIUM)
+#ifdef HAVE_PDFIUM
+    PdfiumReader::init();
+#ifdef _WIN32
     if (!oldTmpPdfCleaned)
     {
         //Remove temporary files from previous executions:
@@ -448,6 +410,7 @@ GfxProcQT::GfxProcQT()
         oldTmpPdfCleaned = true;
     }
 #endif
+#endif
     }
     image = NULL;
     orientation = -1;
@@ -456,6 +419,9 @@ GfxProcQT::GfxProcQT()
 
 GfxProcQT::~GfxProcQT()
 {
+#ifdef HAVE_PDFIUM
+    PdfiumReader::destroy();
+#endif
 }
 
 bool GfxProcQT::readbitmap(FileAccess*, const LocalPath& localname, int)
@@ -913,7 +879,7 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, FileSys
         delete buffer;
         return nullptr;
     }
-    pdfReader.freeBitmap();
+    PdfiumReader::freeBitmap();
 
     buffer->seek(0);
     QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));

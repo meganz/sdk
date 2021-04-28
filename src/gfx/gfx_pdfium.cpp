@@ -25,31 +25,48 @@
 namespace mega {
 
 std::mutex PdfiumReader::pdfMutex;
+bool PdfiumReader::initialized = false;
+FPDF_BITMAP PdfiumReader::bitmap = nullptr;
 
-PdfiumReader::PdfiumReader()
+void PdfiumReader::init()
 {
     std::lock_guard<std::mutex> g(pdfMutex);
-    FPDF_LIBRARY_CONFIG config;
-    config.version = 2;
-    config.m_pUserFontPaths = nullptr;
-    config.m_pIsolate = nullptr;
-    config.m_v8EmbedderSlot = 0;
+    if (!initialized)
     {
-        FPDF_InitLibraryWithConfig(&config);
+        FPDF_LIBRARY_CONFIG config;
+        config.version = 2;
+        config.m_pUserFontPaths = nullptr;
+        config.m_pIsolate = nullptr;
+        config.m_v8EmbedderSlot = 0;
+        {
+            FPDF_InitLibraryWithConfig(&config);
+        }
+        initialized = true;
     }
-
 }
 
-PdfiumReader::~PdfiumReader()
+void PdfiumReader::destroy()
 {
     std::lock_guard<std::mutex> g(pdfMutex);
-    FPDF_DestroyLibrary();
+    if (initialized)
+    {
+        if (bitmap)
+        {
+            freeBitmap();
+        }
+        FPDF_DestroyLibrary();
+        initialized = false;
+    }
 }
 
 void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa, const LocalPath &workingDirFolder)
 {
 
     std::lock_guard<std::mutex> g(pdfMutex);
+    if (!initialized)
+    {
+        init();
+    }
 
     FPDF_DOCUMENT pdf_doc = FPDF_LoadDocument(path.toPath(*fa).c_str(), nullptr);
 #ifdef _WIN32
@@ -67,9 +84,6 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
                 LocalPath originPath = path;
                 tmpFilePath = workingDirFolder;
                 tmpFilePath.appendWithSeparator(LocalPath::fromPath(".megasyncpdftmp",*fa),false);
-                LocalPath tmpName;
-                fa->tmpnamelocal(tmpName);
-                tmpFilePath.append(tmpName);
                 if (fa->copylocal(originPath, tmpFilePath, pdfFile->mtime))
                 {
                     pdf_doc = FPDF_LoadDocument(tmpFilePath.toPath(*fa).c_str(), nullptr);
@@ -174,7 +188,11 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 void PdfiumReader::freeBitmap()
 {
     std::lock_guard<std::mutex> g(pdfMutex);
-    FPDFBitmap_Destroy(bitmap);
+    if (initialized)
+    {
+        FPDFBitmap_Destroy(bitmap);
+        bitmap = nullptr;
+    }
 }
 
 } // namespace mega

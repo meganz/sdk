@@ -35,14 +35,15 @@ class PdfiumReader
 {
 
 private:
-    FPDF_BITMAP bitmap;
+    static FPDF_BITMAP bitmap;
+    static bool initialized;
 
 public:
-    PdfiumReader();
-    ~PdfiumReader();
 
-    void * readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa, const LocalPath &workingDirFolder);
-    void freeBitmap();
+    static void init();
+    static void * readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa, const LocalPath &workingDirFolder);
+    static void freeBitmap();
+    static void destroy();
 
 protected:
     static std::mutex pdfMutex;

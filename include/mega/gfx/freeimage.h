@@ -33,9 +33,6 @@ namespace mega {
 class MEGA_API GfxProcFreeImage : public GfxProc
 {
     FIBITMAP* dib;
-#ifdef HAVE_PDFIUM
-    static PdfiumReader pdfReader;
-#endif
 
     bool readbitmap(FileAccess*, const LocalPath&, int);
     bool resizebitmap(int, int, string*);
@@ -43,6 +40,7 @@ class MEGA_API GfxProcFreeImage : public GfxProc
 
 public:
 	GfxProcFreeImage();
+    ~GfxProcFreeImage();
 
 protected:
 

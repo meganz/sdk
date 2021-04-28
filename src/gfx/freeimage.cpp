@@ -66,10 +66,6 @@ namespace mega {
 std::mutex GfxProcFreeImage::gfxMutex;
 #endif
 
-#ifdef HAVE_PDFIUM
-PdfiumReader GfxProcFreeImage::pdfReader;
-#endif
-
 GfxProcFreeImage::GfxProcFreeImage()
 {
     dib = NULL;
@@ -78,6 +74,9 @@ GfxProcFreeImage::GfxProcFreeImage()
 
 #ifdef FREEIMAGE_LIB
 	FreeImage_Initialise(TRUE);
+#endif
+#ifdef HAVE_PDFIUM
+    PdfiumReader::init();
 #endif
 #ifdef HAVE_FFMPEG
     gfxMutex.lock();
@@ -88,6 +87,14 @@ GfxProcFreeImage::GfxProcFreeImage()
 #endif
 }
 
+GfxProcFreeImage::~GfxProcFreeImage()
+{
+#ifdef HAVE_PDFIUM
+    gfxMutex.lock();
+    PdfiumReader::destroy();
+    gfxMutex.unlock();
+#endif
+}
 
 #ifdef HAVE_FFMPEG
 
@@ -393,7 +400,15 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
 
     std::lock_guard<std::mutex> g(gfxMutex);
     int orientation;
-    BYTE* data = static_cast<BYTE*>(pdfReader.readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess, LocalPath()));
+#ifdef _WIN32
+    wstring tmpPath;
+    tmpPath.resize(MAX_PATH);
+    GetTempPathW(MAX_PATH, (LPWSTR)tmpPath.data());
+    LocalPath workingDir = LocalPath::fromPlatformEncoded(tmpPath.c_str());
+#else
+    LocalPath workingDir = LocalPath();
+#endif
+    BYTE* data = static_cast<BYTE*>(PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess, workingDir));
 
     if (data == nullptr || !w || !h)
     {
@@ -402,7 +417,7 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
 
     dib = FreeImage_ConvertFromRawBits(data, w, h, w * 4, 32, 0xFF0000, 0x00FF00, 0x0000FF);
     FreeImage_FlipHorizontal(dib);
-    pdfReader.freeBitmap();
+    PdfiumReader::freeBitmap();
 
     return true;
 }
