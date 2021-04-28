@@ -1810,7 +1810,7 @@ bool CommandLogin::procresult(Result r)
                             client->app->login_result(API_EINTERNAL);
                             return true;
                         }
-                        else if (client->sctable && client->ephemeralSessionPlusPlus)
+                        else if (client->sctable && !client->ephemeralSessionPlusPlus)
                         {
                             // logging in with tsid to an account without a RSA keypair
                             LOG_info << "Generating and adding missing RSA keypair";
