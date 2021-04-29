@@ -14650,7 +14650,7 @@ void MegaApiImpl::login_result(error result)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_LOGIN)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_LOGIN && request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) return;
 
     // if login with user+pwd succeed, update lastLogin timestamp
     if (result == API_OK && request->getEmail() &&
@@ -20671,7 +20671,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if ( (!resumeProcess && !cancelProcess && (!email || !name || (!password && !pwkey))) ||
+            if ((!resumeProcess && !cancelProcess && !resumeEphemeralPlusPlus && !createEphemeralPlusPlus &&
+                  (!email || !name || (!password && !pwkey))) ||
                  ((resumeProcess || resumeEphemeralPlusPlus) && !sid) ||
                  (createEphemeralPlusPlus && !(name && lastname)))
             {
