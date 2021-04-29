@@ -22,6 +22,8 @@
 #ifndef GFX_PDFIUM_H
 #define GFX_PDFIUM_H 1
 
+#include <mega/types.h>
+
 #ifdef HAVE_PDFIUM
 #include <mega/filesystem.h>
 #include <mega/logging.h>
