@@ -1518,8 +1518,11 @@ public:
     // app scanstate flag
     bool syncscanstate;
 
-    // app scanstate flag
+    // app stall tate flag
     bool syncStallState;
+
+    // app conflict tate flag
+    bool syncConflictState;
 
     // sync PUT Nagle timer
     bool syncnagleretry;

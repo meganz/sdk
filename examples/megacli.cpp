@@ -434,6 +434,18 @@ void DemoApp::syncupdate_stalled(bool stalled)
     }
 }
 
+void DemoApp::syncupdate_conflicts(bool conflicts)
+{
+    if (conflicts)
+    {
+        cout << "Sync - conflicting paths detected" << endl;
+    }
+    else
+    {
+        cout << "Sync - all conflicting paths resolved" << endl;
+    }
+}
+
 // sync update callbacks are for informational purposes only and must not change or delete the sync itself
 void DemoApp::syncupdate_local_folder_addition(Sync* sync, const LocalPath& path)
 {
@@ -8673,62 +8685,89 @@ void exec_synclist(autocomplete::ACState& s)
      }
 
     client->syncs.forEachUnifiedSync(
-      [](UnifiedSync& us)
-      {
-          // Convenience.
-          auto& config = us.mConfig;
-          auto& sync = us.mSync;
+        [](UnifiedSync& us)
+        {
+            // Convenience.
+            auto& config = us.mConfig;
+            auto& sync = us.mSync;
 
-          // Display name.
-          cout << "Sync "
-               << toHandle(config.mBackupId)
-               << ": "
-               << config.mName
-               << "\n";
+            // Display name.
+            cout << "Sync "
+                << toHandle(config.mBackupId)
+                << ": "
+                << config.mName
+                << "\n";
 
-          // Display source/target mapping.
-          cout << "  Mapping: "
-               << config.mLocalPath.toPath(*client->fsaccess)
-               << " -> "
-               << config.mOrigninalPathOfRemoteRootNode
-               << "\n";
+            // Display source/target mapping.
+            cout << "  Mapping: "
+                << config.mLocalPath.toPath(*client->fsaccess)
+                << " -> "
+                << config.mOrigninalPathOfRemoteRootNode
+                << "\n";
 
-          if (sync)
-          {
-              // Display status info.
-              cout << "  State: "
-                   << SyncConfig::syncstatename(sync->state)
-                   << "\n";
+            if (sync)
+            {
+                // Display status info.
+                cout << "  State: "
+                    << SyncConfig::syncstatename(sync->state)
+                    << "\n";
 
-              // Display some usage stats.
-              cout << "  Statistics: "
-//                   << sync->localbytes
-//                   << " byte(s) across "
-                   << sync->localnodes[FILENODE]
-                   << " file(s) and "
-                   << sync->localnodes[FOLDERNODE]
-                   << " folder(s).\n";
-          }
-          else
-          {
-              // Display what status info we can.
-              auto msg = config.syncErrorToStr();
-              cout << "  Enabled: "
-                   << config.getEnabled()
-                   << "\n"
-                   << "  Last Error: "
-                   << msg
-                   << "\n";
-          }
+                // Display some usage stats.
+                cout << "  Statistics: "
+    //                   << sync->localbytes
+    //                   << " byte(s) across "
+                    << sync->localnodes[FILENODE]
+                    << " file(s) and "
+                    << sync->localnodes[FOLDERNODE]
+                    << " folder(s).\n";
+            }
+            else
+            {
+                // Display what status info we can.
+                auto msg = config.syncErrorToStr();
+                cout << "  Enabled: "
+                    << config.getEnabled()
+                    << "\n"
+                    << "  Last Error: "
+                    << msg
+                    << "\n";
+            }
 
-          // Display sync type.
-          cout << "  Type: "
-               << (config.isExternal() ? "EX" : "IN")
-               << "TERNAL "
-               << SyncConfig::synctypename(config.getType())
-               << "\n"
-               << endl;
-      });
+            // Display sync type.
+            cout << "  Type: "
+                << (config.isExternal() ? "EX" : "IN")
+                << "TERNAL "
+                << SyncConfig::synctypename(config.getType())
+                << "\n";
+
+            list<NameConflict> conflicts;
+            if (sync->recursiveCollectNameConflicts(conflicts))
+            {
+                for (auto& c : conflicts)
+                {
+                    if (!c.cloudPath.empty() || !c.clashingCloudNames.empty())
+                    {
+                        cout << "  Cloud Path conflict at " << c.cloudPath << ": ";
+                        for (auto& n : c.clashingCloudNames)
+                        {
+                            cout << n << " ";
+                        }
+                        cout << "\n";
+                    }
+                    if (!c.localPath.empty() || !c.clashingLocalNames.empty())
+                    {
+                        cout << "  Local Path conflict at " << c.localPath.toPath(*client->fsaccess) << ": ";
+                        for (auto& n : c.clashingLocalNames)
+                        {
+                            cout << n.toPath(*client->fsaccess) << " ";
+                        }
+                        cout << "\n";
+                    }
+                }
+            }
+
+            cout << std::endl;
+        });
 }
 
 void exec_syncremove(autocomplete::ACState& s)

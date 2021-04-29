@@ -287,6 +287,7 @@ struct MEGA_API MegaApp
     virtual void syncupdate_active(handle, bool) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_stalled(bool) { }
+    virtual void syncupdate_conflicts(bool) { }
     virtual void syncupdate_local_folder_addition(Sync*, const LocalPath& path) { }
     virtual void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) { }
     virtual void syncupdate_local_file_addition(Sync*, const LocalPath& path) { }

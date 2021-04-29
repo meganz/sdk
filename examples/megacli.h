@@ -214,7 +214,8 @@ struct DemoApp : public MegaApp
     void sync_removed(handle backupId) override;
 
     void syncupdate_scanning(bool) override;
-    void syncupdate_stalled(bool stalled);
+    void syncupdate_stalled(bool stalled) override;
+    void syncupdate_conflicts(bool conflicts) override;
     void syncupdate_local_folder_addition(Sync*, const LocalPath& path) override;
     void syncupdate_local_folder_deletion(Sync* , const LocalPath& path) override;
     void syncupdate_local_file_addition(Sync*, const LocalPath& path) override;

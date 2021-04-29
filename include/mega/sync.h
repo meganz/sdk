@@ -487,6 +487,7 @@ public:
     bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult);
 
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc);
+    bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
     //// rescan sequence number (incremented when a full rescan or a new
     //// notification batch starts)

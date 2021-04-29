@@ -3032,6 +3032,13 @@ void Syncs::resumeResumableSyncsOnStartup()
     }
 }
 
+bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
+{
+    FSNode rootFsNode(localroot->getKnownFSDetails());
+    Sync::syncRow row{ cloudRoot(), localroot.get(), &rootFsNode };
+    recursiveCollectNameConflicts(row, conflicts);
+    return !conflicts.empty();
+}
 
 void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs)
 {
@@ -3611,16 +3618,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     // Have we encountered the scan target?
     client->mSyncFlags->scanTargetReachable |= mScanRequest && mScanRequest->matches(*row.syncNode);
 
-    // Get sync triplets.
-    auto childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
-
     syncHere &= !row.cloudNode || row.cloudNode->mPendingChanges.empty();
     SYNC_verbose << syncname << "sync/recurse here after pending changes logic: " << syncHere << recurseHere << !!row.cloudNode << (row.cloudNode ? (row.cloudNode->mPendingChanges.empty()?"1":"0") : "-");
-
-    bool folderSynced = syncHere;
-    bool subfoldersSynced = true;
-
-    row.syncNode->conflicts = TREE_RESOLVED;
 
 #ifdef DEBUG
     static char clientOfInterest[100] = "clientA2 \0";
@@ -3637,6 +3636,11 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     // And additionally we double check with each child node after, in case we had reason to skip it.
     row.syncNode->checkMovesAgain = TREE_RESOLVED;
     row.syncNode->conflicts = TREE_RESOLVED;
+    bool folderSynced = syncHere;
+    bool subfoldersSynced = true;
+
+    // Get sync triplets.
+    auto childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
 
     bool anyNameConflicts = false;
     for (unsigned firstPass = 2; firstPass--; )
@@ -3647,6 +3651,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                 !childRow.fsClashingNames.empty())
             {
                 anyNameConflicts = true;
+                row.syncNode->setContainsConflicts(false, true, false); // in case we don't call setItem due to !syncHere
             }
             childRow.fsSiblings = effectiveFsChildren;
 
@@ -3662,6 +3667,13 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             else if (childRow.cloudNode)
             {
                 fullPath.appendWithSeparator(LocalPath::fromName(childRow.cloudNode->displayname(), *client->fsaccess, mFilesystemType), true);
+            }
+            else
+            {
+                assert(!childRow.cloudClashingNames.empty() || !childRow.fsClashingNames.empty());
+
+                // so as not to mislead in logs etc
+                fullPath.appendWithSeparator(LocalPath::fromName("<<<clashing>>>", *client->fsaccess, mFilesystemType), true);
             }
 
             if (!(!childRow.syncNode || childRow.syncNode->getLocalPath() == fullPath))

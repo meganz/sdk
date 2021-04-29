@@ -13231,6 +13231,11 @@ void MegaApiImpl::syncupdate_stalled(bool scanning)
     fireOnGlobalSyncStateChanged();
 }
 
+void MegaApiImpl::syncupdate_conflicts(bool conflicts)
+{
+    fireOnGlobalSyncStateChanged();
+}
+
 void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, const LocalPath& lp)
 {
     string path = lp.toPath(*fsAccess);

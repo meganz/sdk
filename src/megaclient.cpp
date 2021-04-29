@@ -1090,6 +1090,7 @@ void MegaClient::init()
     }
 
     syncStallState = false;
+    syncConflictState = false;
 
     syncs.clear();
 #endif
@@ -1366,10 +1367,7 @@ bool MegaClient::mightAnySyncsHaveMoves()
 bool MegaClient::conflictsDetected(list<NameConflict>& conflicts) const
 {
     syncs.forEachRunningSync([&](Sync* sync) {
-
-        FSNode rootFsNode(sync->localroot->getKnownFSDetails());
-        Sync::syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
-        sync->recursiveCollectNameConflicts(row, conflicts);
+        sync->recursiveCollectNameConflicts(conflicts);
     });
 
     return !conflicts.empty();
@@ -1908,9 +1906,9 @@ void MegaClient::exec()
                                 pendingcs = NULL;
 
                                 notifypurge();
-                                if (sctable && pendingsccommit && !reqs.cmdsInflight())
+                                if (sctable && pendingsccommit && !reqs.cmdsInflight() && scsn.ready())
                                 {
-                                    LOG_debug << "Executing postponed DB commit";
+                                    LOG_debug << "Executing postponed DB commit 2";
                                     sctable->commit();
                                     sctable->begin();
                                     app->notify_dbcommit();
@@ -2860,7 +2858,8 @@ void MegaClient::exec()
                         // Will be re-set if we can reach the scan target.
                         mSyncFlags->scanTargetReachable = false;
 
-                        bool allNodesSynced = sync->recursiveSync(row, pathBuffer, committer);
+                        //bool allNodesSynced =
+                        sync->recursiveSync(row, pathBuffer, committer);
 
                         // Cancel the scan request if we couldn't reach the scan target.
                         if (sync->mScanRequest && !mSyncFlags->scanTargetReachable)
@@ -2891,7 +2890,7 @@ void MegaClient::exec()
 
                         if (sync->isBackupAndMirroring() &&
                             !sync->localroot->scanRequired() &&
-                            !sync->localroot->mightHaveMoves() && 
+                            !sync->localroot->mightHaveMoves() &&
                             !sync->localroot->syncRequired())
 
                         {
@@ -2909,6 +2908,14 @@ void MegaClient::exec()
                     ++mSyncFlags->noProgressCount;
                 }
 
+                bool conflictsNow = conflictsDetected();
+                if (conflictsNow != syncConflictState)
+                {
+                    app->syncupdate_conflicts(conflictsNow);
+                    syncConflictState = conflictsNow;
+                    LOG_info << clientname << "Sync conflicting paths state app notified: " << conflictsNow;
+                }
+
                 bool stalled = !mSyncFlags->stalledNodePaths.empty() ||
                                !mSyncFlags->stalledLocalPaths.empty();
                 if (stalled)
@@ -2922,7 +2929,7 @@ void MegaClient::exec()
                 {
                     app->syncupdate_stalled(stalled);
                     syncStallState = stalled;
-                    LOG_warn << clientname << "Stall state app notifedd: " << stalled;
+                    LOG_warn << clientname << "Stall state app notified: " << stalled;
                 }
 
                 execsyncdeletions();
@@ -4580,8 +4587,9 @@ bool MegaClient::procsc()
                         app->catchup_result();
                     }
 
-                    if (pendingsccommit && sctable && !reqs.cmdsInflight())
+                    if (pendingsccommit && sctable && !reqs.cmdsInflight() && scsn.ready())
                     {
+                        LOG_debug << "Executing postponed DB commit 1";
                         sctable->commit();
                         sctable->begin();
                         app->notify_dbcommit();
