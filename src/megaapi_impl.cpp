@@ -20715,12 +20715,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else if (resumeEphemeralPlusPlus)
                 {
-                    requestMap.erase(request->getTag());
-                    abortPendingActions();
-                    requestMap[request->getTag()]=request;
-
-                    client->locallogout(false, true);
-
+                    client->resumeephemeralPlusPlus(sid);
                     client->resumeephemeralPlusPlus(Base64::atob(string(sid)));
                 }
                 else if (createEphemeralPlusPlus)
