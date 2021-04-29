@@ -1721,13 +1721,10 @@ AC_ARG_WITH(pdfium,
    esac
    ],
    [AC_MSG_RESULT([--with-pdfium not specified])
-    AC_CHECK_HEADERS([fpdfview.h],, [
-        AC_MSG_ERROR([fpdfview.h header not found or not usable])
-    ])
-    AC_CHECK_LIB([pdfium], [main], [PDF_LIBS="-lpdfium"], [
-        AC_MSG_ERROR([PDFium library is not found!])])
-
-     pdfium=true
+    AC_CHECK_HEADERS([fpdfview.h],AC_CHECK_LIB([pdfium], [main],
+        [PDF_LIBS="-lpdfium"
+        pdfium=true
+        ],),)
    ]
    )
 
