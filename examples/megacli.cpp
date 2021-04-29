@@ -2943,9 +2943,9 @@ autocomplete::ACN autocompleteSyntax()
                                                       param("session"),
                                                       sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(flag("-e++")),
-                                either(sequence(param("firstname"), param("lastname")),     // to create an ephemeral++
+                                opt(either(sequence(param("firstname"), param("lastname")),     // to create an ephemeral++
                                         param("ephemeralhandle#ephemeralpw"),               // to resume an ephemeral
-                                        param("session"))));                                 // to resume an ephemeral++
+                                        param("session")))));                                 // to resume an ephemeral++
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
 
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
