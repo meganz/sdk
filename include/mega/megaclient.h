@@ -320,7 +320,7 @@ public:
     void createephemeral();
     void createephemeralPlusPlus();
     void resumeephemeral(handle, const byte*, int = 0);
-    void resumeephemeralPlusPlus(const char *sid);
+    void resumeephemeralPlusPlus(const std::string& session);
     void cancelsignup();
 
     // full account confirmation/creation support

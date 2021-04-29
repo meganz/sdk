@@ -11375,10 +11375,10 @@ void MegaClient::resumeephemeral(handle uh, const byte* pw, int ctag)
     reqs.add(new CommandResumeEphemeralSession(this, uh, pw, ctag ? ctag : reqtag));
 }
 
-void MegaClient::resumeephemeralPlusPlus(const char *sid)
+void MegaClient::resumeephemeralPlusPlus(const std::string& session)
 {
     ephemeralSessionPlusPlus = true;
-    login(sid);
+    login(session);
 }
 
 void MegaClient::cancelsignup()
