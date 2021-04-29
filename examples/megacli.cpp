@@ -119,8 +119,6 @@ int attempts = 0;
 std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
-bool confirmEphemeralAccountPlusPlus = false;
-
 #ifdef ENABLE_SYNC
 
 // converts the given sync configuration to a string
@@ -1260,14 +1258,6 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
              << "\tperformance: " << bs[2] << endl
              << "\tadvertising: " << bs[3] << endl
              << "\tthird party: " << bs[4] << endl;
-    }
-
-    if (confirmEphemeralAccountPlusPlus)
-    {
-        if (type == ATTR_FIRSTNAME)
-        {
-            ephemeralFirstname = string((char*)data, l);
-        }
     }
 }
 
@@ -4511,7 +4501,7 @@ void exec_begin(autocomplete::ACState& s)
     {
         if (ephemeralPlusPlus)
         {
-            client->resumeephemeralPlusPlus(Base64::atob(s.words[1].s).c_str());
+            client->resumeephemeralPlusPlus(Base64::atob(s.words[1].s));
         }
         else
         {
@@ -7028,7 +7018,6 @@ void DemoApp::cancelsignup_result(error)
     signupemail.clear();
     signupname.clear();
     signupV2 = true;
-    confirmEphemeralAccountPlusPlus = false;
 }
 
 void DemoApp::whyamiblocked_result(int code)

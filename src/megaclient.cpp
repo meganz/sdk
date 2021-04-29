@@ -11242,7 +11242,7 @@ sessiontype_t MegaClient::loggedin()
     }
 
     if (ephemeralSession)
-    {        
+    {
         return EPHEMERALACCOUNT;
     }
 
@@ -11378,6 +11378,10 @@ void MegaClient::resumeephemeral(handle uh, const byte* pw, int ctag)
 void MegaClient::resumeephemeralPlusPlus(const std::string& session)
 {
     ephemeralSessionPlusPlus = true;
+    // E++ cannot resume sessions as regular ephemeral accounts. The acccount's creation
+    // does not require a password, so the session token would be undecryptable. That's
+    // the reason to use a regular session ID and perform a regular login, instead of
+    // calling here resumeephemeral() directly.
     login(session);
 }
 
