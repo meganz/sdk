@@ -12088,53 +12088,57 @@ void MegaClient::initializekeys()
             return;
         }
 
-        // Verify signature for RSA public key
-        if (pubk.isvalid() && sigPubk.empty())
+        if (loggedin() != EPHEMERALACCOUNTPLUSPLUS)   // E++ accounts don't have RSA keys
         {
-            string pubkStr;
-            std::string buf;
-            userattr_map attrs;
-            pubk.serializekeyforjs(pubkStr);
-            signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
-            buf.assign(sigPubk.data(), sigPubk.size());
-            attrs[ATTR_SIG_RSA_PUBK] = buf;
-            putua(&attrs, 0);
-        }
-
-        string pubkstr;
-        if (pubk.isvalid())
-        {
-            pubk.serializekeyforjs(pubkstr);
-        }
-        if (!pubkstr.size() || !sigPubk.size())
-        {
-            if (!pubkstr.size())
+            // Verify signature for RSA public key
+            if (pubk.isvalid() && sigPubk.empty())
             {
-                LOG_warn << "Error serializing RSA public key";
-                sendevent(99421, "Error serializing RSA public key", 0);
-            }
-            if (!sigPubk.size())
-            {
-                LOG_warn << "Signature of public key for RSA not found";
-                sendevent(99422, "Signature of public key for RSA not found", 0);
+                string pubkStr;
+                std::string buf;
+                userattr_map attrs;
+                pubk.serializekeyforjs(pubkStr);
+                signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+                buf.assign(sigPubk.data(), sigPubk.size());
+                attrs[ATTR_SIG_RSA_PUBK] = buf;
+                putua(&attrs, 0);
             }
 
-            clearKeys();
-            resetKeyring();
-            return;
-        }
-        if (!EdDSA::verifyKey((unsigned char*) pubkstr.data(),
-                                    pubkstr.size(),
-                                    &sigPubk,
-                                    (unsigned char*) puEd255.data()))
-        {
-            LOG_warn << "Verification of signature of public key for RSA failed";
+            string pubkstr;
+            if (pubk.isvalid())
+            {
+                pubk.serializekeyforjs(pubkstr);
+            }
+            if (!pubkstr.size() || !sigPubk.size())
+            {
+                if (!pubkstr.size())
+                {
+                    LOG_warn << "Error serializing RSA public key";
+                    sendevent(99421, "Error serializing RSA public key", 0);
+                }
+                if (!sigPubk.size())
+                {
+                    LOG_warn << "Signature of public key for RSA not found";
+                    sendevent(99422, "Signature of public key for RSA not found", 0);
+                }
 
-            sendevent(99414, "Verification of signature of public key for RSA failed", 0);
+                clearKeys();
+                resetKeyring();
+                return;
+            }
 
-            clearKeys();
-            resetKeyring();
-            return;
+            if (!EdDSA::verifyKey((unsigned char*) pubkstr.data(),
+                                        pubkstr.size(),
+                                        &sigPubk,
+                                        (unsigned char*) puEd255.data()))
+            {
+                LOG_warn << "Verification of signature of public key for RSA failed";
+
+                sendevent(99414, "Verification of signature of public key for RSA failed", 0);
+
+                clearKeys();
+                resetKeyring();
+                return;
+            }
         }
 
         // if we reached this point, everything is OK
