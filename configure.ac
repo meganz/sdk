@@ -1581,6 +1581,7 @@ AC_ARG_ENABLE(examples,
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
+
 # FreeImage
 freeimage=false
 AC_MSG_CHECKING(for FreeImage)
@@ -1663,6 +1664,81 @@ if test "x$freeimage" = "xtrue" ; then
     AC_DEFINE(USE_FREEIMAGE, [1], [Define to use FreeImage library.])
 fi
 AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
+
+#pdfium
+pdfium=false
+AC_MSG_CHECKING(for PDFium)
+AC_ARG_WITH(pdfium,
+  AS_HELP_STRING(--with-pdfium=PATH, base of PDFium installation),
+  [AC_MSG_RESULT($with_pdfium)
+  case $with_pdfium in
+    no)
+      pdfium=false
+    ;;
+    yes)
+      AC_CHECK_HEADERS([fpdfview.h],, [
+          AC_MSG_ERROR([fpdfview.h header not found or not usable])
+      ])
+      AC_CHECK_LIB([pdfium], [main], [PDF_LIBS="-lpdfium"], [
+          AC_MSG_ERROR([PDFium library is not found!])])
+
+       pdfium=true
+    ;;
+    *)
+    # determine if library is installed
+    if test -d "$with_pdfium/lib"; then
+        LDFLAGS="-L$with_pdfium/lib $LDFLAGS"
+        CXXFLAGS="-I$with_pdfium/include $CXXFLAGS"
+        CPPFLAGS="-I$with_pdfium/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS([fpdfview.h],[
+         PDF_LDFLAGS="-L$with_pdfium/lib"
+         PDF_CXXFLAGS="-I$with_pdfium/include"
+         PDF_CPPFLAGS="-I$with_pdfium/include"],
+         AC_MSG_ERROR([fpdfview.h header not found or not usable])
+        )
+    else
+        LDFLAGS="-L$with_pdfium/Dist $LDFLAGS"
+        CXXFLAGS="-I$with_pdfium/Dist $CXXFLAGS"
+        CPPFLAGS="-I$with_pdfium/Dist $CPPFLAGS"
+
+        AC_CHECK_HEADERS([fpdfview.h],[
+         PDF_LDFLAGS="-L$with_pdfium/Dist"
+         PDF_CXXFLAGS="-I$with_pdfium/Dist"
+         PDF_CPPFLAGS="-I$with_pdfium/Dist"],
+         AC_MSG_ERROR([fpdfview.h header not found or not usable])
+        )
+    fi
+    # check and set PDFium library
+    AC_CHECK_LIB([pdfium], [main], [PDF_LIBS="-lpdfium"], [
+        AC_MSG_ERROR([PDFium library is not found!])])
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    pdfium=true
+    ;;
+   esac
+   ],
+   [AC_MSG_RESULT([--with-pdfium not specified])
+    AC_CHECK_HEADERS([fpdfview.h],, [
+        AC_MSG_ERROR([fpdfview.h header not found or not usable])
+    ])
+    AC_CHECK_LIB([pdfium], [main], [PDF_LIBS="-lpdfium"], [
+        AC_MSG_ERROR([PDFium library is not found!])])
+
+     pdfium=true
+   ]
+   )
+
+if test "x$pdfium" = "xtrue" ; then
+AC_SUBST(PDF_LDFLAGS)
+AC_SUBST(PDF_LIBS)
+AC_SUBST(PDF_CXXFLAGS)
+AC_SUBST(PDF_CPPFLAGS)
+AC_DEFINE(HAVE_PDFIUM, [1], [Define to use PDFium library.])
+fi
+AM_CONDITIONAL([USE_PDFIUM], [test "x$pdfium" = "xtrue"])
 
 USE_FUSE=0
 # if Examples are enables, check for specific libraries
@@ -2083,7 +2159,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   SWIG_FLAGS_PHP:   $SWIG_FLAGS_PHP
   
   Java bindings:    $enable_java
-
+  
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
   Crypto++:         $CRYPTO_CXXFLAGS $CRYPTO_LDFLAGS $CRYPTO_LIBS
   Sodium:           $SODIUM_CXXFLAGS $SODIUM_LDFLAGS $SODIUM_LIBS
@@ -2092,6 +2168,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   c-ares:           $CARES_FLAGS $CARES_LDFLAGS $CARES_LIBS
   cURL:             $LIBCURL_FLAGS $LIBCURL_LIBS
   FreeImage:        $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
+  PDFium:           $PDF_CXXFLAGS $PDF_LDFLAGS $PDF_LIBS
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
@@ -2099,4 +2176,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   LIBRAW:           $LIBRAW_CXXFLAGS $LIBRAW_LDFLAGS $LIBRAW_LIBS
   LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
   FFMPEG:           $FFMPEG_CXXFLAGS $FFMPEG_LDFLAGS $FFMPEG_LIBS
+
 ])
