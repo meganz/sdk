@@ -22,14 +22,12 @@
 #ifndef GFX_PDFIUM_H
 #define GFX_PDFIUM_H 1
 
-#include <mega/types.h>
+#include "mega/types.h"
 
 #ifdef HAVE_PDFIUM
-#include <mega/filesystem.h>
-#include <mega/logging.h>
+#include "mega/filesystem.h"
+#include "mega/logging.h"
 #include <fpdfview.h>
-
-#define MAX_PDF_MEM_SIZE 1024*1024*100
 
 namespace mega {
 
@@ -37,14 +35,23 @@ class PdfiumReader
 {
 
 private:
-    static FPDF_BITMAP bitmap;
-    static bool initialized;
+    static unsigned initialized;
 
 public:
 
+    // Initializes the library and increases the internal counter of initializations. See destroy().
     static void init();
-    static void * readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa, const LocalPath &workingDirFolder);
-    static void freeBitmap();
+#ifdef _WIN32
+    // BGRA format, 4 bytes per pixel (32bits), byte order: blue, green, red, alpha.
+    // init() is called internally if library is not initialized.
+    // workingDirFolder : Path to create a temporary file.
+    static unique_ptr<char[]> readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa, const LocalPath &workingDirFolder);
+#else
+    // Returns a bitmap in BGRA format, 4 bytes per pixel (32bits), byte order: blue, green, red, alpha.
+    // init() is called internally if library is not initialized.
+    static unique_ptr<char[]> readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa);
+#endif
+    // It decreases the initializations internal counter and destroys the library once it reaches zero.
     static void destroy();
 
 protected:

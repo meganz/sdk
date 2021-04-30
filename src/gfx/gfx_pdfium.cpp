@@ -22,11 +22,13 @@
 #include "mega/gfx/gfx_pdfium.h"
 
 #ifdef HAVE_PDFIUM
+
+#define MAX_PDF_MEM_SIZE 1024*1024*100
+
 namespace mega {
 
 std::mutex PdfiumReader::pdfMutex;
-bool PdfiumReader::initialized = false;
-FPDF_BITMAP PdfiumReader::bitmap = nullptr;
+unsigned PdfiumReader::initialized = 0;
 
 void PdfiumReader::init()
 {
@@ -38,10 +40,9 @@ void PdfiumReader::init()
         config.m_pUserFontPaths = nullptr;
         config.m_pIsolate = nullptr;
         config.m_v8EmbedderSlot = 0;
-        {
-            FPDF_InitLibraryWithConfig(&config);
-        }
-        initialized = true;
+        FPDF_InitLibraryWithConfig(&config);
+        initialized++;
+        LOG_debug << "PDFium library initialized.";
     }
 }
 
@@ -50,16 +51,19 @@ void PdfiumReader::destroy()
     std::lock_guard<std::mutex> g(pdfMutex);
     if (initialized)
     {
-        if (bitmap)
+        if (!--initialized)
         {
-            freeBitmap();
+            FPDF_DestroyLibrary();
+            LOG_debug << "PDFium library destroyed.";
         }
-        FPDF_DestroyLibrary();
-        initialized = false;
     }
 }
 
-void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa, const LocalPath &workingDirFolder)
+#ifdef _WIN32
+std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa, const LocalPath &workingDirFolder)
+#else
+std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa)
+#endif
 {
 
     std::lock_guard<std::mutex> g(pdfMutex);
@@ -74,6 +78,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
     bool removetemporaryfile = false;
     std::unique_ptr<byte[]> buffer;
 
+    // In Windows it fails if the path has non-ascii chars
     if (pdf_doc == nullptr && FPDF_GetLastError() == FPDF_ERR_FILE)
     {
         std::unique_ptr<FileAccess> pdfFile = fa->newfileaccess();
@@ -81,13 +86,16 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
         {
             if (pdfFile->size > MAX_PDF_MEM_SIZE)
             {
-                LocalPath originPath = path;
-                tmpFilePath = workingDirFolder;
-                tmpFilePath.appendWithSeparator(LocalPath::fromPath(".megasyncpdftmp", *fa),false);
-                if (fa->copylocal(originPath, tmpFilePath, pdfFile->mtime))
+                if (!workingDirFolder.empty())
                 {
-                    pdf_doc = FPDF_LoadDocument(tmpFilePath.toPath(*fa).c_str(), nullptr);
-                    removetemporaryfile = true;
+                    LocalPath originPath = path;
+                    tmpFilePath = workingDirFolder;
+                    tmpFilePath.appendWithSeparator(LocalPath::fromPath(".megapdftmp", *fa),false);
+                    if (fa->copylocal(originPath, tmpFilePath, pdfFile->mtime))
+                    {
+                        pdf_doc = FPDF_LoadDocument(tmpFilePath.toPath(*fa).c_str(), nullptr);
+                        removetemporaryfile = true;
+                    }
                 }
             }
             else if (pdfFile->openf())
@@ -125,8 +133,9 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
                     return nullptr;
                 }
 
-                // 4 bytes per pixel. BGRA format with 1. BGRx with 0
-                bitmap = FPDFBitmap_Create(w, h, 1);
+                // BGRA format, 4 bytes per pixel (32bits), byte order: blue, green, red, alpha.
+                std::unique_ptr<char[]> buffer(new char[w*h*4]);
+                FPDF_BITMAP bitmap = FPDFBitmap_CreateEx(w, h, FPDFBitmap_BGRA, buffer.get(), w * 4);
                 if (!bitmap) //out of memory
                 {
                     LOG_warn << "Error generating bitmap image (OOM)";
@@ -143,8 +152,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 
                 FPDFBitmap_FillRect(bitmap, 0, 0, w, h, 0xFFFFFFFF);
                 FPDF_RenderPageBitmap(bitmap, page, 0, 0, w, h, 2, 0);
-                void* data = FPDFBitmap_GetBuffer(bitmap);
-
+                FPDFBitmap_Destroy(bitmap);
                 FPDF_ClosePage(page);
                 FPDF_CloseDocument(pdf_doc);
 #ifdef _WIN32
@@ -155,7 +163,7 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 #endif
                 // Needed by Qt: ROTATION_DOWN = 3
                 orientation = 3;
-                return data;
+                return buffer;
             }
             else
             {
@@ -183,16 +191,6 @@ void * PdfiumReader::readBitmapFromPdf(int &w, int &h, int &orientation, const L
 
     return nullptr;
 
-}
-
-void PdfiumReader::freeBitmap()
-{
-    std::lock_guard<std::mutex> g(pdfMutex);
-    if (initialized)
-    {
-        FPDFBitmap_Destroy(bitmap);
-        bitmap = nullptr;
-    }
 }
 
 } // namespace mega
