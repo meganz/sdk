@@ -119,7 +119,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     else
                     {
                         LOG_debug << "Sending file attribute data";
-                        Node::copystring(&posturl, p);
+                        JSON::copystring(&posturl, p);
                         progressreported = 0;
                         HttpReq::type = REQ_BINARY;
                         post(client, data->data(), unsigned(data->size()));
@@ -203,7 +203,7 @@ bool CommandGetFA::procresult(Result r)
                 {
                     if (p)
                     {
-                        Node::copystring(&it->second->posturl, p);
+                        JSON::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
                         it->second->dispatch();
                     }
@@ -705,6 +705,7 @@ bool CommandGetFile::procresult(Result r)
     string filenamestring;
     string filefingerprint;
     std::vector<string> tempurls;
+    std::vector<string> tempips;
 
     for (;;)
     {
@@ -734,6 +735,22 @@ bool CommandGetFile::procresult(Result r)
                 }
                 e.setErrorCode(API_OK);
                 break;
+
+        case MAKENAMEID2('i', 'p'):
+            if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+            {
+                for (;;)
+                {
+                    std::string ti;
+                    if (!client->json.storeobject(&ti))
+                    {
+                        break;
+                    }
+                    tempips.push_back(ti);
+                }
+                client->json.leavearray();
+            }
+            break;
 
             case 's':
                 s = client->json.getint();
@@ -801,6 +818,9 @@ bool CommandGetFile::procresult(Result r)
                 }
                 else
                 {
+                    // cache resolved URLs if received
+                    client->httpio->cacheresolvedurls(tempurls, move(tempips));
+
                     // decrypt at and set filename
                     SymmCipher key;
                     const char* eos = strchr(at, '"');
@@ -1810,7 +1830,7 @@ bool CommandLogin::procresult(Result r)
                             client->app->login_result(API_EINTERNAL);
                             return true;
                         }
-                        else
+                        else if (client->loggedin() == CONFIRMEDACCOUNT)
                         {
                             // logging in with tsid to an account without a RSA keypair
                             LOG_info << "Generating and adding missing RSA keypair";
@@ -2405,10 +2425,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
         }
 
         client->json.leaveobject();
-        Node::copystring(&currency, curr);
-        Node::copystring(&description, desc);
-        Node::copystring(&ios_id, ios);
-        Node::copystring(&android_id, android);
+        JSON::copystring(&currency, curr);
+        JSON::copystring(&description, desc);
+        JSON::copystring(&ios_id, ios);
+        JSON::copystring(&android_id, android);
 
         amount = atoi(amountStr) * 100;
         if ((curr = strchr(amountStr, '.')))
@@ -5085,6 +5105,7 @@ bool CommandCreateEphemeralSession::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         client->ephemeralSession = false;
+        client->ephemeralSessionPlusPlus = false;
         client->app->ephemeral_result(r.errorOrOK());
     }
     else
@@ -5373,10 +5394,15 @@ bool CommandConfirmSignupLink::procresult(Result r)
     {
         client->json.storeobject();
         client->ephemeralSession = false;
+        client->ephemeralSessionPlusPlus = false;
         client->app->confirmsignuplink_result(API_OK);
         return true;
     }
 
+    client->json.storeobject();
+
+    client->ephemeralSession = false;
+    client->ephemeralSessionPlusPlus = false;
     client->app->confirmsignuplink_result(r.errorOrOK());
     return r.wasStrictlyError();
 }

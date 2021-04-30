@@ -914,6 +914,36 @@ m_off_t CurlHttpIO::getmaxuploadspeed()
     return maxspeed[PUT];
 }
 
+bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
+{
+    // for each URL there should be 2 IPs (IPv4 first, IPv6 second)
+    if (urls.empty() || urls.size() * 2 != ips.size())
+    {
+        LOG_err << "Resolved URLs to be cached did not match with an IPv4 and IPv6 each";
+        return false;
+    }
+
+    for (std::vector<string>::size_type i = 0; i < urls.size(); ++i)
+    {
+        // get host name from each URL
+        string host, dummyscheme;
+        int dummyport;
+        const string& url = urls[i]; // this is "free" and helps with debugging
+
+        crackurl(&url, &dummyscheme, &host, &dummyport);
+
+        // add resolved host name to cache, or replace the previous one
+        CurlDNSEntry& dnsEntry = dnscache[host];
+        dnsEntry.ipv4 = move(ips[2 * i]);
+        dnsEntry.ipv4timestamp = Waiter::ds;
+        dnsEntry.ipv6 = move(ips[2 * i + 1]);
+        dnsEntry.ipv6timestamp = Waiter::ds;
+        dnsEntry.mNeedsResolvingAgain = false;
+    }
+
+    return true;
+}
+
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int)
 {
@@ -1401,7 +1431,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
-    
+
 #ifndef TARGET_OS_IPHONE
     else
     {
@@ -1465,7 +1495,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
@@ -1597,7 +1626,6 @@ void CurlHttpIO::request_proxy_ip()
     httpctx->httpio = this;
     httpctx->hostname = proxyhost;
     httpctx->ares_pending = 1;
-    
 
 #if TARGET_OS_IPHONE
     send_request(httpctx);
@@ -1614,7 +1642,7 @@ void CurlHttpIO::request_proxy_ip()
 #endif
 }
 
-bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* port)
+bool CurlHttpIO::crackurl(const string* url, string* scheme, string* hostname, int* port)
 {
     if (!url || !url->size() || !scheme || !hostname || !port)
     {
@@ -2631,7 +2659,6 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
     {
         httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain = false;
         httpctx->ares_pending = 1;
-        
 
 #if TARGET_OS_IPHONE
         send_request(httpctx);

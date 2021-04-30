@@ -68,25 +68,6 @@
 
 #include "mega/mega_zxcvbn.h"
 
-namespace {
-
-#ifdef ENABLE_SYNC
-std::vector<std::string> regExpToVector(mega::MegaRegExp* regExp)
-{
-    std::vector<std::string> regExps;
-    if (regExp)
-    {
-        for (int i = 0; i < regExp->getNumRegExp(); ++i)
-        {
-            regExps.push_back(regExp->getRegExp(i));
-        }
-    }
-    return regExps;
-}
-#endif
-
-}
-
 namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
@@ -1265,56 +1246,62 @@ bool WildcardMatch(const char *pszString, const char *pszMatch)
     return !*pszMatch;
 }
 
-bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& localpath)
+bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpath)
 {
-    // Don't sync these system files from OS X
-    if (!strcmp(name, "Icon\x0d"))
+    // Is this path excluded by any path filters?
+    if (!excludedPaths.empty())
     {
-        return false;
-    }
+        // Translate current path into something we can match.
+        auto temp = localpath.toPath(*fsAccess);
 
-    for (unsigned int i = 0; i < excludedNames.size(); i++)
-    {
-        if (WildcardMatch(name, excludedNames[i].c_str()))
+        // Is this path excluded by any path filters?
+        for (const auto& xpath : excludedPaths)
         {
-            return false;
-        }
-    }
+            auto xp = LocalPath::fromPath(xpath, *fsAccess);
 
-    MegaRegExp *regExp = NULL;
-#ifdef USE_PCRE
-    auto re = make_unique<MegaRegExp>(); // TODO: reconstructing this is far from optimal. reconsider placing it in SyncConfig (updated with mRegExps updates?)
-    for (const auto& v : sync->getConfig().getRegExps())
-    {
-        re->addRegExp(v.c_str());
-    }
-    regExp = re.get();
-#endif
-
-    if (regExp || excludedPaths.size())
-    {
-        string utf8path = localpath.toPath(*fsAccess);
-
-        for (unsigned int i = 0; i < excludedPaths.size(); i++)
-        {
-            auto ex = LocalPath::fromPath(excludedPaths[i], *client->fsaccess);
-            if (ex.isContainingPathOf(localpath))
+            if (xp.isContainingPathOf(localpath))
             {
                 return false;
             }
 
-            if (WildcardMatch(utf8path.c_str(), excludedPaths[i].c_str()))
+            if (WildcardMatch(temp.c_str(), xpath.c_str()))
+            {
+                return false;
+            }
+        }
+    }
+
+    // Check whether any path components are excluded.
+    auto path = localpath;
+
+    // Convenience.
+    const auto& root = sync->localroot->localname;
+
+    while (root.isContainingPathOf(path) && path != root)
+    {
+        // Where does this component's name start?
+        auto nameIndex = path.getLeafnameByteIndex(*fsAccess);
+
+        // Extract component's name.
+        auto name = path.subpathFrom(nameIndex).toPath(*fsAccess);
+
+        // Skip these system files on OS X.
+        if (name == "Icon\x0d")
+        {
+            return false;
+        }
+
+        // Is this component's name excluded by any filename filters?
+        for (const auto& xname : excludedNames)
+        {
+            if (WildcardMatch(name.c_str(), xname.c_str()))
             {
                 return false;
             }
         }
 
-#ifdef USE_PCRE
-        if (regExp && regExp->match(utf8path.c_str()))
-        {
-            return false;
-        }
-#endif
+        // Climb to the next component.
+        path.truncate(nameIndex - 1);
     }
 
     return true;
@@ -3241,9 +3228,6 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->tag = 0;
     this->transfer = 0;
     this->listener = listener;
-#ifdef ENABLE_SYNC
-    this->regExp = NULL;
-#endif
     this->backupListener = NULL;
     this->nodeHandle = UNDEF;
     this->link = NULL;
@@ -3360,10 +3344,6 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->setTransferredBytes(request->getTransferredBytes());
     this->listener = request->getListener();
 
-#ifdef ENABLE_SYNC
-    this->regExp = NULL;
-    this->setRegExp(request->getRegExp());
-#endif
     this->backupListener = request->getBackupListener();
     this->megaPricing = (MegaPricingPrivate *)request->getPricing();
 
@@ -3560,31 +3540,6 @@ void MegaRequestPrivate::setMegaHandleList(const vector<handle> &handles)
     mHandleList.reset(new MegaHandleListPrivate(handles));
 }
 
-
-#ifdef ENABLE_SYNC
-MegaRegExp *MegaRequestPrivate::getRegExp() const
-{
-    return regExp;
-}
-
-void MegaRequestPrivate::setRegExp(MegaRegExp *regExp)
-{
-    if (this->regExp)
-    {
-        delete this->regExp;
-    }
-
-    if (!regExp)
-    {
-        this->regExp = NULL;
-    }
-    else
-    {
-        this->regExp = regExp->copy();
-    }
-}
-#endif
-
 MegaBackupListener *MegaRequestPrivate::getBackupListener() const
 {
     return backupListener;
@@ -3626,9 +3581,6 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete timeZoneDetails;
     delete settings;
 
-#ifdef ENABLE_SYNC
-    delete regExp;
-#endif
 #ifdef ENABLE_CHAT
     delete chatPeerList;
     delete chatList;
@@ -6206,11 +6158,30 @@ void MegaApiImpl::createAccount(const char* email, const char* password, const c
     waiter->notify();
 }
 
+void MegaApiImpl::createEphemeralAccountPlusPlus(const char *firstname, const char *lastname, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
+    request->setName(firstname);
+    request->setText(lastname);
+    request->setParamType(3);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::resumeCreateAccount(const char *sid, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setSessionKey(sid);
     request->setParamType(1);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resumeCreateAccountEphemeralPlusPlus(const char *sid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
+    request->setSessionKey(sid);
+    request->setParamType(4);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8716,7 +8687,7 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
     request->setNodeHandle(megaHandle);
@@ -8740,7 +8711,6 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
     }
     request->setParamType(type);
 
-    request->setRegExp(regExp);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8966,25 +8936,6 @@ void MegaApiImpl::setExclusionLowerSizeLimit(long long limit)
 void MegaApiImpl::setExclusionUpperSizeLimit(long long limit)
 {
     syncUpperSizeLimit = limit;
-}
-
-void MegaApiImpl::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
-{
-    if (!sync)
-    {
-        return;
-    }
-
-    SdkMutexGuard g(sdkMutex);
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
-        if (us.mConfig.getBackupId() == sync->getBackupId())
-        {
-            us.mConfig.setRegExps(regExpToVector(regExp));
-            client->syncs.saveSyncConfig(us.mConfig);
-        }
-     });
-
-    mCachedMegaSyncPrivate.reset();
 }
 
 string MegaApiImpl::getLocalPath(MegaNode *n)
@@ -13808,13 +13759,24 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             string lastname = request->getText() ? request->getText() : "";
             if (!lastname.empty())
             {
-                client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())));
+                client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())), -1);
             }
 
-            // ...and finally send confirmation link
             client->reqtag = client->restag;
-            byte pwkey[SymmCipher::KEYLENGTH];
-            if (!request->getPrivateKey())
+            byte pwkey[SymmCipher::KEYLENGTH];            
+            if (request->getParamType() == 3)   // creation of account ephemeral++
+            {
+                // The session id cannot follow the same pattern, since no password is provided (yet)
+                // In consequence, the session resumption requires a regular session id (instead of the
+                // usual one with the user's handle and the pwd cipher)
+                string sid;
+                client->dumpsession(sid);
+                request->setPrivateKey(sid.c_str());
+
+                // Ephemeral++ don't have an email when account is created, so cannot send a signup link
+                client->getwelcomepdf();
+            }
+            else if (!request->getPrivateKey()) // ...and finally send confirmation link
             {
                 if (client->nsr_enabled)
                 {
@@ -13973,9 +13935,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             // create the SyncConfig
             const char* backupName = request->getName();
             auto localPath = LocalPath::fromPath(request->getFile(), *client->fsaccess);
-            auto regExp = request->getRegExp(); // not currently in use, but ready for addition
             SyncConfig syncConfig( localPath, backupName, NodeHandle().set6byte(backupHandle), remotePath.get(),
-                                    0, regExpToVector(regExp), true, SyncConfig::TYPE_BACKUP );
+                                    0, true, SyncConfig::TYPE_BACKUP );
 
             client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
@@ -14689,7 +14650,7 @@ void MegaApiImpl::login_result(error result)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_LOGIN)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_LOGIN && request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) return;
 
     // if login with user+pwd succeed, update lastLogin timestamp
     if (result == API_OK && request->getEmail() &&
@@ -16051,6 +16012,9 @@ void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const cha
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag] = request;
+
+        sessiontype_t sessionType = client->loggedin();
+        assert(sessionType == EPHEMERALACCOUNT || sessionType == EPHEMERALACCOUNTPLUSPLUS);
 
         client->confirmsignuplink((const byte*)signupcode.data(), int(signupcode.size()), MegaClient::stringhash64(&signupemail,&pwcipher));
     }
@@ -20687,10 +20651,13 @@ void MegaApiImpl::sendPendingRequests()
             const char *email = request->getEmail();
             const char *password = request->getPassword();
             const char *name = request->getName();
+            const char *lastname = request->getText();
             const char *pwkey = request->getPrivateKey();
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
             bool cancelProcess = (request->getParamType() == 2);
+            bool createEphemeralPlusPlus = (request->getParamType() == 3);   // resume existing ephemeral++ account
+            bool resumeEphemeralPlusPlus = (request->getParamType() == 4);  // create account, but ephemeral++
             handle lastPublicHandle = request->getNodeHandle();
             int lastPublicHandleType = request->getAccess();
             int64_t lastAccessTimestamp =request->getTransferredBytes();
@@ -20704,8 +20671,10 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if ( (!resumeProcess && !cancelProcess && (!email || !name || (!password && !pwkey))) ||
-                 (resumeProcess && !sid) )
+            if ((!resumeProcess && !cancelProcess && !resumeEphemeralPlusPlus && !createEphemeralPlusPlus &&
+                  (!email || !name || (!password && !pwkey))) ||
+                 ((resumeProcess || resumeEphemeralPlusPlus) && !sid) ||
+                 (createEphemeralPlusPlus && !(name && lastname)))
             {
                 e = API_EARGS; break;
             }
@@ -20744,6 +20713,15 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     client->resumeephemeral(uh, pwbuf);
                 }
+                else if (resumeEphemeralPlusPlus)
+                {
+                    client->resumeephemeralPlusPlus(sid);
+                    client->resumeephemeralPlusPlus(Base64::atob(string(sid)));
+                }
+                else if (createEphemeralPlusPlus)
+                {
+                    client->createephemeralPlusPlus();
+                }
                 else
                 {
                     client->createephemeral();
@@ -20758,7 +20736,7 @@ void MegaApiImpl::sendPendingRequests()
             const char *base64pwkey = request->getPrivateKey();
             const char *name = request->getName();
 
-            if (client->loggedin() != EPHEMERALACCOUNT)
+            if (client->loggedin() != EPHEMERALACCOUNT && client->loggedin() != EPHEMERALACCOUNTPLUSPLUS)
             {
                 e = API_EACCESS;
                 break;
@@ -21584,9 +21562,9 @@ void MegaApiImpl::sendPendingRequests()
             }
 
 
-            SyncConfig syncConfig{LocalPath::fromPath(localPath, *client->fsaccess),
+            SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath.get(),
-                                  0, regExpToVector(request->getRegExp())};
+                                  0);
 
             client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
@@ -21714,7 +21692,7 @@ void MegaApiImpl::sendPendingRequests()
             SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
-                                  regExpToVector(request->getRegExp()), enabled);
+                                  enabled);
 
             if (temporaryDisabled)
             {
@@ -24426,19 +24404,9 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr /* can 
     }
     this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
-    this->regExp = NULL;
 
     setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
     setLastKnownMegaFolder(config.mOrigninalPathOfRemoteRootNode.c_str());
-    if (!config.getRegExps().empty())
-    {
-        auto re = make_unique<MegaRegExp>();
-        for (const auto& v : config.getRegExps())
-        {
-            re->addRegExp(v.c_str());
-        }
-        setRegExp(re.get());
-    }
 
     setError(config.mError);
     setWarning(config.mWarning);
@@ -24450,7 +24418,6 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     , mActive(sync->mActive)
     , mEnabled(sync->mEnabled)
 {
-    this->regExp = NULL;
     this->setBackupId(sync->getBackupId());
     this->localFolder = NULL;
     this->mName = NULL;
@@ -24460,7 +24427,6 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     this->setLastKnownMegaFolder(sync->getLastKnownMegaFolder());
     this->setMegaHandle(sync->getMegaHandle());
     this->setLocalFingerprint(sync->getLocalFingerprint());
-    this->setRegExp(sync->getRegExp());
     this->setError(sync->getError());
     this->setWarning(sync->getWarning());
 }
@@ -24470,7 +24436,6 @@ MegaSyncPrivate::~MegaSyncPrivate()
     delete [] localFolder;
     delete [] mName;
     delete [] lastKnownMegaFolder;
-    delete regExp;
 }
 
 MegaSync *MegaSyncPrivate::copy()
@@ -24548,230 +24513,6 @@ MegaHandle MegaSyncPrivate::getBackupId() const
 void MegaSyncPrivate::setBackupId(MegaHandle backupId)
 {
     this->mBackupId = backupId;
-}
-
-MegaRegExpPrivate::MegaRegExpPrivate()
-{
-    patternUpdated = false;
-
-#ifdef USE_PCRE
-    options = PCRE_ANCHORED | PCRE_UTF8;
-    reCompiled = NULL;
-    reOptimization = NULL;
-#endif
-}
-
-MegaRegExpPrivate::~MegaRegExpPrivate()
-{
-#ifdef USE_PCRE
-    if (reCompiled != NULL)
-    {
-        pcre_free(reCompiled);
-    }
-    if (reOptimization != NULL)
-    {
-        pcre_free(reOptimization);
-    }
-#endif
-}
-
-MegaRegExpPrivate * MegaRegExpPrivate::copy()
-{
-    MegaRegExpPrivate *regExp = new MegaRegExpPrivate();
-
-    for (unsigned int i = 0; i < this->regExps.size(); i++)
-    {
-        regExp->addRegExp(this->getRegExp(i));
-    }
-
-    if (this->isPatternUpdated())
-    {
-        regExp->updatePattern();
-    }
-
-    return regExp;
-}
-
-const char *MegaRegExpPrivate::getFullPattern()
-{
-    if (!patternUpdated)
-    {
-        updatePattern();
-    }
-
-    return pattern.c_str();
-}
-
-
-bool MegaRegExpPrivate::addRegExp(const char *regExp)
-{
-    if (!checkRegExp(regExp))
-    {
-        return false;
-    }
-
-    regExps.push_back(regExp);
-    patternUpdated = false;
-
-    return true;
-}
-
-int MegaRegExpPrivate::getNumRegExp()
-{
-    return int(regExps.size());
-}
-
-const char * MegaRegExpPrivate::getRegExp(int index)
-{
-    return regExps.at(index).c_str();
-}
-
-/**
- * @brief Checks if the given regular expression is correct.
- * @param regExp Regular expression
- * @return True if the regular expression is correct. Otherwise, false.
- */
-bool MegaRegExpPrivate::checkRegExp(const char *regExp)
-{
-    if (!regExp)
-    {
-        return false;
-    }
-
-#ifdef USE_PCRE
-    const char *error;
-    int eoffset;
-
-    if (!pcre_compile(regExp, options, &error, &eoffset, NULL))
-    {
-        LOG_info << "Wrong expression " << regExp << ": " << error;
-        return false;
-    }
-#endif
-
-    return true;
-}
-
-/**
- * @brief This method clears the previous pattern and creates a new one based on the
- * current regular expressions included in @regExps
- * @return True if compilation of new pattern was successfull. Otherwise, false.
- */
-bool MegaRegExpPrivate::updatePattern()
-{
-    pattern.clear();
-    for (unsigned int i = 0; i < regExps.size(); i++)
-    {
-        string wrapped = "(?:";
-        wrapped += regExps.at(i);
-        wrapped += ")\\z";
-
-        pattern += wrapped + ((i==(regExps.size()-1)) ? "" :"|");
-    }
-
-    patternUpdated = true;
-    int result = compile();
-    return result == REGEXP_NO_ERROR || result == REGEXP_OPTIMIZATION_ERROR;
-}
-
-bool MegaRegExpPrivate::isPatternUpdated()
-{
-    return patternUpdated;
-}
-
-bool MegaRegExpPrivate::match(const char *itemToMatch)
-{
-    if (!patternUpdated)
-    {
-        updatePattern();
-    }
-
-#ifdef USE_PCRE
-    int strVector[30];
-    int result;
-
-    result = pcre_exec(reCompiled,
-                       reOptimization,
-                       itemToMatch,
-                       int(strlen(itemToMatch)),
-                       0,
-                       PCRE_ANCHORED,
-                       strVector,
-                       30);
-
-    if (result >= 0) // We have a match
-    {
-        return true;
-    }
-    else            // Something bad happened..
-    {
-        switch(result)
-        {
-            case PCRE_ERROR_NOMATCH      : /*LOG_debug << "PCRE: String did not match the pattern";  */  break;
-            case PCRE_ERROR_NULL         : LOG_debug << "PCRE: Something was null";                      break;
-            case PCRE_ERROR_BADOPTION    : LOG_debug << "PCRE: A bad option was passed";                 break;
-            case PCRE_ERROR_BADMAGIC     : LOG_debug << "PCRE: Magic number bad (compiled re corrupt?)"; break;
-            case PCRE_ERROR_UNKNOWN_NODE : LOG_debug << "PCRE: Something kooky in the compiled re";      break;
-            case PCRE_ERROR_NOMEMORY     : LOG_debug << "PCRE: Ran out of memory";                       break;
-            default                      : LOG_debug << "PCRE: Unknown error";                           break;
-        }
-
-        return false;
-    }
-#else
-    return false;
-#endif
-}
-
-int MegaRegExpPrivate::compile()
-{
-#ifdef USE_PCRE
-    const char *error;
-    int eoffset;
-
-    if (pattern.empty())
-    {
-        return MegaRegExpPrivate::REGEXP_EMPTY;
-    }
-
-    reCompiled = pcre_compile(pattern.c_str(), options, &error, &eoffset, NULL);
-    if (reCompiled == NULL)
-    {
-        LOG_debug << "PCRE error: Could not compile " << pattern.c_str() << ": " << error;
-        return MegaRegExpPrivate::REGEXP_COMPILATION_ERROR;
-    }
-
-    reOptimization = pcre_study(reCompiled, 0, &error);
-    if (error != NULL)
-    {
-        LOG_debug << "PCRE info: Could not study " << pattern.c_str() << ": " << error;
-        return MegaRegExpPrivate::REGEXP_OPTIMIZATION_ERROR;
-    }
-
-#endif
-    return MegaRegExpPrivate::REGEXP_NO_ERROR;
-}
-
-MegaRegExp *MegaSyncPrivate::getRegExp() const
-{
-    return regExp;
-}
-
-void MegaSyncPrivate::setRegExp(MegaRegExp *regExp)
-{
-    if (this->regExp)
-    {
-        delete this->regExp;
-    }
-
-    if (!regExp)
-    {
-        this->regExp = NULL;
-    }
-    else
-    {
-        this->regExp = regExp->copy();
-    }
 }
 
 int MegaSyncPrivate::getError() const
