@@ -53,13 +53,8 @@ extern "C" {
 #include <libraw/libraw.h>
 #endif
 
-#ifdef HAVE_PDFIUM
-#include <fpdfview.h>
-#ifdef _WIN32
+#if defined(HAVE_PDFIUM) && defined(_WIN32)
 #include <QDir>
-#include <QTemporaryFile>
-#define MAX_PDF_MEM_SIZE 1024*1024*100
-#endif
 #endif
 
 namespace mega {
@@ -400,7 +395,7 @@ GfxProcQT::GfxProcQT()
     {
         //Remove temporary files from previous executions:
         QDir dir(QDir::tempPath());
-        dir.setNameFilters(QStringList() << QString::fromUtf8(".megasyncpdftmp*"));
+        dir.setNameFilters(QStringList() << QString::fromUtf8(".megapdftmp*"));
         dir.setFilter(QDir::Files);
         foreach(QString dirFile, dir.entryList())
         {
@@ -860,17 +855,17 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, FileSys
 
 #ifdef _WIN32
     LocalPath workingDir = LocalPath::fromPath(QDir::tempPath().toUtf8().constData(), fa);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, path, &fa, workingDir);
 #else
-    LocalPath workingDir = LocalPath();
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, path, &fa);
 #endif
-    uchar* data = static_cast<uchar*>(PdfiumReader::readBitmapFromPdf(w, h, orientation, path, &fa, workingDir));
 
     if (data == nullptr || !w || !h)
     {
         return nullptr;
     }
 
-    QImage image(data, w, h, QImage::Format_ARGB32);
+    QImage image(reinterpret_cast<uchar*>(data.get()), w, h, QImage::Format_ARGB32);
 
     QBuffer *buffer = new QBuffer();
     if (!buffer->open(QIODevice::ReadWrite) || !image.save(buffer, "JPG", 85))
@@ -879,7 +874,6 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, FileSys
         delete buffer;
         return nullptr;
     }
-    PdfiumReader::freeBitmap();
 
     buffer->seek(0);
     QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
