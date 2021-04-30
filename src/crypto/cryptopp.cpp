@@ -362,7 +362,7 @@ bool SymmCipher::gcm_decrypt_aad(const byte *data, unsigned datalen,
 
         // retrieve decrypted data from channel
         df.SetRetrievalChannel(DEFAULT_CHANNEL);
-        unsigned long maxRetrievable = df.MaxRetrievable();
+        uint64_t maxRetrievable = df.MaxRetrievable();
         std::string retrieved;
         if (maxRetrievable > 0)
         {
