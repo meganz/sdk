@@ -860,7 +860,7 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, FileSys
     unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, path, &fa);
 #endif
 
-    if (data == nullptr || !w || !h)
+    if (!data || !w || !h)
     {
         return nullptr;
     }

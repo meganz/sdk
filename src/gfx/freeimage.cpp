@@ -486,7 +486,7 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
     unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess);
 #endif
 
-    if (data == nullptr || !w || !h)
+    if (!data || !w || !h)
     {
         return false;
     }
