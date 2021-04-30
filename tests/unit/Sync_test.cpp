@@ -1905,7 +1905,6 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mLocalPath = Utilities::randomPath();
         config.mName = Utilities::randomBase64();
         config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
-        config.mRegExps = {"a", "b"};
         config.mRemoteNode.set6byte(3);
         config.mWarning = LOCAL_IS_FAT;
         config.mSyncType = SyncConfig::TYPE_BACKUP;
