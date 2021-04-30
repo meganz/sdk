@@ -60,8 +60,9 @@ struct DriveInfo                          //    Local               Removable/US
 // Interface for receiving drive [dis]connection events, and notifying futher.
 //
 // Platform specific implementations:
-// - DriveNotifyWin;
-// - DriveNotifyPosix.
+// - DriveNotifyWin
+// - DriveNotifyPosix
+// - DriveNotifyOsx
 class DriveNotify
 {
 public:

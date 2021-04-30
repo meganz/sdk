@@ -52,29 +52,6 @@ protected:
     };
 };
 
-
-
-// Class for listing drives available at any moment.
-// This class queries 'Win32_LogicalDisk' for drives available to the user, that are assigned a drive letter.
-// In the same way, for further information about the partition and physical drive, other providers can be queried:
-// - Win32_LogicalDiskToPartition
-// - Win32_DiskPartition
-// - Win32_DiskDriveToDiskPartition
-// - Win32_DiskDrive
-// - Win32_MappedLogicalDisk -- only for mapped drives
-//
-// Other non-WMI Volume Management functions available under MS Windows:
-// https://docs.microsoft.com/en-us/windows/win32/fileio/volume-management-functions
-// Nice article about possible Dynamic Disk Structures:
-// https://www.apriorit.com/dev-blog/345-dynamic-disk-structure-parser
-class VolumeQuery
-{
-public:
-    // Query 'Win32_LogicalDisk' for all drives with a drive letter assigned.
-    // Returns a map of {drive-letter (i.e. L"C:"), DriveInfo} pairs.
-    std::map<std::wstring, DriveInfo> query();
-};
-
 } // namespace
 
 #endif // USE_DRIVE_NOTIFICATIONS
