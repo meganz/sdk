@@ -47,17 +47,21 @@ protected:
     string sformats;
     const char* supportedformats();
 
+    bool readbitmapFreeimage(FileAccess*, const LocalPath&, int);
+
 #if defined(HAVE_FFMPEG)  || defined(HAVE_PDFIUM)
     static std::mutex gfxMutex;
 #endif
 
 #ifdef HAVE_FFMPEG
     const char* supportedformatsFfmpeg();
+    bool isFfmpegFile(const string &ext);
     bool readbitmapFfmpeg(FileAccess*, const LocalPath&, int);
 #endif
 
 #ifdef HAVE_PDFIUM
     const char* supportedformatsPDF();
+    bool isPdfFile(const string &ext);
     bool readbitmapPdf(FileAccess*, const LocalPath&, int);
 #endif
 

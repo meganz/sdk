@@ -96,6 +96,53 @@ GfxProcFreeImage::~GfxProcFreeImage()
 #endif
 }
 
+bool GfxProcFreeImage::readbitmapFreeimage(FileAccess*, const LocalPath& imagePath, int size)
+{
+
+    // FIXME: race condition, need to use open file instead of filename
+    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX(imagePath.localpath.c_str());
+
+    if (fif == FIF_UNKNOWN)
+    {
+        return false;
+    }
+
+#ifndef OLD_FREEIMAGE
+    if (fif == FIF_JPEG)
+    {
+        // load JPEG (scale & EXIF-rotate)
+        if (!(dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(),
+                                    JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
+        {
+            return false;
+        }
+    }
+    else
+#endif
+    {
+        // load all other image types - for RAW formats, rely on embedded preview
+        if (!(dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(),
+#ifndef OLD_FREEIMAGE
+                                    (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
+#else
+                                    0)))
+#endif
+        {
+            return false;
+        }
+    }
+
+    w = static_cast<int>(FreeImage_GetWidth(dib));
+    h = static_cast<int>(FreeImage_GetHeight(dib));
+
+    if (!w || !h)
+    {
+        return false;
+    }
+
+    return true;
+}
+
 #ifdef HAVE_FFMPEG
 
 #ifdef AV_CODEC_CAP_TRUNCATED
@@ -111,6 +158,16 @@ const char *GfxProcFreeImage::supportedformatsFfmpeg()
             ".ismt.ismv.ivf.jpm.k3g.m1v.m2p.m2s.m2t.m2v.m4s.m4t.m4v.mac.mkv.mk3d"
             ".mks.mov.mp1v.mp2v.mp4.mp4v.mpeg.mpg.mpgv.mpv.mqv.ogm.ogv"
             ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
+}
+
+bool GfxProcFreeImage::isFfmpegFile(const string& ext)
+{
+    const char* ptr;
+    if ((ptr = strstr(supportedformatsFfmpeg(), ext.c_str())) && ptr[ext.size()] == '.')
+    {
+        return true;
+    }
+    return false;
 }
 
 bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePath, int size)
@@ -395,6 +452,16 @@ const char* GfxProcFreeImage::supportedformatsPDF()
     return ".pdf.";
 }
 
+bool GfxProcFreeImage::isPdfFile(const string &ext)
+{
+    const char* ptr;
+    if ((ptr = strstr(supportedformatsPDF(), ext.c_str())) && ptr[ext.size()] == '.')
+    {
+        return true;
+    }
+    return false;
+}
+
 bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath, int size)
 {
 
@@ -403,21 +470,34 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
 #ifdef _WIN32
     wstring tmpPath;
     tmpPath.resize(MAX_PATH);
-    GetTempPathW(MAX_PATH, (LPWSTR)tmpPath.data());
-    LocalPath workingDir = LocalPath::fromPlatformEncoded(tmpPath.c_str());
+    LocalPath workingDir;
+    if (!GetTempPathW(MAX_PATH, (LPWSTR)tmpPath.data())) // If the function fails, the return value is zero.
+    {
+        LOG_warn << "Error getting temporary path to process pdf.";
+        workingDir.clear();
+    }
+    else
+    {
+        workingDir = LocalPath::fromPlatformEncoded(tmpPath.c_str());
+    }
+
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess, workingDir);
 #else
-    LocalPath workingDir = LocalPath();
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess);
 #endif
-    BYTE* data = static_cast<BYTE*>(PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess, workingDir));
 
     if (data == nullptr || !w || !h)
     {
         return false;
     }
 
-    dib = FreeImage_ConvertFromRawBits(data, w, h, w * 4, 32, 0xFF0000, 0x00FF00, 0x0000FF);
+    dib = FreeImage_ConvertFromRawBits(reinterpret_cast<BYTE*>(data.get()), w, h, w * 4, 32, 0xFF0000, 0x00FF00, 0x0000FF);
+    if (!dib)
+    {
+        LOG_warn << "Error converting raw pdfium bitmap from memory: " << imagePath.toPath(*client->fsaccess);
+        return false;
+    }
     FreeImage_FlipHorizontal(dib);
-    PdfiumReader::freeBitmap();
 
     return true;
 }
@@ -446,83 +526,37 @@ const char* GfxProcFreeImage::supportedformats()
 bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, int size)
 {
 
-#if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
+    bool bitmapLoaded = false;
     string extension;
-    const char* ptr;
-    bool isImage = true;
     if (client->fsaccess->getextension(localname, extension))
     {
 #ifdef HAVE_FFMPEG
-        if ((ptr = strstr(supportedformatsFfmpeg(), extension.c_str())) && ptr[extension.size()] == '.')
+        if (isFfmpegFile(extension))
         {
-            isImage = false;
+            bitmapLoaded = true;
             if (!readbitmapFfmpeg(fa, localname, size) )
             {
                 return false;
             }
         }
-        else
-        {
 #endif
 #ifdef HAVE_PDFIUM
-            if ((ptr = strstr(supportedformatsPDF(), extension.c_str())) && ptr[extension.size()] == '.')
+        if (isPdfFile(extension))
+        {
+            bitmapLoaded = true;
+            if (!readbitmapPdf(fa, localname, size) )
             {
-                isImage = false;
-                if (!readbitmapPdf(fa, localname, size) )
-                {
-                    return false;
-                }
+                return false;
             }
-#endif
-#ifdef HAVE_FFMPEG
         }
 #endif
     }
-    if (isImage)
+    if (!bitmapLoaded)
     {
-#endif
-        // FIXME: race condition, need to use open file instead of filename
-        FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX(localname.localpath.c_str());
-
-        if (fif == FIF_UNKNOWN)
+        if (!readbitmapFreeimage(fa, localname, size) )
         {
             return false;
         }
-
-#ifndef OLD_FREEIMAGE
-        if (fif == FIF_JPEG)
-        {
-            // load JPEG (scale & EXIF-rotate)
-            if (!(dib = FreeImage_LoadX(fif, localname.localpath.c_str(),
-                                        JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
-            {
-                return false;
-            }
-        }
-        else
-#endif
-        {
-            // load all other image types - for RAW formats, rely on embedded preview
-            if (!(dib = FreeImage_LoadX(fif, localname.localpath.c_str(),
-#ifndef OLD_FREEIMAGE
-                                        (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
-#else
-                                        0)))
-#endif
-            {
-                return false;
-            }
-        }
-#if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
-    }
-#endif
-
-    w = FreeImage_GetWidth(dib);
-    h = FreeImage_GetHeight(dib);
-
-    if (!w || !h)
-    {
-        return false;
     }
 
     return true;
