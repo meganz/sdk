@@ -5350,6 +5350,9 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     }
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
 
+    // Inject filesystem logger.
+    client->mFilesystemLogger = &mFilesystemLogger;
+
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     httpio->unlock();
 #endif

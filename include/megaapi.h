@@ -9705,6 +9705,19 @@ class MegaApi
         static void removeLoggerObject(MegaLogger *megaLogger);
 
         /**
+         * @brief
+         * Specify a logger to receive filesystem log messages from the SDK.
+         *
+         * @param logger
+         * The logger you want to receive filesystem log messages.
+         *
+         * Note that null is a valid value for this parameter and if
+         * specified, will prevent the SDK from sending log messages to the
+         * logger previously specified using this function.
+         */
+        void setFilesystemLoggerObject(MegaLogger* logger);
+
+        /**
          * @brief Send a log to the logging system
          *
          * This log will be received by the active logger object (MegaApi::setLoggerObject) if
