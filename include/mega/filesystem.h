@@ -603,6 +603,20 @@ int platformCompareUtf(const string&, bool unescape1, const LocalPath&, bool une
 int platformCompareUtf(const LocalPath&, bool unescape1, const string&, bool unescape2);
 int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool unescape2);
 
+// Checks whether a given name requires escaping.
+bool isNameEscapable(const FileSystemAccess& fsAccess,
+                     const LocalPath& localName,
+                     FileSystemType fsType);
+
+bool isNameEscapable(const FileSystemAccess& fsAccess,
+                     const string& remoteName,
+                     FileSystemType fsType);
+
+// Checks whether a path's leaf name requires escaping.
+bool isPathEscapable(const FileSystemAccess& fsAccess,
+                     const LocalPath& localPath,
+                     FileSystemType fsType);
+
 } // namespace
 
 #endif

@@ -1245,5 +1245,30 @@ ScopedLengthRestore::~ScopedLengthRestore()
     path.localpath.resize(length);
 };
 
+bool isNameEscapable(const FileSystemAccess& fsAccess,
+                     const LocalPath& localName,
+                     FileSystemType fsType)
+{
+    auto name = localName.toName(fsAccess, fsType);
+
+    return name != localName.toPath(fsAccess);
+}
+
+bool isNameEscapable(const FileSystemAccess& fsAccess,
+                     const string& remoteName,
+                     FileSystemType fsType)
+{
+    auto localName = LocalPath::fromName(remoteName, fsAccess, fsType);
+
+    return localName.toPath(fsAccess) != remoteName;
+}
+
+bool isPathEscapable(const FileSystemAccess& fsAccess,
+                     const LocalPath& localPath,
+                     FileSystemType fsType)
+{
+    return isNameEscapable(fsAccess, localPath.leafName(), fsType);
+}
+
 } // namespace
 
