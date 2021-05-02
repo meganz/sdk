@@ -190,12 +190,14 @@ class SimpleLogger
 {
     enum LogLevel level;
 
+public:
+    static std::string getTime();
+
+private:
 #ifndef ENABLE_LOG_PERFORMANCE
     std::ostringstream ostr;
     std::string t;
     std::string fname;
-
-    std::string getTime();
 
     // logging can occur from multiple threads, so we need to protect the lists of loggers to send to
     // though the loggers themselves are presumed to be owned elsewhere, and the pointers must remain valid
@@ -625,5 +627,86 @@ inline void crashlytics_log(const char* msg)
 }
 #endif
 
+class LoggerLogMessage
+{
+public:
+    LoggerLogMessage(Logger* logger, LogLevel logLevel, const char* file, int line)
+      : mMessage()
+      , mFile(file)
+      , mLogger(logger)
+      , mLogLevel(logLevel)
+      , mLine(line)
+    {
+    }
+
+    ~LoggerLogMessage()
+    {
+        // Send a message to the logger.
+        if (mLogger)
+        {
+#ifdef ENABLE_LOG_PERFORMANCE
+            mLogger->log(nullptr,
+                         mLogLevel,
+                         nullptr,
+                         mMessage.str().c_str(),
+                         nullptr,
+                         nullptr,
+                         0);
+#else // ENABLE_LOG_PERFORMANCE
+            ostringstream ostream;
+
+            ostream << mFile << ":" << mLine;
+
+            mLogger->log(SimpleLogger::getTime().c_str(),
+                         mLogLevel,
+                         ostream.str().c_str(),
+                         mMessage.str().c_str());
+#endif // ! ENABLE_LOG_PERFORMANCE
+        }
+
+        // Send a message to the primary logs, too.
+        if (SimpleLogger::logCurrentLevel >= mLogLevel)
+        {
+            SimpleLogger(mLogLevel, mFile, mLine) << mMessage.str().c_str();
+        }
+    }
+
+    template<typename T, typename = typename std::enable_if<std::is_scalar<T>::value>::type>
+    LoggerLogMessage& operator<<(const T value)
+    {
+        mMessage << value;
+
+        return *this;
+    }
+
+    template<typename T>
+    LoggerLogMessage& operator<<(const T* value)
+    {
+        mMessage << value;
+
+        return *this;
+    }
+
+    template<typename T, typename = typename std::enable_if<!std::is_scalar<T>::value>::type>
+    LoggerLogMessage& operator<<(const T& value)
+    {
+        mMessage << value;
+
+        return *this;
+    }
+
+private:
+    ostringstream mMessage;
+    const char* mFile;
+    Logger* mLogger;
+    LogLevel mLogLevel;
+    int mLine;
+}; // FilesystemLogMessage
+
+#define LOGFS_warn(client) \
+    LoggerLogMessage((client).mFilesystemLogger, \
+                     ::mega::logWarning, \
+                     ::mega::log_file_leafname(__FILE__), \
+                     __LINE__)
 
 } // namespace
