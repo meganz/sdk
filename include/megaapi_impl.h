@@ -184,6 +184,97 @@ private:
     bool logToConsole;
 };
 
+class MegaLoggerProxy
+  : public Logger
+{
+    using LockType = std::recursive_mutex;
+
+public:
+    MegaLoggerProxy()
+      : MegaLoggerProxy(nullptr)
+    {
+    }
+
+    explicit
+    MegaLoggerProxy(MegaLogger* logger)
+      : mLogger(logger)
+      , mLock()
+    {
+    }
+
+    MegaLoggerProxy(const MegaLoggerProxy& other)
+      : mLogger(nullptr)
+      , mLock()
+    {
+        std::lock_guard<LockType> guard(other.mLock);
+
+        mLogger = other.mLogger;
+    }
+
+    ~MegaLoggerProxy()
+    {
+        std::lock_guard<LockType> guard(mLock);
+    }
+
+    MegaLoggerProxy& operator=(const MegaLoggerProxy& rhs)
+    {
+        if (this == &rhs) return *this;
+
+        std::lock(mLock, rhs.mLock);
+        std::lock_guard<LockType> guard0(mLock, std::adopt_lock);
+        std::lock_guard<LockType> guard1(rhs.mLock, std::adopt_lock);
+
+        return mLogger = rhs.mLogger, *this;
+    }
+
+    MegaLoggerProxy& operator=(MegaLogger* logger)
+    {
+        std::lock_guard<LockType> guard(mLock);
+
+        return mLogger = logger, *this;
+    }
+
+    MegaLoggerProxy& operator=(std::nullptr_t)
+    {
+        std::lock_guard<LockType> guard(mLock);
+
+        return mLogger = nullptr, *this;
+    }
+
+    void log(const char* time,
+             int logLevel,
+             const char* source,
+             const char* message
+#ifdef ENABLE_LOG_PERFORMANCE
+             ,
+             const char** directMessages,
+             size_t *directMessageSizes,
+             unsigned numDirectMessages
+#endif // ENABLE_LOG_PERFORMANCE
+            ) override
+    {
+        std::lock_guard<LockType> guard(mLock);
+
+        if (!mLogger) return;
+
+        mLogger->log(time,
+                     logLevel,
+                     source,
+                     message
+#ifdef ENABLE_LOG_PERFORMANCE
+                     ,
+                     directMessages,
+                     directMessageSizes,
+                     numDirectMessages
+#endif // ENABLE_LOG_PERFORMANCE
+                    );
+    }
+
+private:
+    MegaLogger* mLogger = nullptr;
+    mutable LockType mLock;
+}; // MegaLoggerProxy
+
 class MegaTransferPrivate;
 class MegaTreeProcCopy : public MegaTreeProcessor
 {
