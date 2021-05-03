@@ -655,6 +655,100 @@ TEST(Filesystem, NormalizeRelativeEmpty)
     EXPECT_EQ(NormalizeRelative(path), path);
 }
 
+TEST(Filesystem, isNameEscapable)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+    LocalPath name;
+
+    // No escaping necessary.
+    EXPECT_FALSE(isNameEscapable(fsAccess, "a", FS_UNKNOWN));
+
+    name = LocalPath::fromPath("a", fsAccess);
+    EXPECT_FALSE(isNameEscapable(fsAccess, name, FS_UNKNOWN));
+
+    // Escaping necessary.
+    EXPECT_TRUE(isNameEscapable(fsAccess, "a:b", FS_UNKNOWN));
+
+    name = LocalPath::fromPath("a%3ab", fsAccess);
+    EXPECT_TRUE(isNameEscapable(fsAccess, name, FS_UNKNOWN));
+}
+
+TEST(Filesystem, isPathEscapable)
+{
+#ifdef _WIN32
+#define SEP "\\"
+#else // _WIN32
+#define SEP "/"
+#endif // ! _WIN32
+
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+    LocalPath path;
+
+    // No escaping necessary.
+    path = LocalPath::fromPath("a" SEP "b", fsAccess);
+    EXPECT_FALSE(isPathEscapable(fsAccess, path, FS_UNKNOWN));
+
+    // Escaping necessary.
+    path = LocalPath::fromPath("a" SEP "b%3ac", fsAccess);
+    EXPECT_TRUE(isPathEscapable(fsAccess, path, FS_UNKNOWN));
+
+    // Only the leaf's name is checked.
+    path = LocalPath::fromPath("a%3ab" SEP "b", fsAccess);
+    EXPECT_FALSE(isPathEscapable(fsAccess, path, FS_UNKNOWN));
+
+#undef SEP
+}
+
+TEST(Filesystem, isPotentiallyInaccessibleName)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+    bool expected = false;
+
+#ifdef _WIN32
+    expected = true;
+#endif // _WIN32
+    
+    // Representative examples.
+    static const string reserved[] = {"AUX", "com1", "LPT4"};
+
+    for (auto& r : reserved)
+    {
+        auto name = LocalPath::fromPath(r, fsAccess);
+        EXPECT_EQ(isPotentiallyInaccessibleName(fsAccess, name, FILENODE),   expected);
+        EXPECT_EQ(isPotentiallyInaccessibleName(fsAccess, name, FOLDERNODE), expected);
+        EXPECT_EQ(isPotentiallyInaccessiblePath(fsAccess, name, FILENODE),   expected);
+        EXPECT_EQ(isPotentiallyInaccessiblePath(fsAccess, name, FOLDERNODE), expected);
+    }
+
+    auto name = LocalPath::fromPath("a.", fsAccess);
+    EXPECT_FALSE(isPotentiallyInaccessibleName(fsAccess, name, FILENODE));
+    EXPECT_FALSE(isPotentiallyInaccessiblePath(fsAccess, name, FILENODE));
+    EXPECT_EQ(isPotentiallyInaccessibleName(fsAccess, name, FOLDERNODE), expected);
+    EXPECT_EQ(isPotentiallyInaccessiblePath(fsAccess, name, FOLDERNODE), expected);
+}
+
+TEST(Filesystem, isPotentiallyInaccessiblePath)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+    bool expected = false;
+
+#ifdef _WIN32
+    expected = true;
+#endif // _WIN32
+
+    auto path = LocalPath::fromPath(string(255, 'x'), fsAccess);
+    EXPECT_EQ(isPotentiallyInaccessiblePath(fsAccess, path, FILENODE),   expected);
+    EXPECT_EQ(isPotentiallyInaccessiblePath(fsAccess, path, FOLDERNODE), expected);
+}
+
 class SqliteDBTest
   : public ::testing::Test
 {

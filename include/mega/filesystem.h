@@ -108,6 +108,11 @@ class MEGA_API LocalPath
     friend int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
     friend int compareUtf(const LocalPath&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
 
+#ifdef _WIN32
+    friend bool isPotentiallyInaccessibleName(const FileSystemAccess&, const LocalPath&, nodetype_t);
+    friend bool isPotentiallyInaccessiblePath(const FileSystemAccess&, const LocalPath&, nodetype_t);
+#endif // ! _WIN32
+
 public:
     LocalPath() {}
 
@@ -616,6 +621,25 @@ bool isNameEscapable(const FileSystemAccess& fsAccess,
 bool isPathEscapable(const FileSystemAccess& fsAccess,
                      const LocalPath& localPath,
                      FileSystemType fsType);
+
+// Checks whether the given name is potentially inaccessible.
+//
+// On Windows, a name is potentially inaccessible if:
+// - It is a reserved name.
+//   - AUX, COM[0-9], CON, LPT[0-9], NUL or PRN.
+// - The name ends with a period (for directories.)
+bool isPotentiallyInaccessibleName(const FileSystemAccess& fsAccess,
+                                   const LocalPath& localName,
+                                   nodetype_t type);
+
+// Checks whether a path is potentially inaccessible.
+//
+// On Windows, a path is potentially inaccessible if:
+// - The path is longer than 254 characters.
+// - The path's leaf file name is potentially inaccessible.
+bool isPotentiallyInaccessiblePath(const FileSystemAccess& fsAccess,
+                                   const LocalPath& localPath,
+                                   nodetype_t type);
 
 } // namespace
 

@@ -2121,4 +2121,16 @@ PosixDirAccess::~PosixDirAccess()
         globfree(&globbuf);
     }
 }
+
+
+bool isPotentiallyInaccessibleName(const FileSystemAccess&, const LocalPath&, nodetype_t)
+{
+    return false;
+}
+
+bool isPotentiallyInaccessiblePath(const FileSystemAccess&, const LocalPath&, nodetype_t)
+{
+    return false;
+}
+
 } // namespace
