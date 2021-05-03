@@ -11446,7 +11446,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     LOG_info << "Loading session from local cache";
 
-    mCachedStatus.clear();
     sctable->rewind();
 
     bool hasNext = sctable->next(&id, &data, &key);
