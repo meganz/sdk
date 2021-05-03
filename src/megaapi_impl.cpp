@@ -20750,7 +20750,6 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else if (resumeEphemeralPlusPlus)
                 {
-                    client->resumeephemeralPlusPlus(sid);
                     client->resumeephemeralPlusPlus(Base64::atob(string(sid)));
                 }
                 else if (createEphemeralPlusPlus)
