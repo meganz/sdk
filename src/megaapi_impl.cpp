@@ -5351,7 +5351,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
 
     // Inject filesystem logger.
-    client->mFilesystemLogger = &mFilesystemLogger;
+    FilesystemLogger::setLogger(&mFilesystemLogger);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     httpio->unlock();
@@ -5685,6 +5685,13 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
     MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance());
 }
 #endif
+
+MegaLoggerProxy MegaApiImpl::mFilesystemLogger;
+
+void MegaApiImpl::setFilesystemLoggerObject(MegaLogger* logger)
+{
+    mFilesystemLogger = logger;
+}
 
 long long MegaApiImpl::getSDKtime()
 {

@@ -2305,7 +2305,8 @@ class MegaApiImpl : public MegaApp
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
 #endif
 
-        MegaLoggerProxy mFilesystemLogger;
+        static void setFilesystemLoggerObject(MegaLogger* logger);
+        static MegaLoggerProxy mFilesystemLogger;
 
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
         int platformGetRLimitNumFile() const;

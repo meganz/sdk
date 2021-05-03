@@ -627,19 +627,18 @@ inline void crashlytics_log(const char* msg)
 }
 #endif
 
-class LoggerLogMessage
+class FilesystemLogger
 {
 public:
-    LoggerLogMessage(Logger* logger, LogLevel logLevel, const char* file, int line)
+    FilesystemLogger(LogLevel logLevel, const char* file, int line)
       : mMessage()
       , mFile(file)
-      , mLogger(logger)
       , mLogLevel(logLevel)
       , mLine(line)
     {
     }
 
-    ~LoggerLogMessage()
+    ~FilesystemLogger()
     {
         // Send a message to the logger.
         if (mLogger)
@@ -672,7 +671,7 @@ public:
     }
 
     template<typename T, typename = typename std::enable_if<std::is_scalar<T>::value>::type>
-    LoggerLogMessage& operator<<(const T value)
+    FilesystemLogger& operator<<(const T value)
     {
         mMessage << value;
 
@@ -680,7 +679,7 @@ public:
     }
 
     template<typename T>
-    LoggerLogMessage& operator<<(const T* value)
+    FilesystemLogger& operator<<(const T* value)
     {
         mMessage << value;
 
@@ -688,24 +687,28 @@ public:
     }
 
     template<typename T, typename = typename std::enable_if<!std::is_scalar<T>::value>::type>
-    LoggerLogMessage& operator<<(const T& value)
+    FilesystemLogger& operator<<(const T& value)
     {
         mMessage << value;
 
         return *this;
     }
 
+    static void setLogger(Logger* logger)
+    {
+        mLogger = logger;
+    }
+
 private:
     ostringstream mMessage;
     const char* mFile;
-    Logger* mLogger;
+    static Logger* mLogger;
     LogLevel mLogLevel;
     int mLine;
 }; // FilesystemLogMessage
 
-#define LOGFS_warn(client) \
-    LoggerLogMessage((client).mFilesystemLogger, \
-                     ::mega::logWarning, \
+#define LOGFS_warn() \
+    FilesystemLogger(::mega::logWarning, \
                      ::mega::log_file_leafname(__FILE__), \
                      __LINE__)
 

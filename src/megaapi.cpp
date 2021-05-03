@@ -1932,7 +1932,7 @@ void MegaApi::removeLoggerObject(MegaLogger *megaLogger)
 
 void MegaApi::setFilesystemLoggerObject(MegaLogger* logger)
 {
-    pImpl->mFilesystemLogger = logger;
+    MegaApiImpl::setFilesystemLoggerObject(logger);
 }
 
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)

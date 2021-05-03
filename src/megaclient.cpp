@@ -15042,12 +15042,12 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             // Is the filename (un)escapable?
             if (isNameEscapable(*fsaccess, name, fsType))
             {
-                LOGFS_warn(*this) << "Starting "
-                                  << (d == GET ? "a download" : "an upload")
-                                  << " of a file with an (un)escapable name: "
-                                  << f->localname.toPath(*fsaccess)
-                                  << " ("
-                                  << name.toName(*fsaccess, fsType);
+                LOGFS_warn() << "Starting "
+                             << (d == GET ? "a download" : "an upload")
+                             << " of a file with an (un)escapable name: "
+                             << f->localname.toPath(*fsaccess)
+                             << " ("
+                             << name.toName(*fsaccess, fsType);
             }
         }
 

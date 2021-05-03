@@ -9715,7 +9715,7 @@ class MegaApi
          * specified, will prevent the SDK from sending log messages to the
          * logger previously specified using this function.
          */
-        void setFilesystemLoggerObject(MegaLogger* logger);
+        static void setFilesystemLoggerObject(MegaLogger* logger);
 
         /**
          * @brief Send a log to the logging system

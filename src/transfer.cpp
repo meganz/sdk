@@ -900,11 +900,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     {
                         auto name = (*it)->localname.leafName();
 
-                        LOGFS_warn(*client) << "Completing download of file with (un)escapable path: "
-                                            << (*it)->localname.toPath(*client->fsaccess)
-                                            << " ("
-                                            << name.toName(*client->fsaccess, fsType)
-                                            << ")";
+                        LOGFS_warn() << "Completing download of file with (un)escapable path: "
+                                     << (*it)->localname.toPath(*client->fsaccess)
+                                     << " ("
+                                     << name.toName(*client->fsaccess, fsType)
+                                     << ")";
                     }
 
                     if (success)
@@ -996,11 +996,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             {
                 auto name = localpath->leafName();
 
-                LOGFS_warn(*client) << "Completing upload of file with (un)escapable name: "
-                                    << localpath->toPath(*client->fsaccess)
-                                    << " ("
-                                    << name.toName(*client->fsaccess, fsType)
-                                    << ")";
+                LOGFS_warn() << "Completing upload of file with (un)escapable name: "
+                             << localpath->toPath(*client->fsaccess)
+                             << " ("
+                             << name.toName(*client->fsaccess, fsType)
+                             << ")";
             }
 
 #ifdef ENABLE_SYNC
