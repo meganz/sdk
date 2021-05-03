@@ -27356,7 +27356,7 @@ void MegaTCPServer::on_hd_complete( evt_tls_t *evt_tls, int status)
 
     if (status)
     {
-        evt_tls_read(evt_tls, evt_on_rd); //this only stablish callback
+        evt_tls_read(evt_tls, evt_on_rd); //this only establish callback
         if ( tcpctx->server->respondNewConnection(tcpctx) )
         {
             // we dont need to explicitally start reading. on_tcp_read will be called
