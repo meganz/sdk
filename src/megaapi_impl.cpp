@@ -5692,7 +5692,7 @@ void MegaApiImpl::setUserPathVariationsReceiver(MegaLogger* receiver)
         proxy.reset(new MegaLoggerProxy(*receiver));
     }
 
-    MegaClient::mUserPathVariationReceiver = std::move(proxy);
+    client->mUserPathVariationReceiver = std::move(proxy);
 }
 
 long long MegaApiImpl::getSDKtime()

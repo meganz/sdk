@@ -1932,7 +1932,7 @@ void MegaApi::removeLoggerObject(MegaLogger *megaLogger)
 
 void MegaApi::setUserPathVariationsReceiver(MegaLogger* receiver)
 {
-    MegaApiImpl::setUserPathVariationsReceiver(receiver);
+    pImpl->setUserPathVariationsReceiver(receiver);
 }
 
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)

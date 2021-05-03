@@ -1294,8 +1294,6 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
-unique_ptr<Logger> MegaClient::mUserPathVariationReceiver;
-
 void MegaClient::logUserPathVariation(const string& message)
 {
     if (!mUserPathVariationReceiver) return;

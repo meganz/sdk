@@ -2252,7 +2252,7 @@ class MegaApiImpl : public MegaApp
 #ifdef USE_ROTATIVEPERFORMANCELOGGER
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
 #endif
-        static void setUserPathVariationsReceiver(MegaLogger* receiver);
+        void setUserPathVariationsReceiver(MegaLogger* receiver);
 
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
         int platformGetRLimitNumFile() const;

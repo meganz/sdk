@@ -9716,7 +9716,7 @@ class MegaApi
          * specified, will prevent the SDK from sending log messages to the
          * logger previously specified using this function.
          */
-        static void setUserPathVariationsReceiver(MegaLogger* receiver);
+        void setUserPathVariationsReceiver(MegaLogger* receiver);
 
         /**
          * @brief Send a log to the logging system
