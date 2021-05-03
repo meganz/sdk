@@ -153,7 +153,13 @@ int main (int argc, char *argv[])
         }
         else if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
         {
-            gFseventsFd = std::stoi(std::string(*it).substr(13));
+            int fseventsFd = std::stoi(std::string(*it).substr(13));
+            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
+                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
+                return 1;
+            }
+
+            gFseventsFd = fseventsFd;
             argc -= 1;
         }
         else
