@@ -1890,6 +1890,9 @@ public:
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
+
+    static void logUserPathVariation(const string& message);
+    static unique_ptr<Logger> mUserPathVariationReceiver;
 };
 } // namespace
 

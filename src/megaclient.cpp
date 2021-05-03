@@ -1294,6 +1294,18 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
+unique_ptr<Logger> MegaClient::mUserPathVariationReceiver;
+
+void MegaClient::logUserPathVariation(const string& message)
+{
+    if (!mUserPathVariationReceiver) return;
+
+#ifdef ENABLE_LOG_PERFORMANCE
+    mUserPathVariationReceiver->log(nullptr, logWarning, nullptr, message.c_str(), nullptr, nullptr, 0);
+#else // ENABLE_LOG_PERFORMANCE
+    mUserPathVariationReceiver->log(nullptr, logWarning, nullptr, message.c_str());
+#endif // ! ENABLE_LOG_PERFORMANCE
+}
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
@@ -15039,16 +15051,21 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             // Is the filename (un)escapable?
             if (isProblematicPath(*fsaccess, f->localname, fsType))
             {
+                ostringstream ostream;
+
                 // Get our hands on the file's name.
                 auto name = f->localname.leafName();
 
-                LOGFS_warn() << "Starting "
-                             << (d == GET ? "download" : "upload")
-                             << " of file: "
-                             << f->localname.toPath(*fsaccess)
-                             << " ("
-                             << name.toName(*fsaccess, fsType)
-                             << ")";
+                ostream << "Starting "
+                        << (d == GET ? "download" : "upload")
+                        << " of file: "
+                        << f->localname.toPath(*fsaccess)
+                        << " ("
+                        << name.toName(*fsaccess, fsType)
+                        << ")";
+
+                logUserPathVariation(ostream.str());
+                LOG_warn << ostream.str();
             }
         }
 

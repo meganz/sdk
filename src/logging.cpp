@@ -37,7 +37,6 @@
 namespace mega {
 
 
-Logger *FilesystemLogger::mLogger = nullptr;
 Logger *SimpleLogger::logger = nullptr;
 
 // by the default, display logs with level equal or less than logInfo

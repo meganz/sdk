@@ -898,13 +898,18 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 {
                     if (isProblematicPath(*client->fsaccess, (*it)->localname, fsType))
                     {
+                        ostringstream ostream;
+
                         auto name = (*it)->localname.leafName();
 
-                        LOGFS_warn() << "Completing download of file: "
-                                     << (*it)->localname.toPath(*client->fsaccess)
-                                     << " ("
-                                     << name.toName(*client->fsaccess, fsType)
-                                     << ")";
+                        ostream << "Completing download of file: "
+                                << (*it)->localname.toPath(*client->fsaccess)
+                                << " ("
+                                << name.toName(*client->fsaccess, fsType)
+                                << ")";
+
+                        client->logUserPathVariation(ostream.str());
+                        LOG_warn << ostream.str();
                     }
 
                     if (success)
@@ -994,13 +999,18 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
             if (isProblematicPath(*client->fsaccess, *localpath, fsType))
             {
+                ostringstream ostream;
+
                 auto name = localpath->leafName();
 
-                LOGFS_warn() << "Completing upload of file: "
-                             << localpath->toPath(*client->fsaccess)
-                             << " ("
-                             << name.toName(*client->fsaccess, fsType)
-                             << ")";
+                ostream << "Completing upload of file: "
+                        << localpath->toPath(*client->fsaccess)
+                        << " ("
+                        << name.toName(*client->fsaccess, fsType)
+                        << ")";
+
+                client->logUserPathVariation(ostream.str());
+                LOG_warn << ostream.str();
             }
 
 #ifdef ENABLE_SYNC

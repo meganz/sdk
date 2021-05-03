@@ -9706,16 +9706,17 @@ class MegaApi
 
         /**
          * @brief
-         * Specify a logger to receive filesystem log messages from the SDK.
+         * Specify a logger to receive notifications from the SDK regarding
+         * paths that require (un)escaping.
          *
-         * @param logger
-         * The logger you want to receive filesystem log messages.
+         * @param receiver
+         * The logger that should receive path notifications.
          *
          * Note that null is a valid value for this parameter and if
          * specified, will prevent the SDK from sending log messages to the
          * logger previously specified using this function.
          */
-        static void setFilesystemLoggerObject(MegaLogger* logger);
+        static void setUserPathVariationsReceiver(MegaLogger* receiver);
 
         /**
          * @brief Send a log to the logging system

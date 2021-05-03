@@ -1930,9 +1930,9 @@ void MegaApi::removeLoggerObject(MegaLogger *megaLogger)
     MegaApiImpl::removeLoggerClass(megaLogger);
 }
 
-void MegaApi::setFilesystemLoggerObject(MegaLogger* logger)
+void MegaApi::setUserPathVariationsReceiver(MegaLogger* receiver)
 {
-    MegaApiImpl::setFilesystemLoggerObject(logger);
+    MegaApiImpl::setUserPathVariationsReceiver(receiver);
 }
 
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)
