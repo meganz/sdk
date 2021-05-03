@@ -622,6 +622,16 @@ bool isPathEscapable(const FileSystemAccess& fsAccess,
                      const LocalPath& localPath,
                      FileSystemType fsType);
 
+// Checks whether a path is "problematic."
+//
+// A path is problematic if:
+// - The path's leaf is (un)escapable.
+// - The path is potentially inaccessible.
+bool isProblematicPath(const FileSystemAccess& fsAccess,
+                       const LocalPath& localPath,
+                       FileSystemType fsType,
+                       nodetype_t type = FILENODE);
+
 // Checks whether the given name is potentially inaccessible.
 //
 // On Windows, a name is potentially inaccessible if:
@@ -630,7 +640,7 @@ bool isPathEscapable(const FileSystemAccess& fsAccess,
 // - The name ends with a period (for directories.)
 bool isPotentiallyInaccessibleName(const FileSystemAccess& fsAccess,
                                    const LocalPath& localName,
-                                   nodetype_t type);
+                                   nodetype_t type = FILENODE);
 
 // Checks whether a path is potentially inaccessible.
 //
@@ -639,7 +649,7 @@ bool isPotentiallyInaccessibleName(const FileSystemAccess& fsAccess,
 // - The path's leaf file name is potentially inaccessible.
 bool isPotentiallyInaccessiblePath(const FileSystemAccess& fsAccess,
                                    const LocalPath& localPath,
-                                   nodetype_t type);
+                                   nodetype_t type = FILENODE);
 
 } // namespace
 

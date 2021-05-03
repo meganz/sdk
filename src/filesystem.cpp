@@ -1270,5 +1270,14 @@ bool isPathEscapable(const FileSystemAccess& fsAccess,
     return isNameEscapable(fsAccess, localPath.leafName(), fsType);
 }
 
+bool isProblematicPath(const FileSystemAccess& fsAccess,
+                       const LocalPath& localPath,
+                       FileSystemType fsType,
+                       nodetype_t type)
+{
+    return isPotentiallyInaccessiblePath(fsAccess, localPath, type)
+           || isPathEscapable(fsAccess, localPath, fsType);
+}
+
 } // namespace
 
