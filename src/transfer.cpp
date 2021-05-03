@@ -601,6 +601,9 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
     state = TRANSFERSTATE_COMPLETING;
     client->app->transfer_update(this);
 
+    // Needed so we can apply appropriate (un)escaping rules.
+    auto fsType = client->fsaccess->getlocalfstype(localfilename);
+
     if (type == GET)
     {
         LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size();
@@ -893,6 +896,17 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
+                    if (isPathEscapable(*client->fsaccess, (*it)->localname, fsType))
+                    {
+                        auto name = (*it)->localname.leafName();
+
+                        LOGFS_warn(*client) << "Completing download of file with (un)escapable path: "
+                                            << (*it)->localname.toPath(*client->fsaccess)
+                                            << " ("
+                                            << name.toName(*client->fsaccess, fsType)
+                                            << ")";
+                    }
+
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
@@ -977,6 +991,17 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         {
             File *f = (*it);
             LocalPath *localpath = &f->localname;
+
+            if (isPathEscapable(*client->fsaccess, *localpath, fsType))
+            {
+                auto name = localpath->leafName();
+
+                LOGFS_warn(*client) << "Completing upload of file with (un)escapable name: "
+                                    << localpath->toPath(*client->fsaccess)
+                                    << " ("
+                                    << name.toName(*client->fsaccess, fsType)
+                                    << ")";
+            }
 
 #ifdef ENABLE_SYNC
             LocalPath synclocalpath;
