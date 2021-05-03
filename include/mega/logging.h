@@ -190,14 +190,12 @@ class SimpleLogger
 {
     enum LogLevel level;
 
-public:
-    static std::string getTime();
-
-private:
 #ifndef ENABLE_LOG_PERFORMANCE
     std::ostringstream ostr;
     std::string t;
     std::string fname;
+
+    std::string getTime();
 
     // logging can occur from multiple threads, so we need to protect the lists of loggers to send to
     // though the loggers themselves are presumed to be owned elsewhere, and the pointers must remain valid
@@ -626,5 +624,6 @@ inline void crashlytics_log(const char* msg)
 #endif
 }
 #endif
+
 
 } // namespace

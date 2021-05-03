@@ -43,17 +43,6 @@ Logger *SimpleLogger::logger = nullptr;
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
 long long SimpleLogger::maxPayloadLogSize  = 10240;
 
-std::string SimpleLogger::getTime()
-{
-    char ts[50];
-    time_t t = std::time(NULL);
-
-    if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::gmtime(&t))) {
-        ts[0] = '\0';
-    }
-    return ts;
-}
-
 #ifdef ENABLE_LOG_PERFORMANCE
 
 #ifdef WIN32
@@ -66,6 +55,17 @@ __thread std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer;
 // static member initialization
 std::mutex SimpleLogger::outputs_mutex;
 OutputMap SimpleLogger::outputs;
+
+std::string SimpleLogger::getTime()
+{
+    char ts[50];
+    time_t t = std::time(NULL);
+
+    if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::gmtime(&t))) {
+        ts[0] = '\0';
+    }
+    return ts;
+}
 
 void SimpleLogger::flush()
 {
