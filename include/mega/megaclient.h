@@ -513,11 +513,6 @@ public:
     bool syncsup;
 
 #endif
-    // backup names pending to be sent
-    string_map mPendingBackupNames;
-
-    // true if setting the backup name for any backup id is in progress
-    bool mSendingBackupName = false;
 
     // if set, symlinks will be followed except in recursive deletions
     // (give the user ample warning about possible sync repercussions)
@@ -1062,6 +1057,9 @@ private:
     // fetch statusTable from local cache
     bool fetchStatusTable(DbTable*);
 
+    // open/create status database table
+    void doOpenStatusTable();
+
     // remove old (2 days or more) transfers from cache, if they were not resumed
     void purgeOrphanTransfers(bool remove = false);
 
@@ -1215,14 +1213,16 @@ public:
     // open/create state cache database table
     void opensctable();
 
-    // open/create status database table
-    void openStatusTable();
+    // opens (or creates if non existing) a status database table.
+    //   if loadFromCache is true, it will load status from the table.
+    void openStatusTable(bool loadFromCache);
 
     // initialize/update state cache referenced sctable
     void initsc();
     void updatesc();
     void finalizesc(bool);
 
+    // truncates status table
     void initStatusTable();
 
     // flag to pause / resume the processing of action packets
@@ -1814,9 +1814,6 @@ public:
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
-    // indicates that the last update to mBizStatus comes from cache.
-    // Used to notify the apps in the very first non-cache update. For backwards compatibility.
-    bool mBizStatusLoadedFromCache = false;
 
     // list of handles of the Master business account/s
     std::set<handle> mBizMasters;
