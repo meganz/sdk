@@ -61,6 +61,9 @@ std::string toNodeHandle(NodeHandle nodeHandle);
 std::string toHandle(handle h);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
+class SimpleLogger;
+SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
+
 std::string backupTypeToStr(BackupType type);
 
 struct MEGA_API ChunkedHash

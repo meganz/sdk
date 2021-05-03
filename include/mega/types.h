@@ -156,7 +156,11 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
+               REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED,
+               REQ_INFLIGHT,
+               REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO,
+               } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
@@ -269,20 +273,19 @@ class NodeHandle
     // This class helps avoid issues when we don't save/restore the top 2 bytes when using an 8 byte uint64 to represent it
     uint64_t h = 0xFFFFFFFFFFFFFFFF;
 public:
-    bool isUndef() { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
+    bool isUndef() const { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
     NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0 || n == 0xFFFFFFFFFFFFFFFF); return *this; }
-    bool eq(NodeHandle b) { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
-    bool eq(handle b) { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
-    bool ne(handle b) { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    bool eq(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
+    bool eq(handle b) const { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
+    bool ne(handle b) const { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
     bool operator<(const NodeHandle& rhs) const { return h < rhs.h; }
-    handle as8byte() { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
+    handle as8byte() const { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
 };
 
 inline bool operator==(NodeHandle a, NodeHandle b) { return a.eq(b); }
 inline bool operator==(NodeHandle a, handle b) { return a.eq(b); }
 inline bool operator!=(NodeHandle a, handle b) { return a.ne(b); }
 std::ostream& operator<<(std::ostream&, NodeHandle h);
-SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
 
 // (can use unordered_set if available)
 typedef set<handle> handle_set;
@@ -595,7 +598,7 @@ typedef enum {
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
-    ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
+    //ATTR_BACKUP_NAMES = 32,                 // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34         // private - byte array - non-versioned
 

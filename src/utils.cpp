@@ -49,6 +49,7 @@ string toNodeHandle(NodeHandle nodeHandle)
 {
     return toNodeHandle(nodeHandle.as8byte());
 }
+
 string toHandle(handle h)
 {
     char base64Handle[14];
