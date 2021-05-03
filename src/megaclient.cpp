@@ -15036,18 +15036,19 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             // Needed so we can apply appropriate (un)escaping rules.
             auto fsType = fsaccess->getlocalfstype(f->localname);
 
-            // Get our hands on the file's name.
-            auto name = f->localname.leafName();
-
             // Is the filename (un)escapable?
-            if (isNameEscapable(*fsaccess, name, fsType))
+            if (isProblematicPath(*fsaccess, f->localname, fsType))
             {
+                // Get our hands on the file's name.
+                auto name = f->localname.leafName();
+
                 LOGFS_warn() << "Starting "
-                             << (d == GET ? "a download" : "an upload")
-                             << " of a file with an (un)escapable name: "
+                             << (d == GET ? "download" : "upload")
+                             << " of file: "
                              << f->localname.toPath(*fsaccess)
                              << " ("
-                             << name.toName(*fsaccess, fsType);
+                             << name.toName(*fsaccess, fsType)
+                             << ")";
             }
         }
 

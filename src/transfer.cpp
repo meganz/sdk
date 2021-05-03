@@ -896,11 +896,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
-                    if (isPathEscapable(*client->fsaccess, (*it)->localname, fsType))
+                    if (isProblematicPath(*client->fsaccess, (*it)->localname, fsType))
                     {
                         auto name = (*it)->localname.leafName();
 
-                        LOGFS_warn() << "Completing download of file with (un)escapable path: "
+                        LOGFS_warn() << "Completing download of file: "
                                      << (*it)->localname.toPath(*client->fsaccess)
                                      << " ("
                                      << name.toName(*client->fsaccess, fsType)
@@ -992,11 +992,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             File *f = (*it);
             LocalPath *localpath = &f->localname;
 
-            if (isPathEscapable(*client->fsaccess, *localpath, fsType))
+            if (isProblematicPath(*client->fsaccess, *localpath, fsType))
             {
                 auto name = localpath->leafName();
 
-                LOGFS_warn() << "Completing upload of file with (un)escapable name: "
+                LOGFS_warn() << "Completing upload of file: "
                              << localpath->toPath(*client->fsaccess)
                              << " ("
                              << name.toName(*client->fsaccess, fsType)
