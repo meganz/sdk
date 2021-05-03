@@ -497,7 +497,6 @@ SyncConfig::SyncConfig(LocalPath localPath,
                        NodeHandle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
-                       std::vector<std::string> regExps,
                        const bool enabled,
                        const SyncConfig::Type syncType,
                        const SyncError error,
@@ -509,7 +508,6 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mRemoteNode{remoteNode}
     , mOrigninalPathOfRemoteRootNode{remotePath}
     , mLocalFingerprint{localFingerprint}
-    , mRegExps{std::move(regExps)}
     , mSyncType{syncType}
     , mError{error}
     , mWarning{warning}
@@ -527,7 +525,6 @@ bool SyncConfig::operator==(const SyncConfig& rhs) const
            && mRemoteNode == rhs.mRemoteNode
            && mOrigninalPathOfRemoteRootNode == rhs.mOrigninalPathOfRemoteRootNode
            && mLocalFingerprint == rhs.mLocalFingerprint
-           && mRegExps == rhs.mRegExps
            && mSyncType == rhs.mSyncType
            && mError == rhs.mError
            && mBackupId == rhs.mBackupId
@@ -573,16 +570,6 @@ handle SyncConfig::getLocalFingerprint() const
 void SyncConfig::setLocalFingerprint(fsfp_t fingerprint)
 {
     mLocalFingerprint = fingerprint;
-}
-
-const std::vector<std::string>& SyncConfig::getRegExps() const
-{
-    return mRegExps;
-}
-
-void SyncConfig::setRegExps(std::vector<std::string>&& v)
-{
-    mRegExps = std::move(v);
 }
 
 SyncConfig::Type SyncConfig::getType() const
@@ -3913,18 +3900,6 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
             reader.storebinary(&config.mOrigninalPathOfRemoteRootNode);
             break;
 
-        case TYPE_EXCLUSION_RULES:
-        {
-            if (!reader.enterarray()) return false;
-            string s;
-            while (reader.storeobject(&s))
-            {
-                config.mRegExps.push_back(Base64::atob(s));
-            }
-            if (!reader.leavearray()) return false;
-            break;
-        }
-
         default:
             if (!reader.storeobject())
             {
@@ -3987,14 +3962,6 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg("st", config.mSyncType);
     writer.arg("en", config.mEnabled);
     writer.arg("bs", config.mBackupState);
-
-    writer.beginarray("er");
-    for (auto& s : config.mRegExps)
-    {
-        // store as binary so the strings get btoa'd so no JSON injections
-        writer.element_B64(s);
-    }
-    writer.endarray();
     writer.endobject();
 }
 
