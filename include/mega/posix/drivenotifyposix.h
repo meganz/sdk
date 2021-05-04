@@ -46,11 +46,11 @@ public:
     ~DriveNotifyPosix() override;
 protected:
     bool notifierSetup() override;
-    void notifierTeardown();
-
     void doInThread() override;
 
 private:
+    void notifierTeardown();    // don't make it virtual, it's called from destructor
+
     void cacheMountedPartitions();
     bool isRemovable(udev_device* part);
     void evaluateDevice(udev_device* dev);  // dev must Not be null
