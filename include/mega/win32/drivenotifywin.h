@@ -39,8 +39,7 @@ namespace mega {
 class DriveNotifyWin : public DriveNotify
 {
 public:
-    DriveNotifyWin() : mStop(false) {}
-    ~DriveNotifyWin() override { stop(); }
+    ~DriveNotifyWin() override { stopNotifier(); }
 
 protected:
     void doInThread() override;

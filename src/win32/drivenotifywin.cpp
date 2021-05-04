@@ -60,36 +60,18 @@ public:
 // DriveNotifyWin
 /////////////////////////////////////////////
 
-bool DriveNotifyWin::startNotifier()
-{
-    if (mEventSinkThread.joinable() || mStop.load())  return false;
-
-    mEventSinkThread = thread(&DriveNotifyWin::doInThread, this);
-
-    return true;
-}
-
-
-
-void DriveNotifyWin::stopNotifier()
-{
-    if (!mEventSinkThread.joinable())  return;
-
-    mStop.store(true);
-    mEventSinkThread.join();
-    mStop.store(false); // allow reusing this instance
-}
-
-
-
 void DriveNotifyWin::doInThread()
 {
     // init com
-    if (!WinWmi::InitializeCom())  return;
+    if (!WinWmi::InitializeCom())  return; // must be done in the context of this thread
 
     IWbemLocator* pLocator = nullptr;
     IWbemServices* pService = nullptr;
-    if (!WinWmi::GetWbemService(&pLocator, &pService)) { CoUninitialize(); return; }
+    if (!WinWmi::GetWbemService(&pLocator, &pService))
+    {
+        CoUninitialize();
+        return;
+    }
 
     // BSTR is wchar_t*. Use the latter to avoid including even more obscure headers.
     wchar_t foolBstrWql[] = L"WQL";
@@ -112,7 +94,7 @@ void DriveNotifyWin::doInThread()
         nullptr,                                                  // pCtx
         &pEnumerator);                                            // ppEnum
 
-    if (FAILED(result))
+    if (FAILED(result) || !pEnumerator)
     {
         pService->Release();
         pLocator->Release();
@@ -180,8 +162,6 @@ void DriveNotifyWin::doInThread()
     pService->Release();
     pLocator->Release();
     CoUninitialize();
-
-    return;
 }
 
 
