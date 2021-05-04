@@ -36,6 +36,13 @@ namespace mega {
 // DriveNotifyPosix
 /////////////////////////////////////////////
 
+DriveNotifyPosix::~DriveNotifyPosix()
+{
+    // stop the notifier's thread, if running
+    stopNotifier();
+}
+
+
 bool DriveNotifyPosix::notifierSetup()
 {
     // init udev resource
@@ -117,6 +124,9 @@ void DriveNotifyPosix::doInThread()
             udev_device_unref(dev);
         }
     }
+
+    // do some cleanup
+    notifierTeardown();
 }
 
 
@@ -261,3 +271,4 @@ bool DriveNotifyPosix::isRemovable(udev_device* part)
 } // namespace
 
 #endif // USE_DRIVE_NOTIFICATIONS
+

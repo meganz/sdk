@@ -42,9 +42,11 @@ namespace mega {
 // Not implemented.
 class DriveNotifyPosix : public DriveNotify
 {
+public:
+    ~DriveNotifyPosix() override;
 protected:
     bool notifierSetup() override;
-    void notifierTeardown() override;
+    void notifierTeardown();
 
     void doInThread() override;
 

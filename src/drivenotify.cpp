@@ -23,6 +23,7 @@
 
 
 #include "mega/drivenotify.h"
+#include <assert.h>
 
 using namespace std;
 
@@ -67,8 +68,6 @@ void DriveNotify::stopNotifier()
     mStop.store(true);
     mEventSinkThread.join();
 
-    notifierTeardown();
-
     mStop.store(false);
 }
 
@@ -86,6 +85,12 @@ std::pair<DriveInfo::StringType, bool> DriveNotify::get()
     mInfoQueue.pop();
 
     return info;
+}
+
+DriveNotify::~DriveNotify()
+{
+    // thread, if running, should have been stopped by the derived class
+    assert(!shouldStop() && !enabled());
 }
 
 void DriveNotify::add(DriveInfo&& info)
