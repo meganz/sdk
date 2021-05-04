@@ -303,6 +303,8 @@ AS_IF([test "x$enable_drive_notifications" = "xyes"], [
         LDFLAGS="$LDFLAGS -ludev"
     elif test "x$WIN32" = "xyes"; then
         LDFLAGS="$LDFLAGS -lwbemuuid"
+    elif test "x$DARWIN" = "xyes"; then
+        LDFLAGS="$LDFLAGS -framework CoreFoundation -framework DiskArbitration"
     fi
 ])
 AM_CONDITIONAL([USE_DRIVE_NOTIFICATIONS], [test "x$enable_drive_notifications" = "xyes"])
