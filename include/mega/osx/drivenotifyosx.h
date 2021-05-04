@@ -238,10 +238,10 @@ private:
     UniqueCFRef<CFDictionaryRef> mMatchingDict;
 };
 
-class DriveNotifyOsx : public DriveNotify {
+class DriveNotifyOsx final : public DriveNotify {
 public:
     DriveNotifyOsx();
-    ~DriveNotifyOsx() override { stopNotifier(); };
+    ~DriveNotifyOsx() override { stopNotifier(); }
 
 protected:
     // Provide access to add(DriveInfo&&) method
@@ -250,7 +250,7 @@ protected:
     bool notifierSetup() override;
 
 private:
-    void doInThread();
+    void doInThread() override;
     void notifierTeardown();    // don't make it virtual, it's called from destructor
 
     // Disk Arbitration framework session object

@@ -40,10 +40,10 @@ namespace mega {
 // Posix: Platform specific definition
 //
 // Not implemented.
-class DriveNotifyPosix : public DriveNotify
+class DriveNotifyPosix final : public DriveNotify
 {
 public:
-    ~DriveNotifyPosix() override { stopNotifier(); };
+    ~DriveNotifyPosix() override { stopNotifier(); }
 protected:
     bool notifierSetup() override;
     void doInThread() override;
