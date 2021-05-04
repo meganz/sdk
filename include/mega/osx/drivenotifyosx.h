@@ -241,16 +241,17 @@ private:
 class DriveNotifyOsx : public DriveNotify {
 public:
     DriveNotifyOsx();
+    ~DriveNotifyOsx() override { stopNotifier(); };
 
 protected:
     // Provide access to add(DriveInfo&&) method
     friend MediaTypeCallbacks;
 
     bool notifierSetup() override;
-    void notifierTeardown() override;
 
 private:
     void doInThread();
+    void notifierTeardown();    // don't make it virtual, it's called from destructor
 
     // Disk Arbitration framework session object
     UniqueCFRef<DASessionRef> mSession;

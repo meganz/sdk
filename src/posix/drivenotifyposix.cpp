@@ -36,13 +36,6 @@ namespace mega {
 // DriveNotifyPosix
 /////////////////////////////////////////////
 
-DriveNotifyPosix::~DriveNotifyPosix()
-{
-    // stop the notifier's thread, if running
-    stopNotifier();
-}
-
-
 bool DriveNotifyPosix::notifierSetup()
 {
     // init udev resource

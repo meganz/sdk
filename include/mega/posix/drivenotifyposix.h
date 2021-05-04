@@ -43,7 +43,7 @@ namespace mega {
 class DriveNotifyPosix : public DriveNotify
 {
 public:
-    ~DriveNotifyPosix() override;
+    ~DriveNotifyPosix() override { stopNotifier(); };
 protected:
     bool notifierSetup() override;
     void doInThread() override;
