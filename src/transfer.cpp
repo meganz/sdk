@@ -902,11 +902,9 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                         auto name = (*it)->localname.leafName();
 
-                        ostream << "Completing download of file: "
-                                << (*it)->localname.toPath(*client->fsaccess)
-                                << " ("
-                                << name.toName(*client->fsaccess, fsType)
-                                << ")";
+                        ostream << (*it)->localname.toPath(*client->fsaccess)
+                                << " -> "
+                                << name.toName(*client->fsaccess, fsType);
 
                         client->logUserPathVariation(ostream.str());
                         LOG_warn << ostream.str();
@@ -997,22 +995,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             File *f = (*it);
             LocalPath *localpath = &f->localname;
 
-            if (isProblematicPath(*client->fsaccess, *localpath, fsType))
-            {
-                ostringstream ostream;
-
-                auto name = localpath->leafName();
-
-                ostream << "Completing upload of file: "
-                        << localpath->toPath(*client->fsaccess)
-                        << " ("
-                        << name.toName(*client->fsaccess, fsType)
-                        << ")";
-
-                client->logUserPathVariation(ostream.str());
-                LOG_warn << ostream.str();
-            }
-
 #ifdef ENABLE_SYNC
             LocalPath synclocalpath;
             LocalNode *ll = dynamic_cast<LocalNode *>(f);
@@ -1022,11 +1004,25 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 synclocalpath = ll->getLocalPath();
                 localpath = &synclocalpath;
             }
-            else
+#endif
+            if (isProblematicPath(*client->fsaccess, *localpath, fsType))
+            {
+                ostringstream ostream;
+
+                auto name = localpath->leafName();
+
+                ostream << localpath->toPath(*client->fsaccess)
+                        << " -> "
+                        << name.toName(*client->fsaccess, fsType);
+
+                client->logUserPathVariation(ostream.str());
+                LOG_warn << ostream.str();
+            }
+
+            if (localpath == &f->localname)
             {
                 LOG_debug << "Verifying regular upload";
             }
-#endif
 
             auto fa = client->fsaccess->newfileaccess();
             bool isOpen = fa->fopen(*localpath);

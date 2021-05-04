@@ -15042,31 +15042,6 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
 {
     if (!f->transfer)
     {
-        {
-            // Needed so we can apply appropriate (un)escaping rules.
-            auto fsType = fsaccess->getlocalfstype(f->localname);
-
-            // Is the filename (un)escapable?
-            if (isProblematicPath(*fsaccess, f->localname, fsType))
-            {
-                ostringstream ostream;
-
-                // Get our hands on the file's name.
-                auto name = f->localname.leafName();
-
-                ostream << "Starting "
-                        << (d == GET ? "download" : "upload")
-                        << " of file: "
-                        << f->localname.toPath(*fsaccess)
-                        << " ("
-                        << name.toName(*fsaccess, fsType)
-                        << ")";
-
-                logUserPathVariation(ostream.str());
-                LOG_warn << ostream.str();
-            }
-        }
-
         if (d == PUT)
         {
             if (!f->isvalid)    // (sync LocalNodes always have this set)
