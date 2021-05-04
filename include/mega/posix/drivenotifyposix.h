@@ -40,15 +40,17 @@ namespace mega {
 // Posix: Platform specific definition
 //
 // Not implemented.
-class DriveNotifyPosix : public DriveNotify
+class DriveNotifyPosix final : public DriveNotify
 {
+public:
+    ~DriveNotifyPosix() override { stopNotifier(); }
 protected:
     bool notifierSetup() override;
-    void notifierTeardown() override;
-
     void doInThread() override;
 
 private:
+    void notifierTeardown();    // don't make it virtual, it's called from destructor
+
     void cacheMountedPartitions();
     bool isRemovable(udev_device* part);
     void evaluateDevice(udev_device* dev);  // dev must Not be null

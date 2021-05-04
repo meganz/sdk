@@ -36,11 +36,10 @@ namespace mega {
 // Windows: Platform specific definition
 //
 // Uses WMI. Use 'wbemtest' tool to run WQL queries, for testing and comparison.
-class DriveNotifyWin : public DriveNotify
+class DriveNotifyWin final : public DriveNotify
 {
 public:
-    DriveNotifyWin() : mStop(false) {}
-    ~DriveNotifyWin() override { stop(); }
+    ~DriveNotifyWin() override { stopNotifier(); }
 
 protected:
     void doInThread() override;

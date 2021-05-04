@@ -72,7 +72,7 @@ public:
 
     std::pair<DriveInfo::StringType, bool> get();
 
-    virtual ~DriveNotify() { stop(); }
+    virtual ~DriveNotify();
 
 protected:
     bool shouldStop() { return mStop.load(); }
@@ -81,7 +81,6 @@ protected:
     virtual bool notifierSetup() { return true; }
 
     void stopNotifier();
-    virtual void notifierTeardown() {}
 
     void add(DriveInfo&& info);
 
