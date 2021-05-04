@@ -899,12 +899,19 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     if (isProblematicPath(*client->fsaccess, (*it)->localname, fsType))
                     {
                         ostringstream ostream;
+                        auto localPath = (*it)->localname.toPath();
+                        auto node = client->nodeByHandle((*it)->h);
 
-                        auto name = (*it)->localname.leafName();
+                        assert(node);
 
-                        ostream << (*it)->localname.toPath(*client->fsaccess)
+                        if (!localPath.compare(0, 4, "\\\\?\\"))
+                        {
+                            localPath.erase(0, 4);
+                        }
+
+                        ostream << node->displaypath()
                                 << " -> "
-                                << name.toName(*client->fsaccess, fsType);
+                                << localPath;
 
                         client->logUserPathVariation(ostream.str());
                         LOG_warn << ostream.str();
@@ -1008,12 +1015,23 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             if (isProblematicPath(*client->fsaccess, *localpath, fsType))
             {
                 ostringstream ostream;
+                auto localName = localpath->leafName();
+                auto localPath = localpath->toPath();
+                auto name = localName.toName(*client->fsaccess, fsType);
+                auto node = client->nodeByHandle(f->h);
 
-                auto name = localpath->leafName();
+                assert(node);
 
-                ostream << localpath->toPath(*client->fsaccess)
+                if (!localPath.compare(0, 4, "\\\\?\\"))
+                {
+                    localPath.erase(0, 4);
+                }
+
+                ostream << localPath
                         << " -> "
-                        << name.toName(*client->fsaccess, fsType);
+                        << node->displaypath()
+                        << "/"
+                        << name;
 
                 client->logUserPathVariation(ostream.str());
                 LOG_warn << ostream.str();
