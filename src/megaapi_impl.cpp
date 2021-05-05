@@ -20180,6 +20180,13 @@ void MegaApiImpl::sendPendingRequests()
 
                     // always get updated value before update it
                     User *ownUser = client->finduser(client->me);
+                    assert(ownUser && "Setting attribute without having logged in");
+                    if (!ownUser)
+                    {
+                        LOG_err << "Cannot find own user for setting ATTR_PWD_REMINDER";
+                        e = API_EACCESS;
+                        break;
+                    }
                     client->getua(ownUser, type);
                     break;
                 }
