@@ -5692,6 +5692,7 @@ void MegaApiImpl::setUserPathVariationsReceiver(MegaLogger* receiver)
         proxy.reset(new MegaLoggerProxy(*receiver));
     }
 
+    SdkMutexGuard guard(sdkMutex);
     client->mUserPathVariationReceiver = std::move(proxy);
 }
 
