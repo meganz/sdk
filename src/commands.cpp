@@ -1197,7 +1197,17 @@ bool CommandPutNodes::procresult(Result r)
         LOG_debug << "Putnodes error " << r.errorOrOK();
         if (r.wasError(API_EOVERQUOTA))
         {
-            client->activateoverquota(0, false);
+            if (client->isPrivateNode(NodeHandle().set6byte(targethandle)))
+            {
+                client->activateoverquota(0, false);
+            }
+            else    // the target's account is overquota
+            {
+                if (source == PUTNODES_SYNC)
+                {
+                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
+                }
+            }
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
