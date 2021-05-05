@@ -1201,6 +1201,7 @@ bool CommandPutNodes::procresult(Result r)
             {
                 client->activateoverquota(0, false);
             }
+#ifdef ENABLE_SYNC
             else    // the target's account is overquota
             {
                 if (source == PUTNODES_SYNC)
@@ -1208,6 +1209,7 @@ bool CommandPutNodes::procresult(Result r)
                     client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
                 }
             }
+#endif
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
