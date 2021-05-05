@@ -1928,8 +1928,6 @@ bool isPotentiallyInaccessiblePath(const FileSystemAccess& fsAccess,
                                    const LocalPath& localPath,
                                    nodetype_t type)
 {
-    if (localPath.localpath.size() > 254) return true;
-
     return isPotentiallyInaccessibleName(fsAccess,
                                          localPath.leafName(),
                                          type);
