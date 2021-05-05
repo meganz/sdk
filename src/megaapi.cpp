@@ -2982,16 +2982,6 @@ void MegaApi::pauseTransferByTag(int transferTag, bool pause, MegaRequestListene
     pImpl->pauseTransfer(transferTag, pause, listener);
 }
 
-void MegaApi::enableTransferResumption(const char *loggedOutId)
-{
-    pImpl->enableTransferResumption(loggedOutId);
-}
-
-void MegaApi::disableTransferResumption(const char *loggedOutId)
-{
-    pImpl->disableTransferResumption(loggedOutId);
-}
-
 bool MegaApi::areTransfersPaused(int direction)
 {
     return pImpl->areTransfersPaused(direction);
@@ -4297,6 +4287,11 @@ MegaApiLock* MegaApi::getMegaApiLock(bool lockNow)
 bool MegaApi::platformSetRLimitNumFile(int newNumFileLimit) const
 {
     return pImpl->platformSetRLimitNumFile(newNumFileLimit);
+}
+
+int MegaApi::platformGetRLimitNumFile() const
+{
+    return pImpl->platformGetRLimitNumFile();
 }
 
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)

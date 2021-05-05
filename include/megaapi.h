@@ -7983,6 +7983,12 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - URL to open the desired page with the same account
          *
+         * If the client is logged in, but the account is not fully confirmed (ie. singup not completed yet),
+         * this method will return API_EACCESS.
+         *
+         * If the client is not logged in, there won't be any session to transfer, but this method will still
+         * return the https://mega.nz/#<path>.
+         *
          * You take the ownership of the returned value.
          *
          * @param path Path inside https://mega.nz/# that we want to open with the current session
@@ -12993,50 +12999,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void pauseTransferByTag(int transferTag, bool pause, MegaRequestListener* listener = NULL);
-
-        /**
-         * @brief Enable the resumption of transfers
-         *
-         * This function enables the cache of transfers, so they can be resumed later.
-         * Additionally, if a previous cache already exists (from previous executions),
-         * then this function also resumes the existing cached transfers.
-         *
-         * @note Cached uploads expire after 24 hours since the last time they were active.
-         * @note Cached transfers related to files that have been modified since they were
-         * added to the cache are discarded, since the file has changed.
-         *
-         * A log in or a log out automatically disables this feature.
-         *
-         * When the MegaApi object is logged in, the cache of transfers is identified
-         * and protected using the session and the master key, so transfers won't
-         * be resumable using a different session or a different account. The
-         * recommended way of using this function to resume transfers for an account
-         * is calling it in the callback onRequestFinish related to MegaApi::fetchNodes
-         *
-         * When the MegaApi object is not logged in, it's still possible to use this
-         * feature. However, since there isn't any available data to identify
-         * and protect the cache, a default identifier and key are used. To improve
-         * the protection of the transfer cache and allow the usage of this feature
-         * with several non logged in instances of MegaApi at once without clashes,
-         * it's possible to set a custom identifier for the transfer cache in the
-         * optional parameter of this function. If that parameter is used, the
-         * encryption key for the transfer cache will be derived from it.
-         *
-         * @param loggedOutId Identifier for a non logged in instance of MegaApi.
-         * It doesn't have any effect if MegaApi is logged in.
-         */
-        void enableTransferResumption(const char* loggedOutId = NULL);
-
-        /**
-         * @brief Disable the resumption of transfers
-         *
-         * This function disables the resumption of transfers and also deletes
-         * the transfer cache if it exists. See also MegaApi.enableTransferResumption.
-         *
-         * @param loggedOutId Identifier for a non logged in instance of MegaApi.
-         * It doesn't have any effect if MegaApi is logged in.
-         */
-        void disableTransferResumption(const char* loggedOutId = NULL);
 
         /**
          * @brief Returns the state (paused/unpaused) of transfers
@@ -18328,6 +18290,13 @@ class MegaApi
          * allowed value). It returns false when setting a new limit failed.
          */
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
+
+        /**
+         * @brief Call the low level function getrlimit() for NOFILE, needed for some platforms.
+         *
+         * @return The current limit for the number of open files (and sockets) for the app, or -1 if error.
+         */
+        int platformGetRLimitNumFile() const;
 
         /**
          * @brief Requests a list of all Smart Banners available for current user.

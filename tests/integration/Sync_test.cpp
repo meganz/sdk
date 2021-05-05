@@ -2049,7 +2049,6 @@ struct StandardClient : public MegaApp
         fb = thread_do<bool>([backupId, mnode, ignoreDebris, confirm](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris)); });
         return fb.get();
     }
-
 };
 
 
@@ -3639,7 +3638,6 @@ GTEST_TEST(Sync, BasicSync_CreateRenameAndDeleteLink)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-
 #ifndef WIN32
 
 // what is supposed to happen for this one?  It seems that the `linked` symlink is no longer ignored on windows?  client2 is affected!
@@ -3758,6 +3756,122 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
 #endif
 
 #endif
+
+TEST(Sync, BasicSync_NewVersionsCreatedWhenFilesModified)
+{
+    // Convenience.
+    using FileFingerprintPtr = unique_ptr<FileFingerprint>;
+
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = std::chrono::seconds(4);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Helper for generating fingerprints.
+    auto fingerprint =
+      [&c](const fs::path& fsPath) -> FileFingerprintPtr
+      {
+          // Convenience.
+          auto& fsAccess = *c.client.fsaccess;
+
+          // Needed so we can access the filesystem.
+          auto fileAccess = fsAccess.newfileaccess(false);
+
+          // Translate input path into something useful.
+          auto path = LocalPath::fromPath(fsPath.u8string(), fsAccess);
+
+          // Try and open file for reading.
+          if (fileAccess->fopen(path, true, false))
+          {
+              auto fingerprint = ::mega::make_unique<FileFingerprint>();
+
+              // Generate fingerprint.
+              if (fingerprint->genfingerprint(fileAccess.get()))
+              {
+                  return fingerprint;
+              }
+          }
+
+          return nullptr;
+      };
+
+    // Fingerprints for each revision.
+    vector<FileFingerprintPtr> fingerprints;
+
+    // Log client in.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+
+    // Add and start sync.
+    const auto id = c.setupSync_mainthread("s", "x");
+    ASSERT_NE(id, UNDEF);
+
+    const auto SYNCROOT = c.syncSet(id).localpath;
+
+    // Create and populate model.
+    Model model;
+
+    model.addfile("f", "a");
+    model.generate(SYNCROOT);
+
+    // Keep track of fingerprint.
+    fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
+    ASSERT_TRUE(fingerprints.back());
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Check that the file made it to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Create a new revision of f.
+    model.addfile("f", "b");
+    model.generate(SYNCROOT);
+
+    // Update fingerprint.
+    fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
+    ASSERT_TRUE(fingerprints.back());
+
+    // Wait for change to propagate.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Validate model.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Create yet anothet revision of f.
+    model.addfile("f", "c");
+    model.generate(SYNCROOT);
+
+    // Update fingerprint.
+    fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
+    ASSERT_TRUE(fingerprints.back());
+
+    // Wait for change to propagate.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Validate model.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on f's node.
+    auto *f = c.drillchildnodebyname(c.gettestbasenode(), "x/f");
+    ASSERT_TRUE(f);
+
+    // Validate the version chain.
+    auto i = fingerprints.crbegin();
+    auto matched = true;
+
+    while (f && i != fingerprints.crend())
+    {
+        matched &= *f == **i++;
+
+        f = f->children.empty() ? nullptr : f->children.front();
+    }
+
+    matched &= !f && i == fingerprints.crend();
+    ASSERT_TRUE(matched);
+}
 
 struct TwoWaySyncSymmetryCase
 {

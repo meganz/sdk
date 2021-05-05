@@ -275,7 +275,7 @@ public:
 
     bool ephemeralSession = false;
 
-    static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
+    static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
 
@@ -368,8 +368,8 @@ public:
     // dump current session
     int dumpsession(string&);
 
-    // create a copy of the current session
-    void copysession();
+    // create a copy of the current session. EACCESS for not fully confirmed accounts
+    error copysession();
 
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
@@ -379,8 +379,7 @@ public:
 
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
-    // if the second parameter isn't NULL, it's used as session id instead of the current one
-    string *sessiontransferdata(const char*, string* = NULL);
+    string sessiontransferdata(const char*, string*);
 
     // Kill session id
     void killsession(handle session);
@@ -476,7 +475,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
-    void removeOutSharesFromSubtree(Node* n);
+    void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
@@ -571,15 +570,18 @@ public:
     error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, bool writable = false, const char* = NULL);
+    void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
+	    int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, bool writable = false);
-    void getpubliclink(Node* n, int del, m_time_t ets, bool writable = false); // auxiliar method to add req
+    error exportnode(Node*, int, m_time_t, bool writable,
+	    int tag, std::function<void(Error, handle, handle)> completion);
+    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable,
+	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
@@ -900,16 +902,16 @@ public:
         CacheableStatusMap(MegaClient *client) { mClient = client; }
 
         // returns the cached value for type, or defaultValue if not found
-        int64_t lookup(int64_t type, int64_t defaultValue);
+        int64_t lookup(CacheableStatus::Type type, int64_t defaultValue);
 
         // add/update cached status, both in memory and DB
-        bool addOrUpdate(int64_t type, int64_t value);
+        bool addOrUpdate(CacheableStatus::Type type, int64_t value);
 
         // adds a new item to the map. It also initializes dedicated vars in the client (used to load from DB)
-        void loadCachedStatus(int64_t type, int64_t value);
+        void loadCachedStatus(CacheableStatus::Type type, int64_t value);
 
         // for unserialize
-        CacheableStatus *getPtr(int64_t type);
+        CacheableStatus *getPtr(CacheableStatus::Type type);
 
         void clear() { map::clear(); }
 
@@ -937,6 +939,9 @@ public:
 
     // root URL for chat stats
     static string CHATSTATSURL;
+
+    // root URL for Website
+    static string MEGAURL;
 
     // file that is blocking the sync engine
     LocalPath blockedfile;

@@ -946,7 +946,7 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
     }
 
     char *base64k = getBase64Key();
-    string strlink = MegaClient::getPublicLink(mNewLinkFormat, static_cast<nodetype_t>(type), plink->ph, (includeKey ? base64k : nullptr));
+    string strlink = MegaClient::publicLinkURL(mNewLinkFormat, static_cast<nodetype_t>(type), plink->ph, (includeKey ? base64k : nullptr));
     delete [] base64k;
 
     return MegaApi::strdup(strlink.c_str());
@@ -6690,7 +6690,7 @@ void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *l
 const char *MegaApiImpl::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
 {
     handle ph = MegaApi::base64ToHandle(publicHandle);
-    string link = client->getPublicLink(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
+    string link = client->publicLinkURL(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
     return MegaApi::strdup(link.c_str());
 }
 
@@ -7769,6 +7769,24 @@ bool MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
 #endif
 }
 
+int MegaApiImpl::platformGetRLimitNumFile() const
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return -1;
+    }
+
+    return int(rl.rlim_cur);
+#else
+    LOG_err << "Code for calling getrlimit is not available yet (or not relevant) on this platform";
+    return -1;
+#endif
+}
+
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
@@ -7871,20 +7889,6 @@ void MegaApiImpl::moveTransferBefore(int transferTag, int prevTransferTag, MegaR
     request->setNumber(prevTransferTag);
     requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::enableTransferResumption(const char *loggedOutId)
-{
-    sdkMutex.lock();
-    client->enabletransferresumption(loggedOutId);
-    sdkMutex.unlock();
-}
-
-void MegaApiImpl::disableTransferResumption(const char *loggedOutId)
-{
-    sdkMutex.lock();
-    client->disabletransferresumption(loggedOutId);
-    sdkMutex.unlock();
 }
 
 bool MegaApiImpl::areTransfersPaused(int direction)
@@ -14035,46 +14039,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     }
 }
 
-void MegaApiImpl::share_result(error e, bool writable)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_EXPORT) &&
-                    (request->getType() != MegaRequest::TYPE_SHARE))) return;
-
-    // exportnode_result will be called to end the request.
-    if (!e && request->getType() == MegaRequest::TYPE_EXPORT)
-    {
-        Node* node = client->nodebyhandle(request->getNodeHandle());
-        if (!node)
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
-            return;
-        }
-
-        if (!request->getAccess())
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
-            return;
-        }
-
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
-        assert(writable == request->getFlag());
-        client->getpubliclink(node, false, request->getNumber(), request->getFlag());
-        client->reqtag = creqtag;
-
-        return;
-    }
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::share_result(int, error, bool writable)
-{
-    //The other callback will be called at the end of the request
-}
-
 void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -14384,28 +14348,14 @@ void MegaApiImpl::copysession_result(string *session, error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_SESSION_TRANSFER_URL)) return;
 
-    const char *path = request->getText();
-    string *data = NULL;
     if(e == API_OK)
     {
-        data = client->sessiontransferdata(path, session);
-    }
+        const char *path = request->getText();
+        string data = client->sessiontransferdata(path, session);
+        data.insert(0, MegaClient::MEGAURL+"/#sitetransfer!");
 
-    if(data)
-    {
-        data->insert(0, "https://mega.nz/#sitetransfer!");
+        request->setLink(data.c_str());
     }
-    else
-    {
-        data = new string("https://mega.nz/#");
-        if(path)
-        {
-            data->append(path);
-        }
-    }
-
-    request->setLink(data->c_str());
-    delete data;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -14861,64 +14811,6 @@ void MegaApiImpl::changepw_result(error result)
     if(!request || request->getType() != MegaRequest::TYPE_CHANGE_PW) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
-}
-
-// node export failed
-void MegaApiImpl::exportnode_result(error result)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
-}
-
-void MegaApiImpl::exportnode_result(handle h, handle ph)
-{
-    Node* n;
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
-
-    if ((n = client->nodebyhandle(h)))
-    {
-        char key[FILENODEKEYLENGTH*4/3+3];
-
-        // the key
-        if (n->type == FILENODE)
-        {
-            if(n->nodekey().size() >= FILENODEKEYLENGTH)
-            {
-                Base64::btoa((const byte*)n->nodekey().data(), FILENODEKEYLENGTH, key);
-            }
-            else
-            {
-                key[0]=0;
-            }
-        }
-        else if (n->sharekey)
-        {
-            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
-        }
-        else
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
-            return;
-        }
-
-        string link = client->getPublicLink(client->mNewLinkFormat, n->type, ph, key);
-        request->setLink(link.c_str());
-        if (n->plink && n->plink->mAuthKey.size())
-        {
-            request->setPrivateKey(n->plink->mAuthKey.c_str());
-        }
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
-    }
-    else
-    {
-        request->setNodeHandle(UNDEF);
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
-    }
 }
 
 // the requested link could not be opened
@@ -19827,7 +19719,11 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (e == API_OK)
-                client->setshare(node, email, a);
+            {
+                client->setshare(node, email, a, false, nullptr, nextTag, [this, request](Error e, bool){
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            }
             break;
         }
         case MegaRequest::TYPE_IMPORT_LINK:
@@ -19889,7 +19785,59 @@ void MegaApiImpl::sendPendingRequests()
             Node* node = client->nodebyhandle(request->getNodeHandle());
             if(!node) { e = API_EARGS; break; }
 
-            e = client->exportnode(node, !request->getAccess(), request->getNumber(), request->getFlag());
+			bool writable = request->getFlag();
+            // exportnode() will take care of creating a share first, should it be a folder
+            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, nextTag, [this, request, writable](Error e, handle h, handle ph){
+
+                if (e || !request->getAccess()) // disable export doesn't return h and ph
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }
+                else
+                {
+                    // This block of code used to be inside exportnode_result
+                    if (Node* n = client->nodebyhandle(h))
+                    {
+                        char key[FILENODEKEYLENGTH*4/3+3];
+
+                        // the key
+                        if (n->type == FILENODE)
+                        {
+                            if(n->nodekey().size() >= FILENODEKEYLENGTH)
+                            {
+                                Base64::btoa((const byte*)n->nodekey().data(), FILENODEKEYLENGTH, key);
+                            }
+                            else
+                            {
+                                key[0]=0;
+                            }
+                        }
+                        else if (n->sharekey)
+                        {
+                            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
+                        }
+                        else
+                        {
+                            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
+                            return;
+                        }
+
+                        string link = client->publicLinkURL(client->mNewLinkFormat, n->type, ph, key);
+                        request->setLink(link.c_str());
+				        if (n->plink && n->plink->mAuthKey.size())
+				        {
+				            request->setPrivateKey(n->plink->mAuthKey.c_str());
+				        }
+
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
+                    }
+                    else
+                    {
+                        request->setNodeHandle(UNDEF);
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
+                    }
+                }
+            });
             break;
         }
         case MegaRequest::TYPE_FETCH_NODES:
@@ -21777,13 +21725,13 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (value == 999)
                 {
-                    LOG_verbose << "Ignoring not valid status in migration: " << type << " = " << value;
+                    LOG_verbose << "Ignoring not valid status in migration: " << CacheableStatus::typeToStr(type) << " = " << value;
                     return API_OK; //received invalid value: not to be used
                 }
 
                 if (int64_t oldValue = client->mCachedStatus.lookup(type, 999) != 999)
                 {
-                    LOG_verbose << "Ignoring already present status in migration: " << type << " = " << value
+                    LOG_verbose << "Ignoring already present status in migration: " << CacheableStatus::typeToStr(type) << " = " << value
                                 << " existing = " << oldValue;
                     return API_OK;
                 }
@@ -22160,7 +22108,20 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
-            client->copysession();
+            e = client->copysession();
+
+            if (e == API_ENOENT)    // no session to copy because not logged in
+            {
+                string url = MegaClient::MEGAURL + "/#";
+                auto path = request->getText();
+                if (path) url.append(path);
+                request->setLink(url.c_str());
+
+                e = API_OK;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                break;
+            }
+
             break;
         }
         case MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL:
@@ -28950,7 +28911,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         LOG_debug << "Favicon requested";
         response << "HTTP/1.1 301 Moved Permanently\r\n"
-                    "Location: https://mega.nz/favicon.ico\r\n"
+                    "Location: ";
+        response << MegaClient::MEGAURL;
+        response << "/favicon.ico\r\n"
                     "Connection: close\r\n"
                     "\r\n";
 
@@ -29063,7 +29026,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         else
         {
             handle h = MegaApi::base64ToHandle(httpctx->nodehandle.c_str());
-            string link = MegaClient::getPublicLink(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
+            string link = MegaClient::publicLinkURL(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
             httpctx->transfer.reset(new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD));

@@ -1236,7 +1236,7 @@ using namespace mega;
 }
 
 - (void)getUserAttributeType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getUserAttribute((int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->getUserAttribute((int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value {
@@ -1793,22 +1793,6 @@ using namespace mega;
 
 - (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause {
     self.megaApi->pauseTransferByTag((int)transferTag, pause);
-}
-
-- (void)enableTransferResumption:(NSString *)loggedOutId {
-    self.megaApi->enableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
-}
-
-- (void)enableTransferResumption {
-    self.megaApi->enableTransferResumption();
-}
-
-- (void)disableTransferResumption:(NSString *)loggedOutId {
-    self.megaApi->disableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
-}
-
-- (void)disableTransferResumption {
-    self.megaApi->disableTransferResumption();
 }
 
 - (BOOL)areTransferPausedForDirection:(NSInteger)direction {

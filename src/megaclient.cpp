@@ -48,6 +48,9 @@ string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 // root URL for chat stats
 string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
+// root URL for Website
+string MegaClient::MEGAURL = "https://mega.nz";
+
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
 
@@ -1290,9 +1293,9 @@ MegaClient::~MegaClient()
 }
 
 
-std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
+std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
-    string strlink = "https://mega.nz/";
+    string strlink = MegaClient::MEGAURL + "/";
     string nodeType;
     if (newLinkFormat)
     {
@@ -4452,14 +4455,10 @@ bool MegaClient::procsc()
                                 whyamiblocked();// lets query again, to trigger transition and restoreSyncs
                             }
 
-#ifdef ENABLE_SYNC
-#ifndef __ANDROID__
-                            //TODO: remove android control after android gives green light to this.
                             enabletransferresumption();
-#endif
+#ifdef ENABLE_SYNC
                             syncs.resumeResumableSyncsOnStartup();
 #endif
-
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 
@@ -5349,12 +5348,12 @@ void MegaClient::sc_updatenode()
     }
 }
 
-void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t value)
+void MegaClient::CacheableStatusMap::loadCachedStatus(CacheableStatus::Type type, int64_t value)
 {
     auto it = insert(pair<int64_t, CacheableStatus>(type, CacheableStatus(type, value)));
     assert(it.second);
 
-    LOG_verbose << "Loaded status from cache: " << type << " = " << value;
+    LOG_verbose << "Loaded status from cache: " << CacheableStatus::typeToStr(type) << " = " << value;
 
     switch(type)
     {
@@ -5373,7 +5372,7 @@ void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t valu
     }
 }
 
-bool MegaClient::CacheableStatusMap::addOrUpdate(int64_t type, int64_t value)
+bool MegaClient::CacheableStatusMap::addOrUpdate(CacheableStatus::Type type, int64_t value)
 {
     bool changed = false;
 
@@ -5397,23 +5396,23 @@ bool MegaClient::CacheableStatusMap::addOrUpdate(int64_t type, int64_t value)
     if (changed && mClient->statusTable)
     {
         DBTableTransactionCommitter committer(mClient->statusTable);
-        LOG_verbose << "Adding/updating status to database: " << type << " = " << value;
+        LOG_verbose << "Adding/updating status to database: " << status.typeToStr() << " = " << value;
         if (!mClient->statusTable->put(MegaClient::CACHEDSTATUS, &it_bool.first->second, &mClient->key))
         {
-            LOG_err << "Failed to add/update status to db: " << type << " = " << value;
+            LOG_err << "Failed to add/update status to db: " << status.typeToStr() << " = " << value;
         }
     }
 
     return changed;
 }
 
-int64_t MegaClient::CacheableStatusMap::lookup(int64_t type, int64_t defaultValue)
+int64_t MegaClient::CacheableStatusMap::lookup(CacheableStatus::Type type, int64_t defaultValue)
 {
     auto it = find(type);
     return it == end() ? defaultValue : it->second.value();
 }
 
-CacheableStatus *MegaClient::CacheableStatusMap::getPtr(int64_t type)
+CacheableStatus *MegaClient::CacheableStatusMap::getPtr(CacheableStatus::Type type)
 {
     auto it = find(type);
     return it == end() ? nullptr : &it->second;
@@ -7518,7 +7517,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     if (p->firstancestor()->type == RUBBISHNODE)
     {
         // similar to the webclient, send `s2` along with `m` if the node is moving to the rubbish
-        removeOutSharesFromSubtree(n);
+        removeOutSharesFromSubtree(n, 0);
     }
 
     Node *prevParent = NULL;
@@ -7593,7 +7592,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     return API_OK;
 }
 
-void MegaClient::removeOutSharesFromSubtree(Node* n)
+void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 {
     if (n->pendingshares)
     {
@@ -7601,7 +7600,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->pcr)
             {
-                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN);
+                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool){});
             }
         }
     }
@@ -7612,18 +7611,18 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->user)
             {
-                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN);
+                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool){});
             }
             else // folder links are a shared folder without user
             {
-                setshare(n, nullptr, ACCESS_UNKNOWN);
+                setshare(n, nullptr, ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool) {});
             }
         }
     }
 
     for (auto& c : n->children)
     {
-        removeOutSharesFromSubtree(c);
+        removeOutSharesFromSubtree(c, tag);
     }
 }
 
@@ -9167,18 +9166,21 @@ void MegaClient::resetSmsVerifiedPhoneNumber()
     reqs.add(new CommandResetSmsVerifiedPhoneNumber(this));
 }
 
-void MegaClient::copysession()
+error MegaClient::copysession()
 {
-    reqs.add(new CommandCopySession(this));
-}
-
-string *MegaClient::sessiontransferdata(const char *url, string *session)
-{
-    if (!session && loggedin() != FULLACCOUNT)
+    // only accounts fully confirmed are allowed to transfer a session,
+    // since the transfer requires the RSA keypair to be available
+    if (loggedin() != FULLACCOUNT)
     {
-        return NULL;
+        return (loggedin() == NOTLOGGEDIN) ? API_ENOENT : API_EACCESS;
     }
 
+    reqs.add(new CommandCopySession(this));
+    return API_OK;
+}
+
+string MegaClient::sessiontransferdata(const char *url, string *session)
+{
     std::stringstream ss;
 
     // open array
@@ -9190,18 +9192,7 @@ string *MegaClient::sessiontransferdata(const char *url, string *session)
     ss << aeskey << ",\"";
 
     // add session ID
-    if (session)
-    {
-        ss << *session;
-    }
-    else
-    {
-        string sids;
-        sids.resize(sid.size() * 4 / 3 + 4);
-        sids.resize(Base64::btoa((byte *)sid.data(), int(sid.size()), (char *)sids.data()));
-        ss << sids;
-    }
-    ss << "\",\"";
+    ss << *session << "\",\"";
 
     // add URL
     if (url)
@@ -9212,11 +9203,11 @@ string *MegaClient::sessiontransferdata(const char *url, string *session)
 
     // standard Base64 encoding
     string json = ss.str();
-    string *base64 = new string;
-    base64->resize(json.size() * 4 / 3 + 4);
-    base64->resize(Base64::btoa((byte *)json.data(), int(json.size()), (char *)base64->data()));
-    std::replace(base64->begin(), base64->end(), '-', '+');
-    std::replace(base64->begin(), base64->end(), '_', '/');
+    string base64;
+    base64.resize(json.size() * 4 / 3 + 4);
+    base64.resize(Base64::btoa((byte *)json.data(), int(json.size()), (char *)base64.data()));
+    std::replace(base64.begin(), base64.end(), '-', '+');
+    std::replace(base64.begin(), base64.end(), '_', '/');
     return base64;
 }
 
@@ -9701,8 +9692,10 @@ void MegaClient::rewriteforeignkeys(Node* n)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
-void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation)
+void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
 {
+    assert(completion);
+
     size_t total = n->outshares ? n->outshares->size() : 0;
     total += n->pendingshares ? n->pendingshares->size() : 0;
     if (a == ACCESS_UNKNOWN && total == 1)
@@ -9712,7 +9705,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, reqtag, writable, personal_representation));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, move(completion)));
 }
 
 // Add/delete/remind outgoing pending contact request
@@ -10901,7 +10894,8 @@ void MegaClient::querytransferquota(m_off_t size)
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
+error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
+    int tag, std::function<void(Error, handle, handle)> completion)
 {
     if (n->plink && !del && !n->plink->takendown
             && (ets == n->plink->ets) && !n->plink->isExpired()
@@ -10913,8 +10907,8 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
             LOG_warn << "Rejecting public link request when ODQ paywall";
             return API_EPAYWALL;
         }
-        restag = reqtag;
-        app->exportnode_result(n->nodehandle, n->plink->ph);
+        restag = tag;
+        completion(API_OK, n->nodehandle, n->plink->ph);
         return API_OK;
     }
 
@@ -10927,7 +10921,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
     switch (n->type)
     {
     case FILENODE:
-        getpubliclink(n, del, ets, writable);
+        requestPublicLink(n, del, ets, writable, tag, move(completion));
         break;
 
     case FOLDERNODE:
@@ -10935,17 +10929,43 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
         {
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
-            getpubliclink(n, del, ets, writable);
-            setshare(n, NULL, ACCESS_UNKNOWN, writable);
+            NodeHandle h = n->nodeHandle();
+            requestPublicLink(n, del, ets, writable, tag, [this, completion, writable, tag, h](Error e, handle, handle){
+                Node* n = nodeByHandle(h);
+                if (e || !n)
+                {
+                    completion(e, UNDEF, UNDEF);
+                }
+                else
+                {
+                    setshare(n, NULL, ACCESS_UNKNOWN, writable, nullptr, tag, [completion](Error e, bool) {
+                        completion(e, UNDEF, UNDEF);
+                        });
+                }
+            });
         }
         else
         {
-            // exporting folder - need to create share first
-            setshare(n, NULL, writable ? FULL : RDONLY, writable);
-            // getpubliclink() is called as _result() of the share
+            // Exporting folder - need to create share first
+			// If share creation is successful, the share completion function calls requestPublicLink
 
+            handle h = n->nodehandle;
+
+            setshare(n, NULL, writable ? FULL : RDONLY, writable, nullptr, tag, [this, h, ets, tag, writable, completion](Error e, bool){
+                if (e)
+                {
+                    completion(e, UNDEF, UNDEF);
+                }
+                else if (Node* node = nodebyhandle(h))
+                {
+                    requestPublicLink(node, false, ets, writable, tag, completion);
+                }
+                else
+                {
+                    completion(API_ENOENT, UNDEF, UNDEF);
+                }
+            });
         }
-
         break;
 
     default:
@@ -10955,9 +10975,9 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
     return API_OK;
 }
 
-void MegaClient::getpubliclink(Node* n, int del, m_time_t ets, bool writable)
+void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, int tag, std::function<void(Error, handle, handle)> f)
 {
-    reqs.add(new CommandSetPH(this, n, del, ets, writable));
+    reqs.add(new CommandSetPH(this, n, del, ets, writable, tag, move(f)));
 }
 
 // open exported file link
@@ -11094,7 +11114,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
         }
 
         Base64Str<FILENODEKEYLENGTH> keyStr(key);
-        decryptedLink->assign(MegaClient::getPublicLink(mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, keyStr));
+        decryptedLink->assign(publicLinkURL(mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, keyStr));
     }
 
     return API_OK;
@@ -11178,7 +11198,8 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         Base64::btoa(encLinkBytes, encLink);
 
         encryptedLink->clear();
-        encryptedLink->append("https://mega.nz/#P!");
+        encryptedLink->append(MegaClient::MEGAURL);
+        encryptedLink->append("/#P!");
         encryptedLink->append(encLink);
     }
 
@@ -11837,11 +11858,9 @@ void MegaClient::fetchnodes(bool nocache)
                 }
             }
 
-#ifdef ENABLE_SYNC
-#ifndef __ANDROID__
-            //TODO: remove android control after android gives green light to this.
             enabletransferresumption();
-#endif
+
+#ifdef ENABLE_SYNC
             syncs.resetSyncConfigDb();
             syncs.resumeResumableSyncsOnStartup();
 #endif

@@ -163,9 +163,6 @@ struct DemoApp : public MegaApp
 
     void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
 
-    void share_result(error, bool writable) override;
-    void share_result(int, error, bool writable) override;
-
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
 
@@ -191,9 +188,6 @@ struct DemoApp : public MegaApp
 
     // sessionid is undef if all sessions except the current were killed
     void sessions_killed(handle sessionid, error e) override;
-
-    void exportnode_result(error) override;
-    void exportnode_result(handle, handle) override;
 
     void openfilelink_result(const Error&) override;
     void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
@@ -372,7 +366,6 @@ void exec_chatl(autocomplete::ACState& s);
 void exec_chatsm(autocomplete::ACState& s);
 void exec_chatlu(autocomplete::ACState& s);
 void exec_chatlj(autocomplete::ACState& s);
-void exec_enabletransferresumption(autocomplete::ACState& s);
 void exec_setmaxdownloadspeed(autocomplete::ACState& s);
 void exec_setmaxuploadspeed(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);

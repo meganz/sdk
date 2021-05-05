@@ -2693,7 +2693,6 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
 
 void Syncs::purgeSyncs()
 {
-
     // finally, remove all syncs as usual, unregistering (removeSyncByIndex())
     removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
 }

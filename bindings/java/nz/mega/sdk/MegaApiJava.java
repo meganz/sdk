@@ -7135,101 +7135,6 @@ public class MegaApiJava {
         megaApi.pauseTransferByTag(transferTag, pause, createDelegateRequestListener(listener));
     }
 
-
-    /**
-     * Enable the resumption of transfers
-     *
-     * This function enables the cache of transfers, so they can be resumed later.
-     * Additionally, if a previous cache already exists (from previous executions),
-     * then this function also resumes the existing cached transfers.
-     *
-     * Cached downloads expire after 10 days since the last time they were active.
-     * Cached uploads expire after 24 hours since the last time they were active.
-     * Cached transfers related to files that have been modified since they were
-     * added to the cache are discarded, since the file has changed.
-     *
-     * A log in or a log out automatically disables this feature.
-     *
-     * When the MegaApi object is logged in, the cache of transfers is identified
-     * and protected using the session and the master key, so transfers won't
-     * be resumable using a different session or a different account. The
-     * recommended way of using this function to resume transfers for an account
-     * is calling it in the callback onRequestFinish related to MegaApi::fetchNodes
-     *
-     * When the MegaApi object is not logged in, it's still possible to use this
-     * feature. However, since there isn't any available data to identify
-     * and protect the cache, a default identifier and key are used. To improve
-     * the protection of the transfer cache and allow the usage of this feature
-     * with several non logged in instances of MegaApi at once without clashes,
-     * it's possible to set a custom identifier for the transfer cache in the
-     * optional parameter of this function. If that parameter is used, the
-     * encryption key for the transfer cache will be derived from it.
-     *
-     */
-    public void enableTransferResumption(){
-        megaApi.enableTransferResumption();
-    }
-
-    /**
-     * Enable the resumption of transfers
-     *
-     * This function enables the cache of transfers, so they can be resumed later.
-     * Additionally, if a previous cache already exists (from previous executions),
-     * then this function also resumes the existing cached transfers.
-     *
-     * Cached downloads expire after 10 days since the last time they were active.
-     * Cached uploads expire after 24 hours since the last time they were active.
-     * Cached transfers related to files that have been modified since they were
-     * added to the cache are discarded, since the file has changed.
-     *
-     * A log in or a log out automatically disables this feature.
-     *
-     * When the MegaApi object is logged in, the cache of transfers is identified
-     * and protected using the session and the master key, so transfers won't
-     * be resumable using a different session or a different account. The
-     * recommended way of using this function to resume transfers for an account
-     * is calling it in the callback onRequestFinish related to MegaApi::fetchNodes
-     *
-     * When the MegaApi object is not logged in, it's still possible to use this
-     * feature. However, since there isn't any available data to identify
-     * and protect the cache, a default identifier and key are used. To improve
-     * the protection of the transfer cache and allow the usage of this feature
-     * with several non logged in instances of MegaApi at once without clashes,
-     * it's possible to set a custom identifier for the transfer cache in the
-     * optional parameter of this function. If that parameter is used, the
-     * encryption key for the transfer cache will be derived from it.
-     *
-     * @param loggedOutId Identifier for a non logged in instance of MegaApi.
-     * It doesn't have any effect if MegaApi is logged in.
-     */
-    public void enableTransferResumption(String loggedOutId){
-        megaApi.enableTransferResumption(loggedOutId);
-    }
-
-    /**
-     * Disable the resumption of transfers
-     *
-     * This function disables the resumption of transfers and also deletes
-     * the transfer cache if it exists. See also MegaApi.enableTransferResumption.
-     *
-     */
-    public void disableTransferResumption(){
-        megaApi.disableTransferResumption();
-    }
-
-    /**
-     * Disable the resumption of transfers
-     *
-     * This function disables the resumption of transfers and also deletes
-     * the transfer cache if it exists. See also MegaApi.enableTransferResumption.
-     *
-     * @param loggedOutId Identifier for a non logged in instance of MegaApi.
-     * It doesn't have any effect if MegaApi is logged in.
-     */
-    public void disableTransferResumption(String loggedOutId){
-        megaApi.disableTransferResumption(loggedOutId);
-    }
-
     /**
      * Returns the state (paused/unpaused) of transfers
      * @param direction Direction of transfers to check
@@ -7242,7 +7147,6 @@ public class MegaApiJava {
     public boolean areTransfersPaused(int direction) {
     	return megaApi.areTransfersPaused(direction);
     }
-
 
     /**
      * Set the upload speed limit.
@@ -10881,6 +10785,33 @@ public class MegaApiJava {
      */
     public void getPublicLinkInformation(String megaFolderLink) {
         megaApi.getPublicLinkInformation(megaFolderLink);
+    }
+
+    /**
+     * Call the low level function getrlimit() for NOFILE, needed for some platforms.
+     *
+     * @return The current limit for the number of open files (and sockets) for the app, or -1 if error.
+     */
+    public int platformGetRLimitNumFile() {
+        return megaApi.platformGetRLimitNumFile();
+    }
+
+    /**
+     * Call the low level function setrlimit() for NOFILE, needed for some platforms.
+     *
+     * Particularly on phones, the system default limit for the number of open files (and sockets)
+     * is quite low.   When the SDK can be working on many files and many sockets at once,
+     * we need a higher limit.   Those limits need to take into account the needs of the whole
+     * app and not just the SDK, of course.   This function is provided in order that the app
+     * can make that call and set appropriate limits.
+     *
+     * @param newNumFileLimit The new limit of file and socket handles for the whole app.
+     *
+     * @return True when there were no errors setting the new limit (even when clipped to the maximum
+     * allowed value). It returns false when setting a new limit failed.
+     */
+    public boolean platformSetRLimitNumFile(int newNumFileLimit) {
+        return megaApi.platformSetRLimitNumFile(newNumFileLimit);
     }
 
     /**
