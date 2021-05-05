@@ -2535,6 +2535,37 @@ SyncConfigStore* Syncs::syncConfigStore()
     return mSyncConfigStore.get();
 }
 
+error Syncs::syncConfigStoreAdd(const SyncConfig& config)
+{
+    auto* store = syncConfigStore();
+
+    // Could we get our hands on the store?
+    if (!store)
+    {
+        // Nope and we can't proceed without it.
+        return API_EINTERNAL;
+    }
+
+    SyncConfigVector configs;
+
+    // Load current configs from disk.
+    error result = store->read(LocalPath(), configs);
+
+    if (result == API_ENOENT || result == API_OK)
+    {
+        // Add the new config.
+        configs.emplace_back(config);
+
+        // Write the configs to disk.
+        result = store->write(LocalPath(), configs);
+    }
+
+    // Ensure the drive has been removed.
+    store->removeDrive(LocalPath());
+
+    return result;
+}
+
 bool Syncs::syncConfigStoreDirty()
 {
     return mSyncConfigStore && mSyncConfigStore->dirty();
