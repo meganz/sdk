@@ -60,7 +60,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     size = s;
     owner = u;
 
-    copystring(&fileattrstring, fa);
+    JSON::copystring(&fileattrstring, fa);
 
     ctime = ts;
 
@@ -212,7 +212,7 @@ void Node::detach(const bool recreate)
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
-    Node::copystring(&nodekeydata, k);
+    JSON::copystring(&nodekeydata, k);
     if (keyApplied()) ++client->mAppliedKeyNodeCount;
     assert(client->mAppliedKeyNodeCount >= 0);
 }
@@ -620,28 +620,6 @@ bool Node::serialize(string* d)
     }
 
     return true;
-}
-
-// copy remainder of quoted string (no unescaping, use for base64 data only)
-void Node::copystring(string* s, const char* p)
-{
-    if (p)
-    {
-        const char* pp;
-
-        if ((pp = strchr(p, '"')))
-        {
-            s->assign(p, pp - p);
-        }
-        else
-        {
-            *s = p;
-        }
-    }
-    else
-    {
-        s->clear();
-    }
 }
 
 // decrypt attrstring and check magic number prefix
