@@ -2547,21 +2547,48 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
     }
 
     SyncConfigVector configs;
+    bool known = store->driveKnown(LocalPath());
 
     // Load current configs from disk.
-    error result = store->read(LocalPath(), configs);
+    auto result = store->read(LocalPath(), configs);
 
     if (result == API_ENOENT || result == API_OK)
     {
-        // Add the new config.
-        configs.emplace_back(config);
+        SyncConfigVector::iterator i = configs.begin();
+
+        // Are there any syncs already present for this root?
+        for ( ; i != configs.end(); ++i)
+        {
+            if (i->mLocalPath == config.mLocalPath)
+            {
+                break;
+            }
+        }
+
+        // Did we find any existing config?
+        if (i != configs.end())
+        {
+            // Yep, replace it.
+            LOG_debug << "Replacing existing sync config for: "
+                      << i->mLocalPath.toPath();
+
+            *i = config;
+        }
+        else
+        {
+            // Nope, add it.
+            configs.emplace_back(config);
+        }
 
         // Write the configs to disk.
         result = store->write(LocalPath(), configs);
     }
 
-    // Ensure the drive has been removed.
-    store->removeDrive(LocalPath());
+    // Remove the drive if it wasn't already known.
+    if (!known)
+    {
+        store->removeDrive(LocalPath());
+    }
 
     return result;
 }
