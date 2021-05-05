@@ -2537,6 +2537,13 @@ SyncConfigStore* Syncs::syncConfigStore()
 
 error Syncs::syncConfigStoreAdd(const SyncConfig& config)
 {
+    // Convenience.
+    static auto equal =
+      [](const LocalPath& lhs, const LocalPath& rhs)
+      {
+          return !platformCompareUtf(lhs, false, rhs, false);
+      };
+
     auto* store = syncConfigStore();
 
     // Could we get our hands on the store?
@@ -2559,7 +2566,7 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
         // Are there any syncs already present for this root?
         for ( ; i != configs.end(); ++i)
         {
-            if (i->mLocalPath == config.mLocalPath)
+            if (equal(i->mLocalPath, config.mLocalPath))
             {
                 break;
             }
