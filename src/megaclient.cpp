@@ -13352,7 +13352,7 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
             {
                 auto configWithId = config;
                 configWithId.mBackupId = backupId;
-                syncs.saveSyncConfig(configWithId);
+                e = syncs.syncConfigStoreAdd(configWithId);
             }
         }
 
