@@ -1296,6 +1296,8 @@ MegaClient::~MegaClient()
 
 void MegaClient::logUserPathVariation(const string& message)
 {
+    LOG_debug << message;
+
     if (!mUserPathVariationReceiver) return;
 
 #ifdef ENABLE_LOG_PERFORMANCE

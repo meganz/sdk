@@ -914,7 +914,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                 << localPath;
 
                         client->logUserPathVariation(ostream.str());
-                        LOG_warn << ostream.str();
                     }
 
                     if (success)
@@ -1034,7 +1033,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         << name;
 
                 client->logUserPathVariation(ostream.str());
-                LOG_warn << ostream.str();
             }
 
             if (localpath == &f->localname)
