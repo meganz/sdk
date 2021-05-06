@@ -462,12 +462,29 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
             ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmuxd      libwebpmux     libwebpmuxd         libwebpmux         )
 
-            set (freeimage_deps freeimage_Iex  freeimage_IlmImf freeimage_IlmImfUtil
-                freeimage_IlmThread libturbojpeg libopenjpeg
-                freeimage_half libpng liblcms libraw freeimage_tiff
-                freeimage_tiffxx freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux
-                freeimage_jpeg freeimage_Imath freeimage_lzma
-                libjasper libturbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
+            target_link_libraries(freeimage INTERFACE
+                                            freeimage_Iex
+                                            freeimage_IlmImf
+                                            freeimage_IlmImfUtil
+                                            freeimage_IlmThread
+                                            freeimage_half
+                                            libpng
+                                            libraw
+                                            liblcms
+                                            freeimage_tiff
+                                            freeimage_tiffxx
+                                            freeimage_webp
+                                            freeimage_webpdecoder
+                                            freeimage_webpdemux
+                                            freeimage_webpmux
+                                            freeimage_jpeg
+                                            freeimage_Imath
+                                            freeimage_lzma
+                                            libjasper
+                                            libopenjpeg
+                                            libturbojpeg
+                                            freeimage_jxrglue
+                                            freeimage_jpegxr)
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
@@ -753,7 +770,7 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_LIBUV}:uv>
                         $<${USE_PCRE}:pcrecpp>
                         $<${USE_LIBRAW}:libraw> $<${USE_LIBRAW}:${raw_deps}>
-                        $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:${freeimage_deps}>
+                        $<${USE_FREEIMAGE}:freeimage>
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
                         $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
                         z
