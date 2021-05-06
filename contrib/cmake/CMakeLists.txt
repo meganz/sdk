@@ -267,13 +267,14 @@ if (WIN32)
     add_definitions( -D_WINSOCK_DEPRECATED_NO_WARNINGS )
 ENDIF(WIN32)
 
-include(CheckIncludeFile)
-include(CheckFunctionExists)
-check_include_file(inttypes.h HAVE_INTTYPES_H)
-check_include_file(dirent.h HAVE_DIRENT_H)
-check_include_file(uv.h HAVE_LIBUV)
-check_function_exists(aio_write, HAVE_AIO_RT)
-
+if (NOT WIN32)
+    include(CheckIncludeFile)
+    include(CheckFunctionExists)
+    check_include_file(inttypes.h HAVE_INTTYPES_H)
+    check_include_file(dirent.h HAVE_DIRENT_H)
+    check_include_file(uv.h HAVE_LIBUV)
+    check_function_exists(aio_write, HAVE_AIO_RT)
+endif()
 
 function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64debug lib64release)
     # function to import a library with different files for 32/64 & debug/release
