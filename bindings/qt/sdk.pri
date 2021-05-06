@@ -243,6 +243,8 @@ CONFIG(USE_LIBRAW) {
 
 CONFIG(USE_PDFIUM) {
 
+    SOURCES += src/gfx/gfx_pdfium.cpp
+
     vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
     vcpkg:LIBS += -lpdfium -lfreetype$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2  -llcms$$DEBUG_SUFFIX 
 
@@ -470,6 +472,7 @@ HEADERS  += include/mega.h \
             include/mega/db/sqlite.h  \
             include/mega/gfx/qt.h \
             include/mega/gfx/freeimage.h \
+            include/mega/gfx/gfx_pdfium.h \
             include/mega/gfx/external.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \

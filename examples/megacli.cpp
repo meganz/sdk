@@ -6258,6 +6258,10 @@ void exec_version(autocomplete::ACState& s)
     cout << "* FreeImage" << endl;
 #endif
 
+#ifdef HAVE_PDFIUM
+    cout << "* PDFium" << endl;
+#endif
+
 #ifdef ENABLE_SYNC
     cout << "* sync subsystem" << endl;
 #endif
