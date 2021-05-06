@@ -267,13 +267,14 @@ if (WIN32)
     add_definitions( -D_WINSOCK_DEPRECATED_NO_WARNINGS )
 ENDIF(WIN32)
 
-include(CheckIncludeFile)
-include(CheckFunctionExists)
-check_include_file(inttypes.h HAVE_INTTYPES_H)
-check_include_file(dirent.h HAVE_DIRENT_H)
-check_include_file(uv.h HAVE_LIBUV)
-check_function_exists(aio_write, HAVE_AIO_RT)
-
+if (NOT WIN32)
+    include(CheckIncludeFile)
+    include(CheckFunctionExists)
+    check_include_file(inttypes.h HAVE_INTTYPES_H)
+    check_include_file(dirent.h HAVE_DIRENT_H)
+    check_include_file(uv.h HAVE_LIBUV)
+    check_function_exists(aio_write, HAVE_AIO_RT)
+endif()
 
 function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64debug lib64release)
     # function to import a library with different files for 32/64 & debug/release
@@ -462,12 +463,29 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
             ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmuxd      libwebpmux     libwebpmuxd         libwebpmux         )
 
-            set (freeimage_deps freeimage_Iex  freeimage_IlmImf freeimage_IlmImfUtil
-                freeimage_IlmThread libturbojpeg libopenjpeg
-                freeimage_half libpng liblcms libraw freeimage_tiff
-                freeimage_tiffxx freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux
-                freeimage_jpeg freeimage_Imath freeimage_lzma
-                libjasper libturbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
+            target_link_libraries(freeimage INTERFACE
+                                            freeimage_Iex
+                                            freeimage_IlmImf
+                                            freeimage_IlmImfUtil
+                                            freeimage_IlmThread
+                                            freeimage_half
+                                            libpng
+                                            libraw
+                                            liblcms
+                                            freeimage_tiff
+                                            freeimage_tiffxx
+                                            freeimage_webp
+                                            freeimage_webpdecoder
+                                            freeimage_webpdemux
+                                            freeimage_webpmux
+                                            freeimage_jpeg
+                                            freeimage_Imath
+                                            freeimage_lzma
+                                            libjasper
+                                            libopenjpeg
+                                            libturbojpeg
+                                            freeimage_jxrglue
+                                            freeimage_jpegxr)
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
@@ -496,6 +514,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_PCRE)
             ImportStdVcpkgLibrary(pcre     pcred pcre libpcre libpcre)
             ImportStdVcpkgLibrary(pcrecpp  pcrecppd pcrecpp libpcrecpp libpcrecpp)
+            target_link_libraries(pcrecpp  INTERFACE pcre)
         ENDIF(USE_PCRE)
 
         IF(USE_PDFIUM)
@@ -750,9 +769,9 @@ target_link_libraries(Mega PUBLIC
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
                         $<${USE_SQLITE}:sqlite3>
                         $<${USE_LIBUV}:uv>
-                        $<${USE_PCRE}:pcre pcrecpp>
+                        $<${USE_PCRE}:pcrecpp>
                         $<${USE_LIBRAW}:libraw> $<${USE_LIBRAW}:${raw_deps}>
-                        $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:${freeimage_deps}>
+                        $<${USE_FREEIMAGE}:freeimage>
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
                         $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
                         z
