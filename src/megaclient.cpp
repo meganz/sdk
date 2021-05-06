@@ -942,6 +942,31 @@ std::string MegaClient::getDeviceidHash() const
     return deviceIdHash;
 }
 
+handle MegaClient::generateDriveId()
+{
+    handle driveId;
+    rng.genblock((byte *)&driveId, sizeof(driveId));
+    driveId |= m_time(nullptr);
+    return driveId;
+}
+
+handle MegaClient::readDriveId(const char *pathToDrive) const
+{
+    // TODO: read the drive-id from `<pathToDrive>/.megabackup/drive-id`
+    // log an error message if it's malformed/corrupted...
+    // if not found or error, return UNDEF;
+
+    return UNDEF;
+}
+
+bool MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
+{
+    // TODO: create the file `<pathToDrive>/.megabackup/drive-id`
+    // (binary format is fine)
+
+    return true;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -5945,6 +5970,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
+                                    case ATTR_DRIVE_NAMES:          // fall-through
                                     case ATTR_MY_BACKUPS_FOLDER:     // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
