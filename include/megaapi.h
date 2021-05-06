@@ -7558,9 +7558,10 @@ class MegaApi
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
-            // USER_ATTR_BACKUP_NAMES = 32,         // (deprecated) private - byte array
+            // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
-            USER_ATTR_JSON_SYNC_CONFIG_DATA = 34 // private - byte array
+            USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
+            USER_ATTR_DRIVE_NAMES = 35           // private - byte array
         };
 
         enum {
@@ -12071,6 +12072,38 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Returns the name set for this drive
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+         * - MegaRequest::getFile - Returns the path to the drive
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns drive name.
+         *
+         * @param pathToDrive Path to the root of the external drive
+         * @param listener MegaRequestListener to track this request
+         */
+        void getDriveName(const char *pathToDrive, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Sets drive name
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+         * - MegaRequest::getName - Returns drive name.
+         * - MegaRequest::getFile - Returns the path to the drive
+         *
+         * @param pathToDrive Path to the root of the external drive
+         * @param deviceName String with drive name
+         * @param listener MegaRequestListener to track this request
+         */
+        void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Change the password of the MEGA account

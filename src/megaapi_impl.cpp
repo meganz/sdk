@@ -5878,6 +5878,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
         case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
+        case MegaApi::USER_ATTR_DRIVE_NAMES:
             scope = '*';
             break;
 
@@ -6836,6 +6837,25 @@ void MegaApiImpl::setDeviceName(const char *deviceName, MegaRequestListener *lis
     request->setMegaStringMap(&stringMap);
     request->setName(deviceName);
     request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getDriveName(const char *pathToDrive, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_DRIVE_NAMES);
+    request->setFile(pathToDrive);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setDriveName(const char *pathToDrive, const char *driveName, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setFile(pathToDrive);
+    request->setName(driveName);
+    request->setParamType(MegaApi::USER_ATTR_DRIVE_NAMES);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -15066,7 +15086,8 @@ void MegaApiImpl::getua_result(error e)
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                   || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
-                  || request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER)
+                  || request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+                  || request->getParamType() == MegaApi::USER_ATTR_DRIVE_NAMES)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
@@ -15404,6 +15425,18 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             case MegaApi::USER_ATTR_DEVICE_NAMES:
             {
                 const char *buf = stringMap->get(client->getDeviceid().c_str());
+                if (!buf)
+                {
+                    e = API_ENOENT;
+                    break;
+                }
+                request->setName(Base64::atob(buf).c_str());
+                break;
+            }
+            case MegaApi::USER_ATTR_DRIVE_NAMES:
+            {
+                handle driveId = request->getNodeHandle();
+                const char *buf = stringMap->get(Base64Str<MegaClient::DRIVEHANDLE>(driveId));
                 if (!buf)
                 {
                     e = API_ENOENT;
@@ -20006,8 +20039,9 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (attrname.empty() ||    // unknown attribute type
-                 (type == ATTR_AVATAR && !value)) // no destination file for avatar
+            if (attrname.empty()    // unknown attribute type
+                    || (type == ATTR_AVATAR && !value)  // no destination file for avatar
+                    || (type == ATTR_DRIVE_NAMES && !value)) // no drive path to look for drive-id
             {
                 e = API_EARGS;
                 break;
@@ -20020,6 +20054,18 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            if (type == ATTR_DRIVE_NAMES)
+            {
+                // check if drive-id already exists
+                handle driveId;// = client->readDriveId(value);
+                if (ISUNDEF(driveId))
+                {
+                    e = API_ENOENT;
+                    break;
+                }
+                request->setNodeHandle(driveId);
+            }
+
             client->getua(user, type);
             break;
         }
@@ -20028,7 +20074,6 @@ void MegaApiImpl::sendPendingRequests()
             const char* file = request->getFile();
             const char* value = request->getText();
             attr_t type = static_cast<attr_t>(request->getParamType());
-            MegaStringMap *stringMap = request->getMegaStringMap();
 
             char scope = MegaApiImpl::userAttributeToScope(type);
             string attrname = MegaApiImpl::userAttributeToString(type);
@@ -20082,6 +20127,34 @@ void MegaApiImpl::sendPendingRequests()
             }
             else if (scope == '*')   // private attribute
             {
+                if (type == ATTR_DRIVE_NAMES)
+                {
+                    const char *driveToPath = request->getFile();
+                    if (driveToPath)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    // check if the drive id is already created
+                    // TODO: read <pathToDrive>/.megabackup/drive-id
+                    handle driveId;// = client->readDriveId(driveToPath);
+
+                    if (ISUNDEF(driveId))
+                    {
+                        // TODO: write <pathToDrive>/.megabackup/drive-id
+                        //driveId = client->generateDriveId();
+                        //client->writeDriveId(driveToPath, driveId);
+                    }
+
+                    MegaStringMapPrivate stringMap;
+                    const char *driveName = request->getName();
+                    string buf = driveName ? driveName : "";
+                    stringMap.set(Base64Str<MegaClient::DRIVEHANDLE>(driveId), Base64::btoa(buf).c_str());
+                    request->setMegaStringMap(&stringMap); // makes a copy
+                }
+
+                MegaStringMap *stringMap = request->getMegaStringMap();
                 if (!stringMap)
                 {
                     e = API_EARGS;
@@ -20092,7 +20165,8 @@ void MegaApiImpl::sendPendingRequests()
                 User *ownUser = client->finduser(client->me);
                 if (type == ATTR_ALIAS
                         || type == ATTR_CAMERA_UPLOADS_FOLDER
-                        || type == ATTR_DEVICE_NAMES)
+                        || type == ATTR_DEVICE_NAMES
+                        || type == ATTR_DRIVE_NAMES)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {
