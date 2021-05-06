@@ -144,6 +144,7 @@ public:
     static int getSyncState (UnifiedSync&);
     static int getSyncState(SyncError error, syncstate_t state, MegaClient *client);
     static int getSyncState(const SyncConfig& config, MegaClient *client);
+    static handle getDriveId(UnifiedSync&);
 
     bool operator==(const BackupInfoSync& o) const;
     bool operator!=(const BackupInfoSync& o) const;

@@ -401,6 +401,9 @@ public:
     // update configs on disk for any drive marked as dirty
     auto writeDirtyDrives(const SyncConfigVector& configs) -> DriveSet;
 
+    // set the drive id for this drive
+    void setDriveId(const LocalPath& drivePath, handle driveId);
+
 private:
     // Metadata regarding a given drive.
     struct DriveInfo
@@ -415,6 +418,8 @@ private:
         unsigned int slot = 0;
 
         bool dirty = false;
+
+        handle driveId = UNDEF;
     }; // DriveInfo
 
     using DriveInfoMap = map<LocalPath, DriveInfo, DrivePathComparator>;

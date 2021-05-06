@@ -253,6 +253,14 @@ int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
     }
 }
 
+handle BackupInfoSync::getDriveId(UnifiedSync &us)
+{
+    // TODO: retrieve the drive-id from the DriveInfo that is associated to this sync
+    // (we don't want an access to disk here, since it will be called often)
+
+    return UNDEF;
+}
+
 BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
 {
     switch (config.getType())
@@ -290,6 +298,7 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
     if (us.mBackupInfo && *currentInfo != *us.mBackupInfo)
     {
         currentInfo->backupId = us.mConfig.getBackupId();
+        currentInfo->driveId = BackupInfoSync::getDriveId(us);
         mClient->reqs.add(new CommandBackupPut(mClient, *currentInfo, nullptr));
     }
     us.mBackupInfo = move(currentInfo);

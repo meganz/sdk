@@ -8303,6 +8303,11 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
         arg("d", fields.deviceId.c_str());
     }
 
+    if (!ISUNDEF(fields.driveId))
+    {
+        arg("dr",  (byte*)&fields.driveId, MegaClient::DRIVEHANDLE);
+    }
+
     if (fields.state >= 0)
     {
         arg("s", fields.state);
