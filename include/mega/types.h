@@ -157,7 +157,11 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
+               REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED,
+               REQ_INFLIGHT,
+               REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO,
+               } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
@@ -258,7 +262,7 @@ private:
 };
 
 // returned by loggedin()
-typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } sessiontype_t;
+typedef enum { NOTLOGGEDIN = 0, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT, EPHEMERALACCOUNTPLUSPLUS } sessiontype_t;
 
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit
 // in a 64-bit int

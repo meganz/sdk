@@ -115,6 +115,10 @@ int responseprogress = -1;
 //2FA pin attempts
 int attempts = 0;
 
+//Ephemeral account plus plus
+std::string ephemeralFirstname;
+std::string ephemeralLastName;
+
 #ifdef ENABLE_SYNC
 
 // converts the given sync configuration to a string
@@ -1076,6 +1080,12 @@ void DemoApp::fetchnodes_result(const Error& e)
         if (pdf_to_import)
         {
             client->getwelcomepdf();
+        }
+
+        if (client->ephemeralSessionPlusPlus)
+        {
+            client->putua(ATTR_FIRSTNAME, (const byte*)ephemeralFirstname.c_str(), unsigned(ephemeralFirstname.size()));
+            client->putua(ATTR_LASTNAME, (const byte*)ephemeralLastName.c_str(), unsigned(ephemeralLastName.size()));
         }
     }
 }
@@ -2932,8 +2942,12 @@ autocomplete::ACN autocompleteSyntax()
                                                       sequence(exportedLink(false, true), opt(param("auth_key"))),
                                                       param("session"),
                                                       sequence(text("autoresume"), opt(param("id"))))));
-    p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
+    p->Add(exec_begin, sequence(text("begin"), opt(flag("-e++")),
+                                opt(either(sequence(param("firstname"), param("lastname")),     // to create an ephemeral++
+                                        param("ephemeralhandle#ephemeralpw"),               // to resume an ephemeral
+                                        param("session")))));                                 // to resume an ephemeral++
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
+
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -4417,7 +4431,6 @@ void exec_mfae(autocomplete::ACState& s)
 void exec_login(autocomplete::ACState& s)
 {
     //bool fresh = s.extractflag("-fresh");
-
     if (client->loggedin() == NOTLOGGEDIN)
     {
         if (s.words.size() > 1)
@@ -4477,26 +4490,43 @@ void exec_login(autocomplete::ACState& s)
 
 void exec_begin(autocomplete::ACState& s)
 {
+    bool ephemeralPlusPlus = s.extractflag("-e++");
     if (s.words.size() == 1)
     {
         cout << "Creating ephemeral session..." << endl;
         pdf_to_import = true;
         client->createephemeral();
     }
-    else if (s.words.size() == 2)
+    else if (s.words.size() == 2)   // resume session
     {
-        handle uh;
-        byte pw[SymmCipher::KEYLENGTH];
-
-        if (Base64::atob(s.words[1].s.c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
-            s.words[1].s.c_str() + 12, pw, sizeof pw) == sizeof pw)
+        if (ephemeralPlusPlus)
         {
-            client->resumeephemeral(uh, pw);
+            client->resumeephemeralPlusPlus(Base64::atob(s.words[1].s));
         }
         else
         {
-            cout << "Malformed ephemeral session identifier." << endl;
+            handle uh;
+            byte pw[SymmCipher::KEYLENGTH];
+
+            if (Base64::atob(s.words[1].s.c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
+                s.words[1].s.c_str() + 12, pw, sizeof pw) == sizeof pw)
+            {
+                client->resumeephemeral(uh, pw);
+            }
+            else
+            {
+                cout << "Malformed ephemeral session identifier." << endl;
+            }
         }
+    }
+    else if (ephemeralPlusPlus && s.words.size() == 3)  // begin -e++ firstname lastname
+    {
+        cout << "Creating ephemeral session plus plus..." << endl;
+
+        pdf_to_import = true;
+        ephemeralFirstname = s.words[1].s;
+        ephemeralLastName = s.words[2].s;
+        client->createephemeralPlusPlus();
     }
 }
 
@@ -5576,6 +5606,7 @@ void exec_signup(autocomplete::ACState& s)
             break;
 
         case EPHEMERALACCOUNT:
+        case EPHEMERALACCOUNTPLUSPLUS:
             if (s.words[1].s.find('@') + 1 && s.words[1].s.find('.') + 1)
             {
                 signupemail = s.words[1].s;
@@ -5799,6 +5830,9 @@ void exec_logout(autocomplete::ACState& s)
         delete clientFolder;
         clientFolder = NULL;
     }
+
+    ephemeralFirstname.clear();
+    ephemeralLastName.clear();
 }
 
 #ifdef ENABLE_CHAT
@@ -6487,6 +6521,9 @@ void exec_locallogout(autocomplete::ACState& s)
 
     cwd = NodeHandle();
     client->locallogout(false, true);
+
+    ephemeralFirstname.clear();
+    ephemeralLastName.clear();
 }
 
 void exec_recentnodes(autocomplete::ACState& s)
@@ -6959,8 +6996,17 @@ void DemoApp::confirmemaillink_result(error e)
 void DemoApp::ephemeral_result(handle uh, const byte* pw)
 {
     cout << "Ephemeral session established, session ID: ";
-    cout << Base64Str<MegaClient::USERHANDLE>(uh) << "#";
-    cout << Base64Str<SymmCipher::KEYLENGTH>(pw) << endl;
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        cout << Base64Str<MegaClient::USERHANDLE>(uh) << "#";
+        cout << Base64Str<SymmCipher::KEYLENGTH>(pw) << endl;
+    }
+    else
+    {
+        string session;
+        client->dumpsession(session);
+        cout << Base64::btoa(session) << endl;
+    }
 
     client->fetchnodes();
 }
@@ -7084,7 +7130,7 @@ void exportnode_result(Error e, handle h, handle ph)
             if (authKey.size())
             {
                 string authToken(publicLink);
-                authToken = authToken.substr(strlen("https://mega.nz/folder/")).append(":").append(authKey);
+                authToken = authToken.substr(MegaClient::MEGAURL.size()+strlen("/folder/")).append(":").append(authKey);
                 cout << "\n          AuthToken = " << authToken;
             }
         }
@@ -7464,7 +7510,7 @@ void DemoApp::nodes_current()
 
 void DemoApp::account_updated()
 {
-    if (client->loggedin() == EPHEMERALACCOUNT)
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
         LOG_debug << "Account has been confirmed by another client. Proceed to login with credentials.";
     }
@@ -7476,7 +7522,7 @@ void DemoApp::account_updated()
 
 void DemoApp::notify_confirmation(const char *email)
 {
-    if (client->loggedin() == EPHEMERALACCOUNT)
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
         LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
     }
@@ -8371,7 +8417,6 @@ void exec_syncadd(autocomplete::ACState& s)
                  NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
-                 string_vector(),
                  true,
                  backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
@@ -8625,4 +8670,3 @@ void exec_syncxable(autocomplete::ACState& s)
 }
 
 #endif // ENABLE_SYNC
-

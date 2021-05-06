@@ -3990,7 +3990,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
     MegaHandle imported_file_handle = mApi[0].h;
 
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
@@ -4131,7 +4131,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get()));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get()));
     MegaHandle imported_file_handle = mApi[0].h;
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(imported_file_handle)};
 
@@ -4186,7 +4186,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get()));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get()));
     MegaHandle imported_file_handle = mApi[0].h;
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(imported_file_handle)};
 
@@ -4313,7 +4313,7 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
     MegaHandle imported_file_handle = mApi[0].h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
@@ -4480,7 +4480,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #endif
 
     // ensure we have our standard raid test file
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get()));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get()));
     MegaHandle imported_file_handle = mApi[0].h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
@@ -4778,7 +4778,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     fs::create_directories(localFolderPath);
     mApi[0].h = 0;
     const char* backupName = "RemoteBackupFolder";
-    int err = synchronousSyncFolder(0, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupName, INVALID_HANDLE, nullptr, nullptr);
+    int err = synchronousSyncFolder(0, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupName, INVALID_HANDLE, nullptr);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder failed (error: " << err << ")";
 
     // verify node attribute
@@ -4847,7 +4847,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     fs::path localFolderPath2 = localBasePath / "LocalBackedUpFolder2";
     fs::create_directories(localFolderPath2);
     const char* backupName2 = "RemoteBackupFolder2";
-    err = synchronousSyncFolder(0, MegaSync::TYPE_BACKUP, localFolderPath2.u8string().c_str(), backupName2, INVALID_HANDLE, nullptr, nullptr);
+    err = synchronousSyncFolder(0, MegaSync::TYPE_BACKUP, localFolderPath2.u8string().c_str(), backupName2, INVALID_HANDLE, nullptr);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder 2 failed (error: " << err << ")";
 
 #endif
@@ -5515,13 +5515,13 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     LOG_verbose << "SyncRemoveRemoteNode :  Add syncs";
     // Sync 1
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath1.u8string().c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr, nullptr)) << "API Error adding a new sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath1.u8string().c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr)) << "API Error adding a new sync";
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
     // Sync2
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath2.u8string().c_str(), nullptr, remoteBaseNode2->getHandle(), nullptr, nullptr)) << "API Error adding a new sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath2.u8string().c_str(), nullptr, remoteBaseNode2->getHandle(), nullptr)) << "API Error adding a new sync";
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
     std::unique_ptr<MegaSync> sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync2 && sync2->isActive());
@@ -5530,11 +5530,11 @@ TEST_F(SdkTest, SyncBasicOperations)
     LOG_verbose << "SyncRemoveRemoteNode :  Add syncs that fail";
     {
         TestingWithLogErrorAllowanceGuard g;
-        ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath3.u8string().c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr, nullptr)); // Remote node is currently synced.
+        ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath3.u8string().c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr)); // Remote node is currently synced.
         ASSERT_EQ(MegaSync::ACTIVE_SYNC_BELOW_PATH, mApi[0].lastSyncError);
-        ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath3.u8string().c_str(), nullptr, remoteBaseNode2->getHandle(), nullptr, nullptr)); // Remote node is currently synced.
+        ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath3.u8string().c_str(), nullptr, remoteBaseNode2->getHandle(), nullptr)); // Remote node is currently synced.
         ASSERT_EQ(MegaSync::ACTIVE_SYNC_BELOW_PATH, mApi[0].lastSyncError);
-        ASSERT_EQ(MegaError::API_ENOENT, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, (localPath3 / fs::path("xxxyyyzzz")).u8string().c_str(), nullptr, remoteBaseNode3->getHandle(), nullptr, nullptr)); // Local resource doesn't exists.
+        ASSERT_EQ(MegaError::API_ENOENT, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, (localPath3 / fs::path("xxxyyyzzz")).u8string().c_str(), nullptr, remoteBaseNode3->getHandle(), nullptr)); // Local resource doesn't exists.
         ASSERT_EQ(MegaSync::LOCAL_PATH_UNAVAILABLE, mApi[0].lastSyncError);
     }
 
@@ -5807,7 +5807,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     {
         RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
-        megaApi[0]->syncFolder(MegaSync::TYPE_TWOWAY, p.u8string().c_str(), nullptr, node ? node->getHandle() : INVALID_HANDLE, nullptr, nullptr, &syncTracker);
+        megaApi[0]->syncFolder(MegaSync::TYPE_TWOWAY, p.u8string().c_str(), nullptr, node ? node->getHandle() : INVALID_HANDLE, nullptr, &syncTracker);
         EXPECT_EQ(API_OK, syncTracker.waitForResult());
 
         return syncTracker.request->getParentHandle();
@@ -6000,7 +6000,7 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync";
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr, nullptr)) << "API Error adding a new sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr)) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     handle backupId = sync->getBackupId();
@@ -6189,7 +6189,7 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     LOG_verbose << "SyncPersistence :  Enabling sync";
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr, nullptr)) << "API Error adding a new sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr)) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     handle backupId = sync->getBackupId();
@@ -6271,7 +6271,7 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     LOG_verbose << "SyncPersistence :  Creating sync";
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr, nullptr)) << "API Error adding a new sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr)) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
 
@@ -6300,7 +6300,7 @@ TEST_F(SdkTest, SyncPaths)
         ASSERT_NO_FATAL_FAILURE(createFolder(0, "symlink_1A", remoteRootNode.get())) << "Error creating remote basePath";
         remoteNodeSym.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
         ASSERT_NE(remoteNodeSym.get(), nullptr);
-        ASSERT_EQ(MegaError::API_EARGS, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr, nullptr)) << "API Error adding a new sync";
+        ASSERT_EQ(MegaError::API_EARGS, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr)) << "API Error adding a new sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
     // Disable the first one, create again the one with the symlink, check that it is working and check if the first fails when enabled.
@@ -6309,7 +6309,7 @@ TEST_F(SdkTest, SyncPaths)
     sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && !sync->isEnabled());
 
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr, nullptr)) << "API Error adding a new sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr)) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> syncSym = waitForSyncState(megaApi[0].get(), remoteNodeSym.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(syncSym && syncSym->isActive());
 
@@ -6379,13 +6379,13 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_NE(remoteFillNode.get(), nullptr);
 
     LOG_verbose << "SyncOQTransitions :  Creating sync";
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr, nullptr)) << "API Error adding a new sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr)) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     handle backupId = sync->getBackupId();
 
     LOG_verbose << "SyncOQTransitions :  Filling up storage space";
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg", remoteFillNode.get()));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, MegaClient::MEGAURL+"/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg", remoteFillNode.get()));
     std::unique_ptr<MegaNode> remote1GBFile(megaApi[0]->getNodeByHandle(mApi[0].h));
 
     ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Get account size.

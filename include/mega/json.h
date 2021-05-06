@@ -93,6 +93,10 @@ struct MEGA_API JSON
 
     // Only advance the pointer if it's an error (0, -1, -2, -3, ...)
     bool isNumericError(error& e);
+
+    // copy JSON-delimited string
+    static void copystring(string*, const char*);
+
 };
 
 class MEGA_API JSONWriter
@@ -135,6 +139,7 @@ public:
     const string& getstring() const;
 
     size_t size() const;
+    void clear() { mJson.clear(); }
 
 private:
     static const int MAXDEPTH = 8;

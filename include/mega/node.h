@@ -138,9 +138,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // follow the parent links all the way to the top
     const Node* firstancestor() const;
 
-    // copy JSON-delimited string
-    static void copystring(string*, const char*);
-
     // try to resolve node key string
     bool applykey();
 

@@ -2189,6 +2189,11 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
     pImpl->createAccount(email, password, firstname, lastname, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
 }
 
+void MegaApi::createEphemeralAccountPlusPlus(const char *firstname, const char *lastname, MegaRequestListener *listener)
+{
+    pImpl->createEphemeralAccountPlusPlus(firstname, lastname, listener);
+}
+
 void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
 {
     pImpl->createAccount(email, password, firstname, lastname, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);
@@ -2197,6 +2202,11 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
 void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
 {
     pImpl->resumeCreateAccount(sid, listener);
+}
+
+void MegaApi::resumeCreateAccountEphemeralPlusPlus(const char *sid, MegaRequestListener *listener)
+{
+    pImpl->resumeCreateAccountEphemeralPlusPlus(sid, listener);
 }
 
 void MegaApi::cancelCreateAccount(MegaRequestListener *listener)
@@ -3309,42 +3319,33 @@ MegaNode *MegaApi::getSyncedNode(string *path)
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, NULL, listener);
+    pImpl->syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, nullptr, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, NULL, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
+    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, listener);
 }
 
 
 void MegaApi::syncFolder(MegaSync::SyncType syncType, const char* localFolder, const char* name, MegaHandle megaHandle,
     const char* driveRootIfExternal,
-#ifdef USE_PCRE
-    MegaRegExp* regExp,
-#else
-    void* regExp,
-#endif
     MegaRequestListener* listener)
 {
-#ifdef USE_PCRE
-    assert(!regExp);
-    regExp = nullptr;
-#endif
-    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::Type(syncType), (MegaRegExp*)regExp, listener);
+    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::Type(syncType), listener);
 }
 
 
@@ -3374,14 +3375,6 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
 {
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
-
-#ifdef USE_PCRE
-void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
-{
-    // deprecated
-    pImpl->syncFolder(localFolder, nullptr, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, regExp, listener);
-}
-#endif
 
 void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 {
@@ -3517,14 +3510,6 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 {
     pImpl->setExclusionUpperSizeLimit(limit);
 }
-
-#ifdef USE_PCRE
-void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
-{
-    pImpl->setExcludedRegularExpressions(sync, regExp);
-}
-#endif
-
 #endif
 
 
@@ -5939,48 +5924,6 @@ const char *MegaSyncEvent::getPrevName() const
 MegaHandle MegaSyncEvent::getPrevParent() const
 {
     return INVALID_HANDLE;
-}
-
-MegaRegExp::MegaRegExp()
-{
-    pImpl = new MegaRegExpPrivate();
-}
-
-MegaRegExp::MegaRegExp(MegaRegExpPrivate *pImpl)
-{
-    this->pImpl = pImpl;
-}
-
-MegaRegExp::~MegaRegExp() { }
-
-MegaRegExp *MegaRegExp::copy()
-{
-    return new MegaRegExp(pImpl->copy());
-}
-
-bool MegaRegExp::addRegExp(const char *regExp)
-{
-    return pImpl->addRegExp(regExp);
-}
-
-int MegaRegExp::getNumRegExp()
-{
-    return pImpl->getNumRegExp();
-}
-
-const char *MegaRegExp::getRegExp(int index)
-{
-    return pImpl->getRegExp(index);
-}
-
-bool MegaRegExp::match(const char *s)
-{
-    return pImpl->match(s);
-}
-
-const char *MegaRegExp::getFullPattern()
-{
-    return pImpl->getFullPattern();
 }
 #endif
 
