@@ -260,7 +260,7 @@ private:
 };
 
 // returned by loggedin()
-typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } sessiontype_t;
+typedef enum { NOTLOGGEDIN = 0, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT, EPHEMERALACCOUNTPLUSPLUS } sessiontype_t;
 
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit
 // in a 64-bit int

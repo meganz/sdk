@@ -2413,6 +2413,71 @@ SyncConfigStore* Syncs::syncConfigStore()
     return mSyncConfigStore.get();
 }
 
+error Syncs::syncConfigStoreAdd(const SyncConfig& config)
+{
+    // Convenience.
+    static auto equal =
+      [](const LocalPath& lhs, const LocalPath& rhs)
+      {
+          return !platformCompareUtf(lhs, false, rhs, false);
+      };
+
+    auto* store = syncConfigStore();
+
+    // Could we get our hands on the store?
+    if (!store)
+    {
+        // Nope and we can't proceed without it.
+        return API_EINTERNAL;
+    }
+
+    SyncConfigVector configs;
+    bool known = store->driveKnown(LocalPath());
+
+    // Load current configs from disk.
+    auto result = store->read(LocalPath(), configs);
+
+    if (result == API_ENOENT || result == API_OK)
+    {
+        SyncConfigVector::iterator i = configs.begin();
+
+        // Are there any syncs already present for this root?
+        for ( ; i != configs.end(); ++i)
+        {
+            if (equal(i->mLocalPath, config.mLocalPath))
+            {
+                break;
+            }
+        }
+
+        // Did we find any existing config?
+        if (i != configs.end())
+        {
+            // Yep, replace it.
+            LOG_debug << "Replacing existing sync config for: "
+                      << i->mLocalPath.toPath();
+
+            *i = config;
+        }
+        else
+        {
+            // Nope, add it.
+            configs.emplace_back(config);
+        }
+
+        // Write the configs to disk.
+        result = store->write(LocalPath(), configs);
+    }
+
+    // Remove the drive if it wasn't already known.
+    if (!known)
+    {
+        store->removeDrive(LocalPath());
+    }
+
+    return result;
+}
+
 bool Syncs::syncConfigStoreDirty()
 {
     return mSyncConfigStore && mSyncConfigStore->dirty();

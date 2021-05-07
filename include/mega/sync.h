@@ -862,6 +862,12 @@ struct Syncs
     // Returns a reference to this user's internal configuration database.
     SyncConfigStore* syncConfigStore();
 
+    // Add a config directly to the internal sync config DB.
+    //
+    // Note that configs added in this way bypass the usual sync mechanism.
+    // That is, they are added directly to the JSON DB on disk.
+    error syncConfigStoreAdd(const SyncConfig& config);
+
     // Whether the internal database has changes that need to be written to disk.
     bool syncConfigStoreDirty();
 

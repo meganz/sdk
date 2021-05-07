@@ -702,6 +702,7 @@ bool CommandGetFile::procresult(Result r)
     string filenamestring;
     string filefingerprint;
     std::vector<string> tempurls;
+    std::vector<string> tempips;
 
     for (;;)
     {
@@ -731,6 +732,22 @@ bool CommandGetFile::procresult(Result r)
                 }
                 e.setErrorCode(API_OK);
                 break;
+
+        case MAKENAMEID2('i', 'p'):
+            if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+            {
+                for (;;)
+                {
+                    std::string ti;
+                    if (!client->json.storeobject(&ti))
+                    {
+                        break;
+                    }
+                    tempips.push_back(ti);
+                }
+                client->json.leavearray();
+            }
+            break;
 
             case 's':
                 s = client->json.getint();
@@ -798,6 +815,9 @@ bool CommandGetFile::procresult(Result r)
                 }
                 else
                 {
+                    // cache resolved URLs if received
+                    client->httpio->cacheresolvedurls(tempurls, move(tempips));
+
                     // decrypt at and set filename
                     SymmCipher key;
                     const char* eos = strchr(at, '"');
@@ -1318,7 +1338,19 @@ bool CommandPutNodes::procresult(Result r)
         LOG_debug << "Putnodes error " << r.errorOrOK();
         if (r.wasError(API_EOVERQUOTA))
         {
-            client->activateoverquota(0, false);
+            if (client->isPrivateNode(NodeHandle().set6byte(targethandle)))
+            {
+                client->activateoverquota(0, false);
+            }
+#ifdef ENABLE_SYNC
+            else    // the target's account is overquota
+            {
+                if (source == PUTNODES_SYNC)
+                {
+                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
+                }
+            }
+#endif
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1858,7 +1890,7 @@ bool CommandLogin::procresult(Result r)
                             client->app->login_result(API_EINTERNAL);
                             return true;
                         }
-                        else
+                        else if (client->loggedin() == CONFIRMEDACCOUNT)
                         {
                             // logging in with tsid to an account without a RSA keypair
                             LOG_info << "Generating and adding missing RSA keypair";
@@ -5160,6 +5192,7 @@ bool CommandCreateEphemeralSession::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         client->ephemeralSession = false;
+        client->ephemeralSessionPlusPlus = false;
         client->app->ephemeral_result(r.errorOrOK());
     }
     else
@@ -5448,10 +5481,15 @@ bool CommandConfirmSignupLink::procresult(Result r)
     {
         client->json.storeobject();
         client->ephemeralSession = false;
+        client->ephemeralSessionPlusPlus = false;
         client->app->confirmsignuplink_result(API_OK);
         return true;
     }
 
+    client->json.storeobject();
+
+    client->ephemeralSession = false;
+    client->ephemeralSessionPlusPlus = false;
     client->app->confirmsignuplink_result(r.errorOrOK());
     return r.wasStrictlyError();
 }
