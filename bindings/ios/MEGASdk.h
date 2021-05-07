@@ -391,15 +391,13 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * Function related to statistics will be reviewed in future updates to
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
-@property (readonly, nonatomic) NSNumber *totalsDownloadBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+@property (readonly, nonatomic) NSNumber *totalsDownloadBytes;
 
 /**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
  *
- * @deprecated Property related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
-@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes;
 
 /**
  * Get the total bytes of started uploads
@@ -412,16 +410,13 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  *
  */
-@property (readonly, nonatomic) NSNumber *totalsUploadBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+@property (readonly, nonatomic) NSNumber *totalsUploadBytes;
 
 /**
  * @brief Total uploaded bytes since the creation of the MEGASdk object.
  *
- * @deprecated Property related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
- *
  */
-@property (readonly, nonatomic) NSNumber *totalsUploadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+@property (readonly, nonatomic) NSNumber *totalsUploadedBytes;
 
 /**
  * @brief The total number of nodes in the account
@@ -6156,20 +6151,14 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * @brief Reset the number of total downloads
  * This function resets the number returned by [MEGASdk totalDownloads]
  *
- * @deprecated Function related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
- *
  */
-- (void)resetTotalDownloads __attribute__((deprecated("They could change or be removed in the current form.")));
+- (void)resetTotalDownloads;
 
 /**
  * @brief Reset the number of total uploads
  * This function resets the number returned by [MEGASdk totalUploads]
- *
- * @deprecated Function related to statistics will be reviewed in future updates to
- * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
-- (void)resetTotalUploads __attribute__((deprecated("They could change or be removed in the current form.")));
+- (void)resetTotalUploads;
 
 /**
  * @brief Cancel a transfer.
