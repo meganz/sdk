@@ -5683,17 +5683,17 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
 }
 #endif
 
-void MegaApiImpl::setUserPathVariationsReceiver(MegaLogger* receiver)
+void MegaApiImpl::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
 {
-    unique_ptr<Logger> proxy;
+    unique_ptr<FilenameAnomalyReporter> proxy;
 
-    if (receiver)
+    if (reporter)
     {
-        proxy.reset(new MegaLoggerProxy(*receiver));
+        proxy.reset(new MegaFilenameAnomalyReporterProxy(*reporter));
     }
 
     SdkMutexGuard guard(sdkMutex);
-    client->mUserPathVariationReceiver = std::move(proxy);
+    client->mFilenameAnomalyReporter = std::move(proxy);
 }
 
 long long MegaApiImpl::getSDKtime()

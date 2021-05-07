@@ -1894,8 +1894,8 @@ public:
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
-    void logUserPathVariation(const string& message);
-    unique_ptr<Logger> mUserPathVariationReceiver;
+    void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
+    unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
 };
 } // namespace
 

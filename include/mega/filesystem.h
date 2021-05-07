@@ -595,6 +595,20 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool cwd(LocalPath& path) const = 0;
 };
 
+enum FilenameAnomalyType
+{
+    FILENAME_ANOMALY_NAME_MISMATCH = 0,
+    FILENAME_ANOMALY_NAME_RESERVED = 1
+}; // FilenameAnomalyType
+
+class FilenameAnomalyReporter
+{
+public:
+    virtual ~FilenameAnomalyReporter() { };
+
+    virtual void anomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath) = 0;
+}; // FilenameAnomalyReporter
+
 bool isCaseInsensitive(const FileSystemType type);
 
 int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);

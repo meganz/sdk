@@ -184,44 +184,31 @@ private:
     bool logToConsole;
 };
 
-class MegaLoggerProxy
-  : public Logger
+class MegaFilenameAnomalyReporterProxy
+  : public FilenameAnomalyReporter
 {
 public:
     explicit
-    MegaLoggerProxy(MegaLogger& logger)
-      : mLogger(logger)
+    MegaFilenameAnomalyReporterProxy(MegaFilenameAnomalyReporter& reporter)
+      : mReporter(reporter)
     {
     }
 
-    void log(const char* time,
-             int logLevel,
-             const char* source,
-             const char* message
-#ifdef ENABLE_LOG_PERFORMANCE
-             ,
-             const char** directMessages,
-             size_t* directMessageSizes,
-             unsigned numDirectMessages
-#endif // ENABLE_LOG_PERFORMANCE
-            )
+    void anomalyDetected(FilenameAnomalyType type,
+                         const string& localPath,
+                         const string& remotePath) override
     {
-        mLogger.log(time,
-                    logLevel,
-                    source,
-                    message
-#ifdef ENABLE_LOG_PERFORMANCE
-                    ,
-                    directMessages,
-                    directMessageSizes,
-                    numDirectMessages
-#endif // ENABLE_LOG_PERFORMANCE
-                   );
+        using MegaAnomalyType =
+          MegaFilenameAnomalyReporter::AnomalyType;
+
+        mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
+                                  localPath.c_str(),
+                                  remotePath.c_str());
     }
 
 private:
-    MegaLogger& mLogger;
-}; // MegaLoggerProxy
+    MegaFilenameAnomalyReporter& mReporter;
+}; // MegaFilenameAnomalyReporterProxy
 
 class MegaTransferPrivate;
 class MegaTreeProcCopy : public MegaTreeProcessor
@@ -2254,7 +2241,7 @@ class MegaApiImpl : public MegaApp
 #ifdef USE_ROTATIVEPERFORMANCELOGGER
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
 #endif
-        void setUserPathVariationsReceiver(MegaLogger* receiver);
+        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
         int platformGetRLimitNumFile() const;

@@ -900,9 +900,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         auto localName = (*it)->localname.leafName().toPath();
                         auto name = (*it)->displayname();
 
-                        if (localName != name || isReservedName(name))
+                        auto mismatch = localName != name;
+                        auto reserved = !mismatch && isReservedName(name);
+
+                        if (mismatch || reserved)
                         {
-                            ostringstream ostream;
                             auto localPath = (*it)->localname.toPath();
                             auto node = client->nodeByHandle((*it)->h);
 
@@ -913,11 +915,10 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                 localPath.erase(0, 4);
                             }
 
-                            ostream << node->displaypath()
-                                    << " -> "
-                                    << localPath;
+                            auto type = mismatch ? FILENAME_ANOMALY_NAME_MISMATCH
+                                                 : FILENAME_ANOMALY_NAME_RESERVED;
 
-                            client->logUserPathVariation(ostream.str());
+                            client->filenameAnomalyDetected(type, localPath, node->displaypath());
                         }
                     }
 
@@ -1020,9 +1021,8 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 auto localName = localpath->leafName().toPath();
                 auto name = f->displayname();
 
-                if (localName != name || isReservedName(name))
+                if (localName != name)
                 {
-                    ostringstream ostream;
                     auto localPath = localpath->toPath();
                     auto node = client->nodeByHandle(f->h);
 
@@ -1033,13 +1033,9 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         localPath.erase(0, 4);
                     }
 
-                    ostream << localPath
-                            << " -> "
-                            << node->displaypath()
-                            << "/"
-                            << name;
-
-                    client->logUserPathVariation(ostream.str());
+                    client->filenameAnomalyDetected(FILENAME_ANOMALY_NAME_MISMATCH,
+                                                    localPath,
+                                                    node->displaypath());
                 }
             }
 

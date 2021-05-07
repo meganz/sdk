@@ -1295,17 +1295,36 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
-void MegaClient::logUserPathVariation(const string& message)
+void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
+                                         const string& localPath,
+                                         const string& remotePath)
 {
-    LOG_debug << message;
+    const char* typeName;
 
-    if (!mUserPathVariationReceiver) return;
+    switch (type)
+    {
+    case FILENAME_ANOMALY_NAME_MISMATCH:
+        typeName = "NAME_MISMATCH";
+        break;
+    case FILENAME_ANOMALY_NAME_RESERVED:
+        typeName = "NAME_RESERVED";
+        break;
+    default:
+        assert(!"Unknown filename anomaly type!");
+        typeName = "UNKNOWN";
+        break;
+    }
 
-#ifdef ENABLE_LOG_PERFORMANCE
-    mUserPathVariationReceiver->log(nullptr, logWarning, nullptr, message.c_str(), nullptr, nullptr, 0);
-#else // ENABLE_LOG_PERFORMANCE
-    mUserPathVariationReceiver->log(nullptr, logWarning, nullptr, message.c_str());
-#endif // ! ENABLE_LOG_PERFORMANCE
+    LOG_debug << "Filename anomaly detected: type: "
+              << typeName
+              << " local path: "
+              << localPath
+              << " remote path: ="
+              << remotePath;
+
+    if (!mFilenameAnomalyReporter) return;
+
+    mFilenameAnomalyReporter->anomalyDetected(type, localPath, remotePath);
 }
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
