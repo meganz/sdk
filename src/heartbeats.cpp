@@ -301,6 +301,8 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
     {
         currentInfo->backupId = us.mConfig.getBackupId();
         currentInfo->driveId = BackupInfoSync::getDriveId(us);
+        assert(!(us.mConfig.isBackup() && us.mConfig.isExternal())
+               || !ISUNDEF(currentInfo->driveId));  // external backups must have a valid drive-id
         mClient->reqs.add(new CommandBackupPut(mClient, *currentInfo, nullptr));
     }
     us.mBackupInfo = move(currentInfo);

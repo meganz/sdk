@@ -2494,10 +2494,6 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
         return API_OK;
     }
 
-    // Establish the drive id associated to the drive, for convenience
-    handle driveId = mClient.readDriveId(drivePath.toPath(fsAccess).c_str());
-    store->setDriveId(drivePath, driveId);
-
     // Couldn't open the database.
     LOG_warn << "Failed to restore "
              << drivePath.toPath(fsAccess)
@@ -3395,12 +3391,6 @@ auto SyncConfigStore::writeDirtyDrives(const SyncConfigVector& configs) -> Drive
 
     return failed;
 }
-
-void SyncConfigStore::setDriveId(const LocalPath &drivePath, handle driveId)
-{
-    mKnownDrives[drivePath].driveId = driveId;
-}
-
 
 
 const string SyncConfigIOContext::NAME_PREFIX = "megaclient_syncconfig_";
