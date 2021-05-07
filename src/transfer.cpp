@@ -896,24 +896,29 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
-                    if (isProblematicPath(*client->fsaccess, (*it)->localname, fsType))
                     {
-                        ostringstream ostream;
-                        auto localPath = (*it)->localname.toPath();
-                        auto node = client->nodeByHandle((*it)->h);
+                        auto localName = (*it)->localname.leafName().toPath();
+                        auto name = (*it)->displayname();
 
-                        assert(node);
-
-                        if (!localPath.compare(0, 4, "\\\\?\\"))
+                        if (localName != name || isReservedName(name))
                         {
-                            localPath.erase(0, 4);
+                            ostringstream ostream;
+                            auto localPath = (*it)->localname.toPath();
+                            auto node = client->nodeByHandle((*it)->h);
+
+                            assert(node);
+
+                            if (!localPath.compare(0, 4, "\\\\?\\"))
+                            {
+                                localPath.erase(0, 4);
+                            }
+
+                            ostream << node->displaypath()
+                                    << " -> "
+                                    << localPath;
+
+                            client->logUserPathVariation(ostream.str());
                         }
-
-                        ostream << node->displaypath()
-                                << " -> "
-                                << localPath;
-
-                        client->logUserPathVariation(ostream.str());
                     }
 
                     if (success)
@@ -1011,28 +1016,31 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 localpath = &synclocalpath;
             }
 #endif
-            if (isProblematicPath(*client->fsaccess, *localpath, fsType))
             {
-                ostringstream ostream;
-                auto localName = localpath->leafName();
-                auto localPath = localpath->toPath();
-                auto name = localName.toName(*client->fsaccess, fsType);
-                auto node = client->nodeByHandle(f->h);
+                auto localName = localpath->leafName().toPath();
+                auto name = f->displayname();
 
-                assert(node);
-
-                if (!localPath.compare(0, 4, "\\\\?\\"))
+                if (localName != name || isReservedName(name))
                 {
-                    localPath.erase(0, 4);
+                    ostringstream ostream;
+                    auto localPath = localpath->toPath();
+                    auto node = client->nodeByHandle(f->h);
+
+                    assert(node);
+
+                    if (!localPath.compare(0, 4, "\\\\?\\"))
+                    {
+                        localPath.erase(0, 4);
+                    }
+
+                    ostream << localPath
+                            << " -> "
+                            << node->displaypath()
+                            << "/"
+                            << name;
+
+                    client->logUserPathVariation(ostream.str());
                 }
-
-                ostream << localPath
-                        << " -> "
-                        << node->displaypath()
-                        << "/"
-                        << name;
-
-                client->logUserPathVariation(ostream.str());
             }
 
             if (localpath == &f->localname)

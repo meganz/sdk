@@ -1888,23 +1888,17 @@ WinDirAccess::~WinDirAccess()
     }
 }
 
-bool isPotentiallyInaccessibleName(const FileSystemAccess& fsAccess,
-                                   const LocalPath& localName,
-                                   nodetype_t type)
+bool isReservedName(const string& name)
 {
-    auto& name = localName.localpath;
-
     if (name.empty()) return false;
-
-    if (type == FOLDERNODE && name.back() == L'.') return true;
 
     if (name.size() == 3)
     {
-        static const wstring reserved[] = {L"AUX", L"CON", L"NUL", L"PRN"};
+        static const string reserved[] = {L"AUX", L"CON", L"NUL", L"PRN"};
 
         for (auto& r : reserved)
         {
-            if (!_wcsicmp(name.c_str(), r.c_str())) return true;
+            if (!_stricmp(name.c_str(), r.c_str())) return true;
         }
 
         return false;
@@ -1912,25 +1906,16 @@ bool isPotentiallyInaccessibleName(const FileSystemAccess& fsAccess,
 
     if (name.size() != 4) return false;
 
-    if (!std::iswdigit(name.back())) return false;
+    if (!std::isdigit(name.back())) return false;
 
-    static const wstring reserved[] = {L"COM", L"LPT"};
+    static const string reserved[] = {L"COM", L"LPT"};
 
     for (auto& r : reserved)
     {
-        if (!_wcsnicmp(name.c_str(), r.c_str(), 3)) return true;
+        if (!_strnicmp(name.c_str(), r.c_str(), 3)) return true;
     }
 
     return false;
-}
-
-bool isPotentiallyInaccessiblePath(const FileSystemAccess& fsAccess,
-                                   const LocalPath& localPath,
-                                   nodetype_t type)
-{
-    return isPotentiallyInaccessibleName(fsAccess,
-                                         localPath.leafName(),
-                                         type);
 }
 
 } // namespace

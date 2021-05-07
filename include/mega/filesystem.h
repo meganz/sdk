@@ -608,48 +608,11 @@ int platformCompareUtf(const string&, bool unescape1, const LocalPath&, bool une
 int platformCompareUtf(const LocalPath&, bool unescape1, const string&, bool unescape2);
 int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool unescape2);
 
-// Checks whether a given name requires escaping.
-bool isNameEscapable(const FileSystemAccess& fsAccess,
-                     const LocalPath& localName,
-                     FileSystemType fsType);
-
-bool isNameEscapable(const FileSystemAccess& fsAccess,
-                     const string& remoteName,
-                     FileSystemType fsType);
-
-// Checks whether a path's leaf name requires escaping.
-bool isPathEscapable(const FileSystemAccess& fsAccess,
-                     const LocalPath& localPath,
-                     FileSystemType fsType);
-
-// Checks whether a path is "problematic."
+// Returns true if name is a reserved file name.
 //
-// A path is problematic if:
-// - The path's leaf is (un)escapable.
-// - The path is potentially inaccessible.
-bool isProblematicPath(const FileSystemAccess& fsAccess,
-                       const LocalPath& localPath,
-                       FileSystemType fsType,
-                       nodetype_t type = FILENODE);
-
-// Checks whether the given name is potentially inaccessible.
-//
-// On Windows, a name is potentially inaccessible if:
-// - It is a reserved name.
+// On Windows, a reserved file name is:
 //   - AUX, COM[0-9], CON, LPT[0-9], NUL or PRN.
-// - The name ends with a period (for directories.)
-bool isPotentiallyInaccessibleName(const FileSystemAccess& fsAccess,
-                                   const LocalPath& localName,
-                                   nodetype_t type = FILENODE);
-
-// Checks whether a path is potentially inaccessible.
-//
-// On Windows, a path is potentially inaccessible if:
-// - The path is longer than 254 characters.
-// - The path's leaf file name is potentially inaccessible.
-bool isPotentiallyInaccessiblePath(const FileSystemAccess& fsAccess,
-                                   const LocalPath& localPath,
-                                   nodetype_t type = FILENODE);
+bool isReservedName(const string& name);
 
 } // namespace
 

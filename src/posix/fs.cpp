@@ -2122,13 +2122,7 @@ PosixDirAccess::~PosixDirAccess()
     }
 }
 
-
-bool isPotentiallyInaccessibleName(const FileSystemAccess&, const LocalPath&, nodetype_t)
-{
-    return false;
-}
-
-bool isPotentiallyInaccessiblePath(const FileSystemAccess&, const LocalPath&, nodetype_t)
+bool isReservedName(const string&)
 {
     return false;
 }
