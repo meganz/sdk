@@ -95,7 +95,7 @@ class MegaSemaphore;
 
 /**
  * @brief
- * Interface to receive filename anomoly notifications from the SDK.
+ * Interface to receive filename anomaly notifications from the SDK.
  *
  * @see MegaApi::setFilenameAnomalyReporter
  */

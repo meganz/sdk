@@ -1319,7 +1319,7 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
               << typeName
               << " local path: "
               << localPath
-              << " remote path: ="
+              << " remote path: "
               << remotePath;
 
     if (!mFilenameAnomalyReporter) return;
