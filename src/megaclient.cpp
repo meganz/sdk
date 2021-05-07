@@ -13884,6 +13884,17 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 LocalPath curpath = rit->second->localnode->getLocalPath();
                 rit->second->localnode->treestate(TREESTATE_SYNCING);
 
+                // Check for filename anomalies.
+                {
+                    auto type = isFilenameAnomaly(localpath, rit->second);
+
+                    if (type != FILENAME_ANOMALY_NONE)
+                    {
+                        auto remotepath = rit->second->displaypath();
+                        filenameAnomalyDetected(type, localpath.toPath(), remotepath);
+                    }
+                }
+
                 LOG_debug << "Renaming/moving from the previous location to the new one";
                 if (fsaccess->renamelocal(curpath, localpath))
                 {
@@ -13994,6 +14005,17 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
                 else
                 {
+                    // Check for filename anomalies.
+                    {
+                        auto type = isFilenameAnomaly(localpath, rit->second);
+
+                        if (type != FILENAME_ANOMALY_NONE)
+                        {
+                            auto remotepath = rit->second->displaypath();
+                            filenameAnomalyDetected(type, localpath.toPath(), remotepath);
+                        }
+                    }
+
                     LOG_debug << "Creating local folder";
 
                     if (fsaccess->mkdirlocal(localpath))
@@ -14535,6 +14557,27 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             ll->created = true;
 
             assert (!isSymLink);
+
+            // Check for filename anomalies.
+            if (ll->type == FOLDERNODE)
+            {
+                auto type = isFilenameAnomaly(*ll);
+
+                if (type != FILENAME_ANOMALY_NONE)
+                {
+                    auto localpath = ll->getLocalPath().toPath();
+
+                    // Generate remote path for reporting.
+                    ostringstream remotepath;
+
+                    remotepath << ll->parent->node->displaypath()
+                               << "/"
+                               << ll->name;
+
+                    filenameAnomalyDetected(type, localpath, remotepath.str());
+                }
+            }
+
             // create remote folder or send file
             LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
             synccreate.push_back(ll);
