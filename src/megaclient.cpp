@@ -19,12 +19,6 @@
  * program.
  */
 
-#include <fstream>
-#ifdef _WIN32
-#include <direct.h> // _mkdir()
-#else
-#include <sys/stat.h>
-#endif
 #include "mega.h"
 #include "mega/mediafileattribute.h"
 #include <cctype>
@@ -958,21 +952,29 @@ handle MegaClient::generateDriveId()
 
 handle MegaClient::readDriveId(const char *pathToDrive) const
 {
-    std::string path(pathToDrive);
-    path += "/.megabackup/drive-id";
-    std::ifstream fs(path, std::fstream::binary);
-
-    if (fs.fail())
+    LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
+    LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
+    pd.appendWithSeparator(dotDir, false);
+    auto fa = fsaccess->newfileaccess();
+    if (!fa->isfolder(pd))
     {
         // No error here, this case is valid when only checking for file existence
         return UNDEF;
     }
 
-    handle h;
-    if (!fs.read((char*)&h, sizeof(handle)))
+    LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
+    pd.appendWithSeparator(idFile, false);
+    if (!fa->isfile(pd))
     {
-        LOG_err << "Could not read from DriveId file " << path.c_str();
-        h = UNDEF;
+        // No error here, this case is valid when only checking for file existence
+        return UNDEF;
+    }
+
+    handle h = UNDEF;
+    if (!fa->fopen(pd, true, false) ||
+        !fa->frawread((byte*)&h, sizeof(h), 0))
+    {
+        LOG_err << "Could not read from DriveId file " << pd.toPath();
     }
 
     return h;
@@ -980,33 +982,28 @@ handle MegaClient::readDriveId(const char *pathToDrive) const
 
 bool MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
 {
-    std::string path(pathToDrive);
-    path += "/.megabackup";
-
-    // make sure final dir path exists
-    constexpr auto& mkd =
-#ifdef _WIN32
-    ::_mkdir;
-#else
-    ::mkdir;
-#endif
-    mkd(path.c_str()); // should this fail (because it exists or other errors), opening the file later will determine it
-
-    path += "/drive-id";
-
-    // open the file
-    std::ofstream fs(path, std::fstream::binary);
-
-    if (fs.fail())
+    LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
+    auto fa = fsaccess->newfileaccess();
+    if (!fa->isfolder(pd))
     {
-        LOG_err << "Could not open DriveId file " << path.c_str();
+        LOG_err << "Invalid drive path " << pd.toPath();
         return false;
     }
 
-    if (!fs.write((const char*)&driveId, sizeof(handle)) ||
-        (fs.close(), fs.fail()))
+    LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
+    pd.appendWithSeparator(dotDir, false);
+    if (!fa->isfolder(pd) && !fsaccess->mkdirlocal(pd))
     {
-        LOG_err << "Could not write to DriveId file " << path.c_str();
+        LOG_err << "Could not create drive path " << pd.toPath();
+        return false;
+    }
+
+    LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
+    pd.appendWithSeparator(idFile, false);
+    if (!fa->fopen(pd, false, true) ||
+        !fa->fwrite((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Could not write to DriveId file " << pd.toPath();
         return false;
     }
 
