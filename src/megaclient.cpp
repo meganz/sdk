@@ -20,6 +20,11 @@
  */
 
 #include <fstream>
+#ifdef _WIN32
+#include <direct.h> // _mkdir()
+#else
+#include <sys/stat.h>
+#endif
 #include "mega.h"
 #include "mega/mediafileattribute.h"
 #include <cctype>
@@ -976,7 +981,20 @@ handle MegaClient::readDriveId(const char *pathToDrive) const
 bool MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
 {
     std::string path(pathToDrive);
-    path += "/.megabackup/drive-id";
+    path += "/.megabackup";
+
+    // make sure final dir path exists
+    constexpr auto& mkd =
+#ifdef _WIN32
+    ::_mkdir;
+#else
+    ::mkdir;
+#endif
+    mkd(path.c_str()); // should this fail (because it exists or other errors), opening the file later will determine it
+
+    path += "/drive-id";
+
+    // open the file
     std::ofstream fs(path, std::fstream::binary);
 
     if (fs.fail())
