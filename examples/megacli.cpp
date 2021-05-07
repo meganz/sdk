@@ -4848,6 +4848,13 @@ void exec_getua(autocomplete::ACState& s)
 
 void exec_putua(autocomplete::ACState& s)
 {
+
+    if (!client->loggedin())
+    {
+        cout << "Must be logged in to set user attributes." << endl;
+        return;
+    }
+
     attr_t attrtype = User::string2attr(s.words[1].s.c_str());
     if (attrtype == ATTR_UNKNOWN)
     {
