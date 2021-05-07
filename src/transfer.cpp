@@ -897,28 +897,13 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 if (success || !transient_error)
                 {
                     {
-                        auto localName = (*it)->localname.leafName().toPath();
-                        auto name = (*it)->displayname();
+                        auto node = client->nodeByHandle((*it)->h);
+                        auto path = (*it)->localname;
+                        auto type = isFilenameAnomaly(path, node);
 
-                        auto mismatch = localName != name;
-                        auto reserved = !mismatch && isReservedName(name);
-
-                        if (mismatch || reserved)
+                        if (type != FILENAME_ANOMALY_NONE)
                         {
-                            auto localPath = (*it)->localname.toPath();
-                            auto node = client->nodeByHandle((*it)->h);
-
-                            assert(node);
-
-                            if (!localPath.compare(0, 4, "\\\\?\\"))
-                            {
-                                localPath.erase(0, 4);
-                            }
-
-                            auto type = mismatch ? FILENAME_ANOMALY_NAME_MISMATCH
-                                                 : FILENAME_ANOMALY_NAME_RESERVED;
-
-                            client->filenameAnomalyDetected(type, localPath, node->displaypath());
+                            client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
                         }
                     }
 
@@ -1018,24 +1003,19 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             }
 #endif
             {
-                auto localName = localpath->leafName().toPath();
-                auto name = f->displayname();
+                auto node = client->nodeByHandle(f->h);
+                auto type = isFilenameAnomaly(*localpath, node);
 
-                if (localName != name)
+                if (type != FILENAME_ANOMALY_NONE)
                 {
-                    auto localPath = localpath->toPath();
-                    auto node = client->nodeByHandle(f->h);
+                    // Construct remote path for reporting.
+                    ostringstream remotepath;
 
-                    assert(node);
+                    remotepath << node->displaypath()
+                               << "/"
+                               << f->name;
 
-                    if (!localPath.compare(0, 4, "\\\\?\\"))
-                    {
-                        localPath.erase(0, 4);
-                    }
-
-                    client->filenameAnomalyDetected(FILENAME_ANOMALY_NAME_MISMATCH,
-                                                    localPath,
-                                                    node->displaypath());
+                    client->filenameAnomalyDetected(type, localpath->toPath(), remotepath.str());
                 }
             }
 

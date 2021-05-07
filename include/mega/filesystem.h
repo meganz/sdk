@@ -598,7 +598,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 enum FilenameAnomalyType
 {
     FILENAME_ANOMALY_NAME_MISMATCH = 0,
-    FILENAME_ANOMALY_NAME_RESERVED = 1
+    FILENAME_ANOMALY_NAME_RESERVED = 1,
+    // This should always be last.
+    FILENAME_ANOMALY_NONE
 }; // FilenameAnomalyType
 
 class FilenameAnomalyReporter
@@ -626,7 +628,30 @@ int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool 
 //
 // On Windows, a reserved file name is:
 //   - AUX, COM[0-9], CON, LPT[0-9], NUL or PRN.
-bool isReservedName(const string& name);
+bool isReservedName(const string& name, nodetype_t type = FILENODE);
+
+// Checks if there is a filename anomaly.
+//
+// @param localPath
+// The local path of the file in question.
+//
+// @param node
+// The remote node representing the file in question.
+//
+// @return
+// FILENAME_ANOMALY_NAME_MISMATCH
+// - If the local and remote file name differs.
+// FILENAME_ANOMALY_NAME_RESERVED
+// - If the remote file name is reserved.
+// FILENAME_ANOMALY_NONE
+// - If no anomalies were detected.
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node);
+
+// Checks if there is a filename anomaly.
+//
+// Convenience specialization of the above.
+// Useful when we only have the local node.
+FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
 
 } // namespace
 

@@ -1888,9 +1888,11 @@ WinDirAccess::~WinDirAccess()
     }
 }
 
-bool isReservedName(const string& name)
+bool isReservedName(const string& name, nodetype_t type)
 {
     if (name.empty()) return false;
+
+    if (type == FOLDERNODE && name.back() == '.') return true;
 
     if (name.size() == 3)
     {

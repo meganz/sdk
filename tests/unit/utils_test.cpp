@@ -671,8 +671,12 @@ TEST(Filesystem, isReservedName)
 
     for (auto& r : reserved)
     {
-        EXPECT_EQ(isReservedName(r), expected);
+        EXPECT_EQ(isReservedName(r, FILENODE),   expected);
+        EXPECT_EQ(isReservedName(r, FOLDERNODE), expected);
     }
+
+    EXPECT_EQ(isReservedName("a.", FILENODE),   false);
+    EXPECT_EQ(isReservedName("a.", FOLDERNODE), expected);
 }
 
 class SqliteDBTest

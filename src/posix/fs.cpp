@@ -2122,7 +2122,7 @@ PosixDirAccess::~PosixDirAccess()
     }
 }
 
-bool isReservedName(const string&)
+bool isReservedName(const string&, nodetype_t)
 {
     return false;
 }
