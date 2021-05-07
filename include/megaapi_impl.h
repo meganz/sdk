@@ -34,10 +34,6 @@
 #define CRON_USE_LOCAL_TIME 1
 #include "mega/mega_ccronexpr.h"
 
-#ifdef USE_PCRE
-#include <pcre.h>
-#endif
-
 #ifdef HAVE_LIBUV
 #include "uv.h"
 #include "mega/mega_http_parser.h"

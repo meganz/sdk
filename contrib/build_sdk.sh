@@ -814,8 +814,9 @@ freeimage_pkg() {
     #patch to fix problem with raw strings
     find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
 
+    sed -i "s#CFLAGS ?=#CFLAGS +=#g" $freeimage_dir_extract/FreeImage/Makefile.gnu
     #patch to fix problem with newest compilers
-    sed -i "s#CXXFLAGS += -D__ANSI__#CXXFLAGS += -D__ANSI__ -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu 
+    sed -i "s#CXXFLAGS ?=#CXXFLAGS += -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu
 
     #freeimage uses some macros with a dollarsign in the name, and also has some constants that don't fit in a long
     #as gcc building for 32 bit linux has long as 32 bit.  Also some files have the utf-8 BOM which old gcc doesn't like
