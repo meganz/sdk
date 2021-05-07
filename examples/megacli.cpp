@@ -4908,7 +4908,9 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_DEVICE_NAMES || attrtype == ATTR_ALIAS)
+            if (attrtype == ATTR_DEVICE_NAMES
+                    || attrtype == ATTR_DRIVE_NAMES
+                    || attrtype == ATTR_ALIAS)
             {
                 std::string key = s.words[3].s;
                 std::string value = Base64::btoa(s.words[4].s);
