@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <fstream>
 #include "mega.h"
 #include "mega/mediafileattribute.h"
 #include <cctype>
@@ -952,17 +953,44 @@ handle MegaClient::generateDriveId()
 
 handle MegaClient::readDriveId(const char *pathToDrive) const
 {
-    // TODO: read the drive-id from `<pathToDrive>/.megabackup/drive-id`
-    // log an error message if it's malformed/corrupted...
-    // if not found or error, return UNDEF;
+    std::string path(pathToDrive);
+    path += "/.megabackup/drive-id";
+    std::ifstream fs(path, std::fstream::binary);
 
-    return UNDEF;
+    if (fs.fail())
+    {
+        // No error here, this case is valid when only checking for file existence
+        return UNDEF;
+    }
+
+    handle h;
+    if (!fs.read((char*)&h, sizeof(handle)))
+    {
+        LOG_err << "Could not read from DriveId file " << path.c_str();
+        h = UNDEF;
+    }
+
+    return h;
 }
 
 bool MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
 {
-    // TODO: create the file `<pathToDrive>/.megabackup/drive-id`
-    // (binary format is fine)
+    std::string path(pathToDrive);
+    path += "/.megabackup/drive-id";
+    std::ofstream fs(path, std::fstream::binary);
+
+    if (fs.fail())
+    {
+        LOG_err << "Could not open DriveId file " << path.c_str();
+        return false;
+    }
+
+    if (!fs.write((const char*)&driveId, sizeof(handle)) ||
+        (fs.close(), fs.fail()))
+    {
+        LOG_err << "Could not write to DriveId file " << path.c_str();
+        return false;
+    }
 
     return true;
 }

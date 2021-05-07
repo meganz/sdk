@@ -255,10 +255,12 @@ int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
 
 handle BackupInfoSync::getDriveId(UnifiedSync &us)
 {
-    // TODO: retrieve the drive-id from the DriveInfo that is associated to this sync
-    // (we don't want an access to disk here, since it will be called often)
+    const LocalPath& localPath = us.mConfig.getLocalPath();
+    const auto& fsAccess = *us.mClient.fsaccess;
+    const string& localPathUtf8 = localPath.toPath(fsAccess);
+    handle driveId = us.mClient.readDriveId(localPathUtf8.c_str()); // It shouldn't happen very often
 
-    return UNDEF;
+    return driveId;
 }
 
 BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
