@@ -2929,6 +2929,56 @@ void exec_backupcentre(autocomplete::ACState& s)
     }
 }
 
+void exec_logFilenameAnomalies(autocomplete::ACState& s)
+{
+    class Reporter
+      : public FilenameAnomalyReporter
+    {
+    public:
+        void anomalyDetected(FilenameAnomalyType type,
+                             const string& localPath,
+                             const string& remotePath) override
+        {
+            string typeName;
+
+            switch (type)
+            {
+            case FILENAME_ANOMALY_NAME_MISMATCH:
+                typeName = "NAME_MISMATCH";
+                break;
+            case FILENAME_ANOMALY_NAME_RESERVED:
+                typeName = "NAME_RESERVED";
+                break;
+            default:
+                assert(!"Unknown anomaly type!");
+                typeName = "UNKNOWN";
+                break;
+            }
+
+            cout << "Filename anomaly detected: type: "
+                 << typeName
+                 << ": local path: "
+                 << localPath
+                 << ": remote path: "
+                 << remotePath
+                 << endl;
+        }
+    }; // Reporter
+
+    unique_ptr<FilenameAnomalyReporter> reporter;
+
+    if (s.words[1].s == "on")
+    {
+        reporter.reset(new Reporter());
+    }
+
+    client->mFilenameAnomalyReporter = std::move(reporter);
+
+    cout << "Filename anomaly reporting is "
+         << (reporter ? "en" : "dis")
+         << "abled."
+         << endl;
+}
 
 MegaCLILogger gLogger;
 
@@ -3137,6 +3187,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
+
+    p->Add(exec_logFilenameAnomalies,
+           sequence(text("logfilenameanomalies"), either(text("on"), text("off"))));
 
     return autocompleteTemplate = std::move(p);
 }
