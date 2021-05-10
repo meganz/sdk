@@ -12426,6 +12426,7 @@ class MegaApi
          */
         void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, MegaTransferListener *listener=NULL);
 
+        void startUploadWithDataAndCancellation(const char *localPath, MegaNode *parent, const char *appData, MegaCancelToken *cancelToken=NULL, MegaTransferListener *listener=NULL);
         /**
          * @brief Upload a file or a folder, saving custom app data during the transfer
          *

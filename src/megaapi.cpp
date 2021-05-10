@@ -3167,6 +3167,11 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
     pImpl->startTimer(period, listener);
 }
 
+void MegaApi::startUploadWithDataAndCancellation(const char *localPath, MegaNode *parent, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+{
+    pImpl->startUploadWithCancelToken(false, localPath, parent, (const char *)NULL, NULL, -1, 0, false, appData, false, false, FS_UNKNOWN, cancelToken, listener);
+}
+
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
 {
     pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, appData, false, false, FS_UNKNOWN, listener);
