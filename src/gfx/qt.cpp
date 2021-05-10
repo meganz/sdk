@@ -386,6 +386,7 @@ GfxProcQT::GfxProcQT()
     av_register_all();
     avcodec_register_all();
 //    av_log_set_level(AV_LOG_VERBOSE);
+    }
 #endif
 
 #ifdef HAVE_PDFIUM
@@ -406,7 +407,6 @@ GfxProcQT::GfxProcQT()
     }
 #endif
 #endif
-    }
     image = NULL;
     orientation = -1;
     imageType = TYPE_NONE;
