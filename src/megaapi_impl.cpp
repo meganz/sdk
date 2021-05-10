@@ -20130,7 +20130,7 @@ void MegaApiImpl::sendPendingRequests()
                 if (type == ATTR_DRIVE_NAMES)
                 {
                     const char *pathToDrive = request->getFile();
-                    if (pathToDrive)
+                    if (!pathToDrive)
                     {
                         e = API_EARGS;
                         break;

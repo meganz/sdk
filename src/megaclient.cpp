@@ -971,8 +971,7 @@ error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
         return API_ENOENT;
     }
 
-    if (!fa->fopen(pd, true, false) ||
-        !fa->frawread((byte*)&driveId, sizeof(driveId), 0))
+    if (!fa->frawread((byte*)&driveId, sizeof(driveId), 0)) // must _not_ call fopen(...) before this ! (?!)
     {
         LOG_err << "Could not read from DriveId file " << pd.toPath();
         return API_EACCESS;
