@@ -5050,7 +5050,8 @@ TEST_F(SdkTest, SdkDriveName)
     LOG_info << "___TEST SdkDriveName___";
 
     // dummy path to drive
-    string pathToDrive = TestFS::GetTestBaseFolder().u8string();
+    fs::path basePath = makeNewTestRoot();
+    string pathToDrive = basePath.u8string();
 
     // drive name
     string driveName = "SdkDriveNameTest_";
@@ -5071,6 +5072,10 @@ TEST_F(SdkTest, SdkDriveName)
     // reset value, before a future test
     err = synchronousSetDriveName(0, pathToDrive.c_str(), "");
     ASSERT_EQ(MegaError::API_OK, err) << "setDriveName failed when resetting (error: " << err << ")";
+
+    // attempt to get drive name (after being deleted)
+    err = synchronousGetDriveName(0, pathToDrive.c_str());
+    ASSERT_EQ(MegaError::API_ENOENT, err) << "getDriveName not failed as it should (error: " << err << ")";
 }
 
 TEST_F(SdkTest, DISABLED_SdkUserAlias)

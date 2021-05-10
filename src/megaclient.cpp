@@ -953,28 +953,24 @@ handle MegaClient::generateDriveId()
 error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
 {
     driveId = UNDEF;
+
     LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
     LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
     pd.appendWithSeparator(dotDir, false);
-    auto fa = fsaccess->newfileaccess();
-    if (!fa->isfolder(pd))
-    {
-        // This case is valid when only checking for file existence
-        return API_ENOENT;
-    }
-
     LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
     pd.appendWithSeparator(idFile, false);
-    if (!fa->isfile(pd))
+
+    auto fa = fsaccess->newfileaccess(false);
+    if (!fa->fopen(pd, true, false))
     {
         // This case is valid when only checking for file existence
         return API_ENOENT;
     }
 
-    if (!fa->frawread((byte*)&driveId, sizeof(driveId), 0)) // must _not_ call fopen(...) before this ! (?!)
+    if (!fa->frawread((byte*)&driveId, sizeof(driveId), 0))
     {
-        LOG_err << "Could not read from DriveId file " << pd.toPath();
-        return API_EACCESS;
+        LOG_err << "Unable to read drive-id from file: " << pd.toPath();
+        return API_EREAD;
     }
 
     return API_OK;
@@ -983,27 +979,32 @@ error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
 error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
 {
     LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
-    auto fa = fsaccess->newfileaccess();
-    if (!fa->isfolder(pd))
-    {
-        LOG_err << "Invalid drive path " << pd.toPath();
-        return API_EARGS;
-    }
-
     LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
     pd.appendWithSeparator(dotDir, false);
-    if (!fa->isfolder(pd) && !fsaccess->mkdirlocal(pd))
+
+    // Try and create the backup configuration directory
+    if (!(fsaccess->mkdirlocal(pd) || fsaccess->target_exists))
     {
-        LOG_err << "Could not create drive path " << pd.toPath();
-        return API_EACCESS;
+        LOG_err << "Unable to create config DB directory: " << pd.toPath(*fsaccess);
+
+        // Couldn't create the directory and it doesn't exist.
+        return API_EWRITE;
     }
 
+    // Open the file for writing
     LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
     pd.appendWithSeparator(idFile, false);
-    if (!fa->fopen(pd, false, true) ||
-        !fa->fwrite((byte*)&driveId, sizeof(driveId), 0))
+    auto fa = fsaccess->newfileaccess(false);
+    if (!fa->fopen(pd, false, true))
     {
-        LOG_err << "Could not write to DriveId file " << pd.toPath();
+        LOG_err << "Unable to open file to write drive-id: " << pd.toPath();
+        return API_EWRITE;
+    }
+
+    // Write the drive-id to file
+    if (!fa->fwrite((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to write drive-id to file: " << pd.toPath();
         return API_EWRITE;
     }
 
