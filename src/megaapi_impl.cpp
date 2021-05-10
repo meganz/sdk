@@ -1525,7 +1525,24 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     if (!myBackupsNode) { return API_ENOENT; }
 
     // get 'device-id'
-    const string& deviceId = client->getDeviceid();
+    string deviceId;
+    bool isInternalDrive = !request->getLink();
+    if (isInternalDrive)
+    {
+        deviceId = client->getDeviceid();
+    }
+    else // external drive
+    {
+        // drive-id must have been already written to external drive, since a name was given to it
+        handle driveId;
+        error e = client->readDriveId(request->getLink(), driveId);
+        if (e != API_OK)
+            return e;
+
+        // create the device id from the drive id
+        deviceId = Base64Str<MegaClient::DRIVEHANDLE>(driveId);
+    }
+
     if (deviceId.empty()) { return API_EINCOMPLETE; }
 
     // prepare for new nodes
@@ -1545,8 +1562,9 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     else // create `DEVICE_NAME` remote dir
     {
         // get `DEVICE_NAME`, from user attributes
-        if (!u->isattrvalid(ATTR_DEVICE_NAMES)) { return API_EINCOMPLETE; }
-        const string* deviceNameContainerStr = u->getattr(ATTR_DEVICE_NAMES);
+        attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
+        if (!u->isattrvalid(attrType)) { return API_EINCOMPLETE; }
+        const string* deviceNameContainerStr = u->getattr(attrType);
         if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
 
         tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
@@ -8720,7 +8738,7 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
     request->setNodeHandle(megaHandle);
@@ -8743,6 +8761,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
         request->setName(request->getFile());
     }
     request->setParamType(type);
+    request->setLink(driveRootIfExternal);
 
     requestQueue.push(request);
     waiter->notify();
