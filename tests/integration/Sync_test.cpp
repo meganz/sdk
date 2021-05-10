@@ -4331,7 +4331,7 @@ TEST(Sync, BasicSync_FilenameAnomalyReporting)
         auto remoteRoot = root->displaypath();
 
         // Create reporter.
-        reporter = new AnomalyReporter(localRoot, remoteRoot);
+        reporter = new AnomalyReporter(localRoot.u8string(), remoteRoot);
 
         // Set reporter.
         c0.client.mFilenameAnomalyReporter.reset(reporter);
