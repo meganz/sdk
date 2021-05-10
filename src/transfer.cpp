@@ -999,8 +999,8 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 localpath = &synclocalpath;
             }
 #endif
+            if (auto node = client->nodeByHandle(f->h))
             {
-                auto node = client->nodeByHandle(f->h);
                 auto type = isFilenameAnomaly(*localpath, node);
 
                 if (type != FILENAME_ANOMALY_NONE)
