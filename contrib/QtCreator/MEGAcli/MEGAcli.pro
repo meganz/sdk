@@ -23,6 +23,15 @@ CONFIG += USE_MEDIAINFO
 CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
 
+unix:!macx {
+    exists(/usr/include/fpdfview.h) {
+        CONFIG += USE_PDFIUM
+    }
+}
+else {
+    CONFIG += USE_PDFIUM
+}
+
 SOURCES += ../../../examples/megacli.cpp
 HEADERS += ../../../examples/megacli.h
 include(../../../bindings/qt/sdk.pri)
