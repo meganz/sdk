@@ -601,9 +601,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
     state = TRANSFERSTATE_COMPLETING;
     client->app->transfer_update(this);
 
-    // Needed so we can apply appropriate (un)escaping rules.
-    auto fsType = client->fsaccess->getlocalfstype(localfilename);
-
     if (type == GET)
     {
         LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size();
