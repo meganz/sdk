@@ -797,6 +797,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 		void setStartPos(long long startPos);
 		void setEndPos(long long endPos);
 		void setNumRetry(int retry);
+        void setStage(unsigned mStage);
 		void setMaxRetries(int retry);
         void setTime(int64_t time);
 		void setFileName(const char* fileName);
@@ -839,6 +840,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         MegaTransferListener* getListener() const override;
         int getNumRetry() const override;
         int getMaxRetries() const override;
+        unsigned getStage() const override;
         virtual int64_t getTime() const;
         int getTag() const override;
         long long getSpeed() const override;
@@ -928,6 +930,7 @@ protected:
         std::unique_ptr<MegaError> lastError;
         int folderTransferTag;
         const char* appData;
+        uint8_t mStage;
 
         // use shared_ptr here so callbacks can use a weak_ptr
         // to protect against the operation being cancelled in the meantime

@@ -2341,6 +2341,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->priority = 0;
     this->meanSpeed = 0;
     this->notificationNumber = 0;
+    this->mStage = 0;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
@@ -2388,6 +2389,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
     this->setNotificationNumber(transfer->getNotificationNumber());
+    this->setStage(transfer->getStage());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -2538,6 +2540,11 @@ long long MegaTransferPrivate::getEndPos() const
 int MegaTransferPrivate::getNumRetry() const
 {
     return retry;
+}
+
+unsigned MegaTransferPrivate::getStage() const
+{
+    return mStage;
 }
 
 int MegaTransferPrivate::getMaxRetries() const
@@ -3031,6 +3038,15 @@ void MegaTransferPrivate::setEndPos(long long endPos)
 void MegaTransferPrivate::setNumRetry(int retry)
 {
     this->retry = retry;
+}
+
+void MegaTransferPrivate::setStage(unsigned stage)
+{
+    assert (stage > MegaTransfer::STAGE_NONE && stage <= MegaTransfer::STAGE_MAX);
+    if (stage > MegaTransfer::STAGE_NONE && stage <= MegaTransfer::STAGE_MAX)
+    {
+        this->mStage = static_cast<uint8_t>(stage);
+    }
 }
 
 void MegaTransferPrivate::setMaxRetries(int maxRetries)
