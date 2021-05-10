@@ -893,8 +893,8 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
+                    if (auto node = client->nodeByHandle((*it)->h))
                     {
-                        auto node = client->nodeByHandle((*it)->h);
                         auto path = (*it)->localname;
                         auto type = isFilenameAnomaly(path, node);
 
