@@ -2972,12 +2972,12 @@ void exec_logFilenameAnomalies(autocomplete::ACState& s)
         reporter.reset(new Reporter());
     }
 
-    client->mFilenameAnomalyReporter = std::move(reporter);
-
     cout << "Filename anomaly reporting is "
          << (reporter ? "en" : "dis")
          << "abled."
          << endl;
+
+    client->mFilenameAnomalyReporter = std::move(reporter);
 }
 
 MegaCLILogger gLogger;
