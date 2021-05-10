@@ -23420,6 +23420,34 @@ bool MegaApiImpl::cookieBannerEnabled()
     return client->mCookieBannerEnabled;
 }
 
+bool MegaApiImpl::startDriveMonitor()
+{
+    SdkMutexGuard g(sdkMutex);
+    return client->startDriveMonitor();
+}
+
+void MegaApiImpl::stopDriveMonitor()
+{
+    SdkMutexGuard g(sdkMutex);
+    client->stopDriveMonitor();
+}
+
+bool MegaApiImpl::driveMonitorEnabled()
+{
+    SdkMutexGuard g(sdkMutex);
+    return client->driveMonitorEnabled();
+}
+
+#ifdef USE_DRIVE_NOTIFICATIONS
+void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
+{
+    for (auto it = globalListeners.begin(); it != globalListeners.end(); ++it)
+    {
+        (*it)->onDrivePresenceChanged(api, appeared, driveRoot.platformEncoded().c_str());
+    }
+}
+#endif
+
 void TreeProcCopy::allocnodes()
 {
     nn.resize(nc);

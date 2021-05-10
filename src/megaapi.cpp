@@ -1668,6 +1668,8 @@ void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
 void MegaGlobalListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
+void MegaGlobalListener::onDrivePresenceChanged(MegaApi* api, bool present, const char* rootPathInUtf8)
+{ }
 MegaGlobalListener::~MegaGlobalListener()
 { }
 
@@ -5457,6 +5459,21 @@ void MegaApi::getCookieSettings(MegaRequestListener *listener)
 bool MegaApi::cookieBannerEnabled()
 {
     return pImpl->cookieBannerEnabled();
+}
+
+bool MegaApi::startDriveMonitor()
+{
+    return pImpl->startDriveMonitor();
+}
+
+void MegaApi::stopDriveMonitor()
+{
+    pImpl->stopDriveMonitor();
+}
+
+bool MegaApi::driveMonitorEnabled()
+{
+    return pImpl->driveMonitorEnabled();
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
