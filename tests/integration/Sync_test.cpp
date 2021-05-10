@@ -159,6 +159,8 @@ struct Model
     {
         enum nodetype { file, folder };
         nodetype type = folder;
+        string mCloudName;
+        string mFsName;
         string name;
         string content;
         vector<unique_ptr<ModelNode>> kids;
@@ -169,6 +171,8 @@ struct Model
 
         ModelNode(const ModelNode& other)
           : type(other.type)
+          , mCloudName()
+          , mFsName()
           , name(other.name)
           , content(other.content)
           , kids()
@@ -181,9 +185,29 @@ struct Model
             }
         }
 
+        ModelNode& fsName(const string& name)
+        {
+            return mFsName = name, *this;
+        }
+
+        const string& fsName() const
+        {
+            return mFsName.empty() ? name : mFsName;
+        }
+
+        ModelNode& cloudName(const string& name)
+        {
+            return mCloudName = name, *this;
+        }
+
+        const string& cloudName() const
+        {
+            return mCloudName.empty() ? name : mCloudName;
+        }
+
         void generate(const fs::path& path, bool force)
         {
-            const fs::path ourPath = path / name;
+            const fs::path ourPath = path / fsName();
 
             if (type == file)
             {
@@ -633,7 +657,7 @@ struct StandardClient : public MegaApp
 
     handle basefolderhandle = UNDEF;
 
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP };
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP, SETATTR };
 
     struct ResultProc
     {
@@ -1066,17 +1090,55 @@ struct StandardClient : public MegaApp
         }
     }; // FilePut
 
+    void uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer)
+    {
+        unique_ptr<File> file(new FilePut());
+
+        file->h = parent->nodeHandle();
+        file->localname = LocalPath::fromPath(path.u8string(), *client.fsaccess);
+        file->name = name;
+
+        client.startxfer(PUT, file.release(), committer);
+    }
+
+    void uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb)
+    {
+        resultproc.prepresult(PUTNODES,
+                              ++next_request_tag,
+                              [&]()
+                              {
+                                  DBTableTransactionCommitter committer(client.tctable);
+                                  uploadFile(path, name, parent, committer);
+                              },
+                              [pb](error e)
+                              {
+                                  pb->set_value(!e);
+                                  return !e;
+                              });
+    }
+
+    bool uploadFile(const fs::path& path, const string& name, Node* parent)
+    {
+        auto result =
+          thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
+                    {
+                        client.uploadFile(path, name, parent, pb);
+                    });
+
+        return result.get();
+    }
+
+    bool uploadFile(const fs::path& path, Node* parent)
+    {
+        return uploadFile(path, path.filename().u8string(), parent);
+    }
+
     void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer)
     {
         if (fs::is_regular_file(p))
         {
             ++inprogress;
-            File* f = new FilePut();
-            // full local path
-            f->localname = LocalPath::fromPath(p.u8string(), *client.fsaccess);
-            f->h = target->nodeHandle();
-            f->name = p.filename().u8string();
-            client.startxfer(PUT, f, committer);
+            uploadFile(p, p.filename().u8string(), target, committer);
         }
         else if (fs::is_directory(p))
         {
@@ -1517,7 +1579,7 @@ struct StandardClient : public MegaApp
     {
         // top level names can differ so we don't check those
         if (!mn || !n) return false;
-        if (depth && mn->name != n->displayname())
+        if (depth && mn->cloudName() != n->displayname())
         {
             out() << "Node name mismatch: " << mn->path() << " " << n->displaypath() << endl;
             return false;
@@ -1536,7 +1598,7 @@ struct StandardClient : public MegaApp
 
         multimap<string, Model::ModelNode*> ms;
         multimap<string, Node*> ns;
-        for (auto& m : mn->kids) ms.emplace(m->name, m.get());
+        for (auto& m : mn->kids) ms.emplace(m->cloudName(), m.get());
         for (auto& n2 : n->children) ns.emplace(n2->displayname(), n2);
 
         int matched = 0;
@@ -1598,7 +1660,7 @@ struct StandardClient : public MegaApp
     {
         // top level names can differ so we don't check those
         if (!mn || !n) return false;
-        if (depth && mn->name != n->name)
+        if (depth && mn->cloudName() != n->name)
         {
             out() << "LocalNode name mismatch: " << mn->path() << " " << n->name << endl;
             return false;
@@ -1643,7 +1705,7 @@ struct StandardClient : public MegaApp
         multimap<string, LocalNode*> ns;
         for (auto& m : mn->kids)
         {
-            ms.emplace(m->name, m.get());
+            ms.emplace(m->cloudName(), m.get());
         }
         for (auto& n2 : n->children)
         {
@@ -1706,7 +1768,7 @@ struct StandardClient : public MegaApp
     bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported)
     {
         if (!mn) return false;
-        if (depth && mn->name != p.filename().u8string())
+        if (depth && mn->fsName() != p.filename().u8string())
         {
             out() << "filesystem name mismatch: " << mn->path() << " " << p << endl;
             return false;
@@ -1738,7 +1800,7 @@ struct StandardClient : public MegaApp
 
         multimap<string, Model::ModelNode*> ms;
         multimap<string, fs::path> ps;
-        for (auto& m : mn->kids) ms.emplace(m->name, m.get());
+        for (auto& m : mn->kids) ms.emplace(m->fsName(), m.get());
         for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi) ps.emplace(pi->path().filename().u8string(), pi->path());
 
         if (ignoreDebris)
@@ -1947,6 +2009,38 @@ struct StandardClient : public MegaApp
         resultproc.processresult(FETCHNODES, e, UNDEF);
     }
 
+    bool setattr(Node* node)
+    {
+        auto result =
+          thread_do<bool>(
+            [=](StandardClient& client, PromiseBoolSP result) mutable
+            {
+                client.setattr(node, result);
+            });
+
+        return result.get();
+    }
+
+    void setattr(Node* node, PromiseBoolSP result)
+    {
+        resultproc.prepresult(SETATTR,
+                              ++next_request_tag,
+                              [=]()
+                              {
+                                  client.setattr(node);
+                              },
+                              [result](error e)
+                              {
+                                  result->set_value(!e);
+                                  return true;
+                              });
+    }
+
+    void setattr_result(handle h, error e) override
+    {
+        resultproc.processresult(SETATTR, e, h);
+    }
+
     void unlink_result(handle, error e) override
     {
         resultproc.processresult(UNLINK, e, UNDEF);
@@ -1955,6 +2049,32 @@ struct StandardClient : public MegaApp
     void catchup_result() override
     {
         resultproc.processresult(CATCHUP, error(API_OK));
+    }
+
+    void putnodes(handle parent, vector<NewNode>&& nodes, PromiseBoolSP result)
+    {
+        resultproc.prepresult(PUTNODES,
+                              ++next_request_tag,
+                              [&]()
+                              {
+                                  client.putnodes(parent, move(nodes));
+                              },
+                              [result](error e)
+                              {
+                                  result->set_value(!e);
+                                  return true;
+                              });
+    }
+
+    bool putnodes(handle parent, vector<NewNode>&& nodes)
+    {
+        auto result =
+          thread_do<bool>([&](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.putnodes(parent, move(nodes), result);
+                          });
+
+        return result.get();
     }
 
     void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride) override
@@ -4119,6 +4239,261 @@ TEST(Sync, BasicSync_ClientToSDKConfigMigration)
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id0));
     model.removenode(".debris");
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
+}
+
+TEST(Sync, BasicSync_FilenameAnomalyReporting)
+{
+    struct Anomaly
+    {
+        string localPath;
+        string remotePath;
+        FilenameAnomalyType type;
+    };
+
+    class AnomalyReporter
+        : public FilenameAnomalyReporter
+    {
+    public:
+        AnomalyReporter(const string& localRoot,
+                        const string& remoteRoot)
+          : anomalies()
+          , localRoot(localRoot)
+          , remoteRoot(remoteRoot)
+        {
+#ifdef _WIN32
+#define SEP '\\'
+#else // _WIN32
+#define SEP '/'
+#endif // ! _WIN32
+
+            // Add trailing separator if necessary.
+            if (localRoot.back() != SEP)
+            {
+                this->localRoot.push_back(SEP);
+            }
+
+            if (remoteRoot.back() != '/')
+            {
+                this->remoteRoot.push_back('/');
+            }
+
+#undef SEP
+        }
+
+        void anomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath) override
+        {
+            // Sanity.
+            assert(!localPath.compare(0, localRoot.size(), localRoot));
+            assert(!remotePath.compare(0, remoteRoot.size(), remoteRoot));
+
+            // Add new record.
+            anomalies.emplace_back();
+            anomalies.back().localPath = localPath.substr(localRoot.size());
+            anomalies.back().remotePath = remotePath.substr(remoteRoot.size());
+            anomalies.back().type = type;
+        }
+
+        vector<Anomaly> anomalies;
+
+    private:
+        string localRoot;
+        string remoteRoot;
+    }; // AnomalyReporter
+
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient c0(TESTROOT, "c0");
+
+    // Log callbacks.
+    c0.logcb = true;
+
+    // Log client in.
+    ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s0", 0, 0));
+
+    // Create and start sync.
+    auto id0 = c0.setupSync_mainthread("s0", "s0");
+    ASSERT_NE(id0, UNDEF);
+
+    auto root0 = c0.syncSet(id0).localpath;
+
+    // Set up anomaly reporter.
+    AnomalyReporter* reporter;
+
+    {
+        // Compute client root.
+        auto localRoot = TESTROOT / "c0";
+
+        // Compute remote root.
+        auto* root = c0.gettestbasenode();
+        ASSERT_NE(root, nullptr);
+
+        auto remoteRoot = root->displaypath();
+
+        // Create reporter.
+        reporter = new AnomalyReporter(localRoot, remoteRoot);
+
+        // Set reporter.
+        c0.client.mFilenameAnomalyReporter.reset(reporter);
+    }
+
+    // Upload some files with (un)escapable names.
+    Model model;
+
+    model.addfolder("d:0")->fsName("d%3a0");
+    model.addfile("d:0/f:0")->fsName("f%3a0");
+    model.addfile("f:0")->fsName("f%3a0");
+    model.generate(root0);
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Was everything uploaded okay?
+    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id0));
+
+    // Were the anomalies reported correctly?
+    {
+        ASSERT_EQ(reporter->anomalies.size(), 3);
+
+        auto i = reporter->anomalies.begin();
+
+        // d:0
+        ASSERT_EQ(i->localPath, "s0/d%3a0");
+        ASSERT_EQ(i->remotePath, "s0/d:0");
+        ASSERT_EQ(i->type, FILENAME_ANOMALY_NAME_MISMATCH);
+
+        ++i;
+
+        // f:0
+        ASSERT_EQ(i->localPath, "s0/f%3a0");
+        ASSERT_EQ(i->remotePath, "s0/f:0");
+        ASSERT_EQ(i->type, FILENAME_ANOMALY_NAME_MISMATCH);
+
+        ++i;
+
+        // d:0/f:0
+        ASSERT_EQ(i->localPath, "s0/d%3a0/f%3a0");
+        ASSERT_EQ(i->remotePath, "s0/d:0/f:0");
+        ASSERT_EQ(i->type, FILENAME_ANOMALY_NAME_MISMATCH);
+
+        reporter->anomalies.clear();
+    }
+
+    // Download an escapable directory from the cloud.
+    {
+        vector<NewNode> node(1);
+
+        c0.client.putnodes_prepareOneFolder(&node[0], "g:0");
+
+        ASSERT_TRUE(c0.putnodes(c0.syncSet(id0).h.as8byte(), move(node)));
+    }
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Was the directory downloaded okay?
+    model.addfolder("g:0")->fsName("g%3a0");
+
+    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id0));
+
+    // Was the anomaly reported?
+    {
+        ASSERT_EQ(reporter->anomalies.size(), 1);
+
+        auto i = reporter->anomalies.begin();
+
+        // g:0
+        ASSERT_EQ(i->localPath, "s0/g%3a0");
+        ASSERT_EQ(i->remotePath, "s0/g:0");
+        ASSERT_EQ(i->type, FILENAME_ANOMALY_NAME_MISMATCH);
+
+        reporter->anomalies.clear();
+    }
+
+    // Download an escapable file from the cloud.
+    {
+        auto data = "data";
+        auto path = TESTROOT / "c0" / "h%3a0";
+
+        // Create the file.
+        ASSERT_TRUE(createDataFile(path, data));
+
+        // Get remote sync root.
+        auto root = c0.client.nodeByHandle(c0.syncSet(id0).h);
+        ASSERT_NE(root, nullptr);
+
+        // Upload file.
+        ASSERT_TRUE(c0.uploadFile(path, "h:0", root));
+
+        // Update the model.
+        model.addfile("h:0", data)->fsName("h%3a0");
+    }
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Did we download the file successfully?
+    model.ensureLocalDebrisTmpLock("");
+    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id0));
+
+    // Anomaly reported?
+    {
+        ASSERT_EQ(reporter->anomalies.size(), 2);
+
+        auto i = reporter->anomalies.begin();
+
+        // h:0 upload.
+        ASSERT_EQ(i->localPath, "h%3a0");
+        ASSERT_EQ(i->remotePath, "s0/h:0");
+        ASSERT_EQ(i->type, FILENAME_ANOMALY_NAME_MISMATCH);
+
+        ++i;
+
+        // h:0 download.
+        ASSERT_EQ(i->localPath, "s0/h%3a0");
+        ASSERT_EQ(i->remotePath, "s0/h:0");
+        ASSERT_EQ(i->type, FILENAME_ANOMALY_NAME_MISMATCH);
+
+        reporter->anomalies.clear();
+    }
+
+    // Rename a file.
+    {
+        auto* root = c0.client.nodeByHandle(c0.syncSet(id0).h);
+        ASSERT_NE(root, nullptr);
+
+        auto* node = c0.drillchildnodebyname(root, "f:0");
+        ASSERT_NE(node, nullptr);
+
+        node->attrs.map['n'] = "i:0";
+        ASSERT_TRUE(c0.setattr(node));
+
+        // Update model.
+        auto* modelNode = model.findnode("f:0");
+        ASSERT_NE(modelNode, nullptr);
+
+        modelNode->mFsName = "i%3a0";
+        modelNode->name = "i:0";
+    }
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Did the rename complete successfully?
+    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id0));
+
+    // Was the anomaly reported?
+    {
+        ASSERT_EQ(reporter->anomalies.size(), 1);
+
+        auto i = reporter->anomalies.begin();
+
+        ASSERT_EQ(i->localPath, "s0/i%3a0");
+        ASSERT_EQ(i->remotePath, "s0/i:0");
+        ASSERT_EQ(i->type, FILENAME_ANOMALY_NAME_MISMATCH);
+
+        reporter->anomalies.clear();
+    }
 }
 
 struct TwoWaySyncSymmetryCase
