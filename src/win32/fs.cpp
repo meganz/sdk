@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <cctype>
 #include <cwctype>
 
 #include "mega.h"
@@ -1896,7 +1897,7 @@ bool isReservedName(const string& name, nodetype_t type)
 
     if (name.size() == 3)
     {
-        static const string reserved[] = {L"AUX", L"CON", L"NUL", L"PRN"};
+        static const string reserved[] = {"AUX", "CON", "NUL", "PRN"};
 
         for (auto& r : reserved)
         {
@@ -1910,7 +1911,7 @@ bool isReservedName(const string& name, nodetype_t type)
 
     if (!std::isdigit(name.back())) return false;
 
-    static const string reserved[] = {L"COM", L"LPT"};
+    static const string reserved[] = {"COM", "LPT"};
 
     for (auto& r : reserved)
     {
