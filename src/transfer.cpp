@@ -1001,7 +1001,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #endif
             if (auto node = client->nodeByHandle(f->h))
             {
-                auto type = isFilenameAnomaly(*localpath, node);
+                auto type = isFilenameAnomaly(*localpath, f->name);
 
                 if (type != FILENAME_ANOMALY_NONE)
                 {
@@ -1009,7 +1009,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     ostringstream remotepath;
 
                     remotepath << node->displaypath()
-                               << "/"
+                               << (node->parent ? "/" : "")
                                << f->name;
 
                     client->filenameAnomalyDetected(type, localpath->toPath(), remotepath.str());

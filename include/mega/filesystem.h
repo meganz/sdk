@@ -645,12 +645,8 @@ bool isReservedName(const string& name, nodetype_t type = FILENODE);
 // - If the remote file name is reserved.
 // FILENAME_ANOMALY_NONE
 // - If no anomalies were detected.
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type = FILENODE);
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node);
-
-// Checks if there is a filename anomaly.
-//
-// Convenience specialization of the above.
-// Useful when we only have the local node.
 FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
 
 } // namespace

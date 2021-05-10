@@ -1245,18 +1245,15 @@ ScopedLengthRestore::~ScopedLengthRestore()
     path.localpath.resize(length);
 };
 
-FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node)
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
 {
-    assert(node);
-
     auto localName = localPath.leafName().toPath();
-    auto name = node->displayname();
 
-    if (localName != name)
+    if (localName != remoteName)
     {
         return FILENAME_ANOMALY_NAME_MISMATCH;
     }
-    else if (isReservedName(name, node->type))
+    else if (isReservedName(remoteName, type))
     {
         return FILENAME_ANOMALY_NAME_RESERVED;
     }
@@ -1264,20 +1261,16 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
     return FILENAME_ANOMALY_NONE;
 }
 
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node)
+{
+    assert(node);
+
+    return isFilenameAnomaly(localPath, node->displayname(), node->type);
+}
+
 FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
 {
-    auto localName = node.localname.toPath();
-
-    if (node.localname.toPath() != node.name)
-    {
-        return FILENAME_ANOMALY_NAME_MISMATCH;
-    }
-    else if (isReservedName(node.name, node.type))
-    {
-        return FILENAME_ANOMALY_NAME_RESERVED;
-    }
-
-    return FILENAME_ANOMALY_NONE;
+    return isFilenameAnomaly(node.localname, node.name, node.type);
 }
 
 } // namespace
