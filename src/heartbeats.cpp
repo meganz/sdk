@@ -258,7 +258,8 @@ handle BackupInfoSync::getDriveId(UnifiedSync &us)
     const LocalPath& localPath = us.mConfig.getLocalPath();
     const auto& fsAccess = *us.mClient.fsaccess;
     const string& localPathUtf8 = localPath.toPath(fsAccess);
-    handle driveId = us.mClient.readDriveId(localPathUtf8.c_str()); // It shouldn't happen very often
+    handle driveId;
+    us.mClient.readDriveId(localPathUtf8.c_str(), driveId); // It shouldn't happen very often
 
     return driveId;
 }

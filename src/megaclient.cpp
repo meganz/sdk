@@ -950,44 +950,45 @@ handle MegaClient::generateDriveId()
     return driveId;
 }
 
-handle MegaClient::readDriveId(const char *pathToDrive) const
+error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
 {
+    driveId = UNDEF;
     LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
     LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
     pd.appendWithSeparator(dotDir, false);
     auto fa = fsaccess->newfileaccess();
     if (!fa->isfolder(pd))
     {
-        // No error here, this case is valid when only checking for file existence
-        return UNDEF;
+        // This case is valid when only checking for file existence
+        return API_ENOENT;
     }
 
     LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
     pd.appendWithSeparator(idFile, false);
     if (!fa->isfile(pd))
     {
-        // No error here, this case is valid when only checking for file existence
-        return UNDEF;
+        // This case is valid when only checking for file existence
+        return API_ENOENT;
     }
 
-    handle h = UNDEF;
     if (!fa->fopen(pd, true, false) ||
-        !fa->frawread((byte*)&h, sizeof(h), 0))
+        !fa->frawread((byte*)&driveId, sizeof(driveId), 0))
     {
         LOG_err << "Could not read from DriveId file " << pd.toPath();
+        return API_EACCESS;
     }
 
-    return h;
+    return API_OK;
 }
 
-bool MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
+error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
 {
     LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
     auto fa = fsaccess->newfileaccess();
     if (!fa->isfolder(pd))
     {
         LOG_err << "Invalid drive path " << pd.toPath();
-        return false;
+        return API_EARGS;
     }
 
     LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
@@ -995,7 +996,7 @@ bool MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
     if (!fa->isfolder(pd) && !fsaccess->mkdirlocal(pd))
     {
         LOG_err << "Could not create drive path " << pd.toPath();
-        return false;
+        return API_EACCESS;
     }
 
     LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
@@ -1004,10 +1005,10 @@ bool MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
         !fa->fwrite((byte*)&driveId, sizeof(driveId), 0))
     {
         LOG_err << "Could not write to DriveId file " << pd.toPath();
-        return false;
+        return API_EWRITE;
     }
 
-    return true;
+    return API_OK;
 }
 
 // set warn level

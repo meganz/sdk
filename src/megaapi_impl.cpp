@@ -20057,10 +20057,10 @@ void MegaApiImpl::sendPendingRequests()
             if (type == ATTR_DRIVE_NAMES)
             {
                 // check if drive-id already exists
-                handle driveId = client->readDriveId(value);
-                if (ISUNDEF(driveId))
+                handle driveId;
+                e = client->readDriveId(value, driveId);
+                if (e != API_OK)
                 {
-                    e = API_ENOENT;
                     break;
                 }
                 request->setNodeHandle(driveId);
@@ -20138,15 +20138,19 @@ void MegaApiImpl::sendPendingRequests()
 
                     // check if the drive id is already created
                     // read <pathToDrive>/.megabackup/drive-id
-                    handle driveId = client->readDriveId(pathToDrive);
+                    handle driveId;
+                    e = client->readDriveId(pathToDrive, driveId);
 
-                    if (ISUNDEF(driveId))
+                    if (e == API_ENOENT)
                     {
                         // generate new id
                         driveId = client->generateDriveId();
                         // write <pathToDrive>/.megabackup/drive-id
-                        client->writeDriveId(pathToDrive, driveId);
+                        e = client->writeDriveId(pathToDrive, driveId);
                     }
+
+                    if (e != API_OK)
+                        break;
 
                     MegaStringMapPrivate stringMap;
                     const char *driveName = request->getName();
