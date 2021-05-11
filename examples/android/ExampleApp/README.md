@@ -31,7 +31,7 @@ Instead of downloading the prebuilt library, you can build it directly from the 
 ```
 git clone https://github.com/meganz/sdk.git
 ```
-* Export the environtment variable `NDK_ROOT` pointing to your Android NDK installaction path or create a symbolic link in your `HOME` folder pointing to it.
+* Export the environment variable `NDK_ROOT` pointing to your Android NDK installation path or create a symbolic link in your `HOME` folder pointing to it.
 * Open a terminal in the path `examples/android/ExampleApp/app/src/main/jni/` and run `./build.sh all` to build the native libraries.
 * Open the project with Android Studio, let it build the project and hit _*Run*_
 
