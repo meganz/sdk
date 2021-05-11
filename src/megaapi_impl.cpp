@@ -18491,7 +18491,7 @@ void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
     waiter->notify();
 }
 
-unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue)
+unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken *cancelToken)
 {
     CodeCounter::ScopeTimer ccst(client->performanceStats.megaapiSendPendingTransfers);
 
@@ -18508,8 +18508,14 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue)
     // if we are processing a custom queue, we need to process in one shot
     bool canSplit = !queue;
 
-    while(MegaTransferPrivate *transfer = auxQueue.pop())
+    while (MegaTransferPrivate *transfer = auxQueue.pop())
     {
+        if (cancelToken->isCancelled())
+        {
+            assert(queue);
+            return count;
+        }
+
         error e = API_OK;
         int nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);

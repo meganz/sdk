@@ -3335,7 +3335,7 @@ protected:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        unsigned sendPendingTransfers(TransferQueue *queue = nullptr);
+        unsigned sendPendingTransfers(TransferQueue *queue = nullptr, MegaCancelToken *cancelToken = nullptr);
         void updateBackups();
 
         //Internal
