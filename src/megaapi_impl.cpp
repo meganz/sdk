@@ -26906,11 +26906,19 @@ void MegaFolderDownloadController::start(MegaNode *node)
     // for download scan is just checking nodes, we can do this all in one quick pass
     if (!scanFolder(node, path, fsType))
     {
-        // we are still on MegaApi thread here, so ok to call onFinish functions
-        complete(API_EINTERNAL);   // inconsistent node state
+        if (!hasEnded(true)) // also notify app in case of user cancellation
+        {
+            // scan stage could not finish properly, because some remote dir could not be accessed
+            complete(API_EINTERNAL); // inconsistent node state
+        }
     }
     else
     {
+        if (hasEnded(true)) // also notify app in case of user cancellation
+        {
+            return;
+        }
+
         // start worker thread to create local folder tree
         mWorkerThread = std::thread([this, fsType](){
 
@@ -26922,12 +26930,16 @@ void MegaFolderDownloadController::start(MegaNode *node)
             mCompletionForMegaApiThread.reset(new ExecuteOnce([this, fsType, e]() {
 
                 auto err = e;
-                if (!err && cancelled) err = API_EINCOMPLETE;
+                if (!err && hasEnded(true)) err = API_EINCOMPLETE;
                 if (!err)
                 {
                     notifyStage(MegaTransfer::STAGE_GEN_TRANSFERS);
                     // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
                     genDownloadTransfersForFiles(fsType);
+                    if (hasEnded(true)) // also notify app in case of user cancellation
+                    {
+                        return;
+                    }
                 }
                 else
                 {
