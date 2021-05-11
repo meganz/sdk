@@ -25204,6 +25204,9 @@ void MegaFolderUploadController::start(MegaNode*)
     // add the tree above, to subtrees vector for root tree
     mUploadTree.subtrees.push_back(std::move(newTreeNode));
 
+    // it's mandatory to notify stage change from MegaApi's thread
+    notifyStage(MegaTransfer::STAGE_SCAN);
+
     mWorkerThread = std::thread ([this, path]() {
         // recurse all subfolders on disk, building up tree structure to match
         // not yet existing folders get a temporary upload id instead of a handle
@@ -25232,9 +25235,11 @@ void MegaFolderUploadController::start(MegaNode*)
             }
 
             // create folders in batches, not too many at once
+            notifyStage(MegaTransfer::STAGE_CREATE_TREE);
             vector<NewNode> newnodes;
             if (!createNextFolderBatch(mUploadTree, newnodes, true))
             {
+                notifyStage(MegaTransfer::STAGE_GEN_TRANSFERS);
                 // no folders to create so start all uploads straight away
                 // otherwise the final folder completion function will start them
                 TransferQueue transferQueue;
@@ -25246,9 +25251,11 @@ void MegaFolderUploadController::start(MegaNode*)
                 }
                 else
                 {
+                    notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
                     // completion will occur on the last transfer's onFinish callback
                     // (at which time this object is deleted)
                     megaApi->sendPendingTransfers(&transferQueue);
+                    notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
                 }
             }
         }));
@@ -25576,6 +25583,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                     vector<NewNode> newnodes;
                     if (!createNextFolderBatch(mUploadTree, newnodes, true))
                     {
+                        notifyStage(MegaTransfer::STAGE_GEN_TRANSFERS);
                         // no pending folders to create, start uploading files
                         TransferQueue transferQueue;
                         genUploadTransfersForFiles(mUploadTree, transferQueue);
@@ -25586,9 +25594,11 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                         }
                         else
                         {
+                            notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
                             // completion will occur on the last transfer's onFinish callback
                             // (at which time this object is deleted)
                             megaApi->sendPendingTransfers(&transferQueue);
+                            notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
                         }
                     }
                 }
