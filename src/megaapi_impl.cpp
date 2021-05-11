@@ -25498,8 +25498,8 @@ bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 
     LocalPath localname;
     nodetype_t dirEntryType;
-    {
     while (!hasEnded(false) && da->dnext(localPath, localname, mFollowsymlinks, &dirEntryType))
+    {
         ScopedLengthRestore restoreLen(localPath);
         localPath.appendWithSeparator(localname, false);
         if (dirEntryType == FILENODE)
@@ -27057,11 +27057,11 @@ void MegaFolderDownloadController::cancel()
 bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
 {
     assert(mMainThreadId == std::this_thread::get_id());
-    if (cancelled)
+    if (hasEnded(false)) // just check for completion, don't notify app here
     {
-        LOG_warn << "MegaFolderDownloadController::scanFolder - this operation was previously cancelled";
         return false;
     }
+
     recursive++;
     size_t index = 0;
     if (node->getType() == FOLDERNODE)
@@ -27090,7 +27090,7 @@ bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
         return false;
     }
 
-    for (int i = 0; !cancelled && i < children->size(); i++)
+    for (int i = 0; !hasEnded(false) && i < children->size(); i++)
     {
         MegaNode *child = children->get(i);
         if (child->getType() == MegaNode::TYPE_FILE)
@@ -27120,7 +27120,7 @@ Error MegaFolderDownloadController::createFolder()
     // Create all local directories in one shot (on the download worker thread)
     assert(mMainThreadId != std::this_thread::get_id());
     auto it = mLocalTree.begin();
-    while (!cancelled && it != mLocalTree.end())
+    while (!hasEnded(false) && it != mLocalTree.end())
     {
         LocalPath &localpath = it->localPath;
         Error e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
@@ -27131,7 +27131,7 @@ Error MegaFolderDownloadController::createFolder()
         }
         ++it;
     }
-    return cancelled ? API_EINCOMPLETE : API_OK;
+    return hasEnded(false) ? API_EINCOMPLETE : API_OK;
 }
 
 void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType fsType)
@@ -27141,9 +27141,8 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
     // Add all download transfers in one shot
     for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
     {
-        if (cancelled)
+        if (hasEnded(false))
         {
-            LOG_warn << "MegaFolderDownloadController::downloadFiles - this operation was previously cancelled";
             return;
         }
 
@@ -27151,6 +27150,11 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
         const std::vector<unique_ptr<MegaNode>> &childrenNodes = it->childrenNodes;
         for (size_t i = 0; i < childrenNodes.size(); i++)
         {
+            if (hasEnded(false))
+            {
+                return;
+            }
+
              MegaNode &node = *(childrenNodes.at(i).get());
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *fsaccess, fsType), true);
@@ -27161,10 +27165,19 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
          }
     }
 
+    if (hasEnded(false))
+    {
+        return;
+    }
+
     if (pendingTransfers)
     {
         notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
         megaApi->sendPendingTransfers(&transferQueue);
+        if (hasEnded(false))
+        {
+            return;
+        }
         notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
     }
     else
@@ -27173,11 +27186,35 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
     }
 }
 
-void MegaFolderDownloadController::complete(Error e)
+bool MegaFolderDownloadController::hasEnded(bool notifyUserCancellation)
+{
+    if (isCancelled())
+    {
+        // MegaFolderDownloadController::cancel method has been previously called
+        // We do not need to notify transfer as finished here, as It has been done previously
+        LOG_debug << "MegaFolderDownloadController::scanFolder - this operation was previously cancelled";
+        return true;
+    }
+
+    if (isCancelledByUser() && notifyUserCancellation)
+    {
+        // User has cancelled operation via cancelToken
+        if (notifyUserCancellation)
+        {
+            complete(API_EINCOMPLETE, true);
+        }
+        LOG_debug << "MegaFolderDownloadController::scanFolder - this operation has been cancelled by user";
+        return true;
+    }
+
+    return false;
+}
+
+void MegaFolderDownloadController::complete(Error e, bool cancelledByUser)
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
-    if (cancelled)
+    if (isCancelled())
     {
         // Cancellation only happens on this same thread, and only from cancel()
         // In which case, it's all much simpler to let the final fireOnTransferFinish be done there
@@ -27186,7 +27223,7 @@ void MegaFolderDownloadController::complete(Error e)
     }
 
     LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-    transfer->setState(MegaTransfer::STATE_COMPLETED);
+    transfer->setState(cancelledByUser ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_COMPLETED);
     DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
     megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
 }
