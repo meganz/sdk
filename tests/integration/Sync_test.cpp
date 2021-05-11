@@ -3587,7 +3587,7 @@ TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-TEST_F(SyncTest, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
+TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot();

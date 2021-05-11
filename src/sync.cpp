@@ -1391,13 +1391,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
         if (newname.findNextSeparator(index))
         {
-            LOG_warn << "Parent not detected yet. Unknown remainder: " << newname.toPath(*client->fsaccess);
-            if (parent)
-            {
-                // Passing immediate == false, so that if we are being called from DIREVENTS,
-                // we will break the loop rather than always being called back for the item we just pushed
-                dirnotify->notify(DirNotify::DIREVENTS, parent, LocalPath(newname), false);
-            }
+            LOG_warn << "Parent not detected yet. Remainder: " << newname.toPath(*client->fsaccess);
+            // when (if) the parent is created, we'll rescan the folder
             return NULL;
         }
 
@@ -1554,24 +1549,34 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                     {
                                         LOG_debug << "File move/overwrite detected";
 
-                                        // delete existing LocalNode...
-                                        delete l;
+                                        if (parent && !parent->node)
+                                        {
+                                            // we can't handle such a move yet, the target cloud node doesn't exist.
+                                            // when it does, we'll rescan that node's local node (ie, this folder)
+                                            LOG_debug << "File move/overwrite detected BUT can't be processed yet - waiting on parent's cloud node creation";
+                                            return NULL;
+                                        }
+                                        else
+                                        {
+                                            // delete existing LocalNode...
+                                            delete l;
 
-                                        // ...move remote node out of the way...
-                                        client->execsyncdeletions();
+                                            // ...move remote node out of the way...
+                                            client->execsyncdeletions();
 
-                                        // ...and atomically replace with moved one
-                                        client->app->syncupdate_local_move(this, it->second->getLocalPath(), LocalPath::fromPath(path, *client->fsaccess));
+                                            // ...and atomically replace with moved one
+                                            client->app->syncupdate_local_move(this, it->second->getLocalPath(), LocalPath::fromPath(path, *client->fsaccess));
 
-                                        // (in case of a move, this synchronously updates l->parent and l->node->parent)
-                                        it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                                            // (in case of a move, this synchronously updates l->parent and l->node->parent)
+                                            it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
 
-                                        // mark as seen / undo possible deletion
-                                        it->second->setnotseen(0);
+                                            // mark as seen / undo possible deletion
+                                            it->second->setnotseen(0);
 
-                                        statecacheadd(it->second);
+                                            statecacheadd(it->second);
 
-                                        return it->second;
+                                            return it->second;
+                                        }
                                     }
                                 }
                                 else
@@ -1776,6 +1781,20 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     }
 
                     client->app->syncupdate_local_move(this, it->second->getLocalPath(), LocalPath::fromPath(path, *client->fsaccess));
+
+                    if (parent && !parent->node)
+                    {
+                        // we can't handle such a move yet, the target cloud node doesn't exist.
+                        // when it does, we'll rescan that node's local node (ie, this folder)
+                        LOG_debug << "Move or rename of existing node detected BUT can't be processed yet - waiting on parent's cloud node creation";
+                        return NULL;
+                    }
+                    else
+                    {
+                        // (in case of a move, this synchronously updates l->parent
+                        // and l->node->parent)
+                        it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                    }
 
                     // (in case of a move, this synchronously updates l->parent
                     // and l->node->parent)

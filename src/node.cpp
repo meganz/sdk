@@ -1171,6 +1171,9 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     int nc = 0;
     Sync* oldsync = NULL;
 
+    assert(!newparent || newparent->node || newnode);
+
+
     if (parent)
     {
         // remove existing child linkage
@@ -1230,8 +1233,6 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
 
             if (!newnode && node)
             {
-                assert(parent->node);
-
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
                 if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS

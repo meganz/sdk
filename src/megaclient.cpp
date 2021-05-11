@@ -15108,6 +15108,10 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
             if (n->type == FOLDERNODE)
             {
                 app->syncupdate_remote_folder_addition(nn[nni].localnode->sync, n);
+
+                // in case we had notifications from anything under that folder previously that we couldn't process then, rescan
+                nn[nni].localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, nn[nni].localnode, LocalPath());
+
             }
             else
             {
