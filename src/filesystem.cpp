@@ -24,6 +24,8 @@
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
 
+#include "megafs.h"
+
 namespace mega {
 
 namespace detail {
@@ -440,7 +442,7 @@ const char *FileSystemAccess::getPathSeparator()
 #endif
 }
 
-void FileSystemAccess::normalize(string* filename) const
+void FileSystemAccess::normalize(string* filename)
 {
     if (!filename) return;
 
@@ -1120,6 +1122,13 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
     string path;
     fsaccess.local2path(&localpath, &path);
     return path;
+}
+
+string LocalPath::toPath() const
+{
+    // only use this one for logging, until we find out if it works for all platforms
+    static FSACCESS_CLASS fsAccess;
+    return toPath(fsAccess);  // fsAccess synchronization not needed, only the data passed to it is modified
 }
 
 string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const

@@ -1076,6 +1076,7 @@ void MegaClient::init()
     syncdebrisadding = false;
     syncdebrisminute = 0;
     syncscanfailed = false;
+    mSyncMonitorRetry = false;
     syncfslockretry = false;
     syncfsopsfailed = false;
     syncdownretry = false;
@@ -1134,6 +1135,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 #ifdef ENABLE_SYNC
     , syncs(*this)
     , syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
+    , mSyncMonitorRetry(false), mSyncMonitorTimer(rng)
 #endif
     , mCachedStatus(this)
 {
@@ -2452,6 +2454,13 @@ void MegaClient::exec()
             syncops = true;
         }
 
+        // sync timer: try to transition into monitoring mode.
+        if (mSyncMonitorRetry && mSyncMonitorTimer.armed())
+        {
+            mSyncMonitorRetry = false;
+            syncdownrequired = true;
+        }
+
         // sync timer: file change upload delay timeouts (Nagle algorithm)
         if (syncnagleretry && syncnaglebt.armed())
         {
@@ -2893,7 +2902,7 @@ void MegaClient::exec()
                             if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                             {
                                 LOG_debug << "Running syncdown on demand";
-                                if (!syncdown(sync->localroot.get(), localpath, true))
+                                if (!syncdown(sync->localroot.get(), localpath))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
                                     // and force a full rescan afterwards as the local item may
@@ -2940,7 +2949,7 @@ void MegaClient::exec()
         }
 
         // Flush changes made to internal configs.
-        syncs.syncConfigDBFlush();
+        syncs.syncConfigStoreFlush();
 #endif
 
         notifypurge();
@@ -3176,6 +3185,12 @@ int MegaClient::preparewait()
         if (syncscanfailed)
         {
             syncscanbt.update(&nds);
+        }
+
+        // sync monitor timer.
+        if (mSyncMonitorRetry)
+        {
+            mSyncMonitorTimer.update(&nds);
         }
 
         // retrying of transient failed read ops
@@ -4258,7 +4273,6 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     else
     {
         syncs.purgeSyncs();
-        syncs.truncate();
     }
 #endif
 
@@ -11861,7 +11875,7 @@ void MegaClient::fetchnodes(bool nocache)
             enabletransferresumption();
 
 #ifdef ENABLE_SYNC
-            syncs.resetSyncConfigDb();
+            syncs.resetSyncConfigStore();
             syncs.resumeResumableSyncsOnStartup();
 #endif
             app->fetchnodes_result(API_OK);
@@ -13102,6 +13116,27 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
+    if (syncConfig.isExternal())
+    {
+        // Currently only possible for backup syncs.
+        if (!syncConfig.isBackup())
+        {
+            return API_EARGS;
+        }
+
+        const auto& drivePath = syncConfig.mExternalDrivePath;
+        const auto& sourcePath = syncConfig.mLocalPath;
+
+        // Source must be on the drive.
+        if (!drivePath.isContainingPathOf(sourcePath))
+        {
+            syncConfig.mEnabled = false;
+            syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
+
+            return API_EARGS;
+        }
+    }
+
     rootpath = syncConfig.getLocalPath();
     rootpath.trimNonDriveTrailingSeparator();
 
@@ -13288,39 +13323,87 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     if (e)
     {
         completion(nullptr, config.getError(), e);
+        return e;
     }
-    else // API_OK (success)
+
+    // Are we adding an external backup?
+    if (config.isExternal())
     {
-        string deviceIdHash = getDeviceidHash();
-        BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
+        auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
+        auto sourcePath = NormalizeAbsolute(config.mLocalPath);
+        auto* store = syncs.syncConfigStore();
 
-        reqs.add( new CommandBackupPut(this, info,
-                                      [this, config, completion, notifyApp](Error e, handle backupId) mutable {
-            if (ISUNDEF(backupId) && !e)
+        // Can we get our hands on the config store?
+        if (!store)
+        {
+            LOG_err << "Unable to add backup "
+                    << sourcePath.toPath(*fsaccess)
+                    << " on "
+                    << drivePath.toPath(*fsaccess)
+                    << " as there is no config store.";
+
+            assert(completion);
+            completion(nullptr, NO_SYNC_ERROR, API_EINTERNAL);
+
+            return API_EINTERNAL;
+        }
+
+        // Do we already know about this drive?
+        if (!store->driveKnown(drivePath))
+        {
+            // Restore the drive's backups, if any.
+            auto result = syncs.backupOpenDrive(drivePath);
+
+            if (result != API_OK && result != API_ENOENT)
             {
-                e = API_EFAILED;
+                // Couldn't read an existing database.
+                LOG_err << "Unable to add backup "
+                        << sourcePath.toPath(*fsaccess)
+                        << " on "
+                        << drivePath.toPath(*fsaccess)
+                        << " as we could not read its config database.";
+
+                assert(completion);
+                completion(nullptr, NO_SYNC_ERROR, API_EFAILED);
+
+                return API_EFAILED;
             }
+        }
 
-            if (e)
-            {
-                completion(nullptr, config.getError(), e);
-            }
-            else
-            {
-
-                // if we got this far, the syncConfig is kept (in db and in memory)
-                config.setBackupId(backupId);
-
-                UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
-
-                e = unifiedSync->enableSync(false, notifyApp);
-
-                syncactivity = true;
-
-                completion(unifiedSync, unifiedSync->mConfig.getError(), e);
-            }
-        }));
+        config.mExternalDrivePath = std::move(drivePath);
+        config.mLocalPath = std::move(sourcePath);
     }
+
+    // Add the sync.
+    string deviceIdHash = getDeviceidHash();
+    BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
+
+    reqs.add( new CommandBackupPut(this, info,
+                                   [this, config, completion, notifyApp](Error e, handle backupId) mutable {
+        if (ISUNDEF(backupId) && !e)
+        {
+            e = API_EFAILED;
+        }
+
+        if (e)
+        {
+            completion(nullptr, config.getError(), e);
+        }
+        else
+        {
+
+            // if we got this far, the syncConfig is kept (in db and in memory)
+            config.setBackupId(backupId);
+
+            UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+
+            e = unifiedSync->enableSync(false, notifyApp);
+
+            syncactivity = true;
+
+            completion(unifiedSync, unifiedSync->mConfig.getError(), e);
+        }
+    }));
 
     return e;
 }
@@ -13391,7 +13474,58 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // * attempt to execute renames, moves and deletions (deletions require the
 // rubbish flag to be set)
 // returns false if any local fs op failed transiently
-bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
+bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
+{
+    static const dstime MONITOR_DELAY_SEC = 5;
+
+    SyncdownContext cxt;
+
+    cxt.mActionsPerformed = false;
+
+    if (!syncdown(l, localpath, cxt))
+    {
+        return false;
+    }
+
+    if (!l->sync->isBackupMirroring())
+    {
+        return true;
+    }
+
+    bool mirrorStable = true;
+
+    // SCs must have been processed.
+    mirrorStable &= statecurrent;
+
+    // Syncdown must not have performed any actions.
+    mirrorStable &= !cxt.mActionsPerformed;
+
+    // Scan queue must be empty.
+    mirrorStable &= l->sync->dirnotify->empty();
+
+    // Monitor if the mirror is stable.
+    if (mirrorStable)
+    {
+        // Transition to monitor state.
+        l->sync->backupMonitor();
+
+        // Cancel any active monitor timer.
+        mSyncMonitorTimer.reset();
+        mSyncMonitorRetry = false;
+
+        return true;
+    }
+
+    // Otherwise, mirror is not yet stable.
+    //
+    // Set a timer to force another syncdown in the future.
+    mSyncMonitorTimer.backoff(MONITOR_DELAY_SEC * 10);
+    mSyncMonitorRetry = true;
+
+    return true;
+}
+
+bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& cxt)
 {
     // only use for LocalNodes with a corresponding and properly linked Node
     if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
@@ -13467,6 +13601,23 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 // second-guess the user)
                 LOG_warn << "Type changed: " << ll->name << " LNtype: " << ll->type << " Ntype: " << rit->second->type;
                 nchildren.erase(rit);
+
+                if (l->sync->isBackupMirroring())
+                {
+                    // Mirror hasn't stabilized yet.
+                    cxt.mActionsPerformed = true;
+
+                    // Detach the remote, re-upload if necessary.
+                    ll->detach(true);
+
+                    // Move the remote into the debris.
+                    movetosyncdebris(rit->second, l->sync->inshare);
+                }
+                else if (l->sync->isBackupMonitoring())
+                {
+                    // Disable the sync and tell our caller we've failed.
+                    return l->sync->backupModified();
+                }
             }
             else if (ll->type == FILENODE)
             {
@@ -13533,7 +13684,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 }
 
                 // recurse into directories of equal name
-                if (!syncdown(ll, localpath, rubbish) && success)
+                if (!syncdown(ll, localpath, cxt) && success)
                 {
                     success = false;
                 }
@@ -13543,7 +13694,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
 
             lit++;
         }
-        else if (rubbish && ll->deleted)    // no corresponding remote node: delete local item
+        else if (ll->deleted)    // no corresponding remote node: delete local item
         {
             if (ll->type == FILENODE)
             {
@@ -13561,6 +13712,21 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                         ll->deleted = false;
                     }
                 }
+            }
+
+            if (l->sync->isBackupMirroring())
+            {
+                // Mirror hasn't stabilized.
+                cxt.mActionsPerformed = true;
+
+                // Re-upload the node.
+                ll->created = false;
+                ll->deleted = false;
+            }
+            else if (l->sync->isBackupMonitoring())
+            {
+                // Disable the sync and tell our caller we've failed.
+                return l->sync->backupModified();
             }
 
             if (ll->deleted)
@@ -13606,7 +13772,24 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
         if (rit->second->localnode.get() && !rit->second->changed.syncdown_node_matched_here)
         {
             LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
-            if (rit->second->localnode->parent)
+
+            if (l->sync->isBackupMirroring())
+            {
+                // Mirror hasn't stabilized.
+                cxt.mActionsPerformed = true;
+
+                // Detach the remote, re-upload the local if necessary.
+                rit->second->detach(true);
+
+                // Move remote into the debris.
+                movetosyncdebris(rit->second, l->sync->inshare);
+            }
+            else if (l->sync->isBackupMonitoring())
+            {
+                // Disable the sync and tell our caller we've failed.
+                return l->sync->backupModified();
+            }
+            else if (rit->second->localnode->parent)
             {
                 LOG_debug << "with a previous parent: " << rit->second->localnode->parent->name;
 
@@ -13674,57 +13857,90 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                     // download, reconstruct localname in complete()
                     if (download)
                     {
-                        LOG_debug << "Start fetching file node";
-                        app->syncupdate_get(l->sync, rit->second, localpath.toPath(*fsaccess).c_str());
+                        if (l->sync->isBackupMirroring())
+                        {
+                            // Mirror hasn't stabilized.
+                            cxt.mActionsPerformed = true;
 
-                        rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
-                        nextreqtag();
-                        DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                        startxfer(GET, rit->second->syncget, committer);
-                        syncactivity = true;
+                            // Debris the remote.
+                            movetosyncdebris(rit->second, l->sync->inshare);
+                        }
+                        else if (l->sync->isBackupMonitoring())
+                        {
+                            // Disable sync and let the caller know we've failed.
+                            return l->sync->backupModified();
+                        }
+                        else
+                        {
+                            LOG_debug << "Start fetching file node";
+                            app->syncupdate_get(l->sync, rit->second, localpath.toPath(*fsaccess).c_str());
+
+                            rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
+                            nextreqtag();
+                            DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
+                            startxfer(GET, rit->second->syncget, committer);
+                            syncactivity = true;
+                        }
                     }
                 }
             }
             else
             {
-                LOG_debug << "Creating local folder";
                 auto f = fsaccess->newfileaccess(false);
                 if (f->fopen(localpath) || f->type == FOLDERNODE)
                 {
                     LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                 }
-                // create local path, add to LocalNodes and recurse
-                else if (fsaccess->mkdirlocal(localpath))
+                else if (l->sync->isBackupMirroring())
                 {
-                    LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
+                    // Mirror hasn't stabilized.
+                    cxt.mActionsPerformed = true;
 
-                    if (ll && ll != (LocalNode*)~0)
+                    // Remove the remote.
+                    movetosyncdebris(rit->second, l->sync->inshare);
+                }
+                else if (l->sync->isBackupMonitoring())
+                {
+                    // Disable the sync as we have a mismatch.
+                    return l->sync->backupModified();
+                }
+                else
+                {
+                    LOG_debug << "Creating local folder";
+
+                    if (fsaccess->mkdirlocal(localpath))
                     {
-                        LOG_debug << "Local folder created, continuing syncdown";
+                        // create local path, add to LocalNodes and recurse
+                        LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
 
-                        ll->setnode(rit->second);
-                        ll->sync->statecacheadd(ll);
-
-                        if (!syncdown(ll, localpath, rubbish) && success)
+                        if (ll && ll != (LocalNode*)~0)
                         {
-                            LOG_debug << "Syncdown not finished";
-                            success = false;
+                            LOG_debug << "Local folder created, continuing syncdown";
+
+                            ll->setnode(rit->second);
+                            ll->sync->statecacheadd(ll);
+
+                            if (!syncdown(ll, localpath, cxt) && success)
+                            {
+                                LOG_debug << "Syncdown not finished";
+                                success = false;
+                            }
+                        }
+                        else
+                        {
+                            LOG_debug << "Checkpath() failed " << (ll == NULL);
                         }
                     }
-                    else
+                    else if (success && fsaccess->transient_error)
                     {
-                        LOG_debug << "Checkpath() failed " << (ll == NULL);
+                        blockedfile = localpath;
+                        LOG_debug << "Transient error creating folder " << blockedfile.toPath(*fsaccess);
+                        success = false;
                     }
-                }
-                else if (success && fsaccess->transient_error)
-                {
-                    blockedfile = localpath;
-                    LOG_debug << "Transient error creating folder " << blockedfile.toPath(*fsaccess);
-                    success = false;
-                }
-                else if (!fsaccess->transient_error)
-                {
-                    LOG_debug << "Non transient error creating folder";
+                    else if (!fsaccess->transient_error)
+                    {
+                        LOG_debug << "Non transient error creating folder";
+                    }
                 }
             }
         }
