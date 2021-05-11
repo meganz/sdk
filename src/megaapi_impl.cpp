@@ -26734,6 +26734,34 @@ MegaBackupController::~MegaBackupController()
     }
 }
 
+void MegaRecursiveOperation::notifyStage(uint8_t stage)
+{
+    // Make a copy of transfer and set stage in the temp transfer.
+    // If we set stage in the original transfer, we may incur in a wrong order of notification.
+    assert(mMainThreadId == std::this_thread::get_id());
+    assert (stage > MegaTransfer::STAGE_NONE && stage <= MegaTransfer::STAGE_MAX);
+    LOG_debug << "MegaRecursiveOperation: starting " << MegaTransfer::stageToString(stage);
+    unique_ptr<MegaTransfer> tempTransfer(transfer->copy());
+    MegaTransferPrivate *transferPtr = static_cast<MegaTransferPrivate*>(tempTransfer.get());
+    transferPtr->setStage(stage);
+    megaApi->fireOnTransferUpdate(transferPtr);
+}
+
+bool MegaRecursiveOperation::isCancelled()
+{
+    return cancelled;
+}
+
+bool MegaRecursiveOperation::isCancelledByUser()
+{
+    if (!transfer || !transfer->getCancelToken())
+    {
+        return false;
+    }
+
+    return transfer->getCancelToken()->isCancelled();
+}
+
 MegaClient* MegaRecursiveOperation::megaapiThreadClient()
 {
     assert(mMainThreadId == std::this_thread::get_id());

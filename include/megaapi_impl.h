@@ -240,7 +240,13 @@ public:
     virtual ~MegaRecursiveOperation() = default;
     virtual void start(MegaNode* node) = 0;
     virtual void cancel() = 0;
-    bool isCancelled() { return cancelled; }
+    void notifyStage(uint8_t stage);
+
+    // check if recursive operation is cancelled
+    bool isCancelled();
+
+    // check if user has cancelled operation by using cancelToken of associated transfer
+    bool isCancelledByUser();
 
 protected:
     MegaApiImpl *megaApi;
