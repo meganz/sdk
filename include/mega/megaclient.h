@@ -1660,6 +1660,7 @@ public:
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
     static const int BACKUPHANDLE = 8;
+    static const int DRIVEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
 
@@ -1902,6 +1903,16 @@ public:
     std::string getDeviceid() const;
 
     std::string getDeviceidHash() const;
+
+    // generate a new drive id
+    handle generateDriveId();
+
+    // return API_OK if success and set driveId handle to the drive id read from the drive,
+    // otherwise return error code and set driveId to UNDEF
+    error readDriveId(const char *pathToDrive, handle &driveId) const;
+
+    // return API_OK if success, otherwise error code
+    error writeDriveId(const char *pathToDrive, handle driveId);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();

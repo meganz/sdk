@@ -2893,6 +2893,16 @@ void MegaApi::setDeviceName(const char *deviceName, MegaRequestListener *listene
     pImpl->setDeviceName(deviceName, listener);
 }
 
+void MegaApi::getDriveName(const char *pathToDrive, MegaRequestListener *listener)
+{
+    pImpl->getDriveName(pathToDrive, listener);
+}
+
+void MegaApi::setDriveName(const char *pathToDrive, const char *driveName, MegaRequestListener *listener)
+{
+    pImpl->setDriveName(pathToDrive, driveName, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);

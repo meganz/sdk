@@ -3458,7 +3458,6 @@ auto SyncConfigStore::writeDirtyDrives(const SyncConfigVector& configs) -> Drive
 }
 
 
-
 const string SyncConfigIOContext::NAME_PREFIX = "megaclient_syncconfig_";
 
 SyncConfigIOContext::SyncConfigIOContext(FileSystemAccess& fsAccess,

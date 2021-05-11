@@ -4850,6 +4850,13 @@ void exec_getua(autocomplete::ACState& s)
 
 void exec_putua(autocomplete::ACState& s)
 {
+
+    if (!client->loggedin())
+    {
+        cout << "Must be logged in to set user attributes." << endl;
+        return;
+    }
+
     attr_t attrtype = User::string2attr(s.words[1].s.c_str());
     if (attrtype == ATTR_UNKNOWN)
     {
@@ -4910,7 +4917,9 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_DEVICE_NAMES || attrtype == ATTR_ALIAS)
+            if (attrtype == ATTR_DEVICE_NAMES
+                    || attrtype == ATTR_DRIVE_NAMES
+                    || attrtype == ATTR_ALIAS)
             {
                 std::string key = s.words[3].s;
                 std::string value = Base64::btoa(s.words[4].s);

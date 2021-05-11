@@ -415,6 +415,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         if (mApi[apiIndex].lastError == API_OK)
         {
             if (request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES ||
+                request->getParamType() == MegaApi::USER_ATTR_DRIVE_NAMES ||
                 request->getParamType() == MegaApi::USER_ATTR_ALIAS)
             {
                 attributeValue = request->getName() ? request->getName() : "";
@@ -5040,6 +5041,41 @@ TEST_F(SdkTest, DISABLED_SdkDeviceNames)
     err = synchronousGetDeviceName(0);
     ASSERT_EQ(MegaError::API_OK, err) << "getDeviceName failed (error: " << err << ")";
     ASSERT_EQ(attributeValue, deviceName) << "getDeviceName returned incorrect value";
+}
+
+
+TEST_F(SdkTest, SdkDriveName)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkDriveName___";
+
+    // dummy path to drive
+    fs::path basePath = makeNewTestRoot();
+    string pathToDrive = basePath.u8string();
+
+    // drive name
+    string driveName = "SdkDriveNameTest_";
+    char today[50];
+    auto rawtime = time(NULL);
+    strftime(today, sizeof today, "%Y-%m-%d_%H:%M:%S", localtime(&rawtime));
+    driveName += today;
+
+    // set drive name
+    auto err = synchronousSetDriveName(0, pathToDrive.c_str(), driveName.c_str());
+    ASSERT_EQ(MegaError::API_OK, err) << "setDriveName failed (error: " << err << ")";
+
+    // get drive name
+    err = synchronousGetDriveName(0, pathToDrive.c_str());
+    ASSERT_EQ(MegaError::API_OK, err) << "getDriveName failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, driveName) << "getDriveName returned incorrect value";
+
+    // reset value, before a future test
+    err = synchronousSetDriveName(0, pathToDrive.c_str(), "");
+    ASSERT_EQ(MegaError::API_OK, err) << "setDriveName failed when resetting (error: " << err << ")";
+
+    // attempt to get drive name (after being deleted)
+    err = synchronousGetDriveName(0, pathToDrive.c_str());
+    ASSERT_EQ(MegaError::API_ENOENT, err) << "getDriveName not failed as it should (error: " << err << ")";
 }
 
 TEST_F(SdkTest, DISABLED_SdkUserAlias)

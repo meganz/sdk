@@ -2266,6 +2266,8 @@ class MegaApiImpl : public MegaApp
         const char* getDeviceId() const;
         void getDeviceName(MegaRequestListener *listener = NULL);
         void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
+        void getDriveName(const char *pathToDrive, MegaRequestListener *listener = NULL);
+        void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
