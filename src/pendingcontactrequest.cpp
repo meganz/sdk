@@ -49,17 +49,17 @@ void PendingContactRequest::update(const char *oemail, const char *temail, const
 {
     if (oemail)
     {
-        Node::copystring(&(this->originatoremail), oemail);
+        JSON::copystring(&(this->originatoremail), oemail);
     }
     if (temail)
     {
-        Node::copystring(&(this->targetemail), temail);
+        JSON::copystring(&(this->targetemail), temail);
     }
     this->ts = ts;
     this->uts = uts;
     if (msg)
     {
-        Node::copystring(&(this->msg), msg);
+        JSON::copystring(&(this->msg), msg);
     }
 
     this->isoutgoing = outgoing;

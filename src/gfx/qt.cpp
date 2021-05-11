@@ -53,13 +53,8 @@ extern "C" {
 #include <libraw/libraw.h>
 #endif
 
-#ifdef HAVE_PDFIUM
-#include <fpdfview.h>
-#ifdef _WIN32
+#if defined(HAVE_PDFIUM) && defined(_WIN32)
 #include <QDir>
-#include <QTemporaryFile>
-#define MAX_PDF_MEM_SIZE 1024*1024*100
-#endif
 #endif
 
 namespace mega {
@@ -68,6 +63,10 @@ QByteArray *GfxProcQT::formatstring = NULL;
 
 #if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
 std::mutex GfxProcQT::gfxMutex;
+#endif
+
+#ifdef HAVE_PDFIUM
+bool GfxProcQT::oldTmpPdfCleaned = false;
 #endif
 
 /************* EXIF STUFF **************/
@@ -378,45 +377,6 @@ int GfxProcQT::processEXIF(QByteArray *data, int itemlen){
 }
 /************* END OF EXIF STUFF **************/
 
-// turn on PDFIUM_DELAY_LOAD_DLL if you are building XP-compatible apps and using pdfium.dll (which won't load on XP)
-#if PDFIUM_DELAY_LOAD_DLL
-typedef void (WINAPI *pFPDF_InitLibraryWithConfig) (const FPDF_LIBRARY_CONFIG* config);
-typedef void (WINAPI *pFPDF_DestroyLibrary) ();
-
-typedef FPDF_DOCUMENT (WINAPI *pFPDF_LoadDocument) (FPDF_STRING file_path, FPDF_BYTESTRING password);
-typedef unsigned long (WINAPI *pFPDF_GetLastError) ();
-typedef FPDF_DOCUMENT (WINAPI *pFPDF_LoadMemDocument) (const void* data_buf, int size, FPDF_BYTESTRING password);
-typedef int (WINAPI *pFPDF_GetPageCount) (FPDF_DOCUMENT document);
-typedef FPDF_PAGE (WINAPI *pFPDF_LoadPage) (FPDF_DOCUMENT document, int page_index);
-typedef double (WINAPI *pFPDF_GetPageWidth) (FPDF_PAGE page);
-typedef double (WINAPI *pFPDF_GetPageHeight) (FPDF_PAGE page);
-typedef FPDF_BITMAP (WINAPI *pFPDFBitmap_CreateEx) (int width, int height, int format, void* first_scan, int stride);
-typedef void (WINAPI *pFPDF_ClosePage) (FPDF_PAGE page);
-typedef void (WINAPI *pFPDF_CloseDocument) (FPDF_DOCUMENT document);
-typedef void (WINAPI *pFPDF_RenderPageBitmap) (FPDF_BITMAP bitmap, FPDF_PAGE page, int start_x, int start_y,
-                                               int size_x, int size_y, int rotate, int flags);
-typedef void (WINAPI *pFPDFBitmap_Destroy) (FPDF_BITMAP bitmap);
-
-std::mutex pdfiumMutex;
-pFPDF_InitLibraryWithConfig FPDF_InitLibraryWithConfig;
-pFPDF_DestroyLibrary FPDF_DestroyLibrary;
-pFPDF_LoadDocument FPDF_LoadDocument;
-pFPDF_GetLastError FPDF_GetLastError;
-pFPDF_LoadMemDocument FPDF_LoadMemDocument;
-pFPDF_GetPageCount FPDF_GetPageCount;
-pFPDF_LoadPage FPDF_LoadPage;
-pFPDF_GetPageWidth FPDF_GetPageWidth;
-pFPDF_GetPageHeight FPDF_GetPageHeight;
-pFPDFBitmap_CreateEx FPDFBitmap_CreateEx;
-pFPDF_ClosePage FPDF_ClosePage;
-pFPDF_CloseDocument FPDF_CloseDocument;
-pFPDF_RenderPageBitmap FPDF_RenderPageBitmap;
-pFPDFBitmap_Destroy FPDFBitmap_Destroy;
-
-bool pdfiumLoadedOk = false;
-bool pdfiumLoadAttempted = false;
-#endif
-
 /*GfxProc implementation*/
 GfxProcQT::GfxProcQT()
 {
@@ -430,78 +390,23 @@ GfxProcQT::GfxProcQT()
 #endif
 
 #ifdef HAVE_PDFIUM
-#ifdef PDFIUM_DELAY_LOAD_DLL
-#pragma warning (disable: 4996 4191)
-    if (!pdfiumLoadAttempted)
-    {
-        std::lock_guard<std::mutex> g(pdfiumMutex);
-        if (!pdfiumLoadAttempted)
-        {
-            pdfiumLoadAttempted = true;
-            OSVERSIONINFOEX osvi;
-            ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
-            osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-            if (GetVersionEx((OSVERSIONINFO*)&osvi) && osvi.dwMajorVersion >= 6)  // vista/server2008 or beyond for InitOnceExecuteOnce which pdfium uses.
-            {
-                HINSTANCE pdfiumDLL = NULL;
-                pdfiumDLL = LoadLibrary(L"pdfium.DLL");
-
-                if (pdfiumDLL)
-                {
-                    bool anyfailed = false;
-                    anyfailed = anyfailed || !(FPDF_InitLibraryWithConfig = (pFPDF_InitLibraryWithConfig)::GetProcAddress(pdfiumDLL, "_FPDF_InitLibraryWithConfig@4"));
-                    anyfailed = anyfailed || !(FPDF_DestroyLibrary = (pFPDF_DestroyLibrary)::GetProcAddress(pdfiumDLL, "_FPDF_DestroyLibrary@0"));
-                    anyfailed = anyfailed || !(FPDF_LoadDocument = (pFPDF_LoadDocument)::GetProcAddress(pdfiumDLL, "_FPDF_LoadDocument@8"));
-                    anyfailed = anyfailed || !(FPDF_GetLastError = (pFPDF_GetLastError)::GetProcAddress(pdfiumDLL, "_FPDF_GetLastError@0"));
-                    anyfailed = anyfailed || !(FPDF_LoadMemDocument = (pFPDF_LoadMemDocument)::GetProcAddress(pdfiumDLL, "_FPDF_LoadMemDocument@12"));
-                    anyfailed = anyfailed || !(FPDF_GetPageCount = (pFPDF_GetPageCount)::GetProcAddress(pdfiumDLL, "_FPDF_GetPageCount@4"));
-                    anyfailed = anyfailed || !(FPDF_LoadPage = (pFPDF_LoadPage)::GetProcAddress(pdfiumDLL, "_FPDF_LoadPage@8"));
-                    anyfailed = anyfailed || !(FPDF_GetPageWidth = (pFPDF_GetPageWidth)::GetProcAddress(pdfiumDLL, "_FPDF_GetPageWidth@4"));
-                    anyfailed = anyfailed || !(FPDF_GetPageHeight = (pFPDF_GetPageHeight)::GetProcAddress(pdfiumDLL, "_FPDF_GetPageHeight@4"));
-                    anyfailed = anyfailed || !(FPDFBitmap_CreateEx = (pFPDFBitmap_CreateEx)::GetProcAddress(pdfiumDLL, "_FPDFBitmap_CreateEx@20"));
-                    anyfailed = anyfailed || !(FPDF_ClosePage = (pFPDF_ClosePage)::GetProcAddress(pdfiumDLL, "_FPDF_ClosePage@4"));
-                    anyfailed = anyfailed || !(FPDF_CloseDocument = (pFPDF_CloseDocument)::GetProcAddress(pdfiumDLL, "_FPDF_CloseDocument@4"));
-                    anyfailed = anyfailed || !(FPDF_RenderPageBitmap = (pFPDF_RenderPageBitmap)::GetProcAddress(pdfiumDLL, "_FPDF_RenderPageBitmap@32"));
-                    anyfailed = anyfailed || !(FPDFBitmap_Destroy = (pFPDFBitmap_Destroy)::GetProcAddress(pdfiumDLL, "_FPDFBitmap_Destroy@4"));
-
-                    if (anyfailed)
-                    {
-                        LOG_err << "Pdfium failed to load";
-                        FreeLibrary(pdfiumDLL);
-                    }
-                    else
-                    {
-                        pdfiumLoadedOk = true;
-                        LOG_info << "Pdfium loaded";
-                    }
-                }
-            }
-        }
-    }
-#endif
-
-    std::lock_guard<std::mutex> g(gfxMutex);
-    FPDF_LIBRARY_CONFIG config;
-    config.version = 2;
-    config.m_pUserFontPaths = NULL;
-    config.m_pIsolate = NULL;
-    config.m_v8EmbedderSlot = 0;
-#ifdef PDFIUM_DELAY_LOAD_DLL
-    if (pdfiumLoadedOk)
-#endif
-    {
-        FPDF_InitLibraryWithConfig(&config);
-    }
+    PdfiumReader::init();
 #ifdef _WIN32
-
-    //Remove temporary files from previous executions:
-    QDir dir(QDir::tempPath());
-    dir.setNameFilters(QStringList() << QString::fromUtf8(".megasyncpdftmp*"));
-    dir.setFilter(QDir::Files);
-    foreach(QString dirFile, dir.entryList())
-    {
-        LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile.toUtf8().constData();
-        dir.remove(dirFile);
+    { // scope for the lock guard
+        std::lock_guard<std::mutex> g(gfxMutex);
+        if (!oldTmpPdfCleaned)
+        {
+            //Remove temporary files from previous executions:
+            QDir dir(QDir::tempPath());
+            dir.setNameFilters(QStringList() << QString::fromUtf8(".megapdftmp*"));
+            dir.setFilter(QDir::Files);
+            foreach(QString dirFile, dir.entryList())
+            {
+                LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile.toUtf8().constData();
+                dir.remove(dirFile);
+            }
+            oldTmpPdfCleaned = true;
+        }
     }
 #endif
 #endif
@@ -513,14 +418,7 @@ GfxProcQT::GfxProcQT()
 GfxProcQT::~GfxProcQT()
 {
 #ifdef HAVE_PDFIUM
-
-#ifdef PDFIUM_DELAY_LOAD_DLL
-    if (pdfiumLoadedOk)
-#endif
-    {
-        std::lock_guard<std::mutex> g(gfxMutex);
-        FPDF_DestroyLibrary();
-    }
+    PdfiumReader::destroy();
 #endif
 }
 
@@ -534,7 +432,7 @@ bool GfxProcQT::readbitmap(FileAccess*, const LocalPath& localname, int)
     imagePath = QString::fromUtf8(localname.toPath(*client->fsaccess).c_str());
 #endif
 
-    image = readbitmapQT(w, h, orientation, imageType, imagePath);
+    image = readbitmapQT(w, h, orientation, imageType, *client->fsaccess, imagePath);
 
     return (image != NULL);
 }
@@ -543,7 +441,7 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
 {
     if (!image)
     {
-        image = readbitmapQT(w, h, orientation, imageType, imagePath);
+        image = readbitmapQT(w, h, orientation, imageType, *client->fsaccess, imagePath);
         if (!image)
         {
             return false;
@@ -597,7 +495,7 @@ QImage GfxProcQT::createThumbnail(QString imagePath)
     if(!QString::fromUtf8(supportedformatsQT()).contains(ext, Qt::CaseInsensitive))
         return QImage();
 
-    QImageReader *image = readbitmapQT(w, h, orientation, imageType, imagePath);
+    QImageReader *image = readbitmapQT(w, h, orientation, imageType, *client->fsaccess, imagePath);
     if (!image)
     {
         return QImage();
@@ -612,7 +510,7 @@ QImage GfxProcQT::createThumbnail(QString imagePath)
     return result;
 }
 
-QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, int &imageType, QString imagePath)
+QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, int &imageType, FileSystemAccess &fa, QString imagePath)
 {
     QFileInfo info(imagePath);
     QString ext = QString::fromUtf8(".%1.").arg(info.suffix()).toLower();
@@ -637,7 +535,7 @@ QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, int &ima
     if (strstr(GfxProcQT::supportedformatsPDF(), ext.toUtf8().constData()))
     {
         imageType = TYPE_PDF;
-        return readbitmapPdf(w, h, orientation, imagePath);
+        return readbitmapPdf(w, h, orientation, fa, imagePath);
     }
 #endif
 
@@ -950,163 +848,39 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
 #ifdef HAVE_PDFIUM
 const char *GfxProcQT::supportedformatsPDF()
 {
-#ifdef PDFIUM_DELAY_LOAD_DLL
-    if (!pdfiumLoadedOk)
-    {
-        return "";
-    }
-#endif
     return ".pdf.";
 }
 
-QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString imagePath)
+QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, FileSystemAccess &fa, QString imagePath)
 {
-#ifdef PDFIUM_DELAY_LOAD_DLL
-    if (!pdfiumLoadedOk)
-    {
-        return NULL;
-    }
-#endif
-
     std::lock_guard<std::mutex> g(gfxMutex);
+    LocalPath path = LocalPath::fromPath(imagePath.toUtf8().constData(), fa);
+
 #ifdef _WIN32
-    FPDF_DOCUMENT pdf_doc  = FPDF_LoadDocument(imagePath.toLocal8Bit().constData(), NULL);
-    QString temporaryfile;
-    bool removetemporaryfile = false;
-    QByteArray qba;
-
-    if (pdf_doc == NULL && FPDF_GetLastError() == FPDF_ERR_FILE)
-    {
-        QFile qf(imagePath);
-
-        if (qf.size() > MAX_PDF_MEM_SIZE )
-        {
-            {
-                QTemporaryFile tmpfile(QDir::tempPath() + QDir::separator() + QString::fromUtf8( ".megasyncpdftmpXXXXXX"));
-                if (tmpfile.open())
-                {
-                    temporaryfile = tmpfile.fileName();
-                }
-            }
-            if (temporaryfile.size() && QFile::copy(imagePath,temporaryfile))
-            {
-                pdf_doc  = FPDF_LoadDocument(temporaryfile.toLocal8Bit().constData(), NULL);
-                removetemporaryfile = true;
-            }
-        }
-        else if (qf.open(QIODevice::ReadOnly))
-        {
-            qba = qf.readAll();
-            pdf_doc  = FPDF_LoadMemDocument(qba.constData(), qba.size(), NULL);
-        }
-    }
+    LocalPath workingDir = LocalPath::fromPath(QDir::tempPath().toUtf8().constData(), fa);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, path, &fa, workingDir);
 #else
-    FPDF_DOCUMENT pdf_doc  = FPDF_LoadDocument(imagePath.toUtf8().constData(), NULL);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, path, &fa);
 #endif
-    if (pdf_doc != NULL)
+
+    if (!data || !w || !h)
     {
-        int page_count = FPDF_GetPageCount(pdf_doc);
-        if (page_count  > 0)
-        {
-            FPDF_PAGE page = FPDF_LoadPage(pdf_doc, 0 /*pageIndex*/);
-            if (page != NULL)
-            {
-                double page_width  = FPDF_GetPageWidth(page);
-                double page_height = FPDF_GetPageHeight(page);
-
-                QImage image(page_width, page_height, QImage::Format_ARGB32);
-                image.fill(0xFFFFFFFF);
-
-                FPDF_BITMAP bitmap = FPDFBitmap_CreateEx(image.width(), image.height(),
-                                                                 FPDFBitmap_BGRA,
-                                                                 image.scanLine(0), image.bytesPerLine());
-                if (!bitmap) //out of memory
-                {
-                    LOG_warn << "Error generating bitmap image (OOM)";
-                    FPDF_ClosePage(page);
-                    FPDF_CloseDocument(pdf_doc);
-#ifdef _WIN32
-                    if (removetemporaryfile)
-                    {
-                        QFile::remove(temporaryfile);
-                    }
-#endif
-                    return NULL;
-                }
-
-                FPDF_RenderPageBitmap(bitmap, page, 0, 0, image.width(), image.height(), 0, 0);
-                FPDFBitmap_Destroy(bitmap);
-                bitmap = NULL;
-
-                if (image.isNull())
-                {
-                    LOG_warn << "Unable to convert image from PDF file";
-                    FPDF_ClosePage(page);
-                    FPDF_CloseDocument(pdf_doc);
-#ifdef _WIN32
-                    if (removetemporaryfile)
-                    {
-                        QFile::remove(temporaryfile);
-                    }
-#endif
-                    return NULL;
-                }
-
-                QBuffer *buffer = new QBuffer();
-                if (!buffer->open(QIODevice::ReadWrite) || !image.save(buffer, "JPG", 85))
-                {
-                    LOG_warn << "Error extracting image";
-                    delete buffer;
-                    FPDF_ClosePage(page);
-                    FPDF_CloseDocument(pdf_doc);
-#ifdef _WIN32
-                    if (removetemporaryfile)
-                    {
-                        QFile::remove(temporaryfile);
-                    }
-#endif
-                    return NULL;
-                }
-
-                FPDF_ClosePage(page);
-                FPDF_CloseDocument(pdf_doc);
-#ifdef _WIN32
-                if (removetemporaryfile)
-                {
-                    QFile::remove(temporaryfile);
-                }
-#endif
-                w = image.width();
-                h = image.height();
-
-                buffer->seek(0);
-                QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
-                return imageReader;
-            }
-            else
-            {
-                FPDF_CloseDocument(pdf_doc);
-                LOG_err << "Error loading PDF page to create thumb for " << imagePath.toUtf8().constData();
-            }
-        }
-        else
-        {
-            FPDF_CloseDocument(pdf_doc);
-            LOG_err << "Error getting number of pages for " << imagePath.toUtf8().constData();
-        }
-    }
-    else
-    {
-        LOG_err << "Error loading PDF to create thumbnail for " << imagePath.toUtf8().constData() << " " << FPDF_GetLastError();
+        return nullptr;
     }
 
-#ifdef _WIN32
-    if (removetemporaryfile)
+    QImage image(reinterpret_cast<uchar*>(data.get()), w, h, QImage::Format_ARGB32);
+
+    QBuffer *buffer = new QBuffer();
+    if (!buffer->open(QIODevice::ReadWrite) || !image.save(buffer, "JPG", 85))
     {
-        QFile::remove(temporaryfile);
+        LOG_warn << "Error extracting image";
+        delete buffer;
+        return nullptr;
     }
-#endif
-    return NULL;
+
+    buffer->seek(0);
+    QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
+    return imageReader;
 }
 
 #endif
