@@ -26865,6 +26865,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
     path.ensureWinExtendedPathLenPrefix();
     transfer->setPath(path.toPath(*megaapiThreadClient()->fsaccess).c_str());
 
+    notifyStage(MegaTransfer::STAGE_SCAN);
     // for download scan is just checking nodes, we can do this all in one quick pass
     if (!scanFolder(node, path, fsType))
     {
@@ -26887,6 +26888,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
                 if (!err && cancelled) err = API_EINCOMPLETE;
                 if (!err)
                 {
+                    notifyStage(MegaTransfer::STAGE_GEN_TRANSFERS);
                     // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
                     genDownloadTransfersForFiles(fsType);
                 }
@@ -27077,6 +27079,7 @@ bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
 
 Error MegaFolderDownloadController::createFolder()
 {
+    notifyStage(MegaTransfer::STAGE_CREATE_TREE);
     // Create all local directories in one shot (on the download worker thread)
     assert(mMainThreadId != std::this_thread::get_id());
     auto it = mLocalTree.begin();
@@ -27123,7 +27126,9 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
 
     if (pendingTransfers)
     {
+        notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
         megaApi->sendPendingTransfers(&transferQueue);
+        notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
     }
     else
     {
