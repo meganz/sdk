@@ -5551,13 +5551,15 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     LOG_verbose << "SyncRemoveRemoteNode :  Add syncs";
     // Sync 1
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath1.u8string().c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr)) << "API Error adding a new sync";
+    const auto& lp1 = localPath1.u8string();
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, lp1.c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr)) << "API Error adding a new sync";
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
     // Sync2
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath2.u8string().c_str(), nullptr, remoteBaseNode2->getHandle(), nullptr)) << "API Error adding a new sync";
+    const auto& lp2 = localPath2.u8string();
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, lp2.c_str(), nullptr, remoteBaseNode2->getHandle(), nullptr)) << "API Error adding a new sync";
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
     std::unique_ptr<MegaSync> sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync2 && sync2->isActive());
@@ -5566,11 +5568,13 @@ TEST_F(SdkTest, SyncBasicOperations)
     LOG_verbose << "SyncRemoveRemoteNode :  Add syncs that fail";
     {
         TestingWithLogErrorAllowanceGuard g;
-        ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath3.u8string().c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr)); // Remote node is currently synced.
+        const auto& lp3 = localPath3.u8string();
+        ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, lp3.c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr)); // Remote node is currently synced.
         ASSERT_EQ(MegaSync::ACTIVE_SYNC_BELOW_PATH, mApi[0].lastSyncError);
-        ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath3.u8string().c_str(), nullptr, remoteBaseNode2->getHandle(), nullptr)); // Remote node is currently synced.
+        ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, lp3.c_str(), nullptr, remoteBaseNode2->getHandle(), nullptr)); // Remote node is currently synced.
         ASSERT_EQ(MegaSync::ACTIVE_SYNC_BELOW_PATH, mApi[0].lastSyncError);
-        ASSERT_EQ(MegaError::API_ENOENT, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, (localPath3 / fs::path("xxxyyyzzz")).u8string().c_str(), nullptr, remoteBaseNode3->getHandle(), nullptr)); // Local resource doesn't exists.
+        const auto& lp4 = (localPath3 / fs::path("xxxyyyzzz")).u8string();
+        ASSERT_EQ(MegaError::API_ENOENT, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, lp4.c_str(), nullptr, remoteBaseNode3->getHandle(), nullptr)); // Local resource doesn't exists.
         ASSERT_EQ(MegaSync::LOCAL_PATH_UNAVAILABLE, mApi[0].lastSyncError);
     }
 
