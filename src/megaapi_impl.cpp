@@ -25645,10 +25645,11 @@ bool MegaFolderUploadController::hasEnded(bool notifyUserCancellation)
     return false;
 }
 
+void MegaFolderUploadController::complete(Error e, bool cancelledByUser)
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
-    if (cancelled)
+    if (isCancelled())
     {
         // Cancellation only happens on this same thread, and only from cancel()
         // In which case, it's all much simpler to let the final fireOnTransferFinish be done there
@@ -25657,7 +25658,7 @@ bool MegaFolderUploadController::hasEnded(bool notifyUserCancellation)
     }
 
     LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-    transfer->setState(MegaTransfer::STATE_COMPLETED);
+    transfer->setState(cancelledByUser ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_COMPLETED);
     DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
     megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
 }

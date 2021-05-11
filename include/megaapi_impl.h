@@ -289,8 +289,8 @@ public:
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
     virtual ~MegaFolderUploadController();
-    void complete(Error e);
     bool hasEnded(bool notifyUserCancellation);
+    void complete(Error e, bool cancelledByUser = false);
 
 protected:
     unique_ptr<FileSystemAccess> fsaccess;
