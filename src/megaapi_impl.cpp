@@ -25621,7 +25621,30 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     }
 }
 
-void MegaFolderUploadController::complete(Error e)
+bool MegaFolderUploadController::hasEnded(bool notifyUserCancellation)
+{
+    if (isCancelled())
+    {
+        // MegaFolderUploadController::cancel method has been previously called
+        // We do not need to notify transfer as finished here, as It has been done previously
+        LOG_debug << "MegaFolderUploadController::scanFolder - this operation was previously cancelled";
+        return true;
+    }
+
+    if (isCancelledByUser() && notifyUserCancellation)
+    {
+        // User has cancelled operation via cancelToken
+        if (notifyUserCancellation)
+        {
+            complete(API_EINCOMPLETE, true);
+        }
+        LOG_debug << "MegaFolderUploadController::scanFolder - this operation has been cancelled by user";
+        return true;
+    }
+
+    return false;
+}
+
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
