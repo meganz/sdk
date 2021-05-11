@@ -303,6 +303,7 @@ void SdkTest::Cleanup()
     for (auto &m : megaApi)
     {
 #ifdef ENABLE_SYNC
+        if (!m) continue;
         auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
         for (int i = syncs->size(); i--; )
         {
