@@ -1474,7 +1474,7 @@ char *MegaApiImpl::getBlockedPath()
     return path;
 }
 
-error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::backupFolder()
+error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::syncFolder()
 {
     // validate local path and backup name
     if (!request->getFile())
@@ -8752,16 +8752,16 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
         request->setFile(path.data());
     }
 
-    if(name)
+    if (name || type == SyncConfig::TYPE_BACKUP)
     {
-        request->setName(name);
+        request->setName(name);  // for TYPE_BACKUP, if empty, replacement name will be created when sending request
     }
     else if (localFolder)
     {
         request->setName(request->getFile());
     }
     request->setParamType(type);
-    request->setLink(driveRootIfExternal);
+    request->setLink(driveRootIfExternal);  // for TYPE_BACKUP; continue in backupFolder_sendPendingRequest()
 
     requestQueue.push(request);
     waiter->notify();
