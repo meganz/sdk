@@ -34,10 +34,6 @@
 #define CRON_USE_LOCAL_TIME 1
 #include "mega/mega_ccronexpr.h"
 
-#ifdef USE_PCRE
-#include <pcre.h>
-#endif
-
 #ifdef HAVE_LIBUV
 #include "uv.h"
 #include "mega/mega_http_parser.h"
@@ -1035,44 +1031,6 @@ protected:
     MegaHandle prevParent = INVALID_HANDLE;
 };
 
-class MegaRegExpPrivate
-{
-public:
-    MegaRegExpPrivate();
-    ~MegaRegExpPrivate();
-
-    MegaRegExpPrivate *copy();
-
-    bool addRegExp(const char *regExp);
-    int getNumRegExp();
-    const char *getRegExp(int index);
-    bool match(const char *s);
-    const char *getFullPattern();
-
-private:
-    enum{
-        REGEXP_NO_ERROR = 0,
-        REGEXP_COMPILATION_ERROR,
-        REGEXP_OPTIMIZATION_ERROR,
-        REGEXP_EMPTY
-    };
-    int compile();
-    bool updatePattern();
-    bool checkRegExp(const char *regExp);
-    bool isPatternUpdated();
-
-private:
-    std::vector<std::string> regExps;
-    std::string pattern;
-    bool patternUpdated;
-
-#ifdef USE_PCRE
-    int options;
-    pcre* reCompiled;
-    pcre_extra* reOptimization;
-#endif
-};
-
 class MegaSyncPrivate : public MegaSync
 {
 public:
@@ -1096,9 +1054,6 @@ public:
     MegaHandle getBackupId() const override;
     void setBackupId(MegaHandle backupId);
 
-    MegaRegExp* getRegExp() const;
-    void setRegExp(MegaRegExp *regExp);
-
     int getError() const override;
     void setError(int error);
     int getWarning() const override;
@@ -1118,7 +1073,6 @@ protected:
     char *localFolder;
     char *mName;
     char *lastKnownMegaFolder;
-    MegaRegExp *regExp;
     long long fingerprint;
 
     SyncType mType = TYPE_UNKNOWN;
@@ -1254,11 +1208,6 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaStringList(MegaStringList* stringList);
         void setMegaHandleList(const vector<handle> &handles);
 
-#ifdef ENABLE_SYNC
-        void setRegExp(MegaRegExp *regExp);
-        virtual MegaRegExp *getRegExp() const;
-#endif
-
         MegaBackupListener *getBackupListener() const;
         void setBackupListener(MegaBackupListener *value);
 
@@ -1289,9 +1238,6 @@ protected:
         long long totalBytes;
         long long transferredBytes;
         MegaRequestListener *listener;
-#ifdef ENABLE_SYNC
-        MegaRegExp *regExp;
-#endif
         MegaBackupListener *backupListener;
 
         int transfer;
@@ -2215,7 +2161,9 @@ class MegaApiImpl : public MegaApp
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
+        void createEphemeralAccountPlusPlus(const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
+        void resumeCreateAccountEphemeralPlusPlus(const char* sid, MegaRequestListener *listener = NULL);
         void cancelCreateAccount(MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
         void fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
@@ -2423,7 +2371,7 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(const LocalPath& path);
-        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRequestListener* listener = NULL);
         void loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
         void closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -2458,7 +2406,6 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
-        void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 #endif
 
         void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
@@ -2805,6 +2752,10 @@ class MegaApiImpl : public MegaApp
         void getCookieSettings(MegaRequestListener *listener = nullptr);
         bool cookieBannerEnabled();
 
+        bool startDriveMonitor();
+        void stopDriveMonitor();
+        bool driveMonitorEnabled();
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -3057,6 +3008,11 @@ protected:
 
         // file attribute modification result
         void putfa_result(handle, fatype, error) override;
+
+#ifdef USE_DRIVE_NOTIFICATIONS
+        // external drive [dis-]connected
+        void drive_presence_changed(bool appeared, const LocalPath& driveRoot) override;
+#endif
 
         // purchase transactions
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,

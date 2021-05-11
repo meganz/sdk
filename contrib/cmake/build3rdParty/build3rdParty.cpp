@@ -118,7 +118,7 @@ try
                 if (portversion.size() == 40)
                 {
                     fs::current_path(cloneDir);
-                    execute("git checkout --quiet " + portversion);
+                    execute("git checkout --force --quiet " + portversion);
                     cout << "Copying port for " << portname << " from vcpkg commit " << portversion << endl;
                     fs::copy(cloneDir / "ports" / portname, vcpkgDir / "ports" / portname, fs::copy_options::recursive);
                     fs::current_path(vcpkgDir / "ports" / portname);

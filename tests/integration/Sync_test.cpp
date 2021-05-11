@@ -181,13 +181,13 @@ struct Model
             }
         }
 
-        void generate(const fs::path& path)
+        void generate(const fs::path& path, bool force)
         {
             const fs::path ourPath = path / name;
 
             if (type == file)
             {
-                if (changed)
+                if (changed || force)
                 {
                     ASSERT_TRUE(createDataFile(ourPath, content));
                     changed = false;
@@ -199,7 +199,7 @@ struct Model
 
                 for (auto& child : kids)
                 {
-                    child->generate(ourPath);
+                    child->generate(ourPath, force);
                 }
             }
         }
@@ -575,13 +575,13 @@ struct Model
        // ASSERT_TRUE(!!removed);
     }
 
-    void generate(const fs::path& path)
+    void generate(const fs::path& path, bool force = false)
     {
         fs::create_directories(path);
 
         for (auto& child : root->kids)
         {
-            child->generate(path);
+            child->generate(path, force);
         }
     }
 
@@ -1150,6 +1150,17 @@ struct StandardClient : public MegaApp
             });
     }
 
+    bool fetchnodes(bool noCache = false)
+    {
+        auto result =
+          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.fetchnodes(noCache, result);
+                          });
+
+        return result.get();
+    }
+
     NewNode makeSubfolder(const string& utf8Name)
     {
         NewNode newnode;
@@ -1303,6 +1314,15 @@ struct StandardClient : public MegaApp
         fs::path localpath;
     };
 
+    SyncConfig syncConfigByBackupID(handle backupID) const
+    {
+        auto* config = client.syncs.syncConfigByBackupId(backupID);
+
+        assert(config);
+
+        return *config;
+    }
+
     bool syncSet(handle backupId, SyncInfo& info) const
     {
         if (auto* config = client.syncs.syncConfigByBackupId(backupId))
@@ -1409,7 +1429,7 @@ struct StandardClient : public MegaApp
                      targetNode->nodeHandle(),
                      targetPath,
                      0,
-                     string_vector(),
+                     //string_vector(),
                      true,
                      SyncConfig::TYPE_BACKUP);
 
@@ -1464,7 +1484,7 @@ struct StandardClient : public MegaApp
                                NodeHandle().set6byte(m->nodehandle),
                                subfoldername,
                                0,
-                               string_vector(),
+                               //string_vector(),
                                true,
                                isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 				
@@ -2071,6 +2091,54 @@ struct StandardClient : public MegaApp
             return false;
         }
         return true;
+    }
+
+    void ensureSyncUserAttributes(PromiseBoolSP result)
+    {
+        auto completion = [result](Error e) { result->set_value(!e); };
+        client.ensureSyncUserAttributes(std::move(completion));
+    }
+
+    bool ensureSyncUserAttributes()
+    {
+        auto result =
+          thread_do<bool>([](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.ensureSyncUserAttributes(result);
+                          });
+
+        return result.get();
+    }
+
+    void copySyncConfig(SyncConfig config, PromiseHandleSP result)
+    {
+        auto completion =
+          [result](handle id, error e)
+          {
+              result->set_value(e ? UNDEF : id);
+          };
+
+        client.copySyncConfig(config, std::move(completion));
+    }
+
+    handle copySyncConfig(const SyncConfig& config)
+    {
+        auto result =
+          thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
+                          {
+                              client.copySyncConfig(config, result);
+                          });
+
+        return result.get();
+    }
+
+    bool login(const string& user, const string& pw)
+    {
+        future<bool> p;
+        p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
+        if (!waitonresults(&p)) return false;
+        p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
+        return waitonresults(&p);
     }
 
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false)
@@ -3954,6 +4022,103 @@ TEST(Sync, BasicSync_NewVersionsCreatedWhenFilesModified)
 
     matched &= !f && i == fingerprints.crend();
     ASSERT_TRUE(matched);
+}
+
+TEST(Sync, BasicSync_ClientToSDKConfigMigration)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = std::chrono::seconds(4);
+
+    SyncConfig config0;
+    SyncConfig config1;
+    Model model;
+
+    // Create some syncs for us to migrate.
+    {
+        StandardClient c0(TESTROOT, "c0");
+
+        // Log callbacks.
+        c0.logcb = true;
+
+        // Log in client.
+        ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 1, 2));
+
+        // Add syncs.
+        auto id0 = c0.setupSync_mainthread("s0", "s/s_0");
+        ASSERT_NE(id0, UNDEF);
+
+        auto id1 = c0.setupSync_mainthread("s1", "s/s_1");
+        ASSERT_NE(id1, UNDEF);
+
+        // Populate filesystem.
+        auto root0 = c0.syncSet(id0).localpath;
+        auto root1 = c0.syncSet(id1).localpath;
+
+        model.addfile("d/f");
+        model.addfile("f");
+        model.generate(root0);
+        model.generate(root1, true);
+
+        // Wait for sync to complete.
+        waitonsyncs(TIMEOUT, &c0);
+
+        // Make sure everything arrived safely.
+        ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id0));
+        ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id1));
+
+        // Get our hands on the configs.
+        config0 = c0.syncConfigByBackupID(id0);
+        config1 = c0.syncConfigByBackupID(id1);
+    }
+
+    // Migrate the configs.
+    StandardClient c1(TESTROOT, "c1");
+
+    // Log callbacks.
+    c1.logcb = true;
+
+    // Log in the client.
+    ASSERT_TRUE(c1.login("MEGA_EMAIL", "MEGA_PWD"));
+
+    // Make sure sync user attributes are present.
+    ASSERT_TRUE(c1.ensureSyncUserAttributes());
+
+    // Update configs so they're useful for this client.
+    {
+        FSACCESS_CLASS fsAccess;
+        auto root0 = TESTROOT / "c1" / "s0";
+        auto root1 = TESTROOT / "c1" / "s1";
+
+        // Issue new backup IDs.
+        config0.mBackupId = UNDEF;
+        config1.mBackupId = UNDEF;
+        
+        // Update path for c1.
+        config0.mLocalPath = LocalPath::fromPath(root0.u8string(), fsAccess);
+        config1.mLocalPath = LocalPath::fromPath(root1.u8string(), fsAccess);
+
+        // Make sure local sync roots exist.
+        fs::create_directories(root0);
+        fs::create_directories(root1);
+    }
+
+    // Migrate the configs.
+    auto id0 = c1.copySyncConfig(config0);
+    ASSERT_NE(id0, UNDEF);
+    auto id1 = c1.copySyncConfig(config1);
+    ASSERT_NE(id1, UNDEF);
+
+    // Fetch nodes (and resume syncs.)
+    ASSERT_TRUE(c1.fetchnodes());
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c1);
+
+    // Check that all files from the cloud were downloaded.
+    model.ensureLocalDebrisTmpLock("");
+    ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id0));
+    model.removenode(".debris");
+    ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
 }
 
 struct TwoWaySyncSymmetryCase
