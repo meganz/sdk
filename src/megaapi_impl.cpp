@@ -25230,13 +25230,16 @@ void MegaFolderUploadController::start(MegaNode*)
 
             if (!fullyScanned)
             {
-                complete(API_EACCESS);
+                if (!hasEnded(true)) // also notify app in case of user cancellation
+                {
+                    // scan stage could not finish properly, because some dir could not be accessed
+                    complete(API_EACCESS);
+                }
                 return;
             }
 
-            if (cancelled)
+            if (hasEnded(true)) // also notify app in case of user cancellation
             {
-                complete(API_EINCOMPLETE);
                 return;
             }
 
@@ -25245,11 +25248,21 @@ void MegaFolderUploadController::start(MegaNode*)
             vector<NewNode> newnodes;
             if (!createNextFolderBatch(mUploadTree, newnodes, true))
             {
+                if (hasEnded(true)) // also notify app in case of user cancellation
+                {
+                    return;
+                }
+
                 notifyStage(MegaTransfer::STAGE_GEN_TRANSFERS);
                 // no folders to create so start all uploads straight away
                 // otherwise the final folder completion function will start them
                 TransferQueue transferQueue;
                 genUploadTransfersForFiles(mUploadTree, transferQueue);
+
+                if (hasEnded(true)) // also notify app in case of user cancellation
+                {
+                    return;
+                }
 
                 if (transferQueue.empty())
                 {
@@ -25260,7 +25273,12 @@ void MegaFolderUploadController::start(MegaNode*)
                     notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
                     // completion will occur on the last transfer's onFinish callback
                     // (at which time this object is deleted)
-                    megaApi->sendPendingTransfers(&transferQueue);
+                    megaApi->sendPendingTransfers(&transferQueue, transfer->getCancelToken());
+                    if (hasEnded(true)) // also notify app in case of user cancellation
+                    {
+                        return;
+                    }
+
                     notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
                 }
             }
@@ -25588,6 +25606,11 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                     vector<NewNode> newnodes;
                     if (!createNextFolderBatch(mUploadTree, newnodes, true))
                     {
+                        if (hasEnded(true)) // also notify app in case of user cancellation
+                        {
+                            return;
+                        }
+
                         notifyStage(MegaTransfer::STAGE_GEN_TRANSFERS);
                         // no pending folders to create, start uploading files
                         TransferQueue transferQueue;
@@ -25599,10 +25622,20 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                         }
                         else
                         {
+                            if (hasEnded(true)) // also notify app in case of user cancellation
+                            {
+                                return;
+                            }
+
                             notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
                             // completion will occur on the last transfer's onFinish callback
                             // (at which time this object is deleted)
-                            megaApi->sendPendingTransfers(&transferQueue);
+                            megaApi->sendPendingTransfers(&transferQueue, transfer->getCancelToken());
+                            if (hasEnded(true)) // also notify app in case of user cancellation
+                            {
+                                return;
+                            }
+
                             notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
                         }
                     }
@@ -25624,7 +25657,7 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     {
         MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, localpath.toPath(*fsaccess).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      -1, tag, false, NULL, false, false, tree.fsType, this);
+                                                                      -1, tag, false, NULL, false, false, tree.fsType, nullptr, this);
         transferQueue.push(transfer);
         pendingTransfers++;
     }
