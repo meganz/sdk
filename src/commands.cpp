@@ -1206,7 +1206,7 @@ bool CommandPutNodes::procresult(Result r)
             {
                 if (source == PUTNODES_SYNC)
                 {
-                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
+                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, false);
                 }
             }
 #endif
