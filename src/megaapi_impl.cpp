@@ -18501,12 +18501,14 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
             ? *queue            // custom transferQueue used for folder uploads/downloads
             : transferQueue;    // transfer queue of class MegaApiImpl
 
+    if (queue) {assert(cancelToken);}
+
     // if we are processing a custom queue, we need to process in one shot
     bool canSplit = !queue;
 
     while (MegaTransferPrivate *transfer = auxQueue.pop())
     {
-        if (cancelToken->isCancelled())
+        if (cancelToken && cancelToken->isCancelled())
         {
             assert(queue);
             return count;
@@ -25674,7 +25676,7 @@ bool MegaFolderUploadController::hasEnded(bool notifyUserCancellation)
         return true;
     }
 
-    if (isCancelledByUser() && notifyUserCancellation)
+    if (isCancelledByUser())
     {
         // User has cancelled operation via cancelToken
         if (notifyUserCancellation)
