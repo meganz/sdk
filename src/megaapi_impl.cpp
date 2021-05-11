@@ -3053,11 +3053,7 @@ void MegaTransferPrivate::setNumRetry(int retry)
 
 void MegaTransferPrivate::setStage(unsigned stage)
 {
-    assert (stage > MegaTransfer::STAGE_NONE && stage <= MegaTransfer::STAGE_MAX);
-    if (stage > MegaTransfer::STAGE_NONE && stage <= MegaTransfer::STAGE_MAX)
-    {
-        this->mStage = static_cast<uint8_t>(stage);
-    }
+    this->mStage = static_cast<uint8_t>(stage);
 }
 
 void MegaTransferPrivate::setMaxRetries(int maxRetries)
