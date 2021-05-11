@@ -22,6 +22,7 @@ CONFIG += USE_CONSOLE
 CONFIG += USE_MEDIAINFO
 CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
+CONFIG += USE_DRIVE_NOTIFICATIONS
 
 SOURCES += ../../../examples/megacli.cpp
 HEADERS += ../../../examples/megacli.h

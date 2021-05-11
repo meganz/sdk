@@ -22,6 +22,7 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
+#include <atomic>
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"
