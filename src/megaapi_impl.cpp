@@ -25464,11 +25464,11 @@ MegaFolderUploadController::~MegaFolderUploadController()
 
 bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 {
-    if (cancelled)
+    if (hasEnded(false)) // just check for completion, don't notify app here
     {
-        LOG_warn << "MegaFolderUploadController::scanFolder - this operation was previously cancelled";
         return false;
     }
+
     recursive++;
     unique_ptr<DirAccess> da(fsaccess->newdiraccess());
     if (!da->dopen(&localPath, nullptr, false))
@@ -25480,8 +25480,8 @@ bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 
     LocalPath localname;
     nodetype_t dirEntryType;
-    while (!cancelled && da->dnext(localPath, localname, mFollowsymlinks, &dirEntryType))
     {
+    while (!hasEnded(false) && da->dnext(localPath, localname, mFollowsymlinks, &dirEntryType))
         ScopedLengthRestore restoreLen(localPath);
         localPath.appendWithSeparator(localname, false);
         if (dirEntryType == FILENODE)
@@ -25521,9 +25521,8 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
     // recurse until we find one that is not yet sent
     for (auto& t : tree.subtrees)
     {
-        if (cancelled)
+        if (hasEnded(false)) // just check for completion, don't notify app here
         {
-            LOG_warn << "MegaFolderUploadController::createNextFolderBatch - this operation was previously cancelled";
             return false;
         }
 
@@ -25616,9 +25615,8 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
 
 void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue)
 {
-    if (cancelled)
+    if (hasEnded(false)) // just check for completion, don't notify app here
     {
-        LOG_warn << "MegaFolderUploadController::genUploadTransfersForFiles - this operation was previously cancelled";
         return;
     }
 
