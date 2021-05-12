@@ -4286,9 +4286,9 @@ TEST(Sync, BasicSync_ClientToSDKConfigMigration)
 }
 
 #ifdef _WIN32
-#define SEP '\\'
+#define SEP "\\"
 #else // _WIN32
-#define SEP '/'
+#define SEP "/"
 #endif // ! _WIN32
 
 class AnomalyReporter
@@ -4311,9 +4311,9 @@ public:
         assert(!mRemoteRoot.empty());
 
         // Add trailing separators if necessary.
-        if (mLocalRoot.back() != SEP)
+        if (string(1, mLocalRoot.back()) != SEP)
         {
-            mLocalRoot.push_back(SEP);
+            mLocalRoot.append(SEP);
         }
 
         if (mRemoteRoot.back() != '/')
@@ -4348,8 +4348,6 @@ private:
     string mLocalRoot;
     string mRemoteRoot;
 }; // AnomalyReporter
-
-#undef SEP
 
 TEST(Sync, AnomalousManualDownload)
 {
@@ -4711,7 +4709,7 @@ TEST(Sync, AnomalousSyncLocalRename)
     {
         auto& anomaly = reporter->mAnomalies.back();
 
-        ASSERT_EQ(anomaly.localPath, "d/g%3a0");
+        ASSERT_EQ(anomaly.localPath, "d" SEP "g%3a0");
         ASSERT_EQ(anomaly.remotePath, "d/g:0");
         ASSERT_EQ(anomaly.type, FILENAME_ANOMALY_NAME_MISMATCH);
     }
@@ -4820,7 +4818,7 @@ TEST(Sync, AnomalousSyncRemoteRename)
     {
         auto& anomaly = reporter->mAnomalies.back();
 
-        ASSERT_EQ(anomaly.localPath, "d/g%3a0");
+        ASSERT_EQ(anomaly.localPath, "d" SEP "g%3a0");
         ASSERT_EQ(anomaly.remotePath, "d/g:0");
         ASSERT_EQ(anomaly.type, FILENAME_ANOMALY_NAME_MISMATCH);
     }
@@ -4882,6 +4880,8 @@ TEST(Sync, AnomalousSyncUpload)
     ASSERT_EQ(anomaly->remotePath, "f:0");
     ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
 }
+
+#undef SEP
 
 struct TwoWaySyncSymmetryCase
 {
