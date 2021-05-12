@@ -691,6 +691,10 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Too many changes in account, local state invalid";
     case LOGGED_OUT:
         return "Session closed";
+    case WHOLE_ACCOUNT_REFETCHED:
+        return "The whole account was reloaded, missed updates could not have been applied in an orderly fashion";
+    case MISSING_PARENT_NODE:
+        return "Unable to figure out some node correspondence";
     default:
         return "Undefined error";
     }
