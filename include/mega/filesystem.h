@@ -648,7 +648,9 @@ bool isReservedName(const string& name, nodetype_t type = FILENODE);
 // - If no anomalies were detected.
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type = FILENODE);
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node);
+#ifdef ENABLE_SYNC
 FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
+#endif
 
 } // namespace
 
