@@ -1364,6 +1364,46 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
+void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
+                                         const string& localPath,
+                                         const string& remotePath)
+{
+    const char* typeName;
+
+    switch (type)
+    {
+    case FILENAME_ANOMALY_NAME_MISMATCH:
+        typeName = "NAME_MISMATCH";
+        break;
+    case FILENAME_ANOMALY_NAME_RESERVED:
+        typeName = "NAME_RESERVED";
+        break;
+    default:
+        assert(!"Unknown filename anomaly type!");
+        typeName = "UNKNOWN";
+        break;
+    }
+
+    const auto* path = localPath.c_str();
+
+#ifdef _WIN32
+    if (!localPath.compare(0, 4, "\\\\?\\"))
+    {
+        path += 4;
+    }
+#endif // _WIN32
+
+    LOG_debug << "Filename anomaly detected: type: "
+              << typeName
+              << " local path: "
+              << path
+              << " remote path: "
+              << remotePath;
+
+    if (!mFilenameAnomalyReporter) return;
+
+    mFilenameAnomalyReporter->anomalyDetected(type, path, remotePath);
+}
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
@@ -13922,6 +13962,17 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 LocalPath curpath = rit->second->localnode->getLocalPath();
                 rit->second->localnode->treestate(TREESTATE_SYNCING);
 
+                // Check for filename anomalies.
+                {
+                    auto type = isFilenameAnomaly(localpath, rit->second);
+
+                    if (type != FILENAME_ANOMALY_NONE)
+                    {
+                        auto remotepath = rit->second->displaypath();
+                        filenameAnomalyDetected(type, localpath.toPath(), remotepath);
+                    }
+                }
+
                 LOG_debug << "Renaming/moving from the previous location to the new one";
                 if (fsaccess->renamelocal(curpath, localpath))
                 {
@@ -14032,6 +14083,17 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
                 else
                 {
+                    // Check for filename anomalies.
+                    {
+                        auto type = isFilenameAnomaly(localpath, rit->second);
+
+                        if (type != FILENAME_ANOMALY_NONE)
+                        {
+                            auto remotepath = rit->second->displaypath();
+                            filenameAnomalyDetected(type, localpath.toPath(), remotepath);
+                        }
+                    }
+
                     LOG_debug << "Creating local folder";
 
                     if (fsaccess->mkdirlocal(localpath))
@@ -14573,6 +14635,27 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             ll->created = true;
 
             assert (!isSymLink);
+
+            // Check for filename anomalies.
+            if (ll->type == FOLDERNODE)
+            {
+                auto type = isFilenameAnomaly(*ll);
+
+                if (type != FILENAME_ANOMALY_NONE)
+                {
+                    auto localpath = ll->getLocalPath().toPath();
+
+                    // Generate remote path for reporting.
+                    ostringstream remotepath;
+
+                    remotepath << ll->parent->node->displaypath()
+                               << "/"
+                               << ll->name;
+
+                    filenameAnomalyDetected(type, localpath, remotepath.str());
+                }
+            }
+
             // create remote folder or send file
             LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
             synccreate.push_back(ll);

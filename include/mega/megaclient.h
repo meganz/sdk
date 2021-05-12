@@ -43,6 +43,7 @@
 
 namespace mega {
 
+class Logger;
 class SyncConfigBag;
 
 class MEGA_API FetchNodesStats
@@ -1916,6 +1917,9 @@ public:
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
+
+    void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
+    unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
 };
 } // namespace
 

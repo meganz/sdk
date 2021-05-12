@@ -4940,8 +4940,8 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
     h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
 
-    LocalPath lpName = LocalPath::fromName(n->displayname(), *client->fsaccess, fsType);
-    name = lpName.toPath(*client->fsaccess);
+    name = n->displayname();
+    auto lpName = LocalPath::fromName(name, *client->fsaccess, fsType);
 
     LocalPath finalPath;
     if(!dstPath.empty())
@@ -4973,8 +4973,8 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPa
 
     FileSystemType fsType = client->fsaccess->getlocalfstype(dstPath);
 
-    LocalPath lpName = LocalPath::fromName(n->getName(), *client->fsaccess, fsType);
-    name = lpName.toPath(*client->fsaccess);
+    name = n->getName();
+    auto lpName = LocalPath::fromName(name, *client->fsaccess, fsType);
 
     LocalPath finalPath;
     if(!dstPath.empty())
@@ -5682,6 +5682,19 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
     MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance());
 }
 #endif
+
+void MegaApiImpl::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
+{
+    unique_ptr<FilenameAnomalyReporter> proxy;
+
+    if (reporter)
+    {
+        proxy.reset(new MegaFilenameAnomalyReporterProxy(*reporter));
+    }
+
+    SdkMutexGuard guard(sdkMutex);
+    client->mFilenameAnomalyReporter = std::move(proxy);
+}
 
 long long MegaApiImpl::getSDKtime()
 {

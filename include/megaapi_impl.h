@@ -180,6 +180,34 @@ private:
     bool logToConsole;
 };
 
+class MegaFilenameAnomalyReporterProxy
+  : public FilenameAnomalyReporter
+{
+public:
+    explicit
+    MegaFilenameAnomalyReporterProxy(MegaFilenameAnomalyReporter& reporter)
+      : mReporter(reporter)
+    {
+    }
+
+    void anomalyDetected(FilenameAnomalyType type,
+                         const string& localPath,
+                         const string& remotePath) override
+    {
+        using MegaAnomalyType =
+          MegaFilenameAnomalyReporter::AnomalyType;
+
+        assert(type < FILENAME_ANOMALY_NONE);
+
+        mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
+                                  localPath.c_str(),
+                                  remotePath.c_str());
+    }
+
+private:
+    MegaFilenameAnomalyReporter& mReporter;
+}; // MegaFilenameAnomalyReporterProxy
+
 class MegaTransferPrivate;
 class MegaTreeProcCopy : public MegaTreeProcessor
 {
@@ -2211,6 +2239,7 @@ class MegaApiImpl : public MegaApp
 #ifdef USE_ROTATIVEPERFORMANCELOGGER
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
 #endif
+        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
         int platformGetRLimitNumFile() const;
