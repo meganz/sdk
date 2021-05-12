@@ -37,7 +37,6 @@ File::File()
     hforeign = false;
     syncxfer = false;
     temporaryfile = false;
-    h = UNDEF;
     tag = 0;
 }
 
@@ -213,7 +212,7 @@ File *File::unserialize(string *d)
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
 
-    file->h = MemAccess::get<handle>(ptr);
+    file->h.set6byte(MemAccess::get<handle>(ptr));
     ptr += sizeof(handle);
 
     memcpy(file->filekey, ptr, FILENODEKEYLENGTH);
@@ -339,7 +338,7 @@ void File::completed(Transfer* t, LocalNode* l)
         }
         else
         {
-            handle th = h;
+            handle th = h.as8byte();
 
             // inaccessible target folder - use //bin instead
             if (!t->client->nodebyhandle(th))
@@ -434,7 +433,7 @@ void File::displayname(string* dname)
     {
         Node* n;
 
-        if ((n = transfer->client->nodebyhandle(h)))
+        if ((n = transfer->client->nodeByHandle(h)))
         {
             *dname = n->displayname();
         }
@@ -445,13 +444,22 @@ void File::displayname(string* dname)
     }
 }
 
+string File::displayname()
+{
+    string result;
+
+    displayname(&result);
+
+    return result;
+}
+
 #ifdef ENABLE_SYNC
 SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
 {
     sync = csync;
 
     n = cn;
-    h = n->nodehandle;
+    h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
     localname = clocalname;
 

@@ -128,10 +128,6 @@ struct MEGA_API MegaApp
     // node addition has failed
     virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride = false) { }
 
-    // share update result
-    virtual void share_result(error, bool writable = false) { }
-    virtual void share_result(int, error, bool writable = false) { }
-
     // outgoing pending contact result
     virtual void setpcr_result(handle, error, opcactions_t) { }
     // incoming pending contact result
@@ -178,10 +174,6 @@ struct MEGA_API MegaApp
 #endif
 
     virtual void getuseremail_result(string *, error) { }
-
-    // file node export result
-    virtual void exportnode_result(error) { }
-    virtual void exportnode_result(handle, handle) { }
 
     // exported link access result
     virtual void openfilelink_result(const Error&) { }
@@ -421,6 +413,9 @@ struct MEGA_API MegaApp
     virtual void dismissbanner_result(error) { }
 
     virtual ~MegaApp() { }
+
+    // External drive notifications
+    virtual void drive_presence_changed(bool appeared, const LocalPath& driveRoot) { }
 };
 } // namespace
 

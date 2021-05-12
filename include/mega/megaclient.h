@@ -39,9 +39,11 @@
 #include "useralerts.h"
 #include "user.h"
 #include "sync.h"
+#include "drivenotify.h"
 
 namespace mega {
 
+class Logger;
 class SyncConfigBag;
 
 class MEGA_API FetchNodesStats
@@ -215,6 +217,17 @@ public:
 
 std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
+class SyncdownContext
+{
+public:
+    SyncdownContext()
+      : mActionsPerformed(false)
+    {
+    }
+
+    bool mActionsPerformed;
+}; // SyncdownContext
+
 class MEGA_API MegaClient
 {
 public:
@@ -274,8 +287,9 @@ public:
     PrnGen rng;
 
     bool ephemeralSession = false;
+    bool ephemeralSessionPlusPlus = false;
 
-    static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
+    static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
 
@@ -306,7 +320,9 @@ public:
 
     // ephemeral session support
     void createephemeral();
+    void createephemeralPlusPlus();
     void resumeephemeral(handle, const byte*, int = 0);
+    void resumeephemeralPlusPlus(const std::string& session);
     void cancelsignup();
 
     // full account confirmation/creation support
@@ -368,8 +384,8 @@ public:
     // dump current session
     int dumpsession(string&);
 
-    // create a copy of the current session
-    void copysession();
+    // create a copy of the current session. EACCESS for not fully confirmed accounts
+    error copysession();
 
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
@@ -379,8 +395,7 @@ public:
 
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
-    // if the second parameter isn't NULL, it's used as session id instead of the current one
-    string *sessiontransferdata(const char*, string* = NULL);
+    string sessiontransferdata(const char*, string*);
 
     // Kill session id
     void killsession(handle session);
@@ -476,7 +491,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
-    void removeOutSharesFromSubtree(Node* n);
+    void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
@@ -571,15 +586,18 @@ public:
     error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, bool writable = false, const char* = NULL);
+    void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
+	    int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, bool writable = false);
-    void getpubliclink(Node* n, int del, m_time_t ets, bool writable = false); // auxiliar method to add req
+    error exportnode(Node*, int, m_time_t, bool writable,
+	    int tag, std::function<void(Error, handle, handle)> completion);
+    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable,
+	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
@@ -900,16 +918,16 @@ public:
         CacheableStatusMap(MegaClient *client) { mClient = client; }
 
         // returns the cached value for type, or defaultValue if not found
-        int64_t lookup(int64_t type, int64_t defaultValue);
+        int64_t lookup(CacheableStatus::Type type, int64_t defaultValue);
 
         // add/update cached status, both in memory and DB
-        bool addOrUpdate(int64_t type, int64_t value);
+        bool addOrUpdate(CacheableStatus::Type type, int64_t value);
 
         // adds a new item to the map. It also initializes dedicated vars in the client (used to load from DB)
-        void loadCachedStatus(int64_t type, int64_t value);
+        void loadCachedStatus(CacheableStatus::Type type, int64_t value);
 
         // for unserialize
-        CacheableStatus *getPtr(int64_t type);
+        CacheableStatus *getPtr(CacheableStatus::Type type);
 
         void clear() { map::clear(); }
 
@@ -938,6 +956,9 @@ public:
     // root URL for chat stats
     static string CHATSTATSURL;
 
+    // root URL for Website
+    static string MEGAURL;
+
     // file that is blocking the sync engine
     LocalPath blockedfile;
 
@@ -962,7 +983,19 @@ public:
     // if logged into writable folder
     bool loggedIntoWritableFolder() const;
 
+    // start receiving external drive [dis]connect notifications
+    bool startDriveMonitor();
+
+    // stop receiving external drive [dis]connect notifications
+    void stopDriveMonitor();
+
+    // returns true if drive monitor is started
+    bool driveMonitorEnabled();
+
 private:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    DriveInfoCollector mDriveInfoCollector;
+#endif
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
@@ -1470,6 +1503,21 @@ public:
     bool syncscanfailed;
     BackoffTimer syncscanbt;
 
+    // Sync monitor timer.
+    //
+    // Meaningful only to backup syncs.
+    //
+    // Set when a backup is mirroring and syncdown(...) returned after
+    // having made changes to bring the cloud in line with local disk.
+    //
+    // That is, the backup remains in the mirror state.
+    //
+    // The timer is used to force another call to syncdown(...) so that we
+    // can give the sync a chance to transition into the monitor state,
+    // regardless of whether the local disk has changed.
+    bool mSyncMonitorRetry;
+    BackoffTimer mSyncMonitorTimer;
+
     // vanished from a local synced folder
     localnode_set localsyncnotseen;
 
@@ -1504,7 +1552,8 @@ public:
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, LocalPath&, bool);
+    bool syncdown(LocalNode*, LocalPath&, SyncdownContext& cxt);
+    bool syncdown(LocalNode*, LocalPath&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
@@ -1612,6 +1661,7 @@ public:
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
     static const int BACKUPHANDLE = 8;
+    static const int DRIVEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
 
@@ -1721,10 +1771,10 @@ public:
     Node *getrootnode(Node*);
 
     //returns true if the node referenced by the handle belongs to the logged-in account
-    bool isPrivateNode(handle h);
+    bool isPrivateNode(NodeHandle h);
 
     //returns true if the node referenced by the handle belongs to other account than the logged-in account
-    bool isForeignNode(handle h);
+    bool isForeignNode(NodeHandle h);
 
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
@@ -1855,8 +1905,21 @@ public:
 
     std::string getDeviceidHash() const;
 
+    // generate a new drive id
+    handle generateDriveId();
+
+    // return API_OK if success and set driveId handle to the drive id read from the drive,
+    // otherwise return error code and set driveId to UNDEF
+    error readDriveId(const char *pathToDrive, handle &driveId) const;
+
+    // return API_OK if success, otherwise error code
+    error writeDriveId(const char *pathToDrive, handle driveId);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
+
+    void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
+    unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
 };
 } // namespace
 

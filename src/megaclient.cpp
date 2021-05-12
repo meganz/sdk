@@ -48,6 +48,9 @@ string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 // root URL for chat stats
 string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
+// root URL for Website
+string MegaClient::MEGAURL = "https://mega.nz";
+
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
 
@@ -540,9 +543,9 @@ Node *MegaClient::getrootnode(Node *node)
     return n;
 }
 
-bool MegaClient::isPrivateNode(handle h)
+bool MegaClient::isPrivateNode(NodeHandle h)
 {
-    Node *node = nodebyhandle(h);
+    Node *node = nodeByHandle(h);
     if (!node)
     {
         return false;
@@ -552,9 +555,9 @@ bool MegaClient::isPrivateNode(handle h)
     return (rootnode == rootnodes[0] || rootnode == rootnodes[1] || rootnode == rootnodes[2]);
 }
 
-bool MegaClient::isForeignNode(handle h)
+bool MegaClient::isForeignNode(NodeHandle h)
 {
-    Node *node = nodebyhandle(h);
+    Node *node = nodeByHandle(h);
     if (!node)
     {
         return false;
@@ -939,6 +942,75 @@ std::string MegaClient::getDeviceidHash() const
     return deviceIdHash;
 }
 
+handle MegaClient::generateDriveId()
+{
+    handle driveId;
+    rng.genblock((byte *)&driveId, sizeof(driveId));
+    driveId |= m_time(nullptr);
+    return driveId;
+}
+
+error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
+{
+    driveId = UNDEF;
+
+    LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
+    LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
+    pd.appendWithSeparator(dotDir, false);
+    LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
+    pd.appendWithSeparator(idFile, false);
+
+    auto fa = fsaccess->newfileaccess(false);
+    if (!fa->fopen(pd, true, false))
+    {
+        // This case is valid when only checking for file existence
+        return API_ENOENT;
+    }
+
+    if (!fa->frawread((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to read drive-id from file: " << pd.toPath();
+        return API_EREAD;
+    }
+
+    return API_OK;
+}
+
+error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
+{
+    LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
+    LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
+    pd.appendWithSeparator(dotDir, false);
+
+    // Try and create the backup configuration directory
+    if (!(fsaccess->mkdirlocal(pd) || fsaccess->target_exists))
+    {
+        LOG_err << "Unable to create config DB directory: " << pd.toPath(*fsaccess);
+
+        // Couldn't create the directory and it doesn't exist.
+        return API_EWRITE;
+    }
+
+    // Open the file for writing
+    LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
+    pd.appendWithSeparator(idFile, false);
+    auto fa = fsaccess->newfileaccess(false);
+    if (!fa->fopen(pd, false, true))
+    {
+        LOG_err << "Unable to open file to write drive-id: " << pd.toPath();
+        return API_EWRITE;
+    }
+
+    // Write the drive-id to file
+    if (!fa->fwrite((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to write drive-id to file: " << pd.toPath();
+        return API_EWRITE;
+    }
+
+    return API_OK;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -1073,6 +1145,7 @@ void MegaClient::init()
     syncdebrisadding = false;
     syncdebrisminute = 0;
     syncscanfailed = false;
+    mSyncMonitorRetry = false;
     syncfslockretry = false;
     syncfsopsfailed = false;
     syncdownretry = false;
@@ -1131,6 +1204,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 #ifdef ENABLE_SYNC
     , syncs(*this)
     , syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
+    , mSyncMonitorRetry(false), mSyncMonitorTimer(rng)
 #endif
     , mCachedStatus(this)
 {
@@ -1161,6 +1235,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     cachedug = false;
     minstreamingrate = -1;
     ephemeralSession = false;
+    ephemeralSessionPlusPlus = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1289,10 +1364,50 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
-
-std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
+void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
+                                         const string& localPath,
+                                         const string& remotePath)
 {
-    string strlink = "https://mega.nz/";
+    const char* typeName;
+
+    switch (type)
+    {
+    case FILENAME_ANOMALY_NAME_MISMATCH:
+        typeName = "NAME_MISMATCH";
+        break;
+    case FILENAME_ANOMALY_NAME_RESERVED:
+        typeName = "NAME_RESERVED";
+        break;
+    default:
+        assert(!"Unknown filename anomaly type!");
+        typeName = "UNKNOWN";
+        break;
+    }
+
+    const auto* path = localPath.c_str();
+
+#ifdef _WIN32
+    if (!localPath.compare(0, 4, "\\\\?\\"))
+    {
+        path += 4;
+    }
+#endif // _WIN32
+
+    LOG_debug << "Filename anomaly detected: type: "
+              << typeName
+              << " local path: "
+              << path
+              << " remote path: "
+              << remotePath;
+
+    if (!mFilenameAnomalyReporter) return;
+
+    mFilenameAnomalyReporter->anomalyDetected(type, path, remotePath);
+}
+
+std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
+{
+    string strlink = MegaClient::MEGAURL + "/";
     string nodeType;
     if (newLinkFormat)
     {
@@ -2449,6 +2564,13 @@ void MegaClient::exec()
             syncops = true;
         }
 
+        // sync timer: try to transition into monitoring mode.
+        if (mSyncMonitorRetry && mSyncMonitorTimer.armed())
+        {
+            mSyncMonitorRetry = false;
+            syncdownrequired = true;
+        }
+
         // sync timer: file change upload delay timeouts (Nagle algorithm)
         if (syncnagleretry && syncnaglebt.armed())
         {
@@ -2890,7 +3012,7 @@ void MegaClient::exec()
                             if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                             {
                                 LOG_debug << "Running syncdown on demand";
-                                if (!syncdown(sync->localroot.get(), localpath, true))
+                                if (!syncdown(sync->localroot.get(), localpath))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
                                     // and force a full rescan afterwards as the local item may
@@ -2937,7 +3059,7 @@ void MegaClient::exec()
         }
 
         // Flush changes made to internal configs.
-        syncs.syncConfigDBFlush();
+        syncs.syncConfigStoreFlush();
 #endif
 
         notifypurge();
@@ -3029,6 +3151,14 @@ void MegaClient::exec()
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
+    }
+#endif
+
+#ifdef USE_DRIVE_NOTIFICATIONS
+    // check for Drive [dis]connects
+    for (auto di = mDriveInfoCollector.get(); !di.first.empty(); di = mDriveInfoCollector.get())
+    {
+        app->drive_presence_changed(di.second, LocalPath::fromPlatformEncoded(move(di.first)));
     }
 #endif
 }
@@ -3173,6 +3303,12 @@ int MegaClient::preparewait()
         if (syncscanfailed)
         {
             syncscanbt.update(&nds);
+        }
+
+        // sync monitor timer.
+        if (mSyncMonitorRetry)
+        {
+            mSyncMonitorTimer.update(&nds);
         }
 
         // retrying of transient failed read ops
@@ -3578,7 +3714,7 @@ void MegaClient::dispatchTransfers()
                         if ((*it)->hprivate && !(*it)->hforeign)
                         {
                             // Make sure we have the size field
-                            Node* n = nodebyhandle((*it)->h);
+                            Node* n = nodeByHandle((*it)->h);
                             if (!n)
                             {
                                 missingPrivateNode = true;
@@ -3699,7 +3835,7 @@ void MegaClient::dispatchTransfers()
 
                 if (openfinished && openok)
                 {
-                    handle h = UNDEF;
+                    NodeHandle h;
                     bool hprivate = true;
                     const char *privauth = NULL;
                     const char *pubauth = NULL;
@@ -3773,7 +3909,7 @@ void MegaClient::dispatchTransfers()
                         for (file_list::iterator it = nexttransfer->files.begin();
                             it != nexttransfer->files.end(); it++)
                         {
-                            if (!(*it)->hprivate || (*it)->hforeign || nodebyhandle((*it)->h))
+                            if (!(*it)->hprivate || (*it)->hforeign || nodeByHandle((*it)->h))
                             {
                                 h = (*it)->h;
                                 hprivate = (*it)->hprivate;
@@ -3799,7 +3935,7 @@ void MegaClient::dispatchTransfers()
                     {
                         reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
                             ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                            : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth, chatauth)));
+                            : (Command*)new CommandGetFile(this, ts, NULL, h.as8byte(), hprivate, privauth, pubauth, chatauth)));
                     }
 
                     LOG_debug << "Activating transfer";
@@ -4042,15 +4178,16 @@ void MegaClient::logout(bool keepSyncConfigsFile)
         return;
     }
 
+    loggingout++;
+
 #ifdef ENABLE_SYNC
     // if logging out and syncs won't be kept...
     if (!keepSyncConfigsFile)
     {
-        syncs.removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+        syncs.purgeSyncs();    // unregister from API and clean up backup-names
     }
 #endif
 
-    loggingout++;
     reqs.add(new CommandLogout(this, keepSyncConfigsFile));
 }
 
@@ -4094,6 +4231,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     cachedug = false;
     minstreamingrate = -1;
     ephemeralSession = false;
+    ephemeralSessionPlusPlus = false;
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
@@ -4253,8 +4391,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     }
     else
     {
-        syncs.removeSelectedSyncs([](SyncConfig&, Sync* s) { return s != nullptr; });
-        syncs.truncate();
+        syncs.purgeSyncs();
     }
 #endif
 
@@ -4451,14 +4588,10 @@ bool MegaClient::procsc()
                                 whyamiblocked();// lets query again, to trigger transition and restoreSyncs
                             }
 
-#ifdef ENABLE_SYNC
-#ifndef __ANDROID__
-                            //TODO: remove android control after android gives green light to this.
                             enabletransferresumption();
-#endif
+#ifdef ENABLE_SYNC
                             syncs.resumeResumableSyncsOnStartup();
 #endif
-
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 
@@ -5316,7 +5449,7 @@ void MegaClient::sc_updatenode()
                             {
                                 n->attrstring.reset(new string);
                             }
-                            Node::copystring(n->attrstring.get(), a);
+                            JSON::copystring(n->attrstring.get(), a);
                             n->changed.attrs = true;
                             notify = true;
                         }
@@ -5348,12 +5481,12 @@ void MegaClient::sc_updatenode()
     }
 }
 
-void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t value)
+void MegaClient::CacheableStatusMap::loadCachedStatus(CacheableStatus::Type type, int64_t value)
 {
     auto it = insert(pair<int64_t, CacheableStatus>(type, CacheableStatus(type, value)));
     assert(it.second);
 
-    LOG_verbose << "Loaded status from cache: " << type << " = " << value;
+    LOG_verbose << "Loaded status from cache: " << CacheableStatus::typeToStr(type) << " = " << value;
 
     switch(type)
     {
@@ -5372,7 +5505,7 @@ void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t valu
     }
 }
 
-bool MegaClient::CacheableStatusMap::addOrUpdate(int64_t type, int64_t value)
+bool MegaClient::CacheableStatusMap::addOrUpdate(CacheableStatus::Type type, int64_t value)
 {
     bool changed = false;
 
@@ -5396,23 +5529,23 @@ bool MegaClient::CacheableStatusMap::addOrUpdate(int64_t type, int64_t value)
     if (changed && mClient->statusTable)
     {
         DBTableTransactionCommitter committer(mClient->statusTable);
-        LOG_verbose << "Adding/updating status to database: " << type << " = " << value;
+        LOG_verbose << "Adding/updating status to database: " << status.typeToStr() << " = " << value;
         if (!mClient->statusTable->put(MegaClient::CACHEDSTATUS, &it_bool.first->second, &mClient->key))
         {
-            LOG_err << "Failed to add/update status to db: " << type << " = " << value;
+            LOG_err << "Failed to add/update status to db: " << status.typeToStr() << " = " << value;
         }
     }
 
     return changed;
 }
 
-int64_t MegaClient::CacheableStatusMap::lookup(int64_t type, int64_t defaultValue)
+int64_t MegaClient::CacheableStatusMap::lookup(CacheableStatus::Type type, int64_t defaultValue)
 {
     auto it = find(type);
     return it == end() ? defaultValue : it->second.value();
 }
 
-CacheableStatus *MegaClient::CacheableStatusMap::getPtr(int64_t type)
+CacheableStatus *MegaClient::CacheableStatusMap::getPtr(CacheableStatus::Type type)
 {
     auto it = find(type);
     return it == end() ? nullptr : &it->second;
@@ -5563,7 +5696,7 @@ bool MegaClient::sc_shares()
             case EOO:
                 // we do not process share commands unless logged into a full
                 // account
-                if (loggedin() < FULLACCOUNT)
+                if (loggedin() != FULLACCOUNT)
                 {
                     return false;
                 }
@@ -5836,7 +5969,7 @@ void MegaClient::sc_fileattr()
             case EOO:
                 if (fa && n)
                 {
-                    Node::copystring(&n->fileattrstring, fa);
+                    JSON::copystring(&n->fileattrstring, fa);
                     n->changed.fileattrstring = true;
                     notifynode(n);
                 }
@@ -5929,6 +6062,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
+                                    case ATTR_DRIVE_NAMES:          // fall-through
                                     case ATTR_MY_BACKUPS_FOLDER:     // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
@@ -6062,7 +6196,7 @@ void MegaClient::sc_ipc()
                 if (m && statecurrent)
                 {
                     string email;
-                    Node::copystring(&email, m);
+                    JSON::copystring(&email, m);
                     useralerts.add(new UserAlert::IncomingPendingContact(dts, rts, p, email, ts, useralerts.nextId()));
                 }
 
@@ -6308,7 +6442,7 @@ void MegaClient::sc_upc(bool incoming)
                 if (statecurrent && ou != me && (incoming || s != 2))
                 {
                     string email;
-                    Node::copystring(&email, m);
+                    JSON::copystring(&email, m);
                     using namespace UserAlert;
                     useralerts.add(incoming ? (Base*) new UpdatedPendingContactIncoming(s, p, email, uts, useralerts.nextId())
                                             : (Base*) new UpdatedPendingContactOutgoing(s, p, email, uts, useralerts.nextId()));
@@ -6839,6 +6973,8 @@ void MegaClient::sc_uac()
                 }
                 app->account_updated();
                 app->notify_confirmation(email.c_str());
+                ephemeralSession = false;
+                ephemeralSessionPlusPlus = false;
                 return;
 
             default:
@@ -7517,7 +7653,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     if (p->firstancestor()->type == RUBBISHNODE)
     {
         // similar to the webclient, send `s2` along with `m` if the node is moving to the rubbish
-        removeOutSharesFromSubtree(n);
+        removeOutSharesFromSubtree(n, 0);
     }
 
     Node *prevParent = NULL;
@@ -7592,7 +7728,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     return API_OK;
 }
 
-void MegaClient::removeOutSharesFromSubtree(Node* n)
+void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 {
     if (n->pendingshares)
     {
@@ -7600,7 +7736,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->pcr)
             {
-                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN);
+                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool){});
             }
         }
     }
@@ -7611,18 +7747,18 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->user)
             {
-                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN);
+                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool){});
             }
             else // folder links are a shared folder without user
             {
-                setshare(n, nullptr, ACCESS_UNKNOWN);
+                setshare(n, nullptr, ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool) {});
             }
         }
     }
 
     for (auto& c : n->children)
     {
-        removeOutSharesFromSubtree(c);
+        removeOutSharesFromSubtree(c, tag);
     }
 }
 
@@ -8021,7 +8157,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 if (a && k && n->attrstring)
                 {
                     LOG_warn << "Updating the key of a NO_KEY node";
-                    Node::copystring(n->attrstring.get(), a);
+                    JSON::copystring(n->attrstring.get(), a);
                     n->setkeyfromjson(k);
                 }
             }
@@ -8061,7 +8197,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 string fas;
 
-                Node::copystring(&fas, fa);
+                JSON::copystring(&fas, fa);
 
                 // fallback timestamps
                 if (!(ts + 1))
@@ -8080,7 +8216,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 n->tag = tag;
 
                 n->attrstring.reset(new string);
-                Node::copystring(n->attrstring.get(), a);
+                JSON::copystring(n->attrstring.get(), a);
                 n->setkeyfromjson(k);
 
                 // folder link access: first returned record defines root node and identity
@@ -8738,7 +8874,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
             if (actionpackets && v >= 0 && v <= 3 && statecurrent)
             {
                 string email;
-                Node::copystring(&email, m);
+                JSON::copystring(&email, m);
                 useralerts.add(new UserAlert::ContactChange(v, uh, email, ts, useralerts.nextId()));
             }
             User* u = finduser(uh, 0);
@@ -8869,6 +9005,7 @@ void MegaClient::openStatusTable(bool loadFromCache)
     if (statusTable)
     {
         statusTable.reset();
+        mCachedStatus.clear();
     }
     doOpenStatusTable();
     if (loadFromCache && statusTable)
@@ -9165,18 +9302,21 @@ void MegaClient::resetSmsVerifiedPhoneNumber()
     reqs.add(new CommandResetSmsVerifiedPhoneNumber(this));
 }
 
-void MegaClient::copysession()
+error MegaClient::copysession()
 {
-    reqs.add(new CommandCopySession(this));
-}
-
-string *MegaClient::sessiontransferdata(const char *url, string *session)
-{
-    if (!session && loggedin() != FULLACCOUNT)
+    // only accounts fully confirmed are allowed to transfer a session,
+    // since the transfer requires the RSA keypair to be available
+    if (loggedin() != FULLACCOUNT)
     {
-        return NULL;
+        return (loggedin() == NOTLOGGEDIN) ? API_ENOENT : API_EACCESS;
     }
 
+    reqs.add(new CommandCopySession(this));
+    return API_OK;
+}
+
+string MegaClient::sessiontransferdata(const char *url, string *session)
+{
     std::stringstream ss;
 
     // open array
@@ -9188,18 +9328,7 @@ string *MegaClient::sessiontransferdata(const char *url, string *session)
     ss << aeskey << ",\"";
 
     // add session ID
-    if (session)
-    {
-        ss << *session;
-    }
-    else
-    {
-        string sids;
-        sids.resize(sid.size() * 4 / 3 + 4);
-        sids.resize(Base64::btoa((byte *)sid.data(), int(sid.size()), (char *)sids.data()));
-        ss << sids;
-    }
-    ss << "\",\"";
+    ss << *session << "\",\"";
 
     // add URL
     if (url)
@@ -9210,11 +9339,11 @@ string *MegaClient::sessiontransferdata(const char *url, string *session)
 
     // standard Base64 encoding
     string json = ss.str();
-    string *base64 = new string;
-    base64->resize(json.size() * 4 / 3 + 4);
-    base64->resize(Base64::btoa((byte *)json.data(), int(json.size()), (char *)base64->data()));
-    std::replace(base64->begin(), base64->end(), '-', '+');
-    std::replace(base64->begin(), base64->end(), '_', '/');
+    string base64;
+    base64.resize(json.size() * 4 / 3 + 4);
+    base64.resize(Base64::btoa((byte *)json.data(), int(json.size()), (char *)base64.data()));
+    std::replace(base64.begin(), base64.end(), '-', '+');
+    std::replace(base64.begin(), base64.end(), '_', '/');
     return base64;
 }
 
@@ -9331,7 +9460,7 @@ User* MegaClient::finduser(const char* uid, int add)
     User* u;
 
     // convert e-mail address to lowercase (ASCII only)
-    Node::copystring(&nuid, uid);
+    JSON::copystring(&nuid, uid);
     tolower_string(nuid);
 
     um_map::iterator it = umindex.find(nuid);
@@ -9346,7 +9475,7 @@ User* MegaClient::finduser(const char* uid, int add)
         // add user by lowercase e-mail address
         u = &users[++userid];
         u->uid = nuid;
-        Node::copystring(&u->email, nuid.c_str());
+        JSON::copystring(&u->email, nuid.c_str());
         umindex[nuid] = userid;
 
         return u;
@@ -9410,7 +9539,7 @@ void MegaClient::mapuser(handle uh, const char* email)
     User* u;
     string nuid;
 
-    Node::copystring(&nuid, email);
+    JSON::copystring(&nuid, email);
     tolower_string(nuid);
 
     // does user uh exist?
@@ -9438,7 +9567,7 @@ void MegaClient::mapuser(handle uh, const char* email)
                 umindex.erase(u->email);
             }
 
-            Node::copystring(&u->email, nuid.c_str());
+            JSON::copystring(&u->email, nuid.c_str());
         }
 
         umindex[nuid] = hit->second;
@@ -9661,7 +9790,7 @@ void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> p
         if (strchr(uid, '@'))   // uid is an e-mail address
         {
             string nuid;
-            Node::copystring(&nuid, uid);
+            JSON::copystring(&nuid, uid);
             tolower_string(nuid);
 
             u = new User(nuid.c_str());
@@ -9699,8 +9828,10 @@ void MegaClient::rewriteforeignkeys(Node* n)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
-void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation)
+void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
 {
+    assert(completion);
+
     size_t total = n->outshares ? n->outshares->size() : 0;
     total += n->pendingshares ? n->pendingshares->size() : 0;
     if (a == ACCESS_UNKNOWN && total == 1)
@@ -9710,7 +9841,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, reqtag, writable, personal_representation));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, move(completion)));
 }
 
 // Add/delete/remind outgoing pending contact request
@@ -10899,7 +11030,8 @@ void MegaClient::querytransferquota(m_off_t size)
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
+error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
+    int tag, std::function<void(Error, handle, handle)> completion)
 {
     if (n->plink && !del && !n->plink->takendown
             && (ets == n->plink->ets) && !n->plink->isExpired()
@@ -10911,8 +11043,8 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
             LOG_warn << "Rejecting public link request when ODQ paywall";
             return API_EPAYWALL;
         }
-        restag = reqtag;
-        app->exportnode_result(n->nodehandle, n->plink->ph);
+        restag = tag;
+        completion(API_OK, n->nodehandle, n->plink->ph);
         return API_OK;
     }
 
@@ -10925,7 +11057,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
     switch (n->type)
     {
     case FILENODE:
-        getpubliclink(n, del, ets, writable);
+        requestPublicLink(n, del, ets, writable, tag, move(completion));
         break;
 
     case FOLDERNODE:
@@ -10933,17 +11065,43 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
         {
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
-            getpubliclink(n, del, ets, writable);
-            setshare(n, NULL, ACCESS_UNKNOWN, writable);
+            NodeHandle h = n->nodeHandle();
+            requestPublicLink(n, del, ets, writable, tag, [this, completion, writable, tag, h](Error e, handle, handle){
+                Node* n = nodeByHandle(h);
+                if (e || !n)
+                {
+                    completion(e, UNDEF, UNDEF);
+                }
+                else
+                {
+                    setshare(n, NULL, ACCESS_UNKNOWN, writable, nullptr, tag, [completion](Error e, bool) {
+                        completion(e, UNDEF, UNDEF);
+                        });
+                }
+            });
         }
         else
         {
-            // exporting folder - need to create share first
-            setshare(n, NULL, writable ? FULL : RDONLY, writable);
-            // getpubliclink() is called as _result() of the share
+            // Exporting folder - need to create share first
+			// If share creation is successful, the share completion function calls requestPublicLink
 
+            handle h = n->nodehandle;
+
+            setshare(n, NULL, writable ? FULL : RDONLY, writable, nullptr, tag, [this, h, ets, tag, writable, completion](Error e, bool){
+                if (e)
+                {
+                    completion(e, UNDEF, UNDEF);
+                }
+                else if (Node* node = nodebyhandle(h))
+                {
+                    requestPublicLink(node, false, ets, writable, tag, completion);
+                }
+                else
+                {
+                    completion(API_ENOENT, UNDEF, UNDEF);
+                }
+            });
         }
-
         break;
 
     default:
@@ -10953,9 +11111,9 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
     return API_OK;
 }
 
-void MegaClient::getpubliclink(Node* n, int del, m_time_t ets, bool writable)
+void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, int tag, std::function<void(Error, handle, handle)> f)
 {
-    reqs.add(new CommandSetPH(this, n, del, ets, writable));
+    reqs.add(new CommandSetPH(this, n, del, ets, writable, tag, move(f)));
 }
 
 // open exported file link
@@ -11092,7 +11250,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
         }
 
         Base64Str<FILENODEKEYLENGTH> keyStr(key);
-        decryptedLink->assign(MegaClient::getPublicLink(mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, keyStr));
+        decryptedLink->assign(publicLinkURL(mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, keyStr));
     }
 
     return API_OK;
@@ -11176,7 +11334,8 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         Base64::btoa(encLinkBytes, encLink);
 
         encryptedLink->clear();
-        encryptedLink->append("https://mega.nz/#P!");
+        encryptedLink->append(MegaClient::MEGAURL);
+        encryptedLink->append("/#P!");
         encryptedLink->append(encLink);
     }
 
@@ -11193,6 +11352,11 @@ sessiontype_t MegaClient::loggedin()
     if (ISUNDEF(me))
     {
         return NOTLOGGEDIN;
+    }
+
+    if (ephemeralSessionPlusPlus)
+    {
+        return EPHEMERALACCOUNTPLUSPLUS;
     }
 
     if (ephemeralSession)
@@ -11329,9 +11493,25 @@ void MegaClient::resumeephemeral(handle uh, const byte* pw, int ctag)
     reqs.add(new CommandResumeEphemeralSession(this, uh, pw, ctag ? ctag : reqtag));
 }
 
+void MegaClient::resumeephemeralPlusPlus(const std::string& session)
+{
+    ephemeralSessionPlusPlus = true;
+    // E++ cannot resume sessions as regular ephemeral accounts. The acccount's creation
+    // does not require a password, so the session token would be undecryptable. That's
+    // the reason to use a regular session ID and perform a regular login, instead of
+    // calling here resumeephemeral() directly.
+    login(session);
+}
+
 void MegaClient::cancelsignup()
 {
     reqs.add(new CommandCancelSignup(this));
+}
+
+void MegaClient::createephemeralPlusPlus()
+{
+    ephemeralSessionPlusPlus = true;
+    createephemeral();
 }
 
 void MegaClient::sendsignuplink(const char* email, const char* name, const byte* pwhash)
@@ -11790,7 +11970,7 @@ void MegaClient::fetchnodes(bool nocache)
     }
 
     // only initial load from local cache
-    if ((loggedin() == FULLACCOUNT || loggedIntoFolder() ) &&
+    if ((loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
             !nodes.size() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable))
     {
@@ -11835,12 +12015,10 @@ void MegaClient::fetchnodes(bool nocache)
                 }
             }
 
-#ifdef ENABLE_SYNC
-#ifndef __ANDROID__
-            //TODO: remove android control after android gives green light to this.
             enabletransferresumption();
-#endif
-            syncs.resetSyncConfigDb();
+
+#ifdef ENABLE_SYNC
+            syncs.resetSyncConfigStore();
             syncs.resumeResumableSyncsOnStartup();
 #endif
             app->fetchnodes_result(API_OK);
@@ -11901,7 +12079,8 @@ void MegaClient::fetchnodes(bool nocache)
                 reqs.add(new CommandFetchNodes(this, fetchtag, nocache));
             });
 
-            if (loggedin() == FULLACCOUNT)
+            if (loggedin() == FULLACCOUNT
+                    || loggedin() == EPHEMERALACCOUNTPLUSPLUS)  // need to create early the chat and sign keys
             {
                 fetchkeys();
                 loadAuthrings();
@@ -12031,42 +12210,57 @@ void MegaClient::initializekeys()
             return;
         }
 
-        // Verify signature for RSA public key
-        string sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
-        string pubkstr;
-        if (pubk.isvalid())
+        if (loggedin() != EPHEMERALACCOUNTPLUSPLUS)   // E++ accounts don't have RSA keys
         {
-            pubk.serializekeyforjs(pubkstr);
-        }
-        if (!pubkstr.size() || !sigPubk.size())
-        {
-            if (!pubkstr.size())
+            // Verify signature for RSA public key
+            if (pubk.isvalid() && sigPubk.empty())
             {
-                LOG_warn << "Error serializing RSA public key";
-                sendevent(99421, "Error serializing RSA public key", 0);
-            }
-            if (!sigPubk.size())
-            {
-                LOG_warn << "Signature of public key for RSA not found";
-                sendevent(99422, "Signature of public key for RSA not found", 0);
+                string pubkStr;
+                std::string buf;
+                userattr_map attrs;
+                pubk.serializekeyforjs(pubkStr);
+                signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+                buf.assign(sigPubk.data(), sigPubk.size());
+                attrs[ATTR_SIG_RSA_PUBK] = buf;
+                putua(&attrs, 0);
             }
 
-            clearKeys();
-            resetKeyring();
-            return;
-        }
-        if (!EdDSA::verifyKey((unsigned char*) pubkstr.data(),
-                                    pubkstr.size(),
-                                    &sigPubk,
-                                    (unsigned char*) puEd255.data()))
-        {
-            LOG_warn << "Verification of signature of public key for RSA failed";
+            string pubkstr;
+            if (pubk.isvalid())
+            {
+                pubk.serializekeyforjs(pubkstr);
+            }
+            if (!pubkstr.size() || !sigPubk.size())
+            {
+                if (!pubkstr.size())
+                {
+                    LOG_warn << "Error serializing RSA public key";
+                    sendevent(99421, "Error serializing RSA public key", 0);
+                }
+                if (!sigPubk.size())
+                {
+                    LOG_warn << "Signature of public key for RSA not found";
+                    sendevent(99422, "Signature of public key for RSA not found", 0);
+                }
 
-            sendevent(99414, "Verification of signature of public key for RSA failed", 0);
+                clearKeys();
+                resetKeyring();
+                return;
+            }
 
-            clearKeys();
-            resetKeyring();
-            return;
+            if (!EdDSA::verifyKey((unsigned char*) pubkstr.data(),
+                                        pubkstr.size(),
+                                        &sigPubk,
+                                        (unsigned char*) puEd255.data()))
+            {
+                LOG_warn << "Verification of signature of public key for RSA failed";
+
+                sendevent(99414, "Verification of signature of public key for RSA failed", 0);
+
+                clearKeys();
+                resetKeyring();
+                return;
+            }
         }
 
         // if we reached this point, everything is OK
@@ -12077,7 +12271,8 @@ void MegaClient::initializekeys()
     else if (!signkey && !chatkey)       // THERE ARE NO KEYS
     {
         // Check completeness of keypairs
-        if (!pubk.isvalid() || puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size())
+        if (puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size()
+                || (!pubk.isvalid() && loggedin() != EPHEMERALACCOUNTPLUSPLUS))  // E++ accounts don't have RSA keys
         {
             LOG_warn << "Public keys and/or signatures found without their respective private key.";
 
@@ -12107,10 +12302,13 @@ void MegaClient::initializekeys()
             tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
             string *tlvContainer = tlvRecords.tlvRecordsToContainer(rng, &key);
 
-            // prepare signatures
-            string pubkStr;
-            pubk.serializekeyforjs(pubkStr);
-            signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+            if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
+            {
+                // prepare signatures
+                string pubkStr;
+                pubk.serializekeyforjs(pubkStr);
+                signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+            }
             signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
 
             // store keys into user attributes (skipping the procresult() <-- reqtag=0)
@@ -12126,8 +12324,11 @@ void MegaClient::initializekeys()
             buf.assign((const char *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
             attrs[ATTR_CU25519_PUBK] = buf;
 
-            buf.assign(sigPubk.data(), sigPubk.size());
-            attrs[ATTR_SIG_RSA_PUBK] = buf;
+            if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
+            {
+                buf.assign(sigPubk.data(), sigPubk.size());
+                attrs[ATTR_SIG_RSA_PUBK] = buf;
+            }
 
             buf.assign(sigCu255.data(), sigCu255.size());
             attrs[ATTR_SIG_CU255_PUBK] = buf;
@@ -13081,6 +13282,27 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
+    if (syncConfig.isExternal())
+    {
+        // Currently only possible for backup syncs.
+        if (!syncConfig.isBackup())
+        {
+            return API_EARGS;
+        }
+
+        const auto& drivePath = syncConfig.mExternalDrivePath;
+        const auto& sourcePath = syncConfig.mLocalPath;
+
+        // Source must be on the drive.
+        if (!drivePath.isContainingPathOf(sourcePath))
+        {
+            syncConfig.mEnabled = false;
+            syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
+
+            return API_EARGS;
+        }
+    }
+
     rootpath = syncConfig.getLocalPath();
     rootpath.trimNonDriveTrailingSeparator();
 
@@ -13248,7 +13470,7 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
             {
                 auto configWithId = config;
                 configWithId.mBackupId = backupId;
-                syncs.saveSyncConfig(configWithId);
+                e = syncs.syncConfigStoreAdd(configWithId);
             }
         }
 
@@ -13267,39 +13489,87 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     if (e)
     {
         completion(nullptr, config.getError(), e);
+        return e;
     }
-    else // API_OK (success)
+
+    // Are we adding an external backup?
+    if (config.isExternal())
     {
-        string deviceIdHash = getDeviceidHash();
-        BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
+        auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
+        auto sourcePath = NormalizeAbsolute(config.mLocalPath);
+        auto* store = syncs.syncConfigStore();
 
-        reqs.add( new CommandBackupPut(this, info,
-                                      [this, config, completion, notifyApp](Error e, handle backupId) mutable {
-            if (ISUNDEF(backupId) && !e)
+        // Can we get our hands on the config store?
+        if (!store)
+        {
+            LOG_err << "Unable to add backup "
+                    << sourcePath.toPath(*fsaccess)
+                    << " on "
+                    << drivePath.toPath(*fsaccess)
+                    << " as there is no config store.";
+
+            assert(completion);
+            completion(nullptr, NO_SYNC_ERROR, API_EINTERNAL);
+
+            return API_EINTERNAL;
+        }
+
+        // Do we already know about this drive?
+        if (!store->driveKnown(drivePath))
+        {
+            // Restore the drive's backups, if any.
+            auto result = syncs.backupOpenDrive(drivePath);
+
+            if (result != API_OK && result != API_ENOENT)
             {
-                e = API_EFAILED;
+                // Couldn't read an existing database.
+                LOG_err << "Unable to add backup "
+                        << sourcePath.toPath(*fsaccess)
+                        << " on "
+                        << drivePath.toPath(*fsaccess)
+                        << " as we could not read its config database.";
+
+                assert(completion);
+                completion(nullptr, NO_SYNC_ERROR, API_EFAILED);
+
+                return API_EFAILED;
             }
+        }
 
-            if (e)
-            {
-                completion(nullptr, config.getError(), e);
-            }
-            else
-            {
-
-                // if we got this far, the syncConfig is kept (in db and in memory)
-                config.setBackupId(backupId);
-
-                UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
-
-                e = unifiedSync->enableSync(false, notifyApp);
-
-                syncactivity = true;
-
-                completion(unifiedSync, unifiedSync->mConfig.getError(), e);
-            }
-        }));
+        config.mExternalDrivePath = std::move(drivePath);
+        config.mLocalPath = std::move(sourcePath);
     }
+
+    // Add the sync.
+    string deviceIdHash = getDeviceidHash();
+    BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
+
+    reqs.add( new CommandBackupPut(this, info,
+                                   [this, config, completion, notifyApp](Error e, handle backupId) mutable {
+        if (ISUNDEF(backupId) && !e)
+        {
+            e = API_EFAILED;
+        }
+
+        if (e)
+        {
+            completion(nullptr, config.getError(), e);
+        }
+        else
+        {
+
+            // if we got this far, the syncConfig is kept (in db and in memory)
+            config.setBackupId(backupId);
+
+            UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+
+            e = unifiedSync->enableSync(false, notifyApp);
+
+            syncactivity = true;
+
+            completion(unifiedSync, unifiedSync->mConfig.getError(), e);
+        }
+    }));
 
     return e;
 }
@@ -13370,7 +13640,58 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // * attempt to execute renames, moves and deletions (deletions require the
 // rubbish flag to be set)
 // returns false if any local fs op failed transiently
-bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
+bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
+{
+    static const dstime MONITOR_DELAY_SEC = 5;
+
+    SyncdownContext cxt;
+
+    cxt.mActionsPerformed = false;
+
+    if (!syncdown(l, localpath, cxt))
+    {
+        return false;
+    }
+
+    if (!l->sync->isBackupMirroring())
+    {
+        return true;
+    }
+
+    bool mirrorStable = true;
+
+    // SCs must have been processed.
+    mirrorStable &= statecurrent;
+
+    // Syncdown must not have performed any actions.
+    mirrorStable &= !cxt.mActionsPerformed;
+
+    // Scan queue must be empty.
+    mirrorStable &= l->sync->dirnotify->empty();
+
+    // Monitor if the mirror is stable.
+    if (mirrorStable)
+    {
+        // Transition to monitor state.
+        l->sync->backupMonitor();
+
+        // Cancel any active monitor timer.
+        mSyncMonitorTimer.reset();
+        mSyncMonitorRetry = false;
+
+        return true;
+    }
+
+    // Otherwise, mirror is not yet stable.
+    //
+    // Set a timer to force another syncdown in the future.
+    mSyncMonitorTimer.backoff(MONITOR_DELAY_SEC * 10);
+    mSyncMonitorRetry = true;
+
+    return true;
+}
+
+bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& cxt)
 {
     // only use for LocalNodes with a corresponding and properly linked Node
     if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
@@ -13446,6 +13767,23 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 // second-guess the user)
                 LOG_warn << "Type changed: " << ll->name << " LNtype: " << ll->type << " Ntype: " << rit->second->type;
                 nchildren.erase(rit);
+
+                if (l->sync->isBackupMirroring())
+                {
+                    // Mirror hasn't stabilized yet.
+                    cxt.mActionsPerformed = true;
+
+                    // Detach the remote, re-upload if necessary.
+                    ll->detach(true);
+
+                    // Move the remote into the debris.
+                    movetosyncdebris(rit->second, l->sync->inshare);
+                }
+                else if (l->sync->isBackupMonitoring())
+                {
+                    // Disable the sync and tell our caller we've failed.
+                    return l->sync->backupModified();
+                }
             }
             else if (ll->type == FILENODE)
             {
@@ -13512,7 +13850,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 }
 
                 // recurse into directories of equal name
-                if (!syncdown(ll, localpath, rubbish) && success)
+                if (!syncdown(ll, localpath, cxt) && success)
                 {
                     success = false;
                 }
@@ -13522,7 +13860,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
 
             lit++;
         }
-        else if (rubbish && ll->deleted)    // no corresponding remote node: delete local item
+        else if (ll->deleted)    // no corresponding remote node: delete local item
         {
             if (ll->type == FILENODE)
             {
@@ -13540,6 +13878,21 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                         ll->deleted = false;
                     }
                 }
+            }
+
+            if (l->sync->isBackupMirroring())
+            {
+                // Mirror hasn't stabilized.
+                cxt.mActionsPerformed = true;
+
+                // Re-upload the node.
+                ll->created = false;
+                ll->deleted = false;
+            }
+            else if (l->sync->isBackupMonitoring())
+            {
+                // Disable the sync and tell our caller we've failed.
+                return l->sync->backupModified();
             }
 
             if (ll->deleted)
@@ -13585,12 +13938,40 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
         if (rit->second->localnode.get() && !rit->second->changed.syncdown_node_matched_here)
         {
             LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
-            if (rit->second->localnode->parent)
+
+            if (l->sync->isBackupMirroring())
+            {
+                // Mirror hasn't stabilized.
+                cxt.mActionsPerformed = true;
+
+                // Detach the remote, re-upload the local if necessary.
+                rit->second->detach(true);
+
+                // Move remote into the debris.
+                movetosyncdebris(rit->second, l->sync->inshare);
+            }
+            else if (l->sync->isBackupMonitoring())
+            {
+                // Disable the sync and tell our caller we've failed.
+                return l->sync->backupModified();
+            }
+            else if (rit->second->localnode->parent)
             {
                 LOG_debug << "with a previous parent: " << rit->second->localnode->parent->name;
 
                 LocalPath curpath = rit->second->localnode->getLocalPath();
                 rit->second->localnode->treestate(TREESTATE_SYNCING);
+
+                // Check for filename anomalies.
+                {
+                    auto type = isFilenameAnomaly(localpath, rit->second);
+
+                    if (type != FILENAME_ANOMALY_NONE)
+                    {
+                        auto remotepath = rit->second->displaypath();
+                        filenameAnomalyDetected(type, localpath.toPath(), remotepath);
+                    }
+                }
 
                 LOG_debug << "Renaming/moving from the previous location to the new one";
                 if (fsaccess->renamelocal(curpath, localpath))
@@ -13653,57 +14034,101 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                     // download, reconstruct localname in complete()
                     if (download)
                     {
-                        LOG_debug << "Start fetching file node";
-                        app->syncupdate_get(l->sync, rit->second, localpath.toPath(*fsaccess).c_str());
+                        if (l->sync->isBackupMirroring())
+                        {
+                            // Mirror hasn't stabilized.
+                            cxt.mActionsPerformed = true;
 
-                        rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
-                        nextreqtag();
-                        DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                        startxfer(GET, rit->second->syncget, committer);
-                        syncactivity = true;
+                            // Debris the remote.
+                            movetosyncdebris(rit->second, l->sync->inshare);
+                        }
+                        else if (l->sync->isBackupMonitoring())
+                        {
+                            // Disable sync and let the caller know we've failed.
+                            return l->sync->backupModified();
+                        }
+                        else
+                        {
+                            LOG_debug << "Start fetching file node";
+                            app->syncupdate_get(l->sync, rit->second, localpath.toPath(*fsaccess).c_str());
+
+                            rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
+                            nextreqtag();
+                            DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
+                            startxfer(GET, rit->second->syncget, committer);
+                            syncactivity = true;
+                        }
                     }
                 }
             }
             else
             {
-                LOG_debug << "Creating local folder";
                 auto f = fsaccess->newfileaccess(false);
                 if (f->fopen(localpath) || f->type == FOLDERNODE)
                 {
                     LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                 }
-                // create local path, add to LocalNodes and recurse
-                else if (fsaccess->mkdirlocal(localpath))
+                else if (l->sync->isBackupMirroring())
                 {
-                    LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
+                    // Mirror hasn't stabilized.
+                    cxt.mActionsPerformed = true;
 
-                    if (ll && ll != (LocalNode*)~0)
+                    // Remove the remote.
+                    movetosyncdebris(rit->second, l->sync->inshare);
+                }
+                else if (l->sync->isBackupMonitoring())
+                {
+                    // Disable the sync as we have a mismatch.
+                    return l->sync->backupModified();
+                }
+                else
+                {
+                    // Check for filename anomalies.
                     {
-                        LOG_debug << "Local folder created, continuing syncdown";
+                        auto type = isFilenameAnomaly(localpath, rit->second);
 
-                        ll->setnode(rit->second);
-                        ll->sync->statecacheadd(ll);
-
-                        if (!syncdown(ll, localpath, rubbish) && success)
+                        if (type != FILENAME_ANOMALY_NONE)
                         {
-                            LOG_debug << "Syncdown not finished";
-                            success = false;
+                            auto remotepath = rit->second->displaypath();
+                            filenameAnomalyDetected(type, localpath.toPath(), remotepath);
                         }
                     }
-                    else
+
+                    LOG_debug << "Creating local folder";
+
+                    if (fsaccess->mkdirlocal(localpath))
                     {
-                        LOG_debug << "Checkpath() failed " << (ll == NULL);
+                        // create local path, add to LocalNodes and recurse
+                        LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
+
+                        if (ll && ll != (LocalNode*)~0)
+                        {
+                            LOG_debug << "Local folder created, continuing syncdown";
+
+                            ll->setnode(rit->second);
+                            ll->sync->statecacheadd(ll);
+
+                            if (!syncdown(ll, localpath, cxt) && success)
+                            {
+                                LOG_debug << "Syncdown not finished";
+                                success = false;
+                            }
+                        }
+                        else
+                        {
+                            LOG_debug << "Checkpath() failed " << (ll == NULL);
+                        }
                     }
-                }
-                else if (success && fsaccess->transient_error)
-                {
-                    blockedfile = localpath;
-                    LOG_debug << "Transient error creating folder " << blockedfile.toPath(*fsaccess);
-                    success = false;
-                }
-                else if (!fsaccess->transient_error)
-                {
-                    LOG_debug << "Non transient error creating folder";
+                    else if (success && fsaccess->transient_error)
+                    {
+                        blockedfile = localpath;
+                        LOG_debug << "Transient error creating folder " << blockedfile.toPath(*fsaccess);
+                        success = false;
+                    }
+                    else if (!fsaccess->transient_error)
+                    {
+                        LOG_debug << "Non transient error creating folder";
+                    }
                 }
             }
         }
@@ -14210,6 +14635,27 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             ll->created = true;
 
             assert (!isSymLink);
+
+            // Check for filename anomalies.
+            if (ll->type == FOLDERNODE)
+            {
+                auto type = isFilenameAnomaly(*ll);
+
+                if (type != FILENAME_ANOMALY_NONE)
+                {
+                    auto localpath = ll->getLocalPath().toPath();
+
+                    // Generate remote path for reporting.
+                    ostringstream remotepath;
+
+                    remotepath << ll->parent->node->displaypath()
+                               << "/"
+                               << ll->name;
+
+                    filenameAnomalyDetected(type, localpath, remotepath.str());
+                }
+            }
+
             // create remote folder or send file
             LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
             synccreate.push_back(ll);
@@ -14296,7 +14742,7 @@ void MegaClient::syncupdate()
             {
                 if (l->parent->node)
                 {
-                    l->h = l->parent->node->nodehandle;
+                    l->h = l->parent->node->nodeHandle();
                 }
 
                 l->previousNode = l->node;
@@ -14993,8 +15439,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
         }
 
-        assert( (ISUNDEF(f->h) && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
-                || (!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
+        assert( (f->h.isUndef() && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
+                || (!f->h.isUndef() && (nodeByHandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
     return true;
@@ -15779,6 +16225,32 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
 void MegaClient::getwelcomepdf()
 {
     reqs.add(new CommandGetWelcomePDF(this));
+}
+
+bool MegaClient::startDriveMonitor()
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    auto notify = std::bind(&Waiter::notify, waiter);
+    return mDriveInfoCollector.start(notify);
+#else
+    return false;
+#endif
+}
+
+void MegaClient::stopDriveMonitor()
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    mDriveInfoCollector.stop();
+#endif
+}
+
+bool MegaClient::driveMonitorEnabled()
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    return mDriveInfoCollector.enabled();
+#else
+    return false;
+#endif
 }
 
 #ifdef MEGA_MEASURE_CODE

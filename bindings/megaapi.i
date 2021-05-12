@@ -112,7 +112,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     }
 #endif
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
     ares_library_init_jvm(jvm);
 #endif
 

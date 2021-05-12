@@ -144,6 +144,7 @@ public:
     static int getSyncState (UnifiedSync&);
     static int getSyncState(SyncError error, syncstate_t state, MegaClient *client);
     static int getSyncState(const SyncConfig& config, MegaClient *client);
+    static handle getDriveId(UnifiedSync&);
 
     bool operator==(const BackupInfoSync& o) const;
     bool operator!=(const BackupInfoSync& o) const;
@@ -164,8 +165,6 @@ public:
     void updateOrRegisterSync(UnifiedSync&);
 
 private:
-    void digestPutResult(handle backupId, UnifiedSync* syncPtr);
-
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
     mega::MegaClient *mClient = nullptr;

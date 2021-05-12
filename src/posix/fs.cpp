@@ -59,6 +59,10 @@ extern JavaVM *MEGAjvm;
 #define HFS_SUPER_MAGIC 0x4244
 #endif /* ! HFS_SUPER_MAGIC */
 
+#ifndef HFSPLUS_SUPER_MAGIC
+#define HFSPLUS_SUPER_MAGIC 0x482B
+#endif /* ! HFSPLUS_SUPER_MAGIC */
+
 #ifndef NTFS_SB_MAGIC
 #define NTFS_SB_MAGIC 0x5346544E
 #endif /* ! NTFS_SB_MAGIC */
@@ -1386,7 +1390,7 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
         target_exists = errno == EEXIST;
         if (target_exists)
         {
-            LOG_debug << "Error creating local directory: " << nameStr << " errno: " << errno;
+            LOG_debug << "Failed to create local directory: " << nameStr << " (already exists)";
         }
         else
         {
@@ -1929,6 +1933,7 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
             type = FS_FAT32;
             break;
         case HFS_SUPER_MAGIC:
+        case HFSPLUS_SUPER_MAGIC:
             type = FS_HFS;
             break;
         case NTFS_SB_MAGIC:
@@ -1974,14 +1979,17 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
 
         if (it != filesystemTypes.end())
         {
-            return type = it->second, true;
+            type = it->second;
+            return true;
         }
 
-        return type = FS_UNKNOWN, true;
+        type = FS_UNKNOWN;
+        return true;
     }
 #endif /* __APPLE__ || USE_IOS */
 
-    return type = FS_UNKNOWN, false;
+    type = FS_UNKNOWN;
+    return false;
 }
 
 bool PosixDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
@@ -2113,4 +2121,10 @@ PosixDirAccess::~PosixDirAccess()
         globfree(&globbuf);
     }
 }
+
+bool isReservedName(const string&, nodetype_t)
+{
+    return false;
+}
+
 } // namespace
