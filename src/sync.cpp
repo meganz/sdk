@@ -1947,9 +1947,12 @@ bool Sync::checkValidNotification(int q, Notification& notification)
     if (notification.timestamp && !initializing && q == DirNotify::DIREVENTS)
     {
         LocalPath tmppath;
-        if (notification.localnode)
+
+        if (auto* node = notification.localnode)
         {
-            tmppath = notification.localnode->getLocalPath();
+            if (node == (LocalNode*)~0) return false;
+
+            tmppath = node->getLocalPath();
         }
 
         if (!notification.path.empty())
