@@ -403,7 +403,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                     mLabel = static_cast<nodelabel_t>(lbl);
                 }
             }
-            else if (it->first == AttrMap::string2nameid("dev-id"))
+            else if (it->first == AttrMap::string2nameid("dev-id") ||
+                     it->first == AttrMap::string2nameid("drv-id"))
             {
                 mDeviceId = it->second;
             }
@@ -1547,7 +1548,9 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
 
     // prepare for new nodes
     vector<NewNode> newnodes;
-    nameid attrId = AttrMap::string2nameid("dev-id"); // "device-id" would be too long
+    nameid attrId = isInternalDrive ?
+                    AttrMap::string2nameid("dev-id") : // "device-id" would be too long
+                    AttrMap::string2nameid("drv-id");
     std::function<void(AttrMap& attrs)> addAttrsFunc = [=](AttrMap& attrs)
     {
         attrs.map[attrId] = deviceId;

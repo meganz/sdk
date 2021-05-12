@@ -13655,7 +13655,7 @@ class MegaApi
           * - MegaError::API_EARGS - If the local folder was not set.
           * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
           * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-          * wrong 'dev-id' tag.
+          * wrong 'dev-id'/'drv-id' tag.
           * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
           * the handle.
           * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
