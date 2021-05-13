@@ -28,6 +28,7 @@
 
 #include <mega/db.h>
 #include <mega/db/sqlite.h>
+#include <mega/json.h>
 
 TEST(utils, hashCombine_integer)
 {
@@ -1073,4 +1074,59 @@ TEST(LocalPath, PrependWithSeparator)
 }
 
 #undef SEP
+
+TEST(JSONWriter, arg)
+{
+    // Unescaped.
+    {
+        JSONWriter writer;
+        writer.arg("kp", "v\r", true, false);
+        EXPECT_EQ(writer.getstring(), "\"kp\":\"v\r\"");
+    }
+
+    // Escaped.
+    {
+        JSONWriter writer;
+        writer.arg("ke", "\x01\"\b\x7f", true, true);
+        EXPECT_EQ(writer.getstring(), "\"ke\":\"\\u0001\\\"\\b\\u007f\"");
+    }
+}
+
+TEST(JSONWriter, element)
+{
+    // Unescaped
+    {
+        JSONWriter writer;
+        writer.beginarray();
+        writer.element("v\r", false);
+        writer.endarray();
+
+        EXPECT_EQ(writer.getstring(), "[\"v\r\"]");
+    }
+
+    // Escaped
+    {
+        JSONWriter writer;
+        writer.beginarray();
+        writer.element("v\r", true);
+        writer.endarray();
+        EXPECT_EQ(writer.getstring(), "[\"v\\r\"]");
+    }
+}
+
+TEST(JSONWriter, escape)
+{
+    class Writer
+      : public JSONWriter
+    {
+    public:
+        using JSONWriter::escape;
+    };
+
+    Writer writer;
+    string input = "\"\\\b\f\n\r\t\x7f";
+    string expected = "\\\"\\\\\\b\\f\\n\\r\\t\\u007f";
+
+    EXPECT_EQ(writer.escape(input.c_str(), input.size()), expected);
+}
 

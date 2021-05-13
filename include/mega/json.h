@@ -109,8 +109,8 @@ public:
     void cmd(const char*);
     void notself(MegaClient*);
 
-    void arg(const char*, const string&, int = 1);
-    void arg(const char*, const char*, int = 1);
+    void arg(const char*, const string&, int = 1, int = 0);
+    void arg(const char*, const char*, int = 1, int = 0);
     void arg(const char*, handle, int);
     void arg(const char*, NodeHandle);
     void arg(const char*, const byte*, int);
@@ -129,7 +129,8 @@ public:
     void element(int);
     void element(handle, int = sizeof(handle));
     void element(const byte*, int);
-    void element(const char*);
+    void element(const char* data, bool escape = false);
+    void element(const string& data, bool escape = false);
     void element_B64(const string&);
 
     void openobject();
@@ -140,6 +141,9 @@ public:
 
     size_t size() const;
     void clear() { mJson.clear(); }
+
+protected:
+    string escape(const char* data, size_t length) const;
 
 private:
     static const int MAXDEPTH = 8;

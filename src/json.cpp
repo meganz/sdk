@@ -19,11 +19,13 @@
  * program.
  */
 #include <cctype>
+#include <cstdint>
 
 #include "mega/json.h"
 #include "mega/base64.h"
 #include "mega/megaclient.h"
 #include "mega/logging.h"
+#include "mega/mega_utf8proc.h"
 
 namespace mega {
 // store array or object in string s
@@ -703,18 +705,29 @@ void JSONWriter::notself(MegaClient* client)
     mJson.append("\"");
 }
 
-void JSONWriter::arg(const char* name, const string& value, int quotes)
+void JSONWriter::arg(const char* name, const string& value, int quotes, int escape)
 {
-    arg(name, value.c_str(), quotes);
+    arg(name, value.c_str(), quotes, escape);
 }
 
-void JSONWriter::arg(const char* name, const char* value, int quotes)
+void JSONWriter::arg(const char* name, const char* value, int quotes, int escape)
 {
     addcomma();
     mJson.append("\"");
     mJson.append(name);
     mJson.append(quotes ? "\":\"" : "\":");
-    mJson.append(value);
+
+    auto length = strlen(value);
+
+    if (escape)
+    {
+        mJson.append(this->escape(value, length));
+    }
+    else
+    {
+        mJson.append(value, length);
+    }
+
     if (quotes)
     {
         mJson.append("\"");
@@ -863,10 +876,37 @@ void JSONWriter::element(const byte* data, int len)
     mJson.append("\"");
 }
 
-void JSONWriter::element(const char* buf)
+void JSONWriter::element(const char* data, bool escape)
 {
     mJson.append(elements() ? ",\"" : "\"");
-    mJson.append(buf, strlen(buf));
+
+    auto length = strlen(data);
+
+    if (escape)
+    {
+        mJson.append(this->escape(data, length));
+    }
+    else
+    {
+        mJson.append(data, length);
+    }
+
+    mJson.append("\"");
+}
+
+void JSONWriter::element(const string& data, bool escape)
+{
+    mJson.append(elements() ? ",\"" : "\"");
+
+    if (escape)
+    {
+        mJson.append(this->escape(data.c_str(), data.size()));
+    }
+    else
+    {
+        mJson.append(data);
+    }
+
     mJson.append("\"");
 }
 
@@ -902,6 +942,8 @@ size_t JSONWriter::size() const
 
 int JSONWriter::elements()
 {
+    assert(mLevel >= 0);
+
     if (!mLevels[mLevel])
     {
         mLevels[mLevel] = 1;
@@ -909,6 +951,74 @@ int JSONWriter::elements()
     }
 
     return 1;
+}
+
+string JSONWriter::escape(const char* data, size_t length) const
+{
+    const utf8proc_uint8_t* current = reinterpret_cast<const utf8proc_uint8_t *>(data);
+    utf8proc_ssize_t remaining = static_cast<utf8proc_ssize_t>(length);
+    utf8proc_int32_t codepoint = 0;
+    string result;
+
+    while (remaining > 0)
+    {
+        auto read = utf8proc_iterate(current, remaining, &codepoint);
+        assert(codepoint >= 0);
+        assert(read > 0);
+
+        current += read;
+        remaining -= read;
+
+        if (read > 1)
+        {
+            result.append(current - read, current);
+            continue;
+        }
+
+        switch (codepoint)
+        {
+        case '"':
+            result.append("\\\"");
+            continue;
+        case '\\':
+            result.append("\\\\");
+            continue;
+        case '\b':
+            result.append("\\b");
+            continue;
+        case '\f':
+            result.append("\\f");
+            continue;
+        case '\n':
+            result.append("\\n");
+            continue;
+        case '\r':
+            result.append("\\r");
+            continue;
+        case '\t':
+            result.append("\\t");
+            continue;
+        default:
+            break;
+        }
+
+        auto category = utf8proc_category(codepoint);
+
+        if (category != UTF8PROC_CATEGORY_CC)
+        {
+            result.push_back(static_cast<char>(codepoint));
+            continue;
+        }
+
+        char buffer[7];
+
+        sprintf(buffer, "\\u%04" PRIx32, codepoint);
+        buffer[6] = '\0';
+
+        result.append(buffer);
+    }
+
+    return result;
 }
 
 } // namespace
