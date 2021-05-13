@@ -8811,6 +8811,18 @@ void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int busin
     waiter->notify();
 }
 
+const char* MegaApiImpl::exportSyncConfigs()
+{
+    string configs;
+
+    {
+        SdkMutexGuard guard(sdkMutex);
+        configs = client->syncs.exportSyncConfigs();
+    }
+
+    return MegaApi::strdup(configs.c_str());
+}
+
 void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);

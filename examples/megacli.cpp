@@ -3055,6 +3055,11 @@ autocomplete::ACN autocompleteSyntax()
                     text("closedrive"),
                     localFSFolder("drive")));
 
+    p->Add(exec_syncexport,
+           sequence(text("sync"),
+                    text("export"),
+                    opt(localFSFile("outputFile"))));
+
     p->Add(exec_syncopendrive,
            sequence(text("sync"),
                     text("opendrive"),
@@ -8557,6 +8562,39 @@ void exec_syncclosedrive(autocomplete::ACState& s)
     {
         cerr << "Unable to remove backup database: "
              << errorstring(result)
+             << endl;
+    }
+}
+
+void exec_syncexport(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to export syncs."
+             << endl;
+        return;
+    }
+
+    auto configs = client->syncs.exportSyncConfigs();
+
+    if (s.words.size() == 2)
+    {
+        cout << "Configs exported as: "
+             << configs
+             << endl;
+        return;
+    }
+
+    auto flags = std::ios::binary | std::ios::out | std::ios::trunc;
+    ofstream ostream(s.words[2].s, flags);
+
+    ostream.write(configs.data(), configs.size());
+    ostream.close();
+
+    if (!ostream.good())
+    {
+        cout << "Failed to write exported configs to: "
+             << s.words[2].s
              << endl;
     }
 }

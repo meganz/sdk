@@ -2408,6 +2408,7 @@ class MegaApiImpl : public MegaApp
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                           long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
+        const char* exportSyncConfigs();
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);

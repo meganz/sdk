@@ -566,8 +566,8 @@ struct Syncs
     void resetSyncConfigStore();
     void clear();
 
-    SyncConfigVector configsForDrive(const LocalPath& drive);
-    SyncConfigVector allConfigs();
+    SyncConfigVector configsForDrive(const LocalPath& drive) const;
+    SyncConfigVector allConfigs() const;
 
     // updates in state & error
     void saveSyncConfig(const SyncConfig& config);
@@ -645,7 +645,12 @@ struct Syncs
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
 
+    string exportSyncConfigs(const SyncConfigVector configs) const;
+    string exportSyncConfigs() const;
+
 private:
+    void exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const;
+
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();
 

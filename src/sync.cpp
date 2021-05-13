@@ -2369,7 +2369,7 @@ Syncs::Syncs(MegaClient& mc)
     mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
 }
 
-SyncConfigVector Syncs::configsForDrive(const LocalPath& drive)
+SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 {
     SyncConfigVector v;
     for (auto& s : mSyncVec)
@@ -2382,7 +2382,7 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive)
     return v;
 }
 
-SyncConfigVector Syncs::allConfigs()
+SyncConfigVector Syncs::allConfigs() const
 {
     SyncConfigVector v;
     for (auto& s : mSyncVec)
@@ -2695,6 +2695,68 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
             << result;
 
     return result;
+}
+
+string Syncs::exportSyncConfigs(const SyncConfigVector configs) const
+{
+    JSONWriter writer;
+
+    writer.beginobject();
+    writer.beginarray("configs");
+
+    for (const auto& config : configs)
+    {
+        exportSyncConfig(writer, config);
+    }
+
+    writer.endarray();
+    writer.endobject();
+
+    return writer.getstring();
+}
+
+string Syncs::exportSyncConfigs() const
+{
+    return exportSyncConfigs(configsForDrive(LocalPath()));
+}
+
+void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
+{
+    // Internal configs only.
+    assert(config.mExternalDrivePath.empty());
+
+    const auto& fsAccess = *mClient.fsaccess;
+
+    string localPath = config.mLocalPath.toPath(fsAccess);
+    string remotePath;
+    const string& name = config.mName;
+    const char* type = SyncConfig::synctypename(config.mSyncType);
+
+    if (const auto* node = mClient.nodeByHandle(config.mRemoteNode))
+    {
+        // Get an accurate remote path, if possible.
+        remotePath = node->displaypath();
+    }
+    else
+    {
+        // Otherwise settle for what we had stored.
+        remotePath = config.mOriginalPathOfRemoteRootNode;
+    }
+
+#ifdef _WIN32
+    // Skip namespace prefix.
+    if (!localPath.compare("\\\\?\\"))
+    {
+        localPath.erase(0, 4);
+    }
+#endif // _WIN32
+
+    writer.beginobject();
+    writer.arg("localPath", localPath, true, true);
+    writer.arg("name", name, true, true);
+    writer.arg("remotePath", remotePath, true, true);
+    writer.arg("type", type, true, true);
+    writer.endobject();
 }
 
 SyncConfigIOContext* Syncs::syncConfigIOContext()

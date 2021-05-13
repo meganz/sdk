@@ -13951,6 +13951,15 @@ class MegaApi
         void enableSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief
+         * Exports all internal sync configs to JSON.
+         *
+         * @return
+         * A JSON string encoding all internal sync configs.
+         */
+        const char* exportSyncConfigs();
+
+        /**
          * @brief Remove all active synced folders
          *
          * All folders will stop being synced. Nothing in the local nor in the remote folders
