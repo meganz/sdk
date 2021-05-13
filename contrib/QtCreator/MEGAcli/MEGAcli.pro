@@ -22,6 +22,16 @@ CONFIG += USE_CONSOLE
 CONFIG += USE_MEDIAINFO
 CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
+CONFIG += USE_DRIVE_NOTIFICATIONS
+
+unix:!macx {
+    exists(/usr/include/fpdfview.h) {
+        CONFIG += USE_PDFIUM
+    }
+}
+else {
+    CONFIG += USE_PDFIUM
+}
 
 SOURCES += ../../../examples/megacli.cpp
 HEADERS += ../../../examples/megacli.h

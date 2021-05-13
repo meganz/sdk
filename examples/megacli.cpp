@@ -2929,6 +2929,56 @@ void exec_backupcentre(autocomplete::ACState& s)
     }
 }
 
+void exec_logFilenameAnomalies(autocomplete::ACState& s)
+{
+    class Reporter
+      : public FilenameAnomalyReporter
+    {
+    public:
+        void anomalyDetected(FilenameAnomalyType type,
+                             const string& localPath,
+                             const string& remotePath) override
+        {
+            string typeName;
+
+            switch (type)
+            {
+            case FILENAME_ANOMALY_NAME_MISMATCH:
+                typeName = "NAME_MISMATCH";
+                break;
+            case FILENAME_ANOMALY_NAME_RESERVED:
+                typeName = "NAME_RESERVED";
+                break;
+            default:
+                assert(!"Unknown anomaly type!");
+                typeName = "UNKNOWN";
+                break;
+            }
+
+            cout << "Filename anomaly detected: type: "
+                 << typeName
+                 << ": local path: "
+                 << localPath
+                 << ": remote path: "
+                 << remotePath
+                 << endl;
+        }
+    }; // Reporter
+
+    unique_ptr<FilenameAnomalyReporter> reporter;
+
+    if (s.words[1].s == "on")
+    {
+        reporter.reset(new Reporter());
+    }
+
+    cout << "Filename anomaly reporting is "
+         << (reporter ? "en" : "dis")
+         << "abled."
+         << endl;
+
+    client->mFilenameAnomalyReporter = std::move(reporter);
+}
 
 MegaCLILogger gLogger;
 
@@ -3137,6 +3187,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
+
+    p->Add(exec_logFilenameAnomalies,
+           sequence(text("logfilenameanomalies"), either(text("on"), text("off"))));
+
+    p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -4848,6 +4903,13 @@ void exec_getua(autocomplete::ACState& s)
 
 void exec_putua(autocomplete::ACState& s)
 {
+
+    if (!client->loggedin())
+    {
+        cout << "Must be logged in to set user attributes." << endl;
+        return;
+    }
+
     attr_t attrtype = User::string2attr(s.words[1].s.c_str());
     if (attrtype == ATTR_UNKNOWN)
     {
@@ -4908,7 +4970,9 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_DEVICE_NAMES || attrtype == ATTR_ALIAS)
+            if (attrtype == ATTR_DEVICE_NAMES
+                    || attrtype == ATTR_DRIVE_NAMES
+                    || attrtype == ATTR_ALIAS)
             {
                 std::string key = s.words[3].s;
                 std::string value = Base64::btoa(s.words[4].s);
@@ -6258,6 +6322,10 @@ void exec_version(autocomplete::ACState& s)
     cout << "* FreeImage" << endl;
 #endif
 
+#ifdef HAVE_PDFIUM
+    cout << "* PDFium" << endl;
+#endif
+
 #ifdef ENABLE_SYNC
     cout << "* sync subsystem" << endl;
 #endif
@@ -6592,6 +6660,40 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
     }
     cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
 }
+
+void exec_drivemonitor(autocomplete::ACState& s)
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    if (turnon)
+    {
+        // start receiving notifications
+        if (!client->startDriveMonitor())
+        {
+            // return immediately, when this functionality was not implemented
+            cout << "Failed starting drive notifications" << endl;
+        }
+    }
+    else if (turnoff)
+    {
+        client->stopDriveMonitor();
+    }
+
+    cout << "Drive monitor " << (client->driveMonitorEnabled() ? "on" : "off") << endl;
+#else
+    std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
+#endif // USE_DRIVE_NOTIFICATIONS
+}
+
+#ifdef USE_DRIVE_NOTIFICATIONS
+void DemoApp::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
+{
+    std::cout << "Drive " << (appeared ? "connected" : "disconnected") << ": " << driveRoot.platformEncoded() << endl;
+}
+#endif // USE_DRIVE_NOTIFICATIONS
 
 // callback for non-EAGAIN request-level errors
 // in most cases, retrying is futile, so the application exits

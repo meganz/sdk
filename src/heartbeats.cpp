@@ -253,6 +253,17 @@ int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
     }
 }
 
+handle BackupInfoSync::getDriveId(UnifiedSync &us)
+{
+    const LocalPath& localPath = us.mConfig.getLocalPath();
+    const auto& fsAccess = *us.mClient.fsaccess;
+    const string& localPathUtf8 = localPath.toPath(fsAccess);
+    handle driveId;
+    us.mClient.readDriveId(localPathUtf8.c_str(), driveId); // It shouldn't happen very often
+
+    return driveId;
+}
+
 BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
 {
     switch (config.getType())
@@ -290,6 +301,9 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
     if (us.mBackupInfo && *currentInfo != *us.mBackupInfo)
     {
         currentInfo->backupId = us.mConfig.getBackupId();
+        currentInfo->driveId = BackupInfoSync::getDriveId(us);
+        assert(!(us.mConfig.isBackup() && us.mConfig.isExternal())
+               || !ISUNDEF(currentInfo->driveId));  // external backups must have a valid drive-id
         mClient->reqs.add(new CommandBackupPut(mClient, *currentInfo, nullptr));
     }
     us.mBackupInfo = move(currentInfo);

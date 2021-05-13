@@ -159,6 +159,8 @@ struct Model
     {
         enum nodetype { file, folder };
         nodetype type = folder;
+        string mCloudName;
+        string mFsName;
         string name;
         string content;
         vector<unique_ptr<ModelNode>> kids;
@@ -169,6 +171,8 @@ struct Model
 
         ModelNode(const ModelNode& other)
           : type(other.type)
+          , mCloudName()
+          , mFsName()
           , name(other.name)
           , content(other.content)
           , kids()
@@ -181,13 +185,33 @@ struct Model
             }
         }
 
-        void generate(const fs::path& path)
+        ModelNode& fsName(const string& name)
         {
-            const fs::path ourPath = path / name;
+            return mFsName = name, *this;
+        }
+
+        const string& fsName() const
+        {
+            return mFsName.empty() ? name : mFsName;
+        }
+
+        ModelNode& cloudName(const string& name)
+        {
+            return mCloudName = name, *this;
+        }
+
+        const string& cloudName() const
+        {
+            return mCloudName.empty() ? name : mCloudName;
+        }
+
+        void generate(const fs::path& path, bool force)
+        {
+            const fs::path ourPath = path / fsName();
 
             if (type == file)
             {
-                if (changed)
+                if (changed || force)
                 {
                     ASSERT_TRUE(createDataFile(ourPath, content));
                     changed = false;
@@ -199,7 +223,7 @@ struct Model
 
                 for (auto& child : kids)
                 {
-                    child->generate(ourPath);
+                    child->generate(ourPath, force);
                 }
             }
         }
@@ -575,13 +599,13 @@ struct Model
        // ASSERT_TRUE(!!removed);
     }
 
-    void generate(const fs::path& path)
+    void generate(const fs::path& path, bool force = false)
     {
         fs::create_directories(path);
 
         for (auto& child : root->kids)
         {
-            child->generate(path);
+            child->generate(path, force);
         }
     }
 
@@ -633,7 +657,7 @@ struct StandardClient : public MegaApp
 
     handle basefolderhandle = UNDEF;
 
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP };
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP, SETATTR };
 
     struct ResultProc
     {
@@ -1053,6 +1077,50 @@ struct StandardClient : public MegaApp
     }
 
     // Necessary to make sure we release the file once we're done with it.
+    struct FileGet : public File {
+        void completed(Transfer* t, LocalNode* n) override
+        {
+            File::completed(t, n);
+            result->set_value(true);
+            delete this;
+        }
+
+        void terminated() override
+        {
+            result->set_value(false);
+            delete this;
+        }
+
+        PromiseBoolSP result;
+    }; // FileGet
+
+    void downloadFile(const Node& node, const fs::path& destination, PromiseBoolSP result)
+    {
+        unique_ptr<FileGet> file(new FileGet());
+
+        file->h = node.nodeHandle();
+        file->hprivate = true;
+        file->localname = LocalPath::fromPath(destination.u8string(), *client.fsaccess);
+        file->name = node.displayname();
+        file->result = std::move(result);
+
+        reinterpret_cast<FileFingerprint&>(*file) = node;
+
+        DBTableTransactionCommitter committer(client.tctable);
+        client.startxfer(GET, file.release(), committer);
+    }
+
+    bool downloadFile(const Node& node, const fs::path& destination)
+    {
+        auto result =
+          thread_do<bool>([&](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.downloadFile(node, destination, result);
+                          });
+
+        return result.get();
+    }
+
     struct FilePut : public File {
         void completed(Transfer* t, LocalNode* n) override
         {
@@ -1066,17 +1134,55 @@ struct StandardClient : public MegaApp
         }
     }; // FilePut
 
+    void uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer)
+    {
+        unique_ptr<File> file(new FilePut());
+
+        file->h = parent->nodeHandle();
+        file->localname = LocalPath::fromPath(path.u8string(), *client.fsaccess);
+        file->name = name;
+
+        client.startxfer(PUT, file.release(), committer);
+    }
+
+    void uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb)
+    {
+        resultproc.prepresult(PUTNODES,
+                              ++next_request_tag,
+                              [&]()
+                              {
+                                  DBTableTransactionCommitter committer(client.tctable);
+                                  uploadFile(path, name, parent, committer);
+                              },
+                              [pb](error e)
+                              {
+                                  pb->set_value(!e);
+                                  return !e;
+                              });
+    }
+
+    bool uploadFile(const fs::path& path, const string& name, Node* parent)
+    {
+        auto result =
+          thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
+                    {
+                        client.uploadFile(path, name, parent, pb);
+                    });
+
+        return result.get();
+    }
+
+    bool uploadFile(const fs::path& path, Node* parent)
+    {
+        return uploadFile(path, path.filename().u8string(), parent);
+    }
+
     void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer)
     {
         if (fs::is_regular_file(p))
         {
             ++inprogress;
-            File* f = new FilePut();
-            // full local path
-            f->localname = LocalPath::fromPath(p.u8string(), *client.fsaccess);
-            f->h = target->nodeHandle();
-            f->name = p.filename().u8string();
-            client.startxfer(PUT, f, committer);
+            uploadFile(p, p.filename().u8string(), target, committer);
         }
         else if (fs::is_directory(p))
         {
@@ -1148,6 +1254,17 @@ struct StandardClient : public MegaApp
                 onFetchNodes = nullptr;
                 return true;
             });
+    }
+
+    bool fetchnodes(bool noCache = false)
+    {
+        auto result =
+          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.fetchnodes(noCache, result);
+                          });
+
+        return result.get();
     }
 
     NewNode makeSubfolder(const string& utf8Name)
@@ -1302,6 +1419,15 @@ struct StandardClient : public MegaApp
         NodeHandle h;
         fs::path localpath;
     };
+
+    SyncConfig syncConfigByBackupID(handle backupID) const
+    {
+        auto* config = client.syncs.syncConfigByBackupId(backupID);
+
+        assert(config);
+
+        return *config;
+    }
 
     bool syncSet(handle backupId, SyncInfo& info) const
     {
@@ -1497,7 +1623,7 @@ struct StandardClient : public MegaApp
     {
         // top level names can differ so we don't check those
         if (!mn || !n) return false;
-        if (depth && mn->name != n->displayname())
+        if (depth && mn->cloudName() != n->displayname())
         {
             out() << "Node name mismatch: " << mn->path() << " " << n->displaypath() << endl;
             return false;
@@ -1516,7 +1642,7 @@ struct StandardClient : public MegaApp
 
         multimap<string, Model::ModelNode*> ms;
         multimap<string, Node*> ns;
-        for (auto& m : mn->kids) ms.emplace(m->name, m.get());
+        for (auto& m : mn->kids) ms.emplace(m->cloudName(), m.get());
         for (auto& n2 : n->children) ns.emplace(n2->displayname(), n2);
 
         int matched = 0;
@@ -1578,7 +1704,7 @@ struct StandardClient : public MegaApp
     {
         // top level names can differ so we don't check those
         if (!mn || !n) return false;
-        if (depth && mn->name != n->name)
+        if (depth && mn->cloudName() != n->name)
         {
             out() << "LocalNode name mismatch: " << mn->path() << " " << n->name << endl;
             return false;
@@ -1623,7 +1749,7 @@ struct StandardClient : public MegaApp
         multimap<string, LocalNode*> ns;
         for (auto& m : mn->kids)
         {
-            ms.emplace(m->name, m.get());
+            ms.emplace(m->cloudName(), m.get());
         }
         for (auto& n2 : n->children)
         {
@@ -1686,7 +1812,7 @@ struct StandardClient : public MegaApp
     bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported)
     {
         if (!mn) return false;
-        if (depth && mn->name != p.filename().u8string())
+        if (depth && mn->fsName() != p.filename().u8string())
         {
             out() << "filesystem name mismatch: " << mn->path() << " " << p << endl;
             return false;
@@ -1718,7 +1844,7 @@ struct StandardClient : public MegaApp
 
         multimap<string, Model::ModelNode*> ms;
         multimap<string, fs::path> ps;
-        for (auto& m : mn->kids) ms.emplace(m->name, m.get());
+        for (auto& m : mn->kids) ms.emplace(m->fsName(), m.get());
         for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi) ps.emplace(pi->path().filename().u8string(), pi->path());
 
         if (ignoreDebris)
@@ -1927,6 +2053,38 @@ struct StandardClient : public MegaApp
         resultproc.processresult(FETCHNODES, e, UNDEF);
     }
 
+    bool setattr(Node* node)
+    {
+        auto result =
+          thread_do<bool>(
+            [=](StandardClient& client, PromiseBoolSP result) mutable
+            {
+                client.setattr(node, result);
+            });
+
+        return result.get();
+    }
+
+    void setattr(Node* node, PromiseBoolSP result)
+    {
+        resultproc.prepresult(SETATTR,
+                              ++next_request_tag,
+                              [=]()
+                              {
+                                  client.setattr(node);
+                              },
+                              [result](error e)
+                              {
+                                  result->set_value(!e);
+                                  return true;
+                              });
+    }
+
+    void setattr_result(handle h, error e) override
+    {
+        resultproc.processresult(SETATTR, e, h);
+    }
+
     void unlink_result(handle, error e) override
     {
         resultproc.processresult(UNLINK, e, UNDEF);
@@ -1935,6 +2093,32 @@ struct StandardClient : public MegaApp
     void catchup_result() override
     {
         resultproc.processresult(CATCHUP, error(API_OK));
+    }
+
+    void putnodes(handle parent, vector<NewNode>&& nodes, PromiseBoolSP result)
+    {
+        resultproc.prepresult(PUTNODES,
+                              ++next_request_tag,
+                              [&]()
+                              {
+                                  client.putnodes(parent, move(nodes));
+                              },
+                              [result](error e)
+                              {
+                                  result->set_value(!e);
+                                  return true;
+                              });
+    }
+
+    bool putnodes(handle parent, vector<NewNode>&& nodes)
+    {
+        auto result =
+          thread_do<bool>([&](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.putnodes(parent, move(nodes), result);
+                          });
+
+        return result.get();
     }
 
     void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride) override
@@ -2071,6 +2255,54 @@ struct StandardClient : public MegaApp
             return false;
         }
         return true;
+    }
+
+    void ensureSyncUserAttributes(PromiseBoolSP result)
+    {
+        auto completion = [result](Error e) { result->set_value(!e); };
+        client.ensureSyncUserAttributes(std::move(completion));
+    }
+
+    bool ensureSyncUserAttributes()
+    {
+        auto result =
+          thread_do<bool>([](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.ensureSyncUserAttributes(result);
+                          });
+
+        return result.get();
+    }
+
+    void copySyncConfig(SyncConfig config, PromiseHandleSP result)
+    {
+        auto completion =
+          [result](handle id, error e)
+          {
+              result->set_value(e ? UNDEF : id);
+          };
+
+        client.copySyncConfig(config, std::move(completion));
+    }
+
+    handle copySyncConfig(const SyncConfig& config)
+    {
+        auto result =
+          thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
+                          {
+                              client.copySyncConfig(config, result);
+                          });
+
+        return result.get();
+    }
+
+    bool login(const string& user, const string& pw)
+    {
+        future<bool> p;
+        p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
+        if (!waitonresults(&p)) return false;
+        p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
+        return waitonresults(&p);
     }
 
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false)
@@ -3955,6 +4187,701 @@ TEST(Sync, BasicSync_NewVersionsCreatedWhenFilesModified)
     matched &= !f && i == fingerprints.crend();
     ASSERT_TRUE(matched);
 }
+
+TEST(Sync, BasicSync_ClientToSDKConfigMigration)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = std::chrono::seconds(4);
+
+    SyncConfig config0;
+    SyncConfig config1;
+    Model model;
+
+    // Create some syncs for us to migrate.
+    {
+        StandardClient c0(TESTROOT, "c0");
+
+        // Log callbacks.
+        c0.logcb = true;
+
+        // Log in client.
+        ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 1, 2));
+
+        // Add syncs.
+        auto id0 = c0.setupSync_mainthread("s0", "s/s_0");
+        ASSERT_NE(id0, UNDEF);
+
+        auto id1 = c0.setupSync_mainthread("s1", "s/s_1");
+        ASSERT_NE(id1, UNDEF);
+
+        // Populate filesystem.
+        auto root0 = c0.syncSet(id0).localpath;
+        auto root1 = c0.syncSet(id1).localpath;
+
+        model.addfile("d/f");
+        model.addfile("f");
+        model.generate(root0);
+        model.generate(root1, true);
+
+        // Wait for sync to complete.
+        waitonsyncs(TIMEOUT, &c0);
+
+        // Make sure everything arrived safely.
+        ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id0));
+        ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id1));
+
+        // Get our hands on the configs.
+        config0 = c0.syncConfigByBackupID(id0);
+        config1 = c0.syncConfigByBackupID(id1);
+    }
+
+    // Migrate the configs.
+    StandardClient c1(TESTROOT, "c1");
+
+    // Log callbacks.
+    c1.logcb = true;
+
+    // Log in the client.
+    ASSERT_TRUE(c1.login("MEGA_EMAIL", "MEGA_PWD"));
+
+    // Make sure sync user attributes are present.
+    ASSERT_TRUE(c1.ensureSyncUserAttributes());
+
+    // Update configs so they're useful for this client.
+    {
+        FSACCESS_CLASS fsAccess;
+        auto root0 = TESTROOT / "c1" / "s0";
+        auto root1 = TESTROOT / "c1" / "s1";
+
+        // Issue new backup IDs.
+        config0.mBackupId = UNDEF;
+        config1.mBackupId = UNDEF;
+        
+        // Update path for c1.
+        config0.mLocalPath = LocalPath::fromPath(root0.u8string(), fsAccess);
+        config1.mLocalPath = LocalPath::fromPath(root1.u8string(), fsAccess);
+
+        // Make sure local sync roots exist.
+        fs::create_directories(root0);
+        fs::create_directories(root1);
+    }
+
+    // Migrate the configs.
+    auto id0 = c1.copySyncConfig(config0);
+    ASSERT_NE(id0, UNDEF);
+    auto id1 = c1.copySyncConfig(config1);
+    ASSERT_NE(id1, UNDEF);
+
+    // Fetch nodes (and resume syncs.)
+    ASSERT_TRUE(c1.fetchnodes());
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c1);
+
+    // Check that all files from the cloud were downloaded.
+    model.ensureLocalDebrisTmpLock("");
+    ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id0));
+    model.removenode(".debris");
+    ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
+}
+
+#ifdef _WIN32
+#define SEP "\\"
+#else // _WIN32
+#define SEP "/"
+#endif // ! _WIN32
+
+class AnomalyReporter
+  : public FilenameAnomalyReporter
+{
+public:
+    struct Anomaly
+    {
+        string localPath;
+        string remotePath;
+        int type;
+    }; // Anomaly
+
+    AnomalyReporter(const string& localRoot, const string& remoteRoot)
+      : mAnomalies()
+      , mLocalRoot(localRoot)
+      , mRemoteRoot(remoteRoot)
+    {
+        assert(!mLocalRoot.empty());
+        assert(!mRemoteRoot.empty());
+
+        // Add trailing separators if necessary.
+        if (string(1, mLocalRoot.back()) != SEP)
+        {
+            mLocalRoot.append(SEP);
+        }
+
+        if (mRemoteRoot.back() != '/')
+        {
+            mRemoteRoot.push_back('/');
+        }
+    }
+
+    void anomalyDetected(FilenameAnomalyType type,
+                         const string& localPath,
+                         const string& remotePath) override
+    {
+        assert(startsWith(localPath, mLocalRoot));
+        assert(startsWith(remotePath, mRemoteRoot));
+
+        mAnomalies.emplace_back();
+
+        auto& anomaly = mAnomalies.back();
+        anomaly.localPath = localPath.substr(mLocalRoot.size());
+        anomaly.remotePath = remotePath.substr(mRemoteRoot.size());
+        anomaly.type = type;
+    }
+
+    vector<Anomaly> mAnomalies;
+
+private:
+    bool startsWith(const string& lhs, const string& rhs) const
+    {
+        return lhs.compare(0, rhs.size(), rhs) == 0;
+    }
+
+    string mLocalRoot;
+    string mRemoteRoot;
+}; // AnomalyReporter
+
+TEST(Sync, AnomalousManualDownload)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = chrono::seconds(4);
+
+    // Upload two files for us to download.
+    {
+        StandardClient cu(TESTROOT, "cu");
+
+        // Log callbacks.
+        cu.logcb = true;
+
+        // Log client in.
+        ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+        // Create a sync so we can upload some files.
+        auto id = cu.setupSync_mainthread("s", "s");
+        ASSERT_NE(id, UNDEF);
+
+        // Get our hands on the sync root.
+        auto root = cu.syncSet(id).localpath;
+
+        // Create the test files.
+        Model model;
+
+        model.addfile("f");
+        model.addfile("g:0")->fsName("g%3a0");
+        model.generate(root);
+
+        // Wait for the upload to complete.
+        waitonsyncs(TIMEOUT, &cu);
+
+        // Make sure the files were uploaded.
+        ASSERT_TRUE(cu.confirmModel_mainthread(model.root.get(), id));
+    }
+
+    StandardClient cd(TESTROOT, "cd");
+
+    // Log callbacks.
+    cd.logcb = true;
+
+    // Log client in.
+    ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+    // Determine root paths.
+    auto root = TESTROOT / "cd";
+
+    // Set anomalous filename reporter.
+    AnomalyReporter* reporter =
+      new AnomalyReporter(root.u8string(),
+                          cd.gettestbasenode()->displaypath());
+
+    cd.client.mFilenameAnomalyReporter.reset(reporter);
+
+    // cu's sync root.
+    auto* s = cd.drillchildnodebyname(cd.gettestbasenode(), "s");
+    ASSERT_TRUE(s);
+    
+    // Simple validation helper.
+    auto read_string = [](const fs::path& path) {
+        // How much buffer space do we need?
+        auto length = fs::file_size(path);
+        assert(length > 0);
+
+        // Read in the file's contents.
+        ifstream istream(path.u8string(), ios::binary);
+        string buffer(length, 0);
+
+        istream.read(&buffer[0], length);
+
+        // Make sure the read was successful.
+        assert(istream.good());
+
+        return buffer;
+    };
+
+    // Download a regular file.
+    {
+        // Regular file, s/f.
+        auto* f = cd.drillchildnodebyname(s, "f");
+        ASSERT_TRUE(f);
+
+        // Download.
+        auto destination = root / "f";
+        ASSERT_TRUE(cd.downloadFile(*f, destination));
+
+        // Make sure the file was downloaded.
+        ASSERT_TRUE(fs::is_regular_file(destination));
+        ASSERT_EQ(read_string(destination), "f");
+
+        // No anomalies should be reported.
+        ASSERT_TRUE(reporter->mAnomalies.empty());
+    }
+
+    // Download an anomalous file.
+    {
+        // Anomalous file, s/g:0.
+        auto* g0 = cd.drillchildnodebyname(s, "g:0");
+        ASSERT_TRUE(g0);
+
+        // Download.
+        auto destination = root / "g%3a0";
+        ASSERT_TRUE(cd.downloadFile(*g0, destination));
+
+        // Make sure the file was downloaded.
+        ASSERT_TRUE(fs::is_regular_file(destination));
+        ASSERT_EQ(read_string(destination), "g:0");
+
+        // A single anomaly should be reported.
+        ASSERT_EQ(reporter->mAnomalies.size(), 1);
+
+        auto& anomaly = reporter->mAnomalies.front();
+
+        ASSERT_EQ(anomaly.localPath, "g%3a0");
+        ASSERT_EQ(anomaly.remotePath, "s/g:0");
+        ASSERT_EQ(anomaly.type, FILENAME_ANOMALY_NAME_MISMATCH);
+    }
+}
+
+TEST(Sync, AnomalousManualUpload)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = chrono::seconds(4);
+
+    // Upload client.
+    StandardClient cu(TESTROOT, "cu");
+
+    // Verification client.
+    StandardClient cv(TESTROOT, "cv");
+
+    // Log callbacks.
+    cu.logcb = true;
+    cv.logcb = true;
+
+    // Log in clients.
+    ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+    ASSERT_TRUE(cv.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+    // Determine local root.
+    auto root = TESTROOT / "cu";
+
+    // Set up anomalous name reporter.
+    AnomalyReporter* reporter =
+      new AnomalyReporter(root.u8string(),
+                          cu.gettestbasenode()->displaypath());
+
+    cu.client.mFilenameAnomalyReporter.reset(reporter);
+
+    // Create a sync so we can verify uploads.
+    auto id = cv.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    Model model;
+
+    // Upload a regular file.
+    {
+        // Add file to model.
+        model.addfile("f0");
+        model.generate(root);
+
+        // Upload file.
+        auto* s = cu.client.nodeByHandle(cv.syncSet(id).h);
+        ASSERT_TRUE(s);
+        ASSERT_TRUE(cu.uploadFile(root / "f0", s));
+
+        // Necessary as cv has downloaded a file.
+        model.ensureLocalDebrisTmpLock("");
+
+        // Make sure the file uploaded successfully.
+        waitonsyncs(TIMEOUT, &cv);
+
+        ASSERT_TRUE(cv.confirmModel_mainthread(model.root.get(), id));
+
+        // No anomalies should be reported.
+        ASSERT_TRUE(reporter->mAnomalies.empty());
+    }
+
+    // Upload an anomalous file.
+    {
+        // Add an anomalous file.
+        model.addfile("f:0")->fsName("f%3a0");
+        model.generate(root);
+
+        // Upload file.
+        auto* s = cu.client.nodeByHandle(cv.syncSet(id).h);
+        ASSERT_TRUE(s);
+        ASSERT_TRUE(cu.uploadFile(root / "f%3a0", "f:0", s));
+
+        // Make sure the file uploaded ok.
+        waitonsyncs(TIMEOUT, &cv);
+
+        ASSERT_TRUE(cv.confirmModel_mainthread(model.root.get(), id));
+
+        // A single anomaly should've been reported.
+        ASSERT_EQ(reporter->mAnomalies.size(), 1);
+
+        auto& anomaly = reporter->mAnomalies.front();
+
+        ASSERT_EQ(anomaly.localPath, "f%3a0");
+        ASSERT_EQ(anomaly.remotePath, "s/f:0");
+        ASSERT_EQ(anomaly.type, FILENAME_ANOMALY_NAME_MISMATCH);
+    }
+}
+
+TEST(Sync, AnomalousSyncDownload)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = chrono::seconds(4);
+
+    // For verification.
+    Model model;
+
+    // Upload test files.
+    {
+        // Upload client.
+        StandardClient cu(TESTROOT, "cu");
+
+        // Log callbacks.
+        cu.logcb = true;
+
+        // Log in client.
+        ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+        // Add and start sync.
+        auto id = cu.setupSync_mainthread("s", "s");
+        ASSERT_NE(id, UNDEF);
+
+        // Add test files for upload.
+        auto root = cu.syncSet(id).localpath;
+
+        model.addfile("f");
+        model.addfile("f:0")->fsName("f%3a0");
+        model.addfolder("d");
+        model.addfolder("d:0")->fsName("d%3a0");
+        model.generate(root);
+
+        // Wait for sync to complete.
+        waitonsyncs(TIMEOUT, &cu);
+
+        // Did the files upload okay?
+        ASSERT_TRUE(cu.confirmModel_mainthread(model.root.get(), id));
+    }
+
+    // Download test files.
+    StandardClient cd(TESTROOT, "cd");
+
+    // Log client in.
+    ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+    // Set anomalous filename reporter.
+    AnomalyReporter* reporter;
+    {
+        auto* root = cd.gettestbasenode();
+        ASSERT_TRUE(root);
+
+        auto* s = cd.drillchildnodebyname(root, "s");
+        ASSERT_TRUE(s);
+
+        auto local = (TESTROOT / "cd" / "s").u8string();
+        auto remote = s->displaypath();
+
+        reporter = new AnomalyReporter(local, remote);
+        cd.client.mFilenameAnomalyReporter.reset(reporter);
+    }
+
+    // Add and start sync.
+    auto id = cd.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cd);
+
+    // Necessary as cd has downloaded files.
+    model.ensureLocalDebrisTmpLock("");
+
+    // Were all the files downloaded okay?
+    ASSERT_TRUE(cd.confirmModel_mainthread(model.root.get(), id));
+
+    // Two anomalies should be reported.
+    ASSERT_EQ(reporter->mAnomalies.size(), 2);
+
+    auto anomaly = reporter->mAnomalies.begin();
+
+    // d:0
+    ASSERT_EQ(anomaly->localPath, "d%3a0");
+    ASSERT_EQ(anomaly->remotePath, "d:0");
+    ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
+
+    ++anomaly;
+
+    // f:0
+    ASSERT_EQ(anomaly->localPath, "f%3a0");
+    ASSERT_EQ(anomaly->remotePath, "f:0");
+    ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
+}
+
+TEST(Sync, AnomalousSyncLocalRename)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT = chrono::seconds(4);
+
+    // Sync client.
+    StandardClient cx(TESTROOT, "cx");
+
+    // Log in client.
+    ASSERT_TRUE(cx.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Add and start sync.
+    auto id = cx.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    auto root = cx.syncSet(id).localpath;
+
+    // Set anomalous filename reporter.
+    AnomalyReporter* reporter =
+      new AnomalyReporter(root.u8string(), "/mega_test_sync/s");
+
+    cx.client.mFilenameAnomalyReporter.reset(reporter);
+
+    // Populate filesystem.
+    Model model;
+
+    model.addfile("d/f");
+    model.addfile("f");
+    model.generate(root);
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &cx);
+
+    // Make sure everything uploaded okay.
+    ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
+
+    // Rename d/f -> d/g.
+    model.findnode("d/f")->name = "g";
+    fs::rename(root / "d" / "f", root / "d" / "g");
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &cx);
+
+    // Confirm move.
+    ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
+
+    // There should be no anomalies.
+    ASSERT_TRUE(reporter->mAnomalies.empty());
+
+    // Rename d/g -> d/g:0.
+    model.findnode("d/g")->fsName("g%3a0").name = "g:0";
+    fs::rename(root / "d" / "g", root / "d" / "g%3a0");
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &cx);
+
+    // Confirm move.
+    ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
+    
+    // There should be a single anomaly.
+    ASSERT_EQ(reporter->mAnomalies.size(), 1);
+    {
+        auto& anomaly = reporter->mAnomalies.back();
+
+        ASSERT_EQ(anomaly.localPath, "d" SEP "g%3a0");
+        ASSERT_EQ(anomaly.remotePath, "d/g:0");
+        ASSERT_EQ(anomaly.type, FILENAME_ANOMALY_NAME_MISMATCH);
+    }
+    reporter->mAnomalies.clear();
+
+    // Move f -> d/g:0.
+    model.findnode("d/g:0")->content = "f";
+    model.removenode("f");
+    fs::rename(root / "f", root / "d" / "g%3a0");
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cx);
+
+    // Confirm move.
+    ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
+
+    // No anomalies should be reported.
+    ASSERT_TRUE(reporter->mAnomalies.empty());
+}
+
+TEST(Sync, AnomalousSyncRemoteRename)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT = chrono::seconds(4);
+
+    // Sync client.
+    StandardClient cx(TESTROOT, "cx");
+
+    // Rename client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log in clients.
+    ASSERT_TRUE(cx.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+    // Add and start sync.
+    auto id = cx.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    auto root = cx.syncSet(id).localpath;
+
+    // Set up anomalous filename reporter.
+    auto* reporter = new AnomalyReporter(root.u8string(), "/mega_test_sync/s");
+    cx.client.mFilenameAnomalyReporter.reset(reporter);
+
+    // Populate filesystem.
+    Model model;
+
+    model.addfile("d/f");
+    model.addfile("f");
+    model.generate(root);
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cx);
+
+    // Verify upload.
+    ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
+
+    // Rename d/f -> d/g.
+    auto* s = cr.client.nodeByHandle(cx.syncSet(id).h);
+    ASSERT_TRUE(s);
+
+    auto* d = cr.drillchildnodebyname(s, "d");
+    ASSERT_TRUE(d);
+
+    {
+        auto* f = cr.drillchildnodebyname(d, "f");
+        ASSERT_TRUE(f);
+
+        f->attrs.map['n'] = "g";
+        ASSERT_TRUE(cr.setattr(f));
+    }
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cx);
+
+    // Update model.
+    model.findnode("d/f")->name = "g";
+
+    // Verify rename.
+    ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
+
+    // There should be no anomalies.
+    ASSERT_TRUE(reporter->mAnomalies.empty());
+
+    // Rename d/g -> d/g:0.
+    {
+        auto* g = cr.drillchildnodebyname(d, "g");
+        ASSERT_TRUE(g);
+
+        g->attrs.map['n'] = "g:0";
+        ASSERT_TRUE(cr.setattr(g));
+    }
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cx);
+
+    // Update model.
+    model.findnode("d/g")->fsName("g%3a0").name = "g:0";
+
+    // Verify rename.
+    ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
+
+    // There should be a single anomaly.
+    ASSERT_EQ(reporter->mAnomalies.size(), 1);
+    {
+        auto& anomaly = reporter->mAnomalies.back();
+
+        ASSERT_EQ(anomaly.localPath, "d" SEP "g%3a0");
+        ASSERT_EQ(anomaly.remotePath, "d/g:0");
+        ASSERT_EQ(anomaly.type, FILENAME_ANOMALY_NAME_MISMATCH);
+    }
+    reporter->mAnomalies.clear();
+}
+
+TEST(Sync, AnomalousSyncUpload)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT = chrono::seconds(4);
+
+    // Upload client.
+    StandardClient cu(TESTROOT, "cu");
+
+    // Log client in.
+    ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Add and start sync.
+    auto id = cu.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    auto root = cu.syncSet(id).localpath;
+
+    // Set up anomalous filename reporter.
+    AnomalyReporter* reporter =
+      new AnomalyReporter(root.u8string(), "/mega_test_sync/s");
+
+    cu.client.mFilenameAnomalyReporter.reset(reporter);
+
+    // Populate filesystem.
+    Model model;
+
+    model.addfile("f");
+    model.addfile("f:0")->fsName("f%3a0");
+    model.addfolder("d");
+    model.addfolder("d:0")->fsName("d%3a0");
+    model.generate(root);
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &cu);
+
+    // Ensure everything uploaded okay.
+    ASSERT_TRUE(cu.confirmModel_mainthread(model.root.get(), id));
+
+    // Two anomalies should've been reported.
+    ASSERT_EQ(reporter->mAnomalies.size(), 2);
+
+    auto anomaly = reporter->mAnomalies.begin();
+
+    // d:0
+    ASSERT_EQ(anomaly->localPath, "d%3a0");
+    ASSERT_EQ(anomaly->remotePath, "d:0");
+    ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
+
+    ++anomaly;
+
+    // f:0
+    ASSERT_EQ(anomaly->localPath, "f%3a0");
+    ASSERT_EQ(anomaly->remotePath, "f:0");
+    ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
+}
+
+#undef SEP
 
 struct TwoWaySyncSymmetryCase
 {

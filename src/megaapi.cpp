@@ -1668,6 +1668,8 @@ void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
 void MegaGlobalListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
+void MegaGlobalListener::onDrivePresenceChanged(MegaApi* api, bool present, const char* rootPathInUtf8)
+{ }
 MegaGlobalListener::~MegaGlobalListener()
 { }
 
@@ -1928,6 +1930,11 @@ void MegaApi::addLoggerObject(MegaLogger *megaLogger)
 void MegaApi::removeLoggerObject(MegaLogger *megaLogger)
 {
     MegaApiImpl::removeLoggerClass(megaLogger);
+}
+
+void MegaApi::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
+{
+    pImpl->setFilenameAnomalyReporter(reporter);
 }
 
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)
@@ -2889,6 +2896,16 @@ void MegaApi::getDeviceName(MegaRequestListener *listener)
 void MegaApi::setDeviceName(const char *deviceName, MegaRequestListener *listener)
 {
     pImpl->setDeviceName(deviceName, listener);
+}
+
+void MegaApi::getDriveName(const char *pathToDrive, MegaRequestListener *listener)
+{
+    pImpl->getDriveName(pathToDrive, listener);
+}
+
+void MegaApi::setDriveName(const char *pathToDrive, const char *driveName, MegaRequestListener *listener)
+{
+    pImpl->setDriveName(pathToDrive, driveName, listener);
 }
 
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
@@ -5472,6 +5489,21 @@ void MegaApi::getCookieSettings(MegaRequestListener *listener)
 bool MegaApi::cookieBannerEnabled()
 {
     return pImpl->cookieBannerEnabled();
+}
+
+bool MegaApi::startDriveMonitor()
+{
+    return pImpl->startDriveMonitor();
+}
+
+void MegaApi::stopDriveMonitor()
+{
+    pImpl->stopDriveMonitor();
+}
+
+bool MegaApi::driveMonitorEnabled()
+{
+    return pImpl->driveMonitorEnabled();
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

@@ -34,10 +34,6 @@
 #define CRON_USE_LOCAL_TIME 1
 #include "mega/mega_ccronexpr.h"
 
-#ifdef USE_PCRE
-#include <pcre.h>
-#endif
-
 #ifdef HAVE_LIBUV
 #include "uv.h"
 #include "mega/mega_http_parser.h"
@@ -183,6 +179,34 @@ private:
     set <MegaLogger *> megaLoggers;
     bool logToConsole;
 };
+
+class MegaFilenameAnomalyReporterProxy
+  : public FilenameAnomalyReporter
+{
+public:
+    explicit
+    MegaFilenameAnomalyReporterProxy(MegaFilenameAnomalyReporter& reporter)
+      : mReporter(reporter)
+    {
+    }
+
+    void anomalyDetected(FilenameAnomalyType type,
+                         const string& localPath,
+                         const string& remotePath) override
+    {
+        using MegaAnomalyType =
+          MegaFilenameAnomalyReporter::AnomalyType;
+
+        assert(type < FILENAME_ANOMALY_NONE);
+
+        mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
+                                  localPath.c_str(),
+                                  remotePath.c_str());
+    }
+
+private:
+    MegaFilenameAnomalyReporter& mReporter;
+}; // MegaFilenameAnomalyReporterProxy
 
 class MegaTransferPrivate;
 class MegaTreeProcCopy : public MegaTreeProcessor
@@ -2215,6 +2239,7 @@ class MegaApiImpl : public MegaApp
 #ifdef USE_ROTATIVEPERFORMANCELOGGER
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
 #endif
+        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
         int platformGetRLimitNumFile() const;
@@ -2270,6 +2295,8 @@ class MegaApiImpl : public MegaApp
         const char* getDeviceId() const;
         void getDeviceName(MegaRequestListener *listener = NULL);
         void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
+        void getDriveName(const char *pathToDrive, MegaRequestListener *listener = NULL);
+        void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
@@ -2759,6 +2786,10 @@ class MegaApiImpl : public MegaApp
         void getCookieSettings(MegaRequestListener *listener = nullptr);
         bool cookieBannerEnabled();
 
+        bool startDriveMonitor();
+        void stopDriveMonitor();
+        bool driveMonitorEnabled();
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -3011,6 +3042,11 @@ protected:
 
         // file attribute modification result
         void putfa_result(handle, fatype, error) override;
+
+#ifdef USE_DRIVE_NOTIFICATIONS
+        // external drive [dis-]connected
+        void drive_presence_changed(bool appeared, const LocalPath& driveRoot) override;
+#endif
 
         // purchase transactions
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,

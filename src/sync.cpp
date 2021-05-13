@@ -685,6 +685,10 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Too many changes in account, local state invalid";
     case LOGGED_OUT:
         return "Session closed";
+    case WHOLE_ACCOUNT_REFETCHED:
+        return "The whole account was reloaded, missed updates could not have been applied in an orderly fashion";
+    case MISSING_PARENT_NODE:
+        return "Unable to figure out some node correspondence";
     case BACKUP_MODIFIED:
         return "Backup externally modified";
     case BACKUP_SOURCE_NOT_BELOW_DRIVE:
@@ -1751,6 +1755,20 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     // and l->node->parent)
                     it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
 
+                    // Has the move (rename) resulted in a filename anomaly?
+                    if (Node* node = it->second->node)
+                    {
+                        auto type = isFilenameAnomaly(*localpathNew, node);
+
+                        if (type != FILENAME_ANOMALY_NONE)
+                        {
+                            auto localPath = localpathNew->toPath();
+                            auto remotePath = node->displaypath();
+
+                            client->filenameAnomalyDetected(type, localPath, remotePath);
+                        }
+                    }
+
                     // make sure that active PUTs receive their updated filenames
                     client->updateputs();
 
@@ -1933,9 +1951,12 @@ bool Sync::checkValidNotification(int q, Notification& notification)
     if (notification.timestamp && !initializing && q == DirNotify::DIREVENTS)
     {
         LocalPath tmppath;
-        if (notification.localnode)
+
+        if (auto* node = notification.localnode)
         {
-            tmppath = notification.localnode->getLocalPath();
+            if (node == (LocalNode*)~0) return false;
+
+            tmppath = node->getLocalPath();
         }
 
         if (!notification.path.empty())
@@ -2533,6 +2554,71 @@ SyncConfigStore* Syncs::syncConfigStore()
       new SyncConfigStore(dbPath, *mSyncConfigIOContext));
 
     return mSyncConfigStore.get();
+}
+
+error Syncs::syncConfigStoreAdd(const SyncConfig& config)
+{
+    // Convenience.
+    static auto equal =
+      [](const LocalPath& lhs, const LocalPath& rhs)
+      {
+          return !platformCompareUtf(lhs, false, rhs, false);
+      };
+
+    auto* store = syncConfigStore();
+
+    // Could we get our hands on the store?
+    if (!store)
+    {
+        // Nope and we can't proceed without it.
+        return API_EINTERNAL;
+    }
+
+    SyncConfigVector configs;
+    bool known = store->driveKnown(LocalPath());
+
+    // Load current configs from disk.
+    auto result = store->read(LocalPath(), configs);
+
+    if (result == API_ENOENT || result == API_OK)
+    {
+        SyncConfigVector::iterator i = configs.begin();
+
+        // Are there any syncs already present for this root?
+        for ( ; i != configs.end(); ++i)
+        {
+            if (equal(i->mLocalPath, config.mLocalPath))
+            {
+                break;
+            }
+        }
+
+        // Did we find any existing config?
+        if (i != configs.end())
+        {
+            // Yep, replace it.
+            LOG_debug << "Replacing existing sync config for: "
+                      << i->mLocalPath.toPath();
+
+            *i = config;
+        }
+        else
+        {
+            // Nope, add it.
+            configs.emplace_back(config);
+        }
+
+        // Write the configs to disk.
+        result = store->write(LocalPath(), configs);
+    }
+
+    // Remove the drive if it wasn't already known.
+    if (!known)
+    {
+        store->removeDrive(LocalPath());
+    }
+
+    return result;
 }
 
 bool Syncs::syncConfigStoreDirty()
@@ -3391,7 +3477,6 @@ auto SyncConfigStore::writeDirtyDrives(const SyncConfigVector& configs) -> Drive
 
     return failed;
 }
-
 
 
 const string SyncConfigIOContext::NAME_PREFIX = "megaclient_syncconfig_";
