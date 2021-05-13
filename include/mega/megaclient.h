@@ -1419,6 +1419,8 @@ public:
     void deltree(handle);
 
     Node* nodeByHandle(NodeHandle) const;
+    Node* nodeByPath(const char* path, Node* node = nullptr);
+
     Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
