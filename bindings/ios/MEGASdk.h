@@ -8393,6 +8393,18 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
 - (void)getMegaAchievements;
 
 /**
+  * @brief Catch up with API for pending actionpackets
+  *
+  * The associated request type with this request is MEGARequestTypeCatchup
+  *
+  * When onRequestFinish is called with MEGAErrorTypeApiOk, the SDK is guaranteed to be
+  * up to date (as for the time this function is called).
+  *
+  * @param delegate MEGARequestDelegate to track this request
+  */
+- (void)catchupWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Retrieve basic information about a folder link
  *
  * This function retrieves basic information from a folder link, like the number of files / folders
