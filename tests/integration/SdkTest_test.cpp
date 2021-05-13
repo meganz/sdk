@@ -4723,31 +4723,9 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupFolder___";
 
-    // Attempt to get My Backups folder;
-    // make this work even before the remote API has support for My Backups folder
-    synchronousGetMyBackupsFolder(0);
-    MegaHandle mh = mApi[0].h;
-
     // create My Backups folder
-    unique_ptr<MegaNode> myBkpsNode{ mh && mh != INVALID_HANDLE ? megaApi[0]->getNodeByHandle(mh) : nullptr };
-    if (!myBkpsNode)
-    {
-        // create My Backups folder (default name, just for testing)
-        unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
-        const char* folderName = "My Backups";
-        mApi[0].h = 0; // reset this to test its value later
-        ASSERT_NO_FATAL_FAILURE(createFolder(0, folderName, rootnode.get()));
-
-        // set My Backups handle attr
-        mh = mApi[0].h;
-        int err = synchronousSetMyBackupsFolder(0, mh);
-        ASSERT_TRUE(err == MegaError::API_OK) << "Setting handle for My Backup folder failed (error: " << err << ")";
-        // read the attribute to make sure it was set
-        mApi[0].h = 0; // reset this to test its value later
-        err = synchronousGetMyBackupsFolder(0);
-        ASSERT_TRUE(err == MegaError::API_OK);
-        ASSERT_EQ(mh, mApi[0].h) << "Getting handle for My Backup folder failed";
-    }
+    syncTestMyBackupsRemoteFolder(0);
+    MegaHandle mh = mApi[0].h;
 
     // look for Device Name attr
     string deviceName;
@@ -5044,14 +5022,15 @@ TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 }
 
 
-TEST_F(SdkTest, SdkDriveName)
+TEST_F(SdkTest, SdkExternalDriveFolder)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDriveName___";
 
     // dummy path to drive
     fs::path basePath = makeNewTestRoot();
-    string pathToDrive = basePath.u8string();
+    fs::path pathToDrive = basePath / "ExtDrive";
+    fs::create_directory(pathToDrive);
 
     // drive name
     string driveName = "SdkDriveNameTest_";
@@ -5061,21 +5040,74 @@ TEST_F(SdkTest, SdkDriveName)
     driveName += today;
 
     // set drive name
-    auto err = synchronousSetDriveName(0, pathToDrive.c_str(), driveName.c_str());
+    const string& pathToDriveStr = pathToDrive.u8string();
+    auto err = synchronousSetDriveName(0, pathToDriveStr.c_str(), driveName.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setDriveName failed (error: " << err << ")";
 
     // get drive name
-    err = synchronousGetDriveName(0, pathToDrive.c_str());
+    err = synchronousGetDriveName(0, pathToDriveStr.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "getDriveName failed (error: " << err << ")";
     ASSERT_EQ(attributeValue, driveName) << "getDriveName returned incorrect value";
 
-    // reset value, before a future test
-    err = synchronousSetDriveName(0, pathToDrive.c_str(), "");
+    // create My Backups folder
+    syncTestMyBackupsRemoteFolder(0);
+    MegaHandle mh = mApi[0].h;
+
+    // add backup
+    string bkpName = "Bkp";
+    const fs::path& pathToBkp = pathToDrive / bkpName;
+    fs::create_directory(pathToBkp);
+    const string& pathToBkpStr = pathToBkp.u8string();
+    err = synchronousSyncFolder(0, MegaSync::SyncType::TYPE_BACKUP, pathToBkpStr.c_str(), nullptr, INVALID_HANDLE, pathToDriveStr.c_str());
+    ASSERT_EQ(MegaError::API_OK, err) << "sync folder failed (error: " << err << ")";
+
+    // Verify that the remote path was created as expected
+    unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
+    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + driveName + '/' + bkpName;
+    unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(mApi[0].h) };
+    ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
+
+    // remove backup
+    std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    err = synchronousRemoveSync(0, backupNode.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "Remove sync failed (error: " << err << ")";
+
+    // reset DriveName value, before a future test
+    err = synchronousSetDriveName(0, pathToDriveStr.c_str(), "");
     ASSERT_EQ(MegaError::API_OK, err) << "setDriveName failed when resetting (error: " << err << ")";
 
     // attempt to get drive name (after being deleted)
-    err = synchronousGetDriveName(0, pathToDrive.c_str());
+    err = synchronousGetDriveName(0, pathToDriveStr.c_str());
     ASSERT_EQ(MegaError::API_ENOENT, err) << "getDriveName not failed as it should (error: " << err << ")";
+}
+
+void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
+{
+    // Attempt to get My Backups folder;
+    // make this work even before the remote API has support for My Backups folder
+    synchronousGetMyBackupsFolder(apiIdx);
+    MegaHandle mh = mApi[apiIdx].h;
+
+    // create My Backups folder
+    unique_ptr<MegaNode> myBkpsNode{ mh && mh != INVALID_HANDLE ? megaApi[apiIdx]->getNodeByHandle(mh) : nullptr };
+    if (!myBkpsNode)
+    {
+        // create My Backups folder (default name, just for testing)
+        unique_ptr<MegaNode> rootnode{ megaApi[apiIdx]->getRootNode() };
+        const char* folderName = "My Backups";
+        mApi[apiIdx].h = 0; // reset this to test its value later
+        ASSERT_NO_FATAL_FAILURE(createFolder(apiIdx, folderName, rootnode.get()));
+
+        // set My Backups handle attr
+        mh = mApi[apiIdx].h;
+        int err = synchronousSetMyBackupsFolder(apiIdx, mh);
+        ASSERT_TRUE(err == MegaError::API_OK) << "Setting handle for My Backup folder failed (error: " << err << ")";
+        // read the attribute to make sure it was set
+        mApi[apiIdx].h = 0; // reset this to test its value later
+        err = synchronousGetMyBackupsFolder(apiIdx);
+        ASSERT_TRUE(err == MegaError::API_OK);
+        ASSERT_EQ(mh, mApi[apiIdx].h) << "Getting handle for My Backup folder failed";
+    }
 }
 
 TEST_F(SdkTest, DISABLED_SdkUserAlias)
