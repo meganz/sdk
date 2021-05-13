@@ -24531,7 +24531,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr /* can 
     this->fingerprint = 0;
 
     setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
-    setLastKnownMegaFolder(config.mOrigninalPathOfRemoteRootNode.c_str());
+    setLastKnownMegaFolder(config.mOriginalPathOfRemoteRootNode.c_str());
 
     setError(config.mError);
     setWarning(config.mWarning);

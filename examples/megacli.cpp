@@ -8620,7 +8620,7 @@ void exec_synclist(autocomplete::ACState& s)
           cout << "  Mapping: "
                << config.mLocalPath.toPath(*client->fsaccess)
                << " -> "
-               << config.mOrigninalPathOfRemoteRootNode
+               << config.mOriginalPathOfRemoteRootNode
                << "\n";
 
           if (sync)
