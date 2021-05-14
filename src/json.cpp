@@ -549,6 +549,16 @@ bool JSON::leaveobject()
     return false;
 }
 
+bool JSON::isobject() const
+{
+    const auto* i = pos;
+
+    if (*i == '}') ++i;
+    if (*i == ',') ++i;
+
+    return *i == '{';
+}
+
 // unescape JSON string (non-strict)
 void JSON::unescape(string* s)
 {

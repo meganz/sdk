@@ -72,6 +72,7 @@ struct MEGA_API JSON
 
     bool enterobject();
     bool leaveobject();
+    bool isobject() const;
 
     bool storeobject(string* = NULL);
 
