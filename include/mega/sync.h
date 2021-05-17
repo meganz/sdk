@@ -132,7 +132,7 @@ public:
     NodeHandle mRemoteNode;
 
     // the path to the remote node, as last known (not definitive)
-    string mOrigninalPathOfRemoteRootNode;
+    string mOriginalPathOfRemoteRootNode;
 
     // the local fingerprint
     fsfp_t mLocalFingerprint;

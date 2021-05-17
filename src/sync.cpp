@@ -507,7 +507,7 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mLocalPath{std::move(localPath)}
     , mName{std::move(name)}
     , mRemoteNode{remoteNode}
-    , mOrigninalPathOfRemoteRootNode{remotePath}
+    , mOriginalPathOfRemoteRootNode{remotePath}
     , mLocalFingerprint{localFingerprint}
     , mExternalDrivePath{externalDrivePath}
     , mSyncType{syncType}
@@ -524,7 +524,7 @@ bool SyncConfig::operator==(const SyncConfig& rhs) const
            && mLocalPath == rhs.mLocalPath
            && mName == rhs.mName
            && mRemoteNode == rhs.mRemoteNode
-           && mOrigninalPathOfRemoteRootNode == rhs.mOrigninalPathOfRemoteRootNode
+           && mOriginalPathOfRemoteRootNode == rhs.mOriginalPathOfRemoteRootNode
            && mLocalFingerprint == rhs.mLocalFingerprint
            && mSyncType == rhs.mSyncType
            && mError == rhs.mError
@@ -2219,9 +2219,9 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
     if (n)
     {
         auto newpath = n->displaypath();
-        if (newpath != mConfig.mOrigninalPathOfRemoteRootNode)
+        if (newpath != mConfig.mOriginalPathOfRemoteRootNode)
         {
-            mConfig.mOrigninalPathOfRemoteRootNode = newpath;
+            mConfig.mOriginalPathOfRemoteRootNode = newpath;
             changed = true;
         }
 
@@ -3179,14 +3179,14 @@ void Syncs::resumeResumableSyncsOnStartup()
     {
         if (!unifiedSync->mSync)
         {
-            if (unifiedSync->mConfig.mOrigninalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
+            if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
             {
                 auto node = mClient.nodeByHandle(unifiedSync->mConfig.getRemoteNode());
                 unifiedSync->updateSyncRemoteLocation(node, false); //updates cache & notice app of this change
                 if (node)
                 {
                     auto newpath = node->displaypath();
-                    unifiedSync->mConfig.mOrigninalPathOfRemoteRootNode = newpath;//update loaded config
+                    unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = newpath;//update loaded config
                 }
             }
 
@@ -3976,7 +3976,7 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
             break;
 
         case TYPE_TARGET_PATH:
-            reader.storebinary(&config.mOrigninalPathOfRemoteRootNode);
+            reader.storebinary(&config.mOriginalPathOfRemoteRootNode);
             break;
 
         default:
@@ -4033,7 +4033,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg("id", config.getBackupId(), sizeof(handle));
     writer.arg_B64("sp", sourcePath);
     writer.arg_B64("n", config.mName);
-    writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
+    writer.arg_B64("tp", config.mOriginalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
     writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
