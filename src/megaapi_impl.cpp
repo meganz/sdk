@@ -8764,7 +8764,16 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
         request->setName(request->getFile());
     }
     request->setParamType(type);
-    request->setLink(driveRootIfExternal);  // for TYPE_BACKUP; continue in backupFolder_sendPendingRequest()
+
+    if (driveRootIfExternal)
+    {
+        string driveRoot(driveRootIfExternal);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if (!PathIsRelativeA(driveRoot.c_str()) && ((driveRoot.size() < 2) || driveRoot.compare(0, 2, "\\\\")))
+            driveRoot.insert(0, "\\\\?\\");
+#endif
+        request->setLink(driveRoot.data());  // for TYPE_BACKUP; continue in backupFolder_sendPendingRequest()
+    }
 
     requestQueue.push(request);
     waiter->notify();
@@ -13992,6 +14001,10 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             auto localPath = LocalPath::fromPath(request->getFile(), *client->fsaccess);
             SyncConfig syncConfig( localPath, backupName, NodeHandle().set6byte(backupHandle), remotePath.get(),
                                     0, true, SyncConfig::TYPE_BACKUP );
+            if (request->getLink())
+            {
+                syncConfig.mExternalDrivePath = LocalPath::fromPath(request->getLink(), *client->fsaccess);
+            }
 
             client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)

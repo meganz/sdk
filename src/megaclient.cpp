@@ -13544,6 +13544,14 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     string deviceIdHash = getDeviceidHash();
     BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
 
+    if (config.isExternal())
+    {
+        const string& p = config.mExternalDrivePath.toPath();
+        e = readDriveId(p.c_str(), info.driveId);
+        if (e != API_OK)
+            return e;
+    }
+
     reqs.add( new CommandBackupPut(this, info,
                                    [this, config, completion, notifyApp](Error e, handle backupId) mutable {
         if (ISUNDEF(backupId) && !e)
