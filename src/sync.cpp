@@ -2771,6 +2771,10 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
             auto state = BackupInfoSync::getSyncState(config, &client);
             auto info  = BackupInfoSync(config, deviceHash, state);
 
+            LOG_debug << "Generating backup ID for config "
+                      << context->signature()
+                      << "...";
+
             // Completion chain.
             auto completion = bind(&putComplete, move(context), _1, _2);
 
@@ -2794,10 +2798,15 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
             // Were we able to create a backup ID?
             if (result)
             {
+                LOG_err << "Unable to generate backup ID for config "
+                        << context->signature();
+
                 auto i = context->mConfigs.begin();
                 auto j = context->mConfig;
 
                 // Remove the IDs we've created so far.
+                LOG_debug << "Releasing backup IDs generated so far...";
+
                 for ( ; i != j; ++i)
                 {
                     auto* request = new CommandBackupRemove(&client, i->mBackupId);
@@ -2817,11 +2826,21 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
             {
                 auto& syncs = *context->mSyncs;
 
+                LOG_debug << context->mConfigs.size()
+                          << " backup ID(s) have been generated.";
+
+                LOG_debug << "Importing "
+                          << context->mConfigs.size()
+                          << " configs(s)...";
+
                 // Yep, add them to the sync.
                 for (const auto& config : context->mConfigs)
                 {
                     syncs.appendNewSync(config, client);
                 }
+                
+                LOG_debug << context->mConfigs.size()
+                          << " sync(s) imported successfully.";
 
                 // Let the client know the import has completed.
                 context->mCompletion(API_OK);
@@ -2830,6 +2849,17 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
             // Generate an ID for the next config.
             put(std::move(context));
+        }
+
+        string signature() const
+        {
+            ostringstream ostream;
+
+            ostream << mConfig - mConfigs.begin() + 1
+                    << "/"
+                    << mConfigs.size();
+
+            return ostream.str();
         }
 
         // Client.
@@ -2877,6 +2907,10 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
     context->mConfig = context->mConfigs.begin();
     context->mDeviceHash = mClient.getDeviceidHash();
     context->mSyncs = this;
+
+    LOG_debug << "Attempting to generate backup IDs for "
+              << context->mConfigs.size()
+              << " imported config(s)...";
 
     // Generate backup IDs.
     Context::put(std::move(context));
@@ -2928,8 +2962,17 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     static const string TYPE_REMOTE_PATH = "remotePath";
     static const string TYPE_TYPE        = "type";
 
+    LOG_debug << "Attempting to parse config object: "
+              << reader.pos;
+
     // Enter config object.
-    if (!reader.enterobject()) return false;
+    if (!reader.enterobject())
+    {
+        LOG_err << "Parse error entering config object: "
+                << reader.pos;
+
+        return false;
+    }
 
     string localPath;
     string name;
@@ -2945,37 +2988,71 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
         // Have we processed all the properties?
         if (key.empty()) break;
 
-        // Extract property values if we can.
+        string value;
+
+        // Extract property value if we can.
+        if (!reader.storeobject(&value))
+        {
+            LOG_err << "Parse error extracting property: "
+                    << key
+                    << ": "
+                    << reader.pos;
+
+            return false;
+        }
+
         if (key == TYPE_LOCAL_PATH)
         {
-            if (!reader.storeobject(&localPath)) return false;
+            localPath = std::move(value);
         }
         else if (key == TYPE_NAME)
         {
-            if (!reader.storeobject(&name)) return false;
+            name = std::move(value);
         }
         else if (key == TYPE_REMOTE_PATH)
         {
-            if (!reader.storeobject(&remotePath)) return false;
+            remotePath = std::move(value);
         }
         else if (key == TYPE_TYPE)
         {
-            if (!reader.storeobject(&type)) return false;
+            type = std::move(value);
         }
-        else if (!reader.storeobject())
+        else
         {
-            // Not known and can't skip!
-            return false;
+            LOG_debug << "Skipping unknown property: "
+                      << key
+                      << ": "
+                      << value;
         }
     }
 
     // Leave the config object.
-    if (!reader.leaveobject()) return false;
+    if (!reader.leaveobject())
+    {
+        LOG_err << "Parse error leaving config object: "
+                << reader.pos;
+
+        return false;
+    }
 
     // Basic validation on properties.
-    if (localPath.empty()) return false;
-    if (name.empty()) return false;
-    if (remotePath.empty()) return false;
+    if (localPath.empty())
+    {
+        LOG_err << "Invalid config: no local path defined.";
+        return false;
+    }
+
+    if (name.empty())
+    {
+        LOG_err << "Invalid config: no name defined.";
+        return false;
+    }
+
+    if (remotePath.empty())
+    {
+        LOG_err << "Invalid config: no remote path defined.";
+        return false;
+    }
 
     reader.unescape(&localPath);
     reader.unescape(&name);
@@ -3000,13 +3077,26 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     }
     else
     {
-        config.mRemoteNode = NodeHandle();
+        LOG_err << "Invalid config: "
+                << "unable to find node for remote path: "
+                << remotePath;
+
+        return false;
     }
 
     // Set type.
-    if (!config.synctypefromname(type, config.mSyncType)) return false;
+    if (!config.synctypefromname(type, config.mSyncType))
+    {
+        LOG_err << "Invalid config: "
+                << "unknown sync type name: "
+                << type;
+
+        return false;
+    }
 
     // Config's been parsed.
+    LOG_debug << "Config successfully parsed.";
+
     return true;
 }
 
@@ -3016,8 +3106,17 @@ bool Syncs::importSyncConfigs(const char* data, SyncConfigVector& configs)
 
     JSON reader(data);
 
+    LOG_debug << "Attempting to import configs from: "
+              << data;
+
     // Enter configs object.
-    if (!reader.enterobject()) return false;
+    if (!reader.enterobject())
+    {
+        LOG_err << "Parse error entering root object: "
+                << reader.pos;
+
+        return false;
+    }
 
     // Parse sync configs.
     for (string key; ; )
@@ -3032,31 +3131,83 @@ bool Syncs::importSyncConfigs(const char* data, SyncConfigVector& configs)
             if (key.empty()) break;
 
             // Skip unknown properties.
-            if (!reader.storeobject()) return false;
+            string object;
+
+            if (!reader.storeobject(&object))
+            {
+                LOG_err << "Parse error skipping unknown property: "
+                        << key
+                        << ": "
+                        << reader.pos;
+
+                return false;
+            }
+
+            LOG_debug << "Skipping unknown property: "
+                      << key
+                      << ": "
+                      << object;
 
             // Parse the next property.
             continue;
         }
 
+        LOG_debug << "Found configs property: "
+                  << reader.pos;
+
         // Enter array of sync configs.
-        if (!reader.enterarray()) return false;
+        if (!reader.enterarray())
+        {
+            LOG_err << "Parse error entering configs array: "
+                    << reader.pos;
+
+            return false;
+        }
 
         // Parse each sync config object.
         while (reader.isobject())
         {
             SyncConfig config;
+            string object;
+
+            if (!reader.storeobject(&object))
+            {
+                LOG_err << "Parse error reading config object: "
+                        << reader.pos;
+
+                return false;
+            }
 
             // Try and parse this sync config object.
-            if (!importSyncConfig(reader, config)) return false;
+            JSON subreader(object);
+
+            if (!importSyncConfig(subreader, config)) return false;
 
             configs.emplace_back(std::move(config));
         }
 
-        if (!reader.leavearray()) return false;
+        if (!reader.leavearray())
+        {
+            LOG_err << "Parse error leaving configs array: "
+                    << reader.pos;
+
+            return false;
+        }
+
+        LOG_debug << configs.size()
+                  << " config(s) successfully parsed.";
     }
 
     // Leave configs object.
-    return reader.leaveobject();
+    if (!reader.leaveobject())
+    {
+        LOG_err << "Parse error leaving root object: "
+                << reader.pos;
+
+        return false;
+    }
+
+    return true;
 }
 
 SyncConfigIOContext* Syncs::syncConfigIOContext()
