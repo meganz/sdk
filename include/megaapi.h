@@ -3052,7 +3052,7 @@ class MegaRequest
             TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
             TYPE_CONFIRM_ACCOUNT,
             TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC, TYPE_DISABLE_SYNC, TYPE_ENABLE_SYNC,
-            TYPE_COPY_SYNC_CONFIG, TYPE_COPY_CACHED_STATUS,
+            TYPE_COPY_SYNC_CONFIG, TYPE_COPY_CACHED_STATUS, TYPE_IMPORT_SYNC_CONFIGS,
             TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
             TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
             TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
@@ -13952,10 +13952,26 @@ class MegaApi
 
         /**
          * @brief
+         * Imports internal sync configs from JSON.
+         *
+         * @param configs
+         * A JSON string encoding the internal sync configs to import.
+         *
+         * @param listener
+         * Listener to call back when the import has completed.
+         *
+         * @see exportSyncConfigs
+         */
+        void importSyncConfigs(const char* configs, MegaRequestListener* listener);
+
+        /**
+         * @brief
          * Exports all internal sync configs to JSON.
          *
          * @return
          * A JSON string encoding all internal sync configs.
+         *
+         * @see importSyncConfigs
          */
         const char* exportSyncConfigs();
 

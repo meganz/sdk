@@ -3060,6 +3060,11 @@ autocomplete::ACN autocompleteSyntax()
                     text("export"),
                     opt(localFSFile("outputFile"))));
 
+    p->Add(exec_syncimport,
+           sequence(text("sync"),
+                    text("import"),
+                    localFSFile("inputFile")));
+
     p->Add(exec_syncopendrive,
            sequence(text("sync"),
                     text("opendrive"),
@@ -8564,6 +8569,64 @@ void exec_syncclosedrive(autocomplete::ACState& s)
              << errorstring(result)
              << endl;
     }
+}
+
+void exec_syncimport(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to import syncs."
+             << endl;
+        return;
+    }
+
+    auto flags = std::ios::binary | std::ios::in;
+    ifstream istream(s.words[2].s, flags);
+
+    if (!istream)
+    {
+        cerr << "Unable to open "
+             << s.words[2].s
+             << " for reading."
+             << endl;
+        return;
+    }
+
+    string data;
+
+    for (char buffer[512]; istream; )
+    {
+        istream.read(buffer, sizeof(buffer));
+        data.append(buffer, istream.gcount());
+    }
+
+    if (!istream.eof())
+    {
+        cerr << "Unable to read "
+             << s.words[2].s
+             << endl;
+        return;
+    }
+
+    auto completion =
+      [](error result)
+      {
+          if (result)
+          {
+              cerr << "Unable to import sync configs: " 
+                   << errorstring(result)
+                   << endl;
+              return;
+          }
+
+          cout << "Sync configs successfully imported."
+               << endl;
+      };
+
+    cout << "Importing sync configs..."
+         << endl;
+
+    client->importSyncConfigs(data.c_str(), std::move(completion));
 }
 
 void exec_syncexport(autocomplete::ACState& s)

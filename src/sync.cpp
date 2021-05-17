@@ -748,6 +748,30 @@ const char* SyncConfig::synctypename(const SyncConfig::Type type)
     }
 }
 
+bool SyncConfig::synctypefromname(const string& name, Type& type)
+{
+    if (name == "BACKUP")
+    {
+        return type = TYPE_BACKUP, true;
+    }
+    if (name == "DOWN")
+    {
+        return type = TYPE_DOWN, true;
+    }
+    else if (name == "UP")
+    {
+        return type = TYPE_UP, true;
+    }
+    else if (name == "TWOWAY")
+    {
+        return type = TYPE_TWOWAY, true;
+    }
+
+    assert(!"Unknown sync type name.");
+
+    return false;
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const char* cdebris,
@@ -2720,6 +2744,144 @@ string Syncs::exportSyncConfigs() const
     return exportSyncConfigs(configsForDrive(LocalPath()));
 }
 
+void Syncs::importSyncConfigs(const char* data, std::function<void(error)> completion)
+{
+    // Convenience.
+    struct Context;
+
+    using CompletionFunction = std::function<void(error)>;
+    using ContextPtr = std::shared_ptr<Context>;
+
+    // Bundles state we need to create backup IDs.
+    struct Context
+    {
+        static void put(ContextPtr context)
+        {
+            using std::bind;
+            using std::move;
+            using std::placeholders::_1;
+            using std::placeholders::_2;
+
+            // Convenience.
+            auto& client = *context->mClient;
+            auto& config = *context->mConfig;
+            auto& deviceHash = context->mDeviceHash;
+
+            // Backup Info.
+            auto state = BackupInfoSync::getSyncState(config, &client);
+            auto info  = BackupInfoSync(config, deviceHash, state);
+
+            // Completion chain.
+            auto completion = bind(&putComplete, move(context), _1, _2);
+
+            // Create and initiate request.
+            auto* request = new CommandBackupPut(&client, info, move(completion));
+            client.reqs.add(request);
+        }
+
+        static void putComplete(ContextPtr context, Error result, handle backupID)
+        {
+            // No backup ID even though the request succeeded?
+            if (!result && ISUNDEF(result))
+            {
+                // Then we've encountered an internal error.
+                result = API_EINTERNAL;
+            }
+
+            // Convenience;
+            auto& client = *context->mClient;
+
+            // Were we able to create a backup ID?
+            if (result)
+            {
+                auto i = context->mConfigs.begin();
+                auto j = context->mConfig;
+
+                // Remove the IDs we've created so far.
+                for ( ; i != j; ++i)
+                {
+                    auto* request = new CommandBackupRemove(&client, i->mBackupId);
+                    client.reqs.add(request);
+                }
+
+                // Let the client know the import has failed.
+                context->mCompletion(result);
+                return;
+            }
+
+            // Assign the newly generated backup ID.
+            context->mConfig->mBackupId = backupID;
+
+            // Have we assigned IDs for all the syncs?
+            if (++context->mConfig == context->mConfigs.end())
+            {
+                auto& syncs = *context->mSyncs;
+
+                // Yep, add them to the sync.
+                for (const auto& config : context->mConfigs)
+                {
+                    syncs.appendNewSync(config, client);
+                }
+
+                // Let the client know the import has completed.
+                context->mCompletion(API_OK);
+                return;
+            }
+
+            // Generate an ID for the next config.
+            put(std::move(context));
+        }
+
+        // Client.
+        MegaClient* mClient;
+
+        // Who to call back when we're done.
+        CompletionFunction mCompletion;
+
+        // Next config requiring a backup ID.
+        SyncConfigVector::iterator mConfig;
+
+        // Configs requiring a backup ID.
+        SyncConfigVector mConfigs;
+
+        // Identifies the device we're adding configs to.
+        string mDeviceHash;
+
+        // Who we're adding the configs to.
+        Syncs* mSyncs;
+    }; // Context
+
+    // Sanity.
+    if (!data || !*data)
+    {
+        completion(API_EARGS);
+        return;
+    }
+
+    // Try and translate JSON back into sync configs.
+    SyncConfigVector configs;
+
+    if (!importSyncConfigs(data, configs))
+    {
+        // No love. Inform the client.
+        completion(API_EREAD);
+        return;
+    }
+
+    // Create and initialize context.
+    ContextPtr context = make_unique<Context>();
+
+    context->mClient = &mClient;
+    context->mCompletion = std::move(completion);
+    context->mConfigs = std::move(configs);
+    context->mConfig = context->mConfigs.begin();
+    context->mDeviceHash = mClient.getDeviceidHash();
+    context->mSyncs = this;
+
+    // Generate backup IDs.
+    Context::put(std::move(context));
+}
+
 void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
 {
     // Internal configs only.
@@ -2757,6 +2919,144 @@ void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
     writer.arg("remotePath", remotePath, true, true);
     writer.arg("type", type, true, true);
     writer.endobject();
+}
+
+bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
+{
+    static const string TYPE_LOCAL_PATH  = "localPath";
+    static const string TYPE_NAME        = "name";
+    static const string TYPE_REMOTE_PATH = "remotePath";
+    static const string TYPE_TYPE        = "type";
+
+    // Enter config object.
+    if (!reader.enterobject()) return false;
+
+    string localPath;
+    string name;
+    string remotePath;
+    string type;
+
+    // Parse config properties.
+    for (string key; ; )
+    {
+        // What property are we parsing?
+        key = reader.getname();
+
+        // Have we processed all the properties?
+        if (key.empty()) break;
+
+        // Extract property values if we can.
+        if (key == TYPE_LOCAL_PATH)
+        {
+            if (!reader.storeobject(&localPath)) return false;
+        }
+        else if (key == TYPE_NAME)
+        {
+            if (!reader.storeobject(&name)) return false;
+        }
+        else if (key == TYPE_REMOTE_PATH)
+        {
+            if (!reader.storeobject(&remotePath)) return false;
+        }
+        else if (key == TYPE_TYPE)
+        {
+            if (!reader.storeobject(&type)) return false;
+        }
+        else if (!reader.storeobject())
+        {
+            // Not known and can't skip!
+            return false;
+        }
+    }
+
+    // Leave the config object.
+    if (!reader.leaveobject()) return false;
+
+    // Basic validation on properties.
+    if (localPath.empty()) return false;
+    if (name.empty()) return false;
+    if (remotePath.empty()) return false;
+
+    reader.unescape(&localPath);
+    reader.unescape(&name);
+    reader.unescape(&remotePath);
+    reader.unescape(&type);
+
+    // Populate config object.
+    config.mBackupId = UNDEF;
+    config.mBackupState = SYNC_BACKUP_NONE;
+    config.mEnabled = false;
+    config.mError = NO_SYNC_ERROR;
+    config.mLocalFingerprint = 0;
+    config.mLocalPath = LocalPath::fromPath(localPath, *mClient.fsaccess);
+    config.mName = std::move(name);
+    config.mOriginalPathOfRemoteRootNode = remotePath;
+    config.mWarning = NO_SYNC_WARNING;
+
+    // Set node handle if possible.
+    if (const auto* root = mClient.nodeByPath(remotePath.c_str()))
+    {
+        config.mRemoteNode = root->nodeHandle();
+    }
+    else
+    {
+        config.mRemoteNode = NodeHandle();
+    }
+
+    // Set type.
+    if (!config.synctypefromname(type, config.mSyncType)) return false;
+
+    // Config's been parsed.
+    return true;
+}
+
+bool Syncs::importSyncConfigs(const char* data, SyncConfigVector& configs)
+{
+    static const string TYPE_CONFIGS = "configs";
+
+    JSON reader(data);
+
+    // Enter configs object.
+    if (!reader.enterobject()) return false;
+
+    // Parse sync configs.
+    for (string key; ; )
+    {
+        // What property are we parsing?
+        key = reader.getname();
+
+        // Is it a property we know about?
+        if (key != TYPE_CONFIGS)
+        {
+            // Have we hit the end of the configs object?
+            if (key.empty()) break;
+
+            // Skip unknown properties.
+            if (!reader.storeobject()) return false;
+
+            // Parse the next property.
+            continue;
+        }
+
+        // Enter array of sync configs.
+        if (!reader.enterarray()) return false;
+
+        // Parse each sync config object.
+        while (reader.isobject())
+        {
+            SyncConfig config;
+
+            // Try and parse this sync config object.
+            if (!importSyncConfig(reader, config)) return false;
+
+            configs.emplace_back(std::move(config));
+        }
+
+        if (!reader.leavearray()) return false;
+    }
+
+    // Leave configs object.
+    return reader.leaveobject();
 }
 
 SyncConfigIOContext* Syncs::syncConfigIOContext()

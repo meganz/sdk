@@ -3937,6 +3937,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_DISABLE_SYNC: return "DISABLE_SYNC";
         case TYPE_COPY_SYNC_CONFIG: return "TYPE_COPY_SYNC_CONFIG";
         case TYPE_COPY_CACHED_STATUS: return "TYPE_COPY_CACHED_STATUS";
+        case TYPE_IMPORT_SYNC_CONFIGS: return "TYPE_IMPORT_SYNC_CONFIGS";
         case TYPE_REMOVE_SYNC: return "REMOVE_SYNC";
         case TYPE_REMOVE_SYNCS: return "REMOVE_SYNCS";
         case TYPE_PAUSE_TRANSFERS: return "PAUSE_TRANSFERS";
@@ -8808,6 +8809,18 @@ void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int busin
     if (businessStatus < 0) businessStatus = 999;
     request->setNumber(storageStatus+1000*blockStatus+1000000*businessStatus);
     requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::importSyncConfigs(const char* configs, MegaRequestListener* listener)
+{
+    auto type = MegaRequest::TYPE_IMPORT_SYNC_CONFIGS;
+    auto request = make_unique<MegaRequestPrivate>(type, listener);
+
+    request->setText(configs);
+
+    requestQueue.push(request.release());
+
     waiter->notify();
 }
 
@@ -21557,6 +21570,24 @@ void MegaApiImpl::sendPendingRequests()
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
+            break;
+        }
+        case MegaRequest::TYPE_IMPORT_SYNC_CONFIGS:
+        {
+            if (const auto* configs = request->getText())
+            {
+                auto completion =
+                  [request, this](error result)
+                  {
+                      auto error = make_unique<MegaErrorPrivate>(result);
+                      fireOnRequestFinish(request, std::move(error));
+                  };
+
+                client->importSyncConfigs(configs, std::move(completion));
+                break;
+            }
+
+            e = API_EARGS;
             break;
         }
         case MegaRequest::TYPE_COPY_SYNC_CONFIG:

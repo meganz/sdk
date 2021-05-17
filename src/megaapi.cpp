@@ -3433,6 +3433,11 @@ void MegaApi::disableSync(MegaHandle backupId, MegaRequestListener *listener)
     pImpl->disableSyncById(backupId, listener);
 }
 
+void MegaApi::importSyncConfigs(const char* configs, MegaRequestListener* listener)
+{
+    pImpl->importSyncConfigs(configs, listener);
+}
+
 const char* MegaApi::exportSyncConfigs()
 {
     return pImpl->exportSyncConfigs();

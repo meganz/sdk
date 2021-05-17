@@ -13676,6 +13676,27 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
     }));
 }
 
+void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion)
+{
+    auto onUserAttributesCompleted =
+      [completion = std::move(completion), configs, this](Error result)
+      {
+          // Do we have the attributes necessary for the sync config store?
+          if (result != API_OK)
+          {
+              // Nope and we can't proceed without them.
+              completion(result);
+              return;
+          }
+
+          // Kick off the import.
+          syncs.importSyncConfigs(configs, std::move(completion));
+      };
+
+    // Make sure we have the attributes necessary for the sync config store.
+    ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
+}
+
 error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunction completion)
 {
     LocalPath rootpath;
