@@ -21841,7 +21841,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
                 {
-                    if (!e == API_OK)
+                    if (e == API_OK)
                     {
                         request->setParentHandle(backupId);
                     }
