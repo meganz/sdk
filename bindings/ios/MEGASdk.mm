@@ -222,6 +222,7 @@ using namespace mega;
 
 - (void)deleteMegaApi {    
     delete _megaApi;
+    _megaApi = nil;
     pthread_mutex_destroy(&listenerMutex);
 }
 
