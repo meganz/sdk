@@ -21697,6 +21697,10 @@ void MegaApiImpl::sendPendingRequests()
             SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath.get(),
                                   0);
+            if (request->getLink())
+            {
+                syncConfig.mExternalDrivePath = LocalPath::fromPath(request->getLink(), *client->fsaccess);
+            }
 
             client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
@@ -21825,6 +21829,10 @@ void MegaApiImpl::sendPendingRequests()
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
                                   enabled);
+            if (request->getLink())
+            {
+                syncConfig.mExternalDrivePath = LocalPath::fromPath(request->getLink(), *client->fsaccess);
+            }
 
             if (temporaryDisabled)
             {
