@@ -13999,12 +13999,9 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             // create the SyncConfig
             const char* backupName = request->getName();
             auto localPath = LocalPath::fromPath(request->getFile(), *client->fsaccess);
+            const auto& drivePath = request->getLink() ? LocalPath::fromPath(request->getLink(), *client->fsaccess) : LocalPath();
             SyncConfig syncConfig( localPath, backupName, NodeHandle().set6byte(backupHandle), remotePath.get(),
-                                    0, true, SyncConfig::TYPE_BACKUP );
-            if (request->getLink())
-            {
-                syncConfig.mExternalDrivePath = LocalPath::fromPath(request->getLink(), *client->fsaccess);
-            }
+                                    0, drivePath, true, SyncConfig::TYPE_BACKUP );
 
             client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
@@ -21693,14 +21690,11 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            const auto& drivePath = request->getLink() ? LocalPath::fromPath(request->getLink(), *client->fsaccess) : LocalPath();
 
             SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath.get(),
-                                  0);
-            if (request->getLink())
-            {
-                syncConfig.mExternalDrivePath = LocalPath::fromPath(request->getLink(), *client->fsaccess);
-            }
+                                  0, drivePath);
 
             client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
@@ -21825,10 +21819,12 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
+            const auto& drivePath = request->getLink() ? LocalPath::fromPath(request->getLink(), *client->fsaccess) : LocalPath();
+
             SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
-                                  enabled);
+                                  drivePath, enabled);
 
             if (temporaryDisabled)
             {

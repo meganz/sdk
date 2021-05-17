@@ -445,7 +445,7 @@ void SyncApp::fetchnodes_result(const Error &e)
             else
             {
 #ifdef ENABLE_SYNC
-                SyncConfig syncConfig(LocalPath::fromPath(local_folder, *client->fsaccess), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0);
+                SyncConfig syncConfig(LocalPath::fromPath(local_folder, *client->fsaccess), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
                 client->addsync(syncConfig, false,
                                 [](mega::UnifiedSync*, const SyncError& serr, error err) {
                     if (err)

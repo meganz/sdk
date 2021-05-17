@@ -497,6 +497,7 @@ SyncConfig::SyncConfig(LocalPath localPath,
                        NodeHandle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
+                       const LocalPath& externalDrivePath,
                        const bool enabled,
                        const SyncConfig::Type syncType,
                        const SyncError error,
@@ -508,11 +509,11 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mRemoteNode{remoteNode}
     , mOrigninalPathOfRemoteRootNode{remotePath}
     , mLocalFingerprint{localFingerprint}
+    , mExternalDrivePath{externalDrivePath}
     , mSyncType{syncType}
     , mError{error}
     , mWarning{warning}
     , mBackupId(hearBeatID)
-    , mExternalDrivePath()
     , mBackupState(SYNC_BACKUP_NONE)
 {}
 

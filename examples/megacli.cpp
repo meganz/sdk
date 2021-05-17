@@ -8519,17 +8519,13 @@ void exec_syncadd(autocomplete::ACState& s)
                  NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
+                 external ? std::move(drivePath) : LocalPath(),
                  true,
                  backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
-    if (external)
+    if (external && !backup)
     {
-        if (!backup)
-        {
-            cerr << "Sorry, external syncs must be backups for now" << endl;
-        }
-
-        config.mExternalDrivePath = std::move(drivePath);
+        cerr << "Sorry, external syncs must be backups for now" << endl;
     }
 
     // Try and add the new sync.
