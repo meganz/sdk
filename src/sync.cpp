@@ -503,17 +503,16 @@ SyncConfig::SyncConfig(LocalPath localPath,
                        const SyncError error,
                        const SyncWarning warning,
                        mega::handle hearBeatID)
-    : mEnabled{enabled}
-    , mLocalPath{std::move(localPath)}
-    , mName{std::move(name)}
-    , mRemoteNode{remoteNode}
-    , mOriginalPathOfRemoteRootNode{remotePath}
-    , mLocalFingerprint{localFingerprint}
-    , mExternalDrivePath{externalDrivePath}
-    , mSyncType{syncType}
-    , mError{error}
-    , mWarning{warning}
+    : mEnabled(enabled)
+    , mLocalPath(std::move(localPath))
+    , mName(std::move(name))
+    , mRemoteNode(remoteNode)
+    , mOriginalPathOfRemoteRootNode(remotePath)
+    , mLocalFingerprint(localFingerprint), mSyncType(syncType)
+    , mError(error)
+    , mWarning(warning)
     , mBackupId(hearBeatID)
+    , mExternalDrivePath(externalDrivePath)
     , mBackupState(SYNC_BACKUP_NONE)
 {}
 
