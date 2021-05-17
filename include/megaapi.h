@@ -8076,6 +8076,20 @@ class MegaApi
         static MegaHandle base64ToUserHandle(const char* base64Handle);
 
         /**
+         * @brief
+         * Converts a Base64-encoded backup ID to a MegaHandle.
+         *
+         * You can revert this operation using MegaApi::backupIdToBase64.
+         *
+         * @param backupId
+         * Base64-encoded Backup ID.
+         *
+         * @return
+         * Backup ID.
+         */
+        static MegaHandle base64ToBackupId(const char* backupId);
+
+        /**
          * @brief Converts the handle of a node to a Base64-encoded string
          *
          * You take the ownership of the returned value
@@ -8096,6 +8110,20 @@ class MegaApi
          * @return Base64-encoded user handle
          */
         static char* userHandleToBase64(MegaHandle handle);
+
+        /**
+         * @brief
+         * Converts a Backup ID into a Base64-encoded string.
+         *
+         * You take ownership of the returned value.
+         *
+         * @param backupId
+         * Backup ID to be converted.
+         *
+         * @return
+         * Base64-encoded backup ID.
+         */
+        static const char* backupIdToBase64(MegaHandle backupId);
 
         /**
          * @brief Convert binary data to a base 64 encoded string

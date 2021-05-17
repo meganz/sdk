@@ -5782,6 +5782,19 @@ handle MegaApiImpl::base64ToUserHandle(const char *base64Handle)
     return h;
 }
 
+handle MegaApiImpl::base64ToBackupId(const char* backupId)
+{
+    if (!backupId || !*backupId) return UNDEF;
+
+    handle result = 0x0;
+
+    Base64::atob(backupId,
+                 reinterpret_cast<byte*>(&result),
+                 MegaClient::BACKUPHANDLE);
+
+    return result;
+}
+
 char *MegaApiImpl::handleToBase64(MegaHandle handle)
 {
     char *base64Handle = new char[12];
@@ -5794,6 +5807,17 @@ char *MegaApiImpl::userHandleToBase64(MegaHandle handle)
     char *base64Handle = new char[14];
     Base64::btoa((byte*)&(handle),MegaClient::USERHANDLE,base64Handle);
     return base64Handle;
+}
+
+const char* MegaApiImpl::backupIdToBase64(MegaHandle backupId)
+{
+    unique_ptr<char[]> result(new char[14]);
+
+    Base64::btoa(reinterpret_cast<byte*>(&backupId),
+                 MegaClient::BACKUPHANDLE,
+                 result.get());
+
+    return result.release();
 }
 
 char *MegaApiImpl::binaryToBase64(const char *binaryData, size_t length)
