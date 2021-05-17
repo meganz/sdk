@@ -21829,10 +21829,6 @@ void MegaApiImpl::sendPendingRequests()
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
                                   enabled);
-            if (request->getLink())
-            {
-                syncConfig.mExternalDrivePath = LocalPath::fromPath(request->getLink(), *client->fsaccess);
-            }
 
             if (temporaryDisabled)
             {
