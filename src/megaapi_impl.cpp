@@ -18489,6 +18489,7 @@ void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
 
 unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken *cancelToken)
 {
+    assert(!queue || cancelToken);
     CodeCounter::ScopeTimer ccst(client->performanceStats.megaapiSendPendingTransfers);
 
     auto t0 = std::chrono::steady_clock::now();
@@ -18500,8 +18501,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
     TransferQueue &auxQueue = queue
             ? *queue            // custom transferQueue used for folder uploads/downloads
             : transferQueue;    // transfer queue of class MegaApiImpl
-
-    if (queue) {assert(cancelToken);}
 
     // if we are processing a custom queue, we need to process in one shot
     bool canSplit = !queue;
