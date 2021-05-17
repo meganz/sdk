@@ -553,7 +553,6 @@ bool JSON::isobject() const
 {
     const auto* i = pos;
 
-    if (*i == '}') ++i;
     if (*i == ',') ++i;
 
     return *i == '{';
