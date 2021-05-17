@@ -255,11 +255,11 @@ int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
 
 handle BackupInfoSync::getDriveId(UnifiedSync &us)
 {
-    const LocalPath& localPath = us.mConfig.getLocalPath();
+    const LocalPath& drivePath = us.mConfig.mExternalDrivePath;
     const auto& fsAccess = *us.mClient.fsaccess;
-    const string& localPathUtf8 = localPath.toPath(fsAccess);
+    const string& drivePathUtf8 = drivePath.toPath(fsAccess);
     handle driveId;
-    us.mClient.readDriveId(localPathUtf8.c_str(), driveId); // It shouldn't happen very often
+    us.mClient.readDriveId(drivePathUtf8.c_str(), driveId); // It shouldn't happen very often
 
     return driveId;
 }

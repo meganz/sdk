@@ -5025,7 +5025,7 @@ TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 TEST_F(SdkTest, SdkExternalDriveFolder)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    LOG_info << "___TEST SdkDriveName___";
+    LOG_info << "___TEST SdkExternalDriveFolder___";
 
     // dummy path to drive
     fs::path basePath = makeNewTestRoot();
@@ -5033,7 +5033,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     fs::create_directory(pathToDrive);
 
     // drive name
-    string driveName = "SdkDriveNameTest_";
+    string driveName = "SdkExternalDriveTest_";
     char today[50];
     auto rawtime = time(NULL);
     strftime(today, sizeof today, "%Y-%m-%d_%H:%M:%S", localtime(&rawtime));
@@ -5067,8 +5067,12 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(mApi[0].h) };
     ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
 
-    // remove backup
+    // disable backup
     std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    err = synchronousDisableSync(0, backupNode.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "Disable sync failed (error: " << err << ")";
+
+    // remove backup
     err = synchronousRemoveSync(0, backupNode.get());
     ASSERT_EQ(MegaError::API_OK, err) << "Remove sync failed (error: " << err << ")";
 
