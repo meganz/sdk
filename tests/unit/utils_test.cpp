@@ -1075,43 +1075,11 @@ TEST(LocalPath, PrependWithSeparator)
 
 #undef SEP
 
-TEST(JSONWriter, arg)
+TEST(JSONWriter, arg_stringWithEscapes)
 {
-    // Unescaped.
-    {
-        JSONWriter writer;
-        writer.arg("kp", "v\r", true, false);
-        EXPECT_EQ(writer.getstring(), "\"kp\":\"v\r\"");
-    }
-
-    // Escaped.
-    {
-        JSONWriter writer;
-        writer.arg("ke", "\x01\"\b\x7f", true, true);
-        EXPECT_EQ(writer.getstring(), "\"ke\":\"\\u0001\\\"\\b\\u007f\"");
-    }
-}
-
-TEST(JSONWriter, element)
-{
-    // Unescaped
-    {
-        JSONWriter writer;
-        writer.beginarray();
-        writer.element("v\r", false);
-        writer.endarray();
-
-        EXPECT_EQ(writer.getstring(), "[\"v\r\"]");
-    }
-
-    // Escaped
-    {
-        JSONWriter writer;
-        writer.beginarray();
-        writer.element("v\r", true);
-        writer.endarray();
-        EXPECT_EQ(writer.getstring(), "[\"v\\r\"]");
-    }
+    JSONWriter writer;
+    writer.arg_stringWithEscapes("ke", "\"\\");
+    EXPECT_EQ(writer.getstring(), "\"ke\":\"\\\"\\\\\"");
 }
 
 TEST(JSONWriter, escape)
@@ -1124,8 +1092,8 @@ TEST(JSONWriter, escape)
     };
 
     Writer writer;
-    string input = "\"\\\b\f\n\r\t\x7f";
-    string expected = "\\\"\\\\\\b\\f\\n\\r\\t\\u007f";
+    string input = "\"\\";
+    string expected = "\\\"\\\\";
 
     EXPECT_EQ(writer.escape(input.c_str(), input.size()), expected);
 }

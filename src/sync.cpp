@@ -2948,10 +2948,10 @@ void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
 #endif // _WIN32
 
     writer.beginobject();
-    writer.arg("localPath", localPath, true, true);
-    writer.arg("name", name, true, true);
-    writer.arg("remotePath", remotePath, true, true);
-    writer.arg("type", type, true, true);
+    writer.arg_stringWithEscapes("localPath", localPath);
+    writer.arg_stringWithEscapes("name", name);
+    writer.arg_stringWithEscapes("remotePath", remotePath);
+    writer.arg_stringWithEscapes("type", type);
     writer.endobject();
 }
 

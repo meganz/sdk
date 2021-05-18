@@ -714,28 +714,18 @@ void JSONWriter::notself(MegaClient* client)
     mJson.append("\"");
 }
 
-void JSONWriter::arg(const char* name, const string& value, int quotes, int escape)
+void JSONWriter::arg(const char* name, const string& value, int quotes)
 {
-    arg(name, value.c_str(), quotes, escape);
+    arg(name, value.c_str(), quotes);
 }
 
-void JSONWriter::arg(const char* name, const char* value, int quotes, int escape)
+void JSONWriter::arg(const char* name, const char* value, int quotes)
 {
     addcomma();
     mJson.append("\"");
     mJson.append(name);
     mJson.append(quotes ? "\":\"" : "\":");
-
-    auto length = strlen(value);
-
-    if (escape)
-    {
-        mJson.append(this->escape(value, length));
-    }
-    else
-    {
-        mJson.append(value, length);
-    }
+    mJson.append(value);
 
     if (quotes)
     {
@@ -777,6 +767,16 @@ void JSONWriter::arg_B64(const char* n, const string& data)
 void JSONWriter::arg_fsfp(const char* n, fsfp_t fp)
 {
     arg(n, (const byte*)&fp, int(sizeof(fp)));
+}
+
+void JSONWriter::arg_stringWithEscapes(const char* name, const string& value, int quote)
+{
+    arg(name, escape(value.c_str(), value.size()), quote);
+}
+
+void JSONWriter::arg_stringWithEscapes(const char* name, const char* value, int quote)
+{
+    arg(name, escape(value, strlen(value)), quote);
 }
 
 void JSONWriter::arg(const char* name, m_off_t n)
@@ -885,38 +885,16 @@ void JSONWriter::element(const byte* data, int len)
     mJson.append("\"");
 }
 
-void JSONWriter::element(const char* data, bool escape)
+void JSONWriter::element(const char* data)
 {
     mJson.append(elements() ? ",\"" : "\"");
-
-    auto length = strlen(data);
-
-    if (escape)
-    {
-        mJson.append(this->escape(data, length));
-    }
-    else
-    {
-        mJson.append(data, length);
-    }
-
+    mJson.append(data);
     mJson.append("\"");
 }
 
-void JSONWriter::element(const string& data, bool escape)
+void JSONWriter::element(const string& data)
 {
-    mJson.append(elements() ? ",\"" : "\"");
-
-    if (escape)
-    {
-        mJson.append(this->escape(data.c_str(), data.size()));
-    }
-    else
-    {
-        mJson.append(data);
-    }
-
-    mJson.append("\"");
+    element(data.c_str());
 }
 
 void JSONWriter::element_B64(const string& s)
@@ -988,43 +966,14 @@ string JSONWriter::escape(const char* data, size_t length) const
         {
         case '"':
             result.append("\\\"");
-            continue;
+            break;
         case '\\':
             result.append("\\\\");
-            continue;
-        case '\b':
-            result.append("\\b");
-            continue;
-        case '\f':
-            result.append("\\f");
-            continue;
-        case '\n':
-            result.append("\\n");
-            continue;
-        case '\r':
-            result.append("\\r");
-            continue;
-        case '\t':
-            result.append("\\t");
-            continue;
+            break;
         default:
+            result.push_back(current[-1]);
             break;
         }
-
-        auto category = utf8proc_category(codepoint);
-
-        if (category != UTF8PROC_CATEGORY_CC)
-        {
-            result.push_back(static_cast<char>(codepoint));
-            continue;
-        }
-
-        char buffer[7];
-
-        sprintf(buffer, "\\u%04" PRIx32, codepoint);
-        buffer[6] = '\0';
-
-        result.append(buffer);
     }
 
     return result;

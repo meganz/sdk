@@ -115,14 +115,21 @@ public:
     void cmd(const char*);
     void notself(MegaClient*);
 
-    void arg(const char*, const string&, int = 1, int = 0);
-    void arg(const char*, const char*, int = 1, int = 0);
+    void arg(const char*, const string&, int = 1);
+    void arg(const char*, const char*, int = 1);
     void arg(const char*, handle, int);
     void arg(const char*, NodeHandle);
     void arg(const char*, const byte*, int);
     void arg(const char*, m_off_t);
     void arg_B64(const char*, const string&);
     void arg_fsfp(const char*, fsfp_t);
+
+    // These should only be used when producing JSON meant for human consumption.
+    // If you're generating JSON meant to be consumed by our servers, you
+    // should escape things using arg_B64 above.
+    void arg_stringWithEscapes(const char*, const char*, int = 1);
+    void arg_stringWithEscapes(const char*, const string&, int = 1);
+
     void addcomma();
     void appendraw(const char*);
     void appendraw(const char*, int);
@@ -135,8 +142,8 @@ public:
     void element(int);
     void element(handle, int = sizeof(handle));
     void element(const byte*, int);
-    void element(const char* data, bool escape = false);
-    void element(const string& data, bool escape = false);
+    void element(const char* data);
+    void element(const string& data);
     void element_B64(const string&);
 
     void openobject();
