@@ -386,27 +386,30 @@ GfxProcQT::GfxProcQT()
     av_register_all();
     avcodec_register_all();
 //    av_log_set_level(AV_LOG_VERBOSE);
+    }
 #endif
 
 #ifdef HAVE_PDFIUM
     PdfiumReader::init();
 #ifdef _WIN32
-    if (!oldTmpPdfCleaned)
-    {
-        //Remove temporary files from previous executions:
-        QDir dir(QDir::tempPath());
-        dir.setNameFilters(QStringList() << QString::fromUtf8(".megapdftmp*"));
-        dir.setFilter(QDir::Files);
-        foreach(QString dirFile, dir.entryList())
+    { // scope for the lock guard
+        std::lock_guard<std::mutex> g(gfxMutex);
+        if (!oldTmpPdfCleaned)
         {
-            LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile.toUtf8().constData();
-            dir.remove(dirFile);
+            //Remove temporary files from previous executions:
+            QDir dir(QDir::tempPath());
+            dir.setNameFilters(QStringList() << QString::fromUtf8(".megapdftmp*"));
+            dir.setFilter(QDir::Files);
+            foreach(QString dirFile, dir.entryList())
+            {
+                LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile.toUtf8().constData();
+                dir.remove(dirFile);
+            }
+            oldTmpPdfCleaned = true;
         }
-        oldTmpPdfCleaned = true;
     }
 #endif
 #endif
-    }
     image = NULL;
     orientation = -1;
     imageType = TYPE_NONE;

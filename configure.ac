@@ -288,6 +288,28 @@ if test x$enable_sync = xyes; then
 fi
 
 
+# Drive Notifications
+AC_ARG_ENABLE(drive-notifications,
+    AS_HELP_STRING([--enable-drive-notifications], [enable Drive Notifications support [default=no]]),
+    [enable_drive_notifications=${enableval}],
+    [enable_drive_notifications=no])
+AS_IF([test "x$enable_drive_notifications" = "xyes"], [
+    # Add USE_DRIVE_NOTIFICATIONS preprocessor definition to config.h
+    AC_DEFINE(USE_DRIVE_NOTIFICATIONS, 1, [Define to enable Drive Notifications])
+    # Add -DUSE_DRIVE_NOTIFICATIONS to build command
+    CXXFLAGS="$CXXFLAGS -DUSE_DRIVE_NOTIFICATIONS"
+    # Add lib to linker command
+    if test "x$LINUX" = "xyes"; then
+        LDFLAGS="$LDFLAGS -ludev"
+    elif test "x$WIN32" = "xyes"; then
+        LDFLAGS="$LDFLAGS -lwbemuuid"
+    elif test "x$DARWIN" = "xyes"; then
+        LDFLAGS="$LDFLAGS -framework CoreFoundation -framework DiskArbitration"
+    fi
+])
+AM_CONDITIONAL([USE_DRIVE_NOTIFICATIONS], [test "x$enable_drive_notifications" = "xyes"])
+
+
 # MEGA API
 AC_ARG_ENABLE(megaapi,
     AS_HELP_STRING([--disable-megaapi], [disable MEGA API support]),
@@ -2146,6 +2168,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
   Rot Perf Logger:  $enable_rotative_performance_logger
+  Drive Notif:      $enable_drive_notifications
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads

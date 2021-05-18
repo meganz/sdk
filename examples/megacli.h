@@ -268,6 +268,11 @@ struct DemoApp : public MegaApp
     void notify_retry(dstime, retryreason_t) override;
 
     string getExtraInfoErrorString(const Error&);
+
+protected:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    void drive_presence_changed(bool appeared, const LocalPath& driveRoot) override;
+#endif // USE_DRIVE_NOTIFICATIONS
 };
 
 struct DemoAppFolder : public DemoApp
@@ -385,15 +390,17 @@ void exec_querytransferquota(autocomplete::ACState& s);
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
+void exec_drivemonitor(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 
 void exec_syncadd(autocomplete::ACState& s);
 void exec_syncclosedrive(autocomplete::ACState& s);
+void exec_syncexport(autocomplete::ACState& s);
+void exec_syncimport(autocomplete::ACState& s);
 void exec_syncopendrive(autocomplete::ACState& s);
 void exec_synclist(autocomplete::ACState& s);
 void exec_syncremove(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
-

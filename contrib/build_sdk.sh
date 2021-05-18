@@ -39,6 +39,7 @@ enable_megaapi=0
 make_opts=""
 config_opts=""
 no_examples=""
+enable_drive_notifications=""
 configure_only=0
 disable_posix_threads=""
 enable_sodium=0
@@ -1102,6 +1103,7 @@ build_sdk() {
             $libuv_flags \
             $libraw_flags \
             $readline_flags \
+            $enable_drive_notifications \
             $disable_posix_threads \
             $no_examples \
             $config_opts \
@@ -1128,6 +1130,7 @@ build_sdk() {
             $libuv_flags \
             $libraw_flags \
             $readline_flags \
+            $enable_drive_notifications \
             $disable_posix_threads \
             $no_examples \
             $config_opts \
@@ -1158,7 +1161,7 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z]"
+    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-N] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z]"
     echo ""
     echo "By the default this script builds static megacli executable."
     echo "This script can be run with numerous options to configure and build MEGA SDK."
@@ -1175,6 +1178,7 @@ display_help() {
     echo " -I : Incremental build.  Already built dependencies will be skipped"
     echo " -l : Use local software archive files instead of downloading"
     echo " -n : Disable example applications"
+    echo " -N : Enable Drive Notifications (libudev / wbemuuid)"
     echo " -s : Disable OpenSSL"
     echo " -r : Enable Android build"
     echo " -R : Build ReadLine too (even with example apps disabled)"
@@ -1206,7 +1210,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:no:p:rRsS:tuvyx:XC:O:wWqz0" opt; do
+    while getopts ":habcdefgiIlm:nNo:p:rRsS:tuvyx:XC:O:wWqz0" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1258,6 +1262,10 @@ main() {
                 ;;
             n)
                 no_examples="--disable-examples"
+                ;;
+            N)
+                enable_drive_notifications="--enable-drive-notifications"
+                echo "* Enabling Drive Notifications (libudev / wbemuuid)."
                 ;;
             o)
                 local_dir=$(readlink -f $OPTARG)

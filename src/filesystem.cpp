@@ -1245,5 +1245,35 @@ ScopedLengthRestore::~ScopedLengthRestore()
     path.localpath.resize(length);
 };
 
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
+{
+    auto localName = localPath.leafName().toPath();
+
+    if (localName != remoteName)
+    {
+        return FILENAME_ANOMALY_NAME_MISMATCH;
+    }
+    else if (isReservedName(remoteName, type))
+    {
+        return FILENAME_ANOMALY_NAME_RESERVED;
+    }
+
+    return FILENAME_ANOMALY_NONE;
+}
+
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node)
+{
+    assert(node);
+
+    return isFilenameAnomaly(localPath, node->displayname(), node->type);
+}
+
+#ifdef ENABLE_SYNC
+FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
+{
+    return isFilenameAnomaly(node.localname, node.name, node.type);
+}
+#endif
+
 } // namespace
 

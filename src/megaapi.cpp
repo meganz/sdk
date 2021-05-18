@@ -1668,6 +1668,8 @@ void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
 void MegaGlobalListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
+void MegaGlobalListener::onDrivePresenceChanged(MegaApi* api, bool present, const char* rootPathInUtf8)
+{ }
 MegaGlobalListener::~MegaGlobalListener()
 { }
 
@@ -1930,6 +1932,11 @@ void MegaApi::removeLoggerObject(MegaLogger *megaLogger)
     MegaApiImpl::removeLoggerClass(megaLogger);
 }
 
+void MegaApi::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
+{
+    pImpl->setFilenameAnomalyReporter(reporter);
+}
+
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)
 {
     MegaApiImpl::log(logLevel, message, filename, line);
@@ -1977,6 +1984,11 @@ uint64_t MegaApi::base64ToUserHandle(const char* base64Handle)
     return MegaApiImpl::base64ToUserHandle(base64Handle);
 }
 
+MegaHandle MegaApi::base64ToBackupId(const char* backupId)
+{
+    return MegaApiImpl::base64ToBackupId(backupId);
+}
+
 char *MegaApi::handleToBase64(MegaHandle handle)
 {
     return MegaApiImpl::handleToBase64(handle);
@@ -1985,6 +1997,11 @@ char *MegaApi::handleToBase64(MegaHandle handle)
 char *MegaApi::userHandleToBase64(MegaHandle handle)
 {
     return MegaApiImpl::userHandleToBase64(handle);
+}
+
+const char* MegaApi::backupIdToBase64(MegaHandle backupId)
+{
+    return MegaApiImpl::backupIdToBase64(backupId);
 }
 
 void MegaApi::base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize)
@@ -2891,6 +2908,16 @@ void MegaApi::setDeviceName(const char *deviceName, MegaRequestListener *listene
     pImpl->setDeviceName(deviceName, listener);
 }
 
+void MegaApi::getDriveName(const char *pathToDrive, MegaRequestListener *listener)
+{
+    pImpl->getDriveName(pathToDrive, listener);
+}
+
+void MegaApi::setDriveName(const char *pathToDrive, const char *driveName, MegaRequestListener *listener)
+{
+    pImpl->setDriveName(pathToDrive, driveName, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
@@ -3414,6 +3441,16 @@ void MegaApi::enableSync(MegaHandle backupId, MegaRequestListener *listener)
 void MegaApi::disableSync(MegaHandle backupId, MegaRequestListener *listener)
 {
     pImpl->disableSyncById(backupId, listener);
+}
+
+void MegaApi::importSyncConfigs(const char* configs, MegaRequestListener* listener)
+{
+    pImpl->importSyncConfigs(configs, listener);
+}
+
+const char* MegaApi::exportSyncConfigs()
+{
+    return pImpl->exportSyncConfigs();
 }
 
 void MegaApi::removeSyncs(MegaRequestListener *listener)
@@ -5457,6 +5494,21 @@ void MegaApi::getCookieSettings(MegaRequestListener *listener)
 bool MegaApi::cookieBannerEnabled()
 {
     return pImpl->cookieBannerEnabled();
+}
+
+bool MegaApi::startDriveMonitor()
+{
+    return pImpl->startDriveMonitor();
+}
+
+void MegaApi::stopDriveMonitor()
+{
+    pImpl->stopDriveMonitor();
+}
+
+bool MegaApi::driveMonitorEnabled()
+{
+    return pImpl->driveMonitorEnabled();
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

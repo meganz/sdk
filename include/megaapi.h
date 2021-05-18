@@ -94,6 +94,64 @@ class MegaSemaphore;
 #endif
 
 /**
+ * @brief
+ * Interface to receive filename anomaly notifications from the SDK.
+ *
+ * @see MegaApi::setFilenameAnomalyReporter
+ */
+class MegaFilenameAnomalyReporter
+{
+public:
+    /**
+     * @brief
+     * Represents the type of anomaly reported by the SDK.
+     */
+    enum AnomalyType
+    {
+        /**
+         * @brief
+         * A file's local and remote names differ.
+         *
+         * An example of when this kind of anomaly can occur is when
+         * downloading a file from the cloud that contains characters in its
+         * name that are not valid on the local filesystem.
+         *
+         * Say, downloading a file called A:B on Windows.
+         */
+        ANOMALY_NAME_MISMATCH = 0,
+
+        /**
+         * @brief
+         * A file has a reserved name.
+         *
+         * This kind of anomaly is reported by the SDK when it attempts to
+         * download a file that has a name that is reserved on the local
+         * filesystem.
+         *
+         * Say, downloading a file called CON on Windows.
+         */
+        ANOMALY_NAME_RESERVED = 1
+    }; // AnomalyType
+
+    virtual ~MegaFilenameAnomalyReporter() { };
+
+    /**
+     * @brief
+     * Called by the SDK when it wants to report a filename anomaly.
+     *
+     * @param type
+     * The anomaly that was detected by the SDK.
+     *
+     * @param localPath
+     * The local path of the file with a filename anomaly.
+     *
+     * @param remotePath
+     * The remote path of the file with a filename anomaly.
+     */
+    virtual void anomalyDetected(AnomalyType type, const char* localPath, const char* remotePath) = 0;
+}; // MegaFilenameAnomalyReporter
+
+/**
  * @brief Interface to provide an external GFX processor
  *
  * You can implement this interface to provide a graphics processor to the SDK
@@ -2994,7 +3052,7 @@ class MegaRequest
             TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
             TYPE_CONFIRM_ACCOUNT,
             TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC, TYPE_DISABLE_SYNC, TYPE_ENABLE_SYNC,
-            TYPE_COPY_SYNC_CONFIG, TYPE_COPY_CACHED_STATUS,
+            TYPE_COPY_SYNC_CONFIG, TYPE_COPY_CACHED_STATUS, TYPE_IMPORT_SYNC_CONFIGS,
             TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
             TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
             TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
@@ -5142,7 +5200,10 @@ public:
         TOO_MANY_ACTION_PACKETS = 25, // Too many changes in account, local state discarded
         LOGGED_OUT = 26, // Logged out
         WHOLE_ACCOUNT_REFETCHED = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
-        BACKUP_MODIFIED = 28, // Backup has been externally modified.
+        MISSING_PARENT_NODE = 28, // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+        BACKUP_MODIFIED = 29, // Backup has been externally modified.
+        BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
+        SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
     };
 
     enum Warning
@@ -6640,6 +6701,17 @@ class MegaGlobalListener
          */
         virtual void onEvent(MegaApi* api, MegaEvent *event);
 
+        /**
+         * @brief This function is called when external drives are connected or disconnected
+         *
+         * The SDK retains the ownership of the char* in the third parameter, which will be valid until this function returns.
+         *
+         * @param api MegaApi object connected to the account
+         * @param present Indicator of the drive status after this change (true: drive was connected; false: drive was disconnected)
+         * @param rootPathInUtf8 Root path of the drive that determined this change (i.e. "D:", "/mnt/usbdrive")
+         */
+        virtual void onDrivePresenceChanged(MegaApi* api, bool present, const char* rootPathInUtf8);
+
         virtual ~MegaGlobalListener();
 };
 
@@ -7558,9 +7630,10 @@ class MegaApi
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
-            // USER_ATTR_BACKUP_NAMES = 32,         // (deprecated) private - byte array
+            // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
-            USER_ATTR_JSON_SYNC_CONFIG_DATA = 34 // private - byte array
+            USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
+            USER_ATTR_DRIVE_NAMES = 35           // private - byte array
         };
 
         enum {
@@ -8003,6 +8076,20 @@ class MegaApi
         static MegaHandle base64ToUserHandle(const char* base64Handle);
 
         /**
+         * @brief
+         * Converts a Base64-encoded backup ID to a MegaHandle.
+         *
+         * You can revert this operation using MegaApi::backupIdToBase64.
+         *
+         * @param backupId
+         * Base64-encoded Backup ID.
+         *
+         * @return
+         * Backup ID.
+         */
+        static MegaHandle base64ToBackupId(const char* backupId);
+
+        /**
          * @brief Converts the handle of a node to a Base64-encoded string
          *
          * You take the ownership of the returned value
@@ -8023,6 +8110,20 @@ class MegaApi
          * @return Base64-encoded user handle
          */
         static char* userHandleToBase64(MegaHandle handle);
+
+        /**
+         * @brief
+         * Converts a Backup ID into a Base64-encoded string.
+         *
+         * You take ownership of the returned value.
+         *
+         * @param backupId
+         * Backup ID to be converted.
+         *
+         * @return
+         * Base64-encoded backup ID.
+         */
+        static const char* backupIdToBase64(MegaHandle backupId);
 
         /**
          * @brief Convert binary data to a base 64 encoded string
@@ -9758,6 +9859,21 @@ class MegaApi
          * @param megaLogger Previously registered MegaLogger implementation
          */
         static void removeLoggerObject(MegaLogger *megaLogger);
+
+        /**
+         * @brief
+         * Specify a reporter to receive filename anomaly messages from the SDK.
+         *
+         * @param reporter
+         * The reporter that should receive filename anomaly messages.
+         *
+         * Note that null is a valid value for this parameter and if
+         * specified, will prevent the SDK from sending messages to the
+         * reporter previously specified using this function.
+         *
+         * @see MegaFilenameAnomalyReporter
+         */
+        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         /**
          * @brief Send a log to the logging system
@@ -12073,6 +12189,38 @@ class MegaApi
         void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Returns the name set for this drive
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+         * - MegaRequest::getFile - Returns the path to the drive
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns drive name.
+         *
+         * @param pathToDrive Path to the root of the external drive
+         * @param listener MegaRequestListener to track this request
+         */
+        void getDriveName(const char *pathToDrive, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Sets drive name
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+         * - MegaRequest::getName - Returns drive name.
+         * - MegaRequest::getFile - Returns the path to the drive
+         *
+         * @param pathToDrive Path to the root of the external drive
+         * @param deviceName String with drive name
+         * @param listener MegaRequestListener to track this request
+         */
+        void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Change the password of the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
@@ -13829,6 +13977,31 @@ class MegaApi
         * @param listener MegaRequestListener to track this request
         */
         void enableSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief
+         * Imports internal sync configs from JSON.
+         *
+         * @param configs
+         * A JSON string encoding the internal sync configs to import.
+         *
+         * @param listener
+         * Listener to call back when the import has completed.
+         *
+         * @see exportSyncConfigs
+         */
+        void importSyncConfigs(const char* configs, MegaRequestListener* listener);
+
+        /**
+         * @brief
+         * Exports all internal sync configs to JSON.
+         *
+         * @return
+         * A JSON string encoding all internal sync configs.
+         *
+         * @see importSyncConfigs
+         */
+        const char* exportSyncConfigs();
 
         /**
          * @brief Remove all active synced folders
@@ -18525,6 +18698,29 @@ class MegaApi
          * @return True if this feature is enabled. Otherwise, false.
          */
         bool cookieBannerEnabled();
+
+        /**
+         * @brief Start receiving notifications for [dis]connected external drives, from the OS
+         *
+         * After a call to this function, and before another one, stopDriveMonitor() must be called,
+         * otherwise it will fail.
+         *
+         * @return True when notifications have been started.
+         *         False when called while already receiving notifications, or
+         *         notifications could not have been started due to errors or missing implementation,
+         */
+        bool startDriveMonitor();
+
+        /**
+         * @brief Stop receiving notifications for [dis]connected external drives, from the OS
+         */
+        void stopDriveMonitor();
+
+        /**
+         * @brief Check if drive monitor is running
+         * @return True if it is running, false otherwise.
+         */
+        bool driveMonitorEnabled();
 
  private:
         MegaApiImpl *pImpl;

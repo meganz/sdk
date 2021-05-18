@@ -487,7 +487,8 @@ HEADERS  += include/mega.h \
             include/mega/mega_zxcvbn.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
-            include/mega/testhooks.h
+            include/mega/testhooks.h \
+            include/mega/drivenotify.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
@@ -746,4 +747,27 @@ macx {
    LIBS += -framework SystemConfiguration
    
    vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
+}
+
+# DriveNotify settings
+CONFIG(USE_DRIVE_NOTIFICATIONS) {
+    DEFINES += USE_DRIVE_NOTIFICATIONS
+    SOURCES += src/drivenotify.cpp
+
+    win32 {
+        # Allegedly not supported by non-msvc compilers.
+        HEADERS += include/mega/win32/drivenotifywin.h
+        SOURCES += src/win32/drivenotifywin.cpp
+        LIBS += -lwbemuuid
+    }
+    unix:!macx {
+        HEADERS += include/mega/posix/drivenotifyposix.h
+        SOURCES += src/posix/drivenotifyposix.cpp
+        LIBS += -ludev
+    }
+    macx {
+        HEADERS += include/mega/osx/drivenotifyosx.h
+        SOURCES += src/osx/drivenotifyosx.cpp
+        LIBS += -framework DiskArbitration -framework CoreFoundation
+    }
 }
