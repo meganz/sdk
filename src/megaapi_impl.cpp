@@ -3937,6 +3937,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_DISABLE_SYNC: return "DISABLE_SYNC";
         case TYPE_COPY_SYNC_CONFIG: return "TYPE_COPY_SYNC_CONFIG";
         case TYPE_COPY_CACHED_STATUS: return "TYPE_COPY_CACHED_STATUS";
+        case TYPE_IMPORT_SYNC_CONFIGS: return "TYPE_IMPORT_SYNC_CONFIGS";
         case TYPE_REMOVE_SYNC: return "REMOVE_SYNC";
         case TYPE_REMOVE_SYNCS: return "REMOVE_SYNCS";
         case TYPE_PAUSE_TRANSFERS: return "PAUSE_TRANSFERS";
@@ -5781,6 +5782,19 @@ handle MegaApiImpl::base64ToUserHandle(const char *base64Handle)
     return h;
 }
 
+handle MegaApiImpl::base64ToBackupId(const char* backupId)
+{
+    if (!backupId || !*backupId) return UNDEF;
+
+    handle result = 0x0;
+
+    Base64::atob(backupId,
+                 reinterpret_cast<byte*>(&result),
+                 MegaClient::BACKUPHANDLE);
+
+    return result;
+}
+
 char *MegaApiImpl::handleToBase64(MegaHandle handle)
 {
     char *base64Handle = new char[12];
@@ -5793,6 +5807,17 @@ char *MegaApiImpl::userHandleToBase64(MegaHandle handle)
     char *base64Handle = new char[14];
     Base64::btoa((byte*)&(handle),MegaClient::USERHANDLE,base64Handle);
     return base64Handle;
+}
+
+const char* MegaApiImpl::backupIdToBase64(MegaHandle backupId)
+{
+    unique_ptr<char[]> result(new char[14]);
+
+    Base64::btoa(reinterpret_cast<byte*>(&backupId),
+                 MegaClient::BACKUPHANDLE,
+                 result.get());
+
+    return result.release();
 }
 
 char *MegaApiImpl::binaryToBase64(const char *binaryData, size_t length)
@@ -8809,6 +8834,30 @@ void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int busin
     request->setNumber(storageStatus+1000*blockStatus+1000000*businessStatus);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::importSyncConfigs(const char* configs, MegaRequestListener* listener)
+{
+    auto type = MegaRequest::TYPE_IMPORT_SYNC_CONFIGS;
+    auto request = make_unique<MegaRequestPrivate>(type, listener);
+
+    request->setText(configs);
+
+    requestQueue.push(request.release());
+
+    waiter->notify();
+}
+
+const char* MegaApiImpl::exportSyncConfigs()
+{
+    string configs;
+
+    {
+        SdkMutexGuard guard(sdkMutex);
+        configs = client->syncs.exportSyncConfigs();
+    }
+
+    return MegaApi::strdup(configs.c_str());
 }
 
 void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
@@ -18171,211 +18220,22 @@ char* MegaApiImpl::getNodePathByNodeHandle(MegaHandle handle)
 
 MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 {
-    if(!path) return NULL;
+    SdkMutexGuard guard(sdkMutex);
 
-    sdkMutex.lock();
-    Node *cwd = NULL;
-    if(node) cwd = client->nodebyhandle(node->getHandle());
+    Node* root = nullptr;
 
-    vector<string> c;
-    string s;
-    int l = 0;
-    const char* bptr = path;
-    int remote = 0;
-    Node* n = nullptr;
-    Node* nn;
-
-    // split path by / or :
-    do {
-        if (!l)
-        {
-            if (*(const signed char*)path >= 0)
-            {
-                if (*path == '\\')
-                {
-                    if (path > bptr)
-                    {
-                        s.append(bptr, path - bptr);
-                    }
-
-                    bptr = ++path;
-
-                    if (*bptr == 0)
-                    {
-                        c.push_back(s);
-                        break;
-                    }
-
-                    path++;
-                    continue;
-                }
-
-                if (*path == '/' || *path == ':' || !*path)
-                {
-                    if (*path == ':')
-                    {
-                        if (c.size())
-                        {
-                            sdkMutex.unlock();
-                            return NULL;
-                        }
-                        remote = 1;
-                    }
-
-                    if (path > bptr)
-                    {
-                        s.append(bptr, path - bptr);
-                    }
-
-                    bptr = path + 1;
-
-                    c.push_back(s);
-
-                    s.erase();
-                }
-            }
-            else if ((*path & 0xf0) == 0xe0)
-            {
-                l = 1;
-            }
-            else if ((*path & 0xf8) == 0xf0)
-            {
-                l = 2;
-            }
-            else if ((*path & 0xfc) == 0xf8)
-            {
-                l = 3;
-            }
-            else if ((*path & 0xfe) == 0xfc)
-            {
-                l = 4;
-            }
-        }
-        else
-        {
-            l--;
-        }
-    } while (*path++);
-
-    if (l)
+    if (node)
     {
-        sdkMutex.unlock();
-        return NULL;
-    }
-
-    if (remote)
-    {
-        // target: user inbox - it's not a node - return NULL
-        if (c.size() == 2 && !c[1].size())
+        root = client->nodebyhandle(node->getHandle());
+        if (!root)
         {
-            sdkMutex.unlock();
-            return NULL;
-        }
-
-        User* u;
-
-        if ((u = client->finduser(c[0].c_str())))
-        {
-            // locate matching share from this user
-            handle_set::iterator sit;
-            string name;
-            for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
-            {
-                if ((n = client->nodebyhandle(*sit)))
-                {
-                    if(!name.size())
-                    {
-                        name =  c[1];
-                        n->client->fsaccess->normalize(&name);
-                    }
-
-                    if (!strcmp(name.c_str(), n->displayname()))
-                    {
-                        l = 2;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (!l)
-        {
-            sdkMutex.unlock();
-            return NULL;
-        }
-    }
-    else
-    {
-        // path starting with /
-        if (c.size() > 1 && !c[0].size())
-        {
-            // path starting with //
-            if (c.size() > 2 && !c[1].size())
-            {
-                if (c[2] == "in")
-                {
-                    n = client->nodebyhandle(client->rootnodes[1]);
-                }
-                else if (c[2] == "bin")
-                {
-                    n = client->nodebyhandle(client->rootnodes[2]);
-                }
-                else
-                {
-                    sdkMutex.unlock();
-                    return NULL;
-                }
-
-                l = 3;
-            }
-            else
-            {
-                n = client->nodebyhandle(client->rootnodes[0]);
-                l = 1;
-            }
-        }
-        else
-        {
-            n = cwd;
+            return nullptr;
         }
     }
 
-    // parse relative path
-    while (n && l < (int)c.size())
-    {
-        if (c[l] != ".")
-        {
-            if (c[l] == "..")
-            {
-                if (n->parent)
-                {
-                    n = n->parent;
-                }
-            }
-            else
-            {
-                // locate child node (explicit ambiguity resolution: not implemented)
-                if (c[l].size())
-                {
-                    nn = client->childnodebyname(n, c[l].c_str());
+    Node* result = client->nodeByPath(path, root);
 
-                    if (!nn)
-                    {
-                        sdkMutex.unlock();
-                        return NULL;
-                    }
-
-                    n = nn;
-                }
-            }
-        }
-
-        l++;
-    }
-
-    MegaNode *result = MegaNodePrivate::fromNode(n);
-    sdkMutex.unlock();
-    return result;
+    return MegaNodePrivate::fromNode(result);
 }
 
 MegaNode* MegaApiImpl::getNodeByHandle(handle handle)
@@ -21743,6 +21603,24 @@ void MegaApiImpl::sendPendingRequests()
             }
             break;
         }
+        case MegaRequest::TYPE_IMPORT_SYNC_CONFIGS:
+        {
+            if (const auto* configs = request->getText())
+            {
+                auto completion =
+                  [request, this](error result)
+                  {
+                      auto error = make_unique<MegaErrorPrivate>(result);
+                      fireOnRequestFinish(request, std::move(error));
+                  };
+
+                client->importSyncConfigs(configs, std::move(completion));
+                break;
+            }
+
+            e = API_EARGS;
+            break;
+        }
         case MegaRequest::TYPE_COPY_SYNC_CONFIG:
         {
             const char *localPath = request->getFile();
@@ -24531,7 +24409,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr /* can 
     this->fingerprint = 0;
 
     setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
-    setLastKnownMegaFolder(config.mOrigninalPathOfRemoteRootNode.c_str());
+    setLastKnownMegaFolder(config.mOriginalPathOfRemoteRootNode.c_str());
 
     setError(config.mError);
     setWarning(config.mWarning);

@@ -644,6 +644,25 @@ public:
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
     /**
+     * @brief
+     * Import sync configs from JSON.
+     *
+     * @param configs
+     * A JSON string encoding the sync configs to import.
+     *
+     * @param completion
+     * The function to call when we've completed importing the configs.
+     *
+     * @see MegaApi::exportSyncConfigs
+     * @see MegaApi::importSyncConfigs
+     * @see Syncs::exportSyncConfig
+     * @see Syncs::exportSyncConfigs
+     * @see Syncs::importSyncConfig
+     * @see Syncs::importSyncConfigs
+     */
+    void importSyncConfigs(const char* configs, std::function<void(error)> completion);
+
+    /**
      * @brief This method ensures that sync user attributes are available.
      *
      * This method calls \c completion function when it finishes, with the
@@ -1419,6 +1438,8 @@ public:
     void deltree(handle);
 
     Node* nodeByHandle(NodeHandle) const;
+    Node* nodeByPath(const char* path, Node* node = nullptr);
+
     Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
