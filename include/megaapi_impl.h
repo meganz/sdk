@@ -2443,8 +2443,6 @@ class MegaApiImpl : public MegaApp
         char *getBlockedPath();
 #endif
 
-        void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
-
         MegaBackup *getBackupByTag(int tag);
         MegaBackup *getBackupByNode(MegaNode *node);
         MegaBackup *getBackupByPath(const char * localPath);
