@@ -3168,20 +3168,9 @@ bool Syncs::importSyncConfigs(const char* data, SyncConfigVector& configs)
         while (reader.isobject())
         {
             SyncConfig config;
-            string object;
-
-            if (!reader.storeobject(&object))
-            {
-                LOG_err << "Parse error reading config object: "
-                        << reader.pos;
-
-                return false;
-            }
 
             // Try and parse this sync config object.
-            JSON subreader(object);
-
-            if (!importSyncConfig(subreader, config)) return false;
+            if (!importSyncConfig(reader, config)) return false;
 
             configs.emplace_back(std::move(config));
         }
