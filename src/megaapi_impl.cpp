@@ -18224,7 +18224,14 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 
     Node* root = nullptr;
 
-    if (node) root = client->nodebyhandle(node->getHandle());
+    if (node)
+    {
+        root = client->nodebyhandle(node->getHandle());
+        if (!root)
+        {
+            return nullptr;
+        }
+    }
 
     Node* result = client->nodeByPath(path, root);
 
