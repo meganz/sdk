@@ -22016,8 +22016,9 @@ void MegaApiImpl::sendPendingRequests()
             bool isTqSubcmd = !strcmp(command, "tq");
             bool isBsSubcmd = !strcmp(command, "bs");
             bool isUsSubcmd = !strcmp(command, "us");
+            bool isFrSubcmd = !strcmp(command, "fr");   // force reload via -6 on sc channel
 
-            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd)
+            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd && !isFrSubcmd)
             {
                 e = API_EARGS;
                 break;
