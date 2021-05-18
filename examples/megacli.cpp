@@ -2669,6 +2669,49 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     }
 }
 
+void exec_lreplace(autocomplete::ACState& s)
+{
+    bool file = s.extractflag("-file");
+    bool folder = s.extractflag("-folder");
+
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
+
+    // replace (or create) a file/folder - this is to test a changed fsid in sync code
+    if (file)
+    {
+        string content = s.words[2].s;
+        ofstream f(p);
+        f << content;
+    }
+    else if (folder)
+    {
+        if (fs::exists(p)) fs::remove(p);
+        fs::create_directory(p);
+    }
+}
+
+void exec_lrenamereplace(autocomplete::ACState& s)
+{
+    bool file = s.extractflag("-file");
+    bool folder = s.extractflag("-folder");
+
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
+    string content = s.words[2].s;
+    fs::path p2 = pathFromLocalPath(s.words[3].s, false);
+
+    // replace (or create) a file/folder - this is to test a changed fsid in sync code
+    fs::rename(p, p2);
+    if (file)
+    {
+        ofstream f(p);
+        f << content;
+    }
+    else if (folder)
+    {
+        fs::create_directory(p);
+    }
+}
+
 #endif
 
 void exec_getcloudstorageused(autocomplete::ACState& s)
@@ -3127,7 +3170,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_locallogout, sequence(text("locallogout")));
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
-    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off"))), opt(localFSFile())));
+    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off"), flag("-verbose"))), opt(localFSFile())));
     p->Add(exec_verbose, sequence(text("verbose"), opt(either(flag("-on"), flag("-off")))));
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
@@ -3188,6 +3231,9 @@ autocomplete::ACN autocompleteSyntax()
                                                                                                    sequence(flag("-filecount"), param("count")),
                                                                                                    sequence(flag("-filesize"), param("size")),
                                                                                                    sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
+    p->Add(exec_lreplace, sequence(text("lreplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content")));
+    p->Add(exec_lrenamereplace, sequence(text("lrenamereplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content"), localFSPath("renamed")));
+
 #endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
@@ -5227,8 +5273,18 @@ void exec_pause(autocomplete::ACState& s)
 
 void exec_debug(autocomplete::ACState& s)
 {
-    bool turnon = s.extractflag("-on");
-    bool turnoff = s.extractflag("-off");
+    if (s.extractflag("-off"))
+    {
+        SimpleLogger::setLogLevel(logWarning);
+    }
+    if (s.extractflag("-on"))
+    {
+        SimpleLogger::setLogLevel(logDebug);
+    }
+    if (s.extractflag("-verbose"))
+    {
+        SimpleLogger::setLogLevel(logMax);
+    }
 
     if (s.words.size() > 1)
     {
@@ -5243,13 +5299,7 @@ void exec_debug(autocomplete::ACState& s)
         }
     }
 
-    bool state = client->debugstate();
-    if ((turnon && !state) || (turnoff && state) || (!turnon && !turnoff))
-    {
-        client->toggledebug();
-    }
-
-    cout << "Debug mode " << (client->debugstate() ? "on" : "off") << endl;
+    cout << "Debug mode " << SimpleLogger::logCurrentLevel << endl;
 }
 
 void exec_verbose(autocomplete::ACState& s)
@@ -7931,7 +7981,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
             }
         }
 
-        if(client->debugstate())
+        if(gVerboseMode)
         {
             cout << endl << "Full Session history:" << endl;
 

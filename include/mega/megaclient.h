@@ -909,11 +909,6 @@ public:
     // get welcome pdf
     void getwelcomepdf();
 
-    // toggle global debug flag
-    bool toggledebug();
-
-    bool debugstate();
-
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
     void reportevent(const char*, const char*, int tag);

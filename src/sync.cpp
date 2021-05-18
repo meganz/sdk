@@ -3687,8 +3687,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     SYNC_verbose << syncname << "sync/recurse here after pending changes logic: " << syncHere << recurseHere << !!row.cloudNode << (row.cloudNode ? (row.cloudNode->mPendingChanges.empty()?"1":"0") : "-");
 
 #ifdef DEBUG
-    static char clientOfInterest[100] = "clientA2 \0";
-    static char folderOfInterest[100] = "f_2\0";
+    static char clientOfInterest[100] = "clientA2";
+    static char folderOfInterest[100] = "f_2";
     if (string(clientOfInterest) == client->clientname)
     if (string(folderOfInterest) == fullPath.leafName().toPath(*client->fsaccess))
     {
@@ -3733,12 +3733,15 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             {
                 fullPath.appendWithSeparator(LocalPath::fromName(childRow.cloudNode->displayname(), *client->fsaccess, mFilesystemType), true);
             }
-            else
+            else if (!childRow.cloudClashingNames.empty() || !childRow.fsClashingNames.empty())
             {
-                assert(!childRow.cloudClashingNames.empty() || !childRow.fsClashingNames.empty());
-
                 // so as not to mislead in logs etc
                 fullPath.appendWithSeparator(LocalPath::fromName("<<<clashing>>>", *client->fsaccess, mFilesystemType), true);
+            }
+            else
+            {
+                // this is a legitimate case; eg. we only had a syncNode and it is removed in resolve_delSyncNode
+                continue;
             }
 
             if (!(!childRow.syncNode || childRow.syncNode->getLocalPath() == fullPath))
@@ -4257,7 +4260,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& full
 
         // deletes itself and subtree, queues db record removal
         delete row.syncNode;
-        row.syncNode = nullptr;
+        row.syncNode = nullptr; // todo: maybe could return true here?
     }
     else if (row.syncNode->moveSourceApplyingToCloud)
     {
