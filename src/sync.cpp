@@ -2918,8 +2918,13 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
 void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
 {
-    // Internal configs only.
-    assert(config.mExternalDrivePath.empty());
+    // Internal configs only for the time being.
+    if (!config.mExternalDrivePath.empty())
+    {
+        LOG_warn << "Skipping export of external backup: "
+                 << config.mLocalPath.toPath();
+        return;
+    }
 
     const auto& fsAccess = *mClient.fsaccess;
 
