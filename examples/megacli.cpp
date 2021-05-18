@@ -3055,6 +3055,16 @@ autocomplete::ACN autocompleteSyntax()
                     text("closedrive"),
                     localFSFolder("drive")));
 
+    p->Add(exec_syncexport,
+           sequence(text("sync"),
+                    text("export"),
+                    opt(localFSFile("outputFile"))));
+
+    p->Add(exec_syncimport,
+           sequence(text("sync"),
+                    text("import"),
+                    localFSFile("inputFile")));
+
     p->Add(exec_syncopendrive,
            sequence(text("sync"),
                     text("opendrive"),
@@ -8553,6 +8563,97 @@ void exec_syncclosedrive(autocomplete::ACState& s)
     {
         cerr << "Unable to remove backup database: "
              << errorstring(result)
+             << endl;
+    }
+}
+
+void exec_syncimport(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to import syncs."
+             << endl;
+        return;
+    }
+
+    auto flags = std::ios::binary | std::ios::in;
+    ifstream istream(s.words[2].s, flags);
+
+    if (!istream)
+    {
+        cerr << "Unable to open "
+             << s.words[2].s
+             << " for reading."
+             << endl;
+        return;
+    }
+
+    string data;
+
+    for (char buffer[512]; istream; )
+    {
+        istream.read(buffer, sizeof(buffer));
+        data.append(buffer, istream.gcount());
+    }
+
+    if (!istream.eof())
+    {
+        cerr << "Unable to read "
+             << s.words[2].s
+             << endl;
+        return;
+    }
+
+    auto completion =
+      [](error result)
+      {
+          if (result)
+          {
+              cerr << "Unable to import sync configs: " 
+                   << errorstring(result)
+                   << endl;
+              return;
+          }
+
+          cout << "Sync configs successfully imported."
+               << endl;
+      };
+
+    cout << "Importing sync configs..."
+         << endl;
+
+    client->importSyncConfigs(data.c_str(), std::move(completion));
+}
+
+void exec_syncexport(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to export syncs."
+             << endl;
+        return;
+    }
+
+    auto configs = client->syncs.exportSyncConfigs();
+
+    if (s.words.size() == 2)
+    {
+        cout << "Configs exported as: "
+             << configs
+             << endl;
+        return;
+    }
+
+    auto flags = std::ios::binary | std::ios::out | std::ios::trunc;
+    ofstream ostream(s.words[2].s, flags);
+
+    ostream.write(configs.data(), configs.size());
+    ostream.close();
+
+    if (!ostream.good())
+    {
+        cout << "Failed to write exported configs to: "
+             << s.words[2].s
              << endl;
     }
 }

@@ -1268,10 +1268,12 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
     return isFilenameAnomaly(localPath, node->displayname(), node->type);
 }
 
+#ifdef ENABLE_SYNC
 FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
 {
     return isFilenameAnomaly(node.localname, node.name, node.type);
 }
+#endif
 
 } // namespace
 

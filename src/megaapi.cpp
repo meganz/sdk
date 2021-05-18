@@ -1984,6 +1984,11 @@ uint64_t MegaApi::base64ToUserHandle(const char* base64Handle)
     return MegaApiImpl::base64ToUserHandle(base64Handle);
 }
 
+MegaHandle MegaApi::base64ToBackupId(const char* backupId)
+{
+    return MegaApiImpl::base64ToBackupId(backupId);
+}
+
 char *MegaApi::handleToBase64(MegaHandle handle)
 {
     return MegaApiImpl::handleToBase64(handle);
@@ -1992,6 +1997,11 @@ char *MegaApi::handleToBase64(MegaHandle handle)
 char *MegaApi::userHandleToBase64(MegaHandle handle)
 {
     return MegaApiImpl::userHandleToBase64(handle);
+}
+
+const char* MegaApi::backupIdToBase64(MegaHandle backupId)
+{
+    return MegaApiImpl::backupIdToBase64(backupId);
 }
 
 void MegaApi::base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize)
@@ -3431,6 +3441,16 @@ void MegaApi::enableSync(MegaHandle backupId, MegaRequestListener *listener)
 void MegaApi::disableSync(MegaHandle backupId, MegaRequestListener *listener)
 {
     pImpl->disableSyncById(backupId, listener);
+}
+
+void MegaApi::importSyncConfigs(const char* configs, MegaRequestListener* listener)
+{
+    pImpl->importSyncConfigs(configs, listener);
+}
+
+const char* MegaApi::exportSyncConfigs()
+{
+    return pImpl->exportSyncConfigs();
 }
 
 void MegaApi::removeSyncs(MegaRequestListener *listener)

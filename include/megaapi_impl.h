@@ -2137,8 +2137,10 @@ class MegaApiImpl : public MegaApp
         static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
         static handle base64ToUserHandle(const char* base64Handle);
+        static handle base64ToBackupId(const char* backupId);
         static char *handleToBase64(MegaHandle handle);
         static char *userHandleToBase64(MegaHandle handle);
+        static const char* backupIdToBase64(MegaHandle handle);
         static char *binaryToBase64(const char* binaryData, size_t length);
         static void base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
@@ -2408,6 +2410,8 @@ class MegaApiImpl : public MegaApp
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                           long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
+        void importSyncConfigs(const char* configs, MegaRequestListener* listener);
+        const char* exportSyncConfigs();
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
