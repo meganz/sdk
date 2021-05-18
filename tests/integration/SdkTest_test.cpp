@@ -2729,8 +2729,11 @@ LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
 }
 
 
-
+#ifndef __APPLE__
 TEST_F(SdkTest, SdkTestFolderIteration)
+#else
+TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
+#endif
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
@@ -6334,7 +6337,7 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
 
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__APPLE__)
     LOG_verbose << "SyncPersistence :  Check that symlinks are not synced.";
     std::unique_ptr<MegaNode> remoteNodeSym(megaApi[0]->getNodeByPath(("/" + string(remoteBaseNode->getName()) + "/symlink_1A").c_str()));
     ASSERT_EQ(remoteNodeSym.get(), nullptr);
