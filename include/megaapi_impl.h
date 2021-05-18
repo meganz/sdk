@@ -180,6 +180,34 @@ private:
     bool logToConsole;
 };
 
+class MegaFilenameAnomalyReporterProxy
+  : public FilenameAnomalyReporter
+{
+public:
+    explicit
+    MegaFilenameAnomalyReporterProxy(MegaFilenameAnomalyReporter& reporter)
+      : mReporter(reporter)
+    {
+    }
+
+    void anomalyDetected(FilenameAnomalyType type,
+                         const string& localPath,
+                         const string& remotePath) override
+    {
+        using MegaAnomalyType =
+          MegaFilenameAnomalyReporter::AnomalyType;
+
+        assert(type < FILENAME_ANOMALY_NONE);
+
+        mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
+                                  localPath.c_str(),
+                                  remotePath.c_str());
+    }
+
+private:
+    MegaFilenameAnomalyReporter& mReporter;
+}; // MegaFilenameAnomalyReporterProxy
+
 class MegaTransferPrivate;
 class MegaTreeProcCopy : public MegaTreeProcessor
 {
@@ -2109,8 +2137,10 @@ class MegaApiImpl : public MegaApp
         static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
         static handle base64ToUserHandle(const char* base64Handle);
+        static handle base64ToBackupId(const char* backupId);
         static char *handleToBase64(MegaHandle handle);
         static char *userHandleToBase64(MegaHandle handle);
+        static const char* backupIdToBase64(MegaHandle handle);
         static char *binaryToBase64(const char* binaryData, size_t length);
         static void base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
@@ -2211,6 +2241,7 @@ class MegaApiImpl : public MegaApp
 #ifdef USE_ROTATIVEPERFORMANCELOGGER
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
 #endif
+        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
         int platformGetRLimitNumFile() const;
@@ -2266,6 +2297,8 @@ class MegaApiImpl : public MegaApp
         const char* getDeviceId() const;
         void getDeviceName(MegaRequestListener *listener = NULL);
         void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
+        void getDriveName(const char *pathToDrive, MegaRequestListener *listener = NULL);
+        void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
@@ -2377,6 +2410,8 @@ class MegaApiImpl : public MegaApp
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                           long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
+        void importSyncConfigs(const char* configs, MegaRequestListener* listener);
+        const char* exportSyncConfigs();
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);

@@ -3264,6 +3264,10 @@ using namespace mega;
     }
 }
 
+- (void)catchupWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->catchup([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 - (void)getPublicLinkInformationWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getPublicLinkInformation(folderLink.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
