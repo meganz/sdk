@@ -1536,13 +1536,10 @@ struct StandardClient : public MegaApp
                      targetNode->nodeHandle(),
                      targetPath,
                      0,
+                     LocalPath::fromPath(drivePath, *client.fsaccess),
                      //string_vector(),
                      true,
                      SyncConfig::TYPE_BACKUP);
-
-        // Populate drive path.
-        config.mExternalDrivePath =
-          LocalPath::fromPath(drivePath, *client.fsaccess);
 
         // Try and add the backup.
         return client.addsync(config, true, completion) == API_OK;
@@ -1591,6 +1588,7 @@ struct StandardClient : public MegaApp
                                NodeHandle().set6byte(m->nodehandle),
                                subfoldername,
                                0,
+                               LocalPath(),
                                //string_vector(),
                                true,
                                isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);

@@ -241,6 +241,8 @@ protected:
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int n);
 
+    void syncTestMyBackupsRemoteFolder(unsigned apiIdx);
+
     void onRequestStart(MegaApi *api, MegaRequest *request) override {}
     void onRequestUpdate(MegaApi*api, MegaRequest *request) override {}
     void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;

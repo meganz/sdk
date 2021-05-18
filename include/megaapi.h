@@ -13672,6 +13672,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getParamType - Returns the type of the sync
+         * - MegaRequest::getLink - Returns the drive root if external backup
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -13686,7 +13687,7 @@ class MegaApi
           * - MegaError::API_EARGS - If the local folder was not set.
           * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
           * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-          * wrong 'dev-id' tag.
+          * wrong 'dev-id'/'drv-id' tag.
           * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
           * the handle.
           * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
