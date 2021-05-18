@@ -35,7 +35,7 @@ struct MEGA_API JSON
     }
 
     explicit JSON(const string& data)
-      : JSON(data.c_str())
+      : pos(data.c_str())
     {
     }
 
