@@ -103,15 +103,11 @@ protected:
     string proxypassword;
     int proxyinflight;
     dstime ipv6deactivationtime;
-#ifdef MEGA_USE_C_ARES
     dstime lastdnspurge;
-#endif
     bool ipv6proxyenabled;
     bool ipv6requestsenabled;
     std::queue<CurlHttpContext *> pendingrequests;
-#ifdef MEGA_USE_C_ARES
     std::map<string, CurlDNSEntry> dnscache;
-#endif
     int pkpErrors;
 
     void send_pending_requests();
@@ -143,8 +139,10 @@ protected:
 #endif
 #endif
 
+#ifdef MEGA_USE_C_ARES
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
     static void initialize_android();
+#endif
 #endif
 
 #ifdef USE_OPENSSL
@@ -244,10 +242,12 @@ private:
     static int instanceCount;
 
     CodeCounter::ScopeStats countCurlHttpIOAddevents = { "curl-httpio-addevents" };
-    CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
     CodeCounter::ScopeStats countAddCurlEventsCode = { "curl-add-events" };
-    CodeCounter::ScopeStats countProcessAresEventsCode = { "ares-process-events" };
     CodeCounter::ScopeStats countProcessCurlEventsCode = { "curl-process-events" };
+#ifdef MEGA_USE_C_ARES
+    CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
+    CodeCounter::ScopeStats countProcessAresEventsCode = { "ares-process-events" };
+#endif
 };
 
 struct MEGA_API CurlHttpContext
@@ -274,7 +274,6 @@ struct MEGA_API CurlHttpContext
 #endif
 };
 
-#ifdef MEGA_USE_C_ARES
 struct MEGA_API CurlDNSEntry
 {
     CurlDNSEntry();
@@ -288,7 +287,6 @@ struct MEGA_API CurlDNSEntry
 
     bool mNeedsResolvingAgain = false;
 };
-#endif
 
 } // namespace
 

@@ -259,9 +259,7 @@ CurlHttpIO::CurlHttpIO()
     pkpErrors = 0;
 
     WAIT_CLASS::bumpds();
-#ifdef MEGA_USE_C_ARES
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
-#endif
 
     curlMutex.lock();
 
@@ -299,10 +297,10 @@ CurlHttpIO::CurlHttpIO()
         {
             LOG_debug << "c-ares version: " << aresversion;
         }
-#endif
 
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
         initialize_android();
+#endif
 #endif
     };
 
@@ -847,7 +845,6 @@ void CurlHttpIO::disconnect()
     closecurlevents(GET);
     closecurlevents(PUT);
 
-#ifdef MEGA_USE_C_ARES
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
     if (DNS_CACHE_EXPIRES)
     {
@@ -860,7 +857,6 @@ void CurlHttpIO::disconnect()
             dnsPair.second.mNeedsResolvingAgain= true;
         }
     }
-#endif
 
     curlm[API] = curl_multi_init();
     curlm[GET] = curl_multi_init();
@@ -1894,6 +1890,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             request_proxy_ip();
         }
     }
+#endif
 
     // purge DNS cache if needed
     if (DNS_CACHE_EXPIRES && (Waiter::ds - lastdnspurge) > DNS_CACHE_TIMEOUT_DS)
@@ -1929,7 +1926,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
         lastdnspurge = Waiter::ds;
     }
-#endif
 
     req->in.clear();
     req->status = REQ_INFLIGHT;
@@ -1959,6 +1955,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 #else
 
     httpctx->ares_pending = 1;
+#endif
 
     CurlDNSEntry* dnsEntry = NULL;
     map<string, CurlDNSEntry>::iterator it = dnscache.find(httpctx->hostname);
@@ -1977,7 +1974,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             httpctx->isCachedIp = true;
             oss << "[" << dnsEntry->ipv6 << "]";
             httpctx->hostip = oss.str();
+#ifdef MEGA_USE_C_ARES
             httpctx->ares_pending = 0;
+#endif
             send_request(httpctx);
             return;
         }
@@ -1989,11 +1988,14 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         httpctx->isIPv6 = false;
         httpctx->isCachedIp = true;
         httpctx->hostip = dnsEntry->ipv4;
+#ifdef MEGA_USE_C_ARES
         httpctx->ares_pending = 0;
+#endif
         send_request(httpctx);
         return;
     }
 
+#ifdef MEGA_USE_C_ARES
     if (ipv6requestsenabled)
     {
         httpctx->ares_pending++;
@@ -2312,7 +2314,6 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
             if (req->status == REQ_FAILURE && !req->httpstatus)
             {
-#ifdef MEGA_USE_C_ARES
                 CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
                 if (httpctx)
                 {
@@ -2345,7 +2346,11 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                         // for IPv6 errors, try IPv4 before sending an error to the engine
                         if ((dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired())
-                                || (!httpctx->isCachedIp && httpctx->ares_pending))
+                                || (!httpctx->isCachedIp
+#ifdef MEGA_USE_C_ARES
+                                    && httpctx->ares_pending
+#endif
+                                    ))
                         {
                             numconnections[httpctx->d]--;
                             pausedrequests[httpctx->d].erase(msg->easy_handle);
@@ -2375,7 +2380,6 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         }
                     }
                 }
-#endif
             }
         }
         else
@@ -2917,7 +2921,6 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 }
 #endif
 
-#ifdef MEGA_USE_C_ARES
 CurlDNSEntry::CurlDNSEntry()
 {
     ipv4timestamp = 0;
@@ -2933,8 +2936,8 @@ bool CurlDNSEntry::isIPv6Expired()
 {
     return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
 }
-#endif
 
+#ifdef MEGA_USE_C_ARES
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
 
 void CurlHttpIO::initialize_android()
@@ -3106,6 +3109,7 @@ void CurlHttpIO::initialize_android()
         catch (...) { }
     }
 }
+#endif
 #endif
 
 } // namespace
