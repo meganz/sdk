@@ -2970,15 +2970,6 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     LOG_debug << "Attempting to parse config object: "
               << reader.pos;
 
-    // Enter config object.
-    if (!reader.enterobject())
-    {
-        LOG_err << "Parse error entering config object: "
-                << reader.pos;
-
-        return false;
-    }
-
     string localPath;
     string name;
     string remotePath;
@@ -3029,15 +3020,6 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
                       << ": "
                       << value;
         }
-    }
-
-    // Leave the config object.
-    if (!reader.leaveobject())
-    {
-        LOG_err << "Parse error leaving config object: "
-                << reader.pos;
-
-        return false;
     }
 
     // Basic validation on properties.
@@ -3170,12 +3152,19 @@ bool Syncs::importSyncConfigs(const char* data, SyncConfigVector& configs)
         }
 
         // Parse each sync config object.
-        while (reader.isobject())
+        while (reader.enterobject())
         {
             SyncConfig config;
 
             // Try and parse this sync config object.
             if (!importSyncConfig(reader, config)) return false;
+
+            if (!reader.leaveobject())
+            {
+                LOG_err << "Parse error leaving config object: "
+                        << reader.pos;
+                return false;
+            }
 
             configs.emplace_back(std::move(config));
         }
