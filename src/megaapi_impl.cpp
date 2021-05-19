@@ -11017,6 +11017,20 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
     return shareList;
 }
 
+bool MegaApiImpl::isPrivateNode(MegaHandle h)
+{
+    SdkMutexGuard lock;
+
+    return client->isPrivateNode(NodeHandle().set6byte(h));
+}
+
+bool MegaApiImpl::isForeignNode(MegaHandle h)
+{
+    SdkMutexGuard lock;
+
+    return client->isForeignNode(NodeHandle().set6byte(h));
+}
+
 MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 {
     sdkMutex.lock();

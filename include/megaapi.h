@@ -14986,6 +14986,23 @@ class MegaApi
         MegaShareList *getPendingOutShares(MegaNode *node);
 
         /**
+         * @brief Check if a node belongs to your own cloud
+         * @param handle Node to check
+         * @return True if it belongs to your own cloud
+         */
+        bool isPrivateNode(MegaHandle handle);
+
+        /**
+         * @brief Check if a node does NOT belong to your own cloud
+         *
+         * In example, nodes from incoming shared folders do not belong to your cloud.
+         *
+         * @param handle Node to check
+         * @return True if it does NOT belong to your own cloud
+         */
+        bool isForeignNode(MegaHandle handle);
+
+        /**
          * @brief Get a list with all public links
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,

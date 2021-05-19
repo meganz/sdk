@@ -1976,6 +1976,14 @@ using namespace mega;
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
+- (BOOL)isPrivateNode:(uint64_t)handle {
+    return self.megaApi->isPrivateNode(handle);
+}
+
+- (BOOL)isForeignNode:(uint64_t)handle{
+    return self.megaApi->isForeignNode(handle);
+}
+
 - (MEGANodeList *)publicLinks:(MEGASortOrderType)order {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks((int)order) cMemoryOwn:YES];
 }

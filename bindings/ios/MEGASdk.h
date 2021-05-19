@@ -7069,6 +7069,22 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node;
 
 /**
+ * @brief Check if a node belongs to your own cloud
+ * @param handle Node to check
+ * @return YES if it belongs to your own cloud
+ */
+- (BOOL)isPrivateNode:(uint64_t)handle;
+/**
+ * @brief Check if a node does NOT belong to your own cloud
+ *
+ * In example, nodes from incoming shared folders do not belong to your cloud.
+ *
+ * @param handle Node to check
+ * @return YES if it does NOT belong to your own cloud
+ */
+- (BOOL)isForeignNode:(uint64_t)handle;
+
+/**
  * @brief Get a list with all public links
  *
  * @param order Order for the returned list.
