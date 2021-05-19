@@ -944,6 +944,75 @@ std::string MegaClient::getDeviceidHash() const
     return deviceIdHash;
 }
 
+handle MegaClient::generateDriveId()
+{
+    handle driveId;
+    rng.genblock((byte *)&driveId, sizeof(driveId));
+    driveId |= m_time(nullptr);
+    return driveId;
+}
+
+error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
+{
+    driveId = UNDEF;
+
+    LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
+    LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
+    pd.appendWithSeparator(dotDir, false);
+    LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
+    pd.appendWithSeparator(idFile, false);
+
+    auto fa = fsaccess->newfileaccess(false);
+    if (!fa->fopen(pd, true, false))
+    {
+        // This case is valid when only checking for file existence
+        return API_ENOENT;
+    }
+
+    if (!fa->frawread((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to read drive-id from file: " << pd.toPath();
+        return API_EREAD;
+    }
+
+    return API_OK;
+}
+
+error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
+{
+    LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
+    LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
+    pd.appendWithSeparator(dotDir, false);
+
+    // Try and create the backup configuration directory
+    if (!(fsaccess->mkdirlocal(pd) || fsaccess->target_exists))
+    {
+        LOG_err << "Unable to create config DB directory: " << pd.toPath(*fsaccess);
+
+        // Couldn't create the directory and it doesn't exist.
+        return API_EWRITE;
+    }
+
+    // Open the file for writing
+    LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
+    pd.appendWithSeparator(idFile, false);
+    auto fa = fsaccess->newfileaccess(false);
+    if (!fa->fopen(pd, false, true))
+    {
+        LOG_err << "Unable to open file to write drive-id: " << pd.toPath();
+        return API_EWRITE;
+    }
+
+    // Write the drive-id to file
+    if (!fa->fwrite((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to write drive-id to file: " << pd.toPath();
+        return API_EWRITE;
+    }
+
+    return API_OK;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -1297,6 +1366,46 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
+void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
+                                         const string& localPath,
+                                         const string& remotePath)
+{
+    const char* typeName;
+
+    switch (type)
+    {
+    case FILENAME_ANOMALY_NAME_MISMATCH:
+        typeName = "NAME_MISMATCH";
+        break;
+    case FILENAME_ANOMALY_NAME_RESERVED:
+        typeName = "NAME_RESERVED";
+        break;
+    default:
+        assert(!"Unknown filename anomaly type!");
+        typeName = "UNKNOWN";
+        break;
+    }
+
+    const auto* path = localPath.c_str();
+
+#ifdef _WIN32
+    if (!localPath.compare(0, 4, "\\\\?\\"))
+    {
+        path += 4;
+    }
+#endif // _WIN32
+
+    LOG_debug << "Filename anomaly detected: type: "
+              << typeName
+              << " local path: "
+              << path
+              << " remote path: "
+              << remotePath;
+
+    if (!mFilenameAnomalyReporter) return;
+
+    mFilenameAnomalyReporter->anomalyDetected(type, path, remotePath);
+}
 #ifdef ENABLE_SYNC
 
 bool MegaClient::nodeIsInActiveSync(Node* n)
@@ -3068,6 +3177,14 @@ void MegaClient::exec()
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
+    }
+#endif
+
+#ifdef USE_DRIVE_NOTIFICATIONS
+    // check for Drive [dis]connects
+    for (auto di = mDriveInfoCollector.get(); !di.first.empty(); di = mDriveInfoCollector.get())
+    {
+        app->drive_presence_changed(di.second, LocalPath::fromPlatformEncoded(move(di.first)));
     }
 #endif
 }
@@ -6157,6 +6274,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
+                                    case ATTR_DRIVE_NAMES:          // fall-through
                                     case ATTR_MY_BACKUPS_FOLDER:     // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
@@ -7471,6 +7589,204 @@ Node* MegaClient::nodeByHandle(NodeHandle h) const
 {
     if (h.isUndef()) return nullptr;
     return nodebyhandle(h.as8byte());
+}
+
+Node* MegaClient::nodeByPath(const char* path, Node* node)
+{
+    if (!path) return NULL;
+
+    Node *cwd = node;
+    vector<string> c;
+    string s;
+    int l = 0;
+    const char* bptr = path;
+    int remote = 0;
+    Node* n = nullptr;
+    Node* nn;
+
+    // split path by / or :
+    do {
+        if (!l)
+        {
+            if (*(const signed char*)path >= 0)
+            {
+                if (*path == '\\')
+                {
+                    if (path > bptr)
+                    {
+                        s.append(bptr, path - bptr);
+                    }
+
+                    bptr = ++path;
+
+                    if (*bptr == 0)
+                    {
+                        c.push_back(s);
+                        break;
+                    }
+
+                    path++;
+                    continue;
+                }
+
+                if (*path == '/' || *path == ':' || !*path)
+                {
+                    if (*path == ':')
+                    {
+                        if (c.size())
+                        {
+                            return NULL;
+                        }
+                        remote = 1;
+                    }
+
+                    if (path > bptr)
+                    {
+                        s.append(bptr, path - bptr);
+                    }
+
+                    bptr = path + 1;
+
+                    c.push_back(s);
+
+                    s.erase();
+                }
+            }
+            else if ((*path & 0xf0) == 0xe0)
+            {
+                l = 1;
+            }
+            else if ((*path & 0xf8) == 0xf0)
+            {
+                l = 2;
+            }
+            else if ((*path & 0xfc) == 0xf8)
+            {
+                l = 3;
+            }
+            else if ((*path & 0xfe) == 0xfc)
+            {
+                l = 4;
+            }
+        }
+        else
+        {
+            l--;
+        }
+    } while (*path++);
+
+    if (l)
+    {
+        return NULL;
+    }
+
+    if (remote)
+    {
+        // target: user inbox - it's not a node - return NULL
+        if (c.size() == 2 && !c[1].size())
+        {
+            return NULL;
+        }
+
+        User* u;
+
+        if ((u = finduser(c[0].c_str())))
+        {
+            // locate matching share from this user
+            handle_set::iterator sit;
+            string name;
+            for (sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
+            {
+                if ((n = nodebyhandle(*sit)))
+                {
+                    if(!name.size())
+                    {
+                        name =  c[1];
+                        fsaccess->normalize(&name);
+                    }
+
+                    if (!strcmp(name.c_str(), n->displayname()))
+                    {
+                        l = 2;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!l)
+        {
+            return NULL;
+        }
+    }
+    else
+    {
+        // path starting with /
+        if (c.size() > 1 && !c[0].size())
+        {
+            // path starting with //
+            if (c.size() > 2 && !c[1].size())
+            {
+                if (c[2] == "in")
+                {
+                    n = nodebyhandle(rootnodes[1]);
+                }
+                else if (c[2] == "bin")
+                {
+                    n = nodebyhandle(rootnodes[2]);
+                }
+                else
+                {
+                    return NULL;
+                }
+
+                l = 3;
+            }
+            else
+            {
+                n = nodebyhandle(rootnodes[0]);
+                l = 1;
+            }
+        }
+        else
+        {
+            n = cwd;
+        }
+    }
+
+    // parse relative path
+    while (n && l < (int)c.size())
+    {
+        if (c[l] != ".")
+        {
+            if (c[l] == "..")
+            {
+                if (n->parent)
+                {
+                    n = n->parent;
+                }
+            }
+            else
+            {
+                // locate child node (explicit ambiguity resolution: not implemented)
+                if (c[l].size())
+                {
+                    nn = childnodebyname(n, c[l].c_str());
+
+                    if (!nn)
+                    {
+                        return NULL;
+                    }
+
+                    n = nn;
+                }
+            }
+        }
+
+        l++;
+    }
+
+    return n;
 }
 
 // server-client deletion
@@ -13543,7 +13859,7 @@ void MegaClient::ensureSyncUserAttributesCompleted(Error e)
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
 {
     string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
+    BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config, this));
 
     reqs.add( new CommandBackupPut(this, info,
                                   [this, config, completion](Error e, handle backupId) {
@@ -13565,6 +13881,27 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
     }));
 }
 
+void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion)
+{
+    auto onUserAttributesCompleted =
+      [completion = std::move(completion), configs, this](Error result)
+      {
+          // Do we have the attributes necessary for the sync config store?
+          if (result != API_OK)
+          {
+              // Nope and we can't proceed without them.
+              completion(result);
+              return;
+          }
+
+          // Kick off the import.
+          syncs.importSyncConfigs(configs, std::move(completion));
+      };
+
+    // Make sure we have the attributes necessary for the sync config store.
+    ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
+}
+
 error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunction completion)
 {
     LocalPath rootpath;
@@ -13580,6 +13917,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     }
 
     // Are we adding an external backup?
+    handle driveId = UNDEF;
     if (config.isExternal())
     {
         auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
@@ -13625,11 +13963,19 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
 
         config.mExternalDrivePath = std::move(drivePath);
         config.mLocalPath = std::move(sourcePath);
+
+        const string& p = config.mExternalDrivePath.toPath();
+        e = readDriveId(p.c_str(), driveId);
+        if (e != API_OK)
+        {
+            completion(nullptr, NO_SYNC_ERROR, e);
+            return e;
+        }
     }
 
     // Add the sync.
     string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
+    BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, this));
 
     reqs.add( new CommandBackupPut(this, info,
                                    [this, config, completion, notifyApp](Error e, handle backupId) mutable {
@@ -14522,6 +14868,27 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
             ll->created = true;
 
             assert (!isSymLink);
+
+            // Check for filename anomalies.
+            if (ll->type == FOLDERNODE)
+            {
+                auto type = isFilenameAnomaly(*ll);
+
+                if (type != FILENAME_ANOMALY_NONE)
+                {
+                    auto localpath = ll->getLocalPath().toPath();
+
+                    // Generate remote path for reporting.
+                    ostringstream remotepath;
+
+                    remotepath << ll->parent->node->displaypath()
+                               << "/"
+                               << ll->name;
+
+                    filenameAnomalyDetected(type, localpath, remotepath.str());
+                }
+            }
+
             // create remote folder or send file
             LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
             synccreate.push_back(ll);
@@ -16097,6 +16464,32 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
 void MegaClient::getwelcomepdf()
 {
     reqs.add(new CommandGetWelcomePDF(this));
+}
+
+bool MegaClient::startDriveMonitor()
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    auto notify = std::bind(&Waiter::notify, waiter);
+    return mDriveInfoCollector.start(notify);
+#else
+    return false;
+#endif
+}
+
+void MegaClient::stopDriveMonitor()
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    mDriveInfoCollector.stop();
+#endif
+}
+
+bool MegaClient::driveMonitorEnabled()
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    return mDriveInfoCollector.enabled();
+#else
+    return false;
+#endif
 }
 
 #ifdef MEGA_MEASURE_CODE

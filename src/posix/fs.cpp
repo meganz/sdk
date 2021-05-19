@@ -2133,4 +2133,10 @@ PosixDirAccess::~PosixDirAccess()
         globfree(&globbuf);
     }
 }
+
+bool isReservedName(const string&, nodetype_t)
+{
+    return false;
+}
+
 } // namespace

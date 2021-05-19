@@ -52,6 +52,7 @@ struct MEGA_API File: public FileFingerprint
 
     // generic filename for this transfer
     void displayname(string*);
+    string displayname();
 
     // normalized name (UTF-8 with unescaped special chars)
     string name;

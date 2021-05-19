@@ -467,7 +467,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
+                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, false);
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -908,6 +908,17 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
+                    if (auto node = client->nodeByHandle((*it)->h))
+                    {
+                        auto path = (*it)->localname;
+                        auto type = isFilenameAnomaly(path, node);
+
+                        if (type != FILENAME_ANOMALY_NONE)
+                        {
+                            client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
+                        }
+                    }
+
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
@@ -993,7 +1004,37 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             File *f = (*it);
             LocalPath *localpath = &f->localname;
 
-            LOG_debug << "Verifying upload";
+#ifdef ENABLE_SYNC
+            LocalPath synclocalpath;
+            LocalNode *ll = dynamic_cast<LocalNode *>(f);
+            if (ll)
+            {
+                LOG_debug << "Verifying sync upload";
+                synclocalpath = ll->getLocalPath();
+                localpath = &synclocalpath;
+            }
+#endif
+            if (auto node = client->nodeByHandle(f->h))
+            {
+                auto type = isFilenameAnomaly(*localpath, f->name);
+
+                if (type != FILENAME_ANOMALY_NONE)
+                {
+                    // Construct remote path for reporting.
+                    ostringstream remotepath;
+
+                    remotepath << node->displaypath()
+                               << (node->parent ? "/" : "")
+                               << f->name;
+
+                    client->filenameAnomalyDetected(type, localpath->toPath(), remotepath.str());
+                }
+            }
+
+            if (localpath == &f->localname)
+            {
+                LOG_debug << "Verifying regular upload";
+            }
 
             auto fa = client->fsaccess->newfileaccess();
             bool isOpen = fa->fopen(*localpath);

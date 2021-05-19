@@ -39,11 +39,13 @@
 #include "useralerts.h"
 #include "user.h"
 #include "sync.h"
+#include "drivenotify.h"
 
 namespace mega {
 
 // Defined in sync.h.
 class ScanService;
+class Logger;
 
 class MEGA_API FetchNodesStats
 {
@@ -665,6 +667,25 @@ public:
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
     /**
+     * @brief
+     * Import sync configs from JSON.
+     *
+     * @param configs
+     * A JSON string encoding the sync configs to import.
+     *
+     * @param completion
+     * The function to call when we've completed importing the configs.
+     *
+     * @see MegaApi::exportSyncConfigs
+     * @see MegaApi::importSyncConfigs
+     * @see Syncs::exportSyncConfig
+     * @see Syncs::exportSyncConfigs
+     * @see Syncs::importSyncConfig
+     * @see Syncs::importSyncConfigs
+     */
+    void importSyncConfigs(const char* configs, std::function<void(error)> completion);
+
+    /**
      * @brief This method ensures that sync user attributes are available.
      *
      * This method calls \c completion function when it finishes, with the
@@ -1029,7 +1050,19 @@ public:
     // if logged into writable folder
     bool loggedIntoWritableFolder() const;
 
+    // start receiving external drive [dis]connect notifications
+    bool startDriveMonitor();
+
+    // stop receiving external drive [dis]connect notifications
+    void stopDriveMonitor();
+
+    // returns true if drive monitor is started
+    bool driveMonitorEnabled();
+
 private:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    DriveInfoCollector mDriveInfoCollector;
+#endif
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
@@ -1461,6 +1494,8 @@ public:
     void deltree(handle);
 
     Node* nodeByHandle(NodeHandle) const;
+    Node* nodeByPath(const char* path, Node* node = nullptr);
+
     Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
@@ -1703,6 +1738,7 @@ public:
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
     static const int BACKUPHANDLE = 8;
+    static const int DRIVEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
 
@@ -1947,8 +1983,21 @@ public:
 
     std::string getDeviceidHash() const;
 
+    // generate a new drive id
+    handle generateDriveId();
+
+    // return API_OK if success and set driveId handle to the drive id read from the drive,
+    // otherwise return error code and set driveId to UNDEF
+    error readDriveId(const char *pathToDrive, handle &driveId) const;
+
+    // return API_OK if success, otherwise error code
+    error writeDriveId(const char *pathToDrive, handle driveId);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
+
+    void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
+    unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
 };
 } // namespace
 

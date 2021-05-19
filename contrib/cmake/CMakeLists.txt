@@ -23,7 +23,7 @@ project(MegaSDK)
 
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
-if(CMAKE_HOST_APPLE)
+if (CMAKE_HOST_APPLE)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
     set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
@@ -45,6 +45,7 @@ set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
 set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
 set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
+set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
@@ -553,6 +554,12 @@ if(WIN32)
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
+    IF(HAVE_FFMPEG)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Mfplat.lib mfuuid.LIB strmiids.LIB)
+    ENDIF(HAVE_FFMPEG)
+    IF(USE_DRIVE_NOTIFICATIONS)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} wbemuuid)
+    ENDIF(USE_DRIVE_NOTIFICATIONS)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp
     ${MegaDir}/src/win32/consolewaiter.cpp
@@ -561,6 +568,9 @@ if(WIN32)
     ${MegaDir}/src/win32/waiter.cpp
     $<${USE_CPPTHREAD}:${MegaDir}/src/thread/cppthread.cpp>
     )
+    IF(USE_DRIVE_NOTIFICATIONS)
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/win32/drivenotifywin.h ${MegaDir}/src/win32/drivenotifywin.cpp)
+    ENDIF(USE_DRIVE_NOTIFICATIONS)
 
 ELSE(WIN32)
 
@@ -574,9 +584,27 @@ ELSE(WIN32)
     endif()
 
     SET(Mega_PlatformSpecificFiles $<$<NOT:${GLOB_H_FOUND}>:${MegaDir}/src/mega_glob.c> ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp $<${USE_CPPTHREAD}:${MegaDir}/src/thread/cppthread.cpp> )
+
     IF(APPLE)
-        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm )
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm)
     ENDIF()
+
+    IF(USE_DRIVE_NOTIFICATIONS)
+        IF(APPLE)
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} 
+                ${MegaDir}/include/mega/osx/drivenotifyosx.h
+                ${MegaDir}/src/osx/drivenotifyosx.cpp
+            )
+            SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                "-framework DiskArbitration"
+                "-framework CoreFoundation"
+            )
+        ENDIF()
+
+        IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/posix/drivenotifyposix.h ${MegaDir}/src/posix/drivenotifyposix.cpp)
+        ENDIF()
+    ENDIF(USE_DRIVE_NOTIFICATIONS)
 
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
 
@@ -586,6 +614,11 @@ ELSE(WIN32)
     ELSE()
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
     ENDIF()
+    IF(USE_DRIVE_NOTIFICATIONS)
+        IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+            SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} udev)
+        ENDIF()
+    ENDIF(USE_DRIVE_NOTIFICATIONS)
 
     IF(USE_WEBRTC)
         add_definitions( -DWEBRTC_POSIX )
@@ -692,6 +725,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/node.h
             ${MegaDir}/include/mega/mediafileattribute.h
             ${MegaDir}/include/mega/mega_glob.h
+            ${MegaDir}/include/mega/drivenotify.h
             ${MegaDir}/include/mega.h
             ${MegaDir}/src/attrmap.cpp
             ${MegaDir}/src/autocomplete.cpp
@@ -742,6 +776,7 @@ add_library(Mega STATIC
             $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
             $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
             $<${USE_ROTATIVEPERFORMANCELOGGER}:${MegaDir}/src/rotativeperformancelogger.cpp >
+            $<${USE_DRIVE_NOTIFICATIONS}:${MegaDir}/src/drivenotify.cpp>
             )
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
@@ -797,7 +832,8 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_CPPTHREAD}:USE_CPPTHREAD>
                 $<${USE_QT}:USE_QT>
                 $<${USE_PCRE}:USE_PCRE>
-                $<${USE_PDFIUM}:HAVE_PDFIUM>)
+                $<${USE_PDFIUM}:HAVE_PDFIUM>
+                $<${USE_DRIVE_NOTIFICATIONS}:USE_DRIVE_NOTIFICATIONS>)
 
 if (WIN32)
     target_link_libraries(Mega PUBLIC crypt32.lib)

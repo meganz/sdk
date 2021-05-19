@@ -1347,7 +1347,7 @@ bool CommandPutNodes::procresult(Result r)
             {
                 if (source == PUTNODES_SYNC)
                 {
-                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
+                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, false);
                 }
             }
 #endif
@@ -1890,7 +1890,7 @@ bool CommandLogin::procresult(Result r)
                             client->app->login_result(API_EINTERNAL);
                             return true;
                         }
-                        else if (client->loggedin() == CONFIRMEDACCOUNT)
+                        else if (!client->ephemeralSessionPlusPlus)
                         {
                             // logging in with tsid to an account without a RSA keypair
                             LOG_info << "Generating and adding missing RSA keypair";
@@ -8419,6 +8419,11 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
     if (!fields.deviceId.empty())
     {
         arg("d", fields.deviceId.c_str());
+    }
+
+    if (!ISUNDEF(fields.driveId))
+    {
+        arg("dr",  (byte*)&fields.driveId, MegaClient::DRIVEHANDLE);
     }
 
     if (fields.state >= 0)
