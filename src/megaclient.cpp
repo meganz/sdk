@@ -13654,7 +13654,7 @@ void MegaClient::ensureSyncUserAttributesCompleted(Error e)
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
 {
     string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
+    BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config, this));
 
     reqs.add( new CommandBackupPut(this, info,
                                   [this, config, completion](Error e, handle backupId) {
@@ -13712,6 +13712,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     }
 
     // Are we adding an external backup?
+    handle driveId = UNDEF;
     if (config.isExternal())
     {
         auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
@@ -13757,11 +13758,19 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
 
         config.mExternalDrivePath = std::move(drivePath);
         config.mLocalPath = std::move(sourcePath);
+
+        const string& p = config.mExternalDrivePath.toPath();
+        e = readDriveId(p.c_str(), driveId);
+        if (e != API_OK)
+        {
+            completion(nullptr, NO_SYNC_ERROR, e);
+            return e;
+        }
     }
 
     // Add the sync.
     string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
+    BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, this));
 
     reqs.add( new CommandBackupPut(this, info,
                                    [this, config, completion, notifyApp](Error e, handle backupId) mutable {

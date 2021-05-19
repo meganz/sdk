@@ -62,6 +62,7 @@ public:
         NodeHandle remoteNode,
         const string& remotePath,
         const fsfp_t localFingerprint,
+        const LocalPath& externalDrivePath,
         const bool enabled = true,
         const Type syncType = TYPE_TWOWAY,
         const SyncError error = NO_SYNC_ERROR,

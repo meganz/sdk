@@ -497,22 +497,23 @@ SyncConfig::SyncConfig(LocalPath localPath,
                        NodeHandle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
+                       const LocalPath& externalDrivePath,
                        const bool enabled,
                        const SyncConfig::Type syncType,
                        const SyncError error,
                        const SyncWarning warning,
                        mega::handle hearBeatID)
-    : mEnabled{enabled}
-    , mLocalPath{std::move(localPath)}
-    , mName{std::move(name)}
-    , mRemoteNode{remoteNode}
-    , mOriginalPathOfRemoteRootNode{remotePath}
-    , mLocalFingerprint{localFingerprint}
-    , mSyncType{syncType}
-    , mError{error}
-    , mWarning{warning}
+    : mEnabled(enabled)
+    , mLocalPath(std::move(localPath))
+    , mName(std::move(name))
+    , mRemoteNode(remoteNode)
+    , mOriginalPathOfRemoteRootNode(remotePath)
+    , mLocalFingerprint(localFingerprint)
+    , mSyncType(syncType)
+    , mError(error)
+    , mWarning(warning)
     , mBackupId(hearBeatID)
-    , mExternalDrivePath()
+    , mExternalDrivePath(externalDrivePath)
     , mBackupState(SYNC_BACKUP_NONE)
 {}
 
@@ -2769,7 +2770,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
             // Backup Info.
             auto state = BackupInfoSync::getSyncState(config, &client);
-            auto info  = BackupInfoSync(config, deviceHash, state);
+            auto info  = BackupInfoSync(config, deviceHash, UNDEF, state);
 
             LOG_debug << "Generating backup ID for config "
                       << context->signature()
