@@ -316,7 +316,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     ~Node();
 
     // Retrieve the node's name.
-    string name() const;
+    //string name() const;
 
 #ifdef ENABLE_SYNC
 
