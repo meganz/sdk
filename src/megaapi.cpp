@@ -3750,6 +3750,16 @@ MegaShareList *MegaApi::getPendingOutShares(MegaNode *node)
     return pImpl->getPendingOutShares(node);
 }
 
+bool MegaApi::isPrivateNode(MegaHandle handle)
+{
+    return pImpl->isPrivateNode(handle);
+}
+
+bool MegaApi::isForeignNode(MegaHandle handle)
+{
+    return pImpl->isForeignNode(handle);
+}
+
 MegaNodeList *MegaApi::getPublicLinks(int order)
 {
     return pImpl->getPublicLinks(order);

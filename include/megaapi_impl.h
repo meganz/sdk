@@ -2498,6 +2498,8 @@ class MegaApiImpl : public MegaApp
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);
+        bool isPrivateNode(MegaHandle h);
+        bool isForeignNode(MegaHandle h);
         MegaNodeList *getPublicLinks(int order);
         MegaContactRequestList *getIncomingContactRequests();
         MegaContactRequestList *getOutgoingContactRequests();
