@@ -70,7 +70,7 @@ using namespace mega;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 - (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
 
-@property (nonatomic, nonnull) MegaApi *megaApi;
+@property (nonatomic, nullable) MegaApi *megaApi;
 
 @end
 
