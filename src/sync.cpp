@@ -4582,6 +4582,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
                         row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid);
                         row.syncNode->setSyncedNodeHandle(row.cloudNode->nodeHandle());
 
+                        row.syncNode->treestate(TREESTATE_SYNCED);
+
                         statecacheadd(row.syncNode);
                         ProgressingMonitor monitor(client); // not stalling
                     }
@@ -4710,14 +4712,22 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
     }
 
     row.syncNode->init(this, row.fsNode->type, parentRow.syncNode, fullPath, row.fsNode->cloneShortname());
-    if (considerSynced) row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid);
+	
+    if (considerSynced)
+    {
+        row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid);
+        row.syncNode->treestate(TREESTATE_SYNCED);
+    }
+    else
+    {
+        row.syncNode->treestate(TREESTATE_PENDING);
+    }
 
     if (row.syncNode->type != FILENODE)
     {
         row.syncNode->setScanAgain(false, true, true, 0);
     }
 
-    row.syncNode->treestate(TREESTATE_PENDING);
     statecacheadd(row.syncNode);
 
     //row.syncNode->setSyncAgain(true, false, false);
@@ -4739,8 +4749,15 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Loca
         row.syncNode->syncedFingerprint = row.cloudNode->fingerprint();
     }
     row.syncNode->init(this, row.cloudNode->type, parentRow.syncNode, fullPath, nullptr);
-    if (considerSynced) row.syncNode->setSyncedNodeHandle(row.cloudNode->nodeHandle());
-    row.syncNode->treestate(TREESTATE_PENDING);
+    if (considerSynced)
+    {
+        row.syncNode->setSyncedNodeHandle(row.cloudNode->nodeHandle());
+        row.syncNode->treestate(TREESTATE_SYNCED);
+    }
+    else
+    {
+        row.syncNode->treestate(TREESTATE_PENDING);
+    }
     if (row.syncNode->type != FILENODE)
     {
         row.syncNode->setSyncAgain(false, true, true);
