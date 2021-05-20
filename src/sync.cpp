@@ -5007,6 +5007,10 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
                         row.fsSiblings->emplace_back(std::move(*fsnode));
                         row.fsNode = &row.fsSiblings->back();
                     }
+                    else
+                    {
+                        row.syncNode->setScanAgain(true, true, false, 0);
+                    }
                 }
                 else
                 {
