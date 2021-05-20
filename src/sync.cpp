@@ -4938,6 +4938,18 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
                 assert(row.syncNode);
                 assert(row.syncNode->localname == fullPath.leafName());
 
+#ifdef USE_INOTIFY
+                // Create a watch if necessary.
+                // TODO: TEMPORARY FIX FOR TESTS.
+                if (row.syncNode->dirnotifytag == UNDEF)
+                {
+                    LOG_debug << "Adding missing filesystem watch for: "
+                              << fullPath.toPath();
+
+                    dirnotify->addnotify(row.syncNode, fullPath);
+                }
+#endif // USE_INOTIFY
+
                 // Update our records of what we know is on disk for this (parent) LocalNode.
                 // This allows the next level of folders to be created too
 
