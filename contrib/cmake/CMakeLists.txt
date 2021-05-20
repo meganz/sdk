@@ -554,12 +554,12 @@ if(WIN32)
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
-    IF(USE_DRIVE_NOTIFICATIONS)
-        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} wbemuuid)
-    ENDIF(USE_DRIVE_NOTIFICATIONS)
     IF(HAVE_FFMPEG)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Mfplat.lib mfuuid.LIB strmiids.LIB)
     ENDIF(HAVE_FFMPEG)
+    IF(USE_DRIVE_NOTIFICATIONS)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} wbemuuid)
+    ENDIF(USE_DRIVE_NOTIFICATIONS)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp
     ${MegaDir}/src/win32/consolewaiter.cpp

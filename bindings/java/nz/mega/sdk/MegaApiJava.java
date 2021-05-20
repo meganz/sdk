@@ -8294,6 +8294,28 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if a node belongs to your own cloud
+     *
+     * @param handle Node to check
+     * @return True if it belongs to your own cloud
+     */
+    public boolean isPrivateNode(long handle) {
+        return megaApi.isPrivateNode(handle);
+    }
+
+    /**
+     * Check if a node does NOT belong to your own cloud
+     * 
+     * In example, nodes from incoming shared folders do not belong to your cloud.
+     *
+     * @param handle Node to check
+     * @return True if it does NOT belong to your own cloud
+     */
+    public boolean isForeignNode(long handle) {
+        return megaApi.isForeignNode(handle);
+    }
+
+    /**
      * Get a list with all public links
      *
      * You take the ownership of the returned value

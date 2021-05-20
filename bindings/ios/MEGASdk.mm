@@ -596,12 +596,12 @@ using namespace mega;
 
 - (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
     [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
-    self.megaApi->logout(false, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->logout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)logout {
     [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
-    self.megaApi->logout(false, NULL);
+    self.megaApi->logout(NULL);
 }
 
 - (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
@@ -1974,6 +1974,14 @@ using namespace mega;
 
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node {
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
+}
+
+- (BOOL)isPrivateNode:(uint64_t)handle {
+    return self.megaApi->isPrivateNode(handle);
+}
+
+- (BOOL)isForeignNode:(uint64_t)handle{
+    return self.megaApi->isForeignNode(handle);
 }
 
 - (MEGANodeList *)publicLinks:(MEGASortOrderType)order {

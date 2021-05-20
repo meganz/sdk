@@ -62,6 +62,7 @@ public:
         NodeHandle remoteNode,
         const string& remotePath,
         const fsfp_t localFingerprint,
+        const LocalPath& externalDrivePath,
         const bool enabled = true,
         const Type syncType = TYPE_TWOWAY,
         const SyncError error = NO_SYNC_ERROR,
@@ -131,7 +132,7 @@ public:
     NodeHandle mRemoteNode;
 
     // the path to the remote node, as last known (not definitive)
-    string mOrigninalPathOfRemoteRootNode;
+    string mOriginalPathOfRemoteRootNode;
 
     // the local fingerprint
     fsfp_t mLocalFingerprint;
@@ -160,6 +161,7 @@ public:
     // enum to string conversion
     static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
+    static bool synctypefromname(const string& name, Type& type);
 
 private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
@@ -566,8 +568,8 @@ struct Syncs
     void resetSyncConfigStore();
     void clear();
 
-    SyncConfigVector configsForDrive(const LocalPath& drive);
-    SyncConfigVector allConfigs();
+    SyncConfigVector configsForDrive(const LocalPath& drive) const;
+    SyncConfigVector allConfigs() const;
 
     // updates in state & error
     void saveSyncConfig(const SyncConfig& config);
@@ -645,7 +647,17 @@ struct Syncs
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
 
+    string exportSyncConfigs(const SyncConfigVector configs) const;
+    string exportSyncConfigs() const;
+
+    void importSyncConfigs(const char* data, std::function<void(error)> completion);
+
 private:
+    void exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const;
+
+    bool importSyncConfig(JSON& reader, SyncConfig& config);
+    bool importSyncConfigs(const char* data, SyncConfigVector& configs);
+
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();
 

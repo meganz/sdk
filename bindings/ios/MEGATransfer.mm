@@ -146,6 +146,10 @@ using namespace mega;
     return self.megaTransfer ? (BOOL) self.megaTransfer->isStreamingTransfer() : NO;
 }
 
+- (BOOL)isForeignOverquota {
+    return self.megaTransfer ? self.megaTransfer->isForeignOverquota() : NO;
+}
+
 - (MEGAError *)lastErrorExtended {
     mega::MegaError *e = (mega::MegaError *)self.megaTransfer->getLastErrorExtended();
     return e ? [[MEGAError alloc] initWithMegaError:e cMemoryOwn:NO] : nil;
