@@ -2265,21 +2265,19 @@ struct StandardClient : public MegaApp
         resultproc.processresult(UNLINK, e, h);
     }
 
-    vector<NewNode> lastPutnodesResult;
     handle lastPutnodesResultFirstHandle = UNDEF;
 
     void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride) override
     {
-        lastPutnodesResult = move(nn);
-
-        if (!lastPutnodesResult.empty() && lastPutnodesResult[0].mError == API_OK)
+        if (!nn.empty() && nn[0].mError == API_OK)
         {
-            lastPutnodesResultFirstHandle = lastPutnodesResult[0].mAddedHandle;
+            lastPutnodesResultFirstHandle = nn[0].mAddedHandle;
         }
         else
         {
             lastPutnodesResultFirstHandle = UNDEF;
         }
+
         resultproc.processresult(PUTNODES, e, client.restag);
     }
 
