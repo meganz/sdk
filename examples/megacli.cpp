@@ -76,7 +76,6 @@ std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
 bool gVerboseMode = false;
 
-
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
@@ -101,11 +100,6 @@ static byte masterkey[SymmCipher::KEYLENGTH];
 // change email link to be confirmed
 static string changeemail, changecode;
 
-// chained folder link creation
-static handle hlink = UNDEF;
-static int del = 0;
-static int ets = 0;
-
 // import welcome pdf at account creation
 static bool pdf_to_import = false;
 
@@ -120,6 +114,10 @@ int responseprogress = -1;
 
 //2FA pin attempts
 int attempts = 0;
+
+//Ephemeral account plus plus
+std::string ephemeralFirstname;
+std::string ephemeralLastName;
 
 #ifdef ENABLE_SYNC
 
@@ -140,72 +138,6 @@ std::string syncConfigToString(const SyncConfig& config)
         description.append(" DOWN");
     }
     return description;
-}
-
-// creates a NewSyncConfig object from config options as strings.
-// returns a pair where `first` is success and `second` is the sync config.
-std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
-{
-    auto toLower = [](std::string& s)
-    {
-        for (char& c : s) { c = static_cast<char>(tolower(c)); };
-    };
-
-    toLower(type);
-    toLower(syncDel);
-    toLower(overwrite);
-
-    SyncConfig::Type syncType;
-    if (type == "up")
-    {
-        syncType = SyncConfig::TYPE_UP;
-    }
-    else if (type == "down")
-    {
-        syncType = SyncConfig::TYPE_DOWN;
-    }
-    else if (type == "twoway")
-    {
-        syncType = SyncConfig::TYPE_TWOWAY;
-    }
-    else
-    {
-        return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
-    }
-
-    bool syncDeletions = false;
-    bool forceOverwrite = false;
-
-    if (syncType != SyncConfig::TYPE_TWOWAY)
-    {
-        if (syncDel == "on")
-        {
-            syncDeletions = true;
-        }
-        else if (syncDel == "off")
-        {
-            syncDeletions = false;
-        }
-        else
-        {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
-        }
-
-        if (overwrite == "on")
-        {
-            forceOverwrite = true;
-        }
-        else if (overwrite == "off")
-        {
-            forceOverwrite = false;
-        }
-        else
-        {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
-        }
-    }
-
-    return std::make_pair(true, SyncConfig(LocalPath(), "", NodeHandle(), "", 0, {}, true, syncType));
 }
 
 #endif
@@ -630,12 +562,12 @@ bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
 }
 #endif
 
-AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
+AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint, const string& targetfolder)
 {
     if (n)
     {
-        h = n->nodehandle;
+        h = n->nodeHandle();
         hprivate = true;
 
         *(FileFingerprint*) this = *n;
@@ -666,7 +598,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
     }
 }
 
-AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctargetuser)
+AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)
 {
     // full local path
     localname = clocalname;
@@ -1149,6 +1081,12 @@ void DemoApp::fetchnodes_result(const Error& e)
         {
             client->getwelcomepdf();
         }
+
+        if (client->ephemeralSessionPlusPlus)
+        {
+            client->putua(ATTR_FIRSTNAME, (const byte*)ephemeralFirstname.c_str(), unsigned(ephemeralFirstname.size()));
+            client->putua(ATTR_LASTNAME, (const byte*)ephemeralLastName.c_str(), unsigned(ephemeralLastName.size()));
+        }
     }
 }
 
@@ -1196,51 +1134,6 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
             i->second(n);
             gOnPutNodeTag.erase(i);
         }
-    }
-}
-
-void DemoApp::share_result(error e, bool writable)
-{
-    if (e)
-    {
-        cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        if (hlink != UNDEF)
-        {
-            if (!del)
-            {
-                Node *n = client->nodebyhandle(hlink);
-                if (!n)
-                {
-                    cout << "Node was not found. (" << Base64Str<sizeof hlink>(hlink) << ")" << endl;
-
-                    hlink = UNDEF;
-                    del = ets = 0;
-                    return;
-                }
-
-                client->getpubliclink(n, del, ets, writable);
-            }
-            else
-            {
-                hlink = UNDEF;
-                del = ets = 0;
-            }
-        }
-    }
-}
-
-void DemoApp::share_result(int, error e, bool writable)
-{
-    if (e)
-    {
-        cout << "Share creation/modification failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        cout << "Share creation/modification succeeded" << endl;
     }
 }
 
@@ -1484,7 +1377,7 @@ static char* line;
 static AccountDetails account;
 
 // Current remote directory.
-static handle cwd = UNDEF;
+static NodeHandle cwd;
 
 // Where we were on the local filesystem when megacli started.
 static LocalPath startDir;
@@ -1747,7 +1640,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
         }
         else
         {
-            n = client->nodebyhandle(cwd);
+            n = client->nodeByHandle(cwd);
         }
     }
 
@@ -1997,9 +1890,9 @@ static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 }
 #endif
 
-static void nodepath(handle h, string* path)
+static void nodepath(NodeHandle h, string* path)
 {
-    Node* n = client->nodebyhandle(h);
+    Node* n = client->nodeByHandle(h);
     *path = n ? n->displaypath() : "";
 }
 
@@ -2454,7 +2347,7 @@ void exec_find(autocomplete::ACState& s)
 {
     if (s.words[1].s == "raided")
     {
-        if (Node* n = client->nodebyhandle(cwd))
+        if (Node* n = client->nodeByHandle(cwd))
         {
             auto q = std::make_shared<FileFindCommand::Stack>();
             getDepthFirstFileHandles(n, *q);
@@ -2515,7 +2408,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 void exec_findemptysubfoldertrees(autocomplete::ACState& s)
 {
     bool moveToTrash = s.extractflag("-movetotrash");
-    if (Node* n = client->nodebyhandle(cwd))
+    if (Node* n = client->nodeByHandle(cwd))
     {
         if (recurse_findemptysubfoldertrees(n, moveToTrash))
         {
@@ -2609,7 +2502,7 @@ Node* nodeFromRemotePath(const string& s)
     Node* n;
     if (s.empty())
     {
-        n = client->nodebyhandle(cwd);
+        n = client->nodeByHandle(cwd);
     }
     else
     {
@@ -2684,7 +2577,7 @@ void exec_treecompare(autocomplete::ACState& s)
 }
 
 
-bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, int filesize, int& totalfilecount, int& totalfoldercount)
+bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, uint64_t filesize, int& totalfilecount, int& totalfoldercount)
 {
     fs::path p = targetfolder / fs::u8path(prefix);
     if (!fs::is_directory(p) && !fs::create_directory(p))
@@ -2696,8 +2589,10 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersp
         string filename = prefix + "_file_" + std::to_string(++totalfilecount);
         fs::path fp = p / fs::u8path(filename);
         ofstream fs(fp.u8string(), std::ios::binary);
+        char buffer[64 * 1024];
+        fs.rdbuf()->pubsetbuf(buffer, sizeof(buffer));
 
-        for (unsigned j = filesize / sizeof(int); j--; )
+        for (auto j = filesize / sizeof(int); j--; )
         {
             fs.write((char*)&totalfilecount, sizeof(int));
         }
@@ -2718,11 +2613,12 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersp
 void exec_generatetestfilesfolders(autocomplete::ACState& s)
 {
     string param, nameprefix = "test";
-    int folderdepth = 1, folderwidth = 1, filecount = 100, filesize = 1024;
+    int folderdepth = 1, folderwidth = 1, filecount = 100;
+    int64_t filesize = 1024;
     if (s.extractflagparam("-folderdepth", param)) folderdepth = atoi(param.c_str());
     if (s.extractflagparam("-folderwidth", param)) folderwidth = atoi(param.c_str());
     if (s.extractflagparam("-filecount", param)) filecount = atoi(param.c_str());
-    if (s.extractflagparam("-filesize", param)) filesize = atoi(param.c_str());
+    if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
     if (s.extractflagparam("-nameprefix", param)) nameprefix = param;
 
     fs::path p = pathFromLocalPath(s.words[1].s, true);
@@ -2991,7 +2887,7 @@ void exec_timelocal(autocomplete::ACState& s)
 
 void exec_backupcentre(autocomplete::ACState& s)
 {
-    bool del = s.extractflag("-del");
+    bool delFlag = s.extractflag("-del");
 
     if (s.words.size() == 1)
     {
@@ -3025,7 +2921,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
         }));
     }
-    else if (s.words.size() == 2 && del)
+    else if (s.words.size() == 2 && delFlag)
     {
         handle backupId;
         Base64::atob(s.words[1].s.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
@@ -3046,8 +2942,12 @@ autocomplete::ACN autocompleteSyntax()
                                                       sequence(exportedLink(false, true), opt(param("auth_key"))),
                                                       param("session"),
                                                       sequence(text("autoresume"), opt(param("id"))))));
-    p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
+    p->Add(exec_begin, sequence(text("begin"), opt(flag("-e++")),
+                                opt(either(sequence(param("firstname"), param("lastname")),     // to create an ephemeral++
+                                        param("ephemeralhandle#ephemeralpw"),               // to resume an ephemeral
+                                        param("session")))));                                 // to resume an ephemeral++
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
+
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -3090,11 +2990,25 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
+    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
+
     p->Add(exec_syncadd,
            sequence(text("sync"),
                     text("add"),
+                    opt(flag("-backup")),
+                    opt(sequence(flag("-external"), param("drivePath"))),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
+
+    p->Add(exec_syncclosedrive,
+           sequence(text("sync"),
+                    text("closedrive"),
+                    localFSFolder("drive")));
+
+    p->Add(exec_syncopendrive,
+           sequence(text("sync"),
+                    text("opendrive"),
+                    localFSFolder("drive")));
 
     p->Add(exec_synclist,
            sequence(text("sync"), text("list")));
@@ -3111,9 +3025,6 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(param("error"))),
                            sequence(text("enable"),
                                     param("id")))));
-
-    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
-
 #endif
 
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
@@ -3182,7 +3093,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_chatlu, sequence(text("chatlu"), param("publichandle")));
     p->Add(exec_chatlj, sequence(text("chatlj"), param("publichandle"), param("unifiedkey")));
 #endif
-    p->Add(exec_enabletransferresumption, sequence(text("enabletransferresumption"), opt(either(text("on"), text("off")))));
     p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
@@ -3228,6 +3138,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
+    p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -3239,7 +3151,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
     {
         if (!folders)
         {
-            auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, localpath.u8string());
+            auto f = new AppFileGet(n, NodeHandle(), NULL, -1, 0, NULL, NULL, localpath.u8string());
             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
             DBTableTransactionCommitter committer(client->tctable);
             client->startxfer(GET, f, committer);
@@ -3553,7 +3465,7 @@ void exec_ls(autocomplete::ACState& s)
     }
     else
     {
-        n = client->nodebyhandle(cwd);
+        n = client->nodeByHandle(cwd);
     }
 
     if (n)
@@ -3574,7 +3486,7 @@ void exec_cd(autocomplete::ACState& s)
             }
             else
             {
-                cwd = n->nodehandle;
+                cwd = n->nodeHandle();
             }
         }
         else
@@ -3584,7 +3496,7 @@ void exec_cd(autocomplete::ACState& s)
     }
     else
     {
-        cwd = client->rootnodes[0];
+        cwd = NodeHandle().set6byte(client->rootnodes[0]);
     }
 }
 
@@ -3943,7 +3855,7 @@ void exec_du(autocomplete::ACState& s)
     }
     else
     {
-        n = client->nodebyhandle(cwd);
+        n = client->nodeByHandle(cwd);
     }
 
     if (n)
@@ -4159,7 +4071,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
             }
             fa.reset();
 
-            AppFile* f = new AppFilePut(localname, parent ? parent->nodehandle : UNDEF, targetuser.c_str());
+            AppFile* f = new AppFilePut(localname, parent ? parent->nodeHandle() : NodeHandle(), targetuser.c_str());
             *static_cast<FileFingerprint*>(f) = fp;
             f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
             client->startxfer(PUT, f, committer);
@@ -4241,7 +4153,7 @@ void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
 
 void exec_put(autocomplete::ACState& s)
 {
-    handle target = cwd;
+    NodeHandle target = cwd;
     string targetuser;
     string newname;
     int total = 0;
@@ -4253,12 +4165,12 @@ void exec_put(autocomplete::ACState& s)
     {
         if ((n = nodebypath(s.words[2].s.c_str(), &targetuser, &newname)))
         {
-            target = n->nodehandle;
+            target = n->nodeHandle();
         }
     }
     else    // target is current path
     {
-        n = client->nodebyhandle(target);
+        n = client->nodeByHandle(target);
     }
 
     if (client->loggedin() == NOTLOGGEDIN && !targetuser.size() && !client->loggedIntoWritableFolder())
@@ -4521,7 +4433,6 @@ void exec_mfae(autocomplete::ACState& s)
 void exec_login(autocomplete::ACState& s)
 {
     //bool fresh = s.extractflag("-fresh");
-
     if (client->loggedin() == NOTLOGGEDIN)
     {
         if (s.words.size() > 1)
@@ -4581,26 +4492,43 @@ void exec_login(autocomplete::ACState& s)
 
 void exec_begin(autocomplete::ACState& s)
 {
+    bool ephemeralPlusPlus = s.extractflag("-e++");
     if (s.words.size() == 1)
     {
         cout << "Creating ephemeral session..." << endl;
         pdf_to_import = true;
         client->createephemeral();
     }
-    else if (s.words.size() == 2)
+    else if (s.words.size() == 2)   // resume session
     {
-        handle uh;
-        byte pw[SymmCipher::KEYLENGTH];
-
-        if (Base64::atob(s.words[1].s.c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
-            s.words[1].s.c_str() + 12, pw, sizeof pw) == sizeof pw)
+        if (ephemeralPlusPlus)
         {
-            client->resumeephemeral(uh, pw);
+            client->resumeephemeralPlusPlus(Base64::atob(s.words[1].s));
         }
         else
         {
-            cout << "Malformed ephemeral session identifier." << endl;
+            handle uh;
+            byte pw[SymmCipher::KEYLENGTH];
+
+            if (Base64::atob(s.words[1].s.c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
+                s.words[1].s.c_str() + 12, pw, sizeof pw) == sizeof pw)
+            {
+                client->resumeephemeral(uh, pw);
+            }
+            else
+            {
+                cout << "Malformed ephemeral session identifier." << endl;
+            }
         }
+    }
+    else if (ephemeralPlusPlus && s.words.size() == 3)  // begin -e++ firstname lastname
+    {
+        cout << "Creating ephemeral session plus plus..." << endl;
+
+        pdf_to_import = true;
+        ephemeralFirstname = s.words[1].s;
+        ephemeralLastName = s.words[2].s;
+        client->createephemeralPlusPlus();
     }
 }
 
@@ -4611,6 +4539,8 @@ void exec_mount(autocomplete::ACState& s)
 
 void exec_share(autocomplete::ACState& s)
 {
+    bool writable = false;
+
     switch (s.words.size())
     {
     case 1:		// list all shares (incoming and outgoing)
@@ -4693,7 +4623,16 @@ void exec_share(autocomplete::ACState& s)
                     }
                 }
 
-                client->setshare(n, s.words[2].s.c_str(), a, personal_representation);
+                client->setshare(n, s.words[2].s.c_str(), a, writable, personal_representation, gNextClientTag++, [](Error e, bool){
+                    if (e)
+                    {
+                        cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+                    }
+                    else
+                    {
+                        cout << "Share creation/modification succeeded." << endl;
+                    }
+                });
             }
         }
         else
@@ -4780,7 +4719,7 @@ void exec_mkdir(autocomplete::ACState& s)
         Node* n;
         if (exactLeafName)
         {
-            n = client->nodebyhandle(cwd);
+            n = client->nodeByHandle(cwd);
             newname = s.words[1].s;
         }
         else
@@ -4832,7 +4771,7 @@ void exec_getfa(autocomplete::ACState& s)
 
     if (s.words.size() < 3)
     {
-        n = client->nodebyhandle(cwd);
+        n = client->nodeByHandle(cwd);
     }
     else if (!(n = nodebypath(s.words[2].s.c_str())))
     {
@@ -5669,6 +5608,7 @@ void exec_signup(autocomplete::ACState& s)
             break;
 
         case EPHEMERALACCOUNT:
+        case EPHEMERALACCOUNTPLUSPLUS:
             if (s.words[1].s.find('@') + 1 && s.words[1].s.find('.') + 1)
             {
                 signupemail = s.words[1].s;
@@ -5792,8 +5732,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
 
 void exec_export(autocomplete::ACState& s)
 {
-    hlink = UNDEF;
-    del = ets = 0;
+    void exportnode_result(Error e, handle h, handle ph);
 
     Node* n;
     int deltmp = 0;
@@ -5817,15 +5756,11 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable)))
+        if ((e = client->exportnode(n, deltmp, etstmp, writable, gNextClientTag++, [](Error e, handle h, handle ph){
+            exportnode_result(e, h, ph);
+        })))
         {
             cout << s.words[1].s << ": Export rejected (" << errorstring(e) << ")" << endl;
-        }
-        else
-        {
-            hlink = n->nodehandle;
-            ets = etstmp;
-            del = deltmp;
         }
     }
     else
@@ -5877,7 +5812,7 @@ void exec_reload(autocomplete::ACState& s)
         nocache = true;
     }
 
-    cwd = UNDEF;
+    cwd = NodeHandle();
     client->cachedscsn = UNDEF;
     client->fetchnodes(nocache);
 }
@@ -5888,7 +5823,7 @@ void exec_logout(autocomplete::ACState& s)
 
     bool keepSyncConfigs = s.extractflag("-keepsyncconfigs");
 
-    cwd = UNDEF;
+    cwd = NodeHandle();
     client->logout(keepSyncConfigs);
 
     if (clientFolder)
@@ -5897,6 +5832,9 @@ void exec_logout(autocomplete::ACState& s)
         delete clientFolder;
         clientFolder = NULL;
     }
+
+    ephemeralFirstname.clear();
+    ephemeralLastName.clear();
 }
 
 #ifdef ENABLE_CHAT
@@ -6322,6 +6260,10 @@ void exec_version(autocomplete::ACState& s)
     cout << "* FreeImage" << endl;
 #endif
 
+#ifdef HAVE_PDFIUM
+    cout << "* PDFium" << endl;
+#endif
+
 #ifdef ENABLE_SYNC
     cout << "* sync subsystem" << endl;
 #endif
@@ -6330,7 +6272,7 @@ void exec_version(autocomplete::ACState& s)
     cout << "* MediaInfo" << endl;
 #endif
 
-    cwd = UNDEF;
+    cwd = NodeHandle();
 }
 
 void exec_showpcr(autocomplete::ACState& s)
@@ -6403,7 +6345,6 @@ void exec_handles(autocomplete::ACState& s)
         cout << "      handles on|off " << endl;
     }
 }
-
 
 #if defined(WIN32) && defined(NO_READLINE)
 void exec_codepage(autocomplete::ACState& s)
@@ -6584,8 +6525,11 @@ void exec_locallogout(autocomplete::ACState& s)
 {
     cout << "Logging off locally..." << endl;
 
-    cwd = UNDEF;
+    cwd = NodeHandle();
     client->locallogout(false, true);
+
+    ephemeralFirstname.clear();
+    ephemeralLastName.clear();
 }
 
 void exec_recentnodes(autocomplete::ACState& s)
@@ -6655,19 +6599,39 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
     cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
 }
 
-void exec_enabletransferresumption(autocomplete::ACState& s)
+void exec_drivemonitor(autocomplete::ACState& s)
 {
-    if (s.words.size() > 1 && s.words[1].s == "off")
+#ifdef USE_DRIVE_NOTIFICATIONS
+
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    if (turnon)
     {
-        client->disabletransferresumption(NULL);
-        cout << "transfer resumption disabled" << endl;
+        // start receiving notifications
+        if (!client->startDriveMonitor())
+        {
+            // return immediately, when this functionality was not implemented
+            cout << "Failed starting drive notifications" << endl;
+        }
     }
-    else
+    else if (turnoff)
     {
-        client->enabletransferresumption(NULL);
-        cout << "transfer resumption enabled" << endl;
+        client->stopDriveMonitor();
     }
+
+    cout << "Drive monitor " << (client->driveMonitorEnabled() ? "on" : "off") << endl;
+#else
+    std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
+#endif // USE_DRIVE_NOTIFICATIONS
 }
+
+#ifdef USE_DRIVE_NOTIFICATIONS
+void DemoApp::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
+{
+    std::cout << "Drive " << (appeared ? "connected" : "disconnected") << ": " << driveRoot.platformEncoded() << endl;
+}
+#endif // USE_DRIVE_NOTIFICATIONS
 
 // callback for non-EAGAIN request-level errors
 // in most cases, retrying is futile, so the application exits
@@ -7072,8 +7036,17 @@ void DemoApp::confirmemaillink_result(error e)
 void DemoApp::ephemeral_result(handle uh, const byte* pw)
 {
     cout << "Ephemeral session established, session ID: ";
-    cout << Base64Str<MegaClient::USERHANDLE>(uh) << "#";
-    cout << Base64Str<SymmCipher::KEYLENGTH>(pw) << endl;
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        cout << Base64Str<MegaClient::USERHANDLE>(uh) << "#";
+        cout << Base64Str<SymmCipher::KEYLENGTH>(pw) << endl;
+    }
+    else
+    {
+        string session;
+        client->dumpsession(session);
+        cout << Base64::btoa(session) << endl;
+    }
 
     client->fetchnodes();
 }
@@ -7155,45 +7128,37 @@ void DemoApp::changepw_result(error e)
     }
 }
 
-// node export failed
-void DemoApp::exportnode_result(error e)
+
+void exportnode_result(Error e, handle h, handle ph)
 {
     if (e)
     {
         cout << "Export failed: " << errorstring(e) << endl;
+        return;
     }
 
-    del = ets = 0;
-    hlink = UNDEF;
-}
-
-void DemoApp::exportnode_result(handle h, handle ph)
-{
     Node* n;
 
     if ((n = client->nodebyhandle(h)))
     {
         string path;
-        nodepath(h, &path);
+        nodepath(NodeHandle().set6byte(h), &path);
         cout << "Exported " << path << ": ";
 
         if (n->type != FILENODE && !n->sharekey)
         {
             cout << "No key available for exported folder" << endl;
-
-            del = ets = 0;
-            hlink = UNDEF;
             return;
         }
 
         string publicLink;
         if (n->type == FILENODE)
         {
-            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
         }
         else
         {
-            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
         }
 
         cout << publicLink;
@@ -7205,7 +7170,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
             if (authKey.size())
             {
                 string authToken(publicLink);
-                authToken = authToken.substr(strlen("https://mega.nz/folder/")).append(":").append(authKey);
+                authToken = authToken.substr(MegaClient::MEGAURL.size()+strlen("/folder/")).append(":").append(authKey);
                 cout << "\n          AuthToken = " << authToken;
             }
         }
@@ -7217,9 +7182,6 @@ void DemoApp::exportnode_result(handle h, handle ph)
     {
         cout << "Exported node no longer available" << endl;
     }
-
-    del = ets = 0;
-    hlink = UNDEF;
 }
 
 // the requested link could not be opened
@@ -7283,7 +7245,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         }
         else
         {
-            n = client->nodebyhandle(cwd);
+            n = client->nodeByHandle(cwd);
         }
 
         if (!n)
@@ -7464,7 +7426,7 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
         cout << "Initiating download..." << endl;
 
         DBTableTransactionCommitter committer(client->tctable);
-        AppFileGet* f = new AppFileGet(NULL, h, filekey, size, tm, filename, fingerprint);
+        AppFileGet* f = new AppFileGet(NULL, NodeHandle().set6byte(h), filekey, size, tm, filename, fingerprint);
         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
         client->startxfer(GET, f, committer);
     }
@@ -7574,9 +7536,9 @@ void DemoApp::nodes_updated(Node** n, int count)
     nodestats(c[1], "added or updated");
     nodestats(c[0], "removed");
 
-    if (ISUNDEF(cwd))
+    if (cwd.isUndef())
     {
-        cwd = client->rootnodes[0];
+        cwd = NodeHandle().set6byte(client->rootnodes[0]);
     }
 }
 
@@ -7588,7 +7550,7 @@ void DemoApp::nodes_current()
 
 void DemoApp::account_updated()
 {
-    if (client->loggedin() == EPHEMERALACCOUNT)
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
         LOG_debug << "Account has been confirmed by another client. Proceed to login with credentials.";
     }
@@ -7600,7 +7562,7 @@ void DemoApp::account_updated()
 
 void DemoApp::notify_confirmation(const char *email)
 {
-    if (client->loggedin() == EPHEMERALACCOUNT)
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
         LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
     }
@@ -8434,6 +8396,28 @@ void exec_banner(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
+void sync_completion(UnifiedSync* us, const SyncError&, error result)
+{
+    if (!us)
+    {
+        cerr << "Sync could not be added: "
+             << errorstring(result)
+             << endl;
+    }
+    else if (us->mSync)
+    {
+        cerr << "Sync added and running: "
+             << toHandle(us->mConfig.mBackupId)
+             << endl;
+    }
+    else
+    {
+        cerr << "Sync added but could not be started: "
+             << errorstring(result)
+             << endl;
+    }
+}
+
 void exec_syncadd(autocomplete::ACState& s)
 {
     if (client->loggedin() != FULLACCOUNT)
@@ -8443,8 +8427,13 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
+    string drive;
+    bool backup = s.extractflag("-backup");
+    bool external = s.extractflagparam("-external", drive);
+
     // sync add source target
-    string sourcePath = s.words[2].s;
+    LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
+    LocalPath sourcePath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
     string targetPath = s.words[3].s;
 
     // Does the target node exist?
@@ -8458,32 +8447,82 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
+    // Necessary so that we can reliably extract the leaf name.
+    sourcePath = NormalizeAbsolute(sourcePath);
+
     // Create a suitable sync config.
-    SyncConfig config(LocalPath::fromPath(sourcePath, *client->fsaccess),
-                 sourcePath,
+    auto config =
+      SyncConfig(sourcePath,
+                 sourcePath.leafName().toPath(*client->fsaccess),
                  NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
-                 string_vector(),
                  true,
-                 SyncConfig::TYPE_TWOWAY);
+                 backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
-    // Try and add the new sync.   All validation is performed in this function
-    client->addsync(config, true,
-                    [&](mega::UnifiedSync *, const SyncError &, error e) {
-        if (!e)
+    if (external)
+    {
+        if (!backup)
         {
-            cout << "Sync added" << endl;
+            cerr << "Sorry, external syncs must be backups for now" << endl;
         }
-        else
-        {
-            cerr << "Sync could not be added: "
-                 << errorstring(e)
-                 << endl;
-        }
-    });
+
+        config.mExternalDrivePath = std::move(drivePath);
+    }
+
+    // Try and add the new sync.
+	// All validation is performed in this function.
+    client->addsync(config, false, sync_completion);
 }
 
+void exec_syncclosedrive(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate backup syncs."
+             << endl;
+        return;
+    }
+
+    // sync backup remove drive
+    const auto drivePath =
+      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+
+    const auto result = client->syncs.backupCloseDrive(drivePath);
+
+    if (result)
+    {
+        cerr << "Unable to remove backup database: "
+             << errorstring(result)
+             << endl;
+    }
+}
+
+void exec_syncopendrive(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to restore backup syncs."
+             << endl;
+        return;
+    }
+
+    // sync backup restore drive
+    const auto drivePath =
+      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+
+    auto result = client->syncs.backupOpenDrive(drivePath);
+
+    if (result)
+    {
+        cerr << "Unable to restore backups from '"
+             << s.words[2].s
+             << "': "
+             << errorstring(result)
+             << endl;
+    }
+}
 
 void exec_synclist(autocomplete::ACState& s)
 {
@@ -8494,6 +8533,12 @@ void exec_synclist(autocomplete::ACState& s)
              << endl;
         return;
     }
+
+    if (client->syncs.numSyncs() == 0)
+    {
+        cout << "No syncs configured yet" << endl;
+        return;
+     }
 
     client->syncs.forEachUnifiedSync(
       [](UnifiedSync& us)
@@ -8625,18 +8670,6 @@ void exec_syncxable(autocomplete::ACState& s)
     // sync disable id [error]
     // sync fail id [error]
 
-    // Find the specified sync.
-    auto* sync = client->syncs.runningSyncByBackupId(backupId);
-
-    // Have we found the backup sync?
-    if (!sync)
-    {
-        cerr << "No sync found with the id "
-             << Base64Str<sizeof(handle)>(backupId)
-             << endl;
-        return;
-    }
-
     int error = NO_SYNC_ERROR;
 
     // Has the user provided a specific error code?
@@ -8649,18 +8682,31 @@ void exec_syncxable(autocomplete::ACState& s)
     // Disable or fail?
     if (command == "fail")
     {
+        // Find the specified sync.
+        auto* sync = client->syncs.runningSyncByBackupId(backupId);
+
+        // Have we found the backup sync?
+        if (!sync)
+        {
+            cerr << "No sync found with the id "
+                 << Base64Str<sizeof(handle)>(backupId)
+                 << endl;
+            return;
+        }
+
         client->failSync(sync, static_cast<SyncError>(error));
         return;
     }
-
-    client->syncs.disableSelectedSyncs(
-      [&](SyncConfig&, Sync* s)
-      {
-          return s == sync;
-      },
-      static_cast<SyncError>(error),
-      false);
+    else    // command == "disable"
+    {
+        client->syncs.disableSelectedSyncs(
+          [&backupId](SyncConfig& config, Sync*)
+          {
+              return config.getBackupId() == backupId;
+          },
+          static_cast<SyncError>(error),
+          false);
+    }
 }
 
 #endif // ENABLE_SYNC
-

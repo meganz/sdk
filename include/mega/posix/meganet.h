@@ -134,7 +134,7 @@ protected:
 #endif
 #endif
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
     static void initialize_android();
 #endif
 
@@ -148,7 +148,7 @@ protected:
     static void send_request(CurlHttpContext*);
     void request_proxy_ip();
     static struct curl_slist* clone_curl_slist(struct curl_slist*);
-    static bool crackurl(string*, string*, string*, int*);
+    static bool crackurl(const string*, string*, string*, int*);
     static int debug_callback(CURL*, curl_infotype, char*, size_t, void*);
     bool ipv6available();
     void filterDNSservers();
@@ -209,6 +209,8 @@ public:
 
     // get max upload speed
     m_off_t getmaxuploadspeed() override;
+
+    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips) override;
 
     CurlHttpIO();
     ~CurlHttpIO();

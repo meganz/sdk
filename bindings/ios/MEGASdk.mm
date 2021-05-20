@@ -220,6 +220,11 @@ using namespace mega;
     return self;
 }
 
+- (void)deleteMegaApi {    
+    delete _megaApi;
+    pthread_mutex_destroy(&listenerMutex);
+}
+
 - (void)dealloc {
     delete _megaApi;
     pthread_mutex_destroy(&listenerMutex);
@@ -600,7 +605,7 @@ using namespace mega;
 }
 
 - (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)localLogout {
@@ -1057,6 +1062,14 @@ using namespace mega;
     self.megaApi->setNodeFavourite(node.getCPtr, favourite);
 }
 
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getFavourites(node.getCPtr, (int)count, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count {
+    self.megaApi->getFavourites(node.getCPtr, (int)count);
+}
+
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1228,7 +1241,7 @@ using namespace mega;
 }
 
 - (void)getUserAttributeType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getUserAttribute((int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->getUserAttribute((int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value {
@@ -1595,6 +1608,10 @@ using namespace mega;
     return [warningDateList copy];
 }
 
+- (BOOL)setRLimitFileCount:(NSInteger)fileCount {
+    return self.megaApi->platformSetRLimitNumFile((int)fileCount);
+}
+
 #pragma mark - Transfer
 
 - (MEGATransfer *)transferByTag:(NSInteger)transferTag {
@@ -1781,22 +1798,6 @@ using namespace mega;
 
 - (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause {
     self.megaApi->pauseTransferByTag((int)transferTag, pause);
-}
-
-- (void)enableTransferResumption:(NSString *)loggedOutId {
-    self.megaApi->enableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
-}
-
-- (void)enableTransferResumption {
-    self.megaApi->enableTransferResumption();
-}
-
-- (void)disableTransferResumption:(NSString *)loggedOutId {
-    self.megaApi->disableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
-}
-
-- (void)disableTransferResumption {
-    self.megaApi->disableTransferResumption();
 }
 
 - (BOOL)areTransferPausedForDirection:(NSInteger)direction {
@@ -2471,6 +2472,10 @@ using namespace mega;
 
 - (void)getMegaAchievements {
     self.megaApi->getMegaAchievements();
+}
+
+- (void)catchupWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->catchup([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)getPublicLinkInformationWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {

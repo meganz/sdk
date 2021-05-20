@@ -290,11 +290,18 @@ CurlHttpIO::CurlHttpIO()
     {
         curl_global_init(CURL_GLOBAL_DEFAULT);
         ares_library_init(ARES_LIB_INIT_ALL);
-    }
+        
+        const char *aresversion = ares_version(NULL);
+        if (aresversion)
+        {
+            LOG_debug << "c-ares version: " << aresversion;
+        }
+        
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
-    initialize_android();
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
+        initialize_android();
 #endif
+    };
 
     curlMutex.unlock();
 
@@ -907,6 +914,36 @@ m_off_t CurlHttpIO::getmaxuploadspeed()
     return maxspeed[PUT];
 }
 
+bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
+{
+    // for each URL there should be 2 IPs (IPv4 first, IPv6 second)
+    if (urls.empty() || urls.size() * 2 != ips.size())
+    {
+        LOG_err << "Resolved URLs to be cached did not match with an IPv4 and IPv6 each";
+        return false;
+    }
+
+    for (std::vector<string>::size_type i = 0; i < urls.size(); ++i)
+    {
+        // get host name from each URL
+        string host, dummyscheme;
+        int dummyport;
+        const string& url = urls[i]; // this is "free" and helps with debugging
+
+        crackurl(&url, &dummyscheme, &host, &dummyport);
+
+        // add resolved host name to cache, or replace the previous one
+        CurlDNSEntry& dnsEntry = dnscache[host];
+        dnsEntry.ipv4 = move(ips[2 * i]);
+        dnsEntry.ipv4timestamp = Waiter::ds;
+        dnsEntry.ipv6 = move(ips[2 * i + 1]);
+        dnsEntry.ipv6timestamp = Waiter::ds;
+        dnsEntry.mNeedsResolvingAgain = false;
+    }
+
+    return true;
+}
+
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int)
 {
@@ -1357,25 +1394,10 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 {
     CurlHttpIO* httpio = httpctx->httpio;
     HttpReq* req = httpctx->req;
-    int len = httpctx->len;
+    auto len = httpctx->len;
     const char* data = httpctx->data;
 
-    if (SimpleLogger::logCurrentLevel >= logDebug)
-    {
-        string safeurl = req->posturl;
-        size_t sid = safeurl.find("sid=");
-        if (sid != string::npos)
-        {
-            sid += 4;
-            size_t end = safeurl.find("&", sid);
-            if (end == string::npos)
-            {
-                end = safeurl.size();
-            }
-            memset((char *)safeurl.data() + sid, 'X', end - sid);
-        }
-        LOG_debug << httpctx->req->logname << "POST target URL: " << safeurl;
-    }
+    LOG_debug << httpctx->req->logname << "POST target URL: " << getSafeUrl(req->posturl);
 
     if (req->binary)
     {
@@ -1620,7 +1642,7 @@ void CurlHttpIO::request_proxy_ip()
 #endif
 }
 
-bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* port)
+bool CurlHttpIO::crackurl(const string* url, string* scheme, string* hostname, int* port)
 {
     if (!url || !url->size() || !scheme || !hostname || !port)
     {
@@ -2857,12 +2879,22 @@ bool CurlDNSEntry::isIPv6Expired()
     return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
 }
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
+
 void CurlHttpIO::initialize_android()
 {
+    bool initialized = ares_library_android_initialized() == ARES_SUCCESS;
+    if (initialized)
+    {
+            LOG_warn << "initialize_android: already initialized";
+            crashlytics_log("initialize_android: already initialized");
+            return;
+    }
+
     if (!MEGAjvm)
     {
         LOG_err << "No JVM found";
+        crashlytics_log("No JVM found");
         return;
     }
 
@@ -2876,6 +2908,7 @@ void CurlHttpIO::initialize_android()
             if (MEGAjvm->AttachCurrentThread(&env, NULL) != JNI_OK)
             {
                 LOG_err << "Unable to attach the current thread";
+                crashlytics_log("Unable to attach the current thread");
                 return;
             }
             detach = true;
@@ -2883,6 +2916,7 @@ void CurlHttpIO::initialize_android()
         else if (result != JNI_OK)
         {
             LOG_err << "Unable to get JNI environment";
+            crashlytics_log("Unable to get JNI environment");
             return;
         }
 
@@ -2891,6 +2925,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get android/app/AppGlobals";
+            crashlytics_log("Failed to get android/app/AppGlobals");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2903,6 +2938,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get getInitialApplication()";
+            crashlytics_log("Failed to get getInitialApplication()");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2915,6 +2951,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get context";
+            crashlytics_log("Failed to get context");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2927,6 +2964,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get android/content/Context";
+            crashlytics_log("Failed to get android/content/Context");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2939,6 +2977,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get getSystemService()";
+            crashlytics_log("Failed to get getSystemService()");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2951,6 +2990,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get CONNECTIVITY_SERVICE";
+            crashlytics_log("Failed to get CONNECTIVITY_SERVICE");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2963,6 +3003,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get CONNECTIVITY_SERVICE value";
+            crashlytics_log("Failed to get CONNECTIVITY_SERVICE value");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2975,6 +3016,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get connectivityManager";
+            crashlytics_log("Failed to get connectivityManager");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2982,9 +3024,14 @@ void CurlHttpIO::initialize_android()
             return;
         }
 
-        ares_library_init_jvm(MEGAjvm);
+        // ares_library_init_jvm(MEGAjvm); --> already done at JNI_OnLoad()
         ares_library_init_android(connectivityManager);
-        assert(ares_library_android_initialized() == ARES_SUCCESS);
+        initialized = ares_library_android_initialized() == ARES_SUCCESS;
+        assert(initialized);
+        if (!initialized)
+        {
+            crashlytics_log("Failed to initialize c-ares for Android");
+        }
 
         if (detach)
         {
