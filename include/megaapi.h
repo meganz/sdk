@@ -5105,42 +5105,6 @@ public:
     virtual MegaHandle getPrevParent() const;
 };
 
-class MegaRegExpPrivate;
-
-/**
- * @brief Provides a mechanism to handle Regular Expressions
- */
-class MegaRegExp
-{
-public:
-    MegaRegExp();
-    ~MegaRegExp();
-
-    /**
-     * @brief Creates a copy of this MegaRegExp object
-     *
-     * The resulting object is fully independent of the source MegaRegExp,
-     * it contains a copy of all internal attributes, so it will be valid after
-     * the original object is deleted.
-     *
-     * You are the owner of the returned object
-     *
-     * @return Copy of the MegaRegExp object
-     */
-    MegaRegExp *copy();
-
-    bool addRegExp(const char *regExp);
-    int getNumRegExp();
-    const char *getRegExp(int index);
-    bool match(const char *s);
-
-    const char *getFullPattern();
-
-private:
-    MegaRegExpPrivate *pImpl;
-    MegaRegExp(MegaRegExpPrivate *pImpl);
-};
-
 /**
  * @brief Provides information about a synchronization
  */
@@ -6675,6 +6639,17 @@ class MegaGlobalListener
          * @param event Details about the event
          */
         virtual void onEvent(MegaApi* api, MegaEvent *event);
+
+        /**
+         * @brief This function is called when external drives are connected or disconnected
+         *
+         * The SDK retains the ownership of the char* in the third parameter, which will be valid until this function returns.
+         *
+         * @param api MegaApi object connected to the account
+         * @param present Indicator of the drive status after this change (true: drive was connected; false: drive was disconnected)
+         * @param rootPathInUtf8 Root path of the drive that determined this change (i.e. "D:", "/mnt/usbdrive")
+         */
+        virtual void onDrivePresenceChanged(MegaApi* api, bool present, const char* rootPathInUtf8);
 
         virtual ~MegaGlobalListener();
 };
@@ -8819,6 +8794,32 @@ class MegaApi
          */
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Create Ephemeral++ account
+         *
+         * This kind of account allows to join chat links and to keep the session in the device
+         * where it was created.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the firstname of the user
+         * - MegaRequest::getText - Returns the lastname of the user
+         * - MegaRequest::getParamType - Returns the value 3
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
+         *
+         * If this request succeeds, a new ephemeral++ account will be created for the new user.
+         * The app may resume the create-account process by using MegaApi::resumeCreateAccountEphemeralPlusPlus.
+         *
+         * @note This account should be confirmed in same device it was created
+         *
+         * @param firstname Firstname of the user
+         * @param lastname Lastname of the user
+         * @param listener MegaRequestListener to track this request
+         */
+        void createEphemeralAccountPlusPlus(const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Initialize the creation of a new MEGA account, with firstname and lastname
@@ -8886,6 +8887,35 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Resume a registration process for an Ephemeral++ account
+         *
+         * When a user begins the account registration process by calling
+         * MegaApi::createEphemeralAccountPlusPlus an ephemeral++ account is created.
+         *
+         * Until the user successfully confirms the signup link sent to the provided email address,
+         * you can resume the ephemeral session in order to change the email address, resend the
+         * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+         * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+         * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
+         * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
+         * session (the session will be still valid).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
+         * - MegaRequest::getParamType - Returns the value 4
+         *
+         * In case the account is already confirmed, the associated request will fail with
+         * error MegaError::API_EARGS.
+         *
+         * @param sid Session id valid for the ephemeral++ account (@see MegaApi::createEphemeralAccountPlusPlus)
+         * @param listener MegaRequestListener to track this request
+         */
+        void resumeCreateAccountEphemeralPlusPlus(const char* sid, MegaRequestListener *listener = NULL);
+
 
         /**
          * @brief Cancel a registration process
@@ -13505,7 +13535,6 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getParamType - Returns the type of the sync
-         * - MegaRequest::getRegExp - Returns the regular expresions to handle excluded files/folders
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -13534,16 +13563,10 @@ class MegaApi
          * @param name Name given to the sync. You can pass NULL, and the folder name will be used instead.
          * @param remoteSyncRootFolder Handle of MEGA folder. If you have a MegaNode for that folder, use its getHandle()
          * @param driveRootIfExternal Only relevant for backups, and only if the backup is on an external disk. Otherwise use NULL.
-         * @param regExp Regular expressions to handle excluded files/folders
          * @param listener MegaRequestListener to track this request
          */
         void syncFolder(MegaSync::SyncType syncType, const char *localSyncRootFolder, const char *name, MegaHandle remoteSyncRootFolder,
             const char* driveRootIfExternal,
-#ifdef USE_PCRE
-            MegaRegExp* regExp,
-#else
-            void* regExp,
-#endif
             MegaRequestListener *listener);
 
 
@@ -13671,16 +13694,6 @@ class MegaApi
          *
          */
         void closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
-
-
-#ifdef USE_PCRE
-        /**
-        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one above.
-         */
-        MEGA_DEPRECATED
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
-
-#endif
 
         /**
          * @brief Remove a synced folder
@@ -14008,15 +14021,6 @@ class MegaApi
          * @return Synchronization with the specified root local path
          */
         MegaSync *getSyncByPath(const char *localPath);
-
-#ifdef USE_PCRE
-        /**
-        * @brief Set a list of rules to exclude files and folders for a given synchronized folder
-        * @param sync Synchronization whose rules want to be updated
-        * @param regExp List of regular expressions (rules) to exclude file / folders
-        */
-        void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
-#endif
 
         /**
          * @brief Get the total number of local nodes in the account
@@ -18532,6 +18536,29 @@ class MegaApi
          * @return True if this feature is enabled. Otherwise, false.
          */
         bool cookieBannerEnabled();
+
+        /**
+         * @brief Start receiving notifications for [dis]connected external drives, from the OS
+         *
+         * After a call to this function, and before another one, stopDriveMonitor() must be called,
+         * otherwise it will fail.
+         *
+         * @return True when notifications have been started.
+         *         False when called while already receiving notifications, or
+         *         notifications could not have been started due to errors or missing implementation,
+         */
+        bool startDriveMonitor();
+
+        /**
+         * @brief Stop receiving notifications for [dis]connected external drives, from the OS
+         */
+        void stopDriveMonitor();
+
+        /**
+         * @brief Check if drive monitor is running
+         * @return True if it is running, false otherwise.
+         */
+        bool driveMonitorEnabled();
 
  private:
         MegaApiImpl *pImpl;

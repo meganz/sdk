@@ -54,6 +54,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/mega_evt_queue.h \
 	mega/mega_zxcvbn.h \
 	mega/mega_dict-src.h \
+	mega/gfx/gfx_pdfium.h \
 	mega/gfx/freeimage.h \
 	mega/gfx/GfxProcCG.h \
 	mega/raid.h \

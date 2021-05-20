@@ -39,6 +39,7 @@
 #include "useralerts.h"
 #include "user.h"
 #include "sync.h"
+#include "drivenotify.h"
 
 namespace mega {
 
@@ -285,6 +286,7 @@ public:
     PrnGen rng;
 
     bool ephemeralSession = false;
+    bool ephemeralSessionPlusPlus = false;
 
     static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
@@ -317,7 +319,9 @@ public:
 
     // ephemeral session support
     void createephemeral();
+    void createephemeralPlusPlus();
     void resumeephemeral(handle, const byte*, int = 0);
+    void resumeephemeralPlusPlus(const std::string& session);
     void cancelsignup();
 
     // full account confirmation/creation support
@@ -978,7 +982,19 @@ public:
     // if logged into writable folder
     bool loggedIntoWritableFolder() const;
 
+    // start receiving external drive [dis]connect notifications
+    bool startDriveMonitor();
+
+    // stop receiving external drive [dis]connect notifications
+    void stopDriveMonitor();
+
+    // returns true if drive monitor is started
+    bool driveMonitorEnabled();
+
 private:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    DriveInfoCollector mDriveInfoCollector;
+#endif
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
