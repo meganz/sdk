@@ -1431,6 +1431,17 @@ struct StandardClient : public MegaApp
         return &nn;
     }
 
+    bool makeCloudSubdirs(const string& prefix, int depth, int fanout)
+    {
+        auto result =
+          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.makeCloudSubdirs(prefix, depth, fanout, result);
+                          });
+
+        return result.get();
+    }
+
     void makeCloudSubdirs(const string& prefix, int depth, int fanout, PromiseBoolSP pb, const string& atpath = "")
     {
         assert(basefolderhandle != UNDEF);
@@ -2289,6 +2300,33 @@ struct StandardClient : public MegaApp
     void catchup_result() override
     {
         resultproc.processresult(CATCHUP, error(API_OK));
+    }
+
+    void disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result)
+    {
+        auto matched = false;
+
+        client.syncs.disableSelectedSyncs(
+          [&](SyncConfig& config, Sync*)
+          {
+              matched |= config.mBackupId == id;
+              return matched;
+          },
+          error,
+          enabled);
+
+        result->set_value(matched);
+    }
+
+    bool disableSync(handle id, SyncError error, bool enabled)
+    {
+        auto result =
+            thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                            {
+                                client.disableSync(id, error, enabled, result);
+                            });
+
+        return result.get();
     }
 
     // already existing line 1071
@@ -5895,6 +5933,326 @@ TEST(Sync, BasicSyncExportImport)
     ASSERT_TRUE(cx->confirmModel_mainthread(model0.root.get(), id0));
     ASSERT_TRUE(cx->confirmModel_mainthread(model1.root.get(), id1));
     ASSERT_TRUE(cx->confirmModel_mainthread(model2.root.get(), id2));
+}
+TEST(Sync, RenameReplaceFileBetweenSyncs)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient c0(TESTROOT, "c0");
+
+    // Log callbacks.
+    c0.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s0", 0, 0));
+    ASSERT_TRUE(c0.makeCloudSubdirs("s1", 0, 0));
+
+    // Set up syncs.
+    const auto id0 = c0.setupSync_mainthread("s0", "s0");
+    ASSERT_NE(id0, UNDEF);
+
+    const auto id1 = c0.setupSync_mainthread("s1", "s1");
+    ASSERT_NE(id1, UNDEF);
+
+    // Convenience.
+    const auto SYNCROOT0 = TESTROOT / "c0" / "s0";
+    const auto SYNCROOT1 = TESTROOT / "c0" / "s1";
+
+    // Set up models.
+    Model model0;
+    Model model1;
+
+    model0.addfile("f0", "x");
+    model0.generate(SYNCROOT0);
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm models.
+    ASSERT_TRUE(c0.confirmModel_mainthread(model0.root.get(), id0));
+    ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
+
+    // Move s0/f0 to s1/f0.
+    model1 = model0;
+
+    fs::rename(SYNCROOT0 / "f0", SYNCROOT1 / "f0");
+
+    // Replace s0/f0.
+    model0.removenode("f0");
+    model0.addfile("f0", "y");
+
+    ASSERT_TRUE(createDataFile(SYNCROOT0 / "f0", "y"));
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm models.
+    ASSERT_TRUE(c0.confirmModel_mainthread(model0.root.get(), id0));
+    ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
+
+    // Disable s0.
+    ASSERT_TRUE(c0.disableSync(id0, NO_SYNC_ERROR, false));
+
+    // Make sure s0 is disabled.
+    ASSERT_TRUE(createDataFile(SYNCROOT0 / "f1", "z"));
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm models.
+    ASSERT_TRUE(c0.confirmModel_mainthread(
+                  model0.root.get(),
+                  id0,
+                  false,
+                  StandardClient::CONFIRM_REMOTE));
+
+    // Move s1/f0 to s0/f2.
+    model1.removenode("f0");
+
+    fs::rename(SYNCROOT1 / "f0", SYNCROOT0 / "f2");
+
+    // Replace s1/f0.
+    model1.addfile("f0", "q");
+
+    ASSERT_TRUE(createDataFile(SYNCROOT1 / "f0", "q"));
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm models.
+    ASSERT_TRUE(c0.confirmModel_mainthread(
+                  model0.root.get(),
+                  id0,
+                  false,
+                  StandardClient::CONFIRM_REMOTE));
+
+    ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
+}
+
+TEST(Sync, RenameReplaceFileWithinSync)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient c0(TESTROOT, "c0");
+
+    // Log callbacks.
+    c0.logcb = true;
+
+    // Log in client and clear remote contents.
+    ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s0", 0, 0));
+
+    // Set up sync.
+    const auto id = c0.setupSync_mainthread("s0", "s0");
+    ASSERT_NE(id, UNDEF);
+
+    // Populate local FS.
+    const auto SYNCROOT = TESTROOT / "c0" / "s0";
+
+    Model model;
+
+    model.addfile("f1");
+    model.generate(SYNCROOT);
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm model.
+    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+
+    // Rename /f1 to /f2.
+    // This tests the case where the target is processed after the source.
+    model.addfile("f2", "f1");
+    model.removenode("f1");
+
+    fs::rename(SYNCROOT / "f1", SYNCROOT / "f2");
+
+    // Replace /d1.
+    model.addfile("f1", "x");
+
+    ASSERT_TRUE(createDataFile(SYNCROOT / "f1", "x"));
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm model.
+    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+
+    // Rename /f2 to /f0.
+    // This tests the case where the target is processed before the source.
+    model.addfile("f0", "f1");
+    model.removenode("f2");
+
+    fs::rename(SYNCROOT / "f2", SYNCROOT / "f0");
+
+    // Replace /d2.
+    model.addfile("f2", "y");
+
+    ASSERT_TRUE(createDataFile(SYNCROOT / "f2", "y"));
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm model.
+    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST(Sync, RenameReplaceFolderBetweenSyncs)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient c0(TESTROOT, "c0");
+
+    // Log callbacks.
+    c0.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s0", 0, 0));
+    ASSERT_TRUE(c0.makeCloudSubdirs("s1", 0, 0));
+
+    // Set up syncs.
+    const auto id0 = c0.setupSync_mainthread("s0", "s0");
+    ASSERT_NE(id0, UNDEF);
+
+    const auto id1 = c0.setupSync_mainthread("s1", "s1");
+    ASSERT_NE(id1, UNDEF);
+
+    // Convenience.
+    const auto SYNCROOT0 = TESTROOT / "c0" / "s0";
+    const auto SYNCROOT1 = TESTROOT / "c0" / "s1";
+
+    // Set up models.
+    Model model0;
+    Model model1;
+
+    model0.addfile("d0/f0");
+    model0.generate(SYNCROOT0);
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm models.
+    ASSERT_TRUE(c0.confirmModel_mainthread(model0.root.get(), id0));
+    ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
+
+    // Move s0/d0 to s1/d0.
+    model1 = model0;
+
+    fs::rename(SYNCROOT0 / "d0", SYNCROOT1 / "d0");
+
+    // Replace s0/d0.
+    model0.removenode("d0/f0");
+
+    fs::create_directories(SYNCROOT0 / "d0");
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm models.
+    ASSERT_TRUE(c0.confirmModel_mainthread(model0.root.get(), id0));
+    ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
+
+    // Disable s0.
+    ASSERT_TRUE(c0.disableSync(id0, NO_SYNC_ERROR, false));
+
+    // Make sure s0 is disabled.
+    fs::create_directories(SYNCROOT0 / "d1");
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm models.
+    ASSERT_TRUE(c0.confirmModel_mainthread(
+                  model0.root.get(),
+                  id0,
+                  false,
+                  StandardClient::CONFIRM_REMOTE));
+
+    // Move s1/d0 to s0/d2.
+    model1.removenode("d0/f0");
+
+    fs::rename(SYNCROOT1 / "d0", SYNCROOT0 / "d2");
+
+    // Replace s1/d0.
+    fs::create_directories(SYNCROOT1 / "d0");
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm models.
+    ASSERT_TRUE(c0.confirmModel_mainthread(
+                  model0.root.get(),
+                  id0,
+                  false,
+                  StandardClient::CONFIRM_REMOTE));
+
+    ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
+}
+
+TEST(Sync, RenameReplaceFolderWithinSync)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient c0(TESTROOT, "c0");
+
+    // Log callbacks.
+    c0.logcb = true;
+
+    // Log in client and clear remote contents.
+    ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s0", 0, 0));
+
+    // Set up sync.
+    const auto id = c0.setupSync_mainthread("s0", "s0");
+    ASSERT_NE(id, UNDEF);
+
+    // Populate local FS.
+    const auto SYNCROOT = TESTROOT / "c0" / "s0";
+
+    Model model;
+
+    model.addfile("d1/f0");
+    model.generate(SYNCROOT);
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm model.
+    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+
+    // Rename /d1 to /d2.
+    // This tests the case where the target is processed after the source.
+    model.addfolder("d2");
+    model.movenode("d1/f0", "d2");
+
+    fs::rename(SYNCROOT / "d1", SYNCROOT / "d2");
+
+    // Replace /d1.
+    fs::create_directories(SYNCROOT / "d1");
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm model.
+    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+
+    // Rename /d2 to /d0.
+    // This tests the case where the target is processed before the source.
+    model.addfolder("d0");
+    model.movenode("d2/f0", "d0");
+
+    fs::rename(SYNCROOT / "d2", SYNCROOT / "d0");
+
+    // Replace /d2.
+    fs::create_directories(SYNCROOT / "d2");
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c0);
+
+    // Confirm model.
+    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
 }
 
 struct TwoWaySyncSymmetryCase
