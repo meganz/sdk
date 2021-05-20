@@ -2423,13 +2423,18 @@ struct StandardClient : public MegaApp
 
     bool movenode(string path, string newParentPath)
     {
-        auto result =
-          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
-                          {
-                              client.movenode(path, newParentPath, result);
-                          });
+        using std::future_status;
 
-        return result.get();
+        auto promise = newPromiseBoolSP();
+        auto future = promise->get_future();
+
+        movenode(std::move(path),
+                 std::move(newParentPath),
+                 std::move(promise));
+
+        auto status = future.wait_for(DEFAULTWAIT);
+
+        return status == future_status::ready && future.get();
     }
 
     void movenode(string path, string newparentpath, PromiseBoolSP pb)
