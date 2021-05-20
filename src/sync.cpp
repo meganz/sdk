@@ -685,6 +685,10 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Too many changes in account, local state invalid";
     case LOGGED_OUT:
         return "Session closed";
+    case WHOLE_ACCOUNT_REFETCHED:
+        return "The whole account was reloaded, missed updates could not have been applied in an orderly fashion";
+    case MISSING_PARENT_NODE:
+        return "Unable to figure out some node correspondence";
     case BACKUP_MODIFIED:
         return "Backup externally modified";
     case BACKUP_SOURCE_NOT_BELOW_DRIVE:
@@ -1933,9 +1937,12 @@ bool Sync::checkValidNotification(int q, Notification& notification)
     if (notification.timestamp && !initializing && q == DirNotify::DIREVENTS)
     {
         LocalPath tmppath;
-        if (notification.localnode)
+
+        if (auto* node = notification.localnode)
         {
-            tmppath = notification.localnode->getLocalPath();
+            if (node == (LocalNode*)~0) return false;
+
+            tmppath = node->getLocalPath();
         }
 
         if (!notification.path.empty())
