@@ -2410,6 +2410,17 @@ struct StandardClient : public MegaApp
         }
     }
 
+    bool movenode(string path, string newParentPath)
+    {
+        auto result =
+          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.movenode(path, newParentPath, result);
+                          });
+
+        return result.get();
+    }
+
     void movenode(string path, string newparentpath, PromiseBoolSP pb)
     {
         Node* n = drillchildnodebyname(gettestbasenode(), path);
@@ -6253,6 +6264,455 @@ TEST(Sync, RenameReplaceFolderWithinSync)
 
     // Confirm model.
     ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST(Sync, DownloadedDirectoriesHaveFilesystemWatch)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Create /d in the cloud.
+    {
+        vector<NewNode> nodes(1);
+
+        // Initialize new node.
+        c.client.putnodes_prepareOneFolder(&nodes[0], "d");
+
+        // Get our hands on the sync root.
+        auto* root = c.drillchildnodebyname(c.gettestbasenode(), "s");
+        ASSERT_TRUE(root);
+
+        // Create new node in the cloud.
+        ASSERT_TRUE(c.putnodes(root->nodehandle, std::move(nodes)));
+    }
+
+    // Add and start sync.
+    const auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    const auto SYNCROOT = c.syncSet(id).localpath;
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Confirm /d has made it to disk.
+    Model model;
+
+    model.addfolder("d");
+
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Trigger a filesystem notification.
+    model.addfile("d/f", "x");
+
+    ASSERT_TRUE(createDataFile(SYNCROOT / "d" / "f", "x"));
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Confirm /d/f made it to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST(Sync, FilesystemWatchesPresentAfterResume)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    auto c = ::mega::make_unique<StandardClient>(TESTROOT, "c");
+
+    // Log callbacks.
+    c->logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Add and start sync.
+    const auto id = c->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    const auto SYNCROOT = c->syncSet(id).localpath;
+
+    // Build model and populate filesystem.
+    Model model;
+
+    model.addfolder("d0/d0d0");
+    model.generate(SYNCROOT);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, c.get());
+
+    // Make sure directories made it to the cloud.
+    ASSERT_TRUE(c->confirmModel_mainthread(model.root.get(), id));
+
+    // Logout / Resume.
+    {
+        string session;
+
+        // Save session.
+        c->client.dumpsession(session);
+
+        // Logout (taking care to preserve the caches.)
+        c->localLogout();
+
+        // Resume session.
+        c.reset(new StandardClient(TESTROOT, "c"));
+        ASSERT_TRUE(c->login_fetchnodes(session));
+
+        // Wait for sync to complete.
+        waitonsyncs(TIMEOUT, c.get());
+
+        // Make sure everything's as we left it.
+        ASSERT_TRUE(c->confirmModel_mainthread(model.root.get(), id));
+    }
+
+    // Trigger some filesystem notifications.
+    {
+        model.addfile("f", "f");
+        ASSERT_TRUE(createDataFile(SYNCROOT / "f", "f"));
+
+        model.addfile("d0/d0f", "d0f");
+        ASSERT_TRUE(createDataFile(SYNCROOT / "d0" / "d0f", "d0f"));
+
+        model.addfile("d0/d0d0/d0d0f", "d0d0f");
+        ASSERT_TRUE(createDataFile(SYNCROOT / "d0" / "d0d0" / "d0d0f", "d0d0f"));
+    }
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, c.get());
+
+    // Did the new files make it to the cloud?
+    ASSERT_TRUE(c->confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST(Sync, MoveTargetHasFilesystemWatch)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Set up sync.
+    const auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    const auto SYNCROOT = c.syncSet(id).localpath;
+
+    // Build model and populate filesystem.
+    Model model;
+
+    model.addfolder("d0/dq");
+    model.addfolder("d1");
+    model.addfolder("d2/dx");
+    model.generate(SYNCROOT);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Confirm directories have hit the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Local move.
+    {
+        // d0/dq -> d1/dq (ascending.)
+        model.movenode("d0/dq", "d1");
+
+        fs::rename(SYNCROOT / "d0" / "dq",
+                   SYNCROOT / "d1" / "dq");
+
+        // d2/dx -> d1/dx (descending.)
+        model.movenode("d2/dx", "d1");
+
+        fs::rename(SYNCROOT / "d2" / "dx",
+                   SYNCROOT / "d1" / "dx");
+    }
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure movement has propagated to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Trigger some filesystem notifications.
+    model.addfile("d1/dq/fq", "q");
+    model.addfile("d1/dx/fx", "x");
+
+    ASSERT_TRUE(createDataFile(SYNCROOT / "d1" / "dq" / "fq", "q"));
+    ASSERT_TRUE(createDataFile(SYNCROOT / "d1" / "dx" / "fx", "x"));
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Have the files made it up to the cloud?
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Remotely move.
+    {
+        StandardClient cr(TESTROOT, "cr");
+
+        // Log in client.
+        ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+        // d1/dq -> d2/dq (ascending.)
+        model.movenode("d1/dq", "d2");
+
+        ASSERT_TRUE(cr.movenode("s/d1/dq", "s/d2"));
+
+        // d1/dx -> d0/dx (descending.)
+        model.movenode("d1/dx", "d0");
+
+        ASSERT_TRUE(cr.movenode("s/d1/dx", "s/d0"));
+    }
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure movements occured on disk.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Trigger some filesystem notifications.
+    model.removenode("d2/dq/fq");
+    model.removenode("d0/dx/fx");
+
+    fs::remove(SYNCROOT / "d2" / "dq" / "fq");
+    fs::remove(SYNCROOT / "d0" / "dx" / "fx");
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure removes propagated to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST(Sync, RenameReplaceSourceAndTargetHaveFilesystemWatch)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT = chrono::seconds(4);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Add and start sync.
+    const auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    const auto SYNCROOT = c.syncSet(id).localpath;
+
+    // Build model and populate filesystem.
+    Model model;
+
+    model.addfolder("dq");
+    model.addfolder("dz");
+    model.generate(SYNCROOT);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure directories have made it to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Rename /dq -> /dr (ascending), replace /dq.
+    model.addfolder("dr");
+
+    fs::rename(SYNCROOT / "dq", SYNCROOT / "dr");
+    fs::create_directories(SYNCROOT / "dq");
+
+    // Rename /dz -> /dy (descending), replace /dz.
+    model.addfolder("dy");
+
+    fs::rename(SYNCROOT / "dz", SYNCROOT / "dy");
+    fs::create_directories(SYNCROOT / "dz");
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure moves made it to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Trigger filesystem notifications.
+    model.addfile("dq/fq", "q");
+    model.addfile("dr/fr", "r");
+    model.addfile("dy/fy", "y");
+    model.addfile("dz/fz", "z");
+
+    ASSERT_TRUE(createDataFile(SYNCROOT / "dq" / "fq", "q"));
+    ASSERT_TRUE(createDataFile(SYNCROOT / "dr" / "fr", "r"));
+    ASSERT_TRUE(createDataFile(SYNCROOT / "dy" / "fy", "y"));
+    ASSERT_TRUE(createDataFile(SYNCROOT / "dz" / "fz", "z"));
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Did the files make it to the cloud?
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST(Sync, RenameTargetHasFilesystemWatch)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT = chrono::seconds(4);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Add and start sync.
+    const auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    const auto SYNCROOT = c.syncSet(id).localpath;
+
+    // Build model and populate filesystem.
+    Model model;
+
+    model.addfolder("dq");
+    model.addfolder("dz");
+    model.generate(SYNCROOT);
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Confirm model.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Locally rename.
+    {
+        // - dq -> dr (ascending)
+        model.removenode("dq");
+        model.addfolder("dr");
+
+        fs::rename(SYNCROOT / "dq", SYNCROOT / "dr");
+
+        // - dz -> dy (descending)
+        model.removenode("dz");
+        model.addfolder("dy");
+
+        fs::rename(SYNCROOT / "dz", SYNCROOT / "dy");
+    }
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure rename has hit the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Make sure rename targets receive notifications.
+    model.addfile("dr/f", "x");
+    model.addfile("dy/f", "y");
+
+    ASSERT_TRUE(createDataFile(SYNCROOT / "dr" / "f", "x"));
+    ASSERT_TRUE(createDataFile(SYNCROOT / "dy" / "f", "y"));
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Check file has made it to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Remotely rename.
+    {
+        StandardClient cr(TESTROOT, "cc");
+
+        // Log in client.
+        ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+        auto* root = cr.gettestbasenode();
+        ASSERT_TRUE(root);
+
+        // dr -> ds (ascending.)
+        model.removenode("dr");
+        model.addfile("ds/f", "x");
+
+        auto* dr = cr.drillchildnodebyname(root, "s/dr");
+        ASSERT_TRUE(dr);
+
+        ASSERT_TRUE(cr.setattr(dr, attr_map('n', "ds")));
+
+        // dy -> dx (descending.)
+        model.removenode("dy");
+        model.addfile("dx/f", "y");
+
+        auto* dy = cr.drillchildnodebyname(root, "s/dy");
+        ASSERT_TRUE(dy);
+
+        ASSERT_TRUE(cr.setattr(dy, attr_map('n', "dx")));
+    }
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Confirm move has occured locally.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Check that /ds and /dx receive notifications.
+    model.removenode("ds/f");
+    model.removenode("dx/f");
+
+    fs::remove(SYNCROOT / "ds" / "f");
+    fs::remove(SYNCROOT / "dx" / "f");
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Confirm remove has hit the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST(Sync, RootHasFilesystemWatch)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client and clear remote contents.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Set up sync
+    const auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Trigger some filesystem notifications.
+    Model model;
+
+    model.addfolder("d0");
+    model.addfile("f0");
+    model.generate(c.syncSet(id).localpath);
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Confirm models.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
 struct TwoWaySyncSymmetryCase
