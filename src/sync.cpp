@@ -5404,6 +5404,11 @@ void MegaClient::triggerSync(NodeHandle h, bool recurse)
 #ifdef ENABLE_SYNC
 
 #ifdef DEBUG
+    for (auto* n = nodeByHandle(h); n; n = n->parent)
+    {
+        n->applykey();
+    }
+
     if (Node* n = nodeByHandle(h))
     {
         SYNC_verbose << clientname << "Received sync trigger notification for sync trigger of " << n->displaypath();
