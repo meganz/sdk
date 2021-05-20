@@ -3863,7 +3863,12 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
             auto fNext = std::upper_bound(fCurr, fEnd, *fCurr, fsCompareLess);
 
             // Determine the next local node.
-            auto lNext = std::upper_bound(lCurr, lEnd, *lCurr, lnCompareLess);
+            auto lNext = lCurr;
+
+            if (lNext != lEnd)
+            {
+                lNext = std::upper_bound(lCurr, lEnd, *lCurr, lnCompareLess);
+            }
 
             // By design, we should never have any conflicting local nodes.
             if (!(std::distance(lCurr, lNext) < 2))
@@ -3971,7 +3976,13 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
 
         for ( ; ; )
         {
-            auto rNext = std::upper_bound(rCurr, rEnd, *rCurr, cloudCompareLess);
+            auto rNext = rCurr;
+
+            if (rNext != rEnd)
+            {
+                rNext = std::upper_bound(rCurr, rEnd, *rCurr, cloudCompareLess);
+            }
+
             auto tNext = tCurr;
 
             // Compute upper bound manually.
