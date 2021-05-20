@@ -4842,7 +4842,11 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
 
         if (!row.syncNode->upload && !row.syncNode->newnode)
         {
-            if (parentRow.cloudNode)
+            // Sanity.
+            assert(row.syncNode->parent);
+            assert(row.syncNode->parent == parentRow.syncNode);
+
+            if (parentRow.cloudNode && parentRow.cloudNode->nodeHandle() == parentRow.syncNode->syncedCloudNodeHandle)
             {
                 client->app->syncupdate_local_file_addition(this, fullPath);
 
