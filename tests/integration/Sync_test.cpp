@@ -1934,11 +1934,26 @@ struct StandardClient : public MegaApp
 
     bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported)
     {
+        struct Comparator
+        {
+            bool operator()(const string& lhs, const string& rhs) const
+            {
+                return compare(lhs, rhs) < 0;
+            }
+
+            int compare(const string& lhs, const string& rhs) const
+            {
+                return compareUtf(lhs, true, rhs, true, false);
+            }
+        }; // Comparator
+
+        static Comparator comparator;
+
         if (!mn) return false;
 
         if (depth)
         {
-            if (0 != compareUtf(p.filename().u8string(), true, mn->fsName(), false, false))
+            if (comparator.compare(p.filename().u8string(), mn->fsName()))
             {
                 out() << "filesystem name mismatch: " << mn->path() << " " << p << endl;
                 return false;
@@ -1970,8 +1985,8 @@ struct StandardClient : public MegaApp
             return true;
         }
 
-        multimap<string, Model::ModelNode*> ms;
-        multimap<string, fs::path> ps;
+        multimap<string, Model::ModelNode*, Comparator> ms;
+        multimap<string, fs::path, Comparator> ps;
 
         for (auto& m : mn->kids)
         {
@@ -1980,11 +1995,7 @@ struct StandardClient : public MegaApp
 
         for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
         {
-            string name = pi->path().filename().u8string();
-
-            client.fsaccess->unescapefsincompatible(&name);
-
-            ps.emplace(std::move(name), pi->path());
+            ps.emplace(pi->path().filename().u8string(), pi->path());
         }
 
         if (ignoreDebris)
