@@ -16506,9 +16506,13 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
     if (auto curlhttpio = dynamic_cast<CurlHttpIO*>(httpio))
     {
         s << curlhttpio->countCurlHttpIOAddevents.report(reset) << "\n"
+#ifdef MEGA_USE_C_ARES
             << curlhttpio->countAddAresEventsCode.report(reset) << "\n"
+#endif
             << curlhttpio->countAddCurlEventsCode.report(reset) << "\n"
+#ifdef MEGA_USE_C_ARES
             << curlhttpio->countProcessAresEventsCode.report(reset) << "\n"
+#endif
             << curlhttpio->countProcessCurlEventsCode.report(reset) << "\n";
     }
 #endif
