@@ -22,11 +22,10 @@
 #ifndef MEGA_UTILS_H
 #define MEGA_UTILS_H 1
 
-#include <condition_variable>
-#include <cwchar>
-#include <mutex>
-#include <thread>
 #include <type_traits>
+#include <condition_variable>
+#include <thread>
+#include <mutex>
 
 #include "types.h"
 

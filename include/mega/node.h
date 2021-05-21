@@ -330,7 +330,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // - Be decrypted.
     // - Be named.
     // - Not be the debris folder.
-    bool syncable(const LocalNode& parent) const;
+//    bool syncable(const LocalNode& parent) const;
 
 #endif /* ENABLE_SYNC */
 

@@ -1971,6 +1971,9 @@ public:
         CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
         CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
         CodeCounter::ScopeStats recursiveSyncTime = { "recursiveSync" };
+        CodeCounter::ScopeStats computeSyncTripletsTime = { "computeSyncTriplets" };
+        CodeCounter::ScopeStats inferSyncTripletsTime = { "inferSyncTriplets" };
+        CodeCounter::ScopeStats syncItemTime = { "syncItem" };
         uint64_t transferStarts = 0, transferFinishes = 0;
         uint64_t transferTempErrors = 0, transferFails = 0;
         uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;

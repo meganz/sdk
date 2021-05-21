@@ -464,8 +464,12 @@ public:
     };
 
     vector<syncRow> computeSyncTriplets(Node* cloudNode,
-                                        const LocalNode& root,
-                                        vector<FSNode>& fsNodes) const;
+        const LocalNode& root,
+        vector<FSNode>& fsNodes) const;
+
+    vector<syncRow> inferAlreadySyncedTriplets(Node* cloudNode,
+        const LocalNode& root,
+        vector<FSNode>& fsNodes) const;
 
     bool recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCommitter& committer);
     bool syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer);

@@ -2743,7 +2743,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                 {
                     syncs.appendNewSync(config, client);
                 }
-                
+
                 LOG_debug << context->mConfigs.size()
                           << " sync(s) imported successfully.";
 
@@ -3742,88 +3742,7 @@ const LocalPath& Sync::syncRow::comparisonLocalname() const
 
 auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, vector<FSNode>& fsNodes) const -> vector<syncRow>
 {
-    /* // One comparator to sort them all.
-    class Comparator
-    {
-    public:
-        explicit Comparator(const Sync& sync)
-          : mFsAccess(*sync.client->fsaccess)
-          , mFsType(sync.mFilesystemType)
-        {
-        }
-
-        int compare(const FSNode& lhs, const LocalNode& rhs) const
-        {
-            // Cloud name, case sensitive.
-            return lhs.localname.compare(rhs.name, true, true);
-        }
-
-        int compare(const Node& lhs, const syncRow& rhs) const
-        {
-            // Local name, filesystem-dependent sensitivity.
-            auto a = LocalPath::fromName(lhs.displayname(), mFsAccess, mFsType);
-
-            return a.fsCompare(name(rhs), true, true, mFsType);
-        }
-
-        bool operator()(const FSNode& lhs, const FSNode& rhs) const
-        {
-            // Cloud name, case sensitive.
-            return lhs.localname.compare(rhs.localname, true, true) < 0;
-        }
-
-        bool operator()(const LocalNode* lhs, const LocalNode* rhs) const
-        {
-            assert(lhs && rhs);
-
-            // Cloud name, case sensitive.
-            return lhs->name < rhs->name;
-        }
-
-        bool operator()(const Node* lhs, const Node* rhs) const
-        {
-            assert(lhs && rhs);
-
-            // Local name, filesystem-dependent sensitivity.
-            auto a = LocalPath::fromName(lhs->displayname(), mFsAccess, mFsType);
-
-            return a.fsCompare(rhs->displayname(), mFsType) < 0;
-        }
-
-        bool operator()(const syncRow& lhs, const syncRow& rhs) const
-        {
-            // Local name, filesystem-dependent sensitivity.
-            return name(lhs).fsCompare(name(rhs), mFsType) < 0;
-        }
-
-    private:
-        const LocalPath& name(const syncRow& row) const
-        {
-            if (row.syncNode)
-            {
-                return row.syncNode->localname;
-            }
-            else if (row.fsNode)
-            {
-                return row.fsNode->localname;
-            }
-            else if (!row.fsClashingNames.empty())
-            {
-                return row.fsClashingNames[0]->localname;
-            }
-            else
-            {
-                assert(false);
-                static LocalPath nullResult;
-                return nullResult;
-            }
-        }
-
-        FileSystemAccess& mFsAccess;
-        FileSystemType mFsType;
-    }; // Comparator
-    */
-
+    CodeCounter::ScopeTimer rst(client->performanceStats.computeSyncTripletsTime);
     //Comparator comparator(*this);
     vector<LocalNode*> localNodes;
     vector<Node*> remoteNodes;
@@ -4094,6 +4013,24 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
     return triplets;
 }
 
+auto Sync::inferAlreadySyncedTriplets(Node* cloudParent, const LocalNode& syncParent, vector<FSNode>& inferredFsNodes) const -> vector<syncRow>
+{
+    CodeCounter::ScopeTimer rst(client->performanceStats.inferSyncTripletsTime);
+
+    inferredFsNodes.reserve(syncParent.children.size());
+
+    vector<syncRow> triplets;
+    for (auto& child : syncParent.children)
+    {
+        Node* node = client->nodeByHandle(child.second->syncedCloudNodeHandle);
+        inferredFsNodes.push_back(child.second->getKnownFSDetails());
+        assert(node || child.second->syncedCloudNodeHandle.isUndef());
+        assert(!node || node->parent == cloudParent);
+        triplets.emplace_back(node, child.second, &inferredFsNodes.back());
+    }
+    return triplets;
+}
+
 bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCommitter& committer)
 {
     // in case of sync failing while we recurse
@@ -4260,7 +4197,10 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     bool subfoldersSynced = true;
 
     // Get sync triplets.
-    auto childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
+    vector<FSNode> fsInferredChildren;
+    auto childRows = wasSynced
+        ? inferAlreadySyncedTriplets(row.cloudNode, *row.syncNode, fsInferredChildren)
+        : computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
 
     bool anyNameConflicts = false;
     for (unsigned firstPass = 2; firstPass--; )
@@ -4375,8 +4315,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     }
 
     if (syncHere && folderSynced &&
+        !anyNameConflicts &&
         row.syncNode->lastFolderScan &&
-        !anyNameConflicts)
+        row.syncNode->lastFolderScan->size() == row.syncNode->children.size())
     {
 #ifdef DEBUG
         // Double check we really can recreate the filesystem entries correctly
@@ -4458,6 +4399,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
 {
     // in case of sync failing while we recurse
     if (state < 0) return false;
+
+    CodeCounter::ScopeTimer rst(client->performanceStats.syncItemTime);
 
     // Since we are visiting this node this time, reset its flags-for-parent
     // They should only stay set when the conditions require it
@@ -4749,7 +4692,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
     }
 
     row.syncNode->init(this, row.fsNode->type, parentRow.syncNode, fullPath, row.fsNode->cloneShortname());
-	
+
     if (considerSynced)
     {
         row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid);

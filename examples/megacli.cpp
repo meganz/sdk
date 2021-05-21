@@ -2843,16 +2843,23 @@ public:
         else
         {
 #ifdef _WIN32
-            auto t = std::time(NULL);
+            using namespace std::chrono;
+            auto et =system_clock::now().time_since_epoch();
+            auto millisec_since_epoch =  duration_cast<milliseconds>(et).count();
+            auto sec_since_epoch = duration_cast<seconds>(et).count();
             char ts[50];
+            auto t = std::time(NULL);
+            t = (m_time_t) sec_since_epoch;
             if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
             {
                 ts[0] = '\0';
             }
 
+            auto ms = std::to_string(unsigned(millisec_since_epoch - 1000*sec_since_epoch));
             string s;
             s.reserve(1024);
             s += ts;
+            s += "." + string(3 - std::min<size_t>(3, ms.size()), '0') + ms;
             s += " ";
             if (message) s += message;
 #ifdef ENABLE_LOG_PERFORMANCE
@@ -8889,7 +8896,7 @@ void exec_syncimport(autocomplete::ACState& s)
       {
           if (result)
           {
-              cerr << "Unable to import sync configs: " 
+              cerr << "Unable to import sync configs: "
                    << errorstring(result)
                    << endl;
               return;

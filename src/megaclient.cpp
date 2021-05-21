@@ -3010,8 +3010,10 @@ void MegaClient::exec()
                     }
                 });
 
+#ifdef MEGA_MEASURE_CODE
+                LOG_verbose << "recursiveSync took ms: " << std::chrono::duration_cast<std::chrono::milliseconds>(rst.timeSpent()).count();
                 rst.complete();
-                LOG_verbose << performanceStats.recursiveSyncTime.report();
+#endif
 
                 if (mSyncFlags->noProgress)
                 {
@@ -3173,7 +3175,8 @@ void MegaClient::exec()
     performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
 
     static auto lasttime = Waiter::ds;
-    if (Waiter::ds > lasttime + 1200)
+    static unsigned reportFreqDs = 200;
+    if (Waiter::ds > lasttime + reportFreqDs)
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
@@ -16508,6 +16511,9 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << scProcessingTime.report(reset) << "\n"
         << csResponseProcessingTime.report(reset) << "\n"
         << recursiveSyncTime.report(reset) << "\n"
+        << computeSyncTripletsTime.report(reset) << "\n"
+        << inferSyncTripletsTime.report(reset) << "\n"
+        << syncItemTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
         << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
