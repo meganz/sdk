@@ -2736,6 +2736,28 @@ struct StandardClient : public MegaApp
         fb = thread_do<bool>([backupId, mnode, ignoreDebris, confirm](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris)); });
         return fb.get();
     }
+
+    void wouldBeEscapedOnDownload(fs::path root, string remoteName, PromiseBoolSP result)
+    {
+        auto fsAccess = client.fsaccess;
+        auto localRoot = LocalPath::fromPath(root.u8string(), *fsAccess);
+        auto type = fsAccess->getlocalfstype(localRoot);
+        auto localName = LocalPath::fromName(remoteName, *fsAccess, type);
+
+        result->set_value(localName.toPath() != remoteName);
+    }
+
+    bool wouldBeEscapedOnDownload(fs::path root, string remoteName)
+    {
+        auto result =
+          thread_do<bool>(
+            [=](StandardClient& client, PromiseBoolSP result)
+            {
+                client.wouldBeEscapedOnDownload(root, remoteName, result);
+            });
+
+        return result.get();
+    }
 };
 
 
@@ -5579,6 +5601,9 @@ TEST(Sync, AnomalousSyncDownload)
     auto id = cd.setupSync_mainthread("s", "s");
     ASSERT_NE(id, UNDEF);
 
+    // Get our hands on the sync root.
+    auto root = cd.syncSet(id).localpath;
+
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cd);
 
@@ -5588,22 +5613,31 @@ TEST(Sync, AnomalousSyncDownload)
     // Were all the files downloaded okay?
     ASSERT_TRUE(cd.confirmModel_mainthread(model.root.get(), id));
 
-    // Two anomalies should be reported.
-    ASSERT_EQ(reporter->mAnomalies.size(), 2);
+    // Are we on a filesystem where : would be escaped?
+    if (cd.wouldBeEscapedOnDownload(root, ":"))
+    {
+        // Yep so two anomalies should be reported.
+        ASSERT_EQ(reporter->mAnomalies.size(), 2);
 
-    auto anomaly = reporter->mAnomalies.begin();
+        auto anomaly = reporter->mAnomalies.begin();
 
-    // d:0
-    ASSERT_EQ(anomaly->localPath, "d%3a0");
-    ASSERT_EQ(anomaly->remotePath, "d:0");
-    ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
+        // d:0
+        ASSERT_EQ(anomaly->localPath, "d%3a0");
+        ASSERT_EQ(anomaly->remotePath, "d:0");
+        ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
 
-    ++anomaly;
+        ++anomaly;
 
-    // f:0
-    ASSERT_EQ(anomaly->localPath, "f%3a0");
-    ASSERT_EQ(anomaly->remotePath, "f:0");
-    ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
+        // f:0
+        ASSERT_EQ(anomaly->localPath, "f%3a0");
+        ASSERT_EQ(anomaly->remotePath, "f:0");
+        ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
+    }
+    else
+    {
+        // Nope so there should be no anomalies.
+        ASSERT_TRUE(reporter->mAnomalies.empty());
+    }
 }
 
 TEST(Sync, AnomalousSyncLocalRename)
@@ -5772,16 +5806,25 @@ TEST(Sync, AnomalousSyncRemoteRename)
     // Verify rename.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
-    // There should be a single anomaly.
-    ASSERT_EQ(reporter->mAnomalies.size(), 1);
+    // Are we on a filesystem where : would be escaped?
+    if (cx.wouldBeEscapedOnDownload(root, ":"))
     {
+        // Yep so there should be a single anomaly.
+        ASSERT_EQ(reporter->mAnomalies.size(), 1);
+
         auto& anomaly = reporter->mAnomalies.back();
 
         ASSERT_EQ(anomaly.localPath, "d" SEP "g%3a0");
         ASSERT_EQ(anomaly.remotePath, "d/g:0");
         ASSERT_EQ(anomaly.type, FILENAME_ANOMALY_NAME_MISMATCH);
+
+        reporter->mAnomalies.clear();
     }
-    reporter->mAnomalies.clear();
+    else
+    {
+        // Nope so there should be no anomalies.
+        ASSERT_TRUE(reporter->mAnomalies.empty());
+    }
 }
 
 TEST(Sync, AnomalousSyncUpload)

@@ -1534,6 +1534,20 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                         row.syncNode->setScanAgain(true, true, true, 0);
                         sourceLocalNode->setScanAgain(true, false, false, 0);
 
+                        // Check for filename anomalies.
+                        if (row.syncNode->fsid == UNDEF)
+                        {
+                            auto type = isFilenameAnomaly(fullPath, sourceCloudNode);
+
+                            if (type != FILENAME_ANOMALY_NONE)
+                            {
+                                auto local  = fullPath.toPath();
+                                auto remote = sourceCloudNode->displaypath();
+
+                                client->filenameAnomalyDetected(type, local, remote);
+                            }
+                        }
+
                         return false;
                     }
 
@@ -1750,6 +1764,18 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         }
 
         assert(!isBackup());
+
+        // Check for filename anomalies.
+        {
+            auto type = isFilenameAnomaly(fullPath, row.cloudNode);
+
+            if (type != FILENAME_ANOMALY_NONE)
+            {
+                auto remotePath = row.cloudNode->displaypath();
+                client->filenameAnomalyDetected(type, fullPath.toPath(), remotePath);
+            }
+        }
+
         if (client->fsaccess->renamelocal(sourcePath, fullPath))
         {
             // todo: move anything at this path to sync debris first?  Old algo didn't though
@@ -4877,6 +4903,23 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
     {
         if (parentRow.cloudNode)
         {
+            // Check for filename anomalies.
+            {
+                auto type = isFilenameAnomaly(*row.syncNode);
+
+                if (type != FILENAME_ANOMALY_NONE)
+                {
+                    ostringstream remotePath;
+
+                    // Generate remote path for reporting.
+                    remotePath << parentRow.cloudNode->displaypath()
+                               << "/"
+                               << row.syncNode->name;
+
+                    client->filenameAnomalyDetected(type, fullPath.toPath(), remotePath.str());
+                }
+            }
+
             LOG_verbose << "Creating cloud node for: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
             // while the operation is in progress sync() will skip over the parent folder
             vector<NewNode> nn(1);
@@ -4960,6 +5003,17 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
                 // Backups must not change the local
                 changestate(SYNC_FAILED, BACKUP_MODIFIED, false, true);
                 return false;
+            }
+
+            // Check for filename anomalies.
+            {
+                auto type = isFilenameAnomaly(fullPath, row.cloudNode);
+
+                if (type != FILENAME_ANOMALY_NONE)
+                {
+                    auto remotePath = row.cloudNode->displaypath();
+                    client->filenameAnomalyDetected(type, fullPath.toPath(), remotePath);
+                }
             }
 
             LOG_verbose << "Creating local folder at: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
