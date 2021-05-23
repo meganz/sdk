@@ -4992,6 +4992,18 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
                     row.syncNode->fsid = fsnode->fsid;
                     statecacheadd(row.syncNode);
 
+                    // Are we resuing the FSID of another node?
+                    if (auto* node = client->findLocalNodeByFsid(fsnode->fsid, fsnode->type, fsnode->fingerprint, *this, nullptr))
+                    {
+                        LOG_debug << "New directory reuses FSID of existing node: "
+                                  << fullPath.toPath()
+                                  << " <- "
+                                  << node->getLocalPath().toPath();
+
+                        // Yep, mark the node as having it's FSID reused.
+                        node->fsidReused = true;
+                    }
+
                     if (row.fsSiblings->empty() && row.fsSiblings->capacity() < 50)
                     {
                         row.fsSiblings->reserve(50);
@@ -5148,6 +5160,7 @@ LocalNode* MegaClient::findLocalNodeByFsid(mega::handle fsid, nodetype_t type, c
     for (auto it = range.first; it != range.second; ++it)
     {
         if (it->second->type != type) continue;
+        if (it->second->fsidReused)   continue;
 
         //todo: actually we do want to support moving files/folders between syncs
         // in the same filesystem so, commented this
@@ -5347,7 +5360,23 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullP
 
     if (!inProgress)
     {
-        if (LocalNode* movedLocalNode = client->findLocalNodeByFsid(row.syncNode->fsid, row.syncNode->type, row.syncNode->syncedFingerprint, *this, [&row](LocalNode* ln){ return ln != row.syncNode; }))
+        LocalNode* movedLocalNode = nullptr;
+
+        if (!row.syncNode->fsidReused)
+        {
+            auto predicate = [&row](LocalNode* n) {
+                return n != row.syncNode;
+            };
+
+            movedLocalNode =
+              client->findLocalNodeByFsid(row.syncNode->fsid,
+                                          row.syncNode->type,
+                                          row.syncNode->syncedFingerprint,
+                                          *this,
+                                          std::move(predicate));
+        }
+
+        if (movedLocalNode)
         {
             // if we can find the place it moved to, we don't need to wait for scanning be complete
             row.syncNode->setCheckMovesAgain(true, false, false);

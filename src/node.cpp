@@ -1354,6 +1354,7 @@ LocalNode::LocalNode()
 , parentSetSyncAgain(false)
 , parentSetScanAgain(false)
 , parentSetContainsConflicts(false)
+, fsidReused(false)
 , scanInProgress(false)
 , scanObsolete(false)
 , useBlocked(TREE_RESOLVED)
@@ -1382,6 +1383,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     parentSetSyncAgain = false;
     parentSetScanAgain = false;
     parentSetContainsConflicts = false;
+    fsidReused = false;
     scanInProgress = false;
     scanObsolete = false;
     useBlocked = TREE_RESOLVED;

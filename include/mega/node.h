@@ -528,6 +528,9 @@ struct MEGA_API LocalNode : public Cacheable
         unsigned parentSetSyncAgain : 1;
         unsigned parentSetContainsConflicts : 1;
 
+        // Set when we've created a new directory (say, as part of downsync)
+        // that has reused this node's FSID.
+        unsigned fsidReused : 1;
     };
 
     // Fields which are hardly ever used.
