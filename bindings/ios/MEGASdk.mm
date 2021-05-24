@@ -2668,6 +2668,14 @@ using namespace mega;
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares(node.getCPtr) cMemoryOwn:YES];
 }
 
+- (BOOL)isPrivateNode:(uint64_t)handle {
+    return self.megaApi->isPrivateNode(handle);
+}
+
+- (BOOL)isForeignNode:(uint64_t)handle{
+    return self.megaApi->isForeignNode(handle);
+}
+
 - (MEGANodeList *)publicLinks:(MEGASortOrderType)order {
     if (self.megaApi == nil) return nil;
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks((int)order) cMemoryOwn:YES];

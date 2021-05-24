@@ -403,7 +403,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                     mLabel = static_cast<nodelabel_t>(lbl);
                 }
             }
-            else if (it->first == AttrMap::string2nameid("dev-id"))
+            else if (it->first == AttrMap::string2nameid("dev-id") ||
+                     it->first == AttrMap::string2nameid("drv-id"))
             {
                 mDeviceId = it->second;
             }
@@ -1474,7 +1475,7 @@ char *MegaApiImpl::getBlockedPath()
     return path;
 }
 
-error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::backupFolder()
+error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::syncFolder()
 {
     // validate local path and backup name
     if (!request->getFile())
@@ -1525,12 +1526,31 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     if (!myBackupsNode) { return API_ENOENT; }
 
     // get 'device-id'
-    const string& deviceId = client->getDeviceid();
+    string deviceId;
+    bool isInternalDrive = !request->getLink();
+    if (isInternalDrive)
+    {
+        deviceId = client->getDeviceid();
+    }
+    else // external drive
+    {
+        // drive-id must have been already written to external drive, since a name was given to it
+        handle driveId;
+        error e = client->readDriveId(request->getLink(), driveId);
+        if (e != API_OK)
+            return e;
+
+        // create the device id from the drive id
+        deviceId = Base64Str<MegaClient::DRIVEHANDLE>(driveId);
+    }
+
     if (deviceId.empty()) { return API_EINCOMPLETE; }
 
     // prepare for new nodes
     vector<NewNode> newnodes;
-    nameid attrId = AttrMap::string2nameid("dev-id"); // "device-id" would be too long
+    nameid attrId = isInternalDrive ?
+                    AttrMap::string2nameid("dev-id") : // "device-id" would be too long
+                    AttrMap::string2nameid("drv-id");
     std::function<void(AttrMap& attrs)> addAttrsFunc = [=](AttrMap& attrs)
     {
         attrs.map[attrId] = deviceId;
@@ -1545,8 +1565,9 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     else // create `DEVICE_NAME` remote dir
     {
         // get `DEVICE_NAME`, from user attributes
-        if (!u->isattrvalid(ATTR_DEVICE_NAMES)) { return API_EINCOMPLETE; }
-        const string* deviceNameContainerStr = u->getattr(ATTR_DEVICE_NAMES);
+        attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
+        if (!u->isattrvalid(attrType)) { return API_EINCOMPLETE; }
+        const string* deviceNameContainerStr = u->getattr(attrType);
         if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
 
         tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
@@ -8745,7 +8766,7 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
     request->setNodeHandle(megaHandle);
@@ -8759,15 +8780,25 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
         request->setFile(path.data());
     }
 
-    if(name)
+    if (name || type == SyncConfig::TYPE_BACKUP)
     {
-        request->setName(name);
+        request->setName(name);  // for TYPE_BACKUP, if empty, replacement name will be created when sending request
     }
     else if (localFolder)
     {
         request->setName(request->getFile());
     }
     request->setParamType(type);
+
+    if (driveRootIfExternal)
+    {
+        string driveRoot(driveRootIfExternal);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if (!PathIsRelativeA(driveRoot.c_str()) && ((driveRoot.size() < 2) || driveRoot.compare(0, 2, "\\\\")))
+            driveRoot.insert(0, "\\\\?\\");
+#endif
+        request->setLink(driveRoot.data());  // for TYPE_BACKUP; continue in backupFolder_sendPendingRequest()
+    }
 
     requestQueue.push(request);
     waiter->notify();
@@ -10984,6 +11015,20 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
     MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), int(vShares.size()));
     sdkMutex.unlock();
     return shareList;
+}
+
+bool MegaApiImpl::isPrivateNode(MegaHandle h)
+{
+    SdkMutexGuard lock;
+
+    return client->isPrivateNode(NodeHandle().set6byte(h));
+}
+
+bool MegaApiImpl::isForeignNode(MegaHandle h)
+{
+    SdkMutexGuard lock;
+
+    return client->isForeignNode(NodeHandle().set6byte(h));
 }
 
 MegaNodeList *MegaApiImpl::getPublicLinks(int order)
@@ -14017,8 +14062,9 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             // create the SyncConfig
             const char* backupName = request->getName();
             auto localPath = LocalPath::fromPath(request->getFile(), *client->fsaccess);
+            const auto& drivePath = request->getLink() ? LocalPath::fromPath(request->getLink(), *client->fsaccess) : LocalPath();
             SyncConfig syncConfig( localPath, backupName, NodeHandle().set6byte(backupHandle), remotePath.get(),
-                                    0, true, SyncConfig::TYPE_BACKUP );
+                                    0, drivePath, true, SyncConfig::TYPE_BACKUP );
 
             client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
@@ -20537,11 +20583,13 @@ void MegaApiImpl::sendPendingRequests()
                     servers = dnsservers;
                 }
 #ifndef __MINGW32__
+#ifdef MEGA_USE_C_ARES
                 if (servers.size())
                 {
                     LOG_debug << "Using DNS servers " << servers;
                     httpio->setdnsservers(servers.c_str());
                 }
+#endif
 #endif
             }
 
@@ -21518,10 +21566,11 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            const auto& drivePath = request->getLink() ? LocalPath::fromPath(request->getLink(), *client->fsaccess) : LocalPath();
 
             SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath.get(),
-                                  0);
+                                  0, drivePath);
 
             client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
@@ -21664,10 +21713,12 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
+            const auto& drivePath = request->getLink() ? LocalPath::fromPath(request->getLink(), *client->fsaccess) : LocalPath();
+
             SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
-                                  enabled);
+                                  drivePath, enabled);
 
             if (temporaryDisabled)
             {
@@ -21684,7 +21735,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
                 {
-                    if (!e == API_OK)
+                    if (e == API_OK)
                     {
                         request->setParentHandle(backupId);
                     }
@@ -22021,7 +22072,6 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_SEND_DEV_COMMAND:
         {
-            const char *email = request->getEmail();
             const char *command = request->getName();
             if (!command)
             {
@@ -22029,17 +22079,19 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+#ifdef DEBUG
+            const char *email = request->getEmail();
             long long q = request->getTotalBytes();
             int bs = request->getAccess();
             int us = request->getNumDetails();
-#ifdef DEBUG
 
             bool isOdqSubcmd = !strcmp(command, "aodq");
             bool isTqSubcmd = !strcmp(command, "tq");
             bool isBsSubcmd = !strcmp(command, "bs");
             bool isUsSubcmd = !strcmp(command, "us");
+            bool isFrSubcmd = !strcmp(command, "fr");   // force reload via -6 on sc channel
 
-            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd)
+            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd && !isFrSubcmd)
             {
                 e = API_EARGS;
                 break;
