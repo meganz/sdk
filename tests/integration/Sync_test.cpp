@@ -5196,9 +5196,9 @@ TEST(Sync, RemotesWithEscapesSynchronizeCorrectly)
     Model model;
 
     model.addfolder("x/d0");
-    model.addfolder("x/d%30");
+    model.addfolder("x/d%30")->fsName("d%2530");
     model.addfile("x/f0", "f0");
-    model.addfile("x/f%30", "f%30");
+    model.addfile("x/f%30", "f%30")->fsName("f%2530");
 
     // Needed as we've downloaded files.
     model.ensureLocalDebrisTmpLock("x");
@@ -5232,10 +5232,10 @@ TEST(Sync, RemotesWithEscapesSynchronizeCorrectly)
 
         // Sane character escapes.
         ASSERT_TRUE(fs::create_directories(syncRoot / "dd%31"));
-        model.addfolder("x/dd1");
+        model.addfolder("x/dd1")->fsName("dd%31");
 
         ASSERT_TRUE(createNameFile(syncRoot, "ff%31"));
-        model.addfile("x/ff1", "ff%31");
+        model.addfile("x/ff1", "ff%31")->fsName("ff%31");
 
     }
 
@@ -5247,10 +5247,10 @@ TEST(Sync, RemotesWithEscapesSynchronizeCorrectly)
 
     // Let's try with escaped control sequences.
     ASSERT_TRUE(fs::create_directories(syncRoot / "dd%250a"));
-    model.addfolder("x/dd%0a");
+    model.addfolder("x/dd%0a")->fsName("dd%250a");
 
     ASSERT_TRUE(createNameFile(syncRoot, "ff%250a"));
-    model.addfile("x/ff%0a", "ff%250a");
+    model.addfile("x/ff%0a", "ff%250a")->fsName("ff%250a");
 
     // Wait for sync and confirm model.
     waitonsyncs(TIMEOUT, &cd);
