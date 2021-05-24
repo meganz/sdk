@@ -4778,6 +4778,15 @@ TEST(Sync, DetectsAndReportsNameClashes)
     // Give the client time to synchronize.
     waitonsyncs(TIMEOUT, &client);
 
+    // Helpers.
+    auto localConflictDetected = [](const NameConflict& nc, const LocalPath& name)
+    {
+        auto i = nc.clashingLocalNames.begin();
+        auto j = nc.clashingLocalNames.end();
+
+        return std::find(i, j, name) != j;
+    };
+
     // Were any conflicts detected?
     ASSERT_TRUE(client.conflictsDetected());
 
@@ -4787,8 +4796,8 @@ TEST(Sync, DetectsAndReportsNameClashes)
     ASSERT_EQ(conflicts.size(), 2u);
     ASSERT_EQ(conflicts.back().localPath, LocalPath::fromPath("d", *client.fsaccess).prependNewWithSeparator(client.syncByBackupId(backupId1)->localroot->localname));
     ASSERT_EQ(conflicts.back().clashingLocalNames.size(), 2u);
-    ASSERT_EQ(conflicts.back().clashingLocalNames[0], LocalPath::fromPath("f%30", *client.fsaccess));
-    ASSERT_EQ(conflicts.back().clashingLocalNames[1], LocalPath::fromPath("f0", *client.fsaccess));
+    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromPath("f%30", *client.fsaccess)));
+    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromPath("f0", *client.fsaccess)));
     ASSERT_EQ(conflicts.back().clashingCloudNames.size(), 0u);
 
     // Resolve the f0 / f%30 conflict.
@@ -4808,8 +4817,8 @@ TEST(Sync, DetectsAndReportsNameClashes)
         .prependNewWithSeparator(LocalPath::fromPath("d", *client.fsaccess))
         .prependNewWithSeparator(client.syncByBackupId(backupId1)->localroot->localname));
     ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 2u);
-    ASSERT_EQ(conflicts.front().clashingLocalNames[0], LocalPath::fromPath("g%30", *client.fsaccess));
-    ASSERT_EQ(conflicts.front().clashingLocalNames[1], LocalPath::fromPath("g0", *client.fsaccess));
+    ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromPath("g%30", *client.fsaccess)));
+    ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromPath("g0", *client.fsaccess)));
     ASSERT_EQ(conflicts.front().clashingCloudNames.size(), 0u);
 
     // Resolve the g / g%30 conflict.
