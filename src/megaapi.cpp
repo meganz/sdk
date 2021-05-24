@@ -4200,6 +4200,11 @@ MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
     return pImpl->getChildren(p, order);
 }
 
+MegaNodeList *MegaApi::getChildren(MegaNodeList *parentNodes, int order)
+{
+    return pImpl->getChildren(parentNodes, order);
+}
+
 MegaNodeList *MegaApi::getVersions(MegaNode *node)
 {
     return pImpl->getVersions(node);
