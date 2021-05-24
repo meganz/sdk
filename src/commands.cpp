@@ -823,6 +823,7 @@ bool CommandGetFile::procresult(Result r)
                     {
                         // TODO: it results in crashes related to cURL. Disabled for v3.8.9a until patched
                         //client->httpio->cacheresolvedurls(tempurls, move(tempips));
+                        //tempips.clear(); // should never be needed, but can't harm either
                     }
                     else
                     {

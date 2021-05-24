@@ -1955,7 +1955,6 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 #else
 
     httpctx->ares_pending = 1;
-#endif
 
     CurlDNSEntry* dnsEntry = NULL;
     map<string, CurlDNSEntry>::iterator it = dnscache.find(httpctx->hostname);
@@ -1974,9 +1973,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             httpctx->isCachedIp = true;
             oss << "[" << dnsEntry->ipv6 << "]";
             httpctx->hostip = oss.str();
-#ifdef MEGA_USE_C_ARES
             httpctx->ares_pending = 0;
-#endif
             send_request(httpctx);
             return;
         }
@@ -1988,14 +1985,11 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         httpctx->isIPv6 = false;
         httpctx->isCachedIp = true;
         httpctx->hostip = dnsEntry->ipv4;
-#ifdef MEGA_USE_C_ARES
         httpctx->ares_pending = 0;
-#endif
         send_request(httpctx);
         return;
     }
 
-#ifdef MEGA_USE_C_ARES
     if (ipv6requestsenabled)
     {
         httpctx->ares_pending++;
