@@ -4989,7 +4989,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
 
                     row.syncNode->localname = fsnode->localname;
                     row.syncNode->slocalname = fsnode->cloneShortname();
-                    row.syncNode->fsid = fsnode->fsid;
+                    row.syncNode->setfsid(fsnode->fsid, client->localnodeByFsid);
                     statecacheadd(row.syncNode);
 
                     // Are we resuing the FSID of another node?
