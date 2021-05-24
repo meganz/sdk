@@ -1741,6 +1741,7 @@ void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes)
     }
 
     fsid = newfsid;
+    fsidReused = false;
 
     if (fsid == UNDEF)
     {
