@@ -14580,7 +14580,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param parent List of parent nodes
+         * @param parentNodes List of parent nodes
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
