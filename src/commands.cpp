@@ -821,9 +821,8 @@ bool CommandGetFile::procresult(Result r)
                     // cache resolved URLs if received
                     if (tempurls.size() * 2 == tempips.size())
                     {
-                        // TODO: it results in crashes related to cURL. Disabled for v3.8.9a until patched
-                        //client->httpio->cacheresolvedurls(tempurls, move(tempips));
-                        //tempips.clear(); // should never be needed, but can't harm either
+                        client->httpio->cacheresolvedurls(tempurls, move(tempips));
+                        tempips.clear(); // should never be needed, but can't harm either
                     }
                     else
                     {
