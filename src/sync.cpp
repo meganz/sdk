@@ -4992,17 +4992,8 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
                     row.syncNode->setfsid(fsnode->fsid, client->localnodeByFsid);
                     statecacheadd(row.syncNode);
 
-                    // Are we resuing the FSID of another node?
-                    if (auto* node = client->findLocalNodeByFsid(fsnode->fsid, fsnode->type, fsnode->fingerprint, *this, nullptr))
-                    {
-                        LOG_debug << "New directory reuses FSID of existing node: "
-                                  << fullPath.toPath()
-                                  << " <- "
-                                  << node->getLocalPath().toPath();
-
-                        // Yep, mark the node as having it's FSID reused.
-                        node->fsidReused = true;
-                    }
+                    // Mark other nodes with this FSID as having their FSID reused.
+                    client->setFsidReused(fsnode->fsid, row.syncNode);
 
                     if (row.fsSiblings->empty() && row.fsSiblings->capacity() < 50)
                     {
@@ -5206,6 +5197,17 @@ LocalNode* MegaClient::findLocalNodeByFsid(mega::handle fsid, nodetype_t type, c
         }
     }
     return nullptr;
+}
+
+void MegaClient::setFsidReused(mega::handle fsid, const LocalNode* exclude)
+{
+    for (auto range = localnodeByFsid.equal_range(fsid);
+         range.first != range.second;
+         ++range.first)
+    {
+        if (range.first->second == exclude) continue;
+        range.first->second->fsidReused = true;
+    }
 }
 
 LocalNode* MegaClient::findLocalNodeByNodeHandle(NodeHandle h)

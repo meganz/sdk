@@ -1594,6 +1594,8 @@ public:
     fsid_localnode_map localnodeByFsid;
     LocalNode* findLocalNodeByFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fp, Sync& filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
 
+    void setFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
+
     // maps nodehanlde to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
     LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
