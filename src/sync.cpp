@@ -731,7 +731,6 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
         // FIXME: pass last segment of localdebris
         dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris, client->waiter));
     }
-    dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
     const auto cfsfp = mUnifiedSync.mConfig.getLocalFingerprint();

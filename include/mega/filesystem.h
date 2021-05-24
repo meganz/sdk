@@ -479,8 +479,6 @@ public:
     // ignore this (debris folder)
     LocalPath ignore;
 
-    Sync *sync;
-
     DirNotify(const LocalPath&, const LocalPath&);
     virtual ~DirNotify() {}
 

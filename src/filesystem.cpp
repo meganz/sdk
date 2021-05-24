@@ -545,7 +545,6 @@ DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore)
     mFailed = 1;
     mFailReason = "Not initialized";
     mErrorCount = 0;
-    sync = NULL;
 }
 
 
