@@ -1950,10 +1950,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->hostheader.append(httpctx->hostname);
 
 
-#ifndef MEGA_USE_C_ARES
-    send_request(httpctx);
-#else
-
+#ifdef MEGA_USE_C_ARES
     httpctx->ares_pending = 1;
 #endif
 
@@ -1995,7 +1992,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         return;
     }
 
-#ifdef MEGA_USE_C_ARES
+#ifndef MEGA_USE_C_ARES
+    send_request(httpctx);
+#else
     if (ipv6requestsenabled)
     {
         httpctx->ares_pending++;
