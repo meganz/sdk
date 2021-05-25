@@ -6692,7 +6692,7 @@ TEST_F(SdkTest, WritableFolderSessionREsumption)
 
     std::string baseFolder = "WritableFolderSessionREsumption";
 
-    int numFolders = 1;
+    unsigned numFolders = 1;
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), baseFolder));
 
@@ -6704,7 +6704,7 @@ TEST_F(SdkTest, WritableFolderSessionREsumption)
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     // create subfolders ...
-    for (int index = 0 ; index < numFolders; index++ )
+    for (unsigned index = 0 ; index < numFolders; index++ )
     {
         string subFolderPath = string("subfolder_").append(SSTR(index));
         ASSERT_NO_FATAL_FAILURE(createFolder(0, subFolderPath.c_str(), remoteBaseNode.get())) << "Error creating remote subfolder";
@@ -6735,7 +6735,7 @@ TEST_F(SdkTest, WritableFolderSessionREsumption)
     sessions.resize(howMany);
 
     // export subfolders
-    for (int index = 0 ; index < howMany; index++ )
+    for (unsigned index = 0 ; index < howMany; index++ )
     {
         string subFolderPath = string("subfolder_").append(SSTR(index));
         std::unique_ptr<MegaNode> remoteSubFolderNode(megaApi[0]->getNodeByPath(subFolderPath.c_str(), remoteBaseNode.get()));
@@ -6768,7 +6768,7 @@ TEST_F(SdkTest, WritableFolderSessionREsumption)
     // create apis to exported folders
     for (unsigned index = 0 ; index < howMany; index++ )
     {
-        exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index + 10 /*so as not to clash with megaApi[0]*/).c_str(),
+        exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(static_cast<int>(index) + 10 /*so as not to clash with megaApi[0]*/).c_str(),
                                                     USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
         // reduce log level to something beareable
         exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
@@ -6852,7 +6852,7 @@ TEST_F(SdkTest, WritableFolderSessionREsumption)
     for (unsigned index = 0; index < howMany; ++index)
     {
         std::unique_ptr<MegaNode> root{exportedFolderApis[index]->getRootNode()};
-        ASSERT_NE(root.get(), ((::mega::MegaNode *)NULL));
+        ASSERT_TRUE(root != nullptr);
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
