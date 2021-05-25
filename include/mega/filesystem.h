@@ -213,6 +213,17 @@ void RemoveHiddenFileAttribute(mega::LocalPath& path);
 
 /**
  * @brief
+ * Checks whether a contains b.
+ *
+ * @return
+ * True if a contains b.
+ */
+bool IsContainingPathOf(const string& a, const string& b);
+bool IsContainingPathOf(const string& a, const char* b, size_t bLength);
+bool IsContainingPathOf(const string& a, const char* b);
+
+/**
+ * @brief
  * Ensures that a path does not end with a separator.
  *
  * @param path

@@ -836,7 +836,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 #ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
-    string *ignore;
 
     if (MEGA_FD_ISSET(notifyfd, &pw->rfds))
     {
@@ -872,11 +871,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                         {
                             if (lastcookie && lastcookie != in->cookie)
                             {
-                                ignore = &lastlocalnode->sync->dirnotify->ignore.localpath;
-                                if (lastname.size() < ignore->size()
-                                 || memcmp(lastname.c_str(), ignore->data(), ignore->size())
-                                 || (lastname.size() > ignore->size()
-                                  && lastname[ignore->size()] != LocalPath::localPathSeparator))
+                                const auto& ignore = lastlocalnode->sync->dirnotify->ignore.localpath;
+
+                                if (!IsContainingPathOf(ignore, lastname))
                                 {
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
@@ -904,13 +901,10 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                             {
                                 lastcookie = 0;
 
-                                ignore = &it->second->sync->dirnotify->ignore.localpath;
+                                const auto& ignore = it->second->sync->dirnotify->ignore.localpath;
                                 unsigned int insize = strlen(in->name);
 
-                                if (insize < ignore->size()
-                                 || memcmp(in->name, ignore->data(), ignore->size())
-                                 || (insize > ignore->size()
-                                  && in->name[ignore->size()] != LocalPath::localPathSeparator))
+                                if (!IsContainingPathOf(ignore, in->name, insize))
                                 {
                                     LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
 
@@ -932,12 +926,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_FROM pairs are never notified separately
         if (lastcookie)
         {
-            ignore = &lastlocalnode->sync->dirnotify->ignore.localpath;
+            const auto& ignore = lastlocalnode->sync->dirnotify->ignore.localpath;
 
-            if (lastname.size() < ignore->size()
-             || memcmp(lastname.c_str(), ignore->data(), ignore->size())
-             || (lastname.size() > ignore->size()
-              && lastname[ignore->size()] != LocalPath::localPathSeparator))
+            if (!IsContainingPathOf(ignore, lastname))
             {
                 LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
 

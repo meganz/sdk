@@ -222,6 +222,36 @@ bool isCaseInsensitive(const FileSystemType type)
 #endif
 }
 
+bool IsContainingPathOf(const string& a, const string& b)
+{
+    return IsContainingPathOf(a, b.c_str(), b.size());
+}
+
+#ifdef _WIN32
+#define SEP '\\'
+#else // _WIN32
+#define SEP '/'
+#endif // ! _WIN32
+
+bool IsContainingPathOf(const string& a, const char* b, size_t bLength)
+{
+    // a's longer than b so a can't contain b.
+    if (bLength < a.size()) return false;
+
+    // b's longer than a so there should be a separator.
+    if (bLength > a.size() && b[a.size()] != SEP) return false;
+
+    // a and b must share a common prefix.
+    return !a.compare(0, a.size(), b);
+}
+
+#undef SEP
+
+bool IsContainingPathOf(const string& a, const char* b)
+{
+    return IsContainingPathOf(a, b, strlen(b));
+}
+
 LocalPath NormalizeRelative(const LocalPath& path)
 {
 #ifdef WIN32
