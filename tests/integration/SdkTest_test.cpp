@@ -6680,23 +6680,23 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
  *
  * Testing multiple SDK instances working in parallel
  */
-TEST_F(SdkTest, WritableFolderSessionREsumption)
+TEST_F(SdkTest, WritableFolderSessionResumption)
 {
     // What we are going to test here:
     // - Creating multiple writable folders
     // - Login and fetch nodes in separated MegaApi instances
     //   and hence in multiple SDK instances running in parallel.
 
-    LOG_info << "___TEST WritableFolderSessionREsumption___";
+    LOG_info << "___TEST WritableFolderSessionResumption___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    std::string baseFolder = "WritableFolderSessionREsumption";
+    std::string baseFolder = "WritableFolderSessionResumption";
 
     int numFolders = 1;
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), baseFolder));
 
-    LOG_verbose << "WritableFolderSessionREsumption :  Creating remote folder";
+    LOG_verbose << "WritableFolderSessionResumption :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
     ASSERT_NO_FATAL_FAILURE(createFolder(0, baseFolder.c_str(), remoteRootNode.get())) << "Error creating remote basePath";
@@ -6745,7 +6745,7 @@ TEST_F(SdkTest, WritableFolderSessionREsumption)
         ASSERT_NO_FATAL_FAILURE(createPublicLink(0, remoteSubFolderNode.get(), 0, 0, false/*mApi[0].accountDetails->getProLevel() == 0)*/, true/*writable*/));
         // The created link is stored in this->link at onRequestFinish()
         string nodelink = this->link;
-        LOG_verbose << "WritableFolderSessionREsumption : " << subFolderPath << " link = " << nodelink;
+        LOG_verbose << "WritableFolderSessionResumption : " << subFolderPath << " link = " << nodelink;
 
         exportedLinks[index] = nodelink;
 
