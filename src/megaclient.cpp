@@ -12175,7 +12175,7 @@ void MegaClient::fetchnodes(bool nocache)
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
-        getuserdata(0, [this, fetchnodesTag](string*, string*, string*, error e) {
+        auto onuserdataCompletion = [this, fetchnodesTag](string*, string*, string*, error e) {
 
             restag = fetchnodesTag;
 
@@ -12225,7 +12225,17 @@ void MegaClient::fetchnodes(bool nocache)
 
             WAIT_CLASS::bumpds();
             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
-        });
+        };
+
+
+        if (!loggedIntoFolder())
+        {
+            getuserdata(0, onuserdataCompletion);
+        }
+        else
+        {
+            onuserdataCompletion(nullptr, nullptr, nullptr, API_OK);
+        }
     }
     else if (!fetchingnodes)
     {
