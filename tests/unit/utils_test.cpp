@@ -28,6 +28,7 @@
 
 #include <mega/db.h>
 #include <mega/db/sqlite.h>
+#include <mega/json.h>
 
 TEST(utils, hashCombine_integer)
 {
@@ -655,6 +656,30 @@ TEST(Filesystem, NormalizeRelativeEmpty)
     EXPECT_EQ(NormalizeRelative(path), path);
 }
 
+TEST(Filesystem, isReservedName)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+    bool expected = false;
+
+#ifdef _WIN32
+    expected = true;
+#endif // _WIN32
+    
+    // Representative examples.
+    static const string reserved[] = {"AUX", "com1", "LPT4"};
+
+    for (auto& r : reserved)
+    {
+        EXPECT_EQ(isReservedName(r, FILENODE),   expected);
+        EXPECT_EQ(isReservedName(r, FOLDERNODE), expected);
+    }
+
+    EXPECT_EQ(isReservedName("a.", FILENODE),   false);
+    EXPECT_EQ(isReservedName("a.", FOLDERNODE), expected);
+}
+
 class SqliteDBTest
   : public ::testing::Test
 {
@@ -978,5 +1003,98 @@ TEST_F(SqliteDBTest, RootPath)
 {
     SqliteDbAccess dbAccess(rootPath);
     EXPECT_EQ(dbAccess.rootPath(), rootPath);
+}
+
+#ifdef WIN32
+#define SEP "\\"
+#else // WIN32
+#define SEP "/"
+#endif // ! WIN32
+
+TEST(LocalPath, AppendWithSeparator)
+{
+    FSACCESS_CLASS fsAccess;
+    LocalPath source;
+    LocalPath target;
+
+    // Doesn't add a separator if the target is empty.
+    source = LocalPath::fromPath("a", fsAccess);
+    target.appendWithSeparator(source, false);
+
+    EXPECT_EQ(target.toPath(fsAccess), "a");
+
+    // Doesn't add a separator if the source begins with one.
+    source = LocalPath::fromPath(SEP "b", fsAccess);
+    target = LocalPath::fromPath("a", fsAccess);
+
+    target.appendWithSeparator(source, true);
+    EXPECT_EQ(target.toPath(fsAccess), "a" SEP "b");
+
+    // Doesn't add a separator if the target ends with one.
+    source = LocalPath::fromPath("b", fsAccess);
+    target = LocalPath::fromPath("a" SEP, fsAccess);
+
+    target.appendWithSeparator(source, true);
+    EXPECT_EQ(target.toPath(fsAccess), "a" SEP "b");
+
+    // Adds a separator when:
+    // - source doesn't begin with one.
+    // - target doesn't end with one.
+    target = LocalPath::fromPath("a", fsAccess);
+
+    target.appendWithSeparator(source, true);
+    EXPECT_EQ(target.toPath(fsAccess), "a" SEP "b");
+}
+
+TEST(LocalPath, PrependWithSeparator)
+{
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath source;
+    LocalPath target;
+
+    // No separator if target is empty.
+    source = LocalPath::fromPath("b", fsAccess);
+
+    target.prependWithSeparator(source);
+    EXPECT_EQ(target.toPath(fsAccess), "b");
+
+    // No separator if target begins with separator.
+    target = LocalPath::fromPath(SEP "a", fsAccess);
+
+    target.prependWithSeparator(source);
+    EXPECT_EQ(target.toPath(fsAccess), "b" SEP "a");
+
+    // No separator if source ends with separator.
+    source = LocalPath::fromPath("b" SEP, fsAccess);
+    target = LocalPath::fromPath("a", fsAccess);
+
+    target.prependWithSeparator(source);
+    EXPECT_EQ(target.toPath(fsAccess), "b" SEP "a");
+}
+
+#undef SEP
+
+TEST(JSONWriter, arg_stringWithEscapes)
+{
+    JSONWriter writer;
+    writer.arg_stringWithEscapes("ke", "\"\\");
+    EXPECT_EQ(writer.getstring(), "\"ke\":\"\\\"\\\\\"");
+}
+
+TEST(JSONWriter, escape)
+{
+    class Writer
+      : public JSONWriter
+    {
+    public:
+        using JSONWriter::escape;
+    };
+
+    Writer writer;
+    string input = "\"\\";
+    string expected = "\\\"\\\\";
+
+    EXPECT_EQ(writer.escape(input.c_str(), input.size()), expected);
 }
 

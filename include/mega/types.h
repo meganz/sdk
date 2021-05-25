@@ -155,7 +155,11 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
+               REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED,
+               REQ_INFLIGHT,
+               REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO,
+               } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
@@ -256,7 +260,7 @@ private:
 };
 
 // returned by loggedin()
-typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } sessiontype_t;
+typedef enum { NOTLOGGEDIN = 0, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT, EPHEMERALACCOUNTPLUSPLUS } sessiontype_t;
 
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit
 // in a 64-bit int
@@ -354,6 +358,17 @@ typedef enum {
     SYNC_ACTIVE
 } syncstate_t;
 
+typedef enum
+{
+    // Sync is not operating in a backup capacity.
+    SYNC_BACKUP_NONE = 0,
+    // Sync is mirroring the local source.
+    SYNC_BACKUP_MIRROR = 1,
+    // Sync is monitoring (and propagating) local changes.
+    SYNC_BACKUP_MONITOR = 2
+}
+SyncBackupState;
+
 enum SyncError {
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
@@ -383,6 +398,10 @@ enum SyncError {
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
     WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
+    MISSING_PARENT_NODE = 28,               // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
+    BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
+    SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
 };
 
 enum SyncWarning {
@@ -593,9 +612,10 @@ typedef enum {
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
-    //ATTR_BACKUP_NAMES = 32,                 // (deprecated) private - byte array - versioned
+    //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
-    ATTR_JSON_SYNC_CONFIG_DATA = 34         // private - byte array - non-versioned
+    ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
+    ATTR_DRIVE_NAMES = 35                   // private - byte array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;

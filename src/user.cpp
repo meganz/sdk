@@ -57,9 +57,11 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         }
         if (newValue != currentValue)
         {
-            if ((type == ATTR_ALIAS) && newValue[0] == '\0')
+            if ((type == ATTR_ALIAS
+                 || type == ATTR_DRIVE_NAMES
+                 || type == ATTR_DEVICE_NAMES) && newValue[0] == '\0')
             {
-                // alias/backupName being removed
+                // alias/deviceName/driveName being removed
                 tlv.reset(key);
             }
             else
@@ -558,6 +560,10 @@ string User::attr2string(attr_t type)
             attrname = "*~jscd";
             break;
 
+        case ATTR_DRIVE_NAMES:
+            attrname =  "*!drn";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -710,6 +716,10 @@ string User::attr2longname(attr_t type)
     case ATTR_JSON_SYNC_CONFIG_DATA:
         longname = "JSON_SYNC_CONFIG_DATA";
         break;
+
+        case ATTR_DRIVE_NAMES:
+            longname = "DRIVE_NAMES";
+            break;
     }
 
     return longname;
@@ -854,6 +864,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_JSON_SYNC_CONFIG_DATA;
     }
+    else if (!strcmp(name, "*!drn"))
+    {
+        return ATTR_DRIVE_NAMES;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -899,6 +913,7 @@ int User::needversioning(attr_t at)
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_DEVICE_NAMES:
         case ATTR_JSON_SYNC_CONFIG_DATA:
+        case ATTR_DRIVE_NAMES:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -926,6 +941,7 @@ char User::scope(attr_t at)
         case ATTR_DEVICE_NAMES:
         case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_JSON_SYNC_CONFIG_DATA:
+        case ATTR_DRIVE_NAMES:
             return '*';
 
         case ATTR_AVATAR:
@@ -1367,6 +1383,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_JSON_SYNC_CONFIG_DATA:
             changed.jsonSyncConfigData = true;
+            break;
+
+        case ATTR_DRIVE_NAMES:
+            changed.drivenames = true;
             break;
 
         default:

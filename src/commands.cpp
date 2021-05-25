@@ -119,7 +119,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     else
                     {
                         LOG_debug << "Sending file attribute data";
-                        Node::copystring(&posturl, p);
+                        JSON::copystring(&posturl, p);
                         progressreported = 0;
                         HttpReq::type = REQ_BINARY;
                         post(client, data->data(), unsigned(data->size()));
@@ -203,7 +203,7 @@ bool CommandGetFA::procresult(Result r)
                 {
                     if (p)
                     {
-                        Node::copystring(&it->second->posturl, p);
+                        JSON::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
                         it->second->dispatch();
                     }
@@ -705,6 +705,7 @@ bool CommandGetFile::procresult(Result r)
     string filenamestring;
     string filefingerprint;
     std::vector<string> tempurls;
+    std::vector<string> tempips;
 
     for (;;)
     {
@@ -734,6 +735,22 @@ bool CommandGetFile::procresult(Result r)
                 }
                 e.setErrorCode(API_OK);
                 break;
+
+        case MAKENAMEID2('i', 'p'):
+            if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+            {
+                for (;;)
+                {
+                    std::string ti;
+                    if (!client->json.storeobject(&ti))
+                    {
+                        break;
+                    }
+                    tempips.push_back(ti);
+                }
+                client->json.leavearray();
+            }
+            break;
 
             case 's':
                 s = client->json.getint();
@@ -801,6 +818,19 @@ bool CommandGetFile::procresult(Result r)
                 }
                 else
                 {
+                    // cache resolved URLs if received
+                    if (tempurls.size() * 2 == tempips.size())
+                    {
+                        client->httpio->cacheresolvedurls(tempurls, move(tempips));
+                        tempips.clear(); // should never be needed, but can't harm either
+                    }
+                    else
+                    {
+                        assert(false);
+                        client->sendevent(99556, "Unpaired IPs received for URLs in `g` command");
+                        LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
+                    }
+
                     // decrypt at and set filename
                     SymmCipher key;
                     const char* eos = strchr(at, '"');
@@ -1177,7 +1207,19 @@ bool CommandPutNodes::procresult(Result r)
         LOG_debug << "Putnodes error " << r.errorOrOK();
         if (r.wasError(API_EOVERQUOTA))
         {
-            client->activateoverquota(0, false);
+            if (client->isPrivateNode(NodeHandle().set6byte(targethandle)))
+            {
+                client->activateoverquota(0, false);
+            }
+#ifdef ENABLE_SYNC
+            else    // the target's account is overquota
+            {
+                if (source == PUTNODES_SYNC)
+                {
+                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, false);
+                }
+            }
+#endif
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1810,7 +1852,7 @@ bool CommandLogin::procresult(Result r)
                             client->app->login_result(API_EINTERNAL);
                             return true;
                         }
-                        else
+                        else if (!client->ephemeralSessionPlusPlus)
                         {
                             // logging in with tsid to an account without a RSA keypair
                             LOG_info << "Generating and adding missing RSA keypair";
@@ -2405,10 +2447,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
         }
 
         client->json.leaveobject();
-        Node::copystring(&currency, curr);
-        Node::copystring(&description, desc);
-        Node::copystring(&ios_id, ios);
-        Node::copystring(&android_id, android);
+        JSON::copystring(&currency, curr);
+        JSON::copystring(&description, desc);
+        JSON::copystring(&ios_id, ios);
+        JSON::copystring(&android_id, android);
 
         amount = atoi(amountStr) * 100;
         if ((curr = strchr(amountStr, '.')))
@@ -5085,6 +5127,7 @@ bool CommandCreateEphemeralSession::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         client->ephemeralSession = false;
+        client->ephemeralSessionPlusPlus = false;
         client->app->ephemeral_result(r.errorOrOK());
     }
     else
@@ -5373,10 +5416,15 @@ bool CommandConfirmSignupLink::procresult(Result r)
     {
         client->json.storeobject();
         client->ephemeralSession = false;
+        client->ephemeralSessionPlusPlus = false;
         client->app->confirmsignuplink_result(API_OK);
         return true;
     }
 
+    client->json.storeobject();
+
+    client->ephemeralSession = false;
+    client->ephemeralSessionPlusPlus = false;
     client->app->confirmsignuplink_result(r.errorOrOK());
     return r.wasStrictlyError();
 }
@@ -5704,6 +5752,7 @@ CommandCopySession::CommandCopySession(MegaClient *client)
     tag = client->reqtag;
 }
 
+// for ephemeral accounts, it returns "tsid" instead of "csid" -> not supported, will return API_EINTERNAL
 bool CommandCopySession::procresult(Result r)
 {
     string session;
@@ -5712,6 +5761,7 @@ bool CommandCopySession::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
+        assert(r.errorOrOK() != API_OK); // API shouldn't return OK, but a session
         client->app->copysession_result(NULL, r.errorOrOK());
         return true;
     }
@@ -8273,6 +8323,11 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
     if (!fields.deviceId.empty())
     {
         arg("d", fields.deviceId.c_str());
+    }
+
+    if (!ISUNDEF(fields.driveId))
+    {
+        arg("dr",  (byte*)&fields.driveId, MegaClient::DRIVEHANDLE);
     }
 
     if (fields.state >= 0)

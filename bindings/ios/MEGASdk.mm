@@ -220,6 +220,11 @@ using namespace mega;
     return self;
 }
 
+- (void)deleteMegaApi {    
+    delete _megaApi;
+    pthread_mutex_destroy(&listenerMutex);
+}
+
 - (void)dealloc {
     delete _megaApi;
     pthread_mutex_destroy(&listenerMutex);
@@ -1971,6 +1976,14 @@ using namespace mega;
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
+- (BOOL)isPrivateNode:(uint64_t)handle {
+    return self.megaApi->isPrivateNode(handle);
+}
+
+- (BOOL)isForeignNode:(uint64_t)handle{
+    return self.megaApi->isForeignNode(handle);
+}
+
 - (MEGANodeList *)publicLinks:(MEGASortOrderType)order {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks((int)order) cMemoryOwn:YES];
 }
@@ -2467,6 +2480,10 @@ using namespace mega;
 
 - (void)getMegaAchievements {
     self.megaApi->getMegaAchievements();
+}
+
+- (void)catchupWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->catchup([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)getPublicLinkInformationWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {

@@ -1390,7 +1390,7 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
         target_exists = errno == EEXIST;
         if (target_exists)
         {
-            LOG_debug << "Error creating local directory: " << nameStr << " errno: " << errno;
+            LOG_debug << "Failed to create local directory: " << nameStr << " (already exists)";
         }
         else
         {
@@ -2121,4 +2121,10 @@ PosixDirAccess::~PosixDirAccess()
         globfree(&globbuf);
     }
 }
+
+bool isReservedName(const string&, nodetype_t)
+{
+    return false;
+}
+
 } // namespace

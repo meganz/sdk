@@ -115,6 +115,10 @@ int responseprogress = -1;
 //2FA pin attempts
 int attempts = 0;
 
+//Ephemeral account plus plus
+std::string ephemeralFirstname;
+std::string ephemeralLastName;
+
 #ifdef ENABLE_SYNC
 
 // converts the given sync configuration to a string
@@ -134,72 +138,6 @@ std::string syncConfigToString(const SyncConfig& config)
         description.append(" DOWN");
     }
     return description;
-}
-
-// creates a NewSyncConfig object from config options as strings.
-// returns a pair where `first` is success and `second` is the sync config.
-std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
-{
-    auto toLower = [](std::string& s)
-    {
-        for (char& c : s) { c = static_cast<char>(tolower(c)); };
-    };
-
-    toLower(type);
-    toLower(syncDel);
-    toLower(overwrite);
-
-    SyncConfig::Type syncType;
-    if (type == "up")
-    {
-        syncType = SyncConfig::TYPE_UP;
-    }
-    else if (type == "down")
-    {
-        syncType = SyncConfig::TYPE_DOWN;
-    }
-    else if (type == "twoway")
-    {
-        syncType = SyncConfig::TYPE_TWOWAY;
-    }
-    else
-    {
-        return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
-    }
-
-    bool syncDeletions = false;
-    bool forceOverwrite = false;
-
-    if (syncType != SyncConfig::TYPE_TWOWAY)
-    {
-        if (syncDel == "on")
-        {
-            syncDeletions = true;
-        }
-        else if (syncDel == "off")
-        {
-            syncDeletions = false;
-        }
-        else
-        {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
-        }
-
-        if (overwrite == "on")
-        {
-            forceOverwrite = true;
-        }
-        else if (overwrite == "off")
-        {
-            forceOverwrite = false;
-        }
-        else
-        {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
-        }
-    }
-
-    return std::make_pair(true, SyncConfig(LocalPath(), "", NodeHandle(), "", 0, {}, true, syncType));
 }
 
 #endif
@@ -1142,6 +1080,12 @@ void DemoApp::fetchnodes_result(const Error& e)
         if (pdf_to_import)
         {
             client->getwelcomepdf();
+        }
+
+        if (client->ephemeralSessionPlusPlus)
+        {
+            client->putua(ATTR_FIRSTNAME, (const byte*)ephemeralFirstname.c_str(), unsigned(ephemeralFirstname.size()));
+            client->putua(ATTR_LASTNAME, (const byte*)ephemeralLastName.c_str(), unsigned(ephemeralLastName.size()));
         }
     }
 }
@@ -2985,6 +2929,56 @@ void exec_backupcentre(autocomplete::ACState& s)
     }
 }
 
+void exec_logFilenameAnomalies(autocomplete::ACState& s)
+{
+    class Reporter
+      : public FilenameAnomalyReporter
+    {
+    public:
+        void anomalyDetected(FilenameAnomalyType type,
+                             const string& localPath,
+                             const string& remotePath) override
+        {
+            string typeName;
+
+            switch (type)
+            {
+            case FILENAME_ANOMALY_NAME_MISMATCH:
+                typeName = "NAME_MISMATCH";
+                break;
+            case FILENAME_ANOMALY_NAME_RESERVED:
+                typeName = "NAME_RESERVED";
+                break;
+            default:
+                assert(!"Unknown anomaly type!");
+                typeName = "UNKNOWN";
+                break;
+            }
+
+            cout << "Filename anomaly detected: type: "
+                 << typeName
+                 << ": local path: "
+                 << localPath
+                 << ": remote path: "
+                 << remotePath
+                 << endl;
+        }
+    }; // Reporter
+
+    unique_ptr<FilenameAnomalyReporter> reporter;
+
+    if (s.words[1].s == "on")
+    {
+        reporter.reset(new Reporter());
+    }
+
+    cout << "Filename anomaly reporting is "
+         << (reporter ? "en" : "dis")
+         << "abled."
+         << endl;
+
+    client->mFilenameAnomalyReporter = std::move(reporter);
+}
 
 MegaCLILogger gLogger;
 
@@ -2998,8 +2992,12 @@ autocomplete::ACN autocompleteSyntax()
                                                       sequence(exportedLink(false, true), opt(param("auth_key"))),
                                                       param("session"),
                                                       sequence(text("autoresume"), opt(param("id"))))));
-    p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
+    p->Add(exec_begin, sequence(text("begin"), opt(flag("-e++")),
+                                opt(either(sequence(param("firstname"), param("lastname")),     // to create an ephemeral++
+                                        param("ephemeralhandle#ephemeralpw"),               // to resume an ephemeral
+                                        param("session")))));                                 // to resume an ephemeral++
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
+
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -3042,11 +3040,35 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
+    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
+
     p->Add(exec_syncadd,
            sequence(text("sync"),
                     text("add"),
+                    opt(flag("-backup")),
+                    opt(sequence(flag("-external"), param("drivePath"))),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
+
+    p->Add(exec_syncclosedrive,
+           sequence(text("sync"),
+                    text("closedrive"),
+                    localFSFolder("drive")));
+
+    p->Add(exec_syncexport,
+           sequence(text("sync"),
+                    text("export"),
+                    opt(localFSFile("outputFile"))));
+
+    p->Add(exec_syncimport,
+           sequence(text("sync"),
+                    text("import"),
+                    localFSFile("inputFile")));
+
+    p->Add(exec_syncopendrive,
+           sequence(text("sync"),
+                    text("opendrive"),
+                    localFSFolder("drive")));
 
     p->Add(exec_synclist,
            sequence(text("sync"), text("list")));
@@ -3063,9 +3085,6 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(param("error"))),
                            sequence(text("enable"),
                                     param("id")))));
-
-    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
-
 #endif
 
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
@@ -3178,6 +3197,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
+
+    p->Add(exec_logFilenameAnomalies,
+           sequence(text("logfilenameanomalies"), either(text("on"), text("off"))));
+
+    p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -4472,7 +4496,6 @@ void exec_mfae(autocomplete::ACState& s)
 void exec_login(autocomplete::ACState& s)
 {
     //bool fresh = s.extractflag("-fresh");
-
     if (client->loggedin() == NOTLOGGEDIN)
     {
         if (s.words.size() > 1)
@@ -4532,26 +4555,43 @@ void exec_login(autocomplete::ACState& s)
 
 void exec_begin(autocomplete::ACState& s)
 {
+    bool ephemeralPlusPlus = s.extractflag("-e++");
     if (s.words.size() == 1)
     {
         cout << "Creating ephemeral session..." << endl;
         pdf_to_import = true;
         client->createephemeral();
     }
-    else if (s.words.size() == 2)
+    else if (s.words.size() == 2)   // resume session
     {
-        handle uh;
-        byte pw[SymmCipher::KEYLENGTH];
-
-        if (Base64::atob(s.words[1].s.c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
-            s.words[1].s.c_str() + 12, pw, sizeof pw) == sizeof pw)
+        if (ephemeralPlusPlus)
         {
-            client->resumeephemeral(uh, pw);
+            client->resumeephemeralPlusPlus(Base64::atob(s.words[1].s));
         }
         else
         {
-            cout << "Malformed ephemeral session identifier." << endl;
+            handle uh;
+            byte pw[SymmCipher::KEYLENGTH];
+
+            if (Base64::atob(s.words[1].s.c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
+                s.words[1].s.c_str() + 12, pw, sizeof pw) == sizeof pw)
+            {
+                client->resumeephemeral(uh, pw);
+            }
+            else
+            {
+                cout << "Malformed ephemeral session identifier." << endl;
+            }
         }
+    }
+    else if (ephemeralPlusPlus && s.words.size() == 3)  // begin -e++ firstname lastname
+    {
+        cout << "Creating ephemeral session plus plus..." << endl;
+
+        pdf_to_import = true;
+        ephemeralFirstname = s.words[1].s;
+        ephemeralLastName = s.words[2].s;
+        client->createephemeralPlusPlus();
     }
 }
 
@@ -4873,6 +4913,13 @@ void exec_getua(autocomplete::ACState& s)
 
 void exec_putua(autocomplete::ACState& s)
 {
+
+    if (!client->loggedin())
+    {
+        cout << "Must be logged in to set user attributes." << endl;
+        return;
+    }
+
     attr_t attrtype = User::string2attr(s.words[1].s.c_str());
     if (attrtype == ATTR_UNKNOWN)
     {
@@ -4933,7 +4980,9 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_DEVICE_NAMES || attrtype == ATTR_ALIAS)
+            if (attrtype == ATTR_DEVICE_NAMES
+                    || attrtype == ATTR_DRIVE_NAMES
+                    || attrtype == ATTR_ALIAS)
             {
                 std::string key = s.words[3].s;
                 std::string value = Base64::btoa(s.words[4].s);
@@ -5631,6 +5680,7 @@ void exec_signup(autocomplete::ACState& s)
             break;
 
         case EPHEMERALACCOUNT:
+        case EPHEMERALACCOUNTPLUSPLUS:
             if (s.words[1].s.find('@') + 1 && s.words[1].s.find('.') + 1)
             {
                 signupemail = s.words[1].s;
@@ -5854,6 +5904,9 @@ void exec_logout(autocomplete::ACState& s)
         delete clientFolder;
         clientFolder = NULL;
     }
+
+    ephemeralFirstname.clear();
+    ephemeralLastName.clear();
 }
 
 #ifdef ENABLE_CHAT
@@ -6279,6 +6332,10 @@ void exec_version(autocomplete::ACState& s)
     cout << "* FreeImage" << endl;
 #endif
 
+#ifdef HAVE_PDFIUM
+    cout << "* PDFium" << endl;
+#endif
+
 #ifdef ENABLE_SYNC
     cout << "* sync subsystem" << endl;
 #endif
@@ -6542,6 +6599,9 @@ void exec_locallogout(autocomplete::ACState& s)
 
     cwd = NodeHandle();
     client->locallogout(false, true);
+
+    ephemeralFirstname.clear();
+    ephemeralLastName.clear();
 }
 
 void exec_recentnodes(autocomplete::ACState& s)
@@ -6610,6 +6670,40 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
     }
     cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
 }
+
+void exec_drivemonitor(autocomplete::ACState& s)
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    if (turnon)
+    {
+        // start receiving notifications
+        if (!client->startDriveMonitor())
+        {
+            // return immediately, when this functionality was not implemented
+            cout << "Failed starting drive notifications" << endl;
+        }
+    }
+    else if (turnoff)
+    {
+        client->stopDriveMonitor();
+    }
+
+    cout << "Drive monitor " << (client->driveMonitorEnabled() ? "on" : "off") << endl;
+#else
+    std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
+#endif // USE_DRIVE_NOTIFICATIONS
+}
+
+#ifdef USE_DRIVE_NOTIFICATIONS
+void DemoApp::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
+{
+    std::cout << "Drive " << (appeared ? "connected" : "disconnected") << ": " << driveRoot.platformEncoded() << endl;
+}
+#endif // USE_DRIVE_NOTIFICATIONS
 
 // callback for non-EAGAIN request-level errors
 // in most cases, retrying is futile, so the application exits
@@ -7014,8 +7108,17 @@ void DemoApp::confirmemaillink_result(error e)
 void DemoApp::ephemeral_result(handle uh, const byte* pw)
 {
     cout << "Ephemeral session established, session ID: ";
-    cout << Base64Str<MegaClient::USERHANDLE>(uh) << "#";
-    cout << Base64Str<SymmCipher::KEYLENGTH>(pw) << endl;
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        cout << Base64Str<MegaClient::USERHANDLE>(uh) << "#";
+        cout << Base64Str<SymmCipher::KEYLENGTH>(pw) << endl;
+    }
+    else
+    {
+        string session;
+        client->dumpsession(session);
+        cout << Base64::btoa(session) << endl;
+    }
 
     client->fetchnodes();
 }
@@ -7139,7 +7242,7 @@ void exportnode_result(Error e, handle h, handle ph)
             if (authKey.size())
             {
                 string authToken(publicLink);
-                authToken = authToken.substr(strlen("https://mega.nz/folder/")).append(":").append(authKey);
+                authToken = authToken.substr(MegaClient::MEGAURL.size()+strlen("/folder/")).append(":").append(authKey);
                 cout << "\n          AuthToken = " << authToken;
             }
         }
@@ -7519,7 +7622,7 @@ void DemoApp::nodes_current()
 
 void DemoApp::account_updated()
 {
-    if (client->loggedin() == EPHEMERALACCOUNT)
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
         LOG_debug << "Account has been confirmed by another client. Proceed to login with credentials.";
     }
@@ -7531,7 +7634,7 @@ void DemoApp::account_updated()
 
 void DemoApp::notify_confirmation(const char *email)
 {
-    if (client->loggedin() == EPHEMERALACCOUNT)
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
         LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
     }
@@ -8365,6 +8468,28 @@ void exec_banner(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
+void sync_completion(UnifiedSync* us, const SyncError&, error result)
+{
+    if (!us)
+    {
+        cerr << "Sync could not be added: "
+             << errorstring(result)
+             << endl;
+    }
+    else if (us->mSync)
+    {
+        cerr << "Sync added and running: "
+             << toHandle(us->mConfig.mBackupId)
+             << endl;
+    }
+    else
+    {
+        cerr << "Sync added but could not be started: "
+             << errorstring(result)
+             << endl;
+    }
+}
+
 void exec_syncadd(autocomplete::ACState& s)
 {
     if (client->loggedin() != FULLACCOUNT)
@@ -8374,8 +8499,13 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
+    string drive;
+    bool backup = s.extractflag("-backup");
+    bool external = s.extractflagparam("-external", drive);
+
     // sync add source target
-    string sourcePath = s.words[2].s;
+    LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
+    LocalPath sourcePath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
     string targetPath = s.words[3].s;
 
     // Does the target node exist?
@@ -8389,32 +8519,169 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
+    // Necessary so that we can reliably extract the leaf name.
+    sourcePath = NormalizeAbsolute(sourcePath);
+
     // Create a suitable sync config.
-    SyncConfig config(LocalPath::fromPath(sourcePath, *client->fsaccess),
-                 sourcePath,
+    auto config =
+      SyncConfig(sourcePath,
+                 sourcePath.leafName().toPath(*client->fsaccess),
                  NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
-                 string_vector(),
+                 external ? std::move(drivePath) : LocalPath(),
                  true,
-                 SyncConfig::TYPE_TWOWAY);
+                 backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
-    // Try and add the new sync.   All validation is performed in this function
-    client->addsync(config, true,
-                    [&](mega::UnifiedSync *, const SyncError &, error e) {
-        if (!e)
-        {
-            cout << "Sync added" << endl;
-        }
-        else
-        {
-            cerr << "Sync could not be added: "
-                 << errorstring(e)
-                 << endl;
-        }
-    });
+    if (external && !backup)
+    {
+        cerr << "Sorry, external syncs must be backups for now" << endl;
+    }
+
+    // Try and add the new sync.
+	// All validation is performed in this function.
+    client->addsync(config, false, sync_completion);
 }
 
+void exec_syncclosedrive(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate backup syncs."
+             << endl;
+        return;
+    }
+
+    // sync backup remove drive
+    const auto drivePath =
+      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+
+    const auto result = client->syncs.backupCloseDrive(drivePath);
+
+    if (result)
+    {
+        cerr << "Unable to remove backup database: "
+             << errorstring(result)
+             << endl;
+    }
+}
+
+void exec_syncimport(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to import syncs."
+             << endl;
+        return;
+    }
+
+    auto flags = std::ios::binary | std::ios::in;
+    ifstream istream(s.words[2].s, flags);
+
+    if (!istream)
+    {
+        cerr << "Unable to open "
+             << s.words[2].s
+             << " for reading."
+             << endl;
+        return;
+    }
+
+    string data;
+
+    for (char buffer[512]; istream; )
+    {
+        istream.read(buffer, sizeof(buffer));
+        data.append(buffer, istream.gcount());
+    }
+
+    if (!istream.eof())
+    {
+        cerr << "Unable to read "
+             << s.words[2].s
+             << endl;
+        return;
+    }
+
+    auto completion =
+      [](error result)
+      {
+          if (result)
+          {
+              cerr << "Unable to import sync configs: " 
+                   << errorstring(result)
+                   << endl;
+              return;
+          }
+
+          cout << "Sync configs successfully imported."
+               << endl;
+      };
+
+    cout << "Importing sync configs..."
+         << endl;
+
+    client->importSyncConfigs(data.c_str(), std::move(completion));
+}
+
+void exec_syncexport(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to export syncs."
+             << endl;
+        return;
+    }
+
+    auto configs = client->syncs.exportSyncConfigs();
+
+    if (s.words.size() == 2)
+    {
+        cout << "Configs exported as: "
+             << configs
+             << endl;
+        return;
+    }
+
+    auto flags = std::ios::binary | std::ios::out | std::ios::trunc;
+    ofstream ostream(s.words[2].s, flags);
+
+    ostream.write(configs.data(), configs.size());
+    ostream.close();
+
+    if (!ostream.good())
+    {
+        cout << "Failed to write exported configs to: "
+             << s.words[2].s
+             << endl;
+    }
+}
+
+void exec_syncopendrive(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to restore backup syncs."
+             << endl;
+        return;
+    }
+
+    // sync backup restore drive
+    const auto drivePath =
+      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+
+    auto result = client->syncs.backupOpenDrive(drivePath);
+
+    if (result)
+    {
+        cerr << "Unable to restore backups from '"
+             << s.words[2].s
+             << "': "
+             << errorstring(result)
+             << endl;
+    }
+}
 
 void exec_synclist(autocomplete::ACState& s)
 {
@@ -8450,7 +8717,7 @@ void exec_synclist(autocomplete::ACState& s)
           cout << "  Mapping: "
                << config.mLocalPath.toPath(*client->fsaccess)
                << " -> "
-               << config.mOrigninalPathOfRemoteRootNode
+               << config.mOriginalPathOfRemoteRootNode
                << "\n";
 
           if (sync)
@@ -8562,18 +8829,6 @@ void exec_syncxable(autocomplete::ACState& s)
     // sync disable id [error]
     // sync fail id [error]
 
-    // Find the specified sync.
-    auto* sync = client->syncs.runningSyncByBackupId(backupId);
-
-    // Have we found the backup sync?
-    if (!sync)
-    {
-        cerr << "No sync found with the id "
-             << Base64Str<sizeof(handle)>(backupId)
-             << endl;
-        return;
-    }
-
     int error = NO_SYNC_ERROR;
 
     // Has the user provided a specific error code?
@@ -8586,18 +8841,31 @@ void exec_syncxable(autocomplete::ACState& s)
     // Disable or fail?
     if (command == "fail")
     {
+        // Find the specified sync.
+        auto* sync = client->syncs.runningSyncByBackupId(backupId);
+
+        // Have we found the backup sync?
+        if (!sync)
+        {
+            cerr << "No sync found with the id "
+                 << Base64Str<sizeof(handle)>(backupId)
+                 << endl;
+            return;
+        }
+
         client->failSync(sync, static_cast<SyncError>(error));
         return;
     }
-
-    client->syncs.disableSelectedSyncs(
-      [&](SyncConfig&, Sync* s)
-      {
-          return s == sync;
-      },
-      static_cast<SyncError>(error),
-      false);
+    else    // command == "disable"
+    {
+        client->syncs.disableSelectedSyncs(
+          [&backupId](SyncConfig& config, Sync*)
+          {
+              return config.getBackupId() == backupId;
+          },
+          static_cast<SyncError>(error),
+          false);
+    }
 }
 
 #endif // ENABLE_SYNC
-

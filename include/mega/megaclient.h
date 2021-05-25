@@ -39,9 +39,11 @@
 #include "useralerts.h"
 #include "user.h"
 #include "sync.h"
+#include "drivenotify.h"
 
 namespace mega {
 
+class Logger;
 class SyncConfigBag;
 
 class MEGA_API FetchNodesStats
@@ -215,6 +217,17 @@ public:
 
 std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
+class SyncdownContext
+{
+public:
+    SyncdownContext()
+      : mActionsPerformed(false)
+    {
+    }
+
+    bool mActionsPerformed;
+}; // SyncdownContext
+
 class MEGA_API MegaClient
 {
 public:
@@ -274,6 +287,7 @@ public:
     PrnGen rng;
 
     bool ephemeralSession = false;
+    bool ephemeralSessionPlusPlus = false;
 
     static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
@@ -306,7 +320,9 @@ public:
 
     // ephemeral session support
     void createephemeral();
+    void createephemeralPlusPlus();
     void resumeephemeral(handle, const byte*, int = 0);
+    void resumeephemeralPlusPlus(const std::string& session);
     void cancelsignup();
 
     // full account confirmation/creation support
@@ -368,8 +384,8 @@ public:
     // dump current session
     int dumpsession(string&);
 
-    // create a copy of the current session
-    void copysession();
+    // create a copy of the current session. EACCESS for not fully confirmed accounts
+    error copysession();
 
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
@@ -379,8 +395,7 @@ public:
 
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
-    // if the second parameter isn't NULL, it's used as session id instead of the current one
-    string *sessiontransferdata(const char*, string* = NULL);
+    string sessiontransferdata(const char*, string*);
 
     // Kill session id
     void killsession(handle session);
@@ -627,6 +642,25 @@ public:
     error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
+
+    /**
+     * @brief
+     * Import sync configs from JSON.
+     *
+     * @param configs
+     * A JSON string encoding the sync configs to import.
+     *
+     * @param completion
+     * The function to call when we've completed importing the configs.
+     *
+     * @see MegaApi::exportSyncConfigs
+     * @see MegaApi::importSyncConfigs
+     * @see Syncs::exportSyncConfig
+     * @see Syncs::exportSyncConfigs
+     * @see Syncs::importSyncConfig
+     * @see Syncs::importSyncConfigs
+     */
+    void importSyncConfigs(const char* configs, std::function<void(error)> completion);
 
     /**
      * @brief This method ensures that sync user attributes are available.
@@ -941,6 +975,9 @@ public:
     // root URL for chat stats
     static string CHATSTATSURL;
 
+    // root URL for Website
+    static string MEGAURL;
+
     // file that is blocking the sync engine
     LocalPath blockedfile;
 
@@ -965,7 +1002,19 @@ public:
     // if logged into writable folder
     bool loggedIntoWritableFolder() const;
 
+    // start receiving external drive [dis]connect notifications
+    bool startDriveMonitor();
+
+    // stop receiving external drive [dis]connect notifications
+    void stopDriveMonitor();
+
+    // returns true if drive monitor is started
+    bool driveMonitorEnabled();
+
 private:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    DriveInfoCollector mDriveInfoCollector;
+#endif
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
@@ -1389,6 +1438,8 @@ public:
     void deltree(handle);
 
     Node* nodeByHandle(NodeHandle) const;
+    Node* nodeByPath(const char* path, Node* node = nullptr);
+
     Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
@@ -1473,6 +1524,21 @@ public:
     bool syncscanfailed;
     BackoffTimer syncscanbt;
 
+    // Sync monitor timer.
+    //
+    // Meaningful only to backup syncs.
+    //
+    // Set when a backup is mirroring and syncdown(...) returned after
+    // having made changes to bring the cloud in line with local disk.
+    //
+    // That is, the backup remains in the mirror state.
+    //
+    // The timer is used to force another call to syncdown(...) so that we
+    // can give the sync a chance to transition into the monitor state,
+    // regardless of whether the local disk has changed.
+    bool mSyncMonitorRetry;
+    BackoffTimer mSyncMonitorTimer;
+
     // vanished from a local synced folder
     localnode_set localsyncnotseen;
 
@@ -1507,7 +1573,8 @@ public:
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, LocalPath&, bool);
+    bool syncdown(LocalNode*, LocalPath&, SyncdownContext& cxt);
+    bool syncdown(LocalNode*, LocalPath&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
@@ -1615,6 +1682,7 @@ public:
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
     static const int BACKUPHANDLE = 8;
+    static const int DRIVEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
 
@@ -1858,8 +1926,21 @@ public:
 
     std::string getDeviceidHash() const;
 
+    // generate a new drive id
+    handle generateDriveId();
+
+    // return API_OK if success and set driveId handle to the drive id read from the drive,
+    // otherwise return error code and set driveId to UNDEF
+    error readDriveId(const char *pathToDrive, handle &driveId) const;
+
+    // return API_OK if success, otherwise error code
+    error writeDriveId(const char *pathToDrive, handle driveId);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
+
+    void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
+    unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
 };
 } // namespace
 

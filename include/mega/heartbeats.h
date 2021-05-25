@@ -138,12 +138,14 @@ public:
         PAUSE_FULL = 7,         // Active but transfers paused in the SDK
     };
 
-    BackupInfoSync(const SyncConfig& config, const string& device, int calculatedState);
+    BackupInfoSync(const SyncConfig& config, const string& device, handle drive, int calculatedState);
+    BackupInfoSync(const UnifiedSync& us);
 
     static BackupType getSyncType(const SyncConfig& config);
-    static int getSyncState (UnifiedSync&);
+    static int getSyncState (const UnifiedSync &);
     static int getSyncState(SyncError error, syncstate_t state, MegaClient *client);
     static int getSyncState(const SyncConfig& config, MegaClient *client);
+    static handle getDriveId(const UnifiedSync&);
 
     bool operator==(const BackupInfoSync& o) const;
     bool operator!=(const BackupInfoSync& o) const;
@@ -164,8 +166,6 @@ public:
     void updateOrRegisterSync(UnifiedSync&);
 
 private:
-    void digestPutResult(handle backupId, UnifiedSync* syncPtr);
-
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
     mega::MegaClient *mClient = nullptr;
