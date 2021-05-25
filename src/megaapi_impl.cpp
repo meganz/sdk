@@ -17909,6 +17909,40 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
 }
 
+MegaNodeList *MegaApiImpl::getChildren(MegaNodeList *parentNodes, int order)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    // prepare a vector with children of every parent node all together
+    node_vector childrenNodes;
+    for (int i = 0; i < parentNodes->size(); i++)
+    {
+        MegaNode *p = parentNodes->get(i);
+        if (!p || p->getType() == MegaNode::TYPE_FILE)
+        {
+            continue;
+        }
+
+        Node *parent = client->nodebyhandle(p->getHandle());
+        if (parent && parent->type != FILENODE)
+        {
+            childrenNodes.reserve(childrenNodes.size() + parent->children.size());
+            for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+            {
+                childrenNodes.push_back(*it++);
+            }
+        }
+    }
+
+    // sort all the children together
+    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+    {
+        std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
+    }
+
+    return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
+}
+
 MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
 {
     if (!node || node->getType() != MegaNode::TYPE_FILE)
