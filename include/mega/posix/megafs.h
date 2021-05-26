@@ -71,11 +71,6 @@ public:
 #ifdef USE_INOTIFY
     typedef map<int, LocalNode*> wdlocalnode_map;
     wdlocalnode_map wdnodes;
-
-    // skip the IN_FROM component in moves if followed by IN_TO
-    LocalNode* lastlocalnode;
-    uint32_t lastcookie;
-    string lastname;
 #endif
 
 #ifdef USE_IOS

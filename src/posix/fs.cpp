@@ -702,8 +702,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #endif
 
 #ifdef USE_INOTIFY
-    lastcookie = 0;
-    lastlocalnode = NULL;
     if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
     {
         notifyfailed = false;
@@ -844,6 +842,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         inotify_event* in;
         wdlocalnode_map::iterator it;
         string localpath;
+
+        // skip the IN_FROM component in moves if followed by IN_TO
+        LocalNode* lastlocalnode = nullptr;
+        uint32_t lastcookie = 0;
+        string lastname;
 
         while ((l = read(notifyfd, buf, sizeof buf)) > 0)
         {
