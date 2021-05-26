@@ -8600,9 +8600,28 @@ void exec_syncadd(autocomplete::ACState& s)
                  true,
                  backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
-    if (external && !backup)
+    if (external)
     {
-        cerr << "Sorry, external syncs must be backups for now" << endl;
+        if (!backup)
+        {
+            cerr << "Sorry, external syncs must be backups for now" << endl;
+        }
+
+        // Try and generate a drive ID.
+        auto id = UNDEF;
+        auto result = client->readDriveId(drive.c_str(), id);
+
+        if (result == API_ENOENT)
+        {
+            id = client->generateDriveId();
+            result = client->writeDriveId(drive.c_str(), id);
+        }
+
+        if (result != API_OK)
+        {
+            cerr << "Unable to generate drive ID for " << drive << endl;
+            return;
+        }
     }
 
     // Try and add the new sync.
