@@ -624,9 +624,12 @@ bool DirNotify::fsstableids() const
     return true;
 }
 
-DirNotify* FileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter*)
+DirNotify* FileSystemAccess::newdirnotify(LocalNode&,
+                                          LocalPath& rootPath,
+                                          LocalPath& debrisPath,
+                                          Waiter*)
 {
-    return new DirNotify(localpath, ignore);
+    return new DirNotify(rootPath, debrisPath);
 }
 
 FileAccess::FileAccess(Waiter *waiter)

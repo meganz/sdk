@@ -1300,17 +1300,6 @@ void WinFileSystemAccess::statsid(string *id) const
 #endif
 }
 
-// set DirNotify's root LocalNode
-void WinDirNotify::addnotify(LocalNode* l, const LocalPath&)
-{
-#ifdef ENABLE_SYNC
-    if (!l->parent)
-    {
-        localrootnode = l;
-    }
-#endif
-}
-
 fsfp_t WinDirNotify::fsfingerprint() const
 {
 #ifdef WINDOWS_PHONE
@@ -1519,11 +1508,20 @@ void WinDirNotify::notifierThreadFunction()
     LOG_debug << "Filesystem notify thread stopped";
 }
 
-WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, WinFileSystemAccess* owner, Waiter* waiter) : DirNotify(localbasepath, ignore)
+WinDirNotify::WinDirNotify(LocalNode& root,
+                           LocalPath& rootPath,
+                           const LocalPath& debrisPath,
+                           WinFileSystemAccess* owner,
+                           Waiter* waiter)
+  : DirNotify(rootPath, debrisPath)
 {
     fsaccess = owner;
     fsaccess->dirnotifys.insert(this);
     clientWaiter = waiter;
+
+#ifdef ENABLE_SYNC
+    localrootnode = &root;
+#endif // ENABLE_SYNC
 
     {
         // If this is the first Notifier created, start the thread that queries the OS for notifications.
@@ -1688,9 +1686,12 @@ DirAccess* WinFileSystemAccess::newdiraccess()
     return new WinDirAccess();
 }
 
-DirNotify* WinFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter* waiter)
+DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root,
+                                             LocalPath& rootPath,
+                                             LocalPath& debrisPath,
+                                             Waiter* waiter)
 {
-    return new WinDirNotify(localpath, ignore, this, waiter);
+    return new WinDirNotify(root, rootPath, debrisPath, this, waiter);
 }
 
 bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)

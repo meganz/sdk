@@ -69,8 +69,7 @@ public:
     int notifyfd;
 
 #ifdef USE_INOTIFY
-    typedef map<int, LocalNode*> wdlocalnode_map;
-    wdlocalnode_map wdnodes;
+    wd_localnode_map wdnodes;
 #endif
 
 #ifdef USE_IOS
@@ -83,7 +82,11 @@ public:
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
+
+    DirNotify* newdirnotify(LocalNode& root,
+                            LocalPath& rootPath,
+                            LocalPath& debrisPath,
+                            Waiter* waiter) override;
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
     bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning);
@@ -189,13 +192,17 @@ class MEGA_API PosixDirNotify : public DirNotify
 public:
     PosixFileSystemAccess* fsaccess;
 
-    void addnotify(LocalNode*, const LocalPath&) override;
-    void delnotify(LocalNode*) override;
-
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
 
-    PosixDirNotify(LocalPath&, const LocalPath&);
+    PosixDirNotify(PosixFileSystemAccess& fsAccess,
+                   LocalPath& rootPath,
+                   const LocalPath& debrisPath);
+
+#if defined(ENABLE_SYNC) && defined(USE_INOTIFY)
+    pair<wd_localnode_map::iterator, bool> addWatch(LocalNode& node, const LocalPath& path);
+    void removeWatch(wd_localnode_map::iterator entry);
+#endif // ENABLE_SYNC && USE_INOTIFY
 };
 
 } // namespace

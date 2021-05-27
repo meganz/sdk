@@ -715,12 +715,20 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
         mUnifiedSync.mConfig.setBackupState(SYNC_BACKUP_MIRROR);
     }
 
+    mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
+
+    localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
+    localroot->setSyncedNodeHandle(remotenode->nodeHandle());
+    localroot->setScanAgain(false, true, true, 0);
+    localroot->setCheckMovesAgain(false, true, true);
+    localroot->setSyncAgain(false, true, true);
+
     if (cdebris)
     {
         debris = cdebris;
         localdebris = LocalPath::fromPath(debris, *client->fsaccess);
 
-        dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris, client->waiter));
+        dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, localdebris, client->waiter));
 
         localdebris.prependWithSeparator(mLocalPath);
     }
@@ -729,7 +737,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris, client->waiter));
+        dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, localdebris, client->waiter));
     }
 
     // set specified fsfp or get from fs if none
@@ -746,13 +754,8 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
-
-    localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
-    localroot->setSyncedNodeHandle(remotenode->nodeHandle());
-    localroot->setScanAgain(false, true, true, 0);
-    localroot->setCheckMovesAgain(false, true, true);
-    localroot->setSyncAgain(false, true, true);
+    // Always create a watch for the root node.
+    localroot->watch(mLocalPath);
 
 #ifdef __APPLE__
     if (macOSmajorVersion() >= 19) //macOS catalina+
@@ -4289,6 +4292,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                     }
 #endif
 
+                    // Add watches as necessary.
+                    childRow.syncNode->watch(fullPath);
+
                     if (!recursiveSync(childRow, fullPath, committer))
                     {
                         subfoldersSynced = false;
@@ -4950,18 +4956,6 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
             {
                 assert(row.syncNode);
                 assert(row.syncNode->localname == fullPath.leafName());
-
-#ifdef USE_INOTIFY
-                // Create a watch if necessary.
-                // TODO: TEMPORARY FIX FOR TESTS.
-                if (row.syncNode->dirnotifytag == UNDEF)
-                {
-                    LOG_debug << "Adding missing filesystem watch for: "
-                              << fullPath.toPath();
-
-                    dirnotify->addnotify(row.syncNode, fullPath);
-                }
-#endif // USE_INOTIFY
 
                 // Update our records of what we know is on disk for this (parent) LocalNode.
                 // This allows the next level of folders to be created too

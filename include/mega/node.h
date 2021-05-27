@@ -594,11 +594,6 @@ public:
 
     FSNode getKnownFSDetails();
 
-#ifdef USE_INOTIFY
-    // node-specific DirNotify tag
-    handle dirnotifytag = mega::UNDEF;
-#endif
-
     struct Upload : File
     {
         Upload(LocalNode& ln, FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath);
@@ -660,6 +655,34 @@ public:
 
     // Are we below other?
     bool isBelow(const LocalNode& other) const;
+
+    // Create a watch for this node if necessary.
+    bool watch(const LocalPath& path);
+
+private:
+#ifdef USE_INOTIFY
+    class WatchHandle
+    {
+    public:
+        WatchHandle();
+
+        ~WatchHandle();
+
+        MEGA_DISABLE_COPY_MOVE(WatchHandle);
+
+        auto operator=(wd_localnode_map::iterator entry) -> WatchHandle&;
+        auto operator=(std::nullptr_t) -> WatchHandle&;
+
+        operator bool() const;
+
+    private:
+        wd_localnode_map::iterator mEntry;
+
+        static wd_localnode_map mSentinel;
+    }; // WatchHandle
+
+    WatchHandle mWatchHandle;
+#endif // USE_INOTIFY
 };
 
 template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
