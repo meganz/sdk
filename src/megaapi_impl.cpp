@@ -18736,7 +18736,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     transfer->setPath(wLocalPath.toPath(*fsAccess).c_str());
                     f->setTransfer(transfer);
-                    bool ok = client->startxfer(GET, f, committer, true, startFirst);
+
+                    bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
+                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst);
                     if (!ok)
                     {
                         //Already existing transfer
