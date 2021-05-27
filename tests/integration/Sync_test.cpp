@@ -4744,7 +4744,7 @@ TEST(Sync, BasicSync_ClientToSDKConfigMigration)
     // Check that all files from the cloud were downloaded.
     model.ensureLocalDebrisTmpLock("");
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id0));
-    model.removenode(".debris");
+    model.removenode(DEBRISFOLDER);
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
 }
 
