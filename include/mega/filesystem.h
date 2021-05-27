@@ -426,6 +426,9 @@ struct MEGA_API DirAccess
 
 struct Notification
 {
+    bool fromDebris(const Sync& sync) const;
+    bool invalidated() const;
+
     dstime timestamp;
     LocalPath path;
     LocalNode* localnode;

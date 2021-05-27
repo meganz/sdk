@@ -25,6 +25,7 @@
 #include "mega/megaclient.h"
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
+#include "mega/sync.h"
 
 #include "megafs.h"
 
@@ -1356,6 +1357,26 @@ FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
     return isFilenameAnomaly(node.localname, node.name, node.type);
 }
 #endif
+
+bool Notification::fromDebris(const Sync& sync) const
+{
+    // Must have an associated local node.
+    if (!localnode) return false;
+
+    // Assume this filtering has been done at a higher level.
+    assert(!invalidated());
+
+    // Emitted from sync root?
+    if (localnode->parent) return false;
+
+    // Contained with debris?
+    return sync.localdebrisname.isContainingPathOf(path);
+}
+
+bool Notification::invalidated() const
+{
+    return localnode == (LocalNode*)~0;
+}
 
 } // namespace
 
