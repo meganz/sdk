@@ -1952,19 +1952,27 @@ dstime Sync::procscanq()
 
     while (queue.popFront(notification))
     {
-        LocalNode* node = notification.localnode;
-
-        // Skip canceled notifications.
-        if (node == (LocalNode*)~0)
+        // Skip invalidated notifications.
+        if (notification.invalidated())
         {
             LOG_debug << syncname << "Notification skipped: "
                       << notification.path.toPath(*client->fsaccess);
             continue;
         }
 
+        // Skip notifications from this sync's debris folder.
+        if (notification.fromDebris(*this))
+        {
+            LOG_debug << syncname
+                      << "Debris notification skipped: "
+                      << notification.path.toPath();
+            continue;
+        }
+
         LocalPath remainder;
         LocalNode* match;
         LocalNode* nearest;
+        LocalNode* node = notification.localnode;
 
         match = localnodebypath(node, notification.path, &nearest, &remainder);
 

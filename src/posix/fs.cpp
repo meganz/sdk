@@ -863,20 +863,16 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 auto& node = *i->second;
                 auto& sync = *node.sync;
                 auto& notifier = *sync.dirnotify;
-                auto& debris = notifier.ignore.localpath;
 
-                if (!IsContainingPathOf(debris, name))
-                {
-                    LOG_debug << "Filesystem notification: " 
-                              << "Root: "
-                              << node.name
-                              << "Path: "
-                              << name;
+                LOG_debug << "Filesystem notification: "
+                          << "Root: "
+                          << node.name
+                          << "Path: "
+                          << name;
 
-                    auto localName = LocalPath::fromPlatformEncoded(name);
-                    notifier.notify(notifier.fsEventq, &node, move(localName));
-                    r |= Waiter::NEEDEXEC;
-                }
+                auto localName = LocalPath::fromPlatformEncoded(name);
+                notifier.notify(notifier.fsEventq, &node, move(localName));
+                r |= Waiter::NEEDEXEC;
             }
         };
 
