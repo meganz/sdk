@@ -8518,12 +8518,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
         if (!warnlevel())
         {
-            if ((n = nodebyhandle(h)))
+            if ((n = nodebyhandle(h, true)))
             {
                 Node* p = NULL;
                 if (!ISUNDEF(ph))
                 {
-                    p = nodebyhandle(ph);
+                    p = nodebyhandle(ph, true);
                 }
 
                 if (n->changed.removed)
@@ -8693,7 +8693,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     // any child nodes that arrived before their parents?
     for (size_t i = dp.size(); i--; )
     {
-        if ((n = nodebyhandle(dp[i]->parenthandle)))
+        if ((n = nodebyhandle(dp[i]->parenthandle, true)))
         {
             dp[i]->setparent(n);
         }

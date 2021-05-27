@@ -3481,12 +3481,14 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
         size_t remaining = 0;
         auto result0 = clientA1.thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
         {
-            sc.client.syncs.forEachRunningSync(
-              [&](Sync* s)
-              {
-                remaining += s->dirnotify->fsEventq.size();
-                remaining += s->dirnotify->fsDelayedNetworkEventq.size();
-              });
+            //sc.client.syncs.forEachRunningSync(
+            //  [&](Sync* s)
+            //  {
+            //    remaining += s->dirnotify->fsEventq.size();
+            //    remaining += s->dirnotify->fsDelayedNetworkEventq.size();
+            //  });
+
+            remaining += sc.client.isAnySyncScanning() ? 1 : 0;
 
             p->set_value(true);
         });
@@ -3503,7 +3505,7 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.root.get(), backupId1, false, StandardClient::CONFIRM_LOCAL));
     //ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
-    WaitMillisec(20000);  // give it a chance to rescan the folder.  todo:  why so long tho
+    WaitMillisec(2000);  // give it a chance to rescan the folder.  todo:  why so long tho
 
     ASSERT_GT(clientA1.transfersAdded.load(), 0u);
     clientA1.transfersAdded = 0;
