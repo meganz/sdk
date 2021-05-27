@@ -359,39 +359,7 @@ inline bool Node::keyApplied() const
 
 #ifdef ENABLE_SYNC
 
-struct MEGA_API FSNode
-{
-    // A structure convenient for containing just the attributes of one item from the filesystem
-    LocalPath localname;
-    string name;
-    unique_ptr<LocalPath> shortname;
-    nodetype_t type = TYPE_UNKNOWN;
-    mega::handle fsid = mega::UNDEF;
-    bool isSymlink = false;
-    bool isBlocked = false;
-    FileFingerprint fingerprint; // includes size, mtime
 
-    bool equivalentTo(const FSNode& n) {
-        return localname == n.localname &&
-            name == n.name &&
-            (!shortname && (!n.shortname || localname == *n.shortname) ||
-            (shortname && n.shortname && *shortname == *n.shortname)) &&
-            type == n.type &&
-            fsid == n.fsid &&
-            isSymlink == n.isSymlink &&
-            fingerprint == n.fingerprint;
-    }
-
-    unique_ptr<LocalPath> cloneShortname()
-    {
-        return unique_ptr<LocalPath>(
-            shortname
-            ? new LocalPath(*shortname)
-            : nullptr);
-    }
-
-    static unique_ptr<FSNode> fromFOpened(FileAccess&, const LocalPath& fullName, FileSystemAccess& fsa);
-};
 
 enum TREESTATE : unsigned
 {
@@ -535,16 +503,18 @@ struct MEGA_API LocalNode : public Cacheable
 
     // Fields which are hardly ever used.
     // We keep the average memory use by only alloating these when used.
-    struct RareFields
+    struct LocalNode::RareFields
     {
         unique_ptr<BackoffTimer> useBlockedTimer;
         unique_ptr<BackoffTimer> scanBlockedTimer;
+        std::shared_ptr<ScanService::Request> scanRequest;
     };
 
 private:
     unique_ptr<RareFields> rareFields;
 public:
     RareFields& rare();
+    void trimRareFields();
 
     // set the syncupTargetedAction for this, and parents
     void setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds);

@@ -1399,6 +1399,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
 
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("t", (byte*)&t->nodehandle, MegaClient::NODEHANDLE);
+    assert(t->type != FILENODE);
 
     TreeProcShareKeys tpsk;
     client->proctree(n, &tpsk);

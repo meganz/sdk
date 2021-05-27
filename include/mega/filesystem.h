@@ -26,6 +26,7 @@
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"
+#include "filefingerprint.h"
 
 namespace mega {
 
@@ -382,13 +383,6 @@ protected:
     virtual void asyncsyswrite(AsyncIOContext*);
 };
 
-struct MEGA_API InputStreamAccess
-{
-    virtual m_off_t size() = 0;
-    virtual bool read(byte *, unsigned) = 0;
-    virtual ~InputStreamAccess() { }
-};
-
 class MEGA_API FileInputStream : public InputStreamAccess
 {
     FileAccess *fileAccess;
@@ -673,6 +667,212 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
 #ifdef ENABLE_SYNC
 FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
 #endif
+
+
+struct MEGA_API FSNode
+{
+    // A structure convenient for containing just the attributes of one item from the filesystem
+    LocalPath localname;
+    string name;
+    unique_ptr<LocalPath> shortname;
+    nodetype_t type = TYPE_UNKNOWN;
+    mega::handle fsid = mega::UNDEF;
+    bool isSymlink = false;
+    bool isBlocked = false;
+    FileFingerprint fingerprint; // includes size, mtime
+
+    bool equivalentTo(const FSNode& n) {
+        return localname == n.localname &&
+            name == n.name &&
+            (!shortname && (!n.shortname || localname == *n.shortname) ||
+                (shortname && n.shortname && *shortname == *n.shortname)) &&
+            type == n.type &&
+            fsid == n.fsid &&
+            isSymlink == n.isSymlink &&
+            fingerprint == n.fingerprint;
+    }
+
+    unique_ptr<LocalPath> cloneShortname()
+    {
+        return unique_ptr<LocalPath>(
+            shortname
+            ? new LocalPath(*shortname)
+            : nullptr);
+    }
+
+    static unique_ptr<FSNode> fromFOpened(FileAccess&, const LocalPath& fullName, FileSystemAccess& fsa);
+};
+
+class MEGA_API ScanService
+{
+public:
+    // Represents an asynchronous scan request.
+    class Request
+    {
+    public:
+        virtual ~Request() = default;
+
+        MEGA_DISABLE_COPY_MOVE(Request);
+
+        // Whether the request is complete.
+        virtual bool completed() const = 0;
+
+        //// Whether this request is for the specified target.
+        //virtual bool matches(const LocalNode& target) const = 0;
+
+        // Retrieves the results of the request.
+        virtual std::vector<FSNode> results() = 0;
+
+    protected:
+        Request() = default;
+    }; // Request
+
+       // For convenience.
+    using RequestPtr = std::shared_ptr<Request>;
+
+    ScanService(Waiter& waiter);
+
+    ~ScanService();
+
+    // Issue a scan for the given target.
+    RequestPtr queueScan(const LocalNode& target, LocalPath targetPath);
+    RequestPtr queueScan(const LocalNode& target);
+
+    // Track performance (debug only)
+    static CodeCounter::ScopeStats computeSyncTripletsTime;
+
+private:
+    // State shared by the service and its requests.
+    class Cookie
+    {
+    public:
+        Cookie(Waiter& waiter)
+            : mWaiter(waiter)
+        {
+        }
+
+        MEGA_DISABLE_COPY_MOVE(Cookie);
+
+        // Inform our waiter that an operation has completed.
+        void completed()
+        {
+            mWaiter.notify();
+        }
+
+    private:
+        // Who should be notified when an operation completes.
+        Waiter& mWaiter;
+    }; // Cookie
+
+       // Concrete representation of a scan request.
+    friend class Sync; // prob a tidier way to do this
+    class ScanRequest
+        : public Request
+    {
+    public:
+        ScanRequest(const std::shared_ptr<Cookie>& cookie,
+            const LocalNode& target,
+            LocalPath targetPath);
+
+        MEGA_DISABLE_COPY_MOVE(ScanRequest);
+
+        bool completed() const override
+        {
+            return mComplete;
+        };
+
+        //bool matches(const LocalNode& target) const override
+        //{
+        //    return &target == &mTarget;
+        //};
+
+        std::vector<FSNode> results() override
+        {
+            return std::move(mResults);
+        }
+
+        // Cookie from the originating service.
+        std::weak_ptr<Cookie> mCookie;
+
+        // Whether the scan request is complete.
+        std::atomic<bool> mComplete;
+
+        // Debris path of the sync containing the target.
+        const LocalPath mDebrisPath;
+
+        // Whether we should follow symbolic links.
+        const bool mFollowSymLinks;
+
+        // Details the known children of mTarget.
+        map<LocalPath, FSNode> mKnown;
+
+        // Results of the scan.
+        vector<FSNode> mResults;
+
+        //// Target of the scan.
+        //const LocalNode& mTarget;
+
+        // Path to the target.
+        const LocalPath mTargetPath;
+    }; // ScanRequest
+
+       // Convenience.
+    using ScanRequestPtr = std::shared_ptr<ScanRequest>;
+
+    // Processes scan requests.
+    class Worker
+    {
+    public:
+        Worker(size_t numThreads = 1);
+
+        ~Worker();
+
+        MEGA_DISABLE_COPY_MOVE(Worker);
+
+        // Queues a scan request for processing.
+        void queue(ScanRequestPtr request);
+
+    private:
+        // Thread entry point.
+        void loop();
+
+        // Learn everything we can about the specified path.
+        FSNode interrogate(DirAccess& iterator,
+            const LocalPath& name,
+            LocalPath& path,
+            ScanRequest& request);
+
+        // Processes a scan request.
+        void scan(ScanRequestPtr request);
+
+        // Filesystem access.
+        std::unique_ptr<FileSystemAccess> mFsAccess;
+
+        // Pending scan requests.
+        std::deque<ScanRequestPtr> mPending;
+
+        // Guards access to the above.
+        std::mutex mPendingLock;
+        std::condition_variable mPendingNotifier;
+
+        // Worker threads.
+        std::vector<std::thread> mThreads;
+    }; // Worker
+
+       // Cookie shared with requests.
+    std::shared_ptr<Cookie> mCookie;
+
+    // How many services are currently active.
+    static std::atomic<size_t> mNumServices;
+
+    // Worker shared by all services.
+    static std::unique_ptr<Worker> mWorker;
+
+    // Synchronizes access to the above.
+    static std::mutex mWorkerLock;
+
+}; // ScanService
+
 
 } // namespace
 

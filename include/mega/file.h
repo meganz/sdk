@@ -22,7 +22,7 @@
 #ifndef MEGA_FILE_H
 #define MEGA_FILE_H 1
 
-#include "filefingerprint.h"
+#include "filesystem.h"
 
 namespace mega {
 

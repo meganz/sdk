@@ -1410,21 +1410,18 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
 
 bool MegaClient::nodeIsInActiveSync(Node* n)
 {
-    if (!n)
-    {
-        LOG_verbose << "Node did not exist";
-        return false;
-    }
     bool found = false;
-    syncs.forEachRunningSync([&](Sync* sync) {
+    if (n)
+    {
+        syncs.forEachRunningSync([&](Sync* sync) {
 
-        if (sync->active() &&
-            n->isbelow(sync->cloudRoot()))
-        {
-            LOG_verbose << "Node is in active sync: " << n->displaypath();
-            found = true;
-        }
-    });
+            if (sync->active() &&
+                n->isbelow(sync->cloudRoot()))
+            {
+                found = true;
+            }
+        });
+    }
     return found;
 }
 
@@ -2947,7 +2944,7 @@ void MegaClient::exec()
 
                 // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
                 auto scanningCompletePreviously = mSyncFlags->scanningWasComplete;
-                mSyncFlags->scanTargetReachable = false;
+                //mSyncFlags->scanTargetReachable = false;
                 mSyncFlags->scanningWasComplete = !isAnySyncScanning();
                 mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
                 mSyncFlags->noProgress = true;
@@ -2966,17 +2963,17 @@ void MegaClient::exec()
                         Sync::syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
 
                         // Will be re-set if we can reach the scan target.
-                        mSyncFlags->scanTargetReachable = false;
+                        //mSyncFlags->scanTargetReachable = false;
 
                         //bool allNodesSynced =
                         sync->recursiveSync(row, pathBuffer, committer);
 
                         // Cancel the scan request if we couldn't reach the scan target.
-                        if (sync->mScanRequest && !mSyncFlags->scanTargetReachable)
-                        {
-                            LOG_warn << "Abandoning unreachable scan request";
-                            sync->mScanRequest.reset();
-                        }
+                        //if (sync->mScanRequest && !mSyncFlags->scanTargetReachable)
+                        //{
+                        //    LOG_warn << "Abandoning unreachable scan request";
+                        //    sync->mScanRequest.reset();
+                        //}
 
                         //{
                         //    // a local filesystem item was locked - schedule periodic retry
@@ -7576,22 +7573,26 @@ void MegaClient::notifypurge(void)
 }
 
 // return node pointer derived from node handle
-Node* MegaClient::nodebyhandle(handle h) const
+Node* MegaClient::nodebyhandle(handle h, bool fileVersionOk) const
 {
     auto it = nodes.find(h);
 
     if (it != nodes.end())
     {
+        // if this assert fails, please check the code calling it deals with file versions, and if not then fix,
+        // if it already deals with file versions then just pass  fileVersionOk == true
+        assert(fileVersionOk || !it->second->parent || !it->second->parent->type == FILENODE);
+
         return it->second;
     }
 
     return nullptr;
 }
 
-Node* MegaClient::nodeByHandle(NodeHandle h) const
+Node* MegaClient::nodeByHandle(NodeHandle h, bool fileVersionOk) const
 {
     if (h.isUndef()) return nullptr;
-    return nodebyhandle(h.as8byte());
+    return nodebyhandle(h.as8byte(), fileVersionOk);
 }
 
 Node* MegaClient::nodeByPath(const char* path, Node* node)
@@ -15331,7 +15332,7 @@ void MegaClient::execmovetosyncdebris()
         else if (n->syncdeleted == SYNCDEL_DEBRISDAY
                  || n->syncdeleted == SYNCDEL_FAILED)
         {
-            LOG_debug << "Move to SyncDebris finished. Final target: " << n->syncdeleted;
+            LOG_debug << "Move to SyncDebris finished, to target: " << n->syncdeleted;
             n->syncdeleted = SYNCDEL_NONE;
             n->todebris_it = todebris.end();
             todebris.erase(it++);
@@ -16513,7 +16514,9 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << recursiveSyncTime.report(reset) << "\n"
         << computeSyncTripletsTime.report(reset) << "\n"
         << inferSyncTripletsTime.report(reset) << "\n"
-        << syncItemTime.report(reset) << "\n"
+        << syncItemTime1.report(reset) << "\n"
+        << syncItemTime2.report(reset) << "\n"
+        << ScanService::computeSyncTripletsTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
         << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"

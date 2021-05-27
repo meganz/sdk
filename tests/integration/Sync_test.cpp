@@ -1799,9 +1799,9 @@ struct StandardClient : public MegaApp
             out() << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) out() << ml << " ";
             out(false) << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
-            for (auto& m : ms) out() << " " << m.first;
+            for (auto& m : ms) out(false) << " " << m.first;
             out(false) << " and unmatched remote nodes:";
-            for (auto& i : ns) out() << " " << i.first;
+            for (auto& i : ns) out(false) << " " << i.first;
             out(false) << endl;
         };
         return false;
@@ -1923,9 +1923,9 @@ struct StandardClient : public MegaApp
             out() << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) out() << ml << " ";
             out(false) << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
-            for (auto& m : ms) out() << " " << m.first;
+            for (auto& m : ms) out(false) << " " << m.first;
             out(false) << " and unmatched LocalNodes:";
-            for (auto& i : ns) out() << " " << i.first;
+            for (auto& i : ns) out(false) << " " << i.first;
             out(false) << endl;
         };
         return false;
@@ -2046,9 +2046,9 @@ struct StandardClient : public MegaApp
             out() << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) out() << ml << " ";
             out(false) << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
-            for (auto& m : ms) out() << " " << m.first;
+            for (auto& m : ms) out(false) << " " << m.first;
             out(false) << " and unmatched filesystem paths:";
-            for (auto& i : ps) out() << " " << i.second.filename();
+            for (auto& i : ps) out(false) << " " << i.second.filename();
             out(false) << " in " << p << endl;
         };
         return false;
@@ -6216,7 +6216,7 @@ TEST(Sync, RenameReplaceFolderBetweenSyncs)
     ASSERT_TRUE(c0.confirmModel_mainthread(model0.root.get(), id0));
     ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
 
-    // Move s0/d0 to s1/d0.
+    // Move s0/d0 to s1/d0. (and replace)
     model1 = model0;
 
     fs::rename(SYNCROOT0 / "d0", SYNCROOT1 / "d0");
