@@ -25,6 +25,7 @@
 #include "mega/megaclient.h"
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
+#include "mega/sync.h"
 
 #include "megafs.h"
 
@@ -220,6 +221,36 @@ bool isCaseInsensitive(const FileSystemType type)
 #else
     return false;
 #endif
+}
+
+bool IsContainingPathOf(const string& a, const string& b)
+{
+    return IsContainingPathOf(a, b.c_str(), b.size());
+}
+
+#ifdef _WIN32
+#define SEP '\\'
+#else // _WIN32
+#define SEP '/'
+#endif // ! _WIN32
+
+bool IsContainingPathOf(const string& a, const char* b, size_t bLength)
+{
+    // a's longer than b so a can't contain b.
+    if (bLength < a.size()) return false;
+
+    // b's longer than a so there should be a separator.
+    if (bLength > a.size() && b[a.size()] != SEP) return false;
+
+    // a and b must share a common prefix.
+    return !a.compare(0, a.size(), b);
+}
+
+#undef SEP
+
+bool IsContainingPathOf(const string& a, const char* b)
+{
+    return IsContainingPathOf(a, b, strlen(b));
 }
 
 LocalPath NormalizeRelative(const LocalPath& path)
@@ -545,7 +576,6 @@ DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore)
     mFailed = 1;
     mFailReason = "Not initialized";
     mErrorCount = 0;
-    sync = NULL;
 }
 
 
@@ -595,9 +625,12 @@ bool DirNotify::fsstableids() const
     return true;
 }
 
-DirNotify* FileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter*)
+DirNotify* FileSystemAccess::newdirnotify(LocalNode&,
+                                          LocalPath& rootPath,
+                                          LocalPath& debrisPath,
+                                          Waiter*)
 {
-    return new DirNotify(localpath, ignore);
+    return new DirNotify(rootPath, debrisPath);
 }
 
 FileAccess::FileAccess(Waiter *waiter)
@@ -1324,6 +1357,26 @@ FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
     return isFilenameAnomaly(node.localname, node.name, node.type);
 }
 #endif
+
+bool Notification::fromDebris(const Sync& sync) const
+{
+    // Must have an associated local node.
+    if (!localnode) return false;
+
+    // Assume this filtering has been done at a higher level.
+    assert(!invalidated());
+
+    // Emitted from sync root?
+    if (localnode->parent) return false;
+
+    // Contained with debris?
+    return sync.localdebrisname.isContainingPathOf(path);
+}
+
+bool Notification::invalidated() const
+{
+    return localnode == (LocalNode*)~0;
+}
 
 } // namespace
 

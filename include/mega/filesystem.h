@@ -214,6 +214,17 @@ void RemoveHiddenFileAttribute(mega::LocalPath& path);
 
 /**
  * @brief
+ * Checks whether a contains b.
+ *
+ * @return
+ * True if a contains b.
+ */
+bool IsContainingPathOf(const string& a, const string& b);
+bool IsContainingPathOf(const string& a, const char* b, size_t bLength);
+bool IsContainingPathOf(const string& a, const char* b);
+
+/**
+ * @brief
  * Ensures that a path does not end with a separator.
  *
  * @param path
@@ -409,6 +420,9 @@ struct MEGA_API DirAccess
 
 struct Notification
 {
+    bool fromDebris(const Sync& sync) const;
+    bool invalidated() const;
+
     dstime timestamp;
     LocalPath path;
     LocalNode* localnode;
@@ -458,9 +472,6 @@ public:
     // base path
     LocalPath localbasepath;
 
-    virtual void addnotify(LocalNode*, const LocalPath&) { }
-    virtual void delnotify(LocalNode*) { }
-
     void notify(NotificationDeque&, LocalNode *, LocalPath&&, bool = false);
 
     // filesystem fingerprint
@@ -472,8 +483,6 @@ public:
 
     // ignore this (debris folder)
     LocalPath ignore;
-
-    Sync *sync;
 
     DirNotify(const LocalPath&, const LocalPath&);
     virtual ~DirNotify() {}
@@ -502,7 +511,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
-    virtual DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*);
+    virtual DirNotify* newdirnotify(LocalNode& root,
+                                    LocalPath& rootPath,
+                                    LocalPath& debrisPath,
+                                    Waiter* waiter);
 
     // Returns the character encoded by the escape s.
     // This function returns -1 if s is not a valid escape sequence.

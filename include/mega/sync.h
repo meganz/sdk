@@ -340,6 +340,7 @@ public:
     // debris path component relative to the base path
     string debris;
     LocalPath localdebris;
+    LocalPath localdebrisname;
 
     // permanent lock on the debris/tmp folder
     std::unique_ptr<FileAccess> tmpfa;

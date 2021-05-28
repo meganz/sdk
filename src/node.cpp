@@ -30,6 +30,7 @@
 #include "mega/transferslot.h"
 #include "mega/logging.h"
 #include "mega/heartbeats.h"
+#include "megafs.h"
 
 namespace mega {
 
@@ -1429,12 +1430,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     fsid_it = sync->client->localnodeByFsid.end();
     syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
 
-    // enable folder notification
-    if (type == FOLDERNODE)
-    {
-        sync->dirnotify->addnotify(this, cfullpath);
-    }
-
     sync->client->syncactivity = true;
 
     sync->client->totalLocalNodes++;
@@ -1482,13 +1477,6 @@ void LocalNode::init(const FSNode& fsNode)
 
     // Update node counts.
     ++sync->localnodes[type];
-
-    // Make sure directories get change notifications.
-    if (type == FOLDERNODE)
-    {
-        const auto path = getLocalPath();
-        sync->dirnotify->addnotify(this, path);
-    }
 }
 
 auto LocalNode::rare() -> RareFields&
@@ -1843,14 +1831,6 @@ LocalNode::~LocalNode()
     if (type != TYPE_UNKNOWN)
     {
         sync->localnodes[type]--;    // todo: make sure we are not using the larger types and overflowing the buffer
-    }
-
-    if (type == FOLDERNODE)
-    {
-        if (sync->dirnotify.get())
-        {
-            sync->dirnotify->delnotify(this);
-        }
     }
 
     // remove parent association
@@ -2228,7 +2208,79 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     return l;
 }
 
-#endif
+#ifdef USE_INOTIFY
+
+LocalNode::WatchHandle::WatchHandle()
+  : mEntry(mSentinel.end())
+{
+}
+
+LocalNode::WatchHandle::~WatchHandle()
+{
+    operator=(nullptr);
+}
+
+auto LocalNode::WatchHandle::operator=(wd_localnode_map::iterator entry) -> WatchHandle&
+{
+    if (mEntry == entry) return *this;
+
+    operator=(nullptr);
+    mEntry = entry;
+
+    return *this;
+}
+
+auto LocalNode::WatchHandle::operator=(std::nullptr_t) -> WatchHandle&
+{
+    if (mEntry == mSentinel.end()) return *this;
+
+    auto& node = *mEntry->second;
+    auto& sync = *node.sync;
+    auto& notifier = static_cast<PosixDirNotify&>(*sync.dirnotify);
+
+    notifier.removeWatch(mEntry);
+    mEntry = mSentinel.end();
+}
+
+LocalNode::WatchHandle::operator bool() const
+{
+    return mEntry != mSentinel.end();
+}
+
+bool LocalNode::watch(const LocalPath& path)
+{
+    // Do we need to add a watch?
+    if (mWatchHandle) return true;
+
+    // Get our hands on the notifier.
+    auto& notifier = static_cast<PosixDirNotify&>(*sync->dirnotify);
+
+    // Add the watch.
+    auto result = notifier.addWatch(*this, path);
+
+    // Were we able to add the watch?
+    if (result.second)
+    {
+        // Yup so assign the handle.
+        mWatchHandle = result.first;
+    }
+
+    return result.second;
+}
+
+wd_localnode_map LocalNode::WatchHandle::mSentinel;
+
+#else // USE_INOTIFY
+
+bool LocalNode::watch(const LocalPath&)
+{
+    // Only inotify requires us to create watches for each node.
+    return true;
+}
+
+#endif // ! USE_INOTIFY
+
+#endif // ENABLE_SYNC
 
 void Fingerprints::newnode(Node* n)
 {

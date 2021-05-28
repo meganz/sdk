@@ -702,8 +702,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #endif
 
 #ifdef USE_INOTIFY
-    lastcookie = 0;
-    lastlocalnode = NULL;
     if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
     {
         notifyfailed = false;
@@ -836,15 +834,47 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 #ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
-    string *ignore;
 
     if (MEGA_FD_ISSET(notifyfd, &pw->rfds))
     {
         char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
         int p, l;
         inotify_event* in;
-        wdlocalnode_map::iterator it;
+        wd_localnode_map::iterator it;
         string localpath;
+
+        // skip the IN_FROM component in moves if followed by IN_TO
+        int lasthandle = 0;
+        uint32_t lastcookie = 0;
+        string lastname;
+
+        // Notifies all associated nodes.
+        auto notifyAll = [&](int handle, const string& name)
+        {
+            // What nodes are associated with this handle?
+            auto associated = wdnodes.equal_range(handle);
+
+            // Loop over and notify all associated nodes.
+            for (auto i = associated.first; i != associated.second; ++i)
+            {
+                // Convenience.
+                using std::move;
+
+                auto& node = *i->second;
+                auto& sync = *node.sync;
+                auto& notifier = *sync.dirnotify;
+
+                LOG_debug << "Filesystem notification: "
+                          << "Root: "
+                          << node.name
+                          << "Path: "
+                          << name;
+
+                auto localName = LocalPath::fromPlatformEncoded(name);
+                notifier.notify(notifier.fsEventq, &node, move(localName));
+                r |= Waiter::NEEDEXEC;
+            }
+        };
 
         while ((l = read(notifyfd, buf, sizeof buf)) > 0)
         {
@@ -872,24 +902,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                         {
                             if (lastcookie && lastcookie != in->cookie)
                             {
-                                ignore = &lastlocalnode->sync->dirnotify->ignore.localpath;
-                                if (lastname.size() < ignore->size()
-                                 || memcmp(lastname.c_str(), ignore->data(), ignore->size())
-                                 || (lastname.size() > ignore->size()
-                                  && lastname[ignore->size()] != LocalPath::localPathSeparator))
-                                {
-                                    // previous IN_MOVED_FROM is not followed by the
-                                    // corresponding IN_MOVED_TO, so was actually a deletion
-                                    LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
-
-                                    auto& dirnotify = *lastlocalnode->sync->dirnotify;
-
-                                    dirnotify.notify(dirnotify.fsEventq,
-                                                     lastlocalnode,
-                                                     LocalPath::fromPlatformEncoded(lastname));
-
-                                    r |= Waiter::NEEDEXEC;
-                                }
+                                notifyAll(lasthandle, lastname);
                             }
 
                             if (in->mask & IN_MOVED_FROM)
@@ -897,31 +910,14 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 // could be followed by the corresponding IN_MOVE_TO or not..
                                 // retain in case it's not (in which case it's a deletion)
                                 lastcookie = in->cookie;
-                                lastlocalnode = it->second;
+                                lasthandle = it->first;
                                 lastname = in->name;
                             }
                             else
                             {
                                 lastcookie = 0;
 
-                                ignore = &it->second->sync->dirnotify->ignore.localpath;
-                                unsigned int insize = strlen(in->name);
-
-                                if (insize < ignore->size()
-                                 || memcmp(in->name, ignore->data(), ignore->size())
-                                 || (insize > ignore->size()
-                                  && in->name[ignore->size()] != LocalPath::localPathSeparator))
-                                {
-                                    LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
-
-                                    auto& dirnotify = *it->second->sync->dirnotify;
-
-                                    dirnotify.notify(dirnotify.fsEventq,
-                                                     it->second,
-                                                     LocalPath::fromPlatformEncoded(std::string(in->name, insize)));
-
-                                    r |= Waiter::NEEDEXEC;
-                                }
+                                notifyAll(it->first, in->name);
                             }
                         }
                     }
@@ -932,24 +928,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_FROM pairs are never notified separately
         if (lastcookie)
         {
-            ignore = &lastlocalnode->sync->dirnotify->ignore.localpath;
-
-            if (lastname.size() < ignore->size()
-             || memcmp(lastname.c_str(), ignore->data(), ignore->size())
-             || (lastname.size() > ignore->size()
-              && lastname[ignore->size()] != LocalPath::localPathSeparator))
-            {
-                LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
-
-                auto& dirnotify = *it->second->sync->dirnotify;
-
-                dirnotify.notify(dirnotify.fsEventq,
-                                 lastlocalnode,
-                                 LocalPath::fromPlatformEncoded(lastname));
-
-                r |= Waiter::NEEDEXEC;
-            }
-
+            notifyAll(lasthandle, lastname);
             lastcookie = 0;
         }
     }
@@ -997,13 +976,17 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     kfs_event_arg* kea;
     char buffer[131072];
     char* paths[2];
-    char* path;
     Sync* pathsync[2];
     mega_fd_set_t rfds;
     timeval tv = { 0, 0 };
     struct stat statbuf;
     static char rsrc[] = "/..namedfork/rsrc";
     static size_t rsrcsize = sizeof(rsrc) - 1;
+
+    auto IsResourceFork = [&](const char* path, size_t length) {
+        if (rsrcsize >= length) return false;
+        return !memcmp(path + length - rsrcsize, rsrc, rsrcsize);
+    };
 
     for (;;)
     {
@@ -1056,44 +1039,35 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             // always skip paths that are outside synced fs trees or in a sync-local rubbish folder
             for (i = n; i--; )
             {
-                path = paths[i];
-                size_t psize = strlen(path);
+                const auto* path = paths[i];
+                const auto psize = strlen(path);
+                auto foundOne = false;
 
-                bool foundOne = false;
                 client->syncs.forEachRunningSync([&](Sync* sync) {
+                    // No need to continue searching as we've found a match.
+                    if (foundOne) return;
 
-                    if (!foundOne)
+                    // Root used for filesystem notifications.
+                    const auto& rootPath = sync->mFsEventsPath;
+
+                    // Is the notification coming from within this sync?
+                    if (!IsContainingPathOf(rootPath, path, psize)) return;
+
+                    // Is this notification regarding a resource fork?
+                    if (IsResourceFork(path, psize)) return;
+
+                    // Symbolic link?
+                    if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
                     {
-                        std::string* ignore = &(sync)->dirnotify->ignore.localpath;
-                        std::string* localname = &(sync)->localroot->localname.localpath;
-
-                        size_t rsize = sync->mFsEventsPath.size() ? sync->mFsEventsPath.size() : localname->size();
-                        size_t isize = ignore->size();
-
-                        if (psize >= rsize
-                          && !memcmp(sync->mFsEventsPath.size() ? sync->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
-                          && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
-                          && (psize <= (rsize + isize)                          // not ignored
-                              || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
-                              || memcmp(path + rsize + 1, ignore->c_str(), isize))
-                          && (psize < rsrcsize                                  // it isn't a resource fork
-                              || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
-                            {
-                                if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
-                                {
-                                    LOG_debug << "Link skipped:  " << path;
-                                    paths[i] = NULL;
-                                    foundOne = true;
-                                }
-
-                                if (!foundOne)
-                                {
-                                    paths[i] += rsize + 1;
-                                    pathsync[i] = sync;
-                                    foundOne = true;
-                                }
-                            }
+                        LOG_debug << "Link skipped: " << path;
+                        paths[i] = nullptr;
+                        foundOne = true;
+                        return;
                     }
+
+                    paths[i] += rootPath.size();
+                    pathsync[i] = sync;
+                    foundOne = true;
                 });
 
                 if (!foundOne)
@@ -1819,8 +1793,11 @@ void PosixFileSystemAccess::statsid(string *id) const
 #endif
 }
 
-PosixDirNotify::PosixDirNotify(LocalPath& localbasepath, const LocalPath& ignore)
-  : DirNotify(localbasepath, ignore)
+PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess,
+                               LocalPath& rootPath,
+                               const LocalPath& debrisPath)
+  : DirNotify(rootPath, debrisPath)
+  , fsaccess(&fsAccess)
 {
 #ifdef USE_INOTIFY
     setFailed(0, "");
@@ -1829,44 +1806,54 @@ PosixDirNotify::PosixDirNotify(LocalPath& localbasepath, const LocalPath& ignore
 #ifdef __MACH__
     setFailed(0, "");
 #endif
-
-    fsaccess = NULL;
 }
 
-void PosixDirNotify::addnotify(LocalNode* l, const LocalPath& path)
+#if defined(ENABLE_SYNC) && defined(USE_INOTIFY)
+
+pair<wd_localnode_map::iterator, bool> PosixDirNotify::addWatch(LocalNode& node, const LocalPath& path)
 {
-#ifdef ENABLE_SYNC
-#ifdef USE_INOTIFY
-    int wd;
+    assert(node.type == FOLDERNODE);
 
-    wd = inotify_add_watch(fsaccess->notifyfd, path.localpath.c_str(),
-                           IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO
-                           | IN_CLOSE_WRITE | IN_EXCL_UNLINK | IN_ONLYDIR);
+    auto handle =
+      inotify_add_watch(fsaccess->notifyfd,
+                        path.localpath.c_str(),
+                        IN_CLOSE_WRITE
+                        | IN_CREATE
+                        | IN_DELETE
+                        | IN_EXCL_UNLINK
+                        | IN_MOVED_FROM
+                        | IN_MOVED_TO
+                        | IN_ONLYDIR);
 
-    if (wd >= 0)
+    if (handle >= 0)
     {
-        l->dirnotifytag = (handle)wd;
-        fsaccess->wdnodes[wd] = l;
+        auto entry = fsaccess->wdnodes.emplace(handle, &node);
+        return make_pair(entry, true);
     }
-    else
-    {
-        LOG_warn << "Unable to addnotify path: " <<  path.localpath.c_str() << ". Error code: " << errno;
-    }
-#endif
-#endif
+
+    LOG_warn << "Unable to monitor path for filesystem notifications: "
+             << path.localpath.c_str()
+             << ": Error: "
+             << errno;
+
+    return make_pair(fsaccess->wdnodes.end(), false);
 }
 
-void PosixDirNotify::delnotify(LocalNode* l)
+void PosixDirNotify::removeWatch(wd_localnode_map::iterator entry)
 {
-#ifdef ENABLE_SYNC
-#ifdef USE_INOTIFY
-    if (fsaccess->wdnodes.erase((int)(long)l->dirnotifytag))
-    {
-        inotify_rm_watch(fsaccess->notifyfd, (int)l->dirnotifytag);
-    }
-#endif
-#endif
+    auto& watches = fsaccess->wdnodes;
+
+    auto handle = entry->first;
+    assert(handle >= 0);
+
+    watches.erase(entry);
+
+    if (watches.find(handle) != watches.end()) return;
+
+    inotify_rm_watch(fsaccess->notifyfd, handle);
 }
+
+#endif // ENABLE_SYNC && USE_INOTIFY
 
 fsfp_t PosixDirNotify::fsfingerprint() const
 {
@@ -1912,13 +1899,12 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
     return new PosixDirAccess();
 }
 
-DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter*)
+DirNotify* PosixFileSystemAccess::newdirnotify(LocalNode&,
+                                               LocalPath& rootPath,
+                                               LocalPath& debrisPath,
+                                               Waiter*)
 {
-    PosixDirNotify* dirnotify = new PosixDirNotify(localpath, ignore);
-
-    dirnotify->fsaccess = this;
-
-    return dirnotify;
+    return new PosixDirNotify(*this, rootPath, debrisPath);
 }
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)

@@ -431,6 +431,8 @@ typedef set<LocalNode*> localnode_set;
 
 typedef multimap<int32_t, LocalNode*> idlocalnode_map;
 
+typedef multimap<int, LocalNode*> wd_localnode_map;
+
 typedef set<Node*> node_set;
 
 // enumerates a node's children
