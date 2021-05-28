@@ -68,6 +68,9 @@ struct MEGA_API TransferSlot
     // max request size for downloads and uploads
     static const m_off_t MAX_REQ_SIZE;
 
+    // maximum gap between chunks for uploads
+    static const m_off_t MAX_GAP_SIZE;
+
     m_off_t maxRequestSize;
 
     m_off_t progressreported;
@@ -128,6 +131,7 @@ struct MEGA_API TransferSlot
 
     // compute the meta MAC based on the chunk MACs
     int64_t macsmac(chunkmac_map*);
+    int64_t macsmac_gaps(chunkmac_map*, size_t g1, size_t g2, size_t g3, size_t g4);
 
     // tslots list position
     transferslot_list::iterator slots_it;
@@ -144,8 +148,9 @@ struct MEGA_API TransferSlot
 
 private:
     void toggleport(HttpReqXfer* req);
+    bool checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
+    bool checkMetaMacWithMissingLateEntries();
     bool tryRaidRecoveryFromHttpGetError(unsigned i, bool incrementErrors);
-    bool checkTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
 
     // returns true if connection haven't received data recently (set incrementErrors) or if slower than other connections (reset incrementErrors)
     bool testForSlowRaidConnection(unsigned connectionNum, bool& incrementErrors);

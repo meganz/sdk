@@ -19,21 +19,24 @@
 #pragma once
 
 #include <mega/filesystem.h>
+#include <megaapi.h>
 
 #include "NotImplemented.h"
 
 namespace mt {
 
-class DefaultedFileSystemAccess : public mega::FileSystemAccess
+class DefaultedFileSystemAccess: public mega::FileSystemAccess
 {
 public:
     using FileSystemAccess::getlocalfstype;
 
-    DefaultedFileSystemAccess(const std::string &separator = "/")
+    bool issyncsupported(const mega::LocalPath&, bool& b, mega::SyncError& se, mega::SyncWarning& sw) override { b = false; se = mega::NO_SYNC_ERROR; sw = mega::NO_SYNC_WARNING; return true;}
+
+
+    DefaultedFileSystemAccess()
     {
         notifyerr = false;
         notifyfailed = true;
-        localseparator = separator;
     }
     std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {
@@ -51,15 +54,39 @@ public:
     {
         throw NotImplemented{__func__};
     }
+
+#if defined(_WIN32)
+    void path2local(const std::string*, std::wstring*) const
+    {
+        throw NotImplemented{ __func__ };
+    }
+#endif
+
     void local2path(const std::string* local, std::string* path) const override
     {
-        throw NotImplemented{__func__};
+        throw NotImplemented{ __func__ };
     }
+
+#if defined(_WIN32)
+    void local2path(const std::wstring* local, std::string* path) const override
+    {
+        path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
+
+        path->resize(WideCharToMultiByte(CP_UTF8, 0, local->data(),
+            int(local->size()),
+            (char*)path->data(),
+            int(path->size()),
+            NULL, NULL));
+
+        normalize(path);
+    }
+#endif
+
     void tmpnamelocal(mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};
     }
-    bool getsname(mega::LocalPath&, mega::LocalPath&) const override
+    bool getsname(const mega::LocalPath&, mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};
     }
@@ -91,11 +118,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    size_t lastpartlocal(const std::string*) const override
-    {
-        throw NotImplemented{__func__};
-    }
-    bool getextension(const mega::LocalPath&, char*, size_t) const override
+    bool getextension(const mega::LocalPath&, std::string&) const override
     {
         throw NotImplemented{__func__};
     }
@@ -104,6 +127,11 @@ public:
         throw NotImplemented{__func__};
     }
     void addevents(mega::Waiter*, int) override
+    {
+        throw NotImplemented{__func__};
+    }
+
+    bool cwd(mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};
     }

@@ -4,6 +4,13 @@
 #include <stdio.h>
 #include <fstream>
 
+// If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
+#ifdef WIN32
+    #define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
+#else
+    #define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
+#endif
+
 bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
@@ -82,7 +89,10 @@ public:
 #endif
                 if (!gTestingInvalidArgs)
                 {
-                    ASSERT_NE(loglevel, mega::logError) << os.str();
+                    if (loglevel <= mega::logError)
+                    {
+                        ASSERT_GT(loglevel, mega::logError) << os.str();
+                    }
                 }
             }
 #ifdef _WIN32
@@ -159,4 +169,113 @@ int main (int argc, char *argv[])
 
     ::testing::InitGoogleTest(&argc, myargv2.data());
     return RUN_ALL_TESTS();
+}
+
+
+
+
+/*
+**  TestFS implementation
+*/
+
+using namespace std;
+
+fs::path TestFS::GetTestBaseFolder()
+{
+    const char* jenkins_folder = getenv("WORKSPACE");
+    return jenkins_folder ? fs::path(jenkins_folder) : fs::path(LOCAL_TEST_FOLDER);
+}
+
+fs::path TestFS::GetTestFolder()
+{
+#ifdef WIN32
+    auto pid = GetCurrentProcessId();
+#else
+    auto pid = getpid();
+#endif
+    
+    fs::path testpath = GetTestBaseFolder() / ("pid_" + std::to_string(pid));
+    out() << "Local Test folder: " << testpath << endl;
+    return testpath;
+}
+
+
+fs::path TestFS::GetTrashFolder()
+{
+    return GetTestBaseFolder() / "trash";
+}
+
+
+void TestFS::DeleteFolder(fs::path folder)
+{
+    // rename folder, so that tests can still create one and add to it
+    error_code ec;
+    fs::path oldpath(folder);
+    fs::path newpath(folder);
+    
+    for (int i = 10; i--; )
+    {
+        newpath += "_del"; // this can be improved later if needed
+        fs::rename(oldpath, newpath, ec);
+        if (!ec) break;
+    }
+
+    // if renaming failed, then there's nothing to delete
+    if (ec)
+    {
+        // report failures, other than the case when it didn't exist
+        if (ec != errc::no_such_file_or_directory)
+        {
+            out() << "Renaming " << oldpath << " to " << newpath << " failed." << endl
+                 << ec.message() << endl;
+        }
+
+        return;
+    }
+
+    // delete folder in a separate thread
+    m_cleaners.emplace_back(thread([=]() mutable // ...mostly for fun, to avoid declaring another ec
+        {
+            fs::remove_all(newpath, ec);
+
+            if (ec)
+            {
+                out() << "Deleting " << folder << " failed." << endl
+                     << ec.message() << endl;
+            }
+        }));
+}
+
+
+TestFS::~TestFS()
+{
+    for_each(m_cleaners.begin(), m_cleaners.end(), [](thread& t) { t.join(); });
+}
+
+void moveToTrash(const fs::path& p)
+{
+    fs::path trashpath(TestFS::GetTrashFolder());
+    fs::create_directory(trashpath);
+    fs::path newpath = trashpath / p.filename();
+    for (int i = 2; fs::exists(newpath); ++i)
+    {
+        newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
+    }
+    fs::rename(p, newpath);
+}
+
+fs::path makeNewTestRoot()
+{
+    fs::path p = TestFS::GetTestFolder();
+
+    if (fs::exists(p))
+    {
+        moveToTrash(p);
+    }
+    #ifndef NDEBUG
+    bool b =
+    #endif
+    fs::create_directories(p);
+    assert(b);
+    return p;
 }

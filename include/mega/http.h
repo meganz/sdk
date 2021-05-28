@@ -22,6 +22,7 @@
 #ifndef MEGA_HTTP_H
 #define MEGA_HTTP_H 1
 
+#include <atomic>
 #include "types.h"
 #include "waiter.h"
 #include "backofftimer.h"
@@ -206,6 +207,8 @@ struct MEGA_API HttpIO : public EventTrigger
 
     // get max upload speed
     virtual m_off_t getmaxuploadspeed();
+
+    virtual bool cacheresolvedurls(const std::vector<string>&, std::vector<string>&&) { return false; }
 
     HttpIO();
     virtual ~HttpIO() { }

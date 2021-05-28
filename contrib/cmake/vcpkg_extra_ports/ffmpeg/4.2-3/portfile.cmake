@@ -60,6 +60,12 @@ file(REMOVE_RECURSE ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg ${CURRENT_BU
 set(OPTIONS "--disable-doc --enable-debug")
 set(OPTIONS "${OPTIONS} --enable-runtime-cpudetect")
 
+if(DEFINED VCPKG_OSX_DEPLOYMENT_TARGET)
+    set(OPTIONS "${OPTIONS} --extra-cflags=-mmacosx-version-min=${VCPKG_OSX_DEPLOYMENT_TARGET}")
+    set(OPTIONS "${OPTIONS} --extra-cxxflags=-mmacosx-version-min=${VCPKG_OSX_DEPLOYMENT_TARGET}")
+    set(OPTIONS "${OPTIONS} --extra-ldflags=-mmacosx-version-min=${VCPKG_OSX_DEPLOYMENT_TARGET}")
+endif()
+
 if("nonfree" IN_LIST FEATURES)
     set(OPTIONS "${OPTIONS} --enable-nonfree")
 endif()
@@ -179,7 +185,7 @@ if(VCPKG_TARGET_IS_WINDOWS)
         set(OPTIONS_RELEASE "${OPTIONS_RELEASE} --extra-cflags=-MT --extra-cxxflags=-MT")
     endif()
 else()
-    set(OPTIONS "${OPTIONS} --disable-asm --disable-yasm --disable-avdevice --disable-swresample --disable-postproc --disable-avfilter --disable-videotoolbox --disable-audiotoolbox --disable-optimizations --disable-shared --disable-encoders")
+    set(OPTIONS "${OPTIONS} --disable-asm --disable-yasm --disable-avdevice --disable-swresample --disable-postproc --disable-avfilter --disable-videotoolbox --disable-audiotoolbox --disable-optimizations --disable-encoders")
 endif()
 
 set(ENV_LIB_PATH "$ENV{${LIB_PATH_VAR}}")

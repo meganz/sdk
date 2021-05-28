@@ -52,6 +52,15 @@ int AttrMap::nameid2string(nameid id, char* buf)
     return static_cast<int>(ptr - buf);
 }
 
+string AttrMap::nameid2string(nameid id)
+{
+    string s;
+    s.resize(10);
+    s.resize(nameid2string(id, const_cast<char*>(s.data())));
+    return s;
+}
+
+
 nameid AttrMap::string2nameid(const char *a)
 {
     if (!a)

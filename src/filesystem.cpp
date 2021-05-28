@@ -24,7 +24,235 @@
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
 
+#include "megafs.h"
+
 namespace mega {
+
+namespace detail {
+
+template<typename CharT>
+bool isEscape(UnicodeCodepointIterator<CharT> it);
+
+template<typename CharT>
+int decodeEscape(UnicodeCodepointIterator<CharT>& it)
+{
+    assert(isEscape(it));
+
+    // Skip the leading %.
+    (void)it.get();
+
+    return hexval(it.get()) << 4 | hexval(it.get());
+}
+
+int identity(const int c)
+{
+    return c;
+}
+
+template<typename CharT>
+bool isControlEscape(UnicodeCodepointIterator<CharT> it)
+{
+    if (isEscape(it))
+    {
+        const int32_t c = decodeEscape(it);
+
+        return c < 0x20 || c == 0x7f;
+    }
+
+    return false;
+}
+
+template<typename CharT>
+bool isEscape(UnicodeCodepointIterator<CharT> it)
+{
+    return it.get() == '%'
+           && islchex(it.get())
+           && islchex(it.get());
+}
+
+#ifdef _WIN32
+
+template<typename CharT>
+UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>& it)
+{
+    auto i = it;
+
+    // Match leading \\.
+    if (!(i.match('\\') && i.match('\\')))
+    {
+        return it;
+    }
+
+    // Match . or ?
+    switch (i.peek())
+    {
+    case '.':
+    case '?':
+        (void)i.get();
+        break;
+    default:
+        return it;
+    }
+
+    // Match \.
+    if (!i.match('\\'))
+    {
+        return it;
+    }
+
+    auto j = i;
+
+    // Match drive letter.
+    if (j.get() && j.match(':'))
+    {
+        return i;
+    }
+
+    return it;
+}
+
+#endif // _WIN32
+
+template<typename CharT, typename CharU, typename UnaryOperation>
+int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
+               UnicodeCodepointIterator<CharU> first2, bool unescaping2,
+               UnaryOperation transform)
+{
+#ifdef _WIN32
+    first1 = skipPrefix(first1);
+    first2 = skipPrefix(first2);
+#endif // _WIN32
+
+    while (!(first1.end() || first2.end()))
+    {
+        int c1;
+        int c2;
+
+        if (unescaping1 && isEscape(first1))
+        {
+            c1 = decodeEscape(first1);
+        }
+        else
+        {
+            c1 = first1.get();
+        }
+
+        if (unescaping2 && isEscape(first2))
+        {
+            c2 = decodeEscape(first2);
+        }
+        else
+        {
+            c2 = first2.get();
+        }
+
+        c1 = transform(c1);
+        c2 = transform(c2);
+
+        if (c1 != c2)
+        {
+            return c1 - c2;
+        }
+    }
+
+    if (first1.end() && first2.end())
+    {
+        return 0;
+    }
+
+    if (first1.end())
+    {
+        return -1;
+    }
+
+    return 1;
+}
+
+} // detail
+
+int compareUtf(const string& s1, bool unescaping1, const string& s2, bool unescaping2, bool caseInsensitive)
+{
+    return detail::compareUtf(
+                unicodeCodepointIterator(s1), unescaping1,
+                unicodeCodepointIterator(s2), unescaping2,
+                caseInsensitive ? Utils::toUpper: detail::identity);
+}
+
+int compareUtf(const string& s1, bool unescaping1, const LocalPath& s2, bool unescaping2, bool caseInsensitive)
+{
+    return detail::compareUtf(
+        unicodeCodepointIterator(s1), unescaping1,
+        unicodeCodepointIterator(s2.localpath), unescaping2,
+        caseInsensitive ? Utils::toUpper: detail::identity);
+}
+
+int compareUtf(const LocalPath& s1, bool unescaping1, const string& s2, bool unescaping2, bool caseInsensitive)
+{
+    return detail::compareUtf(
+        unicodeCodepointIterator(s1.localpath), unescaping1,
+        unicodeCodepointIterator(s2), unescaping2,
+        caseInsensitive ? Utils::toUpper: detail::identity);
+}
+
+int compareUtf(const LocalPath& s1, bool unescaping1, const LocalPath& s2, bool unescaping2, bool caseInsensitive)
+{
+    return detail::compareUtf(
+        unicodeCodepointIterator(s1.localpath), unescaping1,
+        unicodeCodepointIterator(s2.localpath), unescaping2,
+        caseInsensitive ? Utils::toUpper: detail::identity);
+}
+
+bool isCaseInsensitive(const FileSystemType type)
+{
+    if    (type == FS_EXFAT
+        || type == FS_FAT32
+        || type == FS_NTFS
+        || type == FS_UNKNOWN)
+    {
+        return true;
+    }
+#ifdef WIN32
+    return true;
+#else
+    return false;
+#endif
+}
+
+LocalPath NormalizeRelative(const LocalPath& path)
+{
+#ifdef WIN32
+    using string_type = wstring;
+#else // _WIN32
+    using string_type = string;
+#endif // ! _WIN32
+
+    LocalPath result = path;
+
+    // Convenience.
+    string_type& raw = result.localpath;
+    auto sep = LocalPath::localPathSeparator;
+
+    // Nothing to do if the path's empty.
+    if (raw.empty())
+    {
+        return result;
+    }
+
+    // Remove trailing separator if present.
+    if (raw.back() == sep)
+    {
+        raw.pop_back();
+    }
+
+    // Remove leading separator if present.
+    if (!raw.empty() && raw.front() == sep)
+    {
+        raw.erase(0, 1);
+    }
+
+    return result;
+}
+
 FileSystemAccess::FileSystemAccess()
     : waiter(NULL)
     , skip_errorreport(false)
@@ -41,11 +269,6 @@ void FileSystemAccess::captimestamp(m_time_t* t)
     // FIXME: remove upper bound before the year 2100 and upgrade server-side timestamps to BIGINT
     if (*t > (uint32_t)-1) *t = (uint32_t)-1;
     else if (*t < 0) *t = 0;
-}
-
-bool FileSystemAccess::islchex(char c) const
-{
-    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 
 const char *FileSystemAccess::fstypetostring(FileSystemType type) const
@@ -100,7 +323,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& path) const
     LocalPath parentPath(path);
 
     // Remove trailing separator, if any.
-    parentPath.trimNonDriveTrailingSeparator(*this);
+    parentPath.trimNonDriveTrailingSeparator();
 
     // Did the path consist solely of that separator?
     if (parentPath.empty())
@@ -192,7 +415,7 @@ void FileSystemAccess::unescapefsincompatible(string *name, FileSystemType fileS
         // conditions for unescaping: %xx must be well-formed
         if ((*name)[i] == '%' && islchex((*name)[i + 1]) && islchex((*name)[i + 2]))
         {
-            char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
+            char c = static_cast<char>((hexval((*name)[i + 1]) << 4) + hexval((*name)[i + 2]));
 
             if (!islocalfscompatible(static_cast<unsigned char>(c), false, fileSystemType))
             {
@@ -219,19 +442,7 @@ const char *FileSystemAccess::getPathSeparator()
 #endif
 }
 
-// escape forbidden characters, then convert to local encoding
-void FileSystemAccess::name2local(string* filename, FileSystemType fsType) const
-{
-    assert(filename);
-
-    escapefsincompatible(filename, fsType);
-
-    string t = *filename;
-
-    path2local(&t, filename);
-}
-
-void FileSystemAccess::normalize(string* filename) const
+void FileSystemAccess::normalize(string* filename)
 {
     if (!filename) return;
 
@@ -265,18 +476,6 @@ void FileSystemAccess::normalize(string* filename) const
     }
 
     *filename = std::move(result);
-}
-
-// convert from local encoding, then unescape escaped forbidden characters
-void FileSystemAccess::local2name(string *filename, FileSystemType fsType) const
-{
-    assert(filename);
-
-    string t = *filename;
-
-    local2path(&t, filename);
-
-    unescapefsincompatible(filename, fsType);
 }
 
 std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(LocalPath& localname)
@@ -318,6 +517,19 @@ int DirNotify::getFailed(string& reason)
     return mFailed;
 }
 
+
+bool DirNotify::empty()
+{
+    for (auto& q : notifyq)
+    {
+        if (!q.empty())
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
@@ -370,18 +582,22 @@ FileAccess::~FileAccess()
 }
 
 // open file for reading
-bool FileAccess::fopen(LocalPath& name)
+bool FileAccess::fopen(const LocalPath& name)
 {
-    nonblocking_localname.editStringDirect()->resize(1);
-    updatelocalname(name);
+    updatelocalname(name, true);
 
     return sysstat(&mtime, &size);
 }
 
-bool FileAccess::isfolder(LocalPath& name)
+bool FileAccess::isfile(const LocalPath& path)
 {
-    fopen(name);
-    return (type == FOLDERNODE);
+    return fopen(path) && type == FILENODE;
+}
+
+bool FileAccess::isfolder(const LocalPath& path)
+{
+    fopen(path);
+    return type == FOLDERNODE;
 }
 
 // check if size and mtime are unchanged, then open for reading
@@ -431,22 +647,19 @@ void FileAccess::asyncopfinished(void *param)
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(LocalPath& f)
+AsyncIOContext *FileAccess::asyncfopen(const LocalPath& f)
 {
-    nonblocking_localname.editStringDirect()->resize(1);
-    updatelocalname(f);
+    updatelocalname(f, true);
 
     LOG_verbose << "Async open start";
     AsyncIOContext *context = newasynccontext();
     context->op = AsyncIOContext::OPEN;
     context->access = AsyncIOContext::ACCESS_READ;
-
-    context->buffer = (byte *)f.editStringDirect()->data();
-    context->len = static_cast<unsigned>(f.editStringDirect()->size());
+    context->openPath = f;
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
-    context->pos = size;
+    context->posOfBuffer = size;
     context->fa = this;
 
     context->failed = !sysstat(&mtime, &size);
@@ -511,7 +724,7 @@ void FileAccess::asyncclosef()
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(LocalPath& f, bool read, bool write, m_off_t pos)
+AsyncIOContext *FileAccess::asyncfopen(const LocalPath& f, bool read, bool write, m_off_t pos)
 {
     LOG_verbose << "Async open start";
     AsyncIOContext *context = newasynccontext();
@@ -520,12 +733,11 @@ AsyncIOContext *FileAccess::asyncfopen(LocalPath& f, bool read, bool write, m_of
             | (read ? AsyncIOContext::ACCESS_READ : 0)
             | (write ? AsyncIOContext::ACCESS_WRITE : 0);
 
-    context->buffer = (byte *)f.editStringDirect()->data();
-    context->len = static_cast<unsigned>(f.editStringDirect()->size());
+    context->openPath = f;
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
-    context->pos = pos;
+    context->posOfBuffer = pos;
     context->fa = this;
 
     asyncsysopen(context);
@@ -550,10 +762,10 @@ AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, 
 
     AsyncIOContext *context = newasynccontext();
     context->op = AsyncIOContext::READ;
-    context->pos = pos;
-    context->len = len;
+    context->posOfBuffer = pos;
     context->pad = pad;
-    context->buffer = (byte *)dst->data();
+    context->dataBuffer = (byte*)dst->data();
+    context->dataBufferLen = len;
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -590,9 +802,9 @@ AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t 
 
     AsyncIOContext *context = newasynccontext();
     context->op = AsyncIOContext::WRITE;
-    context->pos = pos;
-    context->len = len;
-    context->buffer = (byte *)data;
+    context->posOfBuffer = pos;
+    context->dataBufferLen = len;
+    context->dataBuffer = const_cast<byte*>(data);
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -656,23 +868,6 @@ bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos, bool caller_open
     return r;
 }
 
-AsyncIOContext::AsyncIOContext()
-{
-    op = NONE;
-    pos = 0;
-    len = 0;
-    pad = 0;
-    buffer = NULL;
-    waiter = NULL;
-    access = ACCESS_NONE;
-
-    userCallback = NULL;
-    userData = NULL;
-    finished = false;
-    failed = false;
-    retry = false;
-}
-
 AsyncIOContext::~AsyncIOContext()
 {
     finish();
@@ -734,26 +929,33 @@ bool FileInputStream::read(byte *buffer, unsigned size)
     return false;
 }
 
-const std::string* LocalPath::editStringDirect() const
-{
-    // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
-    return const_cast<std::string*>(&localpath);
-}
-
-std::string* LocalPath::editStringDirect()
-{
-    // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
-    return const_cast<std::string*>(&localpath);
-}
-
 bool LocalPath::empty() const
 {
     return localpath.empty();
 }
 
-size_t LocalPath::lastpartlocal(const FileSystemAccess& fsaccess) const
+void LocalPath::clear()
 {
-    return fsaccess.lastpartlocal(&localpath);
+    localpath.clear();
+}
+
+void LocalPath::erase(size_t pos, size_t count)
+{
+    localpath.erase(pos, count);
+}
+
+void LocalPath::truncate(size_t bytePos)
+{
+    localpath.resize(bytePos);
+}
+
+LocalPath LocalPath::leafName() const
+{
+    auto p = localpath.find_last_of(localPathSeparator);
+    p = p == string::npos ? 0 : p + 1;
+    LocalPath result;
+    result.localpath = localpath.substr(p, localpath.size() - p);
+    return result;
 }
 
 void LocalPath::append(const LocalPath& additionalPath)
@@ -761,93 +963,98 @@ void LocalPath::append(const LocalPath& additionalPath)
     localpath.append(additionalPath.localpath);
 }
 
-void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, const string& localseparator)
+std::string LocalPath::platformEncoded() const
+{
+#ifdef WIN32
+    // this function is typically used where we need to pass a file path to the client app, which expects utf16 in a std::string buffer
+    // some other backwards compatible cases need this format also, eg. serialization
+    std::string outstr;
+    outstr.resize(localpath.size() * sizeof(wchar_t));
+    memcpy(const_cast<char*>(outstr.data()), localpath.data(), localpath.size() * sizeof(wchar_t));
+    return outstr;
+#else
+    // for non-windows, it's just the same utf8 string we use anyway
+    return localpath;
+#endif
+}
+
+
+void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways)
 {
     if (separatorAlways || localpath.size())
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
-        if ( localpath.size() < localseparator.size() ||
-             memcmp(localpath.data() + localpath.size() - localseparator.size(),
-                    localseparator.data(), localseparator.size()) )
+        if (!(endsInSeparator() || additionalPath.beginsWithSeparator()))
         {
-            localpath.append(localseparator);
+            localpath.append(1, localPathSeparator);
         }
     }
 
     localpath.append(additionalPath.localpath);
 }
 
-void LocalPath::prependWithSeparator(const LocalPath& additionalPath, const string& localseparator)
+void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
 {
     // no additional separator if there is already one after
-    if (localpath.size() >= localseparator.size() && memcmp(localpath.data(), localseparator.data(), localseparator.size()))
+    if (!localpath.empty() && localpath[0] != localPathSeparator)
     {
         // no additional separator if there is already one before
-        if (additionalPath.editStringDirect()->size() < localseparator.size() ||
-            memcmp(additionalPath.editStringDirect()->data() + additionalPath.editStringDirect()->size() - localseparator.size(), localseparator.data(), localseparator.size()))
+        if (!(beginsWithSeparator() || additionalPath.endsInSeparator()))
         {
-            localpath.insert(0, localseparator);
+            localpath.insert(0, 1, localPathSeparator);
         }
     }
     localpath.insert(0, additionalPath.localpath);
 }
 
-void LocalPath::trimNonDriveTrailingSeparator(const FileSystemAccess& fsaccess)
+void LocalPath::trimNonDriveTrailingSeparator()
 {
-    if (endsInSeparator(fsaccess))
+    if (endsInSeparator())
     {
         // ok so the last character is a directory separator.  But don't remove it for eg. F:\ on windows
         #ifdef WIN32
-        if (localpath.size() > 2 * fsaccess.localseparator.size() && !memcmp(localpath.data() + localpath.size() - 2 * fsaccess.localseparator.size(), L":", fsaccess.localseparator.size()))
+        if (localpath.size() > 1 &&
+            localpath[localpath.size() - 2] == L':')
         {
             return;
         }
         #endif
 
-        localpath.resize((int(localpath.size()) & -int(fsaccess.localseparator.size())) - fsaccess.localseparator.size());
+        localpath.resize(localpath.size() - 1);
     }
 }
 
-bool LocalPath::findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
+bool LocalPath::findNextSeparator(size_t& separatorBytePos) const
 {
-    for (;;)
-    {
-        separatorBytePos = localpath.find(fsaccess.localseparator, separatorBytePos);
-        if (separatorBytePos == string::npos) return false;
-        if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
-        separatorBytePos++;
-    }
+    separatorBytePos = localpath.find(localPathSeparator, separatorBytePos);
+    return separatorBytePos != string::npos;
 }
 
 bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
 {
-    for (;;)
-    {
-        separatorBytePos = localpath.rfind(fsaccess.localseparator, separatorBytePos);
-        if (separatorBytePos == string::npos) return false;
-        if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
-        separatorBytePos--;
-    }
+    separatorBytePos = localpath.rfind(LocalPath::localPathSeparator, separatorBytePos);
+    return separatorBytePos != string::npos;
 }
 
-bool LocalPath::endsInSeparator(const FileSystemAccess& fsaccess) const
+bool LocalPath::endsInSeparator() const
 {
-    return localpath.size() >= fsaccess.localseparator.size()
-        && !memcmp(localpath.data() + (int(localpath.size()) & -int(fsaccess.localseparator.size())) - fsaccess.localseparator.size(),
-            fsaccess.localseparator.data(),
-            fsaccess.localseparator.size());
+    return !localpath.empty() && localpath.back() == localPathSeparator;
+}
+
+bool LocalPath::beginsWithSeparator() const
+{
+    return !localpath.empty() && localpath.front() == localPathSeparator;
 }
 
 size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
 {
-    // todo: take utf8 two byte characters into account
     size_t p = localpath.size();
-    p -= localpath.size() % fsaccess.localseparator.size(); // just in case on windows
-    while (p && (p -= fsaccess.localseparator.size()))
+
+    while (p && (p -= 1))
     {
-        if (!memcmp(localpath.data() + p, fsaccess.localseparator.data(), fsaccess.localseparator.size()))
+        if (localpath[p] == LocalPath::localPathSeparator)
         {
-            p += fsaccess.localseparator.size();
+            p += 1;
             break;
         }
     }
@@ -857,44 +1064,79 @@ size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
 bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
 {
     auto n = compareTo.localpath.size();
-    return bytePos + n == localpath.size() && !memcmp(compareTo.localpath.data(), localpath.data() + bytePos, n);
+    return bytePos + n == localpath.size() && !localpath.compare(bytePos, n, compareTo.localpath);
 }
 
 LocalPath LocalPath::subpathFrom(size_t bytePos) const
 {
-    return LocalPath::fromLocalname(localpath.substr(bytePos));
+    LocalPath result;
+    result.localpath = localpath.substr(bytePos);
+    return result;
 }
-
 
 void LocalPath::ensureWinExtendedPathLenPrefix()
 {
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    localpath.append("", 1);
-    if (!PathIsRelativeW((LPWSTR)localpath.c_str()) && ((localpath.size() < 4) || memcmp(localpath.data(), L"\\\\", 4)))
-        localpath.insert(0, (const char*)(const wchar_t*)L"\\\\?\\", 8);
-    localpath.resize(localpath.size() - 1);
+    if (!PathIsRelativeW(localpath.c_str()) && ((localpath.size() < 2) || memcmp(localpath.data(), L"\\\\", 4)))
+    {
+        localpath.insert(0, L"\\\\?\\", 4);
+    }
 #endif
 }
 
-string LocalPath::substrTo(size_t bytePos) const
+LocalPath LocalPath::subpathTo(size_t bytePos) const
 {
-    return localpath.substr(0, bytePos);
+    LocalPath p;
+    p.localpath = localpath.substr(0, bytePos);
+    return p;
 }
+
+
+LocalPath LocalPath::insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess)
+{
+    size_t dotindex = localpath.find_last_of('.');
+    size_t sepindex = localpath.find_last_of(LocalPath::localPathSeparator);
+
+    LocalPath result, extension;
+
+    if (dotindex == string::npos || (sepindex != string::npos && sepindex > dotindex))
+    {
+        result.localpath = localpath;
+    }
+    else
+    {
+        result.localpath = localpath.substr(0, dotindex);
+        extension.localpath = localpath.substr(dotindex);
+    }
+
+    ostringstream oss;
+    oss << " (" << counter << ")";
+
+    result.localpath += LocalPath::fromPath(oss.str(), fsaccess).localpath + extension.localpath;
+    return result;
+}
+
 
 string LocalPath::toPath(const FileSystemAccess& fsaccess) const
 {
     string path;
-    fsaccess.local2path(const_cast<string*>(&localpath), &path); // todo: const correctness for local2path etc
+    fsaccess.local2path(&localpath, &path);
     return path;
+}
+
+string LocalPath::toPath() const
+{
+    // only use this one for logging, until we find out if it works for all platforms
+    static FSACCESS_CLASS fsAccess;
+    return toPath(fsAccess);  // fsAccess synchronization not needed, only the data passed to it is modified
 }
 
 string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const
 {
-    string name = localpath;
-    fsaccess.local2name(&name, fsType);
-    return name;
+    std::string path = toPath(fsaccess);
+    fsaccess.unescapefsincompatible(&path, fsType);
+    return path;
 }
-
 
 LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsaccess)
 {
@@ -905,16 +1147,34 @@ LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsacce
 
 LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType)
 {
-    fsaccess.name2local(&path, fsType);
-    return fromLocalname(path);
+    fsaccess.escapefsincompatible(&path, fsType);
+    return fromPath(path, fsaccess);
 }
 
-LocalPath LocalPath::fromLocalname(string path)
+LocalPath LocalPath::fromPlatformEncoded(string path)
 {
+#if defined(_WIN32)
+    assert(!(path.size() % 2));
+    LocalPath p;
+    p.localpath.resize(path.size() / sizeof(wchar_t));
+    memcpy(const_cast<wchar_t*>(p.localpath.data()), path.data(), p.localpath.size() * sizeof(wchar_t));
+    return p;
+#else
     LocalPath p;
     p.localpath = std::move(path);
     return p;
+#endif
 }
+
+#if defined(_WIN32)
+LocalPath LocalPath::fromPlatformEncoded(wstring&& wpath)
+{
+    LocalPath p;
+    p.localpath = std::move(wpath);
+    return p;
+}
+#endif
+
 
 LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 {
@@ -923,24 +1183,97 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
     return lp;
 }
 
-bool LocalPath::isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess)
+bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
 {
-    return path.localpath.size() >= localpath.size()
-        && !memcmp(path.localpath.data(), localpath.data(), localpath.size())
-        && (path.localpath.size() == localpath.size() ||
-           !memcmp(path.localpath.data() + localpath.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size()) ||
-           (localpath.size() >= fsaccess.localseparator.size() &&
-           !memcmp(path.localpath.data() + localpath.size() - fsaccess.localseparator.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size())));
+    assert(!empty());
+    assert(!path.empty());
+
+    if (path.localpath.size() >= localpath.size()
+        && !Utils::pcasecmp(path.localpath, localpath, localpath.size()))
+    {
+       if (path.localpath.size() == localpath.size())
+       {
+           if (subpathIndex) *subpathIndex = localpath.size();
+           return true;
+       }
+       else if (path.localpath[localpath.size()] == localPathSeparator)
+       {
+           if (subpathIndex) *subpathIndex = localpath.size() + 1;
+           return true;
+       }
+       else if (!localpath.empty() &&
+                path.localpath[localpath.size() - 1] == localPathSeparator)
+       {
+           if (subpathIndex) *subpathIndex = localpath.size();
+           return true;
+       }
+    }
+    return false;
+}
+
+bool LocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component) const
+{
+    while (subpathIndex < localpath.size() && localpath[subpathIndex] == localPathSeparator)
+    {
+        ++subpathIndex;
+    }
+    size_t start = subpathIndex;
+    if (start >= localpath.size())
+    {
+        return false;
+    }
+    else if (findNextSeparator(subpathIndex))
+    {
+        component.localpath = localpath.substr(start, subpathIndex - start);
+        return true;
+    }
+    else
+    {
+        component.localpath = localpath.substr(start, localpath.size() - start);
+        subpathIndex = localpath.size();
+        return true;
+    }
 }
 
 ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)
     : path(p)
-    , length(path.getLength())
+    , length(path.localpath.size())
 {
 }
 ScopedLengthRestore::~ScopedLengthRestore()
 {
-    path.setLength(length);
+    path.localpath.resize(length);
 };
 
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
+{
+    auto localName = localPath.leafName().toPath();
+
+    if (localName != remoteName)
+    {
+        return FILENAME_ANOMALY_NAME_MISMATCH;
+    }
+    else if (isReservedName(remoteName, type))
+    {
+        return FILENAME_ANOMALY_NAME_RESERVED;
+    }
+
+    return FILENAME_ANOMALY_NONE;
+}
+
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node)
+{
+    assert(node);
+
+    return isFilenameAnomaly(localPath, node->displayname(), node->type);
+}
+
+#ifdef ENABLE_SYNC
+FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
+{
+    return isFilenameAnomaly(node.localname, node.name, node.type);
+}
+#endif
+
 } // namespace
+

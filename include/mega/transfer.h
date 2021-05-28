@@ -96,7 +96,7 @@ struct MEGA_API Transfer : public FileFingerprint
     handletransfer_map::iterator faputcompletion_it;
 
     // upload result
-    byte *ultoken;
+    unique_ptr<byte[]> ultoken;
 
     // backlink to base
     MegaClient* client;

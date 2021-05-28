@@ -58,7 +58,7 @@ struct AppFileGet : public AppFile
     void completed(Transfer*, LocalNode*) override;
     void terminated() override;
 
-    AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
+    AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
 };
 
@@ -71,7 +71,7 @@ struct AppFilePut : public AppFile
 
     void displayname(string*);
 
-    AppFilePut(const LocalPath&, handle, const char*);
+    AppFilePut(const LocalPath&, NodeHandle, const char*);
     ~AppFilePut();
 };
 
@@ -110,6 +110,7 @@ struct DemoApp : public MegaApp
     void querysignuplink_result(error) override;
     void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
     void confirmsignuplink_result(error) override;
+    void confirmsignuplink2_result(handle, const char*, const char*, error) override;
     void setkeypair_result(error) override;
 
     void getrecoverylink_result(error) override;
@@ -160,10 +161,7 @@ struct DemoApp : public MegaApp
 
     void fetchnodes_result(const Error&) override;
 
-    void putnodes_result(const Error&, targettype_t, vector<NewNode>&) override;
-
-    void share_result(error) override;
-    void share_result(int, error) override;
+    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
@@ -191,9 +189,6 @@ struct DemoApp : public MegaApp
     // sessionid is undef if all sessions except the current were killed
     void sessions_killed(handle sessionid, error e) override;
 
-    void exportnode_result(error) override;
-    void exportnode_result(handle, handle) override;
-
     void openfilelink_result(const Error&) override;
     void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
@@ -213,9 +208,10 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_state(int tag, syncstate_t, SyncError, bool fireDisableEvent = true) override;
-    void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error) override;
-    void sync_removed(int tag) override;
+    void syncupdate_stateconfig(handle backupId) override;
+    void syncupdate_active(handle backupId, bool active) override;
+    void sync_auto_resume_result(const UnifiedSync&, bool attempted, bool hadAnError) override;
+    void sync_removed(handle backupId) override;
 
     void syncupdate_scanning(bool) override;
     void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) override;
@@ -257,13 +253,14 @@ struct DemoApp : public MegaApp
     void contactlinkquery_result(error, handle, string*, string*, string*, string*) override;
     void contactlinkdelete_result(error) override;
 
-    void smsverificationsend_result(error);
-    void smsverificationcheck_result(error, string*);
+    void smsverificationsend_result(error) override;
+    void smsverificationcheck_result(error, string*) override;
 
     void getbanners_result(error) override;
     void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
 
     void dismissbanner_result(error) override;
+    void backupremove_result(const Error&, handle /*backup id*/) override;
 
     void reload(const char*) override;
     void clearing() override;
@@ -271,6 +268,11 @@ struct DemoApp : public MegaApp
     void notify_retry(dstime, retryreason_t) override;
 
     string getExtraInfoErrorString(const Error&);
+
+protected:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    void drive_presence_changed(bool appeared, const LocalPath& driveRoot) override;
+#endif // USE_DRIVE_NOTIFICATIONS
 };
 
 struct DemoAppFolder : public DemoApp
@@ -307,6 +309,7 @@ void exec_put(autocomplete::ACState& s);
 void exec_putq(autocomplete::ACState& s);
 void exec_get(autocomplete::ACState& s);
 void exec_getq(autocomplete::ACState& s);
+void exec_more(autocomplete::ACState& s);
 void exec_pause(autocomplete::ACState& s);
 void exec_getfa(autocomplete::ACState& s);
 void exec_mediainfo(autocomplete::ACState& s);
@@ -317,8 +320,6 @@ void exec_rm(autocomplete::ACState& s);
 void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
-void exec_sync(autocomplete::ACState& s);
-void exec_syncconfig(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);
@@ -370,7 +371,6 @@ void exec_chatl(autocomplete::ACState& s);
 void exec_chatsm(autocomplete::ACState& s);
 void exec_chatlu(autocomplete::ACState& s);
 void exec_chatlj(autocomplete::ACState& s);
-void exec_enabletransferresumption(autocomplete::ACState& s);
 void exec_setmaxdownloadspeed(autocomplete::ACState& s);
 void exec_setmaxuploadspeed(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);
@@ -390,3 +390,18 @@ void exec_querytransferquota(autocomplete::ACState& s);
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
+void exec_drivemonitor(autocomplete::ACState& s);
+void exec_driveid(autocomplete::ACState& s);
+
+#ifdef ENABLE_SYNC
+
+void exec_syncadd(autocomplete::ACState& s);
+void exec_syncclosedrive(autocomplete::ACState& s);
+void exec_syncexport(autocomplete::ACState& s);
+void exec_syncimport(autocomplete::ACState& s);
+void exec_syncopendrive(autocomplete::ACState& s);
+void exec_synclist(autocomplete::ACState& s);
+void exec_syncremove(autocomplete::ACState& s);
+void exec_syncxable(autocomplete::ACState& s);
+
+#endif // ENABLE_SYNC

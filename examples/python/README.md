@@ -4,9 +4,6 @@ There are two basic examples contained here. A Mega Command Line Interface
 client (`megacli`), and a simple CRUD example (create, read, update, delete
 a file).
 
-To build the required (Python) modules, see the `README.md` in
-`bindings/python/`.
-
 ## Mega Command Line Interface
 
 This is a console app that uses the Python bindings of the SDK.
@@ -63,3 +60,9 @@ some inconveniences:
 
 We plan to create a `MegaApiPython` wrapper on top of `MegaApi` to
 take care of these issues for you.
+
+## How to build and run the project:
+
+To build and run the project with Python bindings, please refer to this section: 
+[Build/Install Python Bindings](https://github.com/meganz/sdk/tree/develop/bindings/python)
+

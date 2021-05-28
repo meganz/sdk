@@ -34,6 +34,7 @@
 #ifdef HAVE_FFMPEG
 #include <mega.h>
 #endif
+#include "mega/gfx/gfx_pdfium.h"
 
 namespace mega {
 
@@ -63,18 +64,21 @@ class MEGA_API GfxProcQT : public GfxProc
     QString imagePath;
     int orientation;
     int imageType;
+#ifdef HAVE_PDFIUM
+    static bool oldTmpPdfCleaned;
+#endif
 
 public:
     GfxProcQT();
     ~GfxProcQT();
-    bool readbitmap(FileAccess*, string*, int);
+    bool readbitmap(FileAccess*, const LocalPath&, int);
     bool resizebitmap(int, int, string*);
     void freebitmap();
 
 protected:
     static int processEXIF(QByteArray *barr, int itemlen);
     static int processEXIFDir(const char *dirStart, const char *offsetBase, uint32_t size, uint32_t nesting, int MotorolaOrder);
-    static QImageReader *readbitmapQT(int &w, int &h, int &orientation, int &imageType, QString imagePath);
+    static QImageReader *readbitmapQT(int &w, int &h, int &orientation, int &imageType, FileSystemAccess &fa, QString imagePath);
     static QImage resizebitmapQT(QImageReader *image, int orientation, int w, int h, int rw, int rh);
     static QByteArray *formatstring;
     static const char* supportedformatsQT();
@@ -86,7 +90,7 @@ protected:
 
 #ifdef HAVE_PDFIUM
     static const char* supportedformatsPDF();
-    static QImageReader *readbitmapPdf(int &w, int &h, int &orientation, QString imagePath);
+    static QImageReader *readbitmapPdf(int &w, int &h, int &orientation, FileSystemAccess &fa, QString imagePath);
 #endif
 
 #if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
@@ -103,8 +107,7 @@ protected:
 
 public:
     static int getExifOrientation(QString &filePath);
-    static QImage createThumbnail(QString imagePath);
-
+    QImage createThumbnail(QString imagePath);
 };
 } // namespace
 

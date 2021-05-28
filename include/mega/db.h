@@ -75,6 +75,9 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
+    // whether an unmatched begin() has been issued
+    virtual bool inTransaction() const = 0;
+
     void checkCommitter(DBTableTransactionCommitter*);
 
     // autoincrement
@@ -126,8 +129,8 @@ public:
         }
     }
 
-    explicit DBTableTransactionCommitter(DbTable* t)
-        : mTable(t)
+    explicit DBTableTransactionCommitter(unique_ptr<DbTable>& t)
+        : mTable(t.get())
     {
         if (mTable)
         {
@@ -142,21 +145,40 @@ public:
         }
     }
 
+
     MEGA_DISABLE_COPY_MOVE(DBTableTransactionCommitter)
 };
 
+enum DbOpenFlag
+{
+    // Recycle legacy database, if present.
+    DB_OPEN_FLAG_RECYCLE = 0x1,
+    // Operations should always be transacted.
+    DB_OPEN_FLAG_TRANSACTED = 0x2
+}; // DbOpenFlag
+
 struct MEGA_API DbAccess
 {
-    static const int LEGACY_DB_VERSION = 11;
-    static const int DB_VERSION = LEGACY_DB_VERSION + 1;
+    static const int LEGACY_DB_VERSION;
+    static const int DB_VERSION;
 
     DbAccess();
-    virtual DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool recycleLegacyDB, bool checkAlwaysTransacted) = 0;
 
     virtual ~DbAccess() { }
 
+    virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
+
+    virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
+
+    virtual const LocalPath& rootPath() const = 0;
+
     int currentDbVersion;
 };
+
+// Convenience.
+using DbAccessPtr = unique_ptr<DbAccess>;
+using DbTablePtr = unique_ptr<DbTable>;
+
 } // namespace
 
 #endif

@@ -55,6 +55,7 @@
     <ClInclude Include="..\..\..\..\include\mega\share.h" />
     <ClInclude Include="..\..\..\..\include\mega\sharenodekeys.h" />
     <ClInclude Include="..\..\..\..\include\mega\sync.h" />
+    <ClInclude Include="..\..\..\..\include\mega\heartbeats.h" />
     <ClInclude Include="..\..\..\..\include\mega\thread.h" />
     <ClInclude Include="..\..\..\..\include\mega\thread\win32thread.h" />
     <ClInclude Include="..\..\..\..\include\mega\transfer.h" />
@@ -108,6 +109,7 @@
     <ClCompile Include="..\..\..\..\src\share.cpp" />
     <ClCompile Include="..\..\..\..\src\sharenodekeys.cpp" />
     <ClCompile Include="..\..\..\..\src\sync.cpp" />
+    <ClCompile Include="..\..\..\..\src\heartbeats.cpp" />
     <ClCompile Include="..\..\..\..\src\thread\win32thread.cpp" />
     <ClCompile Include="..\..\..\..\src\transfer.cpp" />
     <ClCompile Include="..\..\..\..\src\transferslot.cpp" />

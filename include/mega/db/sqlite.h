@@ -26,16 +26,6 @@
 #include <sqlite3.h>
 
 namespace mega {
-class MEGA_API SqliteDbAccess : public DbAccess
-{
-    string dbpath;
-
-public:
-    DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool recycleLegacyDB, bool checkAlwaysTransacted) override;
-
-    SqliteDbAccess(string* = NULL);
-    ~SqliteDbAccess();
-};
 
 class MEGA_API SqliteDbTable : public DbTable
 {
@@ -56,9 +46,34 @@ public:
     void abort();
     void remove();
 
-    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess *fs, string *filepath, bool checkAlwaysTransacted);
+    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
     ~SqliteDbTable();
+
+    bool inTransaction() const override;
+
+    LocalPath dbFile() const;
 };
+
+class MEGA_API SqliteDbAccess : public DbAccess
+{
+    LocalPath mRootPath;
+
+public:
+    explicit SqliteDbAccess(const LocalPath& rootPath);
+
+    ~SqliteDbAccess();
+
+    LocalPath databasePath(const FileSystemAccess& fsAccess,
+                           const string& name,
+                           const int version) const;
+
+    SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
+
+    bool probe(FileSystemAccess& fsAccess, const string& name) const override;
+
+    const LocalPath& rootPath() const override;
+};
+
 } // namespace
 
 #endif

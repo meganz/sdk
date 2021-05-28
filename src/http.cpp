@@ -775,7 +775,7 @@ bool EncryptByChunks::encrypt(m_off_t pos, m_off_t npos, string& urlSuffix)
     buf = nextbuffer(0);   // last call in case caller does buffer post-processing (such as write to file as we go)
 
     ostringstream s;
-    s << "/" << pos << "?c=" << Base64Str<EncryptByChunks::CRCSIZE>(crc);
+    s << "/" << pos << "?d=" << Base64Str<EncryptByChunks::CRCSIZE>(crc);
     urlSuffix = s.str();
 
     return !!buf;

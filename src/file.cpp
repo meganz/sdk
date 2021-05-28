@@ -26,6 +26,7 @@
 #include "mega/sync.h"
 #include "mega/command.h"
 #include "mega/logging.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 File::File()
@@ -36,7 +37,6 @@ File::File()
     hforeign = false;
     syncxfer = false;
     temporaryfile = false;
-    h = UNDEF;
     tag = 0;
 }
 
@@ -68,9 +68,10 @@ bool File::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(name.data(), ll);
 
-    ll = (unsigned short)localname.editStringDirect()->size();
+    auto tmpstr = localname.platformEncoded();
+    ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
-    d->append(localname.editStringDirect()->data(), ll);
+    d->append(tmpstr.data(), ll);
 
     ll = (unsigned short)targetuser.size();
     d->append((char*)&ll, sizeof(ll));
@@ -206,12 +207,12 @@ File *File::unserialize(string *d)
     delete fp;
 
     file->name.assign(name, namelen);
-    file->localname.editStringDirect()->assign(localname, localnamelen);
+    file->localname = LocalPath::fromPlatformEncoded(std::string(localname, localnamelen));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
 
-    file->h = MemAccess::get<handle>(ptr);
+    file->h.set6byte(MemAccess::get<handle>(ptr));
     ptr += sizeof(handle);
 
     memcpy(file->filekey, ptr, FILENODEKEYLENGTH);
@@ -298,7 +299,7 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->uploadhandle = t->uploadhandle;
 
         // reference to uploaded file
-        memcpy(newnode->uploadtoken, t->ultoken, sizeof newnode->uploadtoken);
+        memcpy(newnode->uploadtoken, t->ultoken.get(), sizeof newnode->uploadtoken);
 
         // file's crypto key
         newnode->nodekey.assign((char*)t->filekey, FILENODEKEYLENGTH);
@@ -337,7 +338,7 @@ void File::completed(Transfer* t, LocalNode* l)
         }
         else
         {
-            handle th = h;
+            handle th = h.as8byte();
 
             // inaccessible target folder - use //bin instead
             if (!t->client->nodebyhandle(th))
@@ -432,7 +433,7 @@ void File::displayname(string* dname)
     {
         Node* n;
 
-        if ((n = transfer->client->nodebyhandle(h)))
+        if ((n = transfer->client->nodeByHandle(h)))
         {
             *dname = n->displayname();
         }
@@ -443,18 +444,29 @@ void File::displayname(string* dname)
     }
 }
 
+string File::displayname()
+{
+    string result;
+
+    displayname(&result);
+
+    return result;
+}
+
 #ifdef ENABLE_SYNC
 SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
 {
     sync = csync;
 
     n = cn;
-    h = n->nodehandle;
+    h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
     localname = clocalname;
 
     syncxfer = true;
     n->syncget = this;
+
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
 }
 
 SyncFileGet::~SyncFileGet()
@@ -483,12 +495,12 @@ void SyncFileGet::prepare()
                 transfer->localfilename = sync->localdebris;
                 sync->client->fsaccess->mkdirlocal(transfer->localfilename, true);
 
-                transfer->localfilename.appendWithSeparator(tmpname, true, sync->client->fsaccess->localseparator);
+                transfer->localfilename.appendWithSeparator(tmpname, true);
                 sync->client->fsaccess->mkdirlocal(transfer->localfilename);
 
                 // lock it
                 LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess, sync->mFilesystemType);
-                transfer->localfilename.appendWithSeparator(lockname, true, sync->client->fsaccess->localseparator);
+                transfer->localfilename.appendWithSeparator(lockname, true);
 
                 if (sync->tmpfa->fopen(transfer->localfilename, false, true))
                 {
@@ -507,7 +519,7 @@ void SyncFileGet::prepare()
         if (sync->tmpfa)
         {
             transfer->localfilename = sync->localdebris;
-            transfer->localfilename.appendWithSeparator(tmpname, true, sync->client->fsaccess->localseparator);
+            transfer->localfilename.appendWithSeparator(tmpname, true);
         }
         else
         {
@@ -516,7 +528,7 @@ void SyncFileGet::prepare()
 
         LocalPath tmpfilename;
         sync->client->fsaccess->tmpnamelocal(tmpfilename);
-        transfer->localfilename.appendWithSeparator(tmpfilename, true, sync->client->fsaccess->localseparator);
+        transfer->localfilename.appendWithSeparator(tmpfilename, true);
     }
 
     if (n->parent && n->parent->localnode)
@@ -568,7 +580,7 @@ void SyncFileGet::updatelocalname()
         if (n->parent && n->parent->localnode)
         {
             localname = n->parent->localnode->getLocalPath();
-            localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true, sync->client->fsaccess->localseparator);
+            localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
         }
     }
 }
@@ -576,6 +588,8 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
+
     LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
             && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
@@ -591,6 +605,8 @@ void SyncFileGet::completed(Transfer*, LocalNode*)
 
 void SyncFileGet::terminated()
 {
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
+
     delete this;
 }
 #endif

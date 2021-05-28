@@ -75,7 +75,16 @@ using namespace mega;
 }
 
 - (MEGANode *)nodeAtIndex:(NSInteger)index {
-    return  self.nodeList ? [[MEGANode alloc] initWithMegaNode:self.nodeList->get((int)index)->copy() cMemoryOwn:YES] : nil;
+    if (self.nodeList == NULL) {
+        return nil;
+    }
+
+    MegaNode *node = self.nodeList->get((int)index);
+    if (node) {
+        return [[MEGANode alloc] initWithMegaNode:node->copy() cMemoryOwn:YES];
+    } else {
+        return nil;
+    }
 }
 
 - (NSNumber *)size {

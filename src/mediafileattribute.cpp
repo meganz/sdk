@@ -78,8 +78,8 @@ void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, LocalPath* i
     {
         if (ifSuitableFilename)
         {
-            char ext[8];
-            if (!client->fsaccess->getextension(*ifSuitableFilename, ext, sizeof(ext))
+            string ext;
+            if (!client->fsaccess->getextension(*ifSuitableFilename, ext)
                 || !MediaProperties::isMediaFilenameExt(ext))
             {
                 return;

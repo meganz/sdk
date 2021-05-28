@@ -540,6 +540,11 @@ class MegaApiPHP extends MegaApi
     {
         return $this->megaApi->getStringHash($base64pwkey, $email);
     }
+    
+    function addEntropy($data, $size)
+    {
+        MegaApi::addEntropy($data, $size);
+    }
 
     static function base64ToHandle($base64Handle)
     {
@@ -554,11 +559,6 @@ class MegaApiPHP extends MegaApi
     static function userHandleToBase64($handle)
     {
         return MegaApi::userHandleToBase64($handle);
-    }
-
-    static function addEntropy($data, $size)
-    {
-        MegaApi::addEntropy($data, $size);
     }
 
     function retryPendingConnections($disconnect = false, $includexfers = false, $listener = null)

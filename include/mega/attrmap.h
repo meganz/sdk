@@ -38,6 +38,7 @@ struct MEGA_API AttrMap
 
     // convert nameid to string
     static int nameid2string(nameid, char*);
+    static string nameid2string(nameid);
 
     // convert string to nameid
     static nameid string2nameid(const char *);

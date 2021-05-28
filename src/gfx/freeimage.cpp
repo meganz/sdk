@@ -60,10 +60,9 @@ extern "C" {
 }
 #endif
 
-
 namespace mega {
 
-#ifdef HAVE_FFMPEG
+#if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
 std::mutex GfxProcFreeImage::gfxMutex;
 #endif
 
@@ -76,6 +75,9 @@ GfxProcFreeImage::GfxProcFreeImage()
 #ifdef FREEIMAGE_LIB
 	FreeImage_Initialise(TRUE);
 #endif
+#ifdef HAVE_PDFIUM
+    PdfiumReader::init();
+#endif
 #ifdef HAVE_FFMPEG
     gfxMutex.lock();
     av_register_all();
@@ -85,6 +87,61 @@ GfxProcFreeImage::GfxProcFreeImage()
 #endif
 }
 
+GfxProcFreeImage::~GfxProcFreeImage()
+{
+#ifdef HAVE_PDFIUM
+    gfxMutex.lock();
+    PdfiumReader::destroy();
+    gfxMutex.unlock();
+#endif
+}
+
+bool GfxProcFreeImage::readbitmapFreeimage(FileAccess*, const LocalPath& imagePath, int size)
+{
+
+    // FIXME: race condition, need to use open file instead of filename
+    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX(imagePath.localpath.c_str());
+
+    if (fif == FIF_UNKNOWN)
+    {
+        return false;
+    }
+
+#ifndef OLD_FREEIMAGE
+    if (fif == FIF_JPEG)
+    {
+        // load JPEG (scale & EXIF-rotate)
+        if (!(dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(),
+                                    JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
+        {
+            return false;
+        }
+    }
+    else
+#endif
+    {
+        // load all other image types - for RAW formats, rely on embedded preview
+        if (!(dib = FreeImage_LoadX(fif, imagePath.localpath.c_str(),
+#ifndef OLD_FREEIMAGE
+                                    (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
+#else
+                                    0)))
+#endif
+        {
+            return false;
+        }
+    }
+
+    w = static_cast<int>(FreeImage_GetWidth(dib));
+    h = static_cast<int>(FreeImage_GetHeight(dib));
+
+    if (!w || !h)
+    {
+        return false;
+    }
+
+    return true;
+}
 
 #ifdef HAVE_FFMPEG
 
@@ -103,7 +160,17 @@ const char *GfxProcFreeImage::supportedformatsFfmpeg()
             ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
 }
 
-bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int size)
+bool GfxProcFreeImage::isFfmpegFile(const string& ext)
+{
+    const char* ptr;
+    if ((ptr = strstr(supportedformatsFfmpeg(), ext.c_str())) && ptr[ext.size()] == '.')
+    {
+        return true;
+    }
+    return false;
+}
+
+bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePath, int size)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
@@ -111,16 +178,16 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
 
     // Open video file
     AVFormatContext* formatContext = avformat_alloc_context();
-    if (avformat_open_input(&formatContext, imagePath->data(), NULL, NULL))
+    if (avformat_open_input(&formatContext, imagePath.toPath(*client->fsaccess).c_str(), NULL, NULL))
     {
-        LOG_warn << "Error opening video: " << imagePath;
+        LOG_warn << "Error opening video: " << imagePath.toPath(*client->fsaccess);
         return NULL;
     }
 
     // Get stream information
     if (avformat_find_stream_info(formatContext, NULL))
     {
-        LOG_warn << "Stream info not found: " << imagePath;
+        LOG_warn << "Stream info not found: " << imagePath.toPath(*client->fsaccess);
         avformat_close_input(&formatContext);
         return NULL;
     }
@@ -140,7 +207,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
 
     if (!videoStream)
     {
-        LOG_warn << "Video stream not found: " << imagePath;
+        LOG_warn << "Video stream not found: " << imagePath.toPath(*client->fsaccess);
         avformat_close_input(&formatContext);
         return NULL;
     }
@@ -250,10 +317,9 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         seek_target = av_rescale_q(formatContext->duration / 5, av_get_time_base_q(), videoStream->time_base);
     }
 
-    char ext[8];
-
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*imagePath),ext,8)
-            && strcmp(ext,".mp3") && seek_target > 0
+    string extension;
+    if (client->fsaccess->getextension(imagePath, extension)
+            && strcmp(extension.c_str(),".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
         LOG_warn << "Error seeking video";
@@ -329,11 +395,11 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
                                                              pitch, 24, FI_RGBA_RED_SHIFT, FI_RGBA_GREEN_MASK,
                                                              FI_RGBA_BLUE_MASK | 0xFFFF, TRUE) ) )
                     {
-                        LOG_warn << "Error loading freeimage from memory: " << imagePath;
+                        LOG_warn << "Error loading freeimage from memory: " << imagePath.toPath(*client->fsaccess);
                     }
                     else
                     {
-                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath;
+                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath.toPath(*client->fsaccess);
                     }
 
                     free (fmemory.data);
@@ -380,6 +446,62 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
 
 #endif
 
+#ifdef HAVE_PDFIUM
+const char* GfxProcFreeImage::supportedformatsPDF()
+{
+    return ".pdf.";
+}
+
+bool GfxProcFreeImage::isPdfFile(const string &ext)
+{
+    const char* ptr;
+    if ((ptr = strstr(supportedformatsPDF(), ext.c_str())) && ptr[ext.size()] == '.')
+    {
+        return true;
+    }
+    return false;
+}
+
+bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath, int size)
+{
+
+    std::lock_guard<std::mutex> g(gfxMutex);
+    int orientation;
+#ifdef _WIN32
+    wstring tmpPath;
+    tmpPath.resize(MAX_PATH);
+    LocalPath workingDir;
+    if (!GetTempPathW(MAX_PATH, (LPWSTR)tmpPath.data())) // If the function fails, the return value is zero.
+    {
+        LOG_warn << "Error getting temporary path to process pdf.";
+        workingDir.clear();
+    }
+    else
+    {
+        workingDir = LocalPath::fromPlatformEncoded(tmpPath.c_str());
+    }
+
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess, workingDir);
+#else
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess);
+#endif
+
+    if (!data || !w || !h)
+    {
+        return false;
+    }
+
+    dib = FreeImage_ConvertFromRawBits(reinterpret_cast<BYTE*>(data.get()), w, h, w * 4, 32, 0xFF0000, 0x00FF00, 0x0000FF);
+    if (!dib)
+    {
+        LOG_warn << "Error converting raw pdfium bitmap from memory: " << imagePath.toPath(*client->fsaccess);
+        return false;
+    }
+    FreeImage_FlipHorizontal(dib);
+
+    return true;
+}
+#endif
 
 const char* GfxProcFreeImage::supportedformats()
 {
@@ -393,101 +515,50 @@ const char* GfxProcFreeImage::supportedformats()
 #ifdef HAVE_FFMPEG
         sformats.append(supportedformatsFfmpeg());
 #endif
+#ifdef HAVE_PDFIUM
+        sformats.append(supportedformatsPDF());
+#endif
     }
 
     return sformats.c_str();
 }
 
-bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
+bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, int size)
 {
-#ifdef _WIN32
-    localname->append("", 1);
-#endif
 
-#ifdef HAVE_FFMPEG
-    char ext[8];
-    bool isvideo = false;
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localname), ext, sizeof ext))
+    bool bitmapLoaded = false;
+    string extension;
+    if (client->fsaccess->getextension(localname, extension))
     {
-        const char* ptr;
-        if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
+#ifdef HAVE_FFMPEG
+        if (isFfmpegFile(extension))
         {
-            string name;  // WIN32 ffmpeg uses utf8 rather than wide strings
-            client->fsaccess->local2path(localname, &name);
-
-            isvideo = true;
-            if (!readbitmapFfmpeg(fa, &name, size) )
+            bitmapLoaded = true;
+            if (!readbitmapFfmpeg(fa, localname, size) )
             {
-#ifdef _WIN32
-                localname->resize(localname->size()-1);
-#endif
                 return false;
             }
         }
-    }
-    if (!isvideo)
-    {
 #endif
-
-    // FIXME: race condition, need to use open file instead of filename
-    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX((freeimage_filename_char_t*)localname->data());
-
-    if (fif == FIF_UNKNOWN)
-    {
-#ifdef _WIN32
-        localname->resize(localname->size()-1);
-#endif
-        return false;
-    }
-
- #ifndef OLD_FREEIMAGE
-    if (fif == FIF_JPEG)
-    {
-        // load JPEG (scale & EXIF-rotate)
-        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*) localname->data(),
-                                    JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
+#ifdef HAVE_PDFIUM
+        if (isPdfFile(extension))
         {
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
-            return false;
+            bitmapLoaded = true;
+            if (!readbitmapPdf(fa, localname, size) )
+            {
+                return false;
+            }
         }
+#endif
     }
-    else
-#endif
+    if (!bitmapLoaded)
     {
-        // load all other image types - for RAW formats, rely on embedded preview
-        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*)localname->data(),
-                #ifndef OLD_FREEIMAGE
-                                    (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
-                #else
-                                    0)))
-                #endif
+        if (!readbitmapFreeimage(fa, localname, size) )
         {
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
             return false;
         }
     }
 
-#ifdef HAVE_FFMPEG
-    }
-#endif
-    w = FreeImage_GetWidth(dib);
-    h = FreeImage_GetHeight(dib);
-
-    if (!w || !h)
-    {
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
-        return false;
-    }
-
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
     return true;
 }
 

@@ -24,6 +24,8 @@
 		5B23B77C2164FC7C00600733 /* MEGAUserAlert.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5B23B77A2164FC7C00600733 /* MEGAUserAlert.mm */; };
 		5B23B77D2164FC7C00600733 /* MEGAUserAlertList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5B23B77B2164FC7C00600733 /* MEGAUserAlertList.mm */; };
 		5B72A14D20D3B3FB007FE4FD /* mega_ccronexpr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5B72A14C20D3B3FB007FE4FD /* mega_ccronexpr.cpp */; };
+		5D830393256232A00082CA18 /* MEGABannerList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5D830392256232A00082CA18 /* MEGABannerList.mm */; };
+		5D830397256240320082CA18 /* MEGABanner.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5D830396256240320082CA18 /* MEGABanner.mm */; };
 		7765A76720528445004C2FEB /* mega_evt_tls.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7765A76620528445004C2FEB /* mega_evt_tls.cpp */; };
 		940BEFB719ED92C2007E7FA2 /* attrmap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9819ED92C2007E7FA2 /* attrmap.cpp */; };
 		940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */; };
@@ -95,6 +97,8 @@
 		B6657E9C225C2B6200EF8D91 /* raid.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B6657E9B225C2B6200EF8D91 /* raid.cpp */; };
 		B698890D2198CCE300D0EE89 /* MEGAFileInputStream.mm in Sources */ = {isa = PBXBuildFile; fileRef = B698890B2198CCE300D0EE89 /* MEGAFileInputStream.mm */; };
 		B6A6CB662170125A009032C9 /* MEGABackgroundMediaUpload.mm in Sources */ = {isa = PBXBuildFile; fileRef = B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */; };
+		B6DBB54925BE9A89005F46A5 /* ListenerDispatch.mm in Sources */ = {isa = PBXBuildFile; fileRef = B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */; };
+		BF9CF0D12541737500A3EBBB /* heartbeats.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BF9CF0D02541737500A3EBBB /* heartbeats.cpp */; };
 		BFD7F5172341B3A60039A6EE /* MEGAPushNotificationSettings.mm in Sources */ = {isa = PBXBuildFile; fileRef = BFD7F5162341B3A60039A6EE /* MEGAPushNotificationSettings.mm */; };
 /* End PBXBuildFile section */
 
@@ -152,6 +156,12 @@
 		5B23B77E2164FCE500600733 /* MEGAUserAlertList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUserAlertList+init.h"; sourceTree = "<group>"; };
 		5B23B77F2164FCE500600733 /* MEGAUserAlert+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUserAlert+init.h"; sourceTree = "<group>"; };
 		5B72A14C20D3B3FB007FE4FD /* mega_ccronexpr.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mega_ccronexpr.cpp; path = ../../src/mega_ccronexpr.cpp; sourceTree = "<group>"; };
+		5D830387256224C20082CA18 /* MEGABanner.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGABanner.h; sourceTree = "<group>"; };
+		5D83038D256231850082CA18 /* MEGABannerList.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGABannerList.h; sourceTree = "<group>"; };
+		5D830392256232A00082CA18 /* MEGABannerList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGABannerList.mm; sourceTree = "<group>"; };
+		5D830396256240320082CA18 /* MEGABanner.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGABanner.mm; sourceTree = "<group>"; };
+		5D830399256240A70082CA18 /* MEGABanner+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGABanner+init.h"; sourceTree = "<group>"; };
+		5D83039B256244230082CA18 /* MEGABannerList+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGABannerList+init.h"; sourceTree = "<group>"; };
 		7765A76620528445004C2FEB /* mega_evt_tls.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = mega_evt_tls.cpp; path = ../../src/mega_evt_tls.cpp; sourceTree = "<group>"; };
 		940BEF9819ED92C2007E7FA2 /* attrmap.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = attrmap.cpp; path = ../../src/attrmap.cpp; sourceTree = "<group>"; };
 		940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = backofftimer.cpp; path = ../../src/backofftimer.cpp; sourceTree = "<group>"; };
@@ -323,6 +333,10 @@
 		B698890C2198CCE300D0EE89 /* MEGAFileInputStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAFileInputStream.h; sourceTree = "<group>"; };
 		B6A6CB642170125A009032C9 /* MEGABackgroundMediaUpload.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGABackgroundMediaUpload.h; sourceTree = "<group>"; };
 		B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGABackgroundMediaUpload.mm; sourceTree = "<group>"; };
+		B6DBB54725BE99AB005F46A5 /* ListenerDispatch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ListenerDispatch.h; sourceTree = "<group>"; };
+		B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ListenerDispatch.mm; sourceTree = "<group>"; };
+		BF9CF0CF2541734200A3EBBB /* heartbeats.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = heartbeats.h; sourceTree = "<group>"; };
+		BF9CF0D02541737500A3EBBB /* heartbeats.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = heartbeats.cpp; path = ../../src/heartbeats.cpp; sourceTree = "<group>"; };
 		BFD7F5152341B3A60039A6EE /* MEGAPushNotificationSettings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAPushNotificationSettings.h; sourceTree = "<group>"; };
 		BFD7F5162341B3A60039A6EE /* MEGAPushNotificationSettings.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAPushNotificationSettings.mm; sourceTree = "<group>"; };
 		BFD7F5182341B3B50039A6EE /* MEGAPushNotificationSettings+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGAPushNotificationSettings+init.h"; sourceTree = "<group>"; };
@@ -354,6 +368,7 @@
 				940BEF9A19ED92C2007E7FA2 /* base64.cpp */,
 				940BEF9B19ED92C2007E7FA2 /* command.cpp */,
 				940BEF9C19ED92C2007E7FA2 /* commands.cpp */,
+				BF9CF0D02541737500A3EBBB /* heartbeats.cpp */,
 				940BEF9D19ED92C2007E7FA2 /* db.cpp */,
 				940BEF9E19ED92C2007E7FA2 /* file.cpp */,
 				940BEF9F19ED92C2007E7FA2 /* fileattributefetch.cpp */,
@@ -511,6 +526,10 @@
 				A8FD7333230ABA400070A5E8 /* MEGACancelToken.mm */,
 				BFD7F5152341B3A60039A6EE /* MEGAPushNotificationSettings.h */,
 				BFD7F5162341B3A60039A6EE /* MEGAPushNotificationSettings.mm */,
+				5D830387256224C20082CA18 /* MEGABanner.h */,
+				5D830396256240320082CA18 /* MEGABanner.mm */,
+				5D83038D256231850082CA18 /* MEGABannerList.h */,
+				5D830392256232A00082CA18 /* MEGABannerList.mm */,
 			);
 			name = bindings;
 			sourceTree = "<group>";
@@ -533,6 +552,7 @@
 				A8FD7B621E93B3FB0031FC50 /* osx */,
 				940BF03D19EDBCAD007E7FA2 /* account.h */,
 				940BF03E19EDBCAD007E7FA2 /* attrmap.h */,
+				BF9CF0CF2541734200A3EBBB /* heartbeats.h */,
 				940BF03F19EDBCAD007E7FA2 /* backofftimer.h */,
 				940BF04019EDBCAD007E7FA2 /* base64.h */,
 				940BF04119EDBCAD007E7FA2 /* command.h */,
@@ -652,6 +672,8 @@
 				940BF0AC19EDBD62007E7FA2 /* MEGAUser+init.h */,
 				940BF0AE19EDBD62007E7FA2 /* MEGAUserList+init.h */,
 				5B23B77F2164FCE500600733 /* MEGAUserAlert+init.h */,
+				5D830399256240A70082CA18 /* MEGABanner+init.h */,
+				5D83039B256244230082CA18 /* MEGABannerList+init.h */,
 				5B23B77E2164FCE500600733 /* MEGAUserAlertList+init.h */,
 				41B0CE781A038EB9008D6044 /* MEGAPricing+init.h */,
 				41AB68ED1A093C3D003FE608 /* MEGASdk+init.h */,
@@ -673,6 +695,8 @@
 				B622FC762174261F00CF707C /* MEGABackgroundMediaUpload+init.h */,
 				A8FD7335230AC42B0070A5E8 /* MEGACancelToken+init.h */,
 				BFD7F5182341B3B50039A6EE /* MEGAPushNotificationSettings+init.h */,
+				B6DBB54725BE99AB005F46A5 /* ListenerDispatch.h */,
+				B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */,
 			);
 			path = Private;
 			sourceTree = "<group>";
@@ -744,7 +768,7 @@
 		9472043B19ED916F00F6805F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 1020;
+				LastUpgradeCheck = 1240;
 				ORGANIZATIONNAME = MEGA;
 				TargetAttributes = {
 					9472044219ED916F00F6805F = {
@@ -779,6 +803,8 @@
 				940BEFF219ED9351007E7FA2 /* consolewaiter.cpp in Sources */,
 				A87D97A21F4AD49B00A98C0E /* MEGAStringList.mm in Sources */,
 				940BF01519ED97B9007E7FA2 /* MEGAShareList.mm in Sources */,
+				5D830393256232A00082CA18 /* MEGABannerList.mm in Sources */,
+				B6DBB54925BE9A89005F46A5 /* ListenerDispatch.mm in Sources */,
 				41B2AEDA1A0A859C006C40FB /* DelegateMEGAListener.mm in Sources */,
 				A8A86BD51F559EDA00C214DA /* mega_zxcvbn.cpp in Sources */,
 				A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */,
@@ -786,6 +812,7 @@
 				A8C45FD7237AB61A00342F36 /* testhooks.cpp in Sources */,
 				BFD7F5172341B3A60039A6EE /* MEGAPushNotificationSettings.mm in Sources */,
 				940BEFF419ED9351007E7FA2 /* net.cpp in Sources */,
+				5D830397256240320082CA18 /* MEGABanner.mm in Sources */,
 				940BF01119ED97B9007E7FA2 /* MEGANode.mm in Sources */,
 				940BF01419ED97B9007E7FA2 /* MEGAShare.mm in Sources */,
 				41D143DA1B5FC053000CA86F /* pendingcontactrequest.cpp in Sources */,
@@ -806,6 +833,7 @@
 				940BEFC319ED92C2007E7FA2 /* json.cpp in Sources */,
 				940BEFD519ED92C2007E7FA2 /* waiterbase.cpp in Sources */,
 				940BEFCB19ED92C2007E7FA2 /* request.cpp in Sources */,
+				BF9CF0D12541737500A3EBBB /* heartbeats.cpp in Sources */,
 				940BEFBF19ED92C2007E7FA2 /* filefingerprint.cpp in Sources */,
 				940BEFC219ED92C2007E7FA2 /* http.cpp in Sources */,
 				41D98D071BD562AD00764370 /* MEGAContactRequestList.mm in Sources */,
@@ -891,12 +919,14 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_BITCODE = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -915,7 +945,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 12.1;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -944,6 +974,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -961,7 +992,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 12.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;

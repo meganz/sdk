@@ -52,6 +52,14 @@ goto doBuild
 
 :copyPort
 echo %1 %2
+
+For %%A in (%1) do (
+    Set VER=%%~nxA
+)
+
+if "%VER%" == "latest" echo "Using latest from vcpkg ports"
+if "%VER%" == "latest" exit /b 0
+
 set mydir=%1
 for /D %%A in (%mydir%/..) do set PORTNAME=%%~nA
 if not exist  %2\%PORTNAME%-OLD ren %2\%PORTNAME% %PORTNAME%-OLD

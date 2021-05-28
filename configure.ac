@@ -288,6 +288,44 @@ if test x$enable_sync = xyes; then
 fi
 
 
+# Drive Notifications
+AC_ARG_ENABLE(drive-notifications,
+    AS_HELP_STRING([--enable-drive-notifications], [enable Drive Notifications support [default=no]]),
+    [enable_drive_notifications=${enableval}],
+    [enable_drive_notifications=no])
+AS_IF([test "x$enable_drive_notifications" = "xyes"], [
+    # Add USE_DRIVE_NOTIFICATIONS preprocessor definition to config.h
+    AC_DEFINE(USE_DRIVE_NOTIFICATIONS, 1, [Define to enable Drive Notifications])
+    # Add -DUSE_DRIVE_NOTIFICATIONS to build command
+    CXXFLAGS="$CXXFLAGS -DUSE_DRIVE_NOTIFICATIONS"
+    # Add lib to linker command
+    if test "x$LINUX" = "xyes"; then
+        LDFLAGS="$LDFLAGS -ludev"
+    elif test "x$WIN32" = "xyes"; then
+        LDFLAGS="$LDFLAGS -lwbemuuid"
+    elif test "x$DARWIN" = "xyes"; then
+        LDFLAGS="$LDFLAGS -framework CoreFoundation -framework DiskArbitration"
+    fi
+])
+AM_CONDITIONAL([USE_DRIVE_NOTIFICATIONS], [test "x$enable_drive_notifications" = "xyes"])
+
+
+# MEGA_USE_C_ARES symbol for c-ares
+AC_ARG_ENABLE(mega-c-ares,
+    AS_HELP_STRING([--disable-mega-c-ares], [don't define MEGA_USE_C_ARES symbol]),
+    [enable_mega_c_ares=${enableval}],
+    [enable_mega_c_ares=yes])
+AS_IF([test "x$enable_mega_c_ares" != "xno"], [
+    # Add MEGA_USE_C_ARES preprocessor definition to config.h
+    AC_DEFINE(MEGA_USE_C_ARES, 1, [Define MEGA_USE_C_ARES symbol])
+    # Add -DMEGA_USE_C_ARES to build command
+    CXXFLAGS="$CXXFLAGS -DMEGA_USE_C_ARES"
+    # Reset it to a relevant and readable value, to be used in the final report
+    enable_mega_c_ares=yes
+])
+AM_CONDITIONAL([MEGA_USE_C_ARES], [test "x$enable_mega_c_ares" = "xyes"])
+
+
 # MEGA API
 AC_ARG_ENABLE(megaapi,
     AS_HELP_STRING([--disable-megaapi], [disable MEGA API support]),
@@ -298,6 +336,17 @@ if test "x$enable_megaapi" != "xno"; then
     AC_DEFINE(USE_MEGAAPI, 1, [Defined if MEGA API enabled])
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "x$enable_megaapi" = "xyes"])
+
+# Rotative Performance Logger
+AC_ARG_ENABLE(rotative-performance-logger,
+    AS_HELP_STRING([--enable-rotative-performance-logger], [enable Rotative Performance Logger [default=no]]),
+    [enable_rotative_performance_logger=${enableval}],
+    [enable_rotative_performance_logger=no])
+if test "x$enable_rotative_performance_logger" = "xyes"; then
+    AC_DEFINE(USE_ROTATIVEPERFORMANCELOGGER, 1, [Defined if Rotative Performance Logger enabled])
+    AC_DEFINE(ENABLE_LOG_PERFORMANCE, 1, [Defined if Rotative Performance Logger enabled])
+fi
+AM_CONDITIONAL([USE_ROTATIVEPERFORMANCELOGGER], [test "x$enable_rotative_performance_logger" = "xyes"])
 
 # Java
 AC_MSG_CHECKING([if building Java bindings])
@@ -952,86 +1001,24 @@ AC_SUBST(DB_CXXFLAGS)
 AC_SUBST(DB_CPPFLAGS)
 AC_SUBST(DB_LDFLAGS)
 
-# Berkeley DB
-db=false
-AC_MSG_CHECKING(for Berkeley DB)
-AC_ARG_WITH(db,
-  AS_HELP_STRING(--with-db=PATH, base of Berkeley DB installation),
-  [AC_MSG_RESULT($with_db)
-   case $with_db in
-   no)
-     db=false
-     ;;
-   yes)
-    AC_CHECK_HEADERS([db_cxx.h],, [
-        AC_MSG_ERROR([db_cxx.h header not found or not usable])
-    ])
-
-    AC_CHECK_LIB(db_cxx, [open], [DB_LIBS="-ldb_cxx"],[
-            AC_MSG_ERROR([Could not find libdb_cxx])
-    ])
-    AC_SUBST(DB_LIBS)
-    db=true
-     ;;
-   *)
-    # set temp variables
-    LDFLAGS="-L$with_db/lib $LDFLAGS"
-    CXXFLAGS="-I$with_db/include $CXXFLAGS"
-
-    AC_CHECK_HEADERS(db_cxx.h,
-     DB_LDFLAGS="-L$with_db/lib"
-     DB_CXXFLAGS="-I$with_db/include",
-     AC_MSG_ERROR([db_cxx.h header not found or not usable])
-     )
-    AC_CHECK_LIB(db_cxx, [open], [DB_LIBS="-ldb_cxx"],[
-            AC_MSG_ERROR([Could not find libdb_cxx])
-    ])
-    AC_SUBST(DB_LIBS)
-    db=true
-
-    #restore
-    LDFLAGS=$SAVE_LDFLAGS
-    CXXFLAGS=$SAVE_CXXFLAGS
-    ;;
-   esac
-  ],
-  [AC_MSG_RESULT([--with-db not specified])]
-  )
-AM_CONDITIONAL(USE_DB, test "x$db = xtrue")
-AC_SUBST(DB_CXXFLAGS)
-AC_SUBST(DB_LDFLAGS)
-
-# check if both DB layers are selected
-if test "x$sqlite" = "xtrue" ; then
-    if test "x$db" = "xtrue" ; then
-        AC_MSG_ERROR([Please provide exactly one DB access layer, either --with-sqlite or --with-db.])
-    fi
-fi
-
 # check if no DB layer is selected, use SQLite by the default
 if test "x$sqlite" = "xfalse" ; then
-    if test "x$db" = "xfalse" ; then
-        AC_MSG_NOTICE([Using SQLite3 as the default DB access layer.])
+    AC_MSG_NOTICE([Using SQLite3 as the default DB access layer.])
 
-        AC_CHECK_HEADERS([sqlite3.h],, [
-            AC_MSG_ERROR([sqlite3.h header not found or not usable])
-        ])
-        AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
-                AC_MSG_ERROR([Could not find libsqlite3])
-        ])
-        sqlite=true
+    AC_CHECK_HEADERS([sqlite3.h],, [
+        AC_MSG_ERROR([sqlite3.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
+            AC_MSG_ERROR([Could not find libsqlite3])
+    ])
+    sqlite=true
 
-        AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
-        AC_SUBST(DB_LIBS)
-    fi
+    AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
+    AC_SUBST(DB_LIBS)
 fi
 
 if test "x$sqlite" = "xtrue" ; then
     AC_DEFINE(USE_SQLITE, [1], [Define to use SQLite])
-    AC_DEFINE(USE_DB, [0], [Define to use Berkeley DB])
-else
-    AC_DEFINE(USE_SQLITE, [0], [Define to use SQLite])
-    AC_DEFINE(USE_DB, [1], [Define to use Berkeley DB])
 fi
 
 #
@@ -1355,6 +1342,12 @@ AM_CONDITIONAL([USE_LIBMEDIAINFO], [test "x$libmediainfo" = "xtrue"])
 openssl=false
 cares=false
 if test "x$WIN32" = "xno" ; then
+
+    AC_ARG_WITH([poll],
+      AS_HELP_STRING(--with-poll use poll instead of select in posix waiter),
+      AC_DEFINE(USE_POLL, [1], [Define to use poll instead of select in posix waiter]),
+    )
+
     if test "$HAVE_PTHREAD" = "yes"; then
         SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
         LDFLAGS="-pthread $LDFLAGS"
@@ -1626,6 +1619,7 @@ AC_ARG_ENABLE(examples,
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
+
 # FreeImage
 freeimage=false
 AC_MSG_CHECKING(for FreeImage)
@@ -1708,6 +1702,78 @@ if test "x$freeimage" = "xtrue" ; then
     AC_DEFINE(USE_FREEIMAGE, [1], [Define to use FreeImage library.])
 fi
 AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
+
+#pdfium
+pdfium=false
+AC_MSG_CHECKING(for PDFium)
+AC_ARG_WITH(pdfium,
+  AS_HELP_STRING(--with-pdfium=PATH, base of PDFium installation),
+  [AC_MSG_RESULT($with_pdfium)
+  case $with_pdfium in
+    no)
+      pdfium=false
+    ;;
+    yes)
+      AC_CHECK_HEADERS([fpdfview.h],, [
+          AC_MSG_ERROR([fpdfview.h header not found or not usable])
+      ])
+      AC_CHECK_LIB([pdfium], [main], [PDF_LIBS="-lpdfium"], [
+          AC_MSG_ERROR([PDFium library is not found!])])
+
+       pdfium=true
+    ;;
+    *)
+    # determine if library is installed
+    if test -d "$with_pdfium/lib"; then
+        LDFLAGS="-L$with_pdfium/lib $LDFLAGS"
+        CXXFLAGS="-I$with_pdfium/include $CXXFLAGS"
+        CPPFLAGS="-I$with_pdfium/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS([fpdfview.h],[
+         PDF_LDFLAGS="-L$with_pdfium/lib"
+         PDF_CXXFLAGS="-I$with_pdfium/include"
+         PDF_CPPFLAGS="-I$with_pdfium/include"],
+         AC_MSG_ERROR([fpdfview.h header not found or not usable])
+        )
+    else
+        LDFLAGS="-L$with_pdfium/Dist $LDFLAGS"
+        CXXFLAGS="-I$with_pdfium/Dist $CXXFLAGS"
+        CPPFLAGS="-I$with_pdfium/Dist $CPPFLAGS"
+
+        AC_CHECK_HEADERS([fpdfview.h],[
+         PDF_LDFLAGS="-L$with_pdfium/Dist"
+         PDF_CXXFLAGS="-I$with_pdfium/Dist"
+         PDF_CPPFLAGS="-I$with_pdfium/Dist"],
+         AC_MSG_ERROR([fpdfview.h header not found or not usable])
+        )
+    fi
+    # check and set PDFium library
+    AC_CHECK_LIB([pdfium], [main], [PDF_LIBS="-lpdfium"], [
+        AC_MSG_ERROR([PDFium library is not found!])])
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    pdfium=true
+    ;;
+   esac
+   ],
+   [AC_MSG_RESULT([--with-pdfium not specified])
+    AC_CHECK_HEADERS([fpdfview.h],AC_CHECK_LIB([pdfium], [main],
+        [PDF_LIBS="-lpdfium"
+        pdfium=true
+        ],),)
+   ]
+   )
+
+if test "x$pdfium" = "xtrue" ; then
+AC_SUBST(PDF_LDFLAGS)
+AC_SUBST(PDF_LIBS)
+AC_SUBST(PDF_CXXFLAGS)
+AC_SUBST(PDF_CPPFLAGS)
+AC_DEFINE(HAVE_PDFIUM, [1], [Define to use PDFium library.])
+fi
+AM_CONDITIONAL([USE_PDFIUM], [test "x$pdfium" = "xtrue"])
 
 USE_FUSE=0
 # if Examples are enables, check for specific libraries
@@ -2117,6 +2183,9 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   chat:             $enable_chat
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
+  Rot Perf Logger:  $enable_rotative_performance_logger
+  Drive Notif:      $enable_drive_notifications
+  MEGA_USE_C_ARES:  $enable_mega_c_ares
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads
@@ -2127,7 +2196,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   SWIG_FLAGS_PHP:   $SWIG_FLAGS_PHP
   
   Java bindings:    $enable_java
-
+  
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
   Crypto++:         $CRYPTO_CXXFLAGS $CRYPTO_LDFLAGS $CRYPTO_LIBS
   Sodium:           $SODIUM_CXXFLAGS $SODIUM_LDFLAGS $SODIUM_LIBS
@@ -2136,6 +2205,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   c-ares:           $CARES_FLAGS $CARES_LDFLAGS $CARES_LIBS
   cURL:             $LIBCURL_FLAGS $LIBCURL_LIBS
   FreeImage:        $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
+  PDFium:           $PDF_CXXFLAGS $PDF_LDFLAGS $PDF_LIBS
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
@@ -2143,4 +2213,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   LIBRAW:           $LIBRAW_CXXFLAGS $LIBRAW_LDFLAGS $LIBRAW_LIBS
   LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
   FFMPEG:           $FFMPEG_CXXFLAGS $FFMPEG_LDFLAGS $FFMPEG_LIBS
+
 ])

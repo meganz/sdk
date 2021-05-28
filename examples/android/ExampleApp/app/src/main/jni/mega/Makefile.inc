@@ -89,6 +89,7 @@ HEADERS= sdk/include/mega.h \
 	    sdk/include/mega/share.h \
 	    sdk/include/mega/sharenodekeys.h \
 	    sdk/include/mega/sync.h \
+	    sdk/include/mega/heartbeats.h \
 	    sdk/include/mega/transfer.h \
 	    sdk/include/mega/transferslot.h \
 	    sdk/include/mega/proxy.h \
@@ -117,8 +118,8 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/mediafileattribute.h
 
 OBJECTS=$(CPP_SOURCES:.cpp=.o) $(C_SOURCES:.c=.o)
-C_WRAPPER_SOURCES = sdk/src/megaapi.cpp sdk/src/megaapi_impl.cpp
-C_WRAPPER_OBJECTS = sdk/src/megaapi.o sdk/src/megaapi_impl.o
+C_WRAPPER_SOURCES = sdk/src/megaapi.cpp sdk/src/megaapi_impl.cpp sdk/src/heartbeats.cpp
+C_WRAPPER_OBJECTS = sdk/src/megaapi.o sdk/src/megaapi_impl.o sdk/src/heartbeats.o
 
 PYTHON_WRAPS=python_wrap.cxx
 PYTHON_HEADERS=python_wrap.h 

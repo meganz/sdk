@@ -79,9 +79,11 @@ doc/example/lsmega
 .project
 .cproject
 .settings
+*.vscode
 *~
 Debug
 Release
+/build-x??-*-mega*/
 /contrib/QtCreator/build-*
 /contrib/QtCreator/MEGAsdk.pro.user
 /contrib/QtCreator/MEGAcli/MEGAcli.pro.user
@@ -94,6 +96,7 @@ Release
 /contrib/cmake/CMakeLists.txt.user
 /contrib/cmake/.idea
 /contrib/cmake/build
+/contrib/cmake/build3rdParty/build
 megaclient_statecache*
 
 # Mega SDK runtime
@@ -101,3 +104,4 @@ megaclient_statecache*
 
 /third_party/Makefile
 /third_party/3rdparty
+/third_party/crashlytics*h

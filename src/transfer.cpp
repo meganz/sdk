@@ -129,11 +129,6 @@ Transfer::~Transfer()
         client->asyncfopens--;
     }
 
-    if (ultoken)
-    {
-        delete [] ultoken;
-    }
-
     if (finished)
     {
         if (type == GET && !localfilename.empty())
@@ -150,9 +145,10 @@ bool Transfer::serialize(string *d)
 
     d->append((const char*)&type, sizeof(type));
 
-    ll = (unsigned short)localfilename.editStringDirect()->size();
+    const auto& tmpstr = localfilename.platformEncoded();
+    ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
-    d->append(localfilename.editStringDirect()->data(), ll);
+    d->append(tmpstr.data(), ll);
 
     d->append((const char*)filekey, sizeof(filekey));
     d->append((const char*)&ctriv, sizeof(ctriv));
@@ -180,7 +176,7 @@ bool Transfer::serialize(string *d)
     {
         hasUltoken = 2;
         d->append((const char*)&hasUltoken, sizeof(char));
-        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN);
+        d->append((const char*)ultoken.get(), NewNode::UPLOADTOKENLEN);
     }
     else
     {
@@ -257,7 +253,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     memcpy(t->transferkey.data(), ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
-    t->localfilename = LocalPath::fromLocalname(std::string(filepath, ll));
+    t->localfilename = LocalPath::fromPlatformEncoded(std::string(filepath, ll));
 
     if (!t->chunkmacs.unserialize(ptr, end))
     {
@@ -311,8 +307,8 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     if (hasUltoken)
     {
-        t->ultoken = new byte[NewNode::UPLOADTOKENLEN]();
-        memcpy(t->ultoken, ptr, ll);
+        t->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
+        memcpy(t->ultoken.get(), ptr, ll);
         ptr += ll;
     }
 
@@ -457,7 +453,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE);
+                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, false);
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -500,8 +496,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
     {
         chunkmacs.clear();
         progresscompleted = 0;
-        delete [] ultoken;
-        ultoken = NULL;
+        ultoken.reset();
         pos = 0;
 
         if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
@@ -540,7 +535,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->disableSyncs(BUSINESS_EXPIRED);
+                client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
                 alreadyDisabled = true;
             }
 #endif
@@ -566,9 +561,9 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
     assert(type == PUT || (node && node->type == FILENODE));
 
 #ifdef USE_MEDIAINFO
-    char ext[8];
+    string ext;
     if (((type == PUT && size >= 16) || (node && node->nodekey().size() == FILENODEKEYLENGTH && node->size >= 16)) &&
-        client->fsaccess->getextension(localpath, ext, sizeof(ext)) &&
+        client->fsaccess->getextension(localpath, ext) &&
         MediaProperties::isMediaFilenameExt(ext) &&
         !client->mediaFileInfo.mediaCodecsFailed)
     {
@@ -647,7 +642,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 syncxfer = true;
             }
 
-            if (!fixedfingerprint && (n = client->nodebyhandle((*it)->h))
+            if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
                  && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
@@ -717,7 +712,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 set<handle> nodes;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h))
                             && nodes.find(n->nodehandle) == nodes.end())
                     {
                         nodes.insert(n->nodehandle);
@@ -762,12 +757,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         #ifdef ENABLE_SYNC
                         if((*it)->syncxfer)
                         {
-                            sync_list::iterator it2;
-                            for (it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
-                            {
-                                Sync *sync = (*it2);
+                            bool foundOne = false;
+                            client->syncs.forEachRunningSync([&](Sync* sync){
+
                                 LocalNode *localNode = sync->localnodebypath(NULL, localname);
-                                if (localNode)
+                                if (localNode && !foundOne)
                                 {
                                     LOG_debug << "Overwriting a local synced file. Moving the previous one to debris";
 
@@ -777,18 +771,18 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                         transient_error = client->fsaccess->transient_error;
                                     }
 
-                                    break;
+                                    foundOne = true;
                                 }
-                            }
+                            });
 
-                            if(it2 == client->syncs.end())
+                            if (!foundOne)
                             {
                                 LOG_err << "LocalNode for destination file not found";
 
-                                if(client->syncs.size())
+                                if(client->syncs.hasRunningSyncs())
                                 {
                                     // try to move to debris in the first sync
-                                    if(!client->syncs.front()->movetolocaldebris(localname))
+                                    if(!client->syncs.firstRunningSync()->movetolocaldebris(localname))
                                     {
                                         transient_error = client->fsaccess->transient_error;
                                     }
@@ -801,42 +795,12 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                             LOG_debug << "The destination file exist (not synced). Saving with a different name";
 
                             // the destination path isn't synced, save with a (x) suffix
-                            string utf8fullname = localname.toPath(*client->fsaccess);
-                            size_t dotindex = utf8fullname.find_last_of('.');
-                            string name;
-                            string extension;
-                            if (dotindex == string::npos)
-                            {
-                                name = utf8fullname;
-                            }
-                            else
-                            {
-                                string separator;
-                                client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
-                                size_t sepindex = utf8fullname.find_last_of(separator);
-                                if(sepindex == string::npos || sepindex < dotindex)
-                                {
-                                    name = utf8fullname.substr(0, dotindex);
-                                    extension = utf8fullname.substr(dotindex);
-                                }
-                                else
-                                {
-                                    name = utf8fullname;
-                                }
-                            }
-
-                            string suffix;
-                            string newname;
                             LocalPath localnewname;
-                            int num = 0;
+                            unsigned num = 0;
                             do
                             {
                                 num++;
-                                ostringstream oss;
-                                oss << " (" << num << ")";
-                                suffix = oss.str();
-                                newname = name + suffix + extension;
-                                localnewname = LocalPath::fromPath(newname, *client->fsaccess);
+                                localnewname = localname.insertFilenameCounter(num, *client->fsaccess);
                             } while (fa->fopen(localnewname) || fa->type == FOLDERNODE);
 
 
@@ -900,11 +864,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 if (success)
                 {
                     // set missing node attributes
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h)))
                     {
-                        if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname.editStringDirect()) &&
-                                keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
-                                client->checkaccess(n, OWNER))
+                        if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
+                            keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
+                            client->checkaccess(n, OWNER))
                         {
                             keys.insert(n->nodekey());
 
@@ -918,7 +882,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                                 if (missingattr)
                                 {
-                                    client->gfx->gendimensionsputfa(NULL, localname.editStringDirect(), n->nodehandle, n->nodecipher(), missingattr);
+                                    client->gfx->gendimensionsputfa(NULL, localname, n->nodehandle, n->nodecipher(), missingattr);
                                 }
 
                                 addAnyMissingMediaFileAttributes(n, localname);
@@ -929,6 +893,17 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
+                    if (auto node = client->nodeByHandle((*it)->h))
+                    {
+                        auto path = (*it)->localname;
+                        auto type = isFilenameAnomaly(path, node);
+
+                        if (type != FILENAME_ANOMALY_NONE)
+                        {
+                            client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
+                        }
+                    }
+
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
@@ -1020,14 +995,31 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             if (ll)
             {
                 LOG_debug << "Verifying sync upload";
-                synclocalpath = ll->getLocalPath(true);
+                synclocalpath = ll->getLocalPath();
                 localpath = &synclocalpath;
             }
-            else
+#endif
+            if (auto node = client->nodeByHandle(f->h))
+            {
+                auto type = isFilenameAnomaly(*localpath, f->name);
+
+                if (type != FILENAME_ANOMALY_NONE)
+                {
+                    // Construct remote path for reporting.
+                    ostringstream remotepath;
+
+                    remotepath << node->displaypath()
+                               << (node->parent ? "/" : "")
+                               << f->name;
+
+                    client->filenameAnomalyDetected(type, localpath->toPath(), remotepath.str());
+                }
+            }
+
+            if (localpath == &f->localname)
             {
                 LOG_debug << "Verifying regular upload";
             }
-#endif
 
             auto fa = client->fsaccess->newfileaccess();
             bool isOpen = fa->fopen(*localpath);

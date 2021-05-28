@@ -33,13 +33,14 @@ namespace {
 
 unique_ptr<MegaStringList> createMegaStringList(const vector<const char*>& data)
 {
-    vector<char*> list;
+    string_vector list;
+
     for (const auto& value : data)
     {
-        list.emplace_back(MegaApi::strdup(value));
+        list.emplace_back(value);
     }
-    return unique_ptr<MegaStringList>{
-        new MegaStringListPrivate{list.data(), static_cast<int>(list.size())}};
+
+    return unique_ptr<MegaStringList>(new MegaStringListPrivate(std::move(list)));
 }
 
 } // anonymous
