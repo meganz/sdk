@@ -6746,6 +6746,8 @@ TEST(Sync, RenameTargetHasFilesystemWatch)
         ASSERT_TRUE(cr.setattr(dy, attr_map('n', "dx")));
     }
 
+    WaitMillisec(4000); // it can take a while for APs to arrive (or to be sent)
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
 

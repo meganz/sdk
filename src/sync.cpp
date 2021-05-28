@@ -1801,6 +1801,29 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
             }
         }
 
+        // is it a move within the same folder?  (ie, purely a rename?)
+        syncRow* sourceRow = nullptr;
+        if (sourceLocalNode->parent == parentRow.syncNode
+            && row.rowSiblings
+            && !sourceLocalNode->moveAppliedToLocal)
+        {
+            // then prevent any other action on this node for now
+            // if there is a new matching fs name, we'll need this node to be renamed, then a new one will be created
+            for (syncRow& r : *row.rowSiblings)
+            {
+                // skip the syncItem() call for this one this time (so no upload until move is resolved)
+                if (r.syncNode == sourceLocalNode) sourceRow = &r;
+            }
+        }
+
+        // we don't want the source LocalNode to be visited until after the move completes, and we revisit with rescanned folder data
+        // because it might see a new file with the same name, and start a download, keeping the row instead of removing it
+        if (sourceRow)
+        {
+            sourceRow->itemProcessed = true;
+            sourceRow->syncNode->setScanAgain(true, false, false, 0);
+        }
+
         // check filesystem is not changing fsids as a result of rename
         assert(sourceLocalNode->fsid == debug_getfsid(sourcePath, client->fsaccess));
 
@@ -5164,7 +5187,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
         }
         else
         {
-            SYNC_verbose << syncname << "Letting move destination node process this first (cloud node is at " 
+            SYNC_verbose << syncname << "Letting move destination node process this first (cloud node is at "
 			             << client->nodeByHandle(row.syncNode->syncedCloudNodeHandle)->displaypath() << "): " << logTriplet(row, fullPath);
         }
         row.suppressRecursion = true;
