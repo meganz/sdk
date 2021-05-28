@@ -12111,7 +12111,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     // any child nodes arrived before their parents?
     for (size_t i = dp.size(); i--; )
     {
-        if ((n = nodebyhandle(dp[i]->parenthandle)))
+        if ((n = nodebyhandle(dp[i]->parenthandle, true)))
         {
             dp[i]->setparent(n);
         }
