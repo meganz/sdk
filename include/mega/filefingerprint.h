@@ -24,9 +24,16 @@
 #include <array>
 
 #include "types.h"
-#include "filesystem.h"
 
 namespace mega {
+
+struct MEGA_API InputStreamAccess
+{
+    virtual m_off_t size() = 0;
+    virtual bool read(byte *, unsigned) = 0;
+    virtual ~InputStreamAccess() { }
+};
+
 
 // sparse file fingerprint, including size and mtime
 struct MEGA_API FileFingerprint : public Cacheable

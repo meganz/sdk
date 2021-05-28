@@ -1493,10 +1493,10 @@ public:
     // remove node subtree
     void deltree(handle);
 
-    Node* nodeByHandle(NodeHandle) const;
+    Node* nodeByHandle(NodeHandle, bool fileVersionOk = false) const;
     Node* nodeByPath(const char* path, Node* node = nullptr);
 
-    Node* nodebyhandle(handle) const;
+    Node* nodebyhandle(handle, bool fileVersionOk = false) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
     Node* nodebyfingerprint(LocalNode*);
@@ -1975,7 +1975,8 @@ public:
         CodeCounter::ScopeStats recursiveSyncTime = { "recursiveSync" };
         CodeCounter::ScopeStats computeSyncTripletsTime = { "computeSyncTriplets" };
         CodeCounter::ScopeStats inferSyncTripletsTime = { "inferSyncTriplets" };
-        CodeCounter::ScopeStats syncItemTime = { "syncItem" };
+        CodeCounter::ScopeStats syncItemTime1 = { "syncItem1" };
+        CodeCounter::ScopeStats syncItemTime2 = { "syncItem2" };
         uint64_t transferStarts = 0, transferFinishes = 0;
         uint64_t transferTempErrors = 0, transferFails = 0;
         uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;

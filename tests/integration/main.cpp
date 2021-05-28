@@ -19,32 +19,6 @@ std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 std::ofstream gUnopenedOfstream;
 
-std::string logTime()
-{
-    // why do the tests take so long to run?  Log some info about what is slow.
-    auto t = std::time(NULL);
-    char ts[50];
-    struct tm dt;
-    ::mega::m_gmtime(t, &dt);
-    if (!std::strftime(ts, sizeof(ts), "%H:%M:%S ", &dt))
-    {
-        ts[0] = '\0';
-    }
-    return ts;
-}
-
-std::ostream& out(bool withTime)
-{
-    if (withTime && gOutputToCout)
-    {
-        std::cout << logTime();
-    }
-    if (gOutputToCout) return std::cout;
-    else return gUnopenedOfstream;
-}
-
-namespace {
-
 std::string getCurrentTimestamp()
 {
     using std::chrono::system_clock;
@@ -63,6 +37,24 @@ std::string getCurrentTimestamp()
 
     return std::string(buffer);
 }
+
+std::string logTime()
+{
+    return getCurrentTimestamp();
+}
+
+
+std::ostream& out(bool withTime)
+{
+    if (withTime && gOutputToCout)
+    {
+        std::cout << getCurrentTimestamp() << " ";
+    }
+    if (gOutputToCout) return std::cout;
+    else return gUnopenedOfstream;
+}
+
+namespace {
 
 class MegaLogger : public mega::Logger
 {
@@ -215,7 +207,7 @@ fs::path TestFS::GetTestFolder()
 #else
     auto pid = getpid();
 #endif
-    
+
     fs::path testpath = GetTestBaseFolder() / ("pid_" + std::to_string(pid));
     out() << "Local Test folder: " << testpath << endl;
     return testpath;
@@ -234,7 +226,7 @@ void TestFS::DeleteFolder(fs::path folder)
     error_code ec;
     fs::path oldpath(folder);
     fs::path newpath(folder);
-    
+
     for (int i = 10; i--; )
     {
         newpath += "_del"; // this can be improved later if needed

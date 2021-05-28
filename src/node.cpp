@@ -82,7 +82,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     // set parent linkage or queue for delayed parent linkage in case of
     // out-of-order delivery
-    if ((p = client->nodebyhandle(ph)))
+    if ((p = client->nodebyhandle(ph, true)))
     {
         setparent(p);
     }
@@ -1486,6 +1486,23 @@ auto LocalNode::rare() -> RareFields&
         rareFields.reset(new RareFields);
     }
     return *rareFields;
+}
+
+void LocalNode::trimRareFields()
+{
+    if (rareFields)
+    {
+        if (useBlocked < TREE_ACTION_HERE) rareFields->useBlockedTimer.reset();
+        if (scanBlocked < TREE_ACTION_HERE) rareFields->scanBlockedTimer.reset();
+        if (!scanInProgress) rareFields->scanRequest.reset();
+
+        if (!rareFields->useBlockedTimer &&
+            !rareFields->scanBlockedTimer &&
+            !rareFields->scanRequest)
+        {
+            rareFields.reset();
+        }
+    }
 }
 
 void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds)

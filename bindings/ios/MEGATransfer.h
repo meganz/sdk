@@ -193,6 +193,14 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
 @property (readonly, nonatomic) BOOL isStreamingTransfer;
 
 /**
+ * @brief YES if the transfer has failed with MEGAErrorTypeApiEOverquota
+ * and the target is foreign.
+ *
+ * @return YES if the transfer has failed with MEGAErrorTypeApiEOverquota and the target is foreign.
+ */
+@property (readonly, nonatomic, getter=isForeignOverquota) BOOL foreignOverquota;
+
+/**
  * @brief The last error related to the transfer with extra info
  *
  */

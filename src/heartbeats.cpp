@@ -310,8 +310,10 @@ BackupMonitor::BackupMonitor(MegaClient *client)
 
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
+#ifdef DEBUG
     handle backupId = us.mConfig.getBackupId();
     assert(!ISUNDEF(backupId)); // syncs are registered before adding them
+#endif
 
     auto currentInfo = ::mega::make_unique<BackupInfoSync>(us);
     if (us.mBackupInfo && *currentInfo != *us.mBackupInfo)

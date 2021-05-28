@@ -1597,6 +1597,21 @@ struct StandardClient : public MegaApp
             return false;
         }
 
+        // Generate drive ID if necessary.
+        auto id = UNDEF;
+        auto result = client.readDriveId(drivePath.c_str(), id);
+
+        if (result == API_ENOENT)
+        {
+            id = client.generateDriveId();
+            result = client.writeDriveId(drivePath.c_str(), id);
+        }
+
+        if (result != API_OK)
+        {
+            completion(nullptr, NO_SYNC_ERROR, result);
+            return false;
+        }
 
         auto config =
           SyncConfig(LocalPath::fromPath(sourcePath, *client.fsaccess),
@@ -1799,9 +1814,9 @@ struct StandardClient : public MegaApp
             out() << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) out() << ml << " ";
             out(false) << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
-            for (auto& m : ms) out() << " " << m.first;
+            for (auto& m : ms) out(false) << " " << m.first;
             out(false) << " and unmatched remote nodes:";
-            for (auto& i : ns) out() << " " << i.first;
+            for (auto& i : ns) out(false) << " " << i.first;
             out(false) << endl;
         };
         return false;
@@ -1923,9 +1938,9 @@ struct StandardClient : public MegaApp
             out() << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) out() << ml << " ";
             out(false) << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
-            for (auto& m : ms) out() << " " << m.first;
+            for (auto& m : ms) out(false) << " " << m.first;
             out(false) << " and unmatched LocalNodes:";
-            for (auto& i : ns) out() << " " << i.first;
+            for (auto& i : ns) out(false) << " " << i.first;
             out(false) << endl;
         };
         return false;
@@ -2046,9 +2061,9 @@ struct StandardClient : public MegaApp
             out() << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) out() << ml << " ";
             out(false) << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
-            for (auto& m : ms) out() << " " << m.first;
+            for (auto& m : ms) out(false) << " " << m.first;
             out(false) << " and unmatched filesystem paths:";
-            for (auto& i : ps) out() << " " << i.second.filename();
+            for (auto& i : ps) out(false) << " " << i.second.filename();
             out(false) << " in " << p << endl;
         };
         return false;
@@ -3481,12 +3496,14 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
         size_t remaining = 0;
         auto result0 = clientA1.thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
         {
-            sc.client.syncs.forEachRunningSync(
-              [&](Sync* s)
-              {
-                remaining += s->dirnotify->fsEventq.size();
-                remaining += s->dirnotify->fsDelayedNetworkEventq.size();
-              });
+            //sc.client.syncs.forEachRunningSync(
+            //  [&](Sync* s)
+            //  {
+            //    remaining += s->dirnotify->fsEventq.size();
+            //    remaining += s->dirnotify->fsDelayedNetworkEventq.size();
+            //  });
+
+            remaining += sc.client.isAnySyncScanning() ? 1 : 0;
 
             p->set_value(true);
         });
@@ -3503,7 +3520,7 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.root.get(), backupId1, false, StandardClient::CONFIRM_LOCAL));
     //ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
-    WaitMillisec(20000);  // give it a chance to rescan the folder.  todo:  why so long tho
+    WaitMillisec(2000);  // give it a chance to rescan the folder.  todo:  why so long tho
 
     ASSERT_GT(clientA1.transfersAdded.load(), 0u);
     clientA1.transfersAdded = 0;
@@ -6216,7 +6233,7 @@ TEST(Sync, RenameReplaceFolderBetweenSyncs)
     ASSERT_TRUE(c0.confirmModel_mainthread(model0.root.get(), id0));
     ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
 
-    // Move s0/d0 to s1/d0.
+    // Move s0/d0 to s1/d0. (and replace)
     model1 = model0;
 
     fs::rename(SYNCROOT0 / "d0", SYNCROOT1 / "d0");
@@ -6728,6 +6745,8 @@ TEST(Sync, RenameTargetHasFilesystemWatch)
 
         ASSERT_TRUE(cr.setattr(dy, attr_map('n', "dx")));
     }
+
+    WaitMillisec(4000); // it can take a while for APs to arrive (or to be sent)
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);

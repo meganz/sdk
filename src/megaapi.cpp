@@ -3763,6 +3763,16 @@ MegaShareList *MegaApi::getPendingOutShares(MegaNode *node)
     return pImpl->getPendingOutShares(node);
 }
 
+bool MegaApi::isPrivateNode(MegaHandle handle)
+{
+    return pImpl->isPrivateNode(handle);
+}
+
+bool MegaApi::isForeignNode(MegaHandle handle)
+{
+    return pImpl->isForeignNode(handle);
+}
+
 MegaNodeList *MegaApi::getPublicLinks(int order)
 {
     return pImpl->getPublicLinks(order);
@@ -4201,6 +4211,11 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
 {
     return pImpl->getChildren(p, order);
+}
+
+MegaNodeList *MegaApi::getChildren(MegaNodeList *parentNodes, int order)
+{
+    return pImpl->getChildren(parentNodes, order);
 }
 
 MegaNodeList *MegaApi::getVersions(MegaNode *node)
