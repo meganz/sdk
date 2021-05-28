@@ -5587,10 +5587,14 @@ void MegaClient::triggerSync(NodeHandle h, bool recurse)
         // corresponding sync node not found.
         // this could be a move target though, to a syncNode we have not created yet
         // go back up the (cloud) node tree to find an ancestor we can mark as needing sync checks
-        if (Node* n = nodeByHandle(h))
+        if (Node* n = nodeByHandle(h, true))
         {
-            SYNC_verbose << clientname << "Trigger syncNode not fournd for " << n->displaypath() << ", will trigger parent";
-            if (n->parent) triggerSync(n->parent->nodeHandle(), true);
+            // if the parent is a file, then it's just old versions being mentioned in the actionpackets, ignore
+            if (n->type != FILENODE)
+            {
+                SYNC_verbose << clientname << "Trigger syncNode not fournd for " << n->displaypath() << ", will trigger parent";
+                if (n->parent) triggerSync(n->parent->nodeHandle(), true);
+            }
         }
     }
     else
