@@ -5,6 +5,7 @@
 
 #include "stdfs.h"
 
+std::string logTime();
 
 extern std::string USER_AGENT;
 extern bool gRunningInCI;

@@ -38,6 +38,12 @@ std::string getCurrentTimestamp()
     return std::string(buffer);
 }
 
+std::string logTime()
+{
+    return getCurrentTimestamp();
+}
+
+
 std::ostream& out(bool withTime)
 {
     if (withTime && gOutputToCout)
