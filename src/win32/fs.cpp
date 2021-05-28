@@ -1398,18 +1398,13 @@ void WinDirNotify::process(DWORD dwBytes)
         {
             FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
 
-            // skip the local debris folder
-            // also, we skip the old name in case of renames
-            if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME
-                && (fni->FileNameLength < ignore.localpath.size()
-                    || memcmp(fni->FileName, ignore.localpath.data(), ignore.localpath.size() * sizeof(wchar_t))
-                    || (fni->FileNameLength > ignore.localpath.size()
-                        && fni->FileName[ignore.localpath.size() - 1] == L'\\')))
-            {
 #ifdef ENABLE_SYNC
+            // We skip the old name in case of renames
+            if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME)
+            {
                 notify(fsEventq, localrootnode, LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
-#endif
             }
+#endif
 
             if (!fni->NextEntryOffset)
             {
