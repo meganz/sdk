@@ -13900,6 +13900,9 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                 client->dumpsession(sid);
                 request->setPrivateKey(sid.c_str());
 
+                // Do not wait for Welcome pdf to be imported
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+
                 // Ephemeral++ don't have an email when account is created, so cannot send a signup link
                 client->getwelcomepdf();
             }
@@ -16083,8 +16086,12 @@ void MegaApiImpl::sendsignuplink_result(error e)
     {
         int creqtag = client->reqtag;
         client->reqtag = client->restag;
-        client->getwelcomepdf();
         client->reqtag = creqtag;
+
+        // Do not wait for Welcome pdf to be imported
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+
+        client->getwelcomepdf();
         return;
     }
 
