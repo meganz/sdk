@@ -819,7 +819,17 @@ bool CommandGetFile::procresult(Result r)
                 else
                 {
                     // cache resolved URLs if received
-                    client->httpio->cacheresolvedurls(tempurls, move(tempips));
+                    if (tempurls.size() * 2 == tempips.size())
+                    {
+                        client->httpio->cacheresolvedurls(tempurls, move(tempips));
+                        tempips.clear(); // should never be needed, but can't harm either
+                    }
+                    else
+                    {
+                        assert(false);
+                        client->sendevent(99556, "Unpaired IPs received for URLs in `g` command");
+                        LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
+                    }
 
                     // decrypt at and set filename
                     SymmCipher key;

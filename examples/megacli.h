@@ -391,11 +391,14 @@ void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
 void exec_drivemonitor(autocomplete::ACState& s);
+void exec_driveid(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 
 void exec_syncadd(autocomplete::ACState& s);
 void exec_syncclosedrive(autocomplete::ACState& s);
+void exec_syncexport(autocomplete::ACState& s);
+void exec_syncimport(autocomplete::ACState& s);
 void exec_syncopendrive(autocomplete::ACState& s);
 void exec_synclist(autocomplete::ACState& s);
 void exec_syncremove(autocomplete::ACState& s);

@@ -1,6 +1,13 @@
 
 MEGASDK_BASE_PATH = $$PWD/../../
 
+# Define MEGA_USE_C_ARES by default. Allow disabling c-ares code
+# by defining env var MEGA_USE_C_ARES=no before running qmake.
+ENV_MEGA_USE_C_ARES=$$(MEGA_USE_C_ARES)
+!equals(ENV_MEGA_USE_C_ARES, "no") {
+DEFINES += MEGA_USE_C_ARES
+}
+
 THIRDPARTY_VCPKG_PATH = $$THIRDPARTY_VCPKG_BASE_PATH/vcpkg/installed/$$VCPKG_TRIPLET
 exists($$THIRDPARTY_VCPKG_PATH) {
    CONFIG += vcpkg

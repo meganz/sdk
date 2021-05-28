@@ -28,6 +28,7 @@
 
 #include <mega/db.h>
 #include <mega/db/sqlite.h>
+#include <mega/json.h>
 
 TEST(utils, hashCombine_integer)
 {
@@ -1073,4 +1074,27 @@ TEST(LocalPath, PrependWithSeparator)
 }
 
 #undef SEP
+
+TEST(JSONWriter, arg_stringWithEscapes)
+{
+    JSONWriter writer;
+    writer.arg_stringWithEscapes("ke", "\"\\");
+    EXPECT_EQ(writer.getstring(), "\"ke\":\"\\\"\\\\\"");
+}
+
+TEST(JSONWriter, escape)
+{
+    class Writer
+      : public JSONWriter
+    {
+    public:
+        using JSONWriter::escape;
+    };
+
+    Writer writer;
+    string input = "\"\\";
+    string expected = "\\\"\\\\";
+
+    EXPECT_EQ(writer.escape(input.c_str(), input.size()), expected);
+}
 

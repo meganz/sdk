@@ -3055,6 +3055,16 @@ autocomplete::ACN autocompleteSyntax()
                     text("closedrive"),
                     localFSFolder("drive")));
 
+    p->Add(exec_syncexport,
+           sequence(text("sync"),
+                    text("export"),
+                    opt(localFSFile("outputFile"))));
+
+    p->Add(exec_syncimport,
+           sequence(text("sync"),
+                    text("import"),
+                    localFSFile("inputFile")));
+
     p->Add(exec_syncopendrive,
            sequence(text("sync"),
                     text("opendrive"),
@@ -3192,6 +3202,11 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("logfilenameanomalies"), either(text("on"), text("off"))));
 
     p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
+
+    p->Add(exec_driveid,
+           sequence(text("driveid"),
+                    either(sequence(text("get"), localFSFolder()),
+                           sequence(text("set"), localFSFolder(), opt(text("force"))))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -6688,6 +6703,68 @@ void exec_drivemonitor(autocomplete::ACState& s)
 #endif // USE_DRIVE_NOTIFICATIONS
 }
 
+void exec_driveid(autocomplete::ACState& s)
+{
+    auto drivePath = s.words[2].s.c_str();
+    auto get = s.words[1].s == "get";
+    auto force = s.words.size() == 4;
+
+    if (!force)
+    {
+        auto id = UNDEF;
+        auto result = client->readDriveId(drivePath, id);
+
+        switch (result)
+        {
+        case API_ENOENT:
+            if (!get) break;
+
+            cout << "No drive ID has been assigned to "
+                 << drivePath
+                 << endl;
+            return;
+
+        case API_EREAD:
+            cout << "Unable to read drive ID from "
+                 << drivePath
+                 << endl;
+            return;
+
+        case API_OK:
+            cout << "Drive "
+                 << drivePath
+                 << " has the ID "
+                 << toHandle(id)
+                 << endl;
+            return;
+
+        default:
+            assert(!"Uexpected result from readDriveID(...)");
+            cerr << "Unexpected result from readDriveId(...): "
+                 << errorstring(result)
+                 << endl;
+            return;
+        }
+    }
+
+    auto id = client->generateDriveId();
+    auto result = client->writeDriveId(drivePath, id);
+
+    if (result != API_OK)
+    {
+        cout << "Unable to write drive ID to "
+             << drivePath
+             << endl;
+        return;
+    }
+
+    cout << "Drive ID "
+         << toHandle(id)
+         << " has been written to "
+         << drivePath
+         << endl;
+}
+
 #ifdef USE_DRIVE_NOTIFICATIONS
 void DemoApp::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
 {
@@ -8519,6 +8596,7 @@ void exec_syncadd(autocomplete::ACState& s)
                  NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
+                 external ? std::move(drivePath) : LocalPath(),
                  true,
                  backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
@@ -8529,7 +8607,21 @@ void exec_syncadd(autocomplete::ACState& s)
             cerr << "Sorry, external syncs must be backups for now" << endl;
         }
 
-        config.mExternalDrivePath = std::move(drivePath);
+        // Try and generate a drive ID.
+        auto id = UNDEF;
+        auto result = client->readDriveId(drive.c_str(), id);
+
+        if (result == API_ENOENT)
+        {
+            id = client->generateDriveId();
+            result = client->writeDriveId(drive.c_str(), id);
+        }
+
+        if (result != API_OK)
+        {
+            cerr << "Unable to generate drive ID for " << drive << endl;
+            return;
+        }
     }
 
     // Try and add the new sync.
@@ -8557,6 +8649,97 @@ void exec_syncclosedrive(autocomplete::ACState& s)
     {
         cerr << "Unable to remove backup database: "
              << errorstring(result)
+             << endl;
+    }
+}
+
+void exec_syncimport(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to import syncs."
+             << endl;
+        return;
+    }
+
+    auto flags = std::ios::binary | std::ios::in;
+    ifstream istream(s.words[2].s, flags);
+
+    if (!istream)
+    {
+        cerr << "Unable to open "
+             << s.words[2].s
+             << " for reading."
+             << endl;
+        return;
+    }
+
+    string data;
+
+    for (char buffer[512]; istream; )
+    {
+        istream.read(buffer, sizeof(buffer));
+        data.append(buffer, istream.gcount());
+    }
+
+    if (!istream.eof())
+    {
+        cerr << "Unable to read "
+             << s.words[2].s
+             << endl;
+        return;
+    }
+
+    auto completion =
+      [](error result)
+      {
+          if (result)
+          {
+              cerr << "Unable to import sync configs: " 
+                   << errorstring(result)
+                   << endl;
+              return;
+          }
+
+          cout << "Sync configs successfully imported."
+               << endl;
+      };
+
+    cout << "Importing sync configs..."
+         << endl;
+
+    client->importSyncConfigs(data.c_str(), std::move(completion));
+}
+
+void exec_syncexport(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to export syncs."
+             << endl;
+        return;
+    }
+
+    auto configs = client->syncs.exportSyncConfigs();
+
+    if (s.words.size() == 2)
+    {
+        cout << "Configs exported as: "
+             << configs
+             << endl;
+        return;
+    }
+
+    auto flags = std::ios::binary | std::ios::out | std::ios::trunc;
+    ofstream ostream(s.words[2].s, flags);
+
+    ostream.write(configs.data(), configs.size());
+    ostream.close();
+
+    if (!ostream.good())
+    {
+        cout << "Failed to write exported configs to: "
+             << s.words[2].s
              << endl;
     }
 }
@@ -8620,7 +8803,7 @@ void exec_synclist(autocomplete::ACState& s)
           cout << "  Mapping: "
                << config.mLocalPath.toPath(*client->fsaccess)
                << " -> "
-               << config.mOrigninalPathOfRemoteRootNode
+               << config.mOriginalPathOfRemoteRootNode
                << "\n";
 
           if (sync)

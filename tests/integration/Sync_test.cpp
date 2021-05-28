@@ -48,6 +48,7 @@ using shared_promise = std::shared_ptr<promise<T>>;
 
 using PromiseBoolSP   = shared_promise<bool>;
 using PromiseHandleSP = shared_promise<handle>;
+using PromiseStringSP = shared_promise<string>;
 
 PromiseBoolSP newPromiseBoolSP()
 {
@@ -940,7 +941,7 @@ struct StandardClient : public MegaApp
         {
             if (!debugging)
             {
-                promiseSP->set_value(false);
+                promiseSP->set_value(PROMISE_VALUE());
                 break;
             }
         }
@@ -958,7 +959,7 @@ struct StandardClient : public MegaApp
         {
             if (!debugging)
             {
-                promiseSP->set_value(false);
+                promiseSP->set_value(PROMISE_VALUE());
                 break;
             }
         }
@@ -1528,6 +1529,21 @@ struct StandardClient : public MegaApp
             return false;
         }
 
+        // Generate drive ID if necessary.
+        auto id = UNDEF;
+        auto result = client.readDriveId(drivePath.c_str(), id);
+
+        if (result == API_ENOENT)
+        {
+            id = client.generateDriveId();
+            result = client.writeDriveId(drivePath.c_str(), id);
+        }
+
+        if (result != API_OK)
+        {
+            completion(nullptr, NO_SYNC_ERROR, result);
+            return false;
+        }
 
         auto config =
           SyncConfig(LocalPath::fromPath(sourcePath, *client.fsaccess),
@@ -1535,13 +1551,10 @@ struct StandardClient : public MegaApp
                      targetNode->nodeHandle(),
                      targetPath,
                      0,
+                     LocalPath::fromPath(drivePath, *client.fsaccess),
                      //string_vector(),
                      true,
                      SyncConfig::TYPE_BACKUP);
-
-        // Populate drive path.
-        config.mExternalDrivePath =
-          LocalPath::fromPath(drivePath, *client.fsaccess);
 
         // Try and add the backup.
         return client.addsync(config, true, completion) == API_OK;
@@ -1590,6 +1603,7 @@ struct StandardClient : public MegaApp
                                NodeHandle().set6byte(m->nodehandle),
                                subfoldername,
                                0,
+                               LocalPath(),
                                //string_vector(),
                                true,
                                isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
@@ -1599,6 +1613,35 @@ struct StandardClient : public MegaApp
             }
         }
         return false;
+    }
+
+    void importSyncConfigs(string configs, PromiseBoolSP result)
+    {
+        auto completion = [result](error e) { result->set_value(!e); };
+        client.importSyncConfigs(configs.c_str(), std::move(completion));
+    }
+
+    bool importSyncConfigs(string configs)
+    {
+        auto result =
+          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.importSyncConfigs(configs, result);
+                          });
+
+        return result.get();
+    }
+
+    string exportSyncConfigs()
+    {
+        auto result =
+          thread_do<string>([](MegaClient& client, PromiseStringSP result)
+                            {
+                                auto configs = client.syncs.exportSyncConfigs();
+                                result->set_value(configs);
+                            });
+
+        return result.get();
     }
 
     bool delSync_inthread(handle backupId, const bool keepCache)
@@ -1905,6 +1948,51 @@ struct StandardClient : public MegaApp
     Sync* syncByBackupId(handle backupId)
     {
         return client.syncs.runningSyncByBackupId(backupId);
+    }
+
+    void enableSyncByBackupId(handle id, PromiseBoolSP result)
+    {
+        UnifiedSync* sync;
+        result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync));
+    }
+
+    bool enableSyncByBackupId(handle id)
+    {
+        auto result =
+          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                          {
+                              client.enableSyncByBackupId(id, result);
+                          });
+
+        return result.get();
+    }
+
+    void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result)
+    {
+        auto localPath = LocalPath::fromPath(path.u8string(), *client.fsaccess);
+        auto id = UNDEF;
+
+        client.syncs.forEachSyncConfig(
+          [&](const SyncConfig& config)
+          {
+              if (config.mLocalPath != localPath) return;
+              if (id != UNDEF) return;
+
+              id = config.mBackupId;
+          });
+
+        result->set_value(id);
+    }
+
+    handle backupIdForSyncPath(fs::path path)
+    {
+        auto result =
+          thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
+                            {
+                                client.backupIdForSyncPath(path, result);
+                            });
+
+        return result.get();
     }
 
     enum Confirm
@@ -4281,7 +4369,7 @@ TEST(Sync, BasicSync_ClientToSDKConfigMigration)
     // Check that all files from the cloud were downloaded.
     model.ensureLocalDebrisTmpLock("");
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id0));
-    model.removenode(".debris");
+    model.removenode(DEBRISFOLDER);
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
 }
 
@@ -4882,6 +4970,126 @@ TEST(Sync, AnomalousSyncUpload)
 }
 
 #undef SEP
+
+TEST(Sync, BasicSyncExportImport)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = chrono::seconds(4);
+
+    // Sync client.
+    unique_ptr<StandardClient> cx(new StandardClient(TESTROOT, "cx"));
+
+    // Log callbacks.
+    cx->logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(cx->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 1, 3));
+
+    // Create and start syncs.
+    auto id0 = cx->setupSync_mainthread("s0", "s/s_0");
+    ASSERT_NE(id0, UNDEF);
+
+    auto id1 = cx->setupSync_mainthread("s1", "s/s_1");
+    ASSERT_NE(id1, UNDEF);
+
+    auto id2 = cx->setupSync_mainthread("s2", "s/s_2");
+    ASSERT_NE(id2, UNDEF);
+
+    // Get our hands on the sync's local root.
+    auto root0 = cx->syncSet(id0).localpath;
+    auto root1 = cx->syncSet(id1).localpath;
+    auto root2 = cx->syncSet(id2).localpath;
+
+    // Give the syncs something to synchronize.
+    Model model0;
+    Model model1;
+    Model model2;
+
+    model0.addfile("d0/f0");
+    model0.addfile("f0");
+    model0.generate(root0);
+
+    model1.addfile("d0/f0");
+    model1.addfile("d0/f1");
+    model1.addfile("d1/f0");
+    model1.addfile("d1/f1");
+    model1.generate(root1);
+
+    model2.addfile("f0");
+    model2.addfile("f1");
+    model2.generate(root2);
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, cx.get());
+
+    // Make sure everything was uploaded okay.
+    ASSERT_TRUE(cx->confirmModel_mainthread(model0.root.get(), id0));
+    ASSERT_TRUE(cx->confirmModel_mainthread(model1.root.get(), id1));
+    ASSERT_TRUE(cx->confirmModel_mainthread(model2.root.get(), id2));
+
+    // Export the syncs.
+    auto configs = cx->exportSyncConfigs();
+    ASSERT_FALSE(configs.empty());
+
+    // Log out client, don't keep caches.
+    cx.reset();
+
+    // Recreate client.
+    cx.reset(new StandardClient(TESTROOT, "cx"));
+
+    // Log client back in.
+    ASSERT_TRUE(cx->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+    // Import the syncs.
+    ASSERT_TRUE(cx->importSyncConfigs(std::move(configs)));
+
+    // Determine the imported sync's backup IDs.
+    id0 = cx->backupIdForSyncPath(root0);
+    ASSERT_NE(id0, UNDEF);
+
+    id1 = cx->backupIdForSyncPath(root1);
+    ASSERT_NE(id1, UNDEF);
+
+    id2 = cx->backupIdForSyncPath(root2);
+    ASSERT_NE(id2, UNDEF);
+
+    // Make sure nothing's changed since we exported the syncs.
+    ASSERT_TRUE(cx->confirmModel_mainthread(model0.root.get(), id0));
+    ASSERT_TRUE(cx->confirmModel_mainthread(model1.root.get(), id1));
+    ASSERT_TRUE(cx->confirmModel_mainthread(model2.root.get(), id2));
+
+    // Make some changes.
+    model0.addfile("d0/f1");
+    model0.generate(root0);
+
+    model1.addfile("f0");
+    model1.generate(root1);
+
+    model2.addfile("d0/d0f0");
+    model2.generate(root2);
+
+    // Imported syncs should be disabled.
+    // So, we're waiting for the syncs to do precisely nothing.
+    waitonsyncs(TIMEOUT, cx.get());
+
+    // Confirm should fail.
+    ASSERT_FALSE(cx->confirmModel_mainthread(model0.root.get(), id0));
+    ASSERT_FALSE(cx->confirmModel_mainthread(model1.root.get(), id1));
+    ASSERT_FALSE(cx->confirmModel_mainthread(model2.root.get(), id2));
+    
+    // Enable the imported syncs.
+    ASSERT_TRUE(cx->enableSyncByBackupId(id0));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id1));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id2));
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, cx.get());
+
+    // Changes should now be in the cloud.
+    ASSERT_TRUE(cx->confirmModel_mainthread(model0.root.get(), id0));
+    ASSERT_TRUE(cx->confirmModel_mainthread(model1.root.get(), id1));
+    ASSERT_TRUE(cx->confirmModel_mainthread(model2.root.get(), id2));
+}
 
 struct TwoWaySyncSymmetryCase
 {

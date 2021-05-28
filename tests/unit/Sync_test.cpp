@@ -1890,7 +1890,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mLocalFingerprint = 1;
         config.mLocalPath = Utilities::randomPath();
         config.mName = Utilities::randomBase64();
-        config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
+        config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
         config.mRemoteNode = NodeHandle();
         config.mWarning = NO_SYNC_WARNING;
         config.mSyncType = SyncConfig::TYPE_TWOWAY;
@@ -1904,7 +1904,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mLocalFingerprint = 2;
         config.mLocalPath = Utilities::randomPath();
         config.mName = Utilities::randomBase64();
-        config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
+        config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
         config.mRemoteNode.set6byte(3);
         config.mWarning = LOCAL_IS_FAT;
         config.mSyncType = SyncConfig::TYPE_BACKUP;
