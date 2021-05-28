@@ -760,32 +760,41 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     localroot->watch(mLocalPath);
 
 #ifdef __APPLE__
-    if (macOSmajorVersion() >= 19) //macOS catalina+
-    {
-        LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
-        string supercrootpath = "/System/Volumes/Data" + mLocalPath.platformEncoded();
+    // Assume FS events are relative to the sync root.
+    mFsEventsPath = mLocalPath.platformEncoded();
 
-        int fd = open(supercrootpath.c_str(), O_RDONLY);
-        if (fd == -1)
+    // Are we running on Catalina or newer?
+    if (macOSmajorVersion() >= 19)
+    {
+        auto root = "/System/Volumes/Data" + mFsEventsPath;
+
+        LOG_debug << "MacOS 10.15+ filesystem detected.";
+        LOG_debug << "Checking FSEvents path: " << root;
+
+        // Check for presence of volume metadata.
+        if (auto fd = open(root.c_str(), O_RDONLY); fd >= 0)
         {
-            LOG_debug << "Unable to open path using fseventspath.";
-            mFsEventsPath = mLocalPath.platformEncoded();
+            // Make sure it's actually about the root.
+            if (char buf[MAXPATHLEN]; fcntl(fd, F_GETPATH, buf) >= 0)
+            {
+                // Awesome, let's use the FSEvents path.
+                mFsEventsPath = root;
+            }
+
+            close(fd);
         }
         else
         {
-            char buf[MAXPATHLEN];
-            if (fcntl(fd, F_GETPATH, buf) < 0)
-            {
-                LOG_debug << "Using standard paths to detect filesystem notifications.";
-                mFsEventsPath = mLocalPath.platformEncoded();
-            }
-            else
-            {
-                LOG_debug << "Using fsevents paths to detect filesystem notifications.";
-                mFsEventsPath = supercrootpath;
-            }
-            close(fd);
+            LOG_debug << "Unable to open FSEvents path.";
         }
+
+        // Safe as root is strictly larger.
+        auto usingEvents = mFsEventsPath.size() == root.size();
+
+        LOG_debug << "Using "
+                  << (usingEvents ? "FSEvents" : "standard")
+                  << " paths for detecting filesystem notifications: "
+                  << mFsEventsPath;
     }
 #endif
 

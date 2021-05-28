@@ -976,13 +976,17 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     kfs_event_arg* kea;
     char buffer[131072];
     char* paths[2];
-    char* path;
     Sync* pathsync[2];
     mega_fd_set_t rfds;
     timeval tv = { 0, 0 };
     struct stat statbuf;
     static char rsrc[] = "/..namedfork/rsrc";
     static size_t rsrcsize = sizeof(rsrc) - 1;
+
+    auto IsResourceFork = [&](const char* path, size_t length) {
+        if (rsrcsize >= length) return false;
+        return !memcmp(path + length - rsrcsize, rsrc, rsrcsize);
+    };
 
     for (;;)
     {
@@ -1035,44 +1039,35 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             // always skip paths that are outside synced fs trees or in a sync-local rubbish folder
             for (i = n; i--; )
             {
-                path = paths[i];
-                size_t psize = strlen(path);
+                const auto* path = paths[i];
+                const auto psize = strlen(path);
+                auto foundOne = false;
 
-                bool foundOne = false;
                 client->syncs.forEachRunningSync([&](Sync* sync) {
+                    // No need to continue searching as we've found a match.
+                    if (foundOne) return;
 
-                    if (!foundOne)
+                    // Root used for filesystem notifications.
+                    const auto& rootPath = sync->mFsEventsPath;
+
+                    // Is the notification coming from within this sync?
+                    if (!IsContainingPathOf(rootPath, path, psize)) return;
+
+                    // Is this notification regarding a resource fork?
+                    if (IsResourceFork(path, psize)) return;
+
+                    // Symbolic link?
+                    if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
                     {
-                        std::string* ignore = &(sync)->dirnotify->ignore.localpath;
-                        std::string* localname = &(sync)->localroot->localname.localpath;
-
-                        size_t rsize = sync->mFsEventsPath.size() ? sync->mFsEventsPath.size() : localname->size();
-                        size_t isize = ignore->size();
-
-                        if (psize >= rsize
-                          && !memcmp(sync->mFsEventsPath.size() ? sync->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
-                          && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
-                          && (psize <= (rsize + isize)                          // not ignored
-                              || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
-                              || memcmp(path + rsize + 1, ignore->c_str(), isize))
-                          && (psize < rsrcsize                                  // it isn't a resource fork
-                              || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
-                            {
-                                if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
-                                {
-                                    LOG_debug << "Link skipped:  " << path;
-                                    paths[i] = NULL;
-                                    foundOne = true;
-                                }
-
-                                if (!foundOne)
-                                {
-                                    paths[i] += rsize + 1;
-                                    pathsync[i] = sync;
-                                    foundOne = true;
-                                }
-                            }
+                        LOG_debug << "Link skipped: " << path;
+                        paths[i] = nullptr;
+                        foundOne = true;
+                        return;
                     }
+
+                    paths[i] += rootPath.size();
+                    pathsync[i] = sync;
+                    foundOne = true;
                 });
 
                 if (!foundOne)
