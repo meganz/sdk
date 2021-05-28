@@ -1,11 +1,11 @@
 #!/bin/sh
 
-CURL_VERSION="7.73.0"
+CURL_VERSION="7.76.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
 CURRENTPATH=`pwd`
-ARCHS="x86_64 armv7s arm64"
+ARCHS="x86_64 arm64"
 DEVELOPER=`xcode-select -print-path`
 
 if [ ! -d "$DEVELOPER" ]; then
@@ -59,15 +59,15 @@ export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
 mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
-export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=10.0"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=10.0"
+export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=12.1"
+export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=12.1 -fembed-bitcode"
 export CPPFLAGS="${CFLAGS}"
 export CXXFLAGS="${CPPFLAGS}"
 
 if [ "${ARCH}" == "arm64" ]; then
-./configure --host=aarch64-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+./configure --host=aarch64-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 else
-./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 fi
 
 make -j8
@@ -80,7 +80,7 @@ done
 
 
 mkdir lib || true
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libcurl.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libcurl.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libcurl.a -output ${CURRENTPATH}/lib/libcurl.a
+lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libcurl.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libcurl.a -output ${CURRENTPATH}/lib/libcurl.a
 
 mkdir -p include/curl || true
 cp -f curl-${CURL_VERSION}/include/curl/*.h include/curl/
