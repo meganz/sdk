@@ -744,7 +744,7 @@ class MEGA_API CommandGetPH : public Command
 {
     handle ph;
     byte key[FILENODEKEYLENGTH];
-    int op;
+    int op; //  (op=0 -> download, op=1 fetch data, op=2 import welcomePDF)
     bool havekey;
 
 public:
