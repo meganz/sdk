@@ -503,7 +503,7 @@ struct MEGA_API LocalNode : public Cacheable
 
     // Fields which are hardly ever used.
     // We keep the average memory use by only alloating these when used.
-    struct LocalNode::RareFields
+    struct RareFields
     {
         unique_ptr<BackoffTimer> useBlockedTimer;
         unique_ptr<BackoffTimer> scanBlockedTimer;
