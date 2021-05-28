@@ -1597,6 +1597,21 @@ struct StandardClient : public MegaApp
             return false;
         }
 
+        // Generate drive ID if necessary.
+        auto id = UNDEF;
+        auto result = client.readDriveId(drivePath.c_str(), id);
+
+        if (result == API_ENOENT)
+        {
+            id = client.generateDriveId();
+            result = client.writeDriveId(drivePath.c_str(), id);
+        }
+
+        if (result != API_OK)
+        {
+            completion(nullptr, NO_SYNC_ERROR, result);
+            return false;
+        }
 
         auto config =
           SyncConfig(LocalPath::fromPath(sourcePath, *client.fsaccess),
@@ -4746,7 +4761,7 @@ TEST(Sync, BasicSync_ClientToSDKConfigMigration)
     // Check that all files from the cloud were downloaded.
     model.ensureLocalDebrisTmpLock("");
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id0));
-    model.removenode(".debris");
+    model.removenode(DEBRISFOLDER);
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
 }
 
