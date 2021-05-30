@@ -6583,6 +6583,62 @@ TEST(Sync, MoveTargetHasFilesystemWatch)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
+TEST(Sync, DeleteReplaceReplacementHasFilesystemWatch)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+    
+    // Add and start sync.
+    const auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    const auto ROOT = c.syncSet(id).localpath;
+
+    // Populate filesystem.
+    Model model;
+
+    model.addfolder("dx/f");
+    model.generate(ROOT);
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure the directory's been uploaded to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Remove/replace the directory.
+    fs::remove_all(ROOT / "dx");
+    fs::create_directory(ROOT / "dx");
+
+    // Wait for all notifications to be processed.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure the new directory is in the cloud.
+    model.removenode("dx/f");
+
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Add a file in the new directory so we trigger a notification.
+    model.addfile("dx/g", "g");
+
+    ASSERT_TRUE(createDataFile(ROOT / "dx" / "g", "g"));
+
+    // Wait for notifications to be processed.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Check if g has been uploaded.
+    // If it hasn't, we probably didn't receive a notification from the filesystem.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
 TEST(Sync, RenameReplaceSourceAndTargetHaveFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();
