@@ -6633,15 +6633,24 @@ TEST(Sync, RenameReplaceSourceAndTargetHaveFilesystemWatch)
     // Make sure moves made it to the cloud.
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
-    // Trigger filesystem notifications.
-    model.addfile("dq/fq", "q");
+    // Make sure rename targets still receive notifications.
     model.addfile("dr/fr", "r");
     model.addfile("dy/fy", "y");
+
+    ASSERT_TRUE(createDataFile(SYNCROOT / "dr" / "fr", "r"));
+    ASSERT_TRUE(createDataFile(SYNCROOT / "dy" / "fy", "y"));
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Did the files make it to the cloud?
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Make sure (now replaced) rename sources still receive notifications.
+    model.addfile("dq/fq", "q");
     model.addfile("dz/fz", "z");
 
     ASSERT_TRUE(createDataFile(SYNCROOT / "dq" / "fq", "q"));
-    ASSERT_TRUE(createDataFile(SYNCROOT / "dr" / "fr", "r"));
-    ASSERT_TRUE(createDataFile(SYNCROOT / "dy" / "fy", "y"));
     ASSERT_TRUE(createDataFile(SYNCROOT / "dz" / "fz", "z"));
 
     // Wait for sync to complete.
