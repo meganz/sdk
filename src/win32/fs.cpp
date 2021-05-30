@@ -1505,10 +1505,9 @@ void WinDirNotify::notifierThreadFunction()
 
 WinDirNotify::WinDirNotify(LocalNode& root,
                            LocalPath& rootPath,
-                           const LocalPath& debrisPath,
                            WinFileSystemAccess* owner,
                            Waiter* waiter)
-  : DirNotify(rootPath, debrisPath)
+  : DirNotify(rootPath)
 {
     fsaccess = owner;
     fsaccess->dirnotifys.insert(this);
@@ -1681,12 +1680,9 @@ DirAccess* WinFileSystemAccess::newdiraccess()
     return new WinDirAccess();
 }
 
-DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root,
-                                             LocalPath& rootPath,
-                                             LocalPath& debrisPath,
-                                             Waiter* waiter)
+DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter)
 {
-    return new WinDirNotify(root, rootPath, debrisPath, this, waiter);
+    return new WinDirNotify(root, rootPath, this, waiter);
 }
 
 bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)

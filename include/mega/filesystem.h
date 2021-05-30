@@ -481,10 +481,7 @@ public:
     // This should return false for any FAT filesystem.
     virtual bool fsstableids() const;
 
-    // ignore this (debris folder)
-    LocalPath ignore;
-
-    DirNotify(const LocalPath&, const LocalPath&);
+    DirNotify(const LocalPath& rootPath);
     virtual ~DirNotify() {}
 
     bool empty();
@@ -511,10 +508,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
-    virtual DirNotify* newdirnotify(LocalNode& root,
-                                    LocalPath& rootPath,
-                                    LocalPath& debrisPath,
-                                    Waiter* waiter);
+    virtual DirNotify* newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter);
 
     // Returns the character encoded by the escape s.
     // This function returns -1 if s is not a valid escape sequence.

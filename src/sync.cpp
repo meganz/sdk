@@ -727,7 +727,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
         debris = cdebris;
         localdebrisname = LocalPath::fromPath(debris, *client->fsaccess);
 
-        dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, localdebrisname, client->waiter));
+        dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, client->waiter));
 
         localdebris = localdebrisname;
         localdebris.prependWithSeparator(mLocalPath);
@@ -738,7 +738,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, localdebrisname, client->waiter));
+        dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, client->waiter));
     }
 
     // set specified fsfp or get from fs if none

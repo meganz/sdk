@@ -83,10 +83,7 @@ public:
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
 
-    DirNotify* newdirnotify(LocalNode& root,
-                            LocalPath& rootPath,
-                            LocalPath& debrisPath,
-                            Waiter* waiter) override;
+    DirNotify* newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter) override;
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
     bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning);
@@ -195,9 +192,7 @@ public:
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
 
-    PosixDirNotify(PosixFileSystemAccess& fsAccess,
-                   LocalPath& rootPath,
-                   const LocalPath& debrisPath);
+    PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalPath& rootPath);
 
 #if defined(ENABLE_SYNC) && defined(USE_INOTIFY)
     pair<wd_localnode_map::iterator, bool> addWatch(LocalNode& node, const LocalPath& path);

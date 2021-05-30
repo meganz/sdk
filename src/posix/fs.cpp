@@ -1793,10 +1793,8 @@ void PosixFileSystemAccess::statsid(string *id) const
 #endif
 }
 
-PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess,
-                               LocalPath& rootPath,
-                               const LocalPath& debrisPath)
-  : DirNotify(rootPath, debrisPath)
+PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalPath& rootPath)
+  : DirNotify(rootPath)
   , fsaccess(&fsAccess)
 {
 #ifdef USE_INOTIFY
@@ -1899,12 +1897,9 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
     return new PosixDirAccess();
 }
 
-DirNotify* PosixFileSystemAccess::newdirnotify(LocalNode&,
-                                               LocalPath& rootPath,
-                                               LocalPath& debrisPath,
-                                               Waiter*)
+DirNotify* PosixFileSystemAccess::newdirnotify(LocalNode&, LocalPath& rootPath, Waiter*)
 {
-    return new PosixDirNotify(*this, rootPath, debrisPath);
+    return new PosixDirNotify(*this, rootPath);
 }
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)

@@ -58,10 +58,7 @@ public:
 
     DirAccess* newdiraccess() override;
 
-    DirNotify* newdirnotify(LocalNode& root,
-                            LocalPath& rootPath,
-                            LocalPath& debrisPath,
-                            Waiter* waiter) override;
+    DirNotify* newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter) override;
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
 
@@ -142,7 +139,6 @@ public:
 
     WinDirNotify(LocalNode& root,
                  LocalPath& rootPath,
-                 const LocalPath& debrisPath,
                  WinFileSystemAccess* owner,
                  Waiter* waiter);
 

@@ -568,10 +568,9 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
 }
 
 // default DirNotify: no notification available
-DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore)
+DirNotify::DirNotify(const LocalPath& rootPath)
 {
-    localbasepath = clocalbasepath;
-    ignore = cignore;
+    localbasepath = rootPath;
 
     mFailed = 1;
     mFailReason = "Not initialized";
@@ -625,12 +624,9 @@ bool DirNotify::fsstableids() const
     return true;
 }
 
-DirNotify* FileSystemAccess::newdirnotify(LocalNode&,
-                                          LocalPath& rootPath,
-                                          LocalPath& debrisPath,
-                                          Waiter*)
+DirNotify* FileSystemAccess::newdirnotify(LocalNode&, LocalPath& rootPath, Waiter*)
 {
-    return new DirNotify(rootPath, debrisPath);
+    return new DirNotify(rootPath);
 }
 
 FileAccess::FileAccess(Waiter *waiter)
