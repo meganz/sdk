@@ -843,11 +843,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         wd_localnode_map::iterator it;
         string localpath;
 
-        // skip the IN_FROM component in moves if followed by IN_TO
-        int lasthandle = 0;
-        uint32_t lastcookie = 0;
-        string lastname;
-
         // Notifies all associated nodes.
         auto notifyAll = [&](int handle, const string& name)
         {
@@ -864,10 +859,10 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 auto& sync = *node.sync;
                 auto& notifier = *sync.dirnotify;
 
-                LOG_debug << "Filesystem notification: "
-                          << "Root: "
+                LOG_debug << "Filesystem notification:"
+                          << " Root: "
                           << node.name
-                          << "Path: "
+                          << " Path: "
                           << name;
 
                 auto localName = LocalPath::fromPlatformEncoded(name);
@@ -894,42 +889,14 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 if (in->mask & (IN_CREATE | IN_DELETE | IN_MOVED_FROM
                               | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
                 {
-                    //if ((in->mask & (IN_CREATE | IN_ISDIR)) != IN_CREATE) //certain operations (e.g: QFile::copy, Qt 5.11) might produce IN_CREATE with no further IN_CLOSE_WRITE
+                    it = wdnodes.find(in->wd);
+
+                    if (it != wdnodes.end())
                     {
-                        it = wdnodes.find(in->wd);
-
-                        if (it != wdnodes.end())
-                        {
-                            if (lastcookie && lastcookie != in->cookie)
-                            {
-                                notifyAll(lasthandle, lastname);
-                            }
-
-                            if (in->mask & IN_MOVED_FROM)
-                            {
-                                // could be followed by the corresponding IN_MOVE_TO or not..
-                                // retain in case it's not (in which case it's a deletion)
-                                lastcookie = in->cookie;
-                                lasthandle = it->first;
-                                lastname = in->name;
-                            }
-                            else
-                            {
-                                lastcookie = 0;
-
-                                notifyAll(it->first, in->name);
-                            }
-                        }
+                        notifyAll(it->first, in->name);
                     }
                 }
             }
-        }
-
-        // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_FROM pairs are never notified separately
-        if (lastcookie)
-        {
-            notifyAll(lasthandle, lastname);
-            lastcookie = 0;
         }
     }
 #endif
