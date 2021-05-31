@@ -840,14 +840,14 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
         int p, l;
         inotify_event* in;
-        wd_localnode_map::iterator it;
+        WatchMapIterator it;
         string localpath;
 
         // Notifies all associated nodes.
         auto notifyAll = [&](int handle, const string& name)
         {
             // What nodes are associated with this handle?
-            auto associated = wdnodes.equal_range(handle);
+            auto associated = mWatches.equal_range(handle);
 
             // Loop over and notify all associated nodes.
             for (auto i = associated.first; i != associated.second; ++i)
@@ -855,7 +855,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 // Convenience.
                 using std::move;
 
-                auto& node = *i->second;
+                auto& node = *i->second.first;
                 auto& sync = *node.sync;
                 auto& notifier = *sync.dirnotify;
 
@@ -889,9 +889,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 if (in->mask & (IN_CREATE | IN_DELETE | IN_MOVED_FROM
                               | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
                 {
-                    it = wdnodes.find(in->wd);
+                    it = mWatches.find(in->wd);
 
-                    if (it != wdnodes.end())
+                    if (it != mWatches.end())
                     {
                         notifyAll(it->first, in->name);
                     }
@@ -1775,9 +1775,15 @@ PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalPath& rootP
 
 #if defined(ENABLE_SYNC) && defined(USE_INOTIFY)
 
-pair<wd_localnode_map::iterator, bool> PosixDirNotify::addWatch(LocalNode& node, const LocalPath& path)
+pair<WatchMapIterator, bool> PosixDirNotify::addWatch(LocalNode& node, const LocalPath& path, handle fsid)
 {
+    using std::forward_as_tuple;
+    using std::piecewise_construct;
+
     assert(node.type == FOLDERNODE);
+
+    // Convenience.
+    auto& watches = fsaccess->mWatches;
 
     auto handle =
       inotify_add_watch(fsaccess->notifyfd,
@@ -1792,7 +1798,11 @@ pair<wd_localnode_map::iterator, bool> PosixDirNotify::addWatch(LocalNode& node,
 
     if (handle >= 0)
     {
-        auto entry = fsaccess->wdnodes.emplace(handle, &node);
+        auto entry =
+          watches.emplace(piecewise_construct,
+                          forward_as_tuple(handle),
+                          forward_as_tuple(&node, fsid));
+
         return make_pair(entry, true);
     }
 
@@ -1801,12 +1811,12 @@ pair<wd_localnode_map::iterator, bool> PosixDirNotify::addWatch(LocalNode& node,
              << ": Error: "
              << errno;
 
-    return make_pair(fsaccess->wdnodes.end(), false);
+    return make_pair(watches.end(), false);
 }
 
-void PosixDirNotify::removeWatch(wd_localnode_map::iterator entry)
+void PosixDirNotify::removeWatch(WatchMapIterator entry)
 {
-    auto& watches = fsaccess->wdnodes;
+    auto& watches = fsaccess->mWatches;
 
     auto handle = entry->first;
     assert(handle >= 0);

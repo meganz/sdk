@@ -756,7 +756,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
     // Always create a watch for the root node.
-    localroot->watch(mLocalPath);
+    localroot->watch(mLocalPath, UNDEF);
 
 #ifdef __APPLE__
     // Assume FS events are relative to the sync root.
@@ -4411,7 +4411,10 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                     !childRow.syncNode->deletingCloud)
                 {
                     // Add watches as necessary.
-                    childRow.syncNode->watch(fullPath);
+                    if (childRow.fsNode)
+                    {
+                        childRow.syncNode->watch(fullPath, childRow.fsNode->fsid);
+                    }
 
                     if (!recursiveSync(childRow, fullPath, committer))
                     {

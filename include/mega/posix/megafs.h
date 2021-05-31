@@ -69,7 +69,7 @@ public:
     int notifyfd;
 
 #ifdef USE_INOTIFY
-    wd_localnode_map wdnodes;
+    WatchMap mWatches;
 #endif
 
 #ifdef USE_IOS
@@ -195,8 +195,8 @@ public:
     PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalPath& rootPath);
 
 #if defined(ENABLE_SYNC) && defined(USE_INOTIFY)
-    pair<wd_localnode_map::iterator, bool> addWatch(LocalNode& node, const LocalPath& path);
-    void removeWatch(wd_localnode_map::iterator entry);
+    pair<WatchMapIterator, bool> addWatch(LocalNode& node, const LocalPath& path, handle fsid);
+    void removeWatch(WatchMapIterator entry);
 #endif // ENABLE_SYNC && USE_INOTIFY
 };
 

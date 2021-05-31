@@ -627,7 +627,7 @@ public:
     bool isBelow(const LocalNode& other) const;
 
     // Create a watch for this node if necessary.
-    bool watch(const LocalPath& path);
+    bool watch(const LocalPath& path, handle fsid);
 
 private:
 #ifdef USE_INOTIFY
@@ -640,15 +640,15 @@ private:
 
         MEGA_DISABLE_COPY_MOVE(WatchHandle);
 
-        auto operator=(wd_localnode_map::iterator entry) -> WatchHandle&;
+        auto operator=(WatchMap::iterator entry) -> WatchHandle&;
         auto operator=(std::nullptr_t) -> WatchHandle&;
 
-        operator bool() const;
+        bool operator==(handle fsid) const;
 
     private:
-        wd_localnode_map::iterator mEntry;
+        WatchMap::iterator mEntry;
 
-        static wd_localnode_map mSentinel;
+        static WatchMap mSentinel;
     }; // WatchHandle
 
     WatchHandle mWatchHandle;

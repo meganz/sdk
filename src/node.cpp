@@ -2220,7 +2220,7 @@ LocalNode::WatchHandle::~WatchHandle()
     operator=(nullptr);
 }
 
-auto LocalNode::WatchHandle::operator=(wd_localnode_map::iterator entry) -> WatchHandle&
+auto LocalNode::WatchHandle::operator=(WatchMapIterator entry) -> WatchHandle&
 {
     if (mEntry == entry) return *this;
 
@@ -2234,7 +2234,7 @@ auto LocalNode::WatchHandle::operator=(std::nullptr_t) -> WatchHandle&
 {
     if (mEntry == mSentinel.end()) return *this;
 
-    auto& node = *mEntry->second;
+    auto& node = *mEntry->second.first;
     auto& sync = *node.sync;
     auto& notifier = static_cast<PosixDirNotify&>(*sync.dirnotify);
 
@@ -2242,21 +2242,23 @@ auto LocalNode::WatchHandle::operator=(std::nullptr_t) -> WatchHandle&
     mEntry = mSentinel.end();
 }
 
-LocalNode::WatchHandle::operator bool() const
+bool LocalNode::WatchHandle::operator==(handle fsid) const
 {
-    return mEntry != mSentinel.end();
+    if (mEntry == mSentinel.end()) return false;
+
+    return fsid == mEntry->second.second;
 }
 
-bool LocalNode::watch(const LocalPath& path)
+bool LocalNode::watch(const LocalPath& path, handle fsid)
 {
-    // Do we need to add a watch?
-    if (mWatchHandle) return true;
+    // Do we need to (re)create a watch?
+    if (mWatchHandle == fsid) return true;
 
     // Get our hands on the notifier.
     auto& notifier = static_cast<PosixDirNotify&>(*sync->dirnotify);
 
     // Add the watch.
-    auto result = notifier.addWatch(*this, path);
+    auto result = notifier.addWatch(*this, path, fsid);
 
     // Were we able to add the watch?
     if (result.second)
@@ -2264,15 +2266,20 @@ bool LocalNode::watch(const LocalPath& path)
         // Yup so assign the handle.
         mWatchHandle = result.first;
     }
+    else
+    {
+        // Make sure any existing watch is invalidated.
+        mWatchHandle = nullptr;
+    }
 
     return result.second;
 }
 
-wd_localnode_map LocalNode::WatchHandle::mSentinel;
+WatchMap LocalNode::WatchHandle::mSentinel;
 
 #else // USE_INOTIFY
 
-bool LocalNode::watch(const LocalPath&)
+bool LocalNode::watch(const LocalPath&, handle)
 {
     // Only inotify requires us to create watches for each node.
     return true;

@@ -431,7 +431,13 @@ typedef set<LocalNode*> localnode_set;
 
 typedef multimap<int32_t, LocalNode*> idlocalnode_map;
 
-typedef multimap<int, LocalNode*> wd_localnode_map;
+#ifdef USE_INOTIFY
+
+using WatchEntry = pair<LocalNode*, handle>;
+using WatchMap = multimap<int, WatchEntry>;
+using WatchMapIterator = WatchMap::iterator;
+
+#endif // USE_INOTIFY
 
 typedef set<Node*> node_set;
 
