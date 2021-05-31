@@ -1204,8 +1204,16 @@ TEST_F(SdkTest, SdkTestKillSession)
     auto accounts = makeScopedValue(envVarAccount, string_vector(2, "MEGA_EMAIL"));
     auto passwords = makeScopedValue(envVarPass, string_vector(2, "MEGA_PWD"));
 
+    // prevent reusing a session for the wrong client
+    gSessionIDs[1] = "invalid";
+
     // Get two sessions for the same account.
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // Confirm they really are using the same account
+    unique_ptr<char[]> client0userhandle(megaApi[0]->getMyUserHandle());
+    unique_ptr<char[]> client1userhandle(megaApi[1]->getMyUserHandle());
+    ASSERT_EQ(string(client0userhandle.get()), string(client1userhandle.get()));
 
     // Make sure the sessions aren't reused.
     gSessionIDs[0] = "invalid";
@@ -6916,6 +6924,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     }
 
     ASSERT_NO_FATAL_FAILURE( logout(0, false, maxTimeout) );
+    gSessionIDs[0] = "invalid";
 
     // create apis to exported folders
     for (unsigned index = 0 ; index < howMany; index++ )

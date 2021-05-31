@@ -47,7 +47,6 @@ class MEGA_API PubKeyActionCreateShare : public PubKeyAction
     string selfemail;  // optional personal representation when sharing to a non-contact
     bool mWritable = false;
 
-
     std::function<void(Error, bool writable)> completion;
 
 public:
