@@ -1237,18 +1237,32 @@ TEST_F(SdkTest, SdkTestKillSession)
       << result
       << ")";
 
+    unique_ptr<char[]> client0session(dumpSession());
+
+    int matches = 0;
     for (int i = 0; i < mApi[1].accountDetails->getNumSessions(); )
     {
         MegaAccountSessionPtr session;
 
         session.reset(mApi[1].accountDetails->getSession(i++));
 
-        if (session->isCurrent())
+        auto h = session->getHandle();
+        auto hstr = Base64Str<sizeof(handle)>(h);
+
+        if (session->isAlive() && session->isCurrent())
         {
             sessionHandle = session->getHandle();
-            break;
+            matches += 1;
         }
     }
+
+    if (matches > 1)
+    {
+        // kill the other sessions so that we succeed on the next test run
+        synchronousKillSession(0, INVALID_HANDLE);
+    }
+
+    ASSERT_EQ(matches, 1) << "There were more alive+current sessions for client 1 than expected. Those should have been killed now for the next run";
 
     // Were we able to retrieve the second client's session handle?
     ASSERT_NE(sessionHandle, UNDEF)
@@ -1261,7 +1275,7 @@ TEST_F(SdkTest, SdkTestKillSession)
       << result
       << ")";
 
-    // Wait for the second client to become logged out.
+    // Wait for the second client to become logged out (to confirm it does).
     ASSERT_TRUE(WaitFor([&]()
                         {
                             return mApi[1].megaApi->isLoggedIn()  == 0;
