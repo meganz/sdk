@@ -168,19 +168,32 @@ if(WIN32)
         )
     endforeach()
 else()
+    if(VCPKG_CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        include(${_3rdparty_vcpkg_dir}/scripts/toolchains/ios.cmake)
+        if(NOT CMAKE_OSX_SYSROOT)
+            # Probably should figure out why vcpkg doesn't set this var for arm64 ios,
+            # this is what controls cross-compiling for apple targets
+            set(CMAKE_OSX_SYSROOT "iphoneos")
+        endif()
+        set(_toolchain_cross_compile_args
+            "-DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}"
+            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
+            "-DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}"
+
+        )
+        message(STATUS "Got cross args ${_toolchain_cross_compile_args}")
+    endif()
+
     foreach(_config "Debug" "Release")
         set(_build_dir "${_sdk_dir}/build-${_triplet}-${_config}")
         file(MAKE_DIRECTORY ${_build_dir})
 
         execute_checked_command(
             COMMAND ${_cmake}
-                ${_common_cmake_args}
                 -B ${_build_dir}
                 "-DCMAKE_BUILD_TYPE=${_config}"
-                "-DCMAKE_SYSTEM_NAME=iOS"
-                "-DCMAKE_SYSTEM_VERSION=13.0"
-                "-DCMAKE_SYSTEM_ARCHITECTURES=arm64"
-                "-DNO_READLINE=1"
+                ${_common_cmake_args}
+                ${_toolchain_cross_compile_args}
         )
 
         execute_checked_command(
