@@ -4161,6 +4161,13 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
                     client->unshareablekey.swap(unshareableKey);
                 }
+                else if (client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                {
+                    // cannot configure CameraUploads, so it's not needed at this stage.
+                    // It will be created when the account gets confirmed.
+                    // (motivation: speed up the E++ account's setup)
+                    LOG_info << "Skip creation of unshareable key for E++ account";
+                }
                 else if (unshareableKey.empty())    // it has not been created yet
                 {
                     LOG_info << "Creating unshareable key...";
@@ -4200,6 +4207,13 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_DATA,
                                              &jsonSyncConfigData,
                                              &jsonSyncConfigDataVersion);
+                }
+                else if (client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                {
+                    // cannot configure any sync/backupp yet, so it's not needed at this stage.
+                    // It will be created when the account gets confirmed.
+                    // (motivation: speed up the E++ account's setup)
+                    LOG_info << "Skip creation of *~jscd key for E++ account";
                 }
                 else
                 {
