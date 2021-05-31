@@ -467,7 +467,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, const char* prevattr = NULL);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
@@ -874,11 +874,6 @@ public:
     // get welcome pdf
     void getwelcomepdf();
 
-    // toggle global debug flag
-    bool toggledebug();
-
-    bool debugstate();
-
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
     void reportevent(const char*, const char*, int tag);
@@ -1213,7 +1208,7 @@ public:
     DbAccess* dbaccess = nullptr;
 
     // state cache table for logged in user
-    DbTable* sctable;
+    unique_ptr<DbTable> sctable;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;

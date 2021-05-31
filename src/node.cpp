@@ -1211,9 +1211,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     string prevname = node->attrs.map['n'];
 
                     // set new name
-                    node->attrs.map['n'] = name;
-                    sync->client->nextreqtag(); //make reqtag advance to use the next one
-                    sync->client->setattr(node, prevname.c_str());
+                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str());
                 }
             }
         }
@@ -1551,11 +1549,11 @@ LocalNode::~LocalNode()
 
         if (type == FOLDERNODE)
         {
-            sync->client->app->syncupdate_local_folder_deletion(sync, this);
+            sync->client->app->syncupdate_local_folder_deletion(sync, getLocalPath());
         }
         else
         {
-            sync->client->app->syncupdate_local_file_deletion(sync, this);
+            sync->client->app->syncupdate_local_file_deletion(sync, getLocalPath());
         }
     }
 

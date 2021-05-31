@@ -1359,7 +1359,6 @@ MegaClient::~MegaClient()
 
     delete pendingcs;
     delete badhostcs;
-    delete sctable;
     delete dbaccess;
     LOG_debug << clientname << "~MegaClient completing";
 }
@@ -4200,8 +4199,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
         removeCaches(keepSyncsConfigFile);
     }
 
-    delete sctable;
-    sctable = NULL;
+    sctable.reset();
     pendingsccommit = false;
 
     statusTable.reset();
@@ -4359,8 +4357,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     if (sctable)
     {
         sctable->remove();
-        delete sctable;
-        sctable = NULL;
+        sctable.reset();
         pendingsccommit = false;
     }
 
@@ -5166,8 +5163,7 @@ void MegaClient::finalizesc(bool complete)
 
         LOG_err << "Cache update DB write error - disabling caching";
 
-        delete sctable;
-        sctable = NULL;
+        sctable.reset();
         pendingsccommit = false;
     }
 }
@@ -7643,7 +7639,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, const char *prevattr)
+error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -7662,11 +7658,14 @@ error MegaClient::setattr(Node* n, const char *prevattr)
         return API_EKEY;
     }
 
+    // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
+    n->attrs.applyUpdates(updates);
+
     n->changed.attrs = true;
-    n->tag = reqtag;
+    n->tag = tag;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
+    reqs.add(new CommandSetAttr(this, n, cipher, tag, prevattr));
 
     return API_OK;
 }
@@ -7864,9 +7863,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         prevParent = n->parent;
     }
 
+    attr_map attrUpdates;
+
     if (n->setparent(p))
     {
-        bool updateNodeAttributes = false;
         if (prevParent)
         {
             Node *prevRoot = getrootnode(prevParent);
@@ -7883,8 +7883,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
                 if (strcmp(base64Handle, n->attrs.map[rrname].c_str()))
                 {
                     LOG_debug << "Adding rr attribute";
-                    n->attrs.map[rrname] = base64Handle;
-                    updateNodeAttributes = true;
+                    attrUpdates[rrname] = base64Handle;
                 }
             }
             else if (prevRoot->nodehandle == rubbishHandle
@@ -7895,8 +7894,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
                 if (it != n->attrs.map.end())
                 {
                     LOG_debug << "Removing rr attribute";
-                    n->attrs.map.erase(it);
-                    updateNodeAttributes = true;
+                    attrUpdates[rrname] = "";
                 }
             }
         }
@@ -7905,8 +7903,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         {
             string name(newName);
             fsaccess->normalize(&name);
-            n->attrs.map['n'] = name;
-            updateNodeAttributes = true;
+            attrUpdates['n'] = name;
         }
 
         n->changed.parent = true;
@@ -7917,9 +7914,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         rewriteforeignkeys(n);
 
         reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
-        if (updateNodeAttributes)
+        if (!attrUpdates.empty())
         {
-            setattr(n);
+            // send attribute changes first so that any rename is already applied when the move node completes
+            setattr(n, std::move(attrUpdates), reqtag, nullptr);
         }
     }
 
@@ -9558,6 +9556,7 @@ void MegaClient::killallsessions()
 
 void MegaClient::opensctable()
 {
+    // called from both login() and fetchnodes()
     if (dbaccess && !sctable)
     {
         string dbname;
@@ -9575,7 +9574,7 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            sctable = dbaccess->open(rng, *fsaccess, dbname);
+            sctable.reset(dbaccess->open(rng, *fsaccess, dbname));
             pendingsccommit = false;
 
             if (sctable)
@@ -12170,7 +12169,7 @@ void MegaClient::fetchnodes(bool nocache)
     // only initial load from local cache
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
             !nodes.size() && !ISUNDEF(cachedscsn) &&
-            sctable && fetchsc(sctable))
+            sctable && fetchsc(sctable.get()))
     {
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
@@ -13891,7 +13890,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
         return false;
     }
 
-    if (!l->sync->isBackupMirroring())
+    if (!l->sync->isBackupAndMirroring())
     {
         return true;
     }
@@ -13911,7 +13910,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
     if (mirrorStable)
     {
         // Transition to monitor state.
-        l->sync->backupMonitor();
+        l->sync->setBackupMonitoring();
 
         // Cancel any active monitor timer.
         mSyncMonitorTimer.reset();
@@ -14006,7 +14005,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 LOG_warn << "Type changed: " << ll->name << " LNtype: " << ll->type << " Ntype: " << rit->second->type;
                 nchildren.erase(rit);
 
-                if (l->sync->isBackupMirroring())
+                if (l->sync->isBackupAndMirroring())
                 {
                     // Mirror hasn't stabilized yet.
                     cxt.mActionsPerformed = true;
@@ -14118,7 +14117,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
             }
 
-            if (l->sync->isBackupMirroring())
+            if (l->sync->isBackupAndMirroring())
             {
                 // Mirror hasn't stabilized.
                 cxt.mActionsPerformed = true;
@@ -14177,7 +14176,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
         {
             LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
 
-            if (l->sync->isBackupMirroring())
+            if (l->sync->isBackupAndMirroring())
             {
                 // Mirror hasn't stabilized.
                 cxt.mActionsPerformed = true;
@@ -14215,7 +14214,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 if (fsaccess->renamelocal(curpath, localpath))
                 {
                     app->syncupdate_local_move(rit->second->localnode->sync,
-                                               rit->second->localnode, localpath.toPath(*fsaccess).c_str());
+                                               rit->second->localnode->getLocalPath(), 
+                                               localpath);
 
                     // update LocalNode tree to reflect the move/rename
                     rit->second->localnode->setnameparent(l, &localpath, fsaccess->fsShortname(localpath));
@@ -14272,7 +14272,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     // download, reconstruct localname in complete()
                     if (download)
                     {
-                        if (l->sync->isBackupMirroring())
+                        if (l->sync->isBackupAndMirroring())
                         {
                             // Mirror hasn't stabilized.
                             cxt.mActionsPerformed = true;
@@ -14306,7 +14306,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 {
                     LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                 }
-                else if (l->sync->isBackupMirroring())
+                else if (l->sync->isBackupAndMirroring())
                 {
                     // Mirror hasn't stabilized.
                     cxt.mActionsPerformed = true;
@@ -15060,7 +15060,7 @@ void MegaClient::syncupdate()
                 l->sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, l->size, 0);
 
                 tmppath = l->getLocalPath().toPath(*fsaccess);
-                app->syncupdate_put(l->sync, l, tmppath.c_str());
+                app->syncupdate_put(l->sync, tmppath.c_str());
             }
         }
 
@@ -16168,17 +16168,6 @@ void MegaClient::setchunkfailed(string* url)
         badhosts.append(ptr+6,7);
         btbadhost.reset();
     }
-}
-
-bool MegaClient::toggledebug()
-{
-     SimpleLogger::setLogLevel((SimpleLogger::logCurrentLevel >= logDebug) ? logWarning : logDebug);
-     return debugstate();
-}
-
-bool MegaClient::debugstate()
-{
-    return SimpleLogger::logCurrentLevel >= logDebug;
 }
 
 void MegaClient::reportevent(const char* event, const char* details)

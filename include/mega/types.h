@@ -835,11 +835,15 @@ namespace CodeCounter
         {
             if (!done) complete();
         }
+        high_resolution_clock::duration timeSpent()
+        {
+            return high_resolution_clock::now() - blockStart;
+        }
         void complete()
         {
             ++scope.count;
             ++scope.finishes;
-            scope.timeSpent += high_resolution_clock::now() - blockStart;
+            scope.timeSpent += timeSpent();
             done = true;
         }
 #else

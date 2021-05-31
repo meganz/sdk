@@ -85,12 +85,8 @@ bool HttpReqCommandPutFA::procresult(Result r)
                         (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
-                    n->attrs.map['f'] = me64;
 
-                    int creqtag = client->reqtag;
-                    client->reqtag = 0;
-                    client->setattr(n);
-                    client->reqtag = creqtag;
+                    client->setattr(n, attr_map('f', me64), 0, nullptr);
                 }
             }
 
@@ -989,7 +985,7 @@ bool CommandGetFile::procresult(Result r)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, int reqtag, const char* prevattr)
 {
     cmd("a");
     notself(client);
@@ -1003,7 +999,7 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
     arg("at", (byte*)at.c_str(), int(at.size()));
 
     h = n->nodehandle;
-    tag = client->reqtag;
+    tag = reqtag;
     syncop = prevattr;
 
     if(prevattr)
@@ -1796,8 +1792,7 @@ bool CommandLogin::procresult(Result r)
                     if (fa && client->sctable)
                     {
                         client->sctable->remove();
-                        delete client->sctable;
-                        client->sctable = NULL;
+                        client->sctable.reset();
                         client->pendingsccommit = false;
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
