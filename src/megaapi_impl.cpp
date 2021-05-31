@@ -12916,32 +12916,13 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getmegaachievements_result(AchievementsDetails *details, error e)
+void MegaApiImpl::getmegaachievements_result(AchievementsDetails *, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ACHIEVEMENTS)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::getwelcomepdf_result(handle ph, string *key, error e)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) return;
-
-    if (e == API_OK)
-    {
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
-        client->reqs.add(new CommandGetPH(client, ph, (const byte*) key->data(), 1));
-        client->reqtag = creqtag;
-    }
-    else
-    {
-        return fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // if import fails, notify account was successfuly created anyway
-    }
 }
 
 void MegaApiImpl::backgrounduploadurl_result(error e, string* url)
@@ -13888,11 +13869,14 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             {
                 client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())), -1);
             }
+            client->reqtag = creqtag;   // restore current reqtag, for future requests
 
-            client->reqtag = client->restag;
-            byte pwkey[SymmCipher::KEYLENGTH];            
-            if (request->getParamType() == 3)   // creation of account ephemeral++
+            // Ephemeral++ don't have an email when account is created, so cannot send a signup link -> account is ready
+            if (request->getParamType() == 3)   // 3 -> creation of account E++
             {
+                // import the PDF silently... (not chained)
+                client->getwelcomepdf();
+
                 // The session id cannot follow the same pattern, since no password is provided (yet)
                 // In consequence, the session resumption requires a regular session id (instead of the
                 // usual one with the user's handle and the pwd cipher)
@@ -13900,10 +13884,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                 client->dumpsession(sid);
                 request->setPrivateKey(sid.c_str());
 
-                // Ephemeral++ don't have an email when account is created, so cannot send a signup link
-                client->getwelcomepdf();
+                fireOnRequestFinish(request,  make_unique<MegaErrorPrivate>(e));
+                return;
             }
-            else if (!request->getPrivateKey()) // ...and finally send confirmation link
+
+            // Ephemeral accounts have an email -> send signup link
+            if (!request->getPrivateKey()) // ...and finally send confirmation link
             {
                 if (client->nsr_enabled)
                 {
@@ -13924,8 +13910,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                 }
                 else
                 {
+                    byte pwkey[SymmCipher::KEYLENGTH];
                     client->pw_key(request->getPassword(), pwkey);
+
+                    client->reqtag = client->restag;    // use result-tag to chain the request to this one
                     client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
+                    client->reqtag = creqtag;
 
                     char* buf = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
                     Base64::btoa((byte *)pwkey, SymmCipher::KEYLENGTH, buf);
@@ -13935,10 +13925,13 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             }
             else
             {
+                byte pwkey[SymmCipher::KEYLENGTH];
                 Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
+
+                client->reqtag = client->restag;    // use result-tag to chain the request to this one
                 client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
+                client->reqtag = creqtag;
             }
-            client->reqtag = creqtag;
         }
     }
 }
@@ -14011,7 +14004,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
                     (request->getType() != MegaRequest::TYPE_MOVE) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
                     (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
                     (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
@@ -14046,13 +14038,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     {
         request->setNodeHandle(h);
         request->setFlag(targetOverride);
-        if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
-            return;
-        }
 #ifdef ENABLE_SYNC
-        else if (request->getType() == MegaRequest::TYPE_ADD_SYNC && e == API_OK)
+        if (request->getType() == MegaRequest::TYPE_ADD_SYNC && e == API_OK)
         {
             // folders for the new backup have been created -> now proceed with the sync
             handle backupHandle = nn.back().mAddedHandle;
@@ -14901,13 +14888,7 @@ void MegaApiImpl::openfilelink_result(const Error& result)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
-
-    if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
-    {
-        return fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // if import fails, notify account was successfuly created anyway
-    }
+                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
 }
@@ -14920,8 +14901,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
             || ( request->getType() != MegaRequest::TYPE_IMPORT_LINK
-                 && request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE
-                 && request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) ) return;
+                 && request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)) return;
 
     if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
     {
@@ -14974,20 +14954,9 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         request->setFlag(true);
     }
 
-    if ((request->getType() == MegaRequest::TYPE_IMPORT_LINK)
-            || (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT))
+    if (request->getType() == MegaRequest::TYPE_IMPORT_LINK)
     {
-        handle ovhandle = UNDEF;
-        handle parenthandle = UNDEF;
-        if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT) // importing Welcome PDF
-        {
-            parenthandle = client->rootnodes[0];
-        }
-        else
-        {
-            parenthandle = request->getParentHandle();
-        }
-
+        handle parenthandle = request->getParentHandle();
         Node *target = client->nodebyhandle(parenthandle);
         if (!target)
         {
@@ -14995,6 +14964,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
             return;
         }
 
+        handle ovhandle = UNDEF;
         Node *ovn = client->childnodebyname(target, validName.c_str(), true);
         if (ovn)
         {
@@ -16081,11 +16051,8 @@ void MegaApiImpl::sendsignuplink_result(error e)
     if ((request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
             && (e == API_OK) && (request->getParamType() == 0))   // new account has been created
     {
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
+        // import the PDF silently... (not chained)
         client->getwelcomepdf();
-        client->reqtag = creqtag;
-        return;
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
