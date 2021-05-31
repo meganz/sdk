@@ -7226,7 +7226,7 @@ bool CommandChatLinkURL::procresult(Result r)
                     break;
 
                 case MAKENAMEID2('m', 'r'):
-                    meetingRoom = static_cast<bool>(client->json.getint());
+                    meetingRoom = client->json.getbool();
                     break;
 
                 case EOO:

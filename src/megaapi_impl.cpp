@@ -23192,13 +23192,14 @@ void MegaApiImpl::sendPendingRequests()
 #ifdef ENABLE_CHAT
         case MegaRequest::TYPE_START_CHAT_CALL:
         {
-            if (request->getNodeHandle() == INVALID_HANDLE)
+            handle chatid = request->getNodeHandle();
+            if (chatid == INVALID_HANDLE)
             {
                 e = API_EARGS;
                break;
             }
 
-            client->reqs.add(new CommandMeetingStart(client, request->getNodeHandle(), [request, this](Error e, std::string sfuUrl, handle callid)
+            client->reqs.add(new CommandMeetingStart(client, chatid, [request, this](Error e, std::string sfuUrl, handle callid)
             {
                 if (e == API_OK)
                 {
@@ -23212,13 +23213,15 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_JOIN_CHAT_CALL:
         {
-            if (request->getNodeHandle() == INVALID_HANDLE || request->getParentHandle() == INVALID_HANDLE)
+            handle chatid = request->getNodeHandle();
+            handle callid = request->getParentHandle();
+            if (chatid == INVALID_HANDLE || callid == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
             }
 
-            client->reqs.add(new CommandMeetingJoin(client, request->getNodeHandle(), request->getParentHandle(), [request, this](Error e, std::string sfuUrl)
+            client->reqs.add(new CommandMeetingJoin(client, chatid, callid, [request, this](Error e, std::string sfuUrl)
             {
                 if (e == API_OK)
                 {
@@ -23231,14 +23234,17 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_END_CHAT_CALL:
         {
-            if (request->getNodeHandle() == INVALID_HANDLE || request->getParentHandle() == INVALID_HANDLE)
+            handle chatid = request->getNodeHandle();
+            handle callid = request->getParentHandle();
+            int reason = request->getAccess();
+            if (chatid == INVALID_HANDLE || callid == INVALID_HANDLE)
             {
-                // todo check request->getAccess()
+                // TODO: sanity checks for `reason`
                 e = API_EARGS;
                 break;
             }
 
-            client->reqs.add(new CommandMeetingEnd(client, request->getNodeHandle(), request->getParentHandle(), request->getAccess(), [request, this](Error e)
+            client->reqs.add(new CommandMeetingEnd(client, chatid, callid, reason, [request, this](Error e)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
