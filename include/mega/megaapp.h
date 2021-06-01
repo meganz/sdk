@@ -260,9 +260,6 @@ struct MEGA_API MegaApp
     // get mega-achievements
     virtual void getmegaachievements_result(AchievementsDetails*, error) {}
 
-    // get welcome pdf
-    virtual void getwelcomepdf_result(handle, string*, error) {}
-
     // codec-mappings received
     virtual void mediadetection_ready() {}
 

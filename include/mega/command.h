@@ -643,7 +643,7 @@ class MEGA_API CommandSetAttr : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, attr_map&& attrMapUpdates, int reqtag);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, int tag, const char*);
 };
 
 class MEGA_API CommandSetShare : public Command
@@ -777,7 +777,7 @@ class MEGA_API CommandGetPH : public Command
 {
     handle ph;
     byte key[FILENODEKEYLENGTH];
-    int op;
+    int op; //  (op=0 -> download, op=1 fetch data, op=2 import welcomePDF)
     bool havekey;
 
 public:

@@ -2283,7 +2283,7 @@ struct StandardClient : public MegaApp
                               ++next_request_tag,
                               [=]()
                               {
-                                  client.setattr(node, attr_map(updates), client.reqtag);
+                                  client.setattr(node, attr_map(updates), client.reqtag, nullptr);
                               },
                               [result](error e)
                               {
@@ -7200,7 +7200,7 @@ struct TwoWaySyncSymmetryCase
         if (reportaction) out() << name() << " action: remote rename " << n->displaypath() << " to " << newname << endl;
 
         attr_map updates('n', newname);
-        auto e = changeClient().client.setattr(n, move(updates), ++next_request_tag);
+        auto e = changeClient().client.setattr(n, move(updates), ++next_request_tag, nullptr);
 
         ASSERT_EQ(API_OK, e);
     }

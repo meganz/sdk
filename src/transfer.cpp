@@ -740,7 +740,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                             attr_map attrUpdate;
                             n->serializefingerprint(&attrUpdate['c']);
-                            client->setattr(n, std::move(attrUpdate), client->reqtag);
+                            client->setattr(n, std::move(attrUpdate), client->reqtag, nullptr);
                         }
                     }
                 }

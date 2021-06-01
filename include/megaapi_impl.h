@@ -3131,7 +3131,6 @@ protected:
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
         void getmegaachievements_result(AchievementsDetails*, error) override;
-        void getwelcomepdf_result(handle, string*, error) override;
         void backgrounduploadurl_result(error, string*) override;
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;

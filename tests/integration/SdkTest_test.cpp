@@ -908,7 +908,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     for (unsigned index = 0; index < howMany; ++index)
     {
         auto loginResult = trackers[index]->waitForResult();
-        EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for accout " << index;
+        EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for account " << index;
         if (loginResult != API_OK) anyLoginFailed = true;
     }
     ASSERT_FALSE(anyLoginFailed);
@@ -925,7 +925,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     for (unsigned index = 0; index < howMany; ++index)
     {
         auto fetchnodesResult = trackers[index]->waitForResult();
-        EXPECT_EQ(API_OK, fetchnodesResult) << " Failed to fetchnodes for accout " << index;
+        EXPECT_EQ(API_OK, fetchnodesResult) << " Failed to fetchnodes for account " << index;
         anyFetchnodesFailed = anyFetchnodesFailed || (fetchnodesResult != API_OK);
     }
     ASSERT_FALSE(anyFetchnodesFailed);
@@ -1180,6 +1180,43 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
     bool *flag = &mApi[0].accountUpdated; *flag = false;
     ASSERT_TRUE( waitForResponse(flag) )
             << "Account confirmation not received after " << maxTimeout << " seconds";
+}
+
+/**
+ * @brief TEST_F SdkTestCreateEphmeralPlusPlusAccount
+ *
+ * It tests the creation of a new account for a random user.
+ *  - Create account
+ *  - Check existence for Welcome pdf
+ */
+TEST_F(SdkTest, DISABLED_SdkTestCreateEphmeralPlusPlusAccount)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    LOG_info << "___TEST Create ephemeral account plus plus___";
+
+    // Create an ephemeral plus plus session internally
+    synchronousCreateEphemeralAccountPlusPlus(0, "MyFirstname", "MyLastname");
+    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Account creation failed (error: " << mApi[0].lastError << ")";
+
+    // Wait, for 10 seconds, for the pdf to be imported
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    constexpr int deltaMs = 200;
+    for (int i = 0; i <= 10000 && !megaApi[0]->getNumChildren(rootnode.get()); i += deltaMs)
+    {
+        WaitMillisec(deltaMs);
+    }
+
+    // Get children of rootnode
+    std::unique_ptr<MegaNodeList> children{ megaApi[0]->getChildren(rootnode.get()) };
+
+    // Test that there is only one file, with .pdf extension
+    EXPECT_EQ(megaApi[0]->getNumChildren(rootnode.get()), children->size()) << "Wrong number of child nodes";
+    ASSERT_EQ(1, children->size()) << "Wrong number of children nodes found";
+    const char* name = children->get(0)->getName();
+    size_t len = name ? strlen(name) : 0;
+    ASSERT_TRUE(len > 4 && !strcasecmp(name + len - 4, ".pdf"));
+    LOG_info << "Welcome pdf: " << name;
 }
 
 bool veryclose(double a, double b)
@@ -6371,7 +6408,7 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_NO_FATAL_FAILURE(locallogout());
     //loginBySessionId(0, session);
     auto tracker = asyncRequestFastLogin(0, session.c_str());
-    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     // since the node was deleted, path is irrelevant
@@ -6435,7 +6472,7 @@ TEST_F(SdkTest, SyncPersistence)
     std::string session = dumpSession();
     ASSERT_NO_FATAL_FAILURE(locallogout());
     auto trackerFastLogin = asyncRequestFastLogin(0, session.c_str());
-    ASSERT_EQ(API_OK, trackerFastLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    ASSERT_EQ(API_OK, trackerFastLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
@@ -6453,7 +6490,7 @@ TEST_F(SdkTest, SyncPersistence)
     // Check if a logout without keepSyncsAfterLogout doesn't keep the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, false, maxTimeout));
     trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
-    ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     sync.reset(megaApi[0]->getSyncByBackupId(backupId));
     ASSERT_EQ(sync, nullptr);
@@ -6948,7 +6985,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // wait for login to complete:
     for (unsigned index = 0; index < howMany; ++index)
     {
-        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for account " << index;
     }
 
     // perform parallel fetchnodes for each
@@ -6961,7 +6998,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // wait for fetchnodes to complete:
     for (unsigned index = 0; index < howMany; ++index)
     {
-        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for account " << index;
     }
 
     // get session
@@ -7006,7 +7043,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // wait for fetchnodes to complete:
     for (unsigned index = 0; index < howMany; ++index)
     {
-        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for account " << index;
     }
 
     // get root node to confirm all went well

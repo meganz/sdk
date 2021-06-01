@@ -249,7 +249,6 @@ struct DemoApp : public MegaApp
     void checkout_result(const char*, error) override;
 
     void getmegaachievements_result(AchievementsDetails*, error) override;
-    void getwelcomepdf_result(handle, string*, error) override;
 
     void contactlinkcreate_result(error, handle) override;
     void contactlinkquery_result(error, handle, string*, string*, string*, string*) override;

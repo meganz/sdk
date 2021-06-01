@@ -3770,9 +3770,8 @@ void exec_mv(autocomplete::ACState& s)
 
                             // rename
                             client->fsaccess->normalize(&newname);
-                            //n->attrs.map['n'] = newname;
 
-                            if ((e = client->setattr(n, attr_map('n', newname), client->reqtag)))
+                            if ((e = client->setattr(n, attr_map('n', newname), gNextClientTag++, nullptr)))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -3803,8 +3802,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            //n->attrs.map['n'] = tn->attrs.map['n'];
-                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), client->reqtag);
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), gNextClientTag++, nullptr);
 
                             if (e)
                             {
@@ -4838,7 +4836,7 @@ void exec_begin(autocomplete::ACState& s)
     }
 }
 
-void exec_mount(autocomplete::ACState& s)
+void exec_mount(autocomplete::ACState& )
 {
     listtrees();
 }
@@ -7975,20 +7973,6 @@ void DemoApp::getmegaachievements_result(AchievementsDetails *details, error /*e
     delete details;
 }
 
-void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
-{
-    if (e)
-    {
-        cout << "Failed to get Welcome PDF. Error: " << e << endl;
-        pdf_to_import = false;
-    }
-    else
-    {
-        cout << "Importing Welcome PDF file. Public handle: " << LOG_NODEHANDLE(ph) << endl;
-        client->reqs.add(new CommandGetPH(client, ph, (const byte *)k->data(), 1));
-    }
-}
-
 #ifdef ENABLE_CHAT
 void DemoApp::richlinkrequest_result(string *json, error e)
 {
@@ -8684,8 +8668,6 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
         {
             cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
         }
-
-        pdf_to_import = false;
     }
     else
     {
@@ -8700,11 +8682,6 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
 
             delete clientFolder;
             clientFolder = NULL;
-        }
-
-        if (pdf_to_import)
-        {
-            client->getwelcomepdf();
         }
     }
 }
