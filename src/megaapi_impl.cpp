@@ -19617,7 +19617,7 @@ void MegaApiImpl::sendPendingRequests()
 
             string sname = newName;
             fsAccess->normalize(&sname);
-            e = client->setattr(node, attr_map('n', sname), client->reqtag, nullptr);
+            e = client->setattr(node, attr_map('n', sname), client->reqtag);
             break;
         }
         case MegaRequest::TYPE_REMOVE:
@@ -20496,7 +20496,7 @@ void MegaApiImpl::sendPendingRequests()
 
                     do
                     {
-                        e = client->setattr(current, attr_map(attrUpdates), client->reqtag, nullptr);
+                        e = client->setattr(current, attr_map(attrUpdates), client->reqtag);
 
                         if (current->type != FILENODE || !current->children.size())
                         {
@@ -20550,7 +20550,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!e && !attrUpdates.empty())
             {
-                e = client->setattr(node, std::move(attrUpdates), client->reqtag, nullptr);
+                e = client->setattr(node, std::move(attrUpdates), client->reqtag);
             }
 
             break;

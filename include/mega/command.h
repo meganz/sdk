@@ -643,7 +643,7 @@ class MEGA_API CommandSetAttr : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, int tag, const char*);
+    CommandSetAttr(MegaClient*, Node*, attr_map&& attrMapUpdates, int tag);
 };
 
 class MEGA_API CommandSetShare : public Command

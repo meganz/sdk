@@ -86,7 +86,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                    client->setattr(n, attr_map('f', me64), 0, nullptr);
+                    client->setattr(n, attr_map('f', me64), 0);
                 }
             }
 
@@ -5129,7 +5129,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
 
-                        client->putnodes(client->rootnodes[0], move(newnodes));
+                        client->putnodes(client->rootnodes[0], move(newnodes), nullptr, 0);
                     }
                     else if (havekey)
                     {
