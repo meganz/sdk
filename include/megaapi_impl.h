@@ -2955,7 +2955,7 @@ protected:
         void prelogin_result(int, string*, string*, error) override;
         void login_result(error) override;
         void logout_result(error) override;
-        void userdata_result(string*, string*, string*, error) override;
+        void userdata_result(string*, string*, string*, Error) override;
         void pubkey_result(User *) override;
 
         // ephemeral session creation/resumption result
@@ -3011,7 +3011,7 @@ protected:
         void account_details(AccountDetails*, error) override;
         void querytransferquota_result(int) override;
 
-        void setattr_result(handle, error) override;
+        void setattr_result(handle, Error) override;
         void rename_result(handle, error) override;
         void unlink_result(handle, error) override;
         void unlinkversions_result(error) override;
@@ -3182,14 +3182,14 @@ protected:
         void sync_removed(handle backupId) override;
 
         void syncupdate_scanning(bool scanning) override;
-        void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;
-        void syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode) override;
-        void syncupdate_local_file_addition(Sync* sync, LocalNode* localNode, const char *path) override;
-        void syncupdate_local_file_deletion(Sync* sync, LocalNode* localNode) override;
-        void syncupdate_local_file_change(Sync* sync, LocalNode* localNode, const char *path) override;
-        void syncupdate_local_move(Sync* sync, LocalNode* localNode, const char* path) override;
+        void syncupdate_local_folder_addition(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_addition(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_deletion(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_change(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_move(Sync* sync, const LocalPath& oldPath, const LocalPath& newPath) override;
         void syncupdate_get(Sync* sync, Node *node, const char* path) override;
-        void syncupdate_put(Sync* sync, LocalNode *localNode, const char*) override;
+        void syncupdate_put(Sync* sync, const char*) override;
         void syncupdate_remote_file_addition(Sync *sync, Node* n) override;
         void syncupdate_remote_file_deletion(Sync *sync, Node* n) override;
         void syncupdate_remote_folder_addition(Sync *sync, Node* n) override;

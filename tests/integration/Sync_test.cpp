@@ -832,26 +832,41 @@ struct StandardClient : public MegaApp
 
     void syncupdate_stateconfig(handle backupId) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << backupId << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b << endl; } }
-    //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
-    //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
-    void syncupdate_local_folder_addition(Sync*, LocalNode* ln, const char* cp) override { onCallback(); }
-    void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { onCallback(); }
-    void syncupdate_local_file_addition(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_addition() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_file_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_deletion() " << lp(ln) << endl; }}
-    void syncupdate_local_file_change(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_change() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_move(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_move() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_lockretry() " << b << endl; }}
-    //void syncupdate_get(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
-    void syncupdate_put(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_put()" << lp(ln) << " " << cp << endl; }}
-    void syncupdate_remote_file_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_file_addition() " << n->displaypath() << endl; }}
-    void syncupdate_remote_file_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_file_deletion() " << n->displaypath() << endl; }}
-    //void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_folder_addition() " << n->displaypath() << endl; }}
-    //void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_folder_deletion() " << n->displaypath() << endl; }}
-    void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); }
-    void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); }
-    void syncupdate_remote_copy(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_copy() " << cp << endl; }}
-    void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_move() " << n1->displaypath() << " " << n2->displaypath() << endl; }}
-    void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_rename() " << n->displaypath() << " " << cp << endl; }}
+    void syncupdate_local_folder_addition(Sync* s, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " yncupdate_local_folder_addition() " << path.toPath(*client.fsaccess) << endl; }}
+    void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << "syncupdate_local_folder_deletion() " << path.toPath(*client.fsaccess) << endl; }}
+    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) {
+        lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " " << endl;
+    }}
+    void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_deletion() " << path.toPath(*client.fsaccess) << endl; }}
+    void syncupdate_local_file_change(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_change() " << path.toPath(*client.fsaccess) << endl; }}
+    void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override
+    {
+        onCallback();
+        if (logcb) {
+            lock_guard<mutex> g(om);
+            out() << clientname << " syncupdate_local_move() from:" << oldPath.toPath(*client.fsaccess) << " to:" << newPath.toPath(*client.fsaccess) << endl;
+        }
+    }
+    void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b << endl; }}
+    void syncupdate_get(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
+    void syncupdate_put(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_put()" << cp << endl; }}
+    void syncupdate_remote_file_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_file_addition() " << n->displaypath() << endl; }}
+    void syncupdate_remote_file_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_file_deletion() " << n->displaypath() << endl; }}
+    void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_folder_addition() " << n->displaypath() << endl; }}
+    void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_folder_deletion() " << n->displaypath() << endl; }}
+    void syncupdate_remote_copy(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_copy() " << cp << endl; }}
+    void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override
+    {
+        onCallback();
+        if (logcb) {
+            lock_guard<mutex> g(om);
+            out() << clientname << "syncupdate_remote_move() to:" << n1->displaypath() << " from:" << n2->displaypath() << endl;
+        }
+    }
+    void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) {
+        lock_guard<mutex> g(om);
+        out() << clientname << "syncupdate_remote_rename() new: " << n->displaypath() << " old: " << cp << endl;
+    }}
     //void syncupdate_treestate(LocalNode* ln) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);   out() << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln) << endl; }}
 
     bool sync_syncable(Sync* sync, const char* name, LocalPath& path, Node*) override
@@ -2141,25 +2156,25 @@ struct StandardClient : public MegaApp
         resultproc.processresult(FETCHNODES, e, UNDEF);
     }
 
-    bool setattr(Node* node)
+    bool setattr(Node* node, attr_map&& updates)
     {
         auto result =
           thread_do<bool>(
             [=](StandardClient& client, PromiseBoolSP result) mutable
             {
-                client.setattr(node, result);
+                client.setattr(node, std::move(updates), result);
             });
 
         return result.get();
     }
 
-    void setattr(Node* node, PromiseBoolSP result)
+    void setattr(Node* node, attr_map&& updates, PromiseBoolSP result)
     {
         resultproc.prepresult(SETATTR,
                               ++next_request_tag,
                               [=]()
                               {
-                                  client.setattr(node);
+                                  client.setattr(node, attr_map(updates), client.reqtag, nullptr);
                               },
                               [result](error e)
                               {
@@ -2168,7 +2183,7 @@ struct StandardClient : public MegaApp
                               });
     }
 
-    void setattr_result(handle h, error e) override
+    void setattr_result(handle h, Error e) override
     {
         resultproc.processresult(SETATTR, e, h);
     }
@@ -4791,7 +4806,7 @@ TEST(Sync, AnomalousSyncLocalRename)
 
     // Confirm move.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
-    
+
     // There should be a single anomaly.
     ASSERT_EQ(reporter->mAnomalies.size(), 1);
     {
@@ -4867,8 +4882,7 @@ TEST(Sync, AnomalousSyncRemoteRename)
         auto* f = cr.drillchildnodebyname(d, "f");
         ASSERT_TRUE(f);
 
-        f->attrs.map['n'] = "g";
-        ASSERT_TRUE(cr.setattr(f));
+        ASSERT_TRUE(cr.setattr(f, attr_map('n', "g")));
     }
 
     // Wait for sync to complete.
@@ -4888,8 +4902,7 @@ TEST(Sync, AnomalousSyncRemoteRename)
         auto* g = cr.drillchildnodebyname(d, "g");
         ASSERT_TRUE(g);
 
-        g->attrs.map['n'] = "g:0";
-        ASSERT_TRUE(cr.setattr(g));
+        ASSERT_TRUE(cr.setattr(g, attr_map('n', "g:0")));
     }
 
     // Wait for sync to complete.
@@ -5412,8 +5425,8 @@ struct TwoWaySyncSymmetryCase
 
         if (reportaction) out() << name() << " action: remote rename " << n->displaypath() << " to " << newname << endl;
 
-        n->attrs.map['n'] = newname;
-        auto e = changeClient().client.setattr(n, nullptr);
+        attr_map updates('n', newname);
+        auto e = changeClient().client.setattr(n, move(updates), ++next_request_tag, nullptr);
 
         ASSERT_EQ(API_OK, e);
     }
