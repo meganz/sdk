@@ -1597,7 +1597,7 @@ struct StandardClient : public MegaApp
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                auto syncConfig = 
+                auto syncConfig =
                     SyncConfig(LocalPath::fromPath(localpath.u8string(), *client.fsaccess),
                                localpath.u8string(),
                                NodeHandle().set6byte(m->nodehandle),
@@ -1607,7 +1607,7 @@ struct StandardClient : public MegaApp
                                //string_vector(),
                                true,
                                isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
-				
+
                 error e = client.addsync(syncConfig, true, addSyncCompletion);
                 return !e;
             }
@@ -4344,7 +4344,7 @@ TEST(Sync, BasicSync_ClientToSDKConfigMigration)
         // Issue new backup IDs.
         config0.mBackupId = UNDEF;
         config1.mBackupId = UNDEF;
-        
+
         // Update path for c1.
         config0.mLocalPath = LocalPath::fromPath(root0.u8string(), fsAccess);
         config1.mLocalPath = LocalPath::fromPath(root1.u8string(), fsAccess);
@@ -4494,7 +4494,7 @@ TEST(Sync, AnomalousManualDownload)
     // cu's sync root.
     auto* s = cd.drillchildnodebyname(cd.gettestbasenode(), "s");
     ASSERT_TRUE(s);
-    
+
     // Simple validation helper.
     auto read_string = [](const fs::path& path) {
         // How much buffer space do we need?
@@ -4791,7 +4791,7 @@ TEST(Sync, AnomalousSyncLocalRename)
 
     // Confirm move.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
-    
+
     // There should be a single anomaly.
     ASSERT_EQ(reporter->mAnomalies.size(), 1);
     {
@@ -5076,7 +5076,7 @@ TEST(Sync, BasicSyncExportImport)
     ASSERT_FALSE(cx->confirmModel_mainthread(model0.root.get(), id0));
     ASSERT_FALSE(cx->confirmModel_mainthread(model1.root.get(), id1));
     ASSERT_FALSE(cx->confirmModel_mainthread(model2.root.get(), id2));
-    
+
     // Enable the imported syncs.
     ASSERT_TRUE(cx->enableSyncByBackupId(id0));
     ASSERT_TRUE(cx->enableSyncByBackupId(id1));
@@ -5986,7 +5986,7 @@ void CatchupClients(StandardClient* c1, StandardClient* c2 = nullptr, StandardCl
     out() << "Caught up" << endl;
 }
 
-TEST(Sync, TwoWay_Highlevel_Symmetries)
+TEST(Sync, DISABLED_TwoWay_Highlevel_Symmetries)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
