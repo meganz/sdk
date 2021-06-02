@@ -40,7 +40,6 @@ namespace mega {
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
-// TODO: restore this before merging - needed for now for jenkins runs
 string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
 // root URL for GeLB requests

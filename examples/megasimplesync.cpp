@@ -104,7 +104,7 @@ class SyncApp : public MegaApp, public Logger
     void syncupdate_remote_folder_deletion(Sync*, Node*) override;
     void syncupdate_remote_copy(Sync*, const char*) override;
     void syncupdate_remote_move(Sync*, Node*, Node*) override;
-    void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname) override;
+    void syncupdate_remote_rename(Sync* sync, Node* n, const char* prevname) override;
     void syncupdate_treestate(LocalNode*) override;
 #endif
 
@@ -484,7 +484,7 @@ void SyncApp::syncupdate_stateconfig(handle backupId)
 
 // sync update callbacks are for informational purposes only and must not
 // change or delete the sync itself
-void SyncApp::syncupdate_local_folder_addition(Sync*, const LocalPath& path) 
+void SyncApp::syncupdate_local_folder_addition(Sync*, const LocalPath& path)
 {
     assert(client && !!client->fsaccess);
 
