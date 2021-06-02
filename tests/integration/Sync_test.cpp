@@ -4766,7 +4766,8 @@ TEST(Sync, DetectsAndReportsNameClashes)
 }
 */
 
-TEST(Sync, DoesntDownloadFilesWithClashingNames)
+// TODO: re-enable after sync rework is merged
+TEST(Sync, DISABLED_DoesntDownloadFilesWithClashingNames)
 {
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -4865,7 +4866,8 @@ TEST(Sync, DoesntDownloadFilesWithClashingNames)
     ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 }
 
-TEST(Sync, DoesntUploadFilesWithClashingNames)
+// TODO: re-enable after sync rework is merged
+TEST(Sync, DISABLED_DoesntUploadFilesWithClashingNames)
 {
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -5044,7 +5046,8 @@ TEST(Sync, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
     ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 }
 
-TEST(Sync, RemotesWithEscapesSynchronizeCorrectly)
+// TODO: re-enable after sync rework is merged
+TEST(Sync, DISABLED_RemotesWithEscapesSynchronizeCorrectly)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -6053,7 +6056,8 @@ TEST(Sync, RenameReplaceFileWithinSync)
     ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
 }
 
-TEST(Sync, RenameReplaceFolderBetweenSyncs)
+// TODO: re-enable after sync rework is merged
+TEST(Sync, DISABLED_RenameReplaceFolderBetweenSyncs)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -6442,7 +6446,8 @@ TEST(Sync, MoveTargetHasFilesystemWatch)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
-TEST(Sync, DeleteReplaceReplacementHasFilesystemWatch)
+// TODO: re-enable after sync rework is merged
+TEST(Sync, DISABLED_DeleteReplaceReplacementHasFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
