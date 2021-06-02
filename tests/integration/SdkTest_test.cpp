@@ -1199,6 +1199,11 @@ TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
     synchronousCreateEphemeralAccountPlusPlus(0, "MyFirstname", "MyLastname");
     ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Account creation failed (error: " << mApi[0].lastError << ")";
 
+    // Logout from ephemeral plus plus session and resume session
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    synchronousResumeCreateAccountEphemeralPlusPlus(0, sid.c_str());
+    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Account creation failed after resume (error: " << mApi[0].lastError << ")";
+
     // Wait, for 10 seconds, for the pdf to be imported
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
     constexpr int deltaMs = 200;
