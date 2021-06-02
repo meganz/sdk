@@ -7637,7 +7637,7 @@ void CatchupClients(StandardClient* c1, StandardClient* c2 = nullptr, StandardCl
     out() << "Caught up" << endl;
 }
 
-TEST(Sync, DISABLED_TwoWay_Highlevel_Symmetries)
+TEST(Sync, TwoWay_Highlevel_Symmetries)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
