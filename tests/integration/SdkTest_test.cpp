@@ -172,14 +172,7 @@ MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAg
 #endif
 }
 
-::mega::FSACCESS_CLASS makeFsAccess()
-{
-#ifndef __APPLE__
-    return ::mega::FSACCESS_CLASS();
-#else
-    return ::mega::FSACCESS_CLASS(gFseventsFd);
-#endif
-}
+FSACCESS_CLASS makeFsAccess() { return makeFsAccess_<FSACCESS_CLASS>(); }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 

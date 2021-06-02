@@ -50,3 +50,13 @@ private:
 
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
+
+template<class FsAccessClass>
+FsAccessClass makeFsAccess_()
+{
+    return FsAccessClass(
+#ifdef __APPLE__
+                gFseventsFd
+#endif
+                );
+}
