@@ -3971,7 +3971,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodehandle, move(tc.nn));
+                client->putnodes(tn->nodehandle, move(tc.nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -3979,7 +3979,7 @@ void exec_cp(autocomplete::ACState& s)
                 {
                     cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
 
-                    client->putnodes(targetuser.c_str(), move(tc.nn));
+                    client->putnodes(targetuser.c_str(), move(tc.nn), gNextClientTag++);
                 }
                 else
                 {
@@ -4263,9 +4263,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
                 uploadLocalFolderContent(tmp, parent);
             };
 
-            client->reqtag = gNextClientTag++;
-            client->putnodes(parent->nodehandle, move(nn));
-            client->reqtag = 0;
+            client->putnodes(parent->nodehandle, move(nn), nullptr, gNextClientTag++);
         }
     }
 }
@@ -4895,7 +4893,7 @@ void exec_mkdir(autocomplete::ACState& s)
             {
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], newname);
-                client->putnodes(n->nodehandle, move(nn));
+                client->putnodes(n->nodehandle, move(nn), nullptr, gNextClientTag++);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -4905,7 +4903,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], leafname);
-                client->putnodes(n->parent->nodehandle, move(nn));
+                client->putnodes(n->parent->nodehandle, move(nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -7539,7 +7537,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodehandle, move(nn));
+        client->putnodes(n->nodehandle, move(nn), nullptr, client->restag);
     }
     else
     {

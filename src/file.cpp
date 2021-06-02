@@ -331,10 +331,7 @@ void File::completed(Transfer* t, LocalNode* l)
         if (targetuser.size())
         {
             // drop file into targetuser's inbox
-            int creqtag = t->client->reqtag;
-            t->client->reqtag = tag;
-            t->client->putnodes(targetuser.c_str(), move(newnodes));
-            t->client->reqtag = creqtag;
+            t->client->putnodes(targetuser.c_str(), move(newnodes), tag);
         }
         else
         {
