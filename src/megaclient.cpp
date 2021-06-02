@@ -6708,6 +6708,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 break;
 
             case MAKENAMEID2('m', 'r'):
+                assert(readingPublicChat);
                 meeting = jsonsc.getint();
                 break;
 
@@ -10818,6 +10819,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                            case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
+                               assert(readingPublicChats);
                                meeting = j->getint();
                                break;
 
