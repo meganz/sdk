@@ -7678,6 +7678,8 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     std::map<std::string, TwoWaySyncSymmetryCase> cases;
 
     static set<string> tests = {
+        // investigating why this one fails sometimes in jenkins MR jobs
+        "internal_backup_delete_down_self_file_steady"
     }; // tests
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
