@@ -1569,6 +1569,7 @@ public:
     virtual int64_t getCreationTime() const;
     virtual bool isArchived() const;
     virtual bool isPublicChat() const;
+    virtual bool isMeeting() const override;
 
     virtual bool hasChanged(int changeType) const;
     virtual int getChanges() const;
@@ -1589,6 +1590,7 @@ private:
     bool archived;
     bool publicchat;
     int64_t ts;
+    bool meeting;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList

@@ -32624,6 +32624,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->tag = chat->isOwnChange();
     this->changed = chat->getChanges();
     this->unifiedKey = chat->getUnifiedKey() ? chat->getUnifiedKey() : "";
+    this->meeting = chat->isMeeting();
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -32640,6 +32641,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
     this->publicchat = chat->publicchat;
     this->unifiedKey = chat->unifiedKey;
+    this->meeting = chat->meeting;
     this->changed = 0;
 
     if (chat->changed.attachments)
@@ -32733,6 +32735,11 @@ bool MegaTextChatPrivate::isArchived() const
 bool MegaTextChatPrivate::isPublicChat() const
 {
     return publicchat;
+}
+
+bool MegaTextChatPrivate::isMeeting() const
+{
+    return meeting;
 }
 
 bool MegaTextChatPrivate::hasChanged(int changeType) const

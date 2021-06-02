@@ -6477,6 +6477,11 @@ bool MegaTextChat::isPublicChat() const
     return false;
 }
 
+bool MegaTextChat::isMeeting() const
+{
+    return false;
+}
+
 MegaTextChatList::~MegaTextChatList()
 {
 
