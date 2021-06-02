@@ -3,7 +3,6 @@
 #include <thread>
 #include <vector>
 
-#include "megafs.h"
 #include "stdfs.h"
 
 std::string logTime();
@@ -51,5 +50,3 @@ private:
 
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
-
-::mega::FSACCESS_CLASS makeFsAccess();
