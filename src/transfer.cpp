@@ -724,8 +724,9 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                             LOG_debug << "Fixing fingerprint";
                             *(FileFingerprint*)n = fingerprint;
 
-                            n->serializefingerprint(&n->attrs.map['c']);
-                            client->setattr(n);
+                            attr_map attrUpdate;
+                            n->serializefingerprint(&attrUpdate['c']);
+                            client->setattr(n, std::move(attrUpdate), client->reqtag, nullptr);
                         }
                     }
                 }

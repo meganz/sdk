@@ -47,7 +47,7 @@ struct MEGA_API MegaApp
     virtual void logout_result(error) { }
 
     // user data result
-    virtual void userdata_result(string*, string*, string*, error) { }
+    virtual void userdata_result(string*, string*, string*, Error) { }
 
     // user public key retrieval result
     virtual void pubkey_result(User *) { }
@@ -81,7 +81,7 @@ struct MEGA_API MegaApp
     virtual void sessions_killed(handle /*sessionid*/, error) { }
 
     // node attribute update failed (not invoked unless error != API_OK)
-    virtual void setattr_result(handle, error) { }
+    virtual void setattr_result(handle, Error) { }
 
     // move node failed (not invoked unless error != API_OK)
     virtual void rename_result(handle, error) { }
@@ -283,15 +283,15 @@ struct MEGA_API MegaApp
     virtual void syncupdate_stateconfig(handle) { }
     virtual void syncupdate_active(handle, bool) { }
     virtual void syncupdate_scanning(bool) { }
-    virtual void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) { }
-    virtual void syncupdate_local_folder_deletion(Sync*, LocalNode*) { }
-    virtual void syncupdate_local_file_addition(Sync*, LocalNode*, const char*) { }
-    virtual void syncupdate_local_file_deletion(Sync*, LocalNode*) { }
-    virtual void syncupdate_local_file_change(Sync*, LocalNode*, const char*) { }
-    virtual void syncupdate_local_move(Sync*, LocalNode*, const char*) { }
+    virtual void syncupdate_local_folder_addition(Sync*, const LocalPath& path) { }
+    virtual void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) { }
+    virtual void syncupdate_local_file_addition(Sync*, const LocalPath& path) { }
+    virtual void syncupdate_local_file_deletion(Sync*, const LocalPath& path) { }
+    virtual void syncupdate_local_file_change(Sync*, const LocalPath& path) { }
+    virtual void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) { }
     virtual void syncupdate_local_lockretry(bool) { }
     virtual void syncupdate_get(Sync*, Node*, const char*) { }
-    virtual void syncupdate_put(Sync*, LocalNode*, const char*) { }
+    virtual void syncupdate_put(Sync*, const char*) { }
     virtual void syncupdate_remote_file_addition(Sync*, Node*) { }
     virtual void syncupdate_remote_file_deletion(Sync*, Node*) { }
     virtual void syncupdate_remote_folder_addition(Sync*, Node*) { }

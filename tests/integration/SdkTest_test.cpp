@@ -228,20 +228,6 @@ namespace
     }
 }
 
-std::string logTime()
-{
-    // why do the tests take so long to run?  Log some info about what is slow.
-    auto t = std::time(NULL);
-    char ts[50];
-    struct tm dt;
-    ::mega::m_gmtime(t, &dt);
-    if (!std::strftime(ts, sizeof(ts), "%H:%M:%S ", &dt))
-    {
-        ts[0] = '\0';
-    }
-    return ts;
-}
-
 std::map<size_t, std::string> gSessionIDs;
 
 void SdkTest::SetUp()
@@ -251,7 +237,7 @@ void SdkTest::SetUp()
 
 void SdkTest::TearDown()
 {
-    out() << logTime() << "Test done, teardown starts" << endl;
+    out() << "Test done, teardown starts" << endl;
     // do some cleanup
 
     for (size_t i = 0; i < megaApi.size(); ++i)
@@ -269,7 +255,7 @@ void SdkTest::TearDown()
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
 
-    out() << logTime() << "Cleaning up account" << endl;
+    out() << "Cleaning up account" << endl;
     Cleanup();
 
     releaseMegaApi(1);
@@ -278,7 +264,7 @@ void SdkTest::TearDown()
     {
         releaseMegaApi(0);
     }
-    out() << logTime() << "Teardown done, test exiting" << endl;
+    out() << "Teardown done, test exiting" << endl;
 }
 
 void SdkTest::Cleanup()
@@ -288,27 +274,24 @@ void SdkTest::Cleanup()
     deleteFile(PUBLICFILE);
     deleteFile(AVATARDST);
 
+#ifdef ENABLE_SYNC
     std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
-
-    int index = 0;
     for (auto &m : megaApi)
     {
-#ifdef ENABLE_SYNC
-        auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
-        for (int i = syncs->size(); i--; )
+        if (m)
         {
-            delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
-            m->removeSync(syncs->get(i), delSyncTrackers.back().get());
+            auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
+            for (int i = syncs->size(); i--; )
+            {
+                delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
+                m->removeSync(syncs->get(i), delSyncTrackers.back().get());
+            }
         }
-#endif
-
-        ++index;
     }
-
     // wait for delsyncs to complete:
     for (auto& d : delSyncTrackers) d->waitForResult();
     WaitMillisec(5000);
-
+#endif
 
     if (megaApi[0])
     {
@@ -880,7 +863,7 @@ string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
 void SdkTest::getAccountsForTest(unsigned howMany)
 {
     assert(howMany > 0 && howMany <= 3);
-    out() << logTime() << "Test setting up for " << howMany << " accounts " << endl;
+    out() << "Test setting up for " << howMany << " accounts " << endl;
 
     megaApi.resize(howMany);
     mApi.resize(howMany);
@@ -910,12 +893,12 @@ void SdkTest::getAccountsForTest(unsigned howMany)
 
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
-            out() << logTime() << "Logging into account " << index << endl;
+            out() << "Logging into account " << index << endl;
             trackers[index] = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
         }
         else
         {
-            out() << logTime() << "Resuming session for account " << index << endl;
+            out() << "Resuming session for account " << index << endl;
             trackers[index] = asyncRequestFastLogin(index, gSessionIDs[index].c_str());
         }
     }
@@ -925,7 +908,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     for (unsigned index = 0; index < howMany; ++index)
     {
         auto loginResult = trackers[index]->waitForResult();
-        EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for accout " << index;
+        EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for account " << index;
         if (loginResult != API_OK) anyLoginFailed = true;
     }
     ASSERT_FALSE(anyLoginFailed);
@@ -933,7 +916,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     // perform parallel fetchnodes for each
     for (unsigned index = 0; index < howMany; ++index)
     {
-        out() << logTime() << "Fetching nodes for account " << index << endl;
+        out() << "Fetching nodes for account " << index << endl;
         trackers[index] = asyncRequestFetchnodes(index);
     }
 
@@ -942,15 +925,15 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     for (unsigned index = 0; index < howMany; ++index)
     {
         auto fetchnodesResult = trackers[index]->waitForResult();
-        EXPECT_EQ(API_OK, fetchnodesResult) << " Failed to fetchnodes for accout " << index;
+        EXPECT_EQ(API_OK, fetchnodesResult) << " Failed to fetchnodes for account " << index;
         anyFetchnodesFailed = anyFetchnodesFailed || (fetchnodesResult != API_OK);
     }
     ASSERT_FALSE(anyFetchnodesFailed);
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << logTime() << "Cleaning up account 0" << endl;
+    out() << "Cleaning up account 0" << endl;
     Cleanup();
-    out() << logTime() << "Test setup done, test starts" << endl;
+    out() << "Test setup done, test starts" << endl;
 }
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
@@ -1206,7 +1189,7 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
  *  - Create account
  *  - Check existence for Welcome pdf
  */
-TEST_F(SdkTest, DISABLED_SdkTestCreateEphmeralPlusPlusAccount)
+TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -4895,6 +4878,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
     // getMiscFlags() -- not logged in
     logout(0, false, maxTimeout);
+    gSessionIDs[0] = "invalid";
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 
@@ -5446,7 +5430,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
 TEST_F(SdkTest, RecursiveUploadWithLogout)
 {
     LOG_info << "___TEST RecursiveUploadWithLogout___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // this one used to cause a double-delete
 
@@ -5759,7 +5743,7 @@ struct SyncListener : MegaListener
     {
         for (auto &s: mErrors)
         {
-            out() << logTime() << "SyncListener error: " << s << endl;
+            out() << "SyncListener error: " << s << endl;
         }
         return anyErrors;
     }
@@ -5772,7 +5756,7 @@ struct SyncListener : MegaListener
             if (!e.empty())
             {
                 mErrors.push_back(e);
-                out() << logTime() << "SyncListener added error: " << e << endl;
+                out() << "SyncListener added error: " << e << endl;
             }
         }
     }
@@ -5786,17 +5770,17 @@ struct SyncListener : MegaListener
     void onSyncFileStateChanged(MegaApi* api, MegaSync* sync, std::string* localPath, int newState) override
     {
         // probably too frequent to output
-        //out() << logTime() << "onSyncFileStateChanged " << sync << newState << endl;
+        //out() << "onSyncFileStateChanged " << sync << newState << endl;
     }
 
     void onSyncEvent(MegaApi* api, MegaSync* sync, MegaSyncEvent* event) override
     {
-        out() << logTime() << "onSyncEvent " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncEvent " << toHandle(sync->getBackupId()) << endl;
     }
 
     void onSyncAdded(MegaApi* api, MegaSync* sync, int additionState) override
     {
-        out() << logTime() << "onSyncAdded " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncAdded " << toHandle(sync->getBackupId()) << endl;
         check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
 
         check(state(sync) == nonexistent);
@@ -5805,7 +5789,7 @@ struct SyncListener : MegaListener
 
     void onSyncDisabled(MegaApi* api, MegaSync* sync) override
     {
-        out() << logTime() << "onSyncDisabled " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncDisabled " << toHandle(sync->getBackupId()) << endl;
         check(!sync->isEnabled(), "sync enabled at onSyncDisabled");
         check(!sync->isActive(), "sync active at onSyncDisabled");
         check(state(sync) == enabled || state(sync) == added);
@@ -5815,7 +5799,7 @@ struct SyncListener : MegaListener
     // "onSyncStarted" would be more accurate?
     void onSyncEnabled(MegaApi* api, MegaSync* sync) override
     {
-        out() << logTime() << "onSyncEnabled " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncEnabled " << toHandle(sync->getBackupId()) << endl;
         check(sync->isEnabled(), "sync disabled at onSyncEnabled");
         check(sync->isActive(), "sync not active at onSyncEnabled");
         check(state(sync) == disabled || state(sync) == added);
@@ -5824,14 +5808,14 @@ struct SyncListener : MegaListener
 
     void onSyncDeleted(MegaApi* api, MegaSync* sync) override
     {
-        out() << logTime() << "onSyncDeleted " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncDeleted " << toHandle(sync->getBackupId()) << endl;
         check(state(sync) == disabled || state(sync) == added || state(sync) == enabled);
         state(sync) = nonexistent;
     }
 
     void onSyncStateChanged(MegaApi* api, MegaSync* sync) override
     {
-        out() << logTime() << "onSyncStateChanged " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncStateChanged " << toHandle(sync->getBackupId()) << endl;
 
         check(sync->getBackupId() != UNDEF, "onSyncStateChanged with undef backup Id");
 
@@ -5843,7 +5827,7 @@ struct SyncListener : MegaListener
 
     void onGlobalSyncStateChanged(MegaApi* api) override
     {
-        out() << logTime() << "onGlobalSyncStateChanged " << endl;
+        out() << "onGlobalSyncStateChanged " << endl;
     }
 };
 
@@ -6262,7 +6246,7 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_NO_FATAL_FAILURE(locallogout());
     //loginBySessionId(0, session);
     auto tracker = asyncRequestFastLogin(0, session.c_str());
-    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     // since the node was deleted, path is irrelevant
@@ -6326,7 +6310,7 @@ TEST_F(SdkTest, SyncPersistence)
     std::string session = dumpSession();
     ASSERT_NO_FATAL_FAILURE(locallogout());
     auto trackerFastLogin = asyncRequestFastLogin(0, session.c_str());
-    ASSERT_EQ(API_OK, trackerFastLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    ASSERT_EQ(API_OK, trackerFastLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
@@ -6335,7 +6319,7 @@ TEST_F(SdkTest, SyncPersistence)
     // Check if a logout with keepSyncsAfterLogout keeps the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, true, maxTimeout));
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
-    ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::LOGGED_OUT);
     ASSERT_TRUE(sync && !sync->isActive());
@@ -6344,7 +6328,7 @@ TEST_F(SdkTest, SyncPersistence)
     // Check if a logout without keepSyncsAfterLogout doesn't keep the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, false, maxTimeout));
     trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
-    ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     sync.reset(megaApi[0]->getSyncByBackupId(backupId));
     ASSERT_EQ(sync, nullptr);
@@ -6698,7 +6682,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
         string nodelink = exportedLinks[index];
         string authKey = authKeys[index];
 
-        out() << logTime() << "login to exported folder " << index << endl;
+        out() << "login to exported folder " << index << endl;
         trackers[index] = asyncRequestLoginToFolder(exportedFolderApis[index].get(), nodelink.c_str(), authKey.c_str());
     }
 
@@ -6711,7 +6695,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     // perform parallel fetchnodes for each
     for (int index = 0; index < howMany; ++index)
     {
-        out() << logTime() << "Fetching nodes for account " << index << endl;
+        out() << "Fetching nodes for account " << index << endl;
         trackers[index] = asyncRequestFetchnodes(exportedFolderApis[index].get());
     }
 
@@ -6722,7 +6706,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << logTime() << "Cleaning up account 0" << endl;
+    out() << "Cleaning up account 0" << endl;
     Cleanup();
 }
 
@@ -6838,7 +6822,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // wait for login to complete:
     for (unsigned index = 0; index < howMany; ++index)
     {
-        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for account " << index;
     }
 
     // perform parallel fetchnodes for each
@@ -6851,7 +6835,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // wait for fetchnodes to complete:
     for (unsigned index = 0; index < howMany; ++index)
     {
-        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for account " << index;
     }
 
     // get session
@@ -6896,7 +6880,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // wait for fetchnodes to complete:
     for (unsigned index = 0; index < howMany; ++index)
     {
-        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for account " << index;
     }
 
     // get root node to confirm all went well
