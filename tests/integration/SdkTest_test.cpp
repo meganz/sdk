@@ -1189,7 +1189,7 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
  *  - Create account
  *  - Check existence for Welcome pdf
  */
-TEST_F(SdkTest, DISABLED_SdkTestCreateEphmeralPlusPlusAccount)
+TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
