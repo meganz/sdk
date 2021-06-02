@@ -1778,6 +1778,11 @@ int MegaApi::isLoggedIn()
     return pImpl->isLoggedIn();
 }
 
+bool MegaApi::isGuessMode()
+{
+    return pImpl->isGuessMode();
+}
+
 void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
 {
     pImpl->whyAmIBlocked(false, listener);
