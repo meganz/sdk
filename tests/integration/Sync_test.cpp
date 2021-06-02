@@ -3077,7 +3077,26 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     confirmModels();
 }
 
-GTEST_TEST(Sync, BasicSync_DelRemoteFolder)
+class SyncTest
+    : public ::testing::Test
+{
+public:
+
+    // Sets up the test fixture.
+    void SetUp() override
+    {
+        LOG_info << "____TEST SetUp: " << ::testing::UnitTest::GetInstance()->current_test_info()->name();
+    }
+
+    // Tears down the test fixture.
+    void TearDown() override
+    {
+        LOG_info << "____TEST TearDown: " << ::testing::UnitTest::GetInstance()->current_test_info()->name();
+    }
+
+}; // SqliteDBTest
+
+TEST_F(SyncTest, BasicSync_DelRemoteFolder)
 {
     // delete a remote folder and confirm the client sending the request and another also synced both correctly update the disk
     fs::path localtestroot = makeNewTestRoot();
@@ -3114,7 +3133,7 @@ GTEST_TEST(Sync, BasicSync_DelRemoteFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-GTEST_TEST(Sync, BasicSync_DelLocalFolder)
+TEST_F(SyncTest, BasicSync_DelLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -3163,7 +3182,7 @@ GTEST_TEST(Sync, BasicSync_DelLocalFolder)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
 }
 
-GTEST_TEST(Sync, BasicSync_MoveLocalFolder)
+TEST_F(SyncTest, BasicSync_MoveLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -3203,7 +3222,7 @@ GTEST_TEST(Sync, BasicSync_MoveLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-GTEST_TEST(Sync, BasicSync_MoveLocalFolderBetweenSyncs)
+TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -3258,7 +3277,7 @@ GTEST_TEST(Sync, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_TRUE(clientA3.confirmModel_mainthread(model.findnode("f"), backupId31));
 }
 
-GTEST_TEST(Sync, BasicSync_RenameLocalFile)
+TEST_F(SyncTest, BasicSync_RenameLocalFile)
 {
     static auto TIMEOUT = std::chrono::seconds(4);
 
@@ -3316,7 +3335,7 @@ GTEST_TEST(Sync, BasicSync_RenameLocalFile)
     ASSERT_TRUE(client1.confirmModel_mainthread(model.findnode("x"), backupId1, true));
 }
 
-GTEST_TEST(Sync, BasicSync_AddLocalFolder)
+TEST_F(SyncTest, BasicSync_AddLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -3360,7 +3379,7 @@ GTEST_TEST(Sync, BasicSync_AddLocalFolder)
 // it's too slow because we wait for the cloud before processing the next layer of files+folders.
 // So if we add enough changes to exercise the notification queue, we can't check the results because
 // it's far too slow at the syncing stage.
-GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
+TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -3441,7 +3460,7 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
 
 
 /* this one is too slow for regular testing with the current algorithm
-GTEST_TEST(Sync, BasicSync_MAX_NEWNODES1)
+TEST_F(SyncTest, BasicSync_MAX_NEWNODES1)
 {
     // create more nodes than we can upload in one putnodes.
     // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
@@ -3481,7 +3500,7 @@ GTEST_TEST(Sync, BasicSync_MAX_NEWNODES1)
 */
 
 /* this one is too slow for regular testing with the current algorithm
-GTEST_TEST(Sync, BasicSync_MAX_NEWNODES2)
+TEST_F(SyncTest, BasicSync_MAX_NEWNODES2)
 {
     // create more nodes than we can upload in one putnodes.
     // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
@@ -3520,7 +3539,7 @@ GTEST_TEST(Sync, BasicSync_MAX_NEWNODES2)
 }
 */
 
-GTEST_TEST(Sync, BasicSync_MoveExistingIntoNewLocalFolder)
+TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot();
@@ -3566,7 +3585,7 @@ GTEST_TEST(Sync, BasicSync_MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-GTEST_TEST(Sync, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
+TEST_F(SyncTest, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot();
@@ -3618,7 +3637,7 @@ GTEST_TEST(Sync, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 }
 
 /* not expected to work yet
-GTEST_TEST(Sync, BasicSync_SyncDuplicateNames)
+TEST_F(SyncTest, BasicSync_SyncDuplicateNames)
 {
     fs::path localtestroot = makeNewTestRoot();
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
@@ -3652,7 +3671,7 @@ GTEST_TEST(Sync, BasicSync_SyncDuplicateNames)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.root.get(), 2));
 }*/
 
-GTEST_TEST(Sync, BasicSync_RemoveLocalNodeBeforeSessionResume)
+TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
 {
     fs::path localtestroot = makeNewTestRoot();
     auto pclientA1 = ::mega::make_unique<StandardClient>(localtestroot, "clientA1");   // user 1 client 1
@@ -3703,7 +3722,7 @@ GTEST_TEST(Sync, BasicSync_RemoveLocalNodeBeforeSessionResume)
 }
 
 /* not expected to work yet
-GTEST_TEST(Sync, BasicSync_RemoteFolderCreationRaceSamename)
+TEST_F(SyncTest, BasicSync_RemoteFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     // SN tagging needed for this one
@@ -3737,7 +3756,7 @@ GTEST_TEST(Sync, BasicSync_RemoteFolderCreationRaceSamename)
 }*/
 
 /* not expected to work yet
-GTEST_TEST(Sync, BasicSync_LocalFolderCreationRaceSamename)
+TEST_F(SyncTest, BasicSync_LocalFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     // SN tagging needed for this one
@@ -3771,7 +3790,7 @@ GTEST_TEST(Sync, BasicSync_LocalFolderCreationRaceSamename)
 }*/
 
 
-GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges )
+TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges )
 {
     fs::path localtestroot = makeNewTestRoot();
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
@@ -3842,7 +3861,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), backupId2));
 }
 
-GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
+TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
 {
     fs::path localtestroot = makeNewTestRoot();
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
@@ -3900,7 +3919,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
 }
 
 
-GTEST_TEST(Sync, CmdChecks_RRAttributeAfterMoveNode)
+TEST_F(SyncTest, CmdChecks_RRAttributeAfterMoveNode)
 {
     fs::path localtestroot = makeNewTestRoot();
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
@@ -3956,7 +3975,7 @@ GTEST_TEST(Sync, CmdChecks_RRAttributeAfterMoveNode)
 
 
 #ifdef __linux__
-GTEST_TEST(Sync, BasicSync_SpecialCreateFile)
+TEST_F(SyncTest, BasicSync_SpecialCreateFile)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -4001,7 +4020,7 @@ GTEST_TEST(Sync, BasicSync_SpecialCreateFile)
 }
 #endif
 
-GTEST_TEST(Sync, DISABLED_BasicSync_moveAndDeleteLocalFile)
+TEST_F(SyncTest, DISABLED_BasicSync_moveAndDeleteLocalFile)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -4086,7 +4105,7 @@ Node* makenode(MegaClient& mc, handle parent, ::mega::nodetype_t type, m_off_t s
 
 } // anonymous
 
-GTEST_TEST(Sync, NodeSorting_forPhotosAndVideos)
+TEST_F(SyncTest, NodeSorting_forPhotosAndVideos)
 {
     fs::path localtestroot = makeNewTestRoot();
     StandardClient standardclient(localtestroot, "sortOrderTests");
@@ -4130,7 +4149,7 @@ GTEST_TEST(Sync, NodeSorting_forPhotosAndVideos)
 }
 
 
-GTEST_TEST(Sync, PutnodesForMultipleFolders)
+TEST_F(SyncTest, PutnodesForMultipleFolders)
 {
     fs::path localtestroot = makeNewTestRoot();
     StandardClient standardclient(localtestroot, "PutnodesForMultipleFolders");
@@ -4165,7 +4184,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2/folder2.2"));
 }
 
-GTEST_TEST(SdkCore, ExerciseCommands)
+TEST_F(SyncTest, ExerciseCommands)
 {
     fs::path localtestroot = makeNewTestRoot();
     StandardClient standardclient(localtestroot, "ExerciseCommands");
@@ -4208,7 +4227,7 @@ GTEST_TEST(SdkCore, ExerciseCommands)
 }
 
 #ifndef _WIN32_SUPPORTS_SYMLINKS_IT_JUST_NEEDS_TURNING_ON
-GTEST_TEST(Sync, BasicSync_CreateAndDeleteLink)
+TEST_F(SyncTest, BasicSync_CreateAndDeleteLink)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -4255,7 +4274,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndDeleteLink)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-GTEST_TEST(Sync, BasicSync_CreateRenameAndDeleteLink)
+TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -4314,7 +4333,7 @@ GTEST_TEST(Sync, BasicSync_CreateRenameAndDeleteLink)
 
 // what is supposed to happen for this one?  It seems that the `linked` symlink is no longer ignored on windows?  client2 is affected!
 
-GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocally)
+TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -4373,7 +4392,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocally)
 }
 
 
-GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
+TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
