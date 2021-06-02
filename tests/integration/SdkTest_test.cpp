@@ -2762,7 +2762,7 @@ LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
 }
 
 
-// SDK-1505 is to debug this failure which was revealed by SDK-1439 but predates it
+// TODO: SDK-1505
 #ifndef __APPLE__
 TEST_F(SdkTest, SdkTestFolderIteration)
 #else
