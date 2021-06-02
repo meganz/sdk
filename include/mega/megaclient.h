@@ -467,7 +467,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, const char* prevattr = NULL);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
@@ -544,10 +544,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, const char * = NULL);
+    void putnodes(handle, vector<NewNode>&&, const char *, int tag);
 
     // send files/folders to user
-    void putnodes(const char*, vector<NewNode>&&);
+    void putnodes(const char*, vector<NewNode>&&, int tag);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -873,11 +873,6 @@ public:
 
     // get welcome pdf
     void getwelcomepdf();
-
-    // toggle global debug flag
-    bool toggledebug();
-
-    bool debugstate();
 
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
@@ -1213,7 +1208,7 @@ public:
     DbAccess* dbaccess = nullptr;
 
     // state cache table for logged in user
-    DbTable* sctable;
+    unique_ptr<DbTable> sctable;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;
@@ -1294,7 +1289,7 @@ public:
     // session key to protect local storage
     string sessionkey;
 
-    // key protecting non-shareable GPS coordinates in nodes
+    // key protecting non-shareable GPS coordinates in nodes (currently used only by CUv2 in iOS)
     string unshareablekey;
 
     // application key

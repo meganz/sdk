@@ -19,7 +19,7 @@
  * program.
  */
 
-#include "mega/filefingerprint.h"
+#include "mega/filesystem.h"
 #include "mega/serialize64.h"
 #include "mega/base64.h"
 #include "mega/logging.h"

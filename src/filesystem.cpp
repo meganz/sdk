@@ -478,7 +478,7 @@ void FileSystemAccess::normalize(string* filename)
     *filename = std::move(result);
 }
 
-std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(LocalPath& localname)
+std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localname)
 {
     LocalPath s;
     if (getsname(localname, s))
@@ -1005,6 +1005,13 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
         }
     }
     localpath.insert(0, additionalPath.localpath);
+}
+
+LocalPath LocalPath::prependNewWithSeparator(const LocalPath& additionalPath) const
+{
+    LocalPath lp = *this;
+    lp.prependWithSeparator(additionalPath);
+    return lp;
 }
 
 void LocalPath::trimNonDriveTrailingSeparator()

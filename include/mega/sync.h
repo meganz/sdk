@@ -62,6 +62,7 @@ public:
         NodeHandle remoteNode,
         const string& remotePath,
         const fsfp_t localFingerprint,
+        const LocalPath& externalDrivePath,
         const bool enabled = true,
         const Type syncType = TYPE_TWOWAY,
         const SyncError error = NO_SYNC_ERROR,
@@ -216,6 +217,9 @@ public:
 
     MegaClient* client = nullptr;
 
+    // for logging
+    string syncname;
+
     // sync-wide directory notification provider
     std::unique_ptr<DirNotify> dirnotify;
 
@@ -343,13 +347,13 @@ public:
     bool isBackup() const;
 
     // Whether this is a backup sync and it is mirroring.
-    bool isBackupMirroring() const;
+    bool isBackupAndMirroring() const;
 
     // Whether this is a backup sync and it is monitoring.
     bool isBackupMonitoring() const;
 
     // Move the sync into the monitoring state.
-    void backupMonitor();
+    void setBackupMonitoring();
 
     UnifiedSync& mUnifiedSync;
 

@@ -2404,7 +2404,7 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(const LocalPath& path);
-        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal = NULL, MegaRequestListener* listener = NULL);
         void loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
         void closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -2443,8 +2443,6 @@ class MegaApiImpl : public MegaApp
         char *getBlockedPath();
 #endif
 
-        void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
-
         MegaBackup *getBackupByTag(int tag);
         MegaBackup *getBackupByNode(MegaNode *node);
         MegaBackup *getBackupByPath(const char * localPath);
@@ -2470,8 +2468,9 @@ class MegaApiImpl : public MegaApp
         //Filesystem
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
-		int getNumChildFolders(MegaNode* parent);
+        int getNumChildFolders(MegaNode* parent);
         MegaNodeList* getChildren(MegaNode *parent, int order);
+        MegaNodeList* getChildren(MegaNodeList *parentNodes, int order);
         MegaNodeList* getVersions(MegaNode *node);
         int getNumVersions(MegaNode *node);
         bool hasVersions(MegaNode *node);
@@ -2498,6 +2497,8 @@ class MegaApiImpl : public MegaApp
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);
+        bool isPrivateNode(MegaHandle h);
+        bool isForeignNode(MegaHandle h);
         MegaNodeList *getPublicLinks(int order);
         MegaContactRequestList *getIncomingContactRequests();
         MegaContactRequestList *getOutgoingContactRequests();
@@ -2954,7 +2955,7 @@ protected:
         void prelogin_result(int, string*, string*, error) override;
         void login_result(error) override;
         void logout_result(error) override;
-        void userdata_result(string*, string*, string*, error) override;
+        void userdata_result(string*, string*, string*, Error) override;
         void pubkey_result(User *) override;
 
         // ephemeral session creation/resumption result
@@ -3010,7 +3011,7 @@ protected:
         void account_details(AccountDetails*, error) override;
         void querytransferquota_result(int) override;
 
-        void setattr_result(handle, error) override;
+        void setattr_result(handle, Error) override;
         void rename_result(handle, error) override;
         void unlink_result(handle, error) override;
         void unlinkversions_result(error) override;
@@ -3124,7 +3125,6 @@ protected:
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
         void getmegaachievements_result(AchievementsDetails*, error) override;
-        void getwelcomepdf_result(handle, string*, error) override;
         void backgrounduploadurl_result(error, string*) override;
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;
@@ -3182,14 +3182,14 @@ protected:
         void sync_removed(handle backupId) override;
 
         void syncupdate_scanning(bool scanning) override;
-        void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;
-        void syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode) override;
-        void syncupdate_local_file_addition(Sync* sync, LocalNode* localNode, const char *path) override;
-        void syncupdate_local_file_deletion(Sync* sync, LocalNode* localNode) override;
-        void syncupdate_local_file_change(Sync* sync, LocalNode* localNode, const char *path) override;
-        void syncupdate_local_move(Sync* sync, LocalNode* localNode, const char* path) override;
+        void syncupdate_local_folder_addition(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_addition(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_deletion(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_change(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_move(Sync* sync, const LocalPath& oldPath, const LocalPath& newPath) override;
         void syncupdate_get(Sync* sync, Node *node, const char* path) override;
-        void syncupdate_put(Sync* sync, LocalNode *localNode, const char*) override;
+        void syncupdate_put(Sync* sync, const char*) override;
         void syncupdate_remote_file_addition(Sync *sync, Node* n) override;
         void syncupdate_remote_file_deletion(Sync *sync, Node* n) override;
         void syncupdate_remote_folder_addition(Sync *sync, Node* n) override;

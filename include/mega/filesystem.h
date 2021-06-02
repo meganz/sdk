@@ -26,6 +26,7 @@
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"
+#include "filefingerprint.h"
 
 namespace mega {
 
@@ -136,6 +137,7 @@ public:
     void append(const LocalPath& additionalPath);
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways);
     void prependWithSeparator(const LocalPath& additionalPath);
+    LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const;
     void trimNonDriveTrailingSeparator();
     bool findNextSeparator(size_t& separatorBytePos) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
@@ -185,6 +187,13 @@ public:
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
+};
+
+struct NameConflict {
+    string cloudPath;
+    vector<string> clashingCloudNames;
+    LocalPath localPath;
+    vector<LocalPath> clashingLocalNames;
 };
 
 void AddHiddenFileAttribute(mega::LocalPath& path);
@@ -359,13 +368,6 @@ protected:
     virtual void asyncsysopen(AsyncIOContext*);
     virtual void asyncsysread(AsyncIOContext*);
     virtual void asyncsyswrite(AsyncIOContext*);
-};
-
-struct MEGA_API InputStreamAccess
-{
-    virtual m_off_t size() = 0;
-    virtual bool read(byte *, unsigned) = 0;
-    virtual ~InputStreamAccess() { }
 };
 
 class MEGA_API FileInputStream : public InputStreamAccess
@@ -567,7 +569,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     void setdefaultfolderpermissions(int) { }
 
     // convenience function for getting filesystem shortnames
-    std::unique_ptr<LocalPath> fsShortname(LocalPath& localpath);
+    std::unique_ptr<LocalPath> fsShortname(const LocalPath& localpath);
 
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;

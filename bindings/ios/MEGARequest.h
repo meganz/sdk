@@ -61,6 +61,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeEnableSync,
     MEGARequestTypeCopySyncConfig,
     MEGARequestTypeCopyCachedConfig,
+    MEGARequestTypeImportSyncConfigs,
     MEGARequestTypeRemoveSyncs,
     MEGARequestTypePauseTransfers,
     MEGARequestTypeCancelTransfer,

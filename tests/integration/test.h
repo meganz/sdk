@@ -6,6 +6,7 @@
 #include "megafs.h"
 #include "stdfs.h"
 
+std::string logTime();
 
 extern std::string USER_AGENT;
 extern bool gRunningInCI;
@@ -13,7 +14,7 @@ extern bool gTestingInvalidArgs;
 extern bool gResumeSessions;
 extern bool gOutputToCout;
 extern int gFseventsFd;
-std::ostream& out();
+std::ostream& out(bool withTime = true);
 enum { THREADS_PER_MEGACLIENT = 3 };
 
 class TestingWithLogErrorAllowanceGuard
