@@ -6709,7 +6709,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
 
             case MAKENAMEID2('m', 'r'):
                 assert(readingPublicChat);
-                meeting = jsonsc.getint();
+                meeting = jsonsc.getbool();
                 break;
 
             case EOO:
@@ -6753,7 +6753,6 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                     {
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
                     }
-
                     chat->meeting = meeting;
 
                     bool found = false;
@@ -10820,7 +10819,7 @@ void MegaClient::procmcf(JSON *j)
 
                            case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
                                assert(readingPublicChats);
-                               meeting = j->getint();
+                               meeting = j->getbool();
                                break;
 
                             case EOO:
