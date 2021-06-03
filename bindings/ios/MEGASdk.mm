@@ -696,6 +696,11 @@ using namespace mega;
     return self.megaApi->isLoggedIn();
 }
 
+- (BOOL)isGuestMode {
+    if (self.megaApi == nil) return false;
+    return self.megaApi->isGuestMode();
+}
+
 - (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
