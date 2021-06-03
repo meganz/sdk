@@ -6390,6 +6390,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
     this->mPublicChat = publicchat;
     this->mTitle = title ? string(title) : "";
     this->mUnifiedKey = "";
+    mMeeting = meetingRoom;
 
     cmd("mcc");
     arg("g", (group) ? 1 : 0);
@@ -6508,6 +6509,7 @@ bool CommandChatCreate::procresult(Result r)
                         chat->group = group;
                         chat->ts = (ts != -1) ? ts : 0;
                         chat->publicchat = mPublicChat;
+                        chat->meeting = mMeeting;
                         chat->setTag(tag ? tag : -1);
                         if (chat->group && !mTitle.empty())
                         {
