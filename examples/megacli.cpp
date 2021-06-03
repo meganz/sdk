@@ -923,6 +923,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     {
         cout << "\tPublic chat: yes" << endl;
         cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
+        cout << "\tMeeting room: " << ((chat->meeting) ? "yes" : "no") << endl;
     }
     else
     {
@@ -3224,7 +3225,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_chats, sequence(text("chats")));
     p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
     p->Add(exec_chati, sequence(text("chati"), param("chatid"), contactEmail(client), either(text("ro"), text("sta"), text("mod"))));
-    p->Add(exec_chatcp, sequence(text("chatcp"), param("mownkey"), opt(sequence(text("t"), param("title64"))), repeat(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod"))))));
+    p->Add(exec_chatcp, sequence(text("chatcp"), flag("-meeting"), param("mownkey"), opt(sequence(text("t"), param("title64"))),
+                                 repeat(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod"))))));
     p->Add(exec_chatr, sequence(text("chatr"), param("chatid"), opt(contactEmail(client))));
     p->Add(exec_chatu, sequence(text("chatu"), param("chatid")));
     p->Add(exec_chatup, sequence(text("chatup"), param("chatid"), param("userhandle"), either(text("ro"), text("sta"), text("mod"))));
@@ -6108,6 +6110,7 @@ void exec_chatlj(autocomplete::ACState& s)
 
 void exec_chatcp(autocomplete::ACState& s)
 {
+    bool meeting = s.extractflag("-meeting");
     size_t wordscount = s.words.size();
     userpriv_vector *userpriv = new userpriv_vector;
     string_map *userkeymap = new string_map;
@@ -6186,7 +6189,7 @@ void exec_chatcp(autocomplete::ACState& s)
     Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
     ownHandleB64[11] = '\0';
     userkeymap->insert(std::pair<string, string>(ownHandleB64, mownkey));
-    client->createChat(true, true, userpriv, userkeymap, title);
+    client->createChat(true, true, userpriv, userkeymap, title, meeting);
     delete userpriv;
     delete userkeymap;
 }
