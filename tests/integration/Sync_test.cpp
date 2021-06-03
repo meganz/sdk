@@ -4448,7 +4448,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
 
 #endif
 
-TEST(Sync, BasicSync_NewVersionsCreatedWhenFilesModified)
+TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
 {
     // Convenience.
     using FileFingerprintPtr = unique_ptr<FileFingerprint>;
@@ -4564,7 +4564,7 @@ TEST(Sync, BasicSync_NewVersionsCreatedWhenFilesModified)
     ASSERT_TRUE(matched);
 }
 
-TEST(Sync, BasicSync_ClientToSDKConfigMigration)
+TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = std::chrono::seconds(4);
@@ -4662,7 +4662,7 @@ TEST(Sync, BasicSync_ClientToSDKConfigMigration)
 }
 
 /*
-TEST(Sync, DetectsAndReportsNameClashes)
+TEST_F(SyncTest, DetectsAndReportsNameClashes)
 {
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -4786,7 +4786,7 @@ TEST(Sync, DetectsAndReportsNameClashes)
 */
 
 // TODO: re-enable after sync rework is merged
-TEST(Sync, DISABLED_DoesntDownloadFilesWithClashingNames)
+TEST_F(SyncTest, DISABLED_DoesntDownloadFilesWithClashingNames)
 {
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -4886,7 +4886,7 @@ TEST(Sync, DISABLED_DoesntDownloadFilesWithClashingNames)
 }
 
 // TODO: re-enable after sync rework is merged
-TEST(Sync, DISABLED_DoesntUploadFilesWithClashingNames)
+TEST_F(SyncTest, DISABLED_DoesntUploadFilesWithClashingNames)
 {
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -4958,7 +4958,7 @@ TEST(Sync, DISABLED_DoesntUploadFilesWithClashingNames)
     ASSERT_TRUE(cu.confirmModel_mainthread(model.findnode("root"), backupId2, true));
 }
 
-TEST(Sync, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
+TEST_F(SyncTest, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -5066,7 +5066,7 @@ TEST(Sync, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
 }
 
 // TODO: re-enable after sync rework is merged
-TEST(Sync, DISABLED_RemotesWithEscapesSynchronizeCorrectly)
+TEST_F(SyncTest, DISABLED_RemotesWithEscapesSynchronizeCorrectly)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -5259,7 +5259,7 @@ private:
     string mRemoteRoot;
 }; // AnomalyReporter
 
-TEST(Sync, AnomalousManualDownload)
+TEST_F(SyncTest, AnomalousManualDownload)
 {
     auto TESTROOT = makeNewTestRoot();
     auto TIMEOUT  = chrono::seconds(4);
@@ -5378,7 +5378,7 @@ TEST(Sync, AnomalousManualDownload)
     }
 }
 
-TEST(Sync, AnomalousManualUpload)
+TEST_F(SyncTest, AnomalousManualUpload)
 {
     auto TESTROOT = makeNewTestRoot();
     auto TIMEOUT  = chrono::seconds(4);
@@ -5463,7 +5463,7 @@ TEST(Sync, AnomalousManualUpload)
     }
 }
 
-TEST(Sync, AnomalousSyncDownload)
+TEST_F(SyncTest, AnomalousSyncDownload)
 {
     auto TESTROOT = makeNewTestRoot();
     auto TIMEOUT  = chrono::seconds(4);
@@ -5555,7 +5555,7 @@ TEST(Sync, AnomalousSyncDownload)
     ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
 }
 
-TEST(Sync, AnomalousSyncLocalRename)
+TEST_F(SyncTest, AnomalousSyncLocalRename)
 {
     auto TESTROOT = makeNewTestRoot();
     auto TIMEOUT = chrono::seconds(4);
@@ -5640,7 +5640,7 @@ TEST(Sync, AnomalousSyncLocalRename)
     ASSERT_TRUE(reporter->mAnomalies.empty());
 }
 
-TEST(Sync, AnomalousSyncRemoteRename)
+TEST_F(SyncTest, AnomalousSyncRemoteRename)
 {
     auto TESTROOT = makeNewTestRoot();
     auto TIMEOUT = chrono::seconds(4);
@@ -5733,7 +5733,7 @@ TEST(Sync, AnomalousSyncRemoteRename)
     reporter->mAnomalies.clear();
 }
 
-TEST(Sync, AnomalousSyncUpload)
+TEST_F(SyncTest, AnomalousSyncUpload)
 {
     auto TESTROOT = makeNewTestRoot();
     auto TIMEOUT = chrono::seconds(4);
@@ -5791,7 +5791,7 @@ TEST(Sync, AnomalousSyncUpload)
 
 #undef SEP
 
-TEST(Sync, BasicSyncExportImport)
+TEST_F(SyncTest, BasicSyncExportImport)
 {
     auto TESTROOT = makeNewTestRoot();
     auto TIMEOUT  = chrono::seconds(4);
@@ -5911,7 +5911,7 @@ TEST(Sync, BasicSyncExportImport)
     ASSERT_TRUE(cx->confirmModel_mainthread(model2.root.get(), id2));
 }
 
-TEST(Sync, RenameReplaceFileBetweenSyncs)
+TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -6007,7 +6007,7 @@ TEST(Sync, RenameReplaceFileBetweenSyncs)
     ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
 }
 
-TEST(Sync, RenameReplaceFileWithinSync)
+TEST_F(SyncTest, RenameReplaceFileWithinSync)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -6076,7 +6076,7 @@ TEST(Sync, RenameReplaceFileWithinSync)
 }
 
 // TODO: re-enable after sync rework is merged
-TEST(Sync, DISABLED_RenameReplaceFolderBetweenSyncs)
+TEST_F(SyncTest, DISABLED_RenameReplaceFolderBetweenSyncs)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -6169,7 +6169,7 @@ TEST(Sync, DISABLED_RenameReplaceFolderBetweenSyncs)
     ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
 }
 
-TEST(Sync, RenameReplaceFolderWithinSync)
+TEST_F(SyncTest, RenameReplaceFolderWithinSync)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -6233,7 +6233,7 @@ TEST(Sync, RenameReplaceFolderWithinSync)
     ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
 }
 
-TEST(Sync, DownloadedDirectoriesHaveFilesystemWatch)
+TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -6289,7 +6289,7 @@ TEST(Sync, DownloadedDirectoriesHaveFilesystemWatch)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
-TEST(Sync, FilesystemWatchesPresentAfterResume)
+TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -6360,7 +6360,7 @@ TEST(Sync, FilesystemWatchesPresentAfterResume)
     ASSERT_TRUE(c->confirmModel_mainthread(model.root.get(), id));
 }
 
-TEST(Sync, MoveTargetHasFilesystemWatch)
+TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -6466,7 +6466,7 @@ TEST(Sync, MoveTargetHasFilesystemWatch)
 }
 
 // TODO: re-enable after sync rework is merged
-TEST(Sync, DISABLED_DeleteReplaceReplacementHasFilesystemWatch)
+TEST_F(SyncTest, DISABLED_DeleteReplaceReplacementHasFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -6522,7 +6522,7 @@ TEST(Sync, DISABLED_DeleteReplaceReplacementHasFilesystemWatch)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
-TEST(Sync, RenameReplaceSourceAndTargetHaveFilesystemWatch)
+TEST_F(SyncTest, RenameReplaceSourceAndTargetHaveFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -6599,7 +6599,7 @@ TEST(Sync, RenameReplaceSourceAndTargetHaveFilesystemWatch)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
-TEST(Sync, RenameTargetHasFilesystemWatch)
+TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -6716,7 +6716,7 @@ TEST(Sync, RenameTargetHasFilesystemWatch)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
-TEST(Sync, RootHasFilesystemWatch)
+TEST_F(SyncTest, RootHasFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -7656,7 +7656,7 @@ void CatchupClients(StandardClient* c1, StandardClient* c2 = nullptr, StandardCl
     out() << "Caught up" << endl;
 }
 
-TEST(Sync, TwoWay_Highlevel_Symmetries)
+TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
