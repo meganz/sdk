@@ -15652,13 +15652,22 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
     // save uh and pwcipher for session resumption of ephemeral accounts
-    char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
-    Base64::btoa((byte*) &uh, sizeof uh, buf);
     string sid;
-    sid.append(buf);
-    sid.append("#");
-    Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
-    sid.append(buf);
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
+        Base64::btoa((byte*) &uh, sizeof uh, buf);
+        sid.append(buf);
+        sid.append("#");
+        Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
+        sid.append(buf);
+    }
+    else // ephemeral++
+    {
+        string session;
+        client->dumpsession(session);
+        sid = Base64::btoa(session);
+    }
     request->setSessionKey(sid.c_str());
 
     // chain a fetchnodes to get waitlink for ephemeral account
@@ -20671,8 +20680,8 @@ void MegaApiImpl::sendPendingRequests()
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == MegaApi::RESUME_ACCOUNT);   // resume existing ephemeral account
             bool cancelProcess = (request->getParamType() == MegaApi::CANCEL_ACCOUNT);
-            bool createEphemeralPlusPlus = (request->getParamType() == MegaApi::CREATE_EPLUSPLUS_ACCOUNT);   // resume existing ephemeral++ account
-            bool resumeEphemeralPlusPlus = (request->getParamType() == MegaApi::RESUME_EPLUSPLUS_ACCOUNT);  // create account, but ephemeral++
+            bool createEphemeralPlusPlus = (request->getParamType() == MegaApi::CREATE_EPLUSPLUS_ACCOUNT);   // create ephemeral++ account
+            bool resumeEphemeralPlusPlus = (request->getParamType() == MegaApi::RESUME_EPLUSPLUS_ACCOUNT);   // resume existing ephemeral++ account
             handle lastPublicHandle = request->getNodeHandle();
             int lastPublicHandleType = request->getAccess();
             int64_t lastAccessTimestamp =request->getTransferredBytes();
