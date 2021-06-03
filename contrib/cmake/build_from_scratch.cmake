@@ -1,9 +1,16 @@
 #[[
-    Run this file from its current folder in script mode, with triplet as a parameter:
-        cmake -P build_from_scratch.cmake <triplet>
-    It will set up and build 3rdparty in a folder next to the SDK repo, and also
-    build the SDK against those 3rd party libraries.
-    pdfium must be supplied manually, or it can be commented out in preferred-ports-sdk.txt
+    Run this file from its current folder in script mode, with triplet as a defined parameter:
+	
+        cmake -DTRIPLET=<triplet> [-DEXTRA_ARGS=<>] [-DTARGET=<target>[;<targets>...] ] -P build_from_scratch.cmake
+		
+	eg, for getting started on windows:
+	
+		cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
+		
+    It will set up and build 3rdparty dependencies in a folder next to the SDK folder, and also
+    set up the project (Visual Studio on Windows) and bulid it in an SDK subfolder "build-<triplet>"
+    
+	Pdfium is one third party library dependency whose source must be fetched manually, see 3rdparty_deps.txt.
 ]]
 
 function(usage_exit err_msg)
@@ -21,11 +28,18 @@ if(NOT EXISTS "${_script_cwd}/${_prog_name}")
     usage_exit("Script was not run from its containing directory")
 endif()
 
-if(NOT CMAKE_ARGV3)
+if(NOT TRIPLET)
     usage_exit("Triplet was not provided")
 endif()
 
-set(_triplet ${CMAKE_ARGV3})
+if(NOT EXTRA_ARGS)
+	message(STATUS "No extra args")
+else()
+    set(_extra_cmake_args ${EXTRA_ARGS})
+	message(STATUS "Applying extra args: ${EXTRA_ARGS}")
+endif()
+
+set(_triplet ${TRIPLET})
 set(_sdk_dir "${_script_cwd}/../..")
 
 message(STATUS "Building for triplet ${_triplet} with SDK dir ${_sdk_dir}")
@@ -134,7 +148,7 @@ set(_common_cmake_args
 
 if(WIN32)
     if(_triplet MATCHES "staticdev$")
-        set(_extra_cmake_args -DMEGA_LINK_DYNAMIC_CRT=0 -DUNCHECKED_ITERATORS=1)
+        set(_extra_cmake_args ${_extra_cmake_args} -DMEGA_LINK_DYNAMIC_CRT=0 -DUNCHECKED_ITERATORS=1)
     endif()
 
     if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x86")
@@ -174,6 +188,7 @@ else()
         execute_checked_command(
             COMMAND ${_cmake}
                 ${_common_cmake_args}
+				${_extra_cmake_args}
                 -B ${_build_dir}
                 "-DCMAKE_BUILD_TYPE=${_config}"
         )

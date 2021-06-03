@@ -52,42 +52,14 @@ Some dependencies are different for each platform because the SDK uses generic i
 This is the method that works for Windows - it also works for other platforms (and for those, autotools is also an option).
 We use vcpkg, cmake, and provide scripts to build the 3rd party libraries and set up the project.
 
-#### Build 3rdParty Dependencies with vcpkg
-* Consult contrib\cmake\3rdparty_deps.txt to see dependencies and enable/disable a particular package.
-* Your 3rdParty library builds should be outside the SDK repo. You can use the same 3rdParty folder for other mega components, e.g., megasync, etc..
-* To build the 3rdParty libraries with vcpkg, you can start like this:
-	* mkdir 3rdParty
-	* cd 3rdParty
-	* git clone https://github.com/Microsoft/vcpkg.git
-	* cd vcpkg
-	* .\bootstrap-vcpkg.bat -disableMetrics      (Windows)
-	* ./bootstrap-vcpkg.sh -disableMetrics       (Posix)
-* Edit triplet configuration as required in the SDK: 
-	* contrib\cmake\vcpkg_extra_triplets\<x64-windows-mega-staticdev.cmake/x64-windows-mega.cmake/x86-windows-mega.cmake>   (Windows)
-	* contrib/cmake/vcpkg_extra_triplets/<x64-linux>     (Linux)
-* Fix compiler and toolset selection. 
-	* Just comment them if you only have one VS installed.  (Windows)
-* Run the SDK's batch file from vcpkg folder, check options first
-	* ..\..\sdk\contrib\cmake\build3rdparty.cmd -o x64-windows-mega     (Windows)
-	* ../../sdk/contrib/cmake/build3rdparty.bash x64-linux              (Posix - adjust per platform)
-
-#### Building SDK with cmake + your favourite build system
-Once the 3rdParty dependencies are built, you can start building your SDK as follows:
-* Download and install CMake from https://cmake.org/download/. Mininimum required version is 3.15
-* cd contrib\cmake
-* mkdir cmake-build-x64 (folder names matching pattern cmake-build-* in contrib/cmake are ignored by git)
-* cd cmake-build-x64
-* Run CMake-gui from this folder:   cmake-gui ..  (Windows)
-	* Click "Configure"
-	* Choose your compiler etc if it prompts for that (Choose the same compiler and configurations used to generate 3rdParty)
-	* Set your options and flags (though the defaults should be fine for just SDK), e.g., USE_FREEIMAGE == 0
-	* Make sure UNCHECKED_ITERATORS matches the setting used in your 3rdparty (for debug, off is faster, but that can't be turned off if using Qt)
-	* Click "Configure" again, and then "Generate"
-	* Click "Open Project" to start Visual Studio with that .sln
-* Run ccmake from this folder:   ccmake ..  (Posix)
-	* Adjust options in ccmake in a similar way as above, using ccmake's text interface
-	* Run cmake to generate projects.
-	* Run make to actually build.   (or whichever build system you selected, eg XCode on Mac)
+#### Build the SDK and 3rdParty Dependencies with vcpkg + cmake
+* The steps to do so are already prepared in the build_from_scratch.cmake script.  It contains instructions too.
+* To get started with it, eg for windows, follow these steps:
+	* mkdir mybuild
+	* cd mybuild
+	* git clone https://github.com/meganz/sdk.git
+	* cd sdk\contrib\cmake
+	* cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
 
 ### Building with POSIX Autotools  (Linux/Darwin/BSD/OSX ...)
 
