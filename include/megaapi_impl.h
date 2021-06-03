@@ -83,9 +83,7 @@ class MegaThread : public CppThread {};
 class MegaSemaphore : public CppSemaphore {};
 #endif
 
-#ifdef USE_QT
-class MegaGfxProc : public GfxProcQT {};
-#elif USE_FREEIMAGE
+#if USE_FREEIMAGE
 class MegaGfxProc : public GfxProcFreeImage {};
 #elif TARGET_OS_IPHONE
 class MegaGfxProc : public GfxProcCG {};

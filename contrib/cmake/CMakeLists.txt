@@ -694,7 +694,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/win32/megawaiter.h
             ${MegaDir}/include/mega/mega_dict-src.h
             ${MegaDir}/include/mega/gfx/GfxProcCG.h
-            ${MegaDir}/include/mega/gfx/qt.h
             ${MegaDir}/include/mega/gfx/freeimage.h
             ${MegaDir}/include/mega/gfx/gfx_pdfium.h
             ${MegaDir}/include/mega/gfx/external.h
@@ -774,7 +773,6 @@ add_library(Mega STATIC
             ${WIN_EXTRA_INCLUDE}
             ${MACOS_EXTRA_INCLUDE}
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp>
-            $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
             $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
             $<${USE_ROTATIVEPERFORMANCELOGGER}:${MegaDir}/src/rotativeperformancelogger.cpp >
             $<${USE_DRIVE_NOTIFICATIONS}:${MegaDir}/src/drivenotify.cpp>
