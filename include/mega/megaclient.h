@@ -1350,7 +1350,7 @@ public:
     // session key to protect local storage
     string sessionkey;
 
-    // key protecting non-shareable GPS coordinates in nodes
+    // key protecting non-shareable GPS coordinates in nodes (currently used only by CUv2 in iOS)
     string unshareablekey;
 
     // application key

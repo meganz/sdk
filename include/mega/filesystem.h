@@ -188,17 +188,6 @@ public:
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
-
-    //// Escape-aware comparators.
-    //int compare(const LocalPath& rhs, bool leftUnescaped, bool rightUnescaped) const;
-    //int compare(const string& rhs, bool leftUnescaped, bool rightUnescaped) const;
-
-    //int ciCompare(const LocalPath& rhs, bool leftUnescaped, bool rightUnescaped) const;
-    //int ciCompare(const string& rhs, bool leftUnescaped, bool rightUnescaped) const;
-
-    //// Escape and filesystem-aware comparators.
-    //int fsCompare(const LocalPath& rhs, bool leftUnescaped, bool rightUnescaped, FileSystemType fsType) const;
-    //int fsCompare(const string& rhs, bool leftUnescaped, bool rightUnescaped, FileSystemType fsType) const;
 };
 
 struct NameConflict {
@@ -207,7 +196,6 @@ struct NameConflict {
     LocalPath localPath;
     vector<LocalPath> clashingLocalNames;
 };
-
 
 void AddHiddenFileAttribute(mega::LocalPath& path);
 void RemoveHiddenFileAttribute(mega::LocalPath& path);

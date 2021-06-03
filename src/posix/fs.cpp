@@ -759,7 +759,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
         if (ioctl(fd, FSEVENTS_CLONE, (char*)&fca) >= 0)
         {
-            close(fd);
+            if (fseventsfd < 0) close(fd);
 
             if (ioctl(notifyfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
             {
@@ -772,7 +772,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
         }
         else
         {
-            close(fd);
+            if (fseventsfd < 0) close(fd);
         }
     }
 #else

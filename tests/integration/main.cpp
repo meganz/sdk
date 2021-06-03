@@ -15,6 +15,7 @@ bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
+int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 std::ofstream gUnopenedOfstream;
@@ -149,7 +150,7 @@ int main (int argc, char *argv[])
             USER_AGENT = std::string(*it).substr(12);
             argc -= 1;
         }
-        else if (std::string(*it).substr(0, 12) == "--COUT")
+        else if (std::string(*it) == "--COUT")
         {
             gOutputToCout = true;
             argc -= 1;
@@ -164,6 +165,19 @@ int main (int argc, char *argv[])
             gResumeSessions = true;
             argc -= 1;
         }
+#ifdef __APPLE__
+        else if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
+        {
+            int fseventsFd = std::stoi(std::string(*it).substr(13));
+            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
+                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
+                return 1;
+            }
+
+            gFseventsFd = fseventsFd;
+            argc -= 1;
+        }
+#endif
         else
         {
             myargv2.push_back(*it);
@@ -293,3 +307,4 @@ fs::path makeNewTestRoot()
     assert(b);
     return p;
 }
+

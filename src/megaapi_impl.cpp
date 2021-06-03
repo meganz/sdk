@@ -6271,6 +6271,7 @@ void MegaApiImpl::createAccount(const char* email, const char* password, const c
     request->setNodeHandle(lastPublicHandle);
     request->setAccess(lastPublicHandleType);
     request->setTransferredBytes(lastAccessTimestamp);
+    request->setParamType(MegaApi::CREATE_ACCOUNT);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6280,7 +6281,7 @@ void MegaApiImpl::createEphemeralAccountPlusPlus(const char *firstname, const ch
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setName(firstname);
     request->setText(lastname);
-    request->setParamType(3);
+    request->setParamType(MegaApi::CREATE_EPLUSPLUS_ACCOUNT);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6289,7 +6290,7 @@ void MegaApiImpl::resumeCreateAccount(const char *sid, MegaRequestListener *list
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setSessionKey(sid);
-    request->setParamType(1);
+    request->setParamType(MegaApi::RESUME_ACCOUNT);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6298,7 +6299,7 @@ void MegaApiImpl::resumeCreateAccountEphemeralPlusPlus(const char *sid, MegaRequ
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setSessionKey(sid);
-    request->setParamType(4);
+    request->setParamType(MegaApi::RESUME_EPLUSPLUS_ACCOUNT);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6306,7 +6307,7 @@ void MegaApiImpl::resumeCreateAccountEphemeralPlusPlus(const char *sid, MegaRequ
 void MegaApiImpl::cancelCreateAccount(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
-    request->setParamType(2);
+    request->setParamType(MegaApi::CANCEL_ACCOUNT);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13901,7 +13902,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     }
     else    // TYPE_CREATE_ACCOUNT
     {
-        if (e != API_OK || request->getParamType() == 1)   // resuming ephemeral session
+        if (e != API_OK || request->getParamType() == MegaApi::RESUME_ACCOUNT)   // resuming ephemeral session
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             return;
@@ -13925,7 +13926,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             client->reqtag = creqtag;   // restore current reqtag, for future requests
 
             // Ephemeral++ don't have an email when account is created, so cannot send a signup link -> account is ready
-            if (request->getParamType() == 3)   // 3 -> creation of account E++
+            if (request->getParamType() == MegaApi::CREATE_EPLUSPLUS_ACCOUNT)   // creation of account E++
             {
                 // import the PDF silently... (not chained)
                 client->getwelcomepdf();
@@ -15704,13 +15705,22 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
     // save uh and pwcipher for session resumption of ephemeral accounts
-    char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
-    Base64::btoa((byte*) &uh, sizeof uh, buf);
     string sid;
-    sid.append(buf);
-    sid.append("#");
-    Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
-    sid.append(buf);
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
+        Base64::btoa((byte*) &uh, sizeof uh, buf);
+        sid.append(buf);
+        sid.append("#");
+        Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
+        sid.append(buf);
+    }
+    else // ephemeral++
+    {
+        string session;
+        client->dumpsession(session);
+        sid = Base64::btoa(session);
+    }
     request->setSessionKey(sid.c_str());
 
     // chain a fetchnodes to get waitlink for ephemeral account
@@ -16106,7 +16116,7 @@ void MegaApiImpl::sendsignuplink_result(error e)
                     (request->getType() != MegaRequest::TYPE_SEND_SIGNUP_LINK))) return;
 
     if ((request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
-            && (e == API_OK) && (request->getParamType() == 0))   // new account has been created
+            && (e == API_OK) && (request->getParamType() == MegaApi::CREATE_ACCOUNT))   // new account has been created
     {
         // import the PDF silently... (not chained)
         client->getwelcomepdf();
@@ -20721,10 +20731,10 @@ void MegaApiImpl::sendPendingRequests()
             const char *lastname = request->getText();
             const char *pwkey = request->getPrivateKey();
             const char *sid = request->getSessionKey();
-            bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
-            bool cancelProcess = (request->getParamType() == 2);
-            bool createEphemeralPlusPlus = (request->getParamType() == 3);   // resume existing ephemeral++ account
-            bool resumeEphemeralPlusPlus = (request->getParamType() == 4);  // create account, but ephemeral++
+            bool resumeProcess = (request->getParamType() == MegaApi::RESUME_ACCOUNT);   // resume existing ephemeral account
+            bool cancelProcess = (request->getParamType() == MegaApi::CANCEL_ACCOUNT);
+            bool createEphemeralPlusPlus = (request->getParamType() == MegaApi::CREATE_EPLUSPLUS_ACCOUNT);   // create ephemeral++ account
+            bool resumeEphemeralPlusPlus = (request->getParamType() == MegaApi::RESUME_EPLUSPLUS_ACCOUNT);   // resume existing ephemeral++ account
             handle lastPublicHandle = request->getNodeHandle();
             int lastPublicHandleType = request->getAccess();
             int64_t lastAccessTimestamp =request->getTransferredBytes();
@@ -20790,6 +20800,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
+                    assert(request->getParamType() == MegaApi::CREATE_ACCOUNT);
                     client->createephemeral();
                 }
             }
