@@ -578,9 +578,9 @@ public:
 
 //    void setnotseen(int);
 
-    void setfsid(handle newfsid, fsid_localnode_map& fsidnodes);
+    void setfsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
 
-    void setSyncedNodeHandle(NodeHandle h);
+    void setSyncedNodeHandle(NodeHandle h, const string& cloudName);
 
     void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>, bool applyToCloud);
     void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain);

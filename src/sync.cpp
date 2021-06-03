@@ -717,7 +717,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
 
     localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
-    localroot->setSyncedNodeHandle(remotenode->nodeHandle());
+    localroot->setSyncedNodeHandle(remotenode->nodeHandle(), remotenode->displayname());
     localroot->setScanAgain(false, true, true, 0);
     localroot->setCheckMovesAgain(false, true, true);
     localroot->setSyncAgain(false, true, true);
@@ -974,8 +974,8 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 
         l->parent_dbid = parent_dbid;
         l->syncedFingerprint.size = size;
-        l->setfsid(fsid, client->localnodeByFsid);
-        l->setSyncedNodeHandle(l->syncedCloudNodeHandle);
+        l->setfsid(fsid, client->localnodeByFsid, l->localname);
+        l->setSyncedNodeHandle(l->syncedCloudNodeHandle, l->name);
 
         if (!l->slocalname_in_db)
         {
@@ -990,6 +990,9 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         {
             addstatecachechildren(l->dbid, tmap, localpath, l, maxdepth - 1);
         }
+
+        assert(l->localname.empty() || l->name.empty() || parent_dbid == UNDEF ||
+            0 == compareUtf(l->localname, true, l->name, false, true));
     }
 }
 
@@ -1545,8 +1548,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
 
                     // remove fsid (and handle) from source node, so we don't detect
                     // that as a move source anymore
-                    sourceLocalNode->setfsid(UNDEF, client->localnodeByFsid);
-                    sourceLocalNode->setSyncedNodeHandle(NodeHandle());
+                    sourceLocalNode->setfsid(UNDEF, client->localnodeByFsid, sourceLocalNode->localname);
+                    sourceLocalNode->setSyncedNodeHandle(NodeHandle(), sourceLocalNode->name);
 
                     // Move all the LocalNodes under the source node to the new location
                     // We can't move the source node itself as the recursive callers may be using it
@@ -1857,8 +1860,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
 
             // remove fsid (and handle) from source node, so we don't detect
             // that as a move source anymore
-            sourceLocalNode->setfsid(UNDEF, client->localnodeByFsid);
-            sourceLocalNode->setSyncedNodeHandle(NodeHandle());
+            sourceLocalNode->setfsid(UNDEF, client->localnodeByFsid, sourceLocalNode->localname);
+            sourceLocalNode->setSyncedNodeHandle(NodeHandle(), sourceLocalNode->name);
 
             sourceLocalNode->moveContentTo(row.syncNode, fullPath, true);
             sourceLocalNode->moveAppliedToLocal = true;
@@ -4207,11 +4210,10 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                 {
                     if (ourScanRequest == mActiveScanRequest) mActiveScanRequest.reset();
 
-                    LOG_verbose << "Received scan results for: " << fullPath.toPath(*client->fsaccess);
                     node.scanInProgress = false;
-                    if (node.scanObsolete)   // TODO: also consider obsolete if the results are more than 10 seconds old - eg a folder scanned but stuck (unvisitable) behind something unresolvable for hours
+                    if (node.scanObsolete)   // TODO: also consider obsolete if the results are more than 10 seconds old - eg a folder scanned but stuck (unvisitable) behind something unresolvable for hours.  Or if fsid of the folder was not a match after the scan
                     {
-                        LOG_verbose << "Scan outdated for : " << fullPath.toPath(*client->fsaccess);
+                        LOG_verbose << "Directory scan outdated for : " << fullPath.toPath(*client->fsaccess);
                         node.scanObsolete = false;
                         node.scanInProgress = false;
                         syncHere = false;
@@ -4221,6 +4223,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                     {
                         node.lastFolderScan.reset(
                             new vector<FSNode>(ourScanRequest->results()));
+
+                        LOG_verbose << "Received " << node.lastFolderScan->size() << " directory scan results for: " << fullPath.toPath(*client->fsaccess);
 
                         node.scanDelayUntil = Waiter::ds + 20; // don't scan too frequently
                         row.syncNode->scanAgain = TREE_RESOLVED;
@@ -4318,6 +4322,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             childRow.fsSiblings = effectiveFsChildren;
             childRow.rowSiblings = &childRows;
 
+            assert(!row.syncNode || row.syncNode->localname.empty() || row.syncNode->name.empty() || !row.syncNode->parent ||
+                   0 == compareUtf(row.syncNode->localname, true, row.syncNode->name, false, true));
+
             ScopedLengthRestore restoreLen(fullPath);
             if (childRow.fsNode)
             {
@@ -4360,7 +4367,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                 {
                     if (fsnode && syncEqual(*fsnode, *localnode))
                     {
-                        localnode->setfsid(fsnode->fsid, client->localnodeByFsid);
+                        localnode->setfsid(fsnode->fsid, client->localnodeByFsid, fsnode->localname);
                         statecacheadd(localnode);
                     }
                 }
@@ -4660,21 +4667,19 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
                     }
 
                     // these comparisons may need to be adjusted for UTF, escapes
-                    if (!(row.syncNode->localname == row.fsNode->localname))
-                    {
-                        assert(row.syncNode->localname == row.fsNode->localname);
-                    }
-                    if (!(row.syncNode->name == row.cloudNode->displayname()))
-                    {
-                        assert(row.syncNode->name == row.cloudNode->displayname());
-                    }
+                    assert(row.syncNode->fsid != row.fsNode->fsid || row.syncNode->localname == row.fsNode->localname);
+                    assert(row.syncNode->fsid == row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
+                    assert(row.syncNode->syncedCloudNodeHandle != row.cloudNode->nodeHandle() || row.syncNode->name == row.cloudNode->displayname());
+                    assert(row.syncNode->syncedCloudNodeHandle == row.cloudNode->nodeHandle() || 0 == compareUtf(row.syncNode->name, true, row.cloudNode->displayname(), true, isCaseInsensitive(mFilesystemType)));
 
                     assert((!!row.syncNode->slocalname == !!row.fsNode->shortname) &&
                            (!row.syncNode->slocalname ||
                            (*row.syncNode->slocalname == *row.fsNode->shortname)));
 
                     if (row.syncNode->fsid != row.fsNode->fsid ||
-                        row.syncNode->syncedCloudNodeHandle != row.cloudNode->nodehandle)
+                        row.syncNode->syncedCloudNodeHandle != row.cloudNode->nodehandle ||
+                        row.syncNode->localname != row.fsNode->localname ||
+                        row.syncNode->name != row.cloudNode->displayname())
                     {
                         LOG_verbose << syncname << "Row is synced, setting fsid and nodehandle" << logTriplet(row, fullPath);
 
@@ -4684,8 +4689,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
                             row.syncNode->setScanAgain(false, true, true, 0);
                         }
 
-                        row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid);
-                        row.syncNode->setSyncedNodeHandle(row.cloudNode->nodeHandle());
+                        row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid, row.fsNode->localname);
+                        row.syncNode->setSyncedNodeHandle(row.cloudNode->nodeHandle(), row.cloudNode->displayname());
 
                         row.syncNode->treestate(TREESTATE_SYNCED);
 
@@ -4820,7 +4825,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
 
     if (considerSynced)
     {
-        row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid);
+        row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid, row.fsNode->localname);
         row.syncNode->treestate(TREESTATE_SYNCED);
     }
     else
@@ -4856,7 +4861,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Loca
     row.syncNode->init(this, row.cloudNode->type, parentRow.syncNode, fullPath, nullptr);
     if (considerSynced)
     {
-        row.syncNode->setSyncedNodeHandle(row.cloudNode->nodeHandle());
+        row.syncNode->setSyncedNodeHandle(row.cloudNode->nodeHandle(), row.cloudNode->displayname());
         row.syncNode->treestate(TREESTATE_SYNCED);
     }
     else
@@ -5102,7 +5107,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
 
                     row.syncNode->localname = fsnode->localname;
                     row.syncNode->slocalname = fsnode->cloneShortname();
-                    row.syncNode->setfsid(fsnode->fsid, client->localnodeByFsid);
+                    row.syncNode->setfsid(fsnode->fsid, client->localnodeByFsid, fsnode->localname);
                     statecacheadd(row.syncNode);
 
                     // Mark other nodes with this FSID as having their FSID reused.

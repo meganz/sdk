@@ -9105,7 +9105,7 @@ void exec_synclist(autocomplete::ACState& s)
                << "\n";
 
             list<NameConflict> conflicts;
-            if (sync->recursiveCollectNameConflicts(conflicts))
+            if (sync && sync->recursiveCollectNameConflicts(conflicts))
             {
                 for (auto& c : conflicts)
                 {

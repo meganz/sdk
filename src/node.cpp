@@ -1409,7 +1409,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
-        name = localname.toPath(*sync->client->fsaccess);
+        name = localname.toName(*sync->client->fsaccess);
     }
 
 //#ifdef DEBUG
@@ -1470,7 +1470,7 @@ void LocalNode::init(const FSNode& fsNode)
     syncedFingerprint = fsNode.fingerprint;
 
     // Update our FSID.
-    setfsid(fsNode.fsid, sync->client->localnodeByFsid);
+    setfsid(fsNode.fsid, sync->client->localnodeByFsid, fsNode.localname);
 
     // Update our type.
     type = fsNode.type;
@@ -1731,13 +1731,13 @@ treestate_t LocalNode::checkstate()
 
 
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
-void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes)
+void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName)
 {
     assert(sync && sync->client);
 
     if (fsid_it != fsidnodes.end())
     {
-        if (newfsid == fsid)
+        if (newfsid == fsid && localname == fsName)
         {
             return;
         }
@@ -1748,6 +1748,9 @@ void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes)
     fsid = newfsid;
     fsidReused = false;
 
+    // if synced to fs, localname should match exactly (no differences in case/escaping etc)
+    localname = fsName;
+
     if (fsid == UNDEF)
     {
         fsid_it = fsidnodes.end();
@@ -1756,15 +1759,18 @@ void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes)
     {
         fsid_it = fsidnodes.insert(std::make_pair(fsid, this));
     }
+
+    assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
+        0 == compareUtf(localname, true, name, false, true));
 }
 
-void LocalNode::setSyncedNodeHandle(NodeHandle h)
+void LocalNode::setSyncedNodeHandle(NodeHandle h, const string& cloudName)
 {
     assert(sync && sync->client);
 
     if (syncedCloudNodeHandle_it != sync->client->localnodeByNodeHandle.end())
     {
-        if (h == syncedCloudNodeHandle)
+        if (h == syncedCloudNodeHandle && name == cloudName)
         {
             return;
         }
@@ -1778,6 +1784,9 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h)
 
     syncedCloudNodeHandle = h;
 
+    // if synced to cloud, name should match exactly (no differences in case/escaping etc)
+    name = cloudName;
+
     if (syncedCloudNodeHandle == UNDEF)
     {
         syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
@@ -1788,6 +1797,9 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h)
 
         syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.insert(std::make_pair(syncedCloudNodeHandle, this));
     }
+
+    assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
+        0 == compareUtf(localname, true, name, false, true));
 }
 
 LocalNode::~LocalNode()

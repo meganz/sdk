@@ -277,6 +277,7 @@ public:
     bool eq(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
     bool eq(handle b) const { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
     bool ne(handle b) const { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    bool ne(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) != (b.h & 0xFFFFFFFFFFFF); }
     bool operator<(const NodeHandle& rhs) const { return h < rhs.h; }
     handle as8byte() const { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
 };
@@ -284,6 +285,7 @@ public:
 inline bool operator==(NodeHandle a, NodeHandle b) { return a.eq(b); }
 inline bool operator==(NodeHandle a, handle b) { return a.eq(b); }
 inline bool operator!=(NodeHandle a, handle b) { return a.ne(b); }
+inline bool operator!=(NodeHandle a, NodeHandle b) { return a.ne(b); }
 std::ostream& operator<<(std::ostream&, NodeHandle h);
 
 // (can use unordered_set if available)
