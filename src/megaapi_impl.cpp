@@ -5425,7 +5425,7 @@ int MegaApiImpl::isLoggedIn()
     return result;
 }
 
-bool MegaApiImpl::isGuessMode()
+bool MegaApiImpl::isGuestMode()
 {
     return isLoggedIn() == EPHEMERALACCOUNTPLUSPLUS;
 }
