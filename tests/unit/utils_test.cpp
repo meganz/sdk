@@ -63,7 +63,7 @@ TEST(utils, hashCombine_integer)
 //    ASSERT_EQ(name, "%00%07%00%07%%31");
 //}
 
-TEST(Filesystem, ControlCharactersRemainEscapedOnlyWhenNecessary)
+TEST(Filesystem, DISABLED_ControlCharactersRemainEscapedOnlyWhenNecessary)
 {
     using namespace mega;
 
@@ -120,7 +120,7 @@ TEST(Filesystem, EscapesControlCharactersIfNecessary)
     }
 }
 
-TEST(Filesystem, EscapesPercentOnlyIfNotEncodingControlCharacter)
+TEST(Filesystem, DISABLED_EscapesPercentOnlyIfNotEncodingControlCharacter)
 {
     using namespace mega;
 
@@ -180,7 +180,7 @@ TEST(Filesystem, UnescapesEscapedCharacters)
     ASSERT_STREQ(name.c_str(), "%\\/:?\"<>|*");
 }
 
-TEST(Filesystem, UnescapeEncodesControlCharacters)
+TEST(Filesystem, DISABLED_UnescapeEncodesControlCharacters)
 {
     using namespace mega;
 
@@ -195,7 +195,7 @@ TEST(Filesystem, UnescapeEncodesControlCharacters)
     ASSERT_EQ(name, "%00%0d%0a");
 }
 
-TEST(Filesystem, UnescapesEscapeWhenNotEncodingControlCharacter)
+TEST(Filesystem, DISABLED_UnescapesEscapeWhenNotEncodingControlCharacter)
 {
     using namespace mega;
 
@@ -213,7 +213,7 @@ TEST(Filesystem, UnescapesEscapeWhenNotEncodingControlCharacter)
 
 TEST(CharacterSet, IterateUtf8)
 {
-    using mega::unicodeCodepointIterator;
+    using ::mega::unicodeCodepointIterator;
 
     // Single code-unit.
     {
@@ -556,7 +556,7 @@ TEST(Conversion, HexVal)
     {
         EXPECT_EQ(hexval(i), i - 0x30);
     }
-    
+
     // Lowercase hexadecimal [a-f]
     for (int i = 0x41; i < 0x47; ++i)
     {
@@ -835,7 +835,7 @@ TEST(Filesystem, isReservedName)
 #ifdef _WIN32
     expected = true;
 #endif // _WIN32
-    
+
     // Representative examples.
     static const string reserved[] = {"AUX", "com1", "LPT4"};
 
@@ -1093,7 +1093,7 @@ TEST_F(SqliteDBTest, RecycleLegacy)
     }
 
     SqliteDbAccess dbAccess(rootPath);
-    
+
     // Assume database is in the current format.
     dbAccess.currentDbVersion = DbAccess::DB_VERSION;
 

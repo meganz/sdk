@@ -106,7 +106,7 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
     auto path = parent.getLocalPath();
     path.appendWithSeparator(::mega::LocalPath::fromPath(tmpname, fsaccess), true);
     l->init(&sync, type, &parent, path, sync.client->fsaccess->fsShortname(path));
-    l->setfsid(nextFsId(), sync.client->localnodeByFsid);
+    l->setfsid(nextFsId(), sync.client->localnodeByFsid, path.leafName());
     l->syncedFingerprint = ffp;
     return l;
 }

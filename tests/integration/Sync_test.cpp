@@ -5040,7 +5040,7 @@ TEST(Sync, DoesntUploadFilesWithClashingNames)
     ASSERT_TRUE(cu.confirmModel_mainthread(model.findnode("root"), backupId2, true));
 }
 
-TEST(Sync, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
+TEST(Sync, RemotesWithControlCharactersSynchronizeCorrectly)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -5401,7 +5401,7 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
 */
 
 // TODO: re-enable after sync rework is merged
-TEST_F(SyncTest, DISABLED_DoesntDownloadFilesWithClashingNames)
+TEST_F(SyncTest, DoesntDownloadFilesWithClashingNames)
 {
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -5501,7 +5501,7 @@ TEST_F(SyncTest, DISABLED_DoesntDownloadFilesWithClashingNames)
 }
 
 // TODO: re-enable after sync rework is merged
-TEST_F(SyncTest, DISABLED_DoesntUploadFilesWithClashingNames)
+TEST_F(SyncTest, DoesntUploadFilesWithClashingNames)
 {
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -5573,7 +5573,7 @@ TEST_F(SyncTest, DISABLED_DoesntUploadFilesWithClashingNames)
     ASSERT_TRUE(cu.confirmModel_mainthread(model.findnode("root"), backupId2, true));
 }
 
-TEST_F(SyncTest, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
+TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -5681,7 +5681,7 @@ TEST_F(SyncTest, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
 }
 
 // TODO: re-enable after sync rework is merged
-TEST_F(SyncTest, DISABLED_RemotesWithEscapesSynchronizeCorrectly)
+TEST_F(SyncTest, RemotesWithEscapesSynchronizeCorrectly)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -7548,7 +7548,7 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
 }
 
 // TODO: re-enable after sync rework is merged
-TEST_F(SyncTest, DISABLED_RenameReplaceFolderBetweenSyncs)
+TEST_F(SyncTest, RenameReplaceFolderBetweenSyncs)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -7938,7 +7938,7 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
 }
 
 // TODO: re-enable after sync rework is merged
-TEST_F(SyncTest, DISABLED_DeleteReplaceReplacementHasFilesystemWatch)
+TEST_F(SyncTest, DeleteReplaceReplacementHasFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
