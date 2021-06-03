@@ -24,7 +24,7 @@ endfunction()
 get_filename_component(_prog_name ${CMAKE_ARGV2} NAME)
 set(_script_cwd ${CMAKE_CURRENT_SOURCE_DIR})
 
-if(NOT EXISTS "${_script_cwd}/${_prog_name}")
+if(NOT EXISTS "${_script_cwd}/build_from_scratch.cmake")
     usage_exit("Script was not run from its containing directory")
 endif()
 
