@@ -766,7 +766,7 @@ struct StandardClient : public MegaApp
     StandardClient(const fs::path& basepath, const string& name)
         : client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
-        , fsaccess(new FSACCESS_CLASS)
+        , fsaccess(new FSACCESS_CLASS(makeFsAccess_<FSACCESS_CLASS>()))
         , client(this,
                  &waiter,
                  httpio.get(),

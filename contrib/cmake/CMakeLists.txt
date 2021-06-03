@@ -918,6 +918,14 @@ add_executable(test_integration
     ${MegaDir}/tests/integration/Sync_test.cpp
 )
 
+if(APPLE)
+    add_executable(test_integration_fsevents_loader 
+        ${MegaDir}/tests/integration/fsevents_loader_main.cpp
+    )
+
+    add_dependencies(test_integration_fsevents_loader test_integration)
+endif()
+
 add_executable(tool_purge_account
     ${MegaDir}/tests/tool/purge_account.cpp
 )
