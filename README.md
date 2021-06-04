@@ -43,8 +43,8 @@ There are two methods - the one we are using now for most platforms is with vcpk
 Some dependencies are different for each platform because the SDK uses generic interfaces to get some features and they have different implementations.
 - Network (cURL with OpenSSL/c-ares or WinHTTP)
 - Filesystem access (Posix or Win32)
-- Graphics management (FreeImage, QT or iOS frameworks)
-- Threads/mutexes (Win32, pthread, QT threads, or C++11)
+- Graphics management (FreeImage or iOS frameworks)
+- Threads/mutexes (pthread threads, or C++11)
 - Drive Notifications (udev for Posix, WMI/WBEM for Win32, or Apple frameworks)
 
 ### Building with vcpkg and cmake 

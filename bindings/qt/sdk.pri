@@ -482,7 +482,6 @@ HEADERS  += include/mega.h \
             include/mega/gfx/external.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \
-            include/mega/thread/qtthread.h \
             include/megaapi.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
@@ -529,18 +528,16 @@ CONFIG(USE_PCRE) {
 
 CONFIG(qt) {
   DEFINES += USE_QT MEGA_QT_LOGGING
-  SOURCES += src/thread/qtthread.cpp
+}
+
+win32 {
+    DEFINES += USE_CPPTHREAD
+    SOURCES += src/thread/cppthread.cpp
 }
 else {
-
-    win32 {
-        SOURCES += src/thread/win32thread.cpp
-    }
-    else {
-        DEFINES += USE_PTHREAD
-        SOURCES += src/thread/posixthread.cpp
-        LIBS += -lpthread
-    }
+    DEFINES += USE_PTHREAD
+    SOURCES += src/thread/posixthread.cpp
+    LIBS += -lpthread
 }
 
 !CONFIG(nofreeimage) {

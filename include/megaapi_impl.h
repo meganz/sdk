@@ -55,7 +55,6 @@
 //Choose one of these options.
 //Otherwise, C++11 threads and mutexes will be used
 //#define USE_PTHREAD
-//#define USE_QT
 
 ////////// Support for thumbnails and previews.
 //If you selected QT for threads and mutexes, it will be also used for thumbnails and previews
@@ -69,15 +68,9 @@
 namespace mega
 {
 
-#ifdef USE_QT
-class MegaThread : public QtThread {};
-class MegaSemaphore : public QtSemaphore {};
-#elif USE_PTHREAD
+#if USE_PTHREAD
 class MegaThread : public PosixThread {};
 class MegaSemaphore : public PosixSemaphore {};
-#elif defined(_WIN32) && !defined(USE_CPPTHREAD) && !defined(WINDOWS_PHONE)
-class MegaThread : public Win32Thread {};
-class MegaSemaphore : public Win32Semaphore {};
 #else
 class MegaThread : public CppThread {};
 class MegaSemaphore : public CppSemaphore {};
