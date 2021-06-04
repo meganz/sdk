@@ -696,9 +696,9 @@ using namespace mega;
     return self.megaApi->isLoggedIn();
 }
 
-- (BOOL)isGuestMode {
+- (BOOL)isEphemeralPlusPlus {
     if (self.megaApi == nil) return false;
-    return self.megaApi->isGuestMode();
+    return self.megaApi->isEphemeralPlusPlus();
 }
 
 - (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {

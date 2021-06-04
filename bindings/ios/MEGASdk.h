@@ -1295,10 +1295,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (NSInteger)isLoggedIn;
 
 /**
- * @brief Check if we are logged in into an Ephemeral account ++ (Guest mode)
+ * @brief Check if we are logged in into an Ephemeral account ++
  * @return true if logged into an Ephemeral account ++, Otherwise return false
  */
-- (BOOL)isGuestMode;
+- (BOOL)isEphemeralPlusPlus;
 
 /**
  * @brief Fetch the filesystem in MEGA.
