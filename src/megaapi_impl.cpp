@@ -5425,7 +5425,7 @@ int MegaApiImpl::isLoggedIn()
     return result;
 }
 
-bool MegaApiImpl::isGuestMode()
+bool MegaApiImpl::isEphemeralPlusPlus()
 {
     return isLoggedIn() == EPHEMERALACCOUNTPLUSPLUS;
 }

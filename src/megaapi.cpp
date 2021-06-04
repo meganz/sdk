@@ -1778,9 +1778,9 @@ int MegaApi::isLoggedIn()
     return pImpl->isLoggedIn();
 }
 
-bool MegaApi::isGuestMode()
+bool MegaApi::isEphemeralPlusPlus()
 {
-    return pImpl->isGuestMode();
+    return pImpl->isEphemeralPlusPlus();
 }
 
 void MegaApi::whyAmIBlocked(MegaRequestListener *listener)

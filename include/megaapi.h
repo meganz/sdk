@@ -9476,10 +9476,10 @@ class MegaApi
         int isLoggedIn();
 
         /**
-         * @brief Check if we are logged in into an Ephemeral account ++ (Guest mode)
+         * @brief Check if we are logged in into an Ephemeral account ++
          * @return true if logged into an Ephemeral account ++, Otherwise return false
          */
-        bool isGuestMode();
+        bool isEphemeralPlusPlus();
 
         /**
          * @brief Check the reason of being blocked.
