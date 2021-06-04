@@ -4068,6 +4068,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
         case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
+        case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
+        case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
     }
     return "UNKNOWN";
 }
