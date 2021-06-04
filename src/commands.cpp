@@ -821,8 +821,8 @@ bool CommandGetFile::procresult(Result r)
                     // cache resolved URLs if received
                     if (tempurls.size() * 2 == tempips.size())
                     {
-                        // TODO: it results in crashes related to cURL. Disabled for v3.8.9a until patched
-                        //client->httpio->cacheresolvedurls(tempurls, move(tempips));
+                        client->httpio->cacheresolvedurls(tempurls, move(tempips));
+                        tempips.clear(); // should never be needed, but can't harm either
                     }
                     else
                     {
@@ -8323,6 +8323,11 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
     if (!fields.deviceId.empty())
     {
         arg("d", fields.deviceId.c_str());
+    }
+
+    if (!ISUNDEF(fields.driveId))
+    {
+        arg("dr",  (byte*)&fields.driveId, MegaClient::DRIVEHANDLE);
     }
 
     if (fields.state >= 0)

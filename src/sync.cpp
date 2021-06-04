@@ -497,22 +497,23 @@ SyncConfig::SyncConfig(LocalPath localPath,
                        NodeHandle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
+                       const LocalPath& externalDrivePath,
                        const bool enabled,
                        const SyncConfig::Type syncType,
                        const SyncError error,
                        const SyncWarning warning,
                        mega::handle hearBeatID)
-    : mEnabled{enabled}
-    , mLocalPath{std::move(localPath)}
-    , mName{std::move(name)}
-    , mRemoteNode{remoteNode}
-    , mOrigninalPathOfRemoteRootNode{remotePath}
-    , mLocalFingerprint{localFingerprint}
-    , mSyncType{syncType}
-    , mError{error}
-    , mWarning{warning}
+    : mEnabled(enabled)
+    , mLocalPath(std::move(localPath))
+    , mName(std::move(name))
+    , mRemoteNode(remoteNode)
+    , mOriginalPathOfRemoteRootNode(remotePath)
+    , mLocalFingerprint(localFingerprint)
+    , mSyncType(syncType)
+    , mError(error)
+    , mWarning(warning)
     , mBackupId(hearBeatID)
-    , mExternalDrivePath()
+    , mExternalDrivePath(externalDrivePath)
     , mBackupState(SYNC_BACKUP_NONE)
 {}
 
@@ -523,7 +524,7 @@ bool SyncConfig::operator==(const SyncConfig& rhs) const
            && mLocalPath == rhs.mLocalPath
            && mName == rhs.mName
            && mRemoteNode == rhs.mRemoteNode
-           && mOrigninalPathOfRemoteRootNode == rhs.mOrigninalPathOfRemoteRootNode
+           && mOriginalPathOfRemoteRootNode == rhs.mOriginalPathOfRemoteRootNode
            && mLocalFingerprint == rhs.mLocalFingerprint
            && mSyncType == rhs.mSyncType
            && mError == rhs.mError
@@ -746,6 +747,30 @@ const char* SyncConfig::synctypename(const SyncConfig::Type type)
     default:
         return "UNKNOWN";
     }
+}
+
+bool SyncConfig::synctypefromname(const string& name, Type& type)
+{
+    if (name == "BACKUP")
+    {
+        return type = TYPE_BACKUP, true;
+    }
+    if (name == "DOWN")
+    {
+        return type = TYPE_DOWN, true;
+    }
+    else if (name == "UP")
+    {
+        return type = TYPE_UP, true;
+    }
+    else if (name == "TWOWAY")
+    {
+        return type = TYPE_TWOWAY, true;
+    }
+
+    assert(!"Unknown sync type name.");
+
+    return false;
 }
 
 // new Syncs are automatically inserted into the session's syncs list
@@ -1755,6 +1780,20 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     // and l->node->parent)
                     it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
 
+                    // Has the move (rename) resulted in a filename anomaly?
+                    if (Node* node = it->second->node)
+                    {
+                        auto type = isFilenameAnomaly(*localpathNew, node);
+
+                        if (type != FILENAME_ANOMALY_NONE)
+                        {
+                            auto localPath = localpathNew->toPath();
+                            auto remotePath = node->displaypath();
+
+                            client->filenameAnomalyDetected(type, localPath, remotePath);
+                        }
+                    }
+
                     // make sure that active PUTs receive their updated filenames
                     client->updateputs();
 
@@ -2211,9 +2250,9 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
     if (n)
     {
         auto newpath = n->displaypath();
-        if (newpath != mConfig.mOrigninalPathOfRemoteRootNode)
+        if (newpath != mConfig.mOriginalPathOfRemoteRootNode)
         {
-            mConfig.mOrigninalPathOfRemoteRootNode = newpath;
+            mConfig.mOriginalPathOfRemoteRootNode = newpath;
             changed = true;
         }
 
@@ -2355,7 +2394,7 @@ Syncs::Syncs(MegaClient& mc)
     mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
 }
 
-SyncConfigVector Syncs::configsForDrive(const LocalPath& drive)
+SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 {
     SyncConfigVector v;
     for (auto& s : mSyncVec)
@@ -2368,7 +2407,7 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive)
     return v;
 }
 
-SyncConfigVector Syncs::allConfigs()
+SyncConfigVector Syncs::allConfigs() const
 {
     SyncConfigVector v;
     for (auto& s : mSyncVec)
@@ -2681,6 +2720,478 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
             << result;
 
     return result;
+}
+
+string Syncs::exportSyncConfigs(const SyncConfigVector configs) const
+{
+    JSONWriter writer;
+
+    writer.beginobject();
+    writer.beginarray("configs");
+
+    for (const auto& config : configs)
+    {
+        exportSyncConfig(writer, config);
+    }
+
+    writer.endarray();
+    writer.endobject();
+
+    return writer.getstring();
+}
+
+string Syncs::exportSyncConfigs() const
+{
+    return exportSyncConfigs(configsForDrive(LocalPath()));
+}
+
+void Syncs::importSyncConfigs(const char* data, std::function<void(error)> completion)
+{
+    // Convenience.
+    struct Context;
+
+    using CompletionFunction = std::function<void(error)>;
+    using ContextPtr = std::shared_ptr<Context>;
+
+    // Bundles state we need to create backup IDs.
+    struct Context
+    {
+        static void put(ContextPtr context)
+        {
+            using std::bind;
+            using std::move;
+            using std::placeholders::_1;
+            using std::placeholders::_2;
+
+            // Convenience.
+            auto& client = *context->mClient;
+            auto& config = *context->mConfig;
+            auto& deviceHash = context->mDeviceHash;
+
+            // Backup Info.
+            auto state = BackupInfoSync::getSyncState(config, &client);
+            auto info  = BackupInfoSync(config, deviceHash, UNDEF, state);
+
+            LOG_debug << "Generating backup ID for config "
+                      << context->signature()
+                      << "...";
+
+            // Completion chain.
+            auto completion = bind(&putComplete, move(context), _1, _2);
+
+            // Create and initiate request.
+            auto* request = new CommandBackupPut(&client, info, move(completion));
+            client.reqs.add(request);
+        }
+
+        static void putComplete(ContextPtr context, Error result, handle backupID)
+        {
+            // No backup ID even though the request succeeded?
+            if (!result && ISUNDEF(result))
+            {
+                // Then we've encountered an internal error.
+                result = API_EINTERNAL;
+            }
+
+            // Convenience;
+            auto& client = *context->mClient;
+
+            // Were we able to create a backup ID?
+            if (result)
+            {
+                LOG_err << "Unable to generate backup ID for config "
+                        << context->signature();
+
+                auto i = context->mConfigs.begin();
+                auto j = context->mConfig;
+
+                // Remove the IDs we've created so far.
+                LOG_debug << "Releasing backup IDs generated so far...";
+
+                for ( ; i != j; ++i)
+                {
+                    auto* request = new CommandBackupRemove(&client, i->mBackupId);
+                    client.reqs.add(request);
+                }
+
+                // Let the client know the import has failed.
+                context->mCompletion(result);
+                return;
+            }
+
+            // Assign the newly generated backup ID.
+            context->mConfig->mBackupId = backupID;
+
+            // Have we assigned IDs for all the syncs?
+            if (++context->mConfig == context->mConfigs.end())
+            {
+                auto& syncs = *context->mSyncs;
+
+                LOG_debug << context->mConfigs.size()
+                          << " backup ID(s) have been generated.";
+
+                LOG_debug << "Importing "
+                          << context->mConfigs.size()
+                          << " configs(s)...";
+
+                // Yep, add them to the sync.
+                for (const auto& config : context->mConfigs)
+                {
+                    syncs.appendNewSync(config, client);
+                }
+                
+                LOG_debug << context->mConfigs.size()
+                          << " sync(s) imported successfully.";
+
+                // Let the client know the import has completed.
+                context->mCompletion(API_OK);
+                return;
+            }
+
+            // Generate an ID for the next config.
+            put(std::move(context));
+        }
+
+        string signature() const
+        {
+            ostringstream ostream;
+
+            ostream << mConfig - mConfigs.begin() + 1
+                    << "/"
+                    << mConfigs.size();
+
+            return ostream.str();
+        }
+
+        // Client.
+        MegaClient* mClient;
+
+        // Who to call back when we're done.
+        CompletionFunction mCompletion;
+
+        // Next config requiring a backup ID.
+        SyncConfigVector::iterator mConfig;
+
+        // Configs requiring a backup ID.
+        SyncConfigVector mConfigs;
+
+        // Identifies the device we're adding configs to.
+        string mDeviceHash;
+
+        // Who we're adding the configs to.
+        Syncs* mSyncs;
+    }; // Context
+
+    // Sanity.
+    if (!data || !*data)
+    {
+        completion(API_EARGS);
+        return;
+    }
+
+    // Try and translate JSON back into sync configs.
+    SyncConfigVector configs;
+
+    if (!importSyncConfigs(data, configs))
+    {
+        // No love. Inform the client.
+        completion(API_EREAD);
+        return;
+    }
+
+    // Create and initialize context.
+    ContextPtr context = make_unique<Context>();
+
+    context->mClient = &mClient;
+    context->mCompletion = std::move(completion);
+    context->mConfigs = std::move(configs);
+    context->mConfig = context->mConfigs.begin();
+    context->mDeviceHash = mClient.getDeviceidHash();
+    context->mSyncs = this;
+
+    LOG_debug << "Attempting to generate backup IDs for "
+              << context->mConfigs.size()
+              << " imported config(s)...";
+
+    // Generate backup IDs.
+    Context::put(std::move(context));
+}
+
+void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
+{
+    // Internal configs only for the time being.
+    if (!config.mExternalDrivePath.empty())
+    {
+        LOG_warn << "Skipping export of external backup: "
+                 << config.mLocalPath.toPath();
+        return;
+    }
+
+    const auto& fsAccess = *mClient.fsaccess;
+
+    string localPath = config.mLocalPath.toPath(fsAccess);
+    string remotePath;
+    const string& name = config.mName;
+    const char* type = SyncConfig::synctypename(config.mSyncType);
+
+    if (const auto* node = mClient.nodeByHandle(config.mRemoteNode))
+    {
+        // Get an accurate remote path, if possible.
+        remotePath = node->displaypath();
+    }
+    else
+    {
+        // Otherwise settle for what we had stored.
+        remotePath = config.mOriginalPathOfRemoteRootNode;
+    }
+
+#ifdef _WIN32
+    // Skip namespace prefix.
+    if (!localPath.compare("\\\\?\\"))
+    {
+        localPath.erase(0, 4);
+    }
+#endif // _WIN32
+
+    writer.beginobject();
+    writer.arg_stringWithEscapes("localPath", localPath);
+    writer.arg_stringWithEscapes("name", name);
+    writer.arg_stringWithEscapes("remotePath", remotePath);
+    writer.arg_stringWithEscapes("type", type);
+    writer.endobject();
+}
+
+bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
+{
+    static const string TYPE_LOCAL_PATH  = "localPath";
+    static const string TYPE_NAME        = "name";
+    static const string TYPE_REMOTE_PATH = "remotePath";
+    static const string TYPE_TYPE        = "type";
+
+    LOG_debug << "Attempting to parse config object: "
+              << reader.pos;
+
+    string localPath;
+    string name;
+    string remotePath;
+    string type;
+
+    // Parse config properties.
+    for (string key; ; )
+    {
+        // What property are we parsing?
+        key = reader.getname();
+
+        // Have we processed all the properties?
+        if (key.empty()) break;
+
+        string value;
+
+        // Extract property value if we can.
+        if (!reader.storeobject(&value))
+        {
+            LOG_err << "Parse error extracting property: "
+                    << key
+                    << ": "
+                    << reader.pos;
+
+            return false;
+        }
+
+        if (key == TYPE_LOCAL_PATH)
+        {
+            localPath = std::move(value);
+        }
+        else if (key == TYPE_NAME)
+        {
+            name = std::move(value);
+        }
+        else if (key == TYPE_REMOTE_PATH)
+        {
+            remotePath = std::move(value);
+        }
+        else if (key == TYPE_TYPE)
+        {
+            type = std::move(value);
+        }
+        else
+        {
+            LOG_debug << "Skipping unknown property: "
+                      << key
+                      << ": "
+                      << value;
+        }
+    }
+
+    // Basic validation on properties.
+    if (localPath.empty())
+    {
+        LOG_err << "Invalid config: no local path defined.";
+        return false;
+    }
+
+    if (name.empty())
+    {
+        LOG_err << "Invalid config: no name defined.";
+        return false;
+    }
+
+    if (remotePath.empty())
+    {
+        LOG_err << "Invalid config: no remote path defined.";
+        return false;
+    }
+
+    reader.unescape(&localPath);
+    reader.unescape(&name);
+    reader.unescape(&remotePath);
+    reader.unescape(&type);
+
+    // Populate config object.
+    config.mBackupId = UNDEF;
+    config.mBackupState = SYNC_BACKUP_NONE;
+    config.mEnabled = false;
+    config.mError = NO_SYNC_ERROR;
+    config.mLocalFingerprint = 0;
+    config.mLocalPath = LocalPath::fromPath(localPath, *mClient.fsaccess);
+    config.mName = std::move(name);
+    config.mOriginalPathOfRemoteRootNode = remotePath;
+    config.mWarning = NO_SYNC_WARNING;
+
+    // Set node handle if possible.
+    if (const auto* root = mClient.nodeByPath(remotePath.c_str()))
+    {
+        config.mRemoteNode = root->nodeHandle();
+    }
+    else
+    {
+        LOG_err << "Invalid config: "
+                << "unable to find node for remote path: "
+                << remotePath;
+
+        return false;
+    }
+
+    // Set type.
+    if (!config.synctypefromname(type, config.mSyncType))
+    {
+        LOG_err << "Invalid config: "
+                << "unknown sync type name: "
+                << type;
+
+        return false;
+    }
+
+    // Config's been parsed.
+    LOG_debug << "Config successfully parsed.";
+
+    return true;
+}
+
+bool Syncs::importSyncConfigs(const char* data, SyncConfigVector& configs)
+{
+    static const string TYPE_CONFIGS = "configs";
+
+    JSON reader(data);
+
+    LOG_debug << "Attempting to import configs from: "
+              << data;
+
+    // Enter configs object.
+    if (!reader.enterobject())
+    {
+        LOG_err << "Parse error entering root object: "
+                << reader.pos;
+
+        return false;
+    }
+
+    // Parse sync configs.
+    for (string key; ; )
+    {
+        // What property are we parsing?
+        key = reader.getname();
+
+        // Is it a property we know about?
+        if (key != TYPE_CONFIGS)
+        {
+            // Have we hit the end of the configs object?
+            if (key.empty()) break;
+
+            // Skip unknown properties.
+            string object;
+
+            if (!reader.storeobject(&object))
+            {
+                LOG_err << "Parse error skipping unknown property: "
+                        << key
+                        << ": "
+                        << reader.pos;
+
+                return false;
+            }
+
+            LOG_debug << "Skipping unknown property: "
+                      << key
+                      << ": "
+                      << object;
+
+            // Parse the next property.
+            continue;
+        }
+
+        LOG_debug << "Found configs property: "
+                  << reader.pos;
+
+        // Enter array of sync configs.
+        if (!reader.enterarray())
+        {
+            LOG_err << "Parse error entering configs array: "
+                    << reader.pos;
+
+            return false;
+        }
+
+        // Parse each sync config object.
+        while (reader.enterobject())
+        {
+            SyncConfig config;
+
+            // Try and parse this sync config object.
+            if (!importSyncConfig(reader, config)) return false;
+
+            if (!reader.leaveobject())
+            {
+                LOG_err << "Parse error leaving config object: "
+                        << reader.pos;
+                return false;
+            }
+
+            configs.emplace_back(std::move(config));
+        }
+
+        if (!reader.leavearray())
+        {
+            LOG_err << "Parse error leaving configs array: "
+                    << reader.pos;
+
+            return false;
+        }
+
+        LOG_debug << configs.size()
+                  << " config(s) successfully parsed.";
+    }
+
+    // Leave configs object.
+    if (!reader.leaveobject())
+    {
+        LOG_err << "Parse error leaving root object: "
+                << reader.pos;
+
+        return false;
+    }
+
+    return true;
 }
 
 SyncConfigIOContext* Syncs::syncConfigIOContext()
@@ -3171,14 +3682,14 @@ void Syncs::resumeResumableSyncsOnStartup()
     {
         if (!unifiedSync->mSync)
         {
-            if (unifiedSync->mConfig.mOrigninalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
+            if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
             {
                 auto node = mClient.nodeByHandle(unifiedSync->mConfig.getRemoteNode());
                 unifiedSync->updateSyncRemoteLocation(node, false); //updates cache & notice app of this change
                 if (node)
                 {
                     auto newpath = node->displaypath();
-                    unifiedSync->mConfig.mOrigninalPathOfRemoteRootNode = newpath;//update loaded config
+                    unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = newpath;//update loaded config
                 }
             }
 
@@ -3463,7 +3974,6 @@ auto SyncConfigStore::writeDirtyDrives(const SyncConfigVector& configs) -> Drive
 
     return failed;
 }
-
 
 
 const string SyncConfigIOContext::NAME_PREFIX = "megaclient_syncconfig_";
@@ -3969,7 +4479,7 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
             break;
 
         case TYPE_TARGET_PATH:
-            reader.storebinary(&config.mOrigninalPathOfRemoteRootNode);
+            reader.storebinary(&config.mOriginalPathOfRemoteRootNode);
             break;
 
         default:
@@ -4026,7 +4536,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg("id", config.getBackupId(), sizeof(handle));
     writer.arg_B64("sp", sourcePath);
     writer.arg_B64("n", config.mName);
-    writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
+    writer.arg_B64("tp", config.mOriginalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
     writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);

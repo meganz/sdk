@@ -46,6 +46,7 @@ set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
 set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
 set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
+set (MEGA_USE_C_ARES 1 CACHE STRING "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL")
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
@@ -554,12 +555,12 @@ if(WIN32)
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
-    IF(USE_DRIVE_NOTIFICATIONS)
-        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} wbemuuid)
-    ENDIF(USE_DRIVE_NOTIFICATIONS)
     IF(HAVE_FFMPEG)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Mfplat.lib mfuuid.LIB strmiids.LIB)
     ENDIF(HAVE_FFMPEG)
+    IF(USE_DRIVE_NOTIFICATIONS)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} wbemuuid)
+    ENDIF(USE_DRIVE_NOTIFICATIONS)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp
     ${MegaDir}/src/win32/consolewaiter.cpp
@@ -800,7 +801,7 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_WEBRTC}:webrtc>
                         $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen>
                         $<${USE_CURL}:curl>
-                        $<${USE_CURL}:cares>
+                        $<${MEGA_USE_C_ARES}:cares>
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
                         $<${USE_SQLITE}:sqlite3>
@@ -819,6 +820,7 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_CRYPTOPP}:USE_CRYPTOPP>
                 $<${USE_OPENSSL}:USE_OPENSSL>
                 $<${USE_CURL}:USE_CURL>
+                $<${MEGA_USE_C_ARES}:MEGA_USE_C_ARES>
                 USE_SODIUM
                 $<${ENABLE_SYNC}:ENABLE_SYNC>
                 $<${ENABLE_CHAT}:ENABLE_CHAT>

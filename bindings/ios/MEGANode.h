@@ -485,6 +485,16 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  */
 - (BOOL)isTakenDown;
 
+/**
+ * @brief Returns true if this MEGANode is a private node from a foreign account
+ *
+ * Only MEGANodes created with [MEGASdk createForeignFileNode and MegaApi::createForeignFolderNode
+ * returns true in this function.
+ *
+ * @return YES if this node is a private node from a foreign account
+ */
+- (BOOL)isForeign;
+
 + (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
 
 @end

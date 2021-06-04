@@ -310,6 +310,22 @@ AS_IF([test "x$enable_drive_notifications" = "xyes"], [
 AM_CONDITIONAL([USE_DRIVE_NOTIFICATIONS], [test "x$enable_drive_notifications" = "xyes"])
 
 
+# MEGA_USE_C_ARES symbol for c-ares
+AC_ARG_ENABLE(mega-c-ares,
+    AS_HELP_STRING([--disable-mega-c-ares], [don't define MEGA_USE_C_ARES symbol]),
+    [enable_mega_c_ares=${enableval}],
+    [enable_mega_c_ares=yes])
+AS_IF([test "x$enable_mega_c_ares" != "xno"], [
+    # Add MEGA_USE_C_ARES preprocessor definition to config.h
+    AC_DEFINE(MEGA_USE_C_ARES, 1, [Define MEGA_USE_C_ARES symbol])
+    # Add -DMEGA_USE_C_ARES to build command
+    CXXFLAGS="$CXXFLAGS -DMEGA_USE_C_ARES"
+    # Reset it to a relevant and readable value, to be used in the final report
+    enable_mega_c_ares=yes
+])
+AM_CONDITIONAL([MEGA_USE_C_ARES], [test "x$enable_mega_c_ares" = "xyes"])
+
+
 # MEGA API
 AC_ARG_ENABLE(megaapi,
     AS_HELP_STRING([--disable-megaapi], [disable MEGA API support]),
@@ -2169,6 +2185,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   example apps:     $enable_examples
   Rot Perf Logger:  $enable_rotative_performance_logger
   Drive Notif:      $enable_drive_notifications
+  MEGA_USE_C_ARES:  $enable_mega_c_ares
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads

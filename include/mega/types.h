@@ -612,9 +612,10 @@ typedef enum {
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
-    //ATTR_BACKUP_NAMES = 32,                 // (deprecated) private - byte array - versioned
+    //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
-    ATTR_JSON_SYNC_CONFIG_DATA = 34         // private - byte array - non-versioned
+    ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
+    ATTR_DRIVE_NAMES = 35                   // private - byte array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
