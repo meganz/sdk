@@ -3187,6 +3187,7 @@ protected:
         // removes the sync from syncMap and fires onSyncDeleted callback
         void sync_removed(handle backupId) override;
 
+        void syncupdate_syncing(bool syncing) override;
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_stalled(bool stalled) override;
         void syncupdate_conflicts(bool conflicts) override;

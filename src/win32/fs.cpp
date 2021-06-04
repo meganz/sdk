@@ -702,8 +702,8 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
 WinFileSystemAccess::WinFileSystemAccess()
 {
-    notifyerr = false;
-    notifyfailed = false;
+    //notifyerr = false;
+    //notifyfailed = false;
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
@@ -1426,7 +1426,7 @@ void WinDirNotify::readchanges()
 #ifndef WINDOWS_PHONE
     if (notifybuf.size() != 65534)
     {
-        // Use 65534 for the buffer size becaues (from doco):
+        // Use 65534 for the buffer size because (from doco):
         // ReadDirectoryChangesW fails with ERROR_INVALID_PARAMETER when the buffer length is greater than 64 KB and the application is
         // monitoring a directory over the network. This is due to a packet size limitation with the underlying file sharing protocols.
         notifybuf.resize(65534);

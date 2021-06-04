@@ -410,6 +410,9 @@ public:
 
     UnifiedSync& mUnifiedSync;
 
+    // timer for whole-sync rescan in case of notifications failing or not being available
+    BackoffTimer syncscanbt;
+
 protected :
     bool readstatecache();
 

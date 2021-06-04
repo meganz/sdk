@@ -1846,7 +1846,7 @@ struct StandardClient : public MegaApp
 
         auto localpath = n->getLocalPath().toName(*client.fsaccess);
         string n_localname = n->localname.toName(*client.fsaccess);
-        if (n_localname.size())
+        if (n_localname.size() && n->parent)  // the sync root node's localname contains an absolute path, not just the leaf name.  Also the filesystem sync root folder and cloud sync root folder don't have to have the same name.
         {
             EXPECT_EQ(n->name, n_localname);
         }
@@ -7111,7 +7111,7 @@ TEST(Sync, DeleteReplaceReplacementHasFilesystemWatch)
 
     // Log in client.
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
-    
+
     // Add and start sync.
     const auto id = c.setupSync_mainthread("s", "s");
     ASSERT_NE(id, UNDEF);

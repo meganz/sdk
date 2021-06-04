@@ -282,6 +282,7 @@ struct MEGA_API MegaApp
     // sync status updates and events
     virtual void syncupdate_stateconfig(handle) { }
     virtual void syncupdate_active(handle, bool) { }
+    virtual void syncupdate_syncing(bool) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_stalled(bool) { }
     virtual void syncupdate_conflicts(bool) { }

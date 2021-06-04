@@ -1143,10 +1143,10 @@ void MegaClient::init()
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
-    syncops = false;
+    //syncops = false;
     syncdebrisadding = false;
     syncdebrisminute = 0;
-    syncscanfailed = false;
+    //syncscanfailed = false;
     mSyncMonitorRetry = false;
     syncnagleretry = false;
     //syncextraretry = false;
@@ -1157,8 +1157,16 @@ void MegaClient::init()
         syncscanstate = false;
     }
 
+    if (syncBusyState)
+    {
+        app->syncupdate_syncing(false);
+        syncBusyState = false;
+    }
+
     syncStallState = false;
     syncConflictState = false;
+
+    totalLocalNodes = 0;
 
     syncs.clear();
 #endif
@@ -1202,7 +1210,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , mAsyncQueue(*w, workerThreadCount)
 #ifdef ENABLE_SYNC
     , syncs(*this)
-    , syncnaglebt(rng), /*syncextrabt(rng),*/ syncscanbt(rng)
+    , syncnaglebt(rng) /*, syncextrabt(rng),*/ /*syncscanbt(rng)*/
     , mSyncMonitorRetry(false), mSyncMonitorTimer(rng)
 #endif
     , mCachedStatus(this)
@@ -1253,7 +1261,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     fetchnodestag = 0;
 
 #ifdef ENABLE_SYNC
-    syncscanstate = false;
     syncadding = 0;
     currsyncid = 0;
     totalLocalNodes = 0;
@@ -2392,10 +2399,10 @@ void MegaClient::exec()
         }
 
 #ifdef ENABLE_SYNC
-        if (syncactivity)
-        {
-            syncops = true;
-        }
+        //if (syncactivity)
+        //{
+        //    syncops = true;
+        //}
         syncactivity = false;
 
 #endif
@@ -2583,11 +2590,11 @@ void MegaClient::exec()
 
         // process active syncs
         // sync timer: full rescan in case of filesystem notification failures
-        if (syncscanfailed && syncscanbt.armed())
-        {
-            syncscanfailed = false;
-            syncops = true;
-        }
+        //if (syncscanfailed && syncscanbt.armed())
+        //{
+        //    syncscanfailed = false;
+        //    //syncops = true;
+        //}
 
         // sync timer: try to transition into monitoring mode.
         if (mSyncMonitorRetry && mSyncMonitorTimer.armed())
@@ -2600,7 +2607,7 @@ void MegaClient::exec()
         if (syncnagleretry && syncnaglebt.armed())
         {
             syncnagleretry = false;
-            syncops = true;
+            //syncops = true;
         }
 
         //if (syncextraretry && syncextrabt.armed())
@@ -2934,6 +2941,7 @@ void MegaClient::exec()
                 sync->procscanq();
             });
 
+
             //LOG_debug << clientname << " syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;
 
             // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
@@ -2954,6 +2962,27 @@ void MegaClient::exec()
 
                     if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                     {
+
+                        if (sync->dirnotify->mErrorCount.load())
+                        {
+                            LOG_err << "Sync " << toHandle(sync->getConfig().getBackupId()) << " had a filesystem notification buffer overflow.  Triggering full scan.";
+                            sync->dirnotify->mErrorCount.store(0);
+                            sync->localroot->setScanAgain(false, true, true, 5);
+                        }
+
+                        string failReason;
+                        if (sync->dirnotify->getFailed(failReason))
+                        {
+                            if (sync->syncscanbt.armed())
+                            {
+                                LOG_warn << "Sync " << toHandle(sync->getConfig().getBackupId()) <<  " notifications failed or were not available (reason: " << failReason << " and it's time for another full scan";
+                                auto totalnodes = sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
+                                dstime backoff = 300 + totalnodes / 128;
+                                sync->syncscanbt.backoff(backoff);
+                                LOG_warn << "Sync " << toHandle(sync->getConfig().getBackupId()) << " next full scan in " << backoff << " ds";
+                            }
+                        }
+
                         // pathBuffer will have leafnames appended as we recurse
                         LocalPath pathBuffer = sync->localroot->localname;
 
@@ -3050,8 +3079,15 @@ void MegaClient::exec()
                 syncscanstate = anySyncScanning;
             }
 
-        // Flush changes made to internal configs.
-        syncs.syncConfigStoreFlush();
+            bool anySyncBusy = isAnySyncSyncing();
+            if (anySyncBusy != syncBusyState)
+            {
+                app->syncupdate_syncing(anySyncBusy);
+                syncBusyState = anySyncBusy;
+            }
+
+            // Flush changes made to internal configs.
+            syncs.syncConfigStoreFlush();
 
 
                     //// notify the app if a lock is being retried
@@ -3323,10 +3359,10 @@ int MegaClient::preparewait()
 
 #ifdef ENABLE_SYNC
         // sync rescan
-        if (syncscanfailed)
-        {
-            syncscanbt.update(&nds);
-        }
+        syncs.forEachRunningSync([&](Sync* sync) {
+
+            sync->syncscanbt.update(&nds);
+        });
 
         // sync monitor timer.
         if (mSyncMonitorRetry)

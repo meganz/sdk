@@ -213,6 +213,7 @@ struct DemoApp : public MegaApp
     void sync_auto_resume_result(const UnifiedSync&, bool attempted, bool hadAnError) override;
     void sync_removed(handle backupId) override;
 
+    void syncupdate_syncing(bool) override;
     void syncupdate_scanning(bool) override;
     void syncupdate_stalled(bool stalled) override;
     void syncupdate_conflicts(bool conflicts) override;

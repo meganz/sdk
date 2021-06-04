@@ -1546,13 +1546,16 @@ public:
     bool syncactivity;
 
     // syncops indicates that a sync-relevant tree update may be pending
-    bool syncops;
+    //bool syncops;
 
     // app scanstate flag
-    bool syncscanstate;
+    bool syncscanstate = false;
+
+    // whether any sync has any work to do
+    bool syncBusyState = false;
 
     // app stall tate flag
-    bool syncStallState;
+    bool syncStallState = false;
 
     // app conflict tate flag
     bool syncConflictState;
@@ -1569,8 +1572,8 @@ public:
     //BackoffTimer syncextrabt;
 
     // rescan timer if fs notification unavailable or broken
-    bool syncscanfailed;
-    BackoffTimer syncscanbt;
+    //bool syncscanfailed;
+    //BackoffTimer syncscanbt;
 
     // Sync monitor timer.
     //

@@ -13346,11 +13346,11 @@ void MegaApiImpl::syncupdate_active(handle backupId, bool active)
 
 void MegaApiImpl::syncupdate_scanning(bool scanning)
 {
-    if (client)
-    {
-        client->abortbackoff(false);
-        client->syncscanstate = scanning;
-    }
+    fireOnGlobalSyncStateChanged();
+}
+
+void MegaApiImpl::syncupdate_syncing(bool syncing)
+{
     fireOnGlobalSyncStateChanged();
 }
 
@@ -23290,13 +23290,12 @@ void MegaApiImpl::update()
     LOG_debug << "PendingFA? " << client->activefa.size() << " active, " << client->queuedfa.size() << " queued";
     LOG_debug << "FLAGS: " << client->syncactivity
               << " " << client->isAnySyncSyncing()
-              << " " << client->syncnagleretry << " " << client->syncscanfailed
-              << " " << client->syncops << " " << client->syncscanstate
-              << " " << client->faputcompletion.size() //<< " " << client->synccreate.size()
+              << " " << client->syncnagleretry
+              << " " << client->faputcompletion.size()
               << " " << client->fetchingnodes << " " << client->pendingfa.size()
               << " " << client->xferpaused[0] << " " << client->xferpaused[1]
               << " " << client->transfers[0].size() << " " << client->transfers[1].size()
-              << " " << client->syncscanstate << " " << client->statecurrent
+              << " " << client->statecurrent
               << " " << client->syncadding << " " << client->syncdebrisadding
               << " " << client->umindex.size() << " " << client->uhindex.size();
     LOG_debug << "UL speed: " << httpio->uploadSpeed << "  DL speed: " << httpio->downloadSpeed;

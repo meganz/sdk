@@ -419,11 +419,23 @@ void DemoApp::syncupdate_scanning(bool active)
 {
     if (active)
     {
-        cout << "Sync - scanning files and folders" << endl;
+        cout << "Sync - scanning local files and folders" << endl;
     }
     else
     {
         cout << "Sync - scan completed" << endl;
+    }
+}
+
+void DemoApp::syncupdate_syncing(bool active)
+{
+    if (active)
+    {
+        cout << "Sync - syncs are busy" << endl;
+    }
+    else
+    {
+        cout << "Sync - syncs are idle" << endl;
     }
 }
 
@@ -564,7 +576,10 @@ static const char* treestatename(treestate_t ts)
 
 void DemoApp::syncupdate_treestate(LocalNode* l)
 {
-    cout << "Sync - state change of node " << l->name << " to " << treestatename(l->ts) << endl;
+    if (l->type != FILENODE)
+    {
+        cout << "Sync - state change of folder " << l->getLocalPath().toPath() << " to " << treestatename(l->ts) << endl;
+    }
 }
 
 // generic name filter
@@ -9046,7 +9061,7 @@ void exec_synclist(autocomplete::ACState& s)
     {
         cout << "No syncs configured yet" << endl;
         return;
-     }
+    }
 
     client->syncs.forEachUnifiedSync(
       [](UnifiedSync& us)
@@ -9132,6 +9147,15 @@ void exec_synclist(autocomplete::ACState& s)
 
             cout << std::endl;
       });
+
+    map<string, SyncWaitReason> stalledNodePaths;
+    map<LocalPath, SyncWaitReason> stalledLocalPaths;
+    if (client->syncStallDetected(stalledNodePaths, stalledLocalPaths))
+    {
+        cout << "Stalled paths detected!  (mutually unresolvable paths)";
+        for (auto& p : stalledNodePaths) cout << "stalled node path: " << p.first << endl;
+        for (auto& p : stalledLocalPaths) cout << "stalled local path: " << p.first.toPath(*client->fsaccess) << endl;
+    }
 }
 
 void exec_syncremove(autocomplete::ACState& s)

@@ -584,8 +584,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // set whenever there was a global file notification error or permanent failure
     // (this is in addition to the DirNotify-local error)
-    bool notifyerr;
-    bool notifyfailed;
+
+    // now managing these on a per-dirnotify basis
+    //bool notifyerr;
+    //bool notifyfailed;
 
     // set whenever an operation fails because the target already exists
     bool target_exists;

@@ -41,8 +41,8 @@ const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
 const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
 // set gLogsync true for very, very detailed sync logging
-bool gLogsync = true;
-//bool gLogsync = false;
+//bool gLogsync = true;
+bool gLogsync = false;
 #define SYNC_verbose if (gLogsync) LOG_verbose
 
 std::atomic<size_t> ScanService::mNumServices(0);
@@ -690,6 +690,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
            LocalPath* clocaldebris, Node* remotenode, bool cinshare)
 : localroot(new LocalNode)
 , mUnifiedSync(us)
+, syncscanbt(us.mClient.rng)
 {
     isnetwork = false;
     client = &mUnifiedSync.mClient;
@@ -4104,12 +4105,19 @@ bool Sync::inferAlreadySyncedTriplets(Node* cloudParent, const LocalNode& syncPa
 
     for (auto& child : syncParent.children)
     {
-        Node* node = client->nodeByHandle(child.second->syncedCloudNodeHandle);
+        Node* node = client->nodeByHandle(child.second->syncedCloudNodeHandle, true);
         if (!node ||
             node->nodehandle != child.second->syncedCloudNodeHandle.as8byte() ||
             node->parent != cloudParent)
         {
             // the node tree has actually changed so we need to run the full algorithm
+            return false;
+        }
+
+        if (node->parent && node->parent->type == FILENODE)
+        {
+            LOG_err << "Looked up a file version node during infer: " << node->displaypath();
+			assert(false);
             return false;
         }
 
