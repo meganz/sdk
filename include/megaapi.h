@@ -94,6 +94,64 @@ class MegaSemaphore;
 #endif
 
 /**
+ * @brief
+ * Interface to receive filename anomaly notifications from the SDK.
+ *
+ * @see MegaApi::setFilenameAnomalyReporter
+ */
+class MegaFilenameAnomalyReporter
+{
+public:
+    /**
+     * @brief
+     * Represents the type of anomaly reported by the SDK.
+     */
+    enum AnomalyType
+    {
+        /**
+         * @brief
+         * A file's local and remote names differ.
+         *
+         * An example of when this kind of anomaly can occur is when
+         * downloading a file from the cloud that contains characters in its
+         * name that are not valid on the local filesystem.
+         *
+         * Say, downloading a file called A:B on Windows.
+         */
+        ANOMALY_NAME_MISMATCH = 0,
+
+        /**
+         * @brief
+         * A file has a reserved name.
+         *
+         * This kind of anomaly is reported by the SDK when it attempts to
+         * download a file that has a name that is reserved on the local
+         * filesystem.
+         *
+         * Say, downloading a file called CON on Windows.
+         */
+        ANOMALY_NAME_RESERVED = 1
+    }; // AnomalyType
+
+    virtual ~MegaFilenameAnomalyReporter() { };
+
+    /**
+     * @brief
+     * Called by the SDK when it wants to report a filename anomaly.
+     *
+     * @param type
+     * The anomaly that was detected by the SDK.
+     *
+     * @param localPath
+     * The local path of the file with a filename anomaly.
+     *
+     * @param remotePath
+     * The remote path of the file with a filename anomaly.
+     */
+    virtual void anomalyDetected(AnomalyType type, const char* localPath, const char* remotePath) = 0;
+}; // MegaFilenameAnomalyReporter
+
+/**
  * @brief Interface to provide an external GFX processor
  *
  * You can implement this interface to provide a graphics processor to the SDK
@@ -2984,58 +3042,149 @@ class MegaRequest
 {
     public:
         enum {
-            TYPE_LOGIN, TYPE_CREATE_FOLDER, TYPE_MOVE, TYPE_COPY,
-            TYPE_RENAME, TYPE_REMOVE, TYPE_SHARE,
-            TYPE_IMPORT_LINK, TYPE_EXPORT, TYPE_FETCH_NODES, TYPE_ACCOUNT_DETAILS,
-            TYPE_CHANGE_PW, TYPE_UPLOAD, TYPE_LOGOUT,
-            TYPE_GET_PUBLIC_NODE, TYPE_GET_ATTR_FILE,
-            TYPE_SET_ATTR_FILE, TYPE_GET_ATTR_USER,
-            TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
-            TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
-            TYPE_CONFIRM_ACCOUNT,
-            TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC, TYPE_DISABLE_SYNC, TYPE_ENABLE_SYNC,
-            TYPE_COPY_SYNC_CONFIG, TYPE_COPY_CACHED_STATUS,
-            TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
-            TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
-            TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
-            TYPE_GET_PRICING, TYPE_GET_PAYMENT_ID, TYPE_GET_USER_DATA,
-            TYPE_LOAD_BALANCING, TYPE_KILL_SESSION, TYPE_SUBMIT_PURCHASE_RECEIPT,
-            TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
-            TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
-            TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
-            TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
-            TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
-            TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS,
-            TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY,
-            TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
-            TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
-            TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
-            TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
-            TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
-            TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
-            TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
-            TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
-            TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
-            TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
-            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
-            TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
-            TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
-            TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
-            TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
-            TYPE_CATCHUP, TYPE_PUBLIC_LINK_INFORMATION,
-            TYPE_GET_BACKGROUND_UPLOAD_URL, TYPE_COMPLETE_BACKGROUND_UPLOAD,
-            TYPE_GET_CLOUD_STORAGE_USED,
-            TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
-            TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
-            TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
-            TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
-            TYPE_SEND_DEV_COMMAND,
-            TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
-            TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
-            TYPE_FETCH_GOOGLE_ADS, TYPE_QUERY_GOOGLE_ADS,
-            TYPE_GET_ATTR_NODE, TYPE_EXECUTE_ON_THREAD,
-            TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS, TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS,
-            TOTAL_OF_REQUEST_TYPES
+            TYPE_LOGIN                                                      = 0,
+            TYPE_CREATE_FOLDER                                              = 1,
+            TYPE_MOVE                                                       = 2,
+            TYPE_COPY                                                       = 3,
+            TYPE_RENAME                                                     = 4,
+            TYPE_REMOVE                                                     = 5,
+            TYPE_SHARE                                                      = 6,
+            TYPE_IMPORT_LINK                                                = 7,
+            TYPE_EXPORT                                                     = 8,
+            TYPE_FETCH_NODES                                                = 9,
+            TYPE_ACCOUNT_DETAILS                                            = 10,
+            TYPE_CHANGE_PW                                                  = 11,
+            TYPE_UPLOAD                                                     = 12,
+            TYPE_LOGOUT                                                     = 13,
+            TYPE_GET_PUBLIC_NODE                                            = 14,
+            TYPE_GET_ATTR_FILE                                              = 15,
+            TYPE_SET_ATTR_FILE                                              = 16,
+            TYPE_GET_ATTR_USER                                              = 17,
+            TYPE_SET_ATTR_USER                                              = 18,
+            TYPE_RETRY_PENDING_CONNECTIONS                                  = 19,
+            TYPE_REMOVE_CONTACT                                             = 20,
+            TYPE_CREATE_ACCOUNT                                             = 21,
+            TYPE_CONFIRM_ACCOUNT                                            = 22,
+            TYPE_QUERY_SIGNUP_LINK                                          = 23,
+            TYPE_ADD_SYNC                                                   = 24,
+            TYPE_REMOVE_SYNC                                                = 25,
+            TYPE_DISABLE_SYNC                                               = 26,
+            TYPE_ENABLE_SYNC                                                = 27,
+            TYPE_COPY_SYNC_CONFIG                                           = 28,
+            TYPE_COPY_CACHED_STATUS                                         = 29,
+            TYPE_IMPORT_SYNC_CONFIGS                                        = 30,
+            TYPE_REMOVE_SYNCS                                               = 31,
+            TYPE_PAUSE_TRANSFERS                                            = 32,
+            TYPE_CANCEL_TRANSFER                                            = 33,
+            TYPE_CANCEL_TRANSFERS                                           = 34,
+            TYPE_DELETE                                                     = 35,
+            TYPE_REPORT_EVENT                                               = 36,
+            TYPE_CANCEL_ATTR_FILE                                           = 37,
+            TYPE_GET_PRICING                                                = 38,
+            TYPE_GET_PAYMENT_ID                                             = 39,
+            TYPE_GET_USER_DATA                                              = 40,
+            TYPE_LOAD_BALANCING                                             = 41,
+            TYPE_KILL_SESSION                                               = 42,
+            TYPE_SUBMIT_PURCHASE_RECEIPT                                    = 43,
+            TYPE_CREDIT_CARD_STORE                                          = 44,
+            TYPE_UPGRADE_ACCOUNT                                            = 45,
+            TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS                            = 46,
+            TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS                           = 47,
+            TYPE_GET_SESSION_TRANSFER_URL                                   = 48,
+            TYPE_GET_PAYMENT_METHODS                                        = 49,
+            TYPE_INVITE_CONTACT                                             = 50,
+            TYPE_REPLY_CONTACT_REQUEST                                      = 51,
+            TYPE_SUBMIT_FEEDBACK                                            = 52,
+            TYPE_SEND_EVENT                                                 = 53,
+            TYPE_CLEAN_RUBBISH_BIN                                          = 54,
+            TYPE_SET_ATTR_NODE                                              = 55,
+            TYPE_CHAT_CREATE                                                = 56,
+            TYPE_CHAT_FETCH                                                 = 57,
+            TYPE_CHAT_INVITE                                                = 58,
+            TYPE_CHAT_REMOVE                                                = 59,
+            TYPE_CHAT_URL                                                   = 60,
+            TYPE_CHAT_GRANT_ACCESS                                          = 61,
+            TYPE_CHAT_REMOVE_ACCESS                                         = 62,
+            TYPE_USE_HTTPS_ONLY                                             = 63,
+            TYPE_SET_PROXY                                                  = 64,
+            TYPE_GET_RECOVERY_LINK                                          = 65,
+            TYPE_QUERY_RECOVERY_LINK                                        = 66,
+            TYPE_CONFIRM_RECOVERY_LINK                                      = 67,
+            TYPE_GET_CANCEL_LINK                                            = 68,
+            TYPE_CONFIRM_CANCEL_LINK                                        = 69,
+            TYPE_GET_CHANGE_EMAIL_LINK                                      = 70,
+            TYPE_CONFIRM_CHANGE_EMAIL_LINK                                  = 71,
+            TYPE_CHAT_UPDATE_PERMISSIONS                                    = 72,
+            TYPE_CHAT_TRUNCATE                                              = 73,
+            TYPE_CHAT_SET_TITLE                                             = 74,
+            TYPE_SET_MAX_CONNECTIONS                                        = 75,
+            TYPE_PAUSE_TRANSFER                                             = 76,
+            TYPE_MOVE_TRANSFER                                              = 77,
+            TYPE_CHAT_PRESENCE_URL                                          = 78,
+            TYPE_REGISTER_PUSH_NOTIFICATION                                 = 79,
+            TYPE_GET_USER_EMAIL                                             = 80,
+            TYPE_APP_VERSION                                                = 81,
+            TYPE_GET_LOCAL_SSL_CERT                                         = 82,
+            TYPE_SEND_SIGNUP_LINK                                           = 83,
+            TYPE_QUERY_DNS                                                  = 84,
+            TYPE_QUERY_GELB                                                 = 85,
+            TYPE_CHAT_STATS                                                 = 86,
+            TYPE_DOWNLOAD_FILE                                              = 87,
+            TYPE_QUERY_TRANSFER_QUOTA                                       = 88,
+            TYPE_PASSWORD_LINK                                              = 89,
+            TYPE_GET_ACHIEVEMENTS                                           = 90,
+            TYPE_RESTORE                                                    = 91,
+            TYPE_REMOVE_VERSIONS                                            = 92,
+            TYPE_CHAT_ARCHIVE                                               = 93,
+            TYPE_WHY_AM_I_BLOCKED                                           = 94,
+            TYPE_CONTACT_LINK_CREATE                                        = 95,
+            TYPE_CONTACT_LINK_QUERY                                         = 96,
+            TYPE_CONTACT_LINK_DELETE                                        = 97,
+            TYPE_FOLDER_INFO                                                = 98,
+            TYPE_RICH_LINK                                                  = 99,
+            TYPE_KEEP_ME_ALIVE                                              = 100,
+            TYPE_MULTI_FACTOR_AUTH_CHECK                                    = 101,
+            TYPE_MULTI_FACTOR_AUTH_GET                                      = 102,
+            TYPE_MULTI_FACTOR_AUTH_SET                                      = 103,
+            TYPE_ADD_BACKUP                                                 = 104,
+            TYPE_REMOVE_BACKUP                                              = 105,
+            TYPE_TIMER                                                      = 106,
+            TYPE_ABORT_CURRENT_BACKUP                                       = 107,
+            TYPE_GET_PSA                                                    = 108,
+            TYPE_FETCH_TIMEZONE                                             = 109,
+            TYPE_USERALERT_ACKNOWLEDGE                                      = 110,
+            TYPE_CHAT_LINK_HANDLE                                           = 111,
+            TYPE_CHAT_LINK_URL                                              = 112,
+            TYPE_SET_PRIVATE_MODE                                           = 113,
+            TYPE_AUTOJOIN_PUBLIC_CHAT                                       = 114,
+            TYPE_CATCHUP                                                    = 115,
+            TYPE_PUBLIC_LINK_INFORMATION                                    = 116,
+            TYPE_GET_BACKGROUND_UPLOAD_URL                                  = 117,
+            TYPE_COMPLETE_BACKGROUND_UPLOAD                                 = 118,
+            TYPE_GET_CLOUD_STORAGE_USED                                     = 119,
+            TYPE_SEND_SMS_VERIFICATIONCODE                                  = 120,
+            TYPE_CHECK_SMS_VERIFICATIONCODE                                 = 121,
+            TYPE_GET_REGISTERED_CONTACTS                                    = 122,
+            TYPE_GET_COUNTRY_CALLING_CODES                                  = 123,
+            TYPE_VERIFY_CREDENTIALS                                         = 124,
+            TYPE_GET_MISC_FLAGS                                             = 125,
+            TYPE_RESEND_VERIFICATION_EMAIL                                  = 126,
+            TYPE_SUPPORT_TICKET                                             = 127,
+            TYPE_SET_RETENTION_TIME                                         = 128,
+            TYPE_RESET_SMS_VERIFIED_NUMBER                                  = 129,
+            TYPE_SEND_DEV_COMMAND                                           = 130,
+            TYPE_GET_BANNERS                                                = 131,
+            TYPE_DISMISS_BANNER                                             = 132,
+            TYPE_BACKUP_PUT                                                 = 133,
+            TYPE_BACKUP_REMOVE                                              = 134,
+            TYPE_BACKUP_PUT_HEART_BEAT                                      = 135,
+            TYPE_FETCH_GOOGLE_ADS                                           = 136,
+            TYPE_QUERY_GOOGLE_ADS                                           = 137,
+            TYPE_GET_ATTR_NODE                                              = 138,
+            TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS                                = 139,
+            TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS                               = 140,
+            TYPE_EXECUTE_ON_THREAD                                          = 141,
+            TOTAL_OF_REQUEST_TYPES                                          = 142,
         };
 
         virtual ~MegaRequest();
@@ -5143,7 +5292,10 @@ public:
         TOO_MANY_ACTION_PACKETS = 25, // Too many changes in account, local state discarded
         LOGGED_OUT = 26, // Logged out
         WHOLE_ACCOUNT_REFETCHED = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
-        BACKUP_MODIFIED = 28, // Backup has been externally modified.
+        MISSING_PARENT_NODE = 28, // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+        BACKUP_MODIFIED = 29, // Backup has been externally modified.
+        BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
+        SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
     };
 
     enum Warning
@@ -6641,6 +6793,17 @@ class MegaGlobalListener
          */
         virtual void onEvent(MegaApi* api, MegaEvent *event);
 
+        /**
+         * @brief This function is called when external drives are connected or disconnected
+         *
+         * The SDK retains the ownership of the char* in the third parameter, which will be valid until this function returns.
+         *
+         * @param api MegaApi object connected to the account
+         * @param present Indicator of the drive status after this change (true: drive was connected; false: drive was disconnected)
+         * @param rootPathInUtf8 Root path of the drive that determined this change (i.e. "D:", "/mnt/usbdrive")
+         */
+        virtual void onDrivePresenceChanged(MegaApi* api, bool present, const char* rootPathInUtf8);
+
         virtual ~MegaGlobalListener();
 };
 
@@ -7559,9 +7722,10 @@ class MegaApi
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
-            // USER_ATTR_BACKUP_NAMES = 32,         // (deprecated) private - byte array
+            // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
-            USER_ATTR_JSON_SYNC_CONFIG_DATA = 34 // private - byte array
+            USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
+            USER_ATTR_DRIVE_NAMES = 35           // private - byte array
         };
 
         enum {
@@ -7675,6 +7839,15 @@ class MegaApi
             GOOGLE_ADS_IGNORE_IP = 0x1000,                   // Show ads even if the user is on a blacklisted IP (MEGA ips).
             GOOGLE_ADS_IGNORE_PRO = 0x2000,                  // Show ads even if the current user or file owner is a PRO user.
             GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
+        };
+
+        enum
+        {
+            CREATE_ACCOUNT              = 0,
+            RESUME_ACCOUNT              = 1,
+            CANCEL_ACCOUNT              = 2,
+            CREATE_EPLUSPLUS_ACCOUNT    = 3,
+            RESUME_EPLUSPLUS_ACCOUNT    = 4,
         };
 
         /**
@@ -8004,6 +8177,20 @@ class MegaApi
         static MegaHandle base64ToUserHandle(const char* base64Handle);
 
         /**
+         * @brief
+         * Converts a Base64-encoded backup ID to a MegaHandle.
+         *
+         * You can revert this operation using MegaApi::backupIdToBase64.
+         *
+         * @param backupId
+         * Base64-encoded Backup ID.
+         *
+         * @return
+         * Backup ID.
+         */
+        static MegaHandle base64ToBackupId(const char* backupId);
+
+        /**
          * @brief Converts the handle of a node to a Base64-encoded string
          *
          * You take the ownership of the returned value
@@ -8024,6 +8211,20 @@ class MegaApi
          * @return Base64-encoded user handle
          */
         static char* userHandleToBase64(MegaHandle handle);
+
+        /**
+         * @brief
+         * Converts a Backup ID into a Base64-encoded string.
+         *
+         * You take ownership of the returned value.
+         *
+         * @param backupId
+         * Backup ID to be converted.
+         *
+         * @return
+         * Base64-encoded backup ID.
+         */
+        static const char* backupIdToBase64(MegaHandle backupId);
 
         /**
          * @brief Convert binary data to a base 64 encoded string
@@ -8764,6 +8965,7 @@ class MegaApi
          * - MegaRequest::getPassword - Returns the password for the account
          * - MegaRequest::getName - Returns the firstname of the user
          * - MegaRequest::getText - Returns the lastname of the user
+         * - MegaRequest::getParamType - Returns the value MegaApi::CREATE_ACCOUNT
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -8794,7 +8996,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the firstname of the user
          * - MegaRequest::getText - Returns the lastname of the user
-         * - MegaRequest::getParamType - Returns the value 3
+         * - MegaRequest::getParamType - Returns the value MegaApi:CREATE_EPLUSPLUS_ACCOUNT
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -8823,6 +9025,7 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
          * - MegaRequest::getAccess - Returns the type of lastPublicHandle
          * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+         * - MegaRequest::getParamType - Returns the value MegaApi::CREATE_ACCOUNT
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -8868,7 +9071,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getSessionKey - Returns the session id to resume the process
-         * - MegaRequest::getParamType - Returns the value 1
+         * - MegaRequest::getParamType - Returns the value MegaApi::RESUME_ACCOUNT
          *
          * In case the account is already confirmed, the associated request will fail with
          * error MegaError::API_EARGS.
@@ -8896,7 +9099,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getSessionKey - Returns the session id to resume the process
-         * - MegaRequest::getParamType - Returns the value 4
+         * - MegaRequest::getParamType - Returns the value MegaApi::RESUME_EPLUSPLUS_ACCOUNT
          *
          * In case the account is already confirmed, the associated request will fail with
          * error MegaError::API_EARGS.
@@ -8915,7 +9118,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the value 2
+         * - MegaRequest::getParamType - Returns the value MegaApi::CANCEL_ACCOUNT
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -9759,6 +9962,21 @@ class MegaApi
          * @param megaLogger Previously registered MegaLogger implementation
          */
         static void removeLoggerObject(MegaLogger *megaLogger);
+
+        /**
+         * @brief
+         * Specify a reporter to receive filename anomaly messages from the SDK.
+         *
+         * @param reporter
+         * The reporter that should receive filename anomaly messages.
+         *
+         * Note that null is a valid value for this parameter and if
+         * specified, will prevent the SDK from sending messages to the
+         * reporter previously specified using this function.
+         *
+         * @see MegaFilenameAnomalyReporter
+         */
+        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         /**
          * @brief Send a log to the logging system
@@ -12074,6 +12292,38 @@ class MegaApi
         void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Returns the name set for this drive
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+         * - MegaRequest::getFile - Returns the path to the drive
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns drive name.
+         *
+         * @param pathToDrive Path to the root of the external drive
+         * @param listener MegaRequestListener to track this request
+         */
+        void getDriveName(const char *pathToDrive, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Sets drive name
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+         * - MegaRequest::getName - Returns drive name.
+         * - MegaRequest::getFile - Returns the path to the drive
+         *
+         * @param pathToDrive Path to the root of the external drive
+         * @param deviceName String with drive name
+         * @param listener MegaRequestListener to track this request
+         */
+        void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Change the password of the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
@@ -13525,6 +13775,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getParamType - Returns the type of the sync
+         * - MegaRequest::getLink - Returns the drive root if external backup
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -13539,7 +13790,7 @@ class MegaApi
           * - MegaError::API_EARGS - If the local folder was not set.
           * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
           * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-          * wrong 'dev-id' tag.
+          * wrong 'dev-id'/'drv-id' tag.
           * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
           * the handle.
           * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
@@ -13830,6 +14081,31 @@ class MegaApi
         * @param listener MegaRequestListener to track this request
         */
         void enableSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief
+         * Imports internal sync configs from JSON.
+         *
+         * @param configs
+         * A JSON string encoding the internal sync configs to import.
+         *
+         * @param listener
+         * Listener to call back when the import has completed.
+         *
+         * @see exportSyncConfigs
+         */
+        void importSyncConfigs(const char* configs, MegaRequestListener* listener);
+
+        /**
+         * @brief
+         * Exports all internal sync configs to JSON.
+         *
+         * @return
+         * A JSON string encoding all internal sync configs.
+         *
+         * @see importSyncConfigs
+         */
+        const char* exportSyncConfigs();
 
         /**
          * @brief Remove all active synced folders
@@ -14327,7 +14603,7 @@ class MegaApi
          * @brief Get all children of a MegaNode
          *
          * If the parent node doesn't exist or it isn't a folder, this function
-         * returns NULL
+         * returns an empty list
          *
          * You take the ownership of the returned value
          *
@@ -14398,6 +14674,72 @@ class MegaApi
          * @return List with all child MegaNode objects
          */
         MegaNodeList* getChildren(MegaNode *parent, int order = 1);
+
+        /**
+         * @brief Get all children of a list of MegaNodes
+         *
+         * If any parent node doesn't exist or it isn't a folder, that parent
+         * will be skipped.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param parentNodes List of parent nodes
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
+         *
+         * @return List with all child MegaNode objects
+         */
+        MegaNodeList* getChildren(MegaNodeList *parentNodes, int order = 1);
 
         /**
          * @brief Get all versions of a file
@@ -14831,6 +15173,23 @@ class MegaApi
          * @return List of MegaShare objects
          */
         MegaShareList *getPendingOutShares(MegaNode *node);
+
+        /**
+         * @brief Check if a node belongs to your own cloud
+         * @param handle Node to check
+         * @return True if it belongs to your own cloud
+         */
+        bool isPrivateNode(MegaHandle handle);
+
+        /**
+         * @brief Check if a node does NOT belong to your own cloud
+         *
+         * In example, nodes from incoming shared folders do not belong to your cloud.
+         *
+         * @param handle Node to check
+         * @return True if it does NOT belong to your own cloud
+         */
+        bool isForeignNode(MegaHandle handle);
 
         /**
          * @brief Get a list with all public links
@@ -18546,6 +18905,29 @@ class MegaApi
          * @return True if this feature is enabled. Otherwise, false.
          */
         bool cookieBannerEnabled();
+
+        /**
+         * @brief Start receiving notifications for [dis]connected external drives, from the OS
+         *
+         * After a call to this function, and before another one, stopDriveMonitor() must be called,
+         * otherwise it will fail.
+         *
+         * @return True when notifications have been started.
+         *         False when called while already receiving notifications, or
+         *         notifications could not have been started due to errors or missing implementation,
+         */
+        bool startDriveMonitor();
+
+        /**
+         * @brief Stop receiving notifications for [dis]connected external drives, from the OS
+         */
+        void stopDriveMonitor();
+
+        /**
+         * @brief Check if drive monitor is running
+         * @return True if it is running, false otherwise.
+         */
+        bool driveMonitorEnabled();
 
  private:
         MegaApiImpl *pImpl;

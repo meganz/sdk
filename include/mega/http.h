@@ -22,6 +22,7 @@
 #ifndef MEGA_HTTP_H
 #define MEGA_HTTP_H 1
 
+#include <atomic>
 #include "types.h"
 #include "waiter.h"
 #include "backofftimer.h"

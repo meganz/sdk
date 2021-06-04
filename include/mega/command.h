@@ -611,7 +611,7 @@ class MEGA_API CommandSetAttr : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char* = NULL);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, int tag, const char*);
 };
 
 class MEGA_API CommandSetShare : public Command
@@ -745,7 +745,7 @@ class MEGA_API CommandGetPH : public Command
 {
     handle ph;
     byte key[FILENODEKEYLENGTH];
-    int op;
+    int op; //  (op=0 -> download, op=1 fetch data, op=2 import welcomePDF)
     bool havekey;
 
 public:
@@ -1334,6 +1334,7 @@ public:
     {
         // if left as UNDEF, you are registering a new Sync/Backup
         handle backupId = UNDEF;
+        handle driveId = UNDEF;
 
         // if registering a new Sync/Backup, these must be set
         // otherwise, leave as is to not send an update for that field.

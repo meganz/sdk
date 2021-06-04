@@ -1211,9 +1211,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     string prevname = node->attrs.map['n'];
 
                     // set new name
-                    node->attrs.map['n'] = name;
-                    sync->client->nextreqtag(); //make reqtag advance to use the next one
-                    sync->client->setattr(node, prevname.c_str());
+                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str());
                 }
             }
         }
@@ -1233,6 +1231,18 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             if (!newnode && node)
             {
                 assert(parent->node);
+
+                if(!parent->node)
+                {
+                    LOG_err << node->displayname() << " parent Localnode is missing its associated Node. Cross referenced must have been removed";
+
+                    sync->client->syncs.disableSelectedSyncs([&](SyncConfig& c, Sync* s) {
+                        return s == sync;
+                    }, MISSING_PARENT_NODE, false);
+
+                    sync->client->sendevent(99455,"Disabling sync after null parent->node cross referent", 0);
+                    return;
+                }
 
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
@@ -1539,11 +1549,11 @@ LocalNode::~LocalNode()
 
         if (type == FOLDERNODE)
         {
-            sync->client->app->syncupdate_local_folder_deletion(sync, this);
+            sync->client->app->syncupdate_local_folder_deletion(sync, getLocalPath());
         }
         else
         {
-            sync->client->app->syncupdate_local_file_deletion(sync, this);
+            sync->client->app->syncupdate_local_file_deletion(sync, getLocalPath());
         }
     }
 

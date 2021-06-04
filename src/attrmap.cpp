@@ -156,6 +156,15 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
     return ptr;
 }
 
+void AttrMap::applyUpdates(const attr_map& updates)
+{
+    for (auto& u : updates)
+    {
+        if (u.second.empty()) map.erase(u.first);
+        else map[u.first] = u.second;
+    }
+}
+
 // generate JSON object containing attr_map
 void AttrMap::getjson(string* s) const
 {
