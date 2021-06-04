@@ -980,6 +980,7 @@ class MEGA_API CommandChatCreate : public Command
     bool mPublicChat;
     string mTitle;
     string mUnifiedKey;
+    bool mMeeting;
 public:
     bool procresult(Result) override;
 

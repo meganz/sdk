@@ -2200,6 +2200,12 @@ public:
      * @return True if this chat is public
      */
     virtual bool isPublicChat() const;
+
+    /**
+     * @brief Returns whether this chat is a meeting room
+     * @return True if this chat is a meeting room
+     */
+    virtual bool isMeeting() const;
 };
 
 /**

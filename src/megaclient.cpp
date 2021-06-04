@@ -6658,6 +6658,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     m_time_t ts = -1;
     bool publicchat = false;
     string unifiedkey;
+    bool meeting = false;
 
     bool done = false;
     while (!done)
@@ -6706,6 +6707,11 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 jsonsc.storeobject(&unifiedkey);
                 break;
 
+            case MAKENAMEID2('m', 'r'):
+                assert(readingPublicChat);
+                meeting = jsonsc.getbool();
+                break;
+
             case EOO:
                 done = true;
 
@@ -6747,6 +6753,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                     {
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
                     }
+                    chat->meeting = meeting;
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -10765,6 +10772,7 @@ void MegaClient::procmcf(JSON *j)
                         string unifiedKey;
                         m_time_t ts = -1;
                         bool publicchat = false;
+                        bool meeting = false;
 
                         bool readingChat = true;
                         while(readingChat) // read the chat information
@@ -10809,6 +10817,11 @@ void MegaClient::procmcf(JSON *j)
                                 publicchat = j->getint();
                                 break;
 
+                           case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
+                               assert(readingPublicChats);
+                               meeting = j->getbool();
+                               break;
+
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
@@ -10824,6 +10837,7 @@ void MegaClient::procmcf(JSON *j)
                                     chat->group = group;
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
+                                    chat->meeting = meeting;
 
                                     if (readingPublicChats)
                                     {

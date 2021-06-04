@@ -1555,24 +1555,25 @@ public:
     MegaTextChatPrivate(const TextChat *);
 
     virtual ~MegaTextChatPrivate();
-    virtual MegaTextChat *copy() const;
+    MegaTextChat *copy() const override;
 
-    virtual MegaHandle getHandle() const;
-    virtual int getOwnPrivilege() const;
-    virtual int getShard() const;
-    virtual const MegaTextChatPeerList *getPeerList() const;
-    virtual void setPeerList(const MegaTextChatPeerList *peers);
-    virtual bool isGroup() const;
-    virtual MegaHandle getOriginatingUser() const;
-    virtual const char *getTitle() const;
-    virtual const char *getUnifiedKey() const;
-    virtual int64_t getCreationTime() const;
-    virtual bool isArchived() const;
-    virtual bool isPublicChat() const;
+    MegaHandle getHandle() const override;
+    int getOwnPrivilege() const override;
+    int getShard() const override;
+    const MegaTextChatPeerList *getPeerList() const override;
+    void setPeerList(const MegaTextChatPeerList *peers) override;
+    bool isGroup() const override;
+    MegaHandle getOriginatingUser() const override;
+    const char *getTitle() const override;
+    const char *getUnifiedKey() const override;
+    int64_t getCreationTime() const override;
+    bool isArchived() const override;
+    bool isPublicChat() const override;
+    bool isMeeting() const override;
 
-    virtual bool hasChanged(int changeType) const;
-    virtual int getChanges() const;
-    virtual int isOwnChange() const;
+    bool hasChanged(int changeType) const override;
+    int getChanges() const override;
+    int isOwnChange() const override;
 
 private:
     handle id;
@@ -1589,6 +1590,7 @@ private:
     bool archived;
     bool publicchat;
     int64_t ts;
+    bool meeting;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList

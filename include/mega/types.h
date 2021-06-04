@@ -656,6 +656,7 @@ struct TextChat : public Cacheable
     m_time_t ts;     // creation time
     attachments_map attachedNodes;
     bool publicchat;  // whether the chat is public or private
+    bool meeting;     // chat is meeting room
 
 private:        // use setter to modify these members
     byte flags;     // currently only used for "archive" flag at first bit
