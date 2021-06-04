@@ -1950,6 +1950,15 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if we are logged in into an Ephemeral account ++ (Guest mode)
+     *
+     * @return true if logged into an Ephemeral account ++, Otherwise return false
+     */
+    public boolean isGuestMode() {
+        return megaApi.isGuestMode();
+    }
+
+    /**
      * Check the reason of being blocked.
      *
      * The associated request type with this request is MegaRequest::TYPE_WHY_AM_I_BLOCKED.
