@@ -270,12 +270,12 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
     BackupHeartbeatStatusUnknown = 5
 };
 
-typedef NS_ENUM(NSInteger, CreateAccountAction) {
-    CreateAccountActionCreate = 0,
-    CreateAccountActionResume = 1,
-    CreateAccountActionCancel = 2,
-    CreateAccountActionCreateEphemeralPlusPlus = 3,
-    CreateAccountActionResumeEphemeralPlusPlus = 4,
+typedef NS_ENUM(NSInteger, AccountActionType) {
+    AccountActionTypeCreate = 0,
+    AccountActionTypeResume = 1,
+    AccountActionTypeCancel = 2,
+    AccountActionTypeCreateEphemeralPlusPlus = 3,
+    AccountActionTypeResumeEphemeralPlusPlus = 4,
 };
 
 /**
