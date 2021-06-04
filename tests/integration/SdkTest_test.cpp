@@ -163,6 +163,16 @@ bool WaitFor(std::function<bool()>&& f, unsigned millisec)
     }
 }
 
+MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+{
+#if defined(ENABLE_SYNC) && defined(__APPLE__)
+    return new MegaApi(appKey, basePath, userAgent, gFseventsFd, workerThreadCount);
+#else
+    return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
+#endif
+}
+
+FSACCESS_CLASS makeFsAccess() { return makeFsAccess_<FSACCESS_CLASS>(); }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 
@@ -885,7 +895,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         }
         ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
 
-        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+        megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         mApi[index].megaApi = megaApi[index].get();
 
         megaApi[index]->setLoggingName(to_string(index).c_str());
@@ -1217,6 +1227,11 @@ TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
     size_t len = name ? strlen(name) : 0;
     ASSERT_TRUE(len > 4 && !strcasecmp(name + len - 4, ".pdf"));
     LOG_info << "Welcome pdf: " << name;
+
+    // Logout from ephemeral plus plus session and resume session
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    synchronousResumeCreateAccountEphemeralPlusPlus(0, sid.c_str());
+    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Account creation failed after resume (error: " << mApi[0].lastError << ")";
 }
 
 bool veryclose(double a, double b)
@@ -2753,8 +2768,12 @@ LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
 }
 
 
-
+// TODO: SDK-1505
+#ifndef __APPLE__
 TEST_F(SdkTest, SdkTestFolderIteration)
+#else
+TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
+#endif
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
@@ -2854,7 +2873,7 @@ TEST_F(SdkTest, SdkTestFolderIteration)
         std::map<std::string, FileAccessFields > plain_follow_fopen;
         std::map<std::string, FileAccessFields > iterate_follow_fopen;
 
-        FSACCESS_CLASS fsa;
+        FSACCESS_CLASS fsa(makeFsAccess());
         auto localdir = fspathToLocal(iteratePath, fsa);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa.newfileaccess(false));  // false = don't follow symlinks
@@ -3824,7 +3843,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
         "GA4CWmAdW1TwQ-bddEIKTmSDv0b2QQAypo7",
     };
 
-    FSACCESS_CLASS fsa;
+    FSACCESS_CLASS fsa(makeFsAccess());
     string name = "testfile";
     LocalPath localname = LocalPath::fromPath(name, fsa);
 
@@ -4122,7 +4141,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                     exitresumecount += 1;
                     WaitMillisec(100);
 
-                    megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+                    megaApi[0].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
                     mApi[0].megaApi = megaApi[0].get();
                     megaApi[0]->addListener(this);
                     megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
@@ -5245,7 +5264,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     LOG_info << "___TEST invalidFileNames___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    FSACCESS_CLASS fsa;
+    FSACCESS_CLASS fsa(makeFsAccess());
     auto aux = LocalPath::fromPath(fs::current_path().u8string(), fsa);
 
 #if defined (__linux__) || defined (__ANDROID__)
@@ -6399,7 +6418,7 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
 
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__APPLE__)
     LOG_verbose << "SyncPersistence :  Check that symlinks are not synced.";
     std::unique_ptr<MegaNode> remoteNodeSym(megaApi[0]->getNodeByPath(("/" + string(remoteBaseNode->getName()) + "/symlink_1A").c_str()));
     ASSERT_EQ(remoteNodeSym.get(), nullptr);
