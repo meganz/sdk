@@ -59,7 +59,9 @@ We use vcpkg, cmake, and provide scripts to build the 3rd party libraries and se
 	* cd mybuild
 	* git clone https://github.com/meganz/sdk.git
 	* cd sdk\contrib\cmake
+	* <edit preferred-ports-sdk.txt and comment out the two lines for pdfium>
 	* cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
+* Later, if you want to include pdfium (which is used to generate thumbnails and previews for .pdf files), see 3rdparty_deps.txt.
 
 ### Building with POSIX Autotools  (Linux/Darwin/BSD/OSX ...)
 
