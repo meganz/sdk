@@ -25280,7 +25280,7 @@ void MegaFolderUploadController::start(MegaNode*)
     // add the tree above, to subtrees vector for root tree
     mUploadTree.subtrees.push_back(std::move(newTreeNode));
 
-    // it's mandatory to notify stage change from MegaApi's thread
+    // it's mandatory to notify stage change from MegaApi's thread to avoid deadlocks and other issues
     notifyStage(MegaTransfer::STAGE_SCAN);
 
     mWorkerThread = std::thread ([this, path]() {
@@ -25744,7 +25744,7 @@ bool MegaFolderUploadController::hasEnded(bool notifyUserCancellation)
     {
         // MegaFolderUploadController::cancel method has been previously called
         // We do not need to notify transfer as finished here, as It has been done previously
-        LOG_debug << "MegaFolderUploadController::scanFolder - this operation was previously cancelled";
+        LOG_debug << "MegaFolderUploadController - this operation was previously cancelled";
         return true;
     }
 
@@ -25755,7 +25755,7 @@ bool MegaFolderUploadController::hasEnded(bool notifyUserCancellation)
         {
             complete(API_EINCOMPLETE, true);
         }
-        LOG_debug << "MegaFolderUploadController::scanFolder - this operation has been cancelled by user";
+        LOG_debug << "MegaFolderUploadController - this operation has been cancelled by user";
         return true;
     }
 
@@ -26875,6 +26875,7 @@ MegaBackupController::~MegaBackupController()
     }
 }
 
+// Note: it's mandatory to notify stage change from MegaApi's thread
 void MegaRecursiveOperation::notifyStage(uint8_t stage)
 {
     // Make a copy of transfer and set stage in the temp transfer.
@@ -27274,7 +27275,7 @@ bool MegaFolderDownloadController::hasEnded(bool notifyUserCancellation)
     {
         // MegaFolderDownloadController::cancel method has been previously called
         // We do not need to notify transfer as finished here, as It has been done previously
-        LOG_debug << "MegaFolderDownloadController::scanFolder - this operation was previously cancelled";
+        LOG_debug << "MegaFolderDownloadController - this operation was previously cancelled";
         return true;
     }
 
@@ -27285,7 +27286,7 @@ bool MegaFolderDownloadController::hasEnded(bool notifyUserCancellation)
         {
             complete(API_EINCOMPLETE, true);
         }
-        LOG_debug << "MegaFolderDownloadController::scanFolder - this operation has been cancelled by user";
+        LOG_debug << "MegaFolderDownloadController - this operation has been cancelled by user";
         return true;
     }
 
