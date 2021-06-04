@@ -15,12 +15,42 @@ bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
+int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 std::ofstream gUnopenedOfstream;
 
-std::ostream& out()
+std::string getCurrentTimestamp()
 {
+    using std::chrono::system_clock;
+    auto currentTime = std::chrono::system_clock::now();
+    char buffer[80];
+
+    auto transformed = currentTime.time_since_epoch().count() / 1000000;
+
+    auto millis = transformed % 1000;
+
+    std::time_t tt;
+    tt = system_clock::to_time_t ( currentTime );
+    auto timeinfo = localtime (&tt);
+    strftime (buffer,80,"%H:%M:%S",timeinfo);
+    sprintf(buffer, "%s:%03d",buffer,(int)millis);
+
+    return std::string(buffer);
+}
+
+std::string logTime()
+{
+    return getCurrentTimestamp();
+}
+
+
+std::ostream& out(bool withTime)
+{
+    if (withTime && gOutputToCout)
+    {
+        std::cout << getCurrentTimestamp() << " ";
+    }
     if (gOutputToCout) return std::cout;
     else return gUnopenedOfstream;
 }
@@ -39,22 +69,7 @@ public:
         std::ostringstream os;
 
         os << "[";
-        if (time)
-        {
-            os << time;
-        }
-        else
-        {
-            auto t = std::time(NULL);
-            char ts[50];
-            struct tm dt;
-            mega::m_gmtime(t, &dt);
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", &dt))
-            {
-                ts[0] = '\0';
-            }
-            os << ts;
-        }
+        os << getCurrentTimestamp();
 #ifdef ENABLE_LOG_PERFORMANCE
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": ";
         if (message)
@@ -135,7 +150,7 @@ int main (int argc, char *argv[])
             USER_AGENT = std::string(*it).substr(12);
             argc -= 1;
         }
-        else if (std::string(*it).substr(0, 12) == "--COUT")
+        else if (std::string(*it) == "--COUT")
         {
             gOutputToCout = true;
             argc -= 1;
@@ -150,6 +165,19 @@ int main (int argc, char *argv[])
             gResumeSessions = true;
             argc -= 1;
         }
+#ifdef __APPLE__
+        else if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
+        {
+            int fseventsFd = std::stoi(std::string(*it).substr(13));
+            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
+                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
+                return 1;
+            }
+
+            gFseventsFd = fseventsFd;
+            argc -= 1;
+        }
+#endif
         else
         {
             myargv2.push_back(*it);
@@ -193,7 +221,7 @@ fs::path TestFS::GetTestFolder()
 #else
     auto pid = getpid();
 #endif
-    
+
     fs::path testpath = GetTestBaseFolder() / ("pid_" + std::to_string(pid));
     out() << "Local Test folder: " << testpath << endl;
     return testpath;
@@ -212,7 +240,7 @@ void TestFS::DeleteFolder(fs::path folder)
     error_code ec;
     fs::path oldpath(folder);
     fs::path newpath(folder);
-    
+
     for (int i = 10; i--; )
     {
         newpath += "_del"; // this can be improved later if needed
@@ -279,3 +307,4 @@ fs::path makeNewTestRoot()
     assert(b);
     return p;
 }
+

@@ -478,7 +478,7 @@ void FileSystemAccess::normalize(string* filename) // static
     *filename = std::move(result);
 }
 
-std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(LocalPath& localname)
+std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localname)
 {
     LocalPath s;
     if (getsname(localname, s))
@@ -1007,6 +1007,13 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
     localpath.insert(0, additionalPath.localpath);
 }
 
+LocalPath LocalPath::prependNewWithSeparator(const LocalPath& additionalPath) const
+{
+    LocalPath lp = *this;
+    lp.prependWithSeparator(additionalPath);
+    return lp;
+}
+
 void LocalPath::trimNonDriveTrailingSeparator()
 {
     if (endsInSeparator())
@@ -1244,6 +1251,36 @@ ScopedLengthRestore::~ScopedLengthRestore()
 {
     path.localpath.resize(length);
 };
+
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
+{
+    auto localName = localPath.leafName().toPath();
+
+    if (localName != remoteName)
+    {
+        return FILENAME_ANOMALY_NAME_MISMATCH;
+    }
+    else if (isReservedName(remoteName, type))
+    {
+        return FILENAME_ANOMALY_NAME_RESERVED;
+    }
+
+    return FILENAME_ANOMALY_NONE;
+}
+
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node)
+{
+    assert(node);
+
+    return isFilenameAnomaly(localPath, node->displayname(), node->type);
+}
+
+#ifdef ENABLE_SYNC
+FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
+{
+    return isFilenameAnomaly(node.localname, node.name, node.type);
+}
+#endif
 
 } // namespace
 

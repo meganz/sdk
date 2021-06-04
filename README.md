@@ -45,6 +45,7 @@ Some dependencies are different for each platform because the SDK uses generic i
 - Filesystem access (Posix or Win32)
 - Graphics management (FreeImage, QT or iOS frameworks)
 - Threads/mutexes (Win32, pthread, QT threads, or C++11)
+- Drive Notifications (udev for Posix, WMI/WBEM for Win32, or Apple frameworks)
 
 ### Building with vcpkg and cmake 
 
@@ -129,6 +130,7 @@ Optional dependency:
 * Libraw (`libraw-dev`, `libraw-devel`)
 * Sodium (`libsodium-dev`, `libsodium-devel`), configure `--with-sodium`
 * MediaInfoLib (optional, see third_party/README_MediaInfo.txt)
+* libudev (`libudev-dev`, `libudev-devel`)
 
 Filesystem event monitoring: The provided filesystem layer implements
 the Linux `inotify` and the MacOS `fsevents` interfaces.

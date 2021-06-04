@@ -155,7 +155,7 @@ struct DemoApp : public MegaApp
     void richlinkrequest_result(string*, error) override;
 #endif
 
-    void setattr_result(handle, error) override;
+    void setattr_result(handle, Error) override;
     void rename_result(handle, error) override;
     void unlink_result(handle, error) override;
 
@@ -214,15 +214,15 @@ struct DemoApp : public MegaApp
     void sync_removed(handle backupId) override;
 
     void syncupdate_scanning(bool) override;
-    void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_folder_deletion(Sync* , LocalNode*) override;
-    void syncupdate_local_file_addition(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_file_deletion(Sync*, LocalNode*) override;
-    void syncupdate_local_file_change(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_move(Sync*, LocalNode*, const char*) override;
+    void syncupdate_local_folder_addition(Sync*, const LocalPath& path) override;
+    void syncupdate_local_folder_deletion(Sync* , const LocalPath& path) override;
+    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override;
+    void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override;
+    void syncupdate_local_file_change(Sync*, const LocalPath& path) override;
+    void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override;
     void syncupdate_local_lockretry(bool) override;
     void syncupdate_get(Sync*, Node*, const char*) override;
-    void syncupdate_put(Sync*, LocalNode*, const char*) override;
+    void syncupdate_put(Sync*, const char*) override;
     void syncupdate_remote_file_addition(Sync*, Node*) override;
     void syncupdate_remote_file_deletion(Sync*, Node*) override;
     void syncupdate_remote_folder_addition(Sync*, Node*) override;
@@ -247,7 +247,6 @@ struct DemoApp : public MegaApp
     void checkout_result(const char*, error) override;
 
     void getmegaachievements_result(AchievementsDetails*, error) override;
-    void getwelcomepdf_result(handle, string*, error) override;
 
     void contactlinkcreate_result(error, handle) override;
     void contactlinkquery_result(error, handle, string*, string*, string*, string*) override;
@@ -268,6 +267,11 @@ struct DemoApp : public MegaApp
     void notify_retry(dstime, retryreason_t) override;
 
     string getExtraInfoErrorString(const Error&);
+
+protected:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    void drive_presence_changed(bool appeared, const LocalPath& driveRoot) override;
+#endif // USE_DRIVE_NOTIFICATIONS
 };
 
 struct DemoAppFolder : public DemoApp
@@ -385,15 +389,18 @@ void exec_querytransferquota(autocomplete::ACState& s);
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
+void exec_drivemonitor(autocomplete::ACState& s);
+void exec_driveid(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 
 void exec_syncadd(autocomplete::ACState& s);
 void exec_syncclosedrive(autocomplete::ACState& s);
+void exec_syncexport(autocomplete::ACState& s);
+void exec_syncimport(autocomplete::ACState& s);
 void exec_syncopendrive(autocomplete::ACState& s);
 void exec_synclist(autocomplete::ACState& s);
 void exec_syncremove(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
-

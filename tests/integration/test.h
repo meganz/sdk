@@ -5,13 +5,15 @@
 
 #include "stdfs.h"
 
+std::string logTime();
 
 extern std::string USER_AGENT;
 extern bool gRunningInCI;
 extern bool gTestingInvalidArgs;
 extern bool gResumeSessions;
 extern bool gOutputToCout;
-std::ostream& out();
+extern int gFseventsFd;
+std::ostream& out(bool withTime = true);
 enum { THREADS_PER_MEGACLIENT = 3 };
 
 class TestingWithLogErrorAllowanceGuard
@@ -48,3 +50,13 @@ private:
 
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
+
+template<class FsAccessClass>
+FsAccessClass makeFsAccess_()
+{
+    return FsAccessClass(
+#ifdef __APPLE__
+                gFseventsFd
+#endif
+                );
+}
