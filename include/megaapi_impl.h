@@ -2195,7 +2195,6 @@ class MegaApiImpl : public MegaApp
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
-        char *dumpSession();
         char *dumpSession(bool forOfflineResume);
         char *getSequenceNumber();
         char *getAccountAuth();
@@ -2280,7 +2279,7 @@ class MegaApiImpl : public MegaApp
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
-        void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);
+    void loginToFolder(const char* megaFolderLink, const char *authKey, bool offline, MegaRequestListener *listener);
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
         void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);

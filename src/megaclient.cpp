@@ -8897,7 +8897,7 @@ void MegaClient::checkForResumeableSCDatabase()
     }
 }
 
-error MegaClient::folderaccess(const char *folderlink, const char * authKey)
+error MegaClient::folderaccess(const char *folderlink, const char * authKey, bool offline)
 {
     handle h = UNDEF;
     byte folderkey[FOLDERNODEKEYLENGTH];
@@ -8922,6 +8922,8 @@ error MegaClient::folderaccess(const char *folderlink, const char * authKey)
         mFolderLink.mPublicHandle = h;
         // mFolderLink.mAccountAuth remain unchanged, since it can be reused for multiple links
         key.setkey(folderkey);
+        
+        offlineMode = offline;
     }
 
     return e;
@@ -9000,7 +9002,7 @@ void MegaClient::getpubkey(const char *user)
 }
 
 // resume session - load state from local cache, if available
-void MegaClient::login(string session, const std::array<byte, SymmCipher::KEYLENGTH>* saved_sek, handle* saved_me)
+void MegaClient::loginSession(string session, bool offline)
 {
     int sessionversion = 0;
     if (session.size() == sizeof key.key + SIDLEN + 1)
@@ -9024,26 +9026,67 @@ void MegaClient::login(string session, const std::array<byte, SymmCipher::KEYLEN
 
         checkForResumeableSCDatabase();
 
-        if (!saved_sek)
-        {
-            byte sek[SymmCipher::KEYLENGTH];
-            rng.genblock(sek, sizeof sek);
+        byte sek[SymmCipher::KEYLENGTH];
+        rng.genblock(sek, sizeof sek);
 
-            reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
-            getuserdata(reqtag);
-            fetchtimezone();
+        reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
+        getuserdata(reqtag);
+        fetchtimezone();
+    }
+    else if (!session.empty() && session[0] == 3)
+    {
+        // resume session offline
+        
+        CacheableReader cr(session);
+
+        byte sessionVersion;
+        byte k[FOLDERNODEKEYLENGTH];
+        byte expansions[8];
+        
+        std::array<byte, SymmCipher::KEYLENGTH> saved_sek;
+        handle saved_me;
+        byte sidBinary[SIDLEN];
+        
+        
+/*
+ cw.serializebyte(forOfflineResume ? 3 : 1);
+ cw.serializebinary(k, SymmCipher::KEYLENGTH);
+ cw.serializebinary((byte*)sid.data(), sid.size());
+
+ if (forOfflineResume)
+ {
+     cw.serializebinary((byte*)sessionkey.data(), SymmCipher::KEYLENGTH);
+     cw.serializebinary((byte*)&me, sizeof(handle));
+     cw.serializeexpansionflags();
+ }
+ */
+ 
+        if (!cr.unserializebyte(sessionVersion) ||
+            !cr.unserializebinary(k, sizeof(k)) ||
+            !cr.unserializebinary(sidBinary, SIDLEN) ||
+            !cr.unserializebinary(saved_sek.data(), sizeof(saved_sek)) ||
+            !cr.unserializehandle(saved_me) ||
+            !cr.unserializeexpansionflags(expansions, 0) ||
+            cr.hasdataleft())
+        {
+            restag = reqtag;
+            app->login_result(API_EARGS);
         }
         else
         {
-            // resume session offline
-            me = *saved_me;
-            std::array<byte, SymmCipher::KEYLENGTH> k;
-            memcpy(k.data(), session.data(), sizeof(k));
-            key.setkey(&(*saved_sek)[0]);
-            key.ecb_decrypt(k.data());
-            key.setkey(&k[0]);
-            sessionkey.assign(session.data(), SymmCipher::KEYLENGTH);
-            offlineMode = true;
+            me = saved_me;
+            rootnodes[0] = me;
+            key.setkey(saved_sek.data());
+            key.ecb_decrypt(k);
+            key.setkey(k);
+            sessionkey = string((const char*)saved_sek.data(), SymmCipher::KEYLENGTH);
+            sid = string((char*)sidBinary, SIDLEN);
+            offlineMode = offline;
+            restag = reqtag;
+            app->login_result(API_OK);
+
+            checkForResumeableSCDatabase();
+
             restag = reqtag;
             app->login_result(API_OK);
         }
@@ -9084,6 +9127,7 @@ void MegaClient::login(string session, const std::array<byte, SymmCipher::KEYLEN
 
             checkForResumeableSCDatabase();
 
+            offlineMode = offline;
             restag = reqtag;
             app->login_result(API_OK);
         }
@@ -9115,7 +9159,7 @@ error MegaClient::validatepwd(const byte *pwkey)
     return API_OK;
 }
 
-int MegaClient::dumpsession(string& session)
+int MegaClient::dumpsession(string& session, bool forOfflineResume)
 {
     session.clear();
 
@@ -9128,23 +9172,31 @@ int MegaClient::dumpsession(string& session)
 
         if (sessionkey.size())
         {
-            session.resize(sizeof key.key + 1);
-
-            session[0] = 1;
-
             byte k[SymmCipher::KEYLENGTH];
             SymmCipher cipher;
             cipher.setkey((const byte *)sessionkey.data(), int(sessionkey.size()));
             cipher.ecb_encrypt(key.key, k);
-            memcpy(const_cast<char*>(session.data())+1, k, sizeof k);
+            
+            CacheableWriter cw(session);
+
+            cw.serializebyte(forOfflineResume ? 3 : 1);
+            cw.serializebinary(k, SymmCipher::KEYLENGTH);  // can be decrypted to master key using sessionkey (retrieved by successful session resume)
+            cw.serializebinary((byte*)sid.data(), sid.size());
+
+            if (forOfflineResume)
+            {
+                cw.serializebinary((byte*)sessionkey.data(), SymmCipher::KEYLENGTH);
+                cw.serializebinary((byte*)&me, sizeof(handle));
+                cw.serializeexpansionflags();
+            }
         }
         else
         {
             session.resize(sizeof key.key);
             memcpy(const_cast<char*>(session.data()), key.key, sizeof key.key);
+            session.append(sid.data(), sid.size());
         }
 
-        session.append(sid.data(), sid.size());
     }
     else
     {

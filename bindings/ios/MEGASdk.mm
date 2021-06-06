@@ -533,16 +533,6 @@ using namespace mega;
     self.megaApi->sendDevCommand(command.UTF8String, email.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (NSString *)dumpSession {
-    const char *val = self.megaApi->dumpSession();
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
-}
-
 - (NSString *)dumpSession:(BOOL)offline {
     const char *val = self.megaApi->dumpSession(offline);
 
@@ -584,8 +574,8 @@ using namespace mega;
     self.megaApi->fastLoginOffline((session != nil) ? [session UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)loginToFolderLinkAuthed:(NSString *)folderLink folderAuth:(NSString *)folderAuth delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL, (folderAuth != nil) ? [folderAuth UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)loginToFolderLinkAuthed:(NSString *)folderLink folderAuth:(NSString *)folderAuth offline:(BOOL)offline delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL, (folderAuth != nil) ? [folderAuth UTF8String] : NULL, offline, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)loginToFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {

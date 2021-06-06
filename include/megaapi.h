@@ -8459,7 +8459,7 @@ class MegaApi
          * @param authKey Authentication key to write into the folder link
          * @param listener MegaRequestListener to track this request
          */
-        void loginToFolder(const char* megaFolderLink, const char *authKey, MegaRequestListener *listener = NULL);
+    void loginToFolder(const char* megaFolderLink, const char *authKey, bool offline, MegaRequestListener *listener = NULL);
         /**
          * @brief Log in to a MEGA account using precomputed keys
          *
@@ -8737,7 +8737,6 @@ class MegaApi
          *
          * @return Current session key
          */
-        char *dumpSession();
         char *dumpSession(bool forOffline);
 
         /**

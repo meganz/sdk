@@ -1204,8 +1204,8 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * @param delegate Delegate to track this request.
  */
 - (void)loginToFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate;
-- (void)loginToFolderLinkAuthed:(NSString *)folderLink folderAuth:(NSString *)folderAuth delegate:(id<MEGARequestDelegate>)delegate;
-    
+- (void)loginToFolderLinkAuthed:(NSString *)folderLink folderAuth:(NSString *)folderAuth offline:(BOOL)offline delegate:(id<MEGARequestDelegate>)delegate;
+
 /**
  * @brief Log in to a public folder using a folder link.
  *
@@ -1271,8 +1271,6 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  *
  * @return Current session key.
  */
-- (nullable NSString *)dumpSession;
-
 - (nullable NSString *)dumpSession:(BOOL)offline;
 
 /**

@@ -338,7 +338,7 @@ public:
     void fastlogin(const char*, const byte*, uint64_t);
 
     // session login: binary session, bytecount
-    void login(string session, const std::array<byte, SymmCipher::KEYLENGTH>* saved_sek = nullptr, handle* saved_me = nullptr);
+    void loginSession(string session, bool offline);
 
     // check password
     error validatepwd(const byte *);
@@ -368,7 +368,7 @@ public:
     void unblock();
 
     // dump current session
-    int dumpsession(string&);
+    int dumpsession(string&, bool forOfflineResume);
 
     // create a copy of the current session
     void copysession();
@@ -395,7 +395,7 @@ public:
     void checkForResumeableSCDatabase();
 
     // set folder link: node, key. authKey is the authentication key to be able to write into the folder
-    error folderaccess(const char*folderlink, const char* authKey);
+    error folderaccess(const char*folderlink, const char* authKey, bool offline);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
     void openfilelink(handle ph, const byte *key, int op);
