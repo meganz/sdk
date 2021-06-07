@@ -174,6 +174,12 @@ public class MegaApiJava {
     public final static int AFFILIATE_TYPE_CHAT = MegaApi.AFFILIATE_TYPE_CHAT;
     public final static int AFFILIATE_TYPE_CONTACT = MegaApi.AFFILIATE_TYPE_CONTACT;
 
+    public final static int CREATE_ACCOUNT = MegaApi.CREATE_ACCOUNT;
+    public final static int RESUME_ACCOUNT = MegaApi.RESUME_ACCOUNT;
+    public final static int CANCEL_ACCOUNT = MegaApi.CANCEL_ACCOUNT;
+    public final static int CREATE_EPLUSPLUS_ACCOUNT = MegaApi.CREATE_EPLUSPLUS_ACCOUNT;
+    public final static int RESUME_EPLUSPLUS_ACCOUNT = MegaApi.RESUME_EPLUSPLUS_ACCOUNT;
+
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
     public final static int ORDER_DEFAULT_DESC = MegaApi.ORDER_DEFAULT_DESC;
@@ -1351,6 +1357,35 @@ public class MegaApiJava {
     }
 
     /**
+     * Create Ephemeral++ account
+     *
+     * This kind of account allows to join chat links and to keep the session in the device
+     * where it was created.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getName - Returns the firstname of the user
+     * - MegaRequest::getText - Returns the lastname of the user
+     * - MegaRequest::getParamType - Returns the value MegaApi:CREATE_EPLUSPLUS_ACCOUNT
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * MegaRequest::getSessionKey - Returns the session id to resume the process
+     *
+     * If this request succeeds, a new ephemeral++ account will be created for the new user.
+     * The app may resume the create-account process by using MegaApi::resumeCreateAccountEphemeralPlusPlus.
+     *
+     * @note This account should be confirmed in same device it was created
+     *
+     * @param firstname Firstname of the user
+     * @param lastname Lastname of the user
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createEphemeralAccountPlusPlus(String firstname, String lastname, MegaRequestListenerInterface listener) {
+        megaApi.createEphemeralAccountPlusPlus(firstname, lastname, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Initialize the creation of a new MEGA account, with firstname and lastname
      *
      * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
@@ -1359,12 +1394,13 @@ public class MegaApiJava {
      * - MegaRequest::getPassword - Returns the password for the account
      * - MegaRequest::getName - Returns the firstname of the user
      * - MegaRequest::getText - Returns the lastname of the user
+     * - MegaRequest::getParamType - Returns the value MegaApi::CREATE_ACCOUNT
      *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getSessionKey - Returns the session id to resume the process
      *
-     * If this request succeeds, a new ephemeral session will be created for the new user
+     * If this request succeeds, a new ephemeral account will be created for the new user
      * and a confirmation email will be sent to the specified email address. The app may
      * resume the create-account process by using MegaApi::resumeCreateAccount.
      *
@@ -1390,12 +1426,13 @@ public class MegaApiJava {
      * - MegaRequest::getPassword - Returns the password for the account
      * - MegaRequest::getName - Returns the firstname of the user
      * - MegaRequest::getText - Returns the lastname of the user
+     * - MegaRequest::getParamType - Returns the value MegaApi::CREATE_ACCOUNT
      *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getSessionKey - Returns the session id to resume the process
      *
-     * If this request succeeds, a new ephemeral session will be created for the new user
+     * If this request succeeds, a new ephemeral account will be created for the new user
      * and a confirmation email will be sent to the specified email address. The app may
      * resume the create-account process by using MegaApi::resumeCreateAccount.
      *
@@ -1423,6 +1460,7 @@ public class MegaApiJava {
      * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
      * - MegaRequest::getAccess - Returns the type of lastPublicHandle
      * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     * - MegaRequest::getParamType - Returns the value MegaApi::CREATE_ACCOUNT
      *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
@@ -1469,6 +1507,7 @@ public class MegaApiJava {
      * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
      * - MegaRequest::getAccess - Returns the type of lastPublicHandle
      * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     * - MegaRequest::getParamType - Returns the value MegaApi::CREATE_ACCOUNT
      *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
@@ -1529,12 +1568,14 @@ public class MegaApiJava {
      * you can resume the ephemeral session in order to change the email address, resend the
      * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
      * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
-     * MegaListener::onAccountUpdate).
+     * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
+     * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
+     * session (the session will be still valid).
      *
      * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getSessionKey - Returns the session id to resume the process
-     * - MegaRequest::getParamType - Returns the value 1
+     * - MegaRequest::getParamType - Returns the value MegaApi::RESUME_ACCOUNT
      *
      * In case the account is already confirmed, the associated request will fail with
      * error MegaError::API_EARGS.
@@ -1556,12 +1597,14 @@ public class MegaApiJava {
      * you can resume the ephemeral session in order to change the email address, resend the
      * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
      * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
-     * MegaListener::onAccountUpdate).
+     * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
+     * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
+     * session (the session will be still valid).
      *
      * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getSessionKey - Returns the session id to resume the process
-     * - MegaRequest::getParamType - Returns the value 1
+     * - MegaRequest::getParamType - Returns the value MegaApi::RESUME_ACCOUNT
      *
      * In case the account is already confirmed, the associated request will fail with
      * error MegaError::API_EARGS.
@@ -1967,6 +2010,14 @@ public class MegaApiJava {
      */
     public int isLoggedIn() {
         return megaApi.isLoggedIn();
+    }
+
+    /**
+     * Check if we are logged in into an Ephemeral account ++
+     * @return true if logged into an Ephemeral account ++, Otherwise return false
+     */
+    public boolean isEphemeralPlusPlus() {
+        return megaApi.isEphemeralPlusPlus();
     }
 
     /**
@@ -11210,7 +11261,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Returns the email of the user who made the changes
+     * Returns the email of the user who made the changes
      *
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaRecentActionBucket object is deleted.
@@ -11222,14 +11273,43 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Cancel a registration process
+     * Resume a registration process for an Ephemeral++ account
+     *
+     * When a user begins the account registration process by calling
+     * MegaApi::createEphemeralAccountPlusPlus an ephemeral++ account is created.
+     *
+     * Until the user successfully confirms the signup link sent to the provided email address,
+     * you can resume the ephemeral session in order to change the email address, resend the
+     * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+     * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+     * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
+     * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
+     * session (the session will be still valid).
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     * - MegaRequest::getParamType - Returns the value MegaApi::RESUME_EPLUSPLUS_ACCOUNT
+     *
+     * In case the account is already confirmed, the associated request will fail with
+     * error MegaError::API_EARGS.
+     *
+     * @param sid Session id valid for the ephemeral++ account (@see MegaApi::createEphemeralAccountPlusPlus)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resumeCreateAccountEphemeralPlusPlus(String sid, MegaRequestListenerInterface listener) {
+        megaApi.resumeCreateAccountEphemeralPlusPlus(sid, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Cancel a registration process
      *
      * If a signup link has been generated during registration process, call this function
      * to invalidate it. The ephemeral session will not be invalidated, only the signup link.
      *
      * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
      * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the value 2
+     * - MegaRequest::getParamType - Returns the value MegaApi::CANCEL_ACCOUNT
      *
      * @param listener MegaRequestListener to track this request
      */

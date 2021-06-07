@@ -5430,6 +5430,11 @@ int MegaApiImpl::isLoggedIn()
     return result;
 }
 
+bool MegaApiImpl::isEphemeralPlusPlus()
+{
+    return isLoggedIn() == EPHEMERALACCOUNTPLUSPLUS;
+}
+
 void MegaApiImpl::whyAmIBlocked(bool logout, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_WHY_AM_I_BLOCKED, listener);

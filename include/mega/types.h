@@ -744,6 +744,15 @@ typedef enum {
     ACCOUNT_TYPE_BUSINESS = 100,
 } AccountType;
 
+typedef enum
+{
+    ACTION_CREATE_ACCOUNT              = 0,
+    ACTION_RESUME_ACCOUNT              = 1,
+    ACTION_CANCEL_ACCOUNT              = 2,
+    ACTION_CREATE_EPLUSPLUS_ACCOUNT    = 3,
+    ACTION_RESUME_EPLUSPLUS_ACCOUNT    = 4,
+} AccountActionType;
+
 typedef enum {
     AUTH_METHOD_UNKNOWN     = -1,
     AUTH_METHOD_SEEN        = 0,
