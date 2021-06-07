@@ -174,6 +174,12 @@ public class MegaApiJava {
     public final static int AFFILIATE_TYPE_CHAT = MegaApi.AFFILIATE_TYPE_CHAT;
     public final static int AFFILIATE_TYPE_CONTACT = MegaApi.AFFILIATE_TYPE_CONTACT;
 
+    public final static int CREATE_ACCOUNT = MegaApi.CREATE_ACCOUNT;
+    public final static int RESUME_ACCOUNT = MegaApi.RESUME_ACCOUNT;
+    public final static int CANCEL_ACCOUNT = MegaApi.CANCEL_ACCOUNT;
+    public final static int CREATE_EPLUSPLUS_ACCOUNT = MegaApi.CREATE_EPLUSPLUS_ACCOUNT;
+    public final static int RESUME_EPLUSPLUS_ACCOUNT = MegaApi.RESUME_EPLUSPLUS_ACCOUNT;
+
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
     public final static int ORDER_DEFAULT_DESC = MegaApi.ORDER_DEFAULT_DESC;
@@ -11712,10 +11718,4 @@ public class MegaApiJava {
     public boolean isCookieBannerEnabled() {
         return megaApi.cookieBannerEnabled();
     }
-
-    public final static int ACTION_CREATE_ACCOUNT = 0;
-    public final static int ACTION_RESUME_ACCOUNT = 1;
-    public final static int ACTION_CANCEL_ACCOUNT = 2;
-    public final static int ACTION_CREATE_EPLUSPLUS_ACCOUNT = 3;
-    public final static int ACTION_RESUME_EPLUSPLUS_ACCOUNT = 4;
 }
