@@ -682,7 +682,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     assert(sizeof(off_t) == 8);
 
     notifyerr = false;
-    notifyfailed = true;
+    //notifyfailed = true;
     notifyfd = -1;
 
     defaultfilepermissions = 0600;
@@ -704,7 +704,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #ifdef USE_INOTIFY
     if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
     {
-        notifyfailed = false;
+        // notifyfailed = false;
     }
 #endif
 
@@ -763,7 +763,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
             if (ioctl(notifyfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
             {
-                notifyfailed = false;
+                // notifyfailed = false;
             }
             else
             {
