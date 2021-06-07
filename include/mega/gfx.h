@@ -25,9 +25,7 @@
 #include <mutex>
 
 #include "megawaiter.h"
-#include "mega/thread/qtthread.h"
 #include "mega/thread/posixthread.h"
-#include "mega/thread/win32thread.h"
 #include "mega/thread/cppthread.h"
 
 namespace mega {
