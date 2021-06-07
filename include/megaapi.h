@@ -9476,6 +9476,12 @@ class MegaApi
         int isLoggedIn();
 
         /**
+         * @brief Check if we are logged in into an Ephemeral account ++
+         * @return true if logged into an Ephemeral account ++, Otherwise return false
+         */
+        bool isEphemeralPlusPlus();
+
+        /**
          * @brief Check the reason of being blocked.
          *
          * The associated request type with this request is MegaRequest::TYPE_WHY_AM_I_BLOCKED.
