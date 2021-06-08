@@ -60,6 +60,7 @@ We use vcpkg, cmake, and provide scripts to build the 3rd party libraries and se
 	* git clone https://github.com/meganz/sdk.git
 	* cd sdk\contrib\cmake
 	* <edit preferred-ports-sdk.txt and comment out the two lines for pdfium>
+	* <on Win, choose VS version by editing vcpkg_extra_triplets\xNN-windows-mega.cmake>
 	* cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
 * Visual Studio solution is generated at mybuild\sdk\build-x64-windows-mega
 * That folder contains Debug and Release subfolders contain build products
