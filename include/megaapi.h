@@ -12930,6 +12930,8 @@ class MegaApi
          */
         void startDownloadWithData(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
 
+        void startDownloadWithDataAndCancellation(MegaNode* node, const char* localPath, const char *appData,  MegaCancelToken *cancelToken=NULL, MegaTransferListener *listener = NULL);
+
         /**
          * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
          *

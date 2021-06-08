@@ -8551,12 +8551,19 @@ void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceTemp
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
-    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, folderTransferTag, appData, listener);
+    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, folderTransferTag, appData, nullptr, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
+void MegaApiImpl::startDownloadWithCancelToken (bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+{
+    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, folderTransferTag, appData, cancelToken, listener);
+    transferQueue.push(transfer);
+    waiter->notify();
+}
+
+MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -27243,7 +27250,7 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *fsaccess, fsType), true);
              string utf8path = localpath.toPath(*fsaccess);
-             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), this);
+             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), nullptr, this);
              transferQueue.push(transferDownload);
              pendingTransfers++;
          }
@@ -27257,7 +27264,7 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
     if (pendingTransfers)
     {
         notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
-        megaApi->sendPendingTransfers(&transferQueue);
+        megaApi->sendPendingTransfers(&transferQueue, transfer->getCancelToken());
         if (hasEnded(false))
         {
             return;
