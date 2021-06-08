@@ -4278,6 +4278,10 @@ class MegaTransfer
          *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
          * Any other returned value, must be ignored.
          *
+         * Note: a recursive operation (folder upload/download) can be cancelled using a MegaCancelToken,
+         * but this cancellation mechanism will only have effect between the following stages:
+         * MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE both included.
+         *
          * @return The current stage for a recursive operation
          */
         virtual unsigned getStage() const;
@@ -6434,10 +6438,22 @@ class MegaTransferListener
          * The api object is the one created by the application, it will be valid until
          * the application deletes it.
          *
+         * In case this transfer represents a recursive operation (folder upload/download) SDK will
+         * notify apps about the stages transition.
+         *
+         * Current recursive operation stage can be retrieved with method MegaTransfer::getStage.
+         * This method returns the following values:
+         *  - MegaTransfer::STAGE_SCAN                      = 1
+         *  - MegaTransfer::STAGE_CREATE_TREE               = 2
+         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
+         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         * For more information about stages refer to MegaTransfer::getStage
+         *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          *
-         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed
+         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
          */
         virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
 
@@ -6967,7 +6983,19 @@ class MegaListener
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          *
-         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed
+         * In case this transfer represents a recursive operation (folder upload/download) SDK will
+         * notify apps about the stages transition.
+         *
+         * Current recursive operation stage can be retrieved with method MegaTransfer::getStage.
+         * This method returns the following values:
+         *  - MegaTransfer::STAGE_SCAN                      = 1
+         *  - MegaTransfer::STAGE_CREATE_TREE               = 2
+         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
+         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         * For more information about stages refer to MegaTransfer::getStage
+         *
+         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
          */
         virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
 
@@ -12675,8 +12703,35 @@ class MegaApi
          * @param listener MegaTransferListener to track this transfer
          */
         void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, MegaTransferListener *listener=NULL);
-
+        /**
+         * @brief Upload a file or a folder, saving custom app data during the transfer
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * This method includes a mechanism to cancel a folder upload process by calling MegaCancelToken::cancel through parameter
+         * cancelToken. This mechanish will be available just between the following stages: MegaTransfer::STAGE_SCAN and
+         * MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE both included.
+         *
+         * In case we are trying to upload a file, mechanism to cancel upload process by calling
+         * MegaCancelToken::cancel will have no effect.
+         * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
+         *
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
+         * @param cancelToken MegaCancelToken to be able to cancel a folder upload process.
+         * @param listener MegaTransferListener to track this transfer
+         */
         void startUploadWithDataAndCancellation(const char *localPath, MegaNode *parent, const char *appData, MegaCancelToken *cancelToken=NULL, MegaTransferListener *listener=NULL);
+
         /**
          * @brief Upload a file or a folder, saving custom app data during the transfer
          *
@@ -12930,6 +12985,32 @@ class MegaApi
          */
         void startDownloadWithData(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
 
+        /**
+         * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * This method includes a mechanism to cancel a folder download process by calling MegaCancelToken::cancel through parameter
+         * cancelToken. This mechanish will be available just between the following stages: MegaTransfer::STAGE_SCAN and
+         * MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE both included.
+         *
+         * In case we are trying to download a file, mechanism to cancel upload process by calling
+         * MegaCancelToken::cancel will have no effect.
+         * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
+         *
+         * @param node MegaNode that identifies the file or folder
+         * @param localPath Destination path for the file or folder
+         * If this path is a local folder, it must end with a '\' or '/' character and the file name
+         * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer.
+         * @param cancelToken MegaCancelToken to be able to cancel a folder download process.
+         * @param listener MegaTransferListener to track this transfer
+         */
         void startDownloadWithDataAndCancellation(MegaNode* node, const char* localPath, const char *appData,  MegaCancelToken *cancelToken=NULL, MegaTransferListener *listener = NULL);
 
         /**
