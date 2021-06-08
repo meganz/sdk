@@ -268,7 +268,13 @@ public:
     virtual ~MegaRecursiveOperation() = default;
     virtual void start(MegaNode* node) = 0;
     virtual void cancel() = 0;
-    bool isCancelled() { return cancelled; }
+    void notifyStage(uint8_t stage);
+
+    // check if recursive operation is cancelled
+    bool isCancelled();
+
+    // check if user has cancelled operation by using cancelToken of associated transfer
+    bool isCancelledByUser();
 
 protected:
     MegaApiImpl *megaApi;
@@ -311,7 +317,8 @@ public:
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
     virtual ~MegaFolderUploadController();
-    void complete(Error e);
+    bool hasEnded(bool notifyUserCancellation);
+    void complete(Error e, bool cancelledByUser = false);
 
 protected:
     unique_ptr<FileSystemAccess> fsaccess;
@@ -521,7 +528,8 @@ public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
     void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
-    void complete(Error e);
+    bool hasEnded(bool notifyUserCancellation);
+    void complete(Error e, bool cancelledByUser = false);
 
 protected:
     unique_ptr<FileSystemAccess> fsaccess;
@@ -825,6 +833,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 		void setStartPos(long long startPos);
 		void setEndPos(long long endPos);
 		void setNumRetry(int retry);
+        void setStage(unsigned mStage);
 		void setMaxRetries(int retry);
         void setTime(int64_t time);
 		void setFileName(const char* fileName);
@@ -848,6 +857,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setNotificationNumber(long long notificationNumber);
         void setListener(MegaTransferListener *listener);
         void setTargetOverride(bool targetOverride);
+        void setCancelToken(MegaCancelToken *cancelToken);
 
         int getType() const override;
         const char * getTransferString() const override;
@@ -867,6 +877,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         MegaTransferListener* getListener() const override;
         int getNumRetry() const override;
         int getMaxRetries() const override;
+        unsigned getStage() const override;
         virtual int64_t getTime() const;
         int getTag() const override;
         long long getSpeed() const override;
@@ -906,7 +917,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         void setDoNotStopSubTransfers(bool doNotStopSubTransfers);
         bool getDoNotStopSubTransfers() const;
-
+        MegaCancelToken* getCancelToken() const;
         bool isRecursive() const { return recursiveOperation.get() != nullptr; }
 
 protected:
@@ -954,8 +965,10 @@ protected:
         MegaTransferListener *listener;
         Transfer *transfer = nullptr;
         std::unique_ptr<MegaError> lastError;
+        MegaCancelToken *mCancelToken = nullptr;
         int folderTransferTag;
         const char* appData;
+        uint8_t mStage;
 
         // use shared_ptr here so callbacks can use a weak_ptr
         // to protect against the operation being cancelled in the meantime
@@ -2470,9 +2483,10 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, FileSystemType fsType, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, FileSystemType fsType, MegaTransferListener *listener = NULL);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
-        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener = NULL);
         void startUploadForSupport(const char *localPath, bool isSourceTemporary, FileSystemType fsType, MegaTransferListener *listener=NULL);
-        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
+        void startUploadWithCancelToken (bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener* listener);
+        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener *listener);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener);
@@ -3366,7 +3380,7 @@ protected:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        unsigned sendPendingTransfers(TransferQueue *queue = nullptr);
+        unsigned sendPendingTransfers(TransferQueue *queue = nullptr, MegaCancelToken *cancelToken = nullptr);
         void updateBackups();
 
         //Internal
@@ -3394,6 +3408,7 @@ protected:
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderDownloadController;
         friend class MegaFolderUploadController;
+        friend class MegaRecursiveOperation;
 
 private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);

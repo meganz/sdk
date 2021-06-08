@@ -4070,6 +4070,16 @@ class MegaTransfer
             MOVE_TYPE_BOTTOM
         };
 
+        enum {
+            STAGE_NONE = 0,
+            STAGE_SCAN,
+            STAGE_CREATE_TREE,
+            STAGE_GEN_TRANSFERS,
+            STAGE_PROCESS_TRANSFER_QUEUE,
+            STAGE_TRANSFERRING_FILES,
+            STAGE_MAX = STAGE_TRANSFERRING_FILES,
+        };
+
         virtual ~MegaTransfer();
 
         /**
@@ -4257,6 +4267,20 @@ class MegaTransfer
 		 * @return Mmximum number of times that the transfer will be retried
 		 */
 		virtual int getMaxRetries() const;
+
+        /**
+         * @brief Returns the current stage in case this transfer represents a recursive operation.
+         * This method can return the following values:
+         *  - MegaTransfer::STAGE_SCAN                      = 1
+         *  - MegaTransfer::STAGE_CREATE_TREE               = 2
+         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
+         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         * Any other returned value, must be ignored.
+         *
+         * @return The current stage for a recursive operation
+         */
+        virtual unsigned getStage() const;
 
 		/**
 		 * @brief Returns an integer that identifies this transfer
@@ -4486,6 +4510,13 @@ class MegaTransfer
          * @return True if target folder was overriden (apps can check the final parent)
          */
         virtual bool getTargetOverride() const;
+
+        /**
+         * @brief Returns a string that identify the recursive operation stage
+         *
+         * @return A string that identify the recursive operation stage
+         */
+        static const char* stageToString(unsigned stage);
 };
 
 /**
@@ -12645,6 +12676,7 @@ class MegaApi
          */
         void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, MegaTransferListener *listener=NULL);
 
+        void startUploadWithDataAndCancellation(const char *localPath, MegaNode *parent, const char *appData, MegaCancelToken *cancelToken=NULL, MegaTransferListener *listener=NULL);
         /**
          * @brief Upload a file or a folder, saving custom app data during the transfer
          *

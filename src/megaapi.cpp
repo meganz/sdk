@@ -1170,6 +1170,11 @@ int MegaTransfer::getMaxRetries() const
 	return 0;
 }
 
+unsigned MegaTransfer::getStage() const
+{
+    return 0;
+}
+
 int MegaTransfer::getTag() const
 {
 	return 0;
@@ -1278,6 +1283,20 @@ long long MegaTransfer::getNotificationNumber() const
 bool MegaTransfer::getTargetOverride() const
 {
     return false;
+}
+
+const char* MegaTransfer::stageToString(unsigned stage)
+{
+    switch (stage)
+    {
+        case MegaTransfer::STAGE_NONE:                      return "Not initialized stage";
+        case MegaTransfer::STAGE_SCAN:                      return "Scan stage";
+        case MegaTransfer::STAGE_CREATE_TREE:               return "Create tree stage";
+        case MegaTransfer::STAGE_GEN_TRANSFERS:             return "Generating file transfers stage";
+        case MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE:    return "Processing transfers queue stage";
+        case MegaTransfer::STAGE_TRANSFERRING_FILES:        return "Transferring files stage";
+        default:                                            return "Invalid stage";
+    }
 }
 
 MegaError::MegaError(int e)
@@ -3173,6 +3192,11 @@ void MegaApi::abortCurrentBackup(int tag, MegaRequestListener *listener)
 void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
 {
     pImpl->startTimer(period, listener);
+}
+
+void MegaApi::startUploadWithDataAndCancellation(const char *localPath, MegaNode *parent, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+{
+    pImpl->startUploadWithCancelToken(false, localPath, parent, (const char *)NULL, NULL, -1, 0, false, appData, false, false, FS_UNKNOWN, cancelToken, listener);
 }
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
