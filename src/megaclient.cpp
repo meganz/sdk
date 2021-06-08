@@ -2313,14 +2313,31 @@ void MegaClient::exec()
         if (!scpaused && jsonsc.pos)
 #endif
         {
-            // FIXME: reload in case of bad JSON
-            bool r = procsc();
+            int r = procsc();
 
             if (r)
             {
-                // completed - initiate next SC request
+                if (r == 1)
+                {
+                    // completed - initiate next SC request
+                    btsc.reset();
+                }
+                else
+                {
+                    // parsing the json failed, get the last reached position
+                    ptrdiff_t p = pendingsc && pendingsc->in.c_str() && jsonsc.pos ? jsonsc.pos - pendingsc->in.c_str() : 0;
+                    ostringstream msgstream;
+                    msgstream << "Bad server-client json; position " << p << '.'; // avoid dealing with formatting p
+                    const string msg = msgstream.str();
+
+                    // send event to API about "server-client" bad json
+                    sendevent(99557, msg.c_str());
+
+                    btsc.backoff(30 * 60 * 10); // 30 min
+                }
+
                 pendingsc.reset();
-                btsc.reset();
+                jsonsc.pos = nullptr;
             }
 #ifdef ENABLE_SYNC
             else
@@ -4508,7 +4525,7 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 }
 
 // process server-client request
-bool MegaClient::procsc()
+int MegaClient::procsc()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
 
@@ -4673,7 +4690,7 @@ bool MegaClient::procsc()
                     {
                         app->catchup_result();
                     }
-                    return true;
+                    return 1;
 
                 case 'a':
                     if (jsonsc.enterarray())
@@ -4687,7 +4704,7 @@ bool MegaClient::procsc()
                     if (!jsonsc.storeobject())
                     {
                         LOG_err << "Error parsing sc request";
-                        return true;
+                        return 2;
                     }
             }
         }
