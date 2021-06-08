@@ -31,21 +31,13 @@ dstime Waiter::ds;
 
 PosixWaiter::PosixWaiter()
 {
-    for (;;)
+    // pipe to be able to leave the select() call
+    if (pipe(m_pipe) < 0)
     {
-        // pipe to be able to leave the select() call
-        if (pipe(m_pipe) < 0)
-        {
-            LOG_fatal << "Error creating pipe";
-            throw std::runtime_error("Error creating pipe");
-        }
-
-        // On MacOS, pipe() keeps giving us 3 as the first fd.  Possibly on the first pipe() call per thread?
-        if (m_pipe[0] > 3 && m_pipe[1] > 3) break;
-
-        if (m_pipe[0] > 3) close(m_pipe[0]);
-        if (m_pipe[1] > 3) close(m_pipe[1]);
+        LOG_fatal << "Error creating pipe";
+        throw std::runtime_error("Error creating pipe");
     }
+
 
     if (fcntl(m_pipe[0], F_SETFL, O_NONBLOCK) < 0)
     {
