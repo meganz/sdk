@@ -381,7 +381,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
 #ifndef WIN32
-    ASSERT_EQ(45u, data.size());
+    ASSERT_EQ(51u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, l);
@@ -440,7 +440,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
 #ifndef WIN32
-    ASSERT_EQ(45u, data.size());
+    ASSERT_EQ(51u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, l);
@@ -478,7 +478,7 @@ TEST(Serialization, LocalNode_forFolder_32bit)
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
-    l->setfsid(10, client.cli->localnodeByFsid);
+    l->setfsid(10, client.cli->localnodeByFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
     l->syncedCloudNodeHandle.set6byte(n.nodehandle);
 
     // This is the result of serialization on 32bit Windows
@@ -506,7 +506,7 @@ TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
-    l->setfsid(10, client.cli->localnodeByFsid);
+    l->setfsid(10, client.cli->localnodeByFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
     l->syncedCloudNodeHandle.set6byte(n.nodehandle);
 
     // This array represents an old LocalNode without extension bytes
@@ -535,7 +535,7 @@ TEST(Serialization, LocalNode_forFile)
     l->syncedCloudNodeHandle.set6byte(n.nodehandle);
     l->syncedFingerprint.size = 1;
     l->syncedFingerprint.mtime = 0;
-    l->setfsid(10, client.cli->localnodeByFsid);
+    l->setfsid(10, client.cli->localnodeByFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     std::iota(l->syncedFingerprint.crc.begin(), l->syncedFingerprint.crc.end(), 1);
@@ -556,7 +556,7 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     l->syncedCloudNodeHandle.set6byte(n.nodehandle);
     l->syncedFingerprint.size = 1;
-    l->setfsid(10, client.cli->localnodeByFsid);
+    l->setfsid(10, client.cli->localnodeByFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->syncedFingerprint.mtime = 0;
@@ -587,7 +587,7 @@ TEST(Serialization, LocalNode_forFile_32bit)
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     l->syncedCloudNodeHandle.set6byte(n.nodehandle);
     l->syncedFingerprint.size = 1;
-    l->setfsid(10, client.cli->localnodeByFsid);
+    l->setfsid(10, client.cli->localnodeByFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->syncedFingerprint.mtime = 0;

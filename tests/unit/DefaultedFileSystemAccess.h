@@ -35,8 +35,6 @@ public:
 
     DefaultedFileSystemAccess()
     {
-        notifyerr = false;
-        notifyfailed = true;
     }
     std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {
