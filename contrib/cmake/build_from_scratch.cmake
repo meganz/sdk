@@ -11,6 +11,9 @@
     set up the project (Visual Studio on Windows) and bulid it in an SDK subfolder "build-<triplet>"
     
 	Pdfium is one third party library dependency whose source must be fetched manually, see 3rdparty_deps.txt.
+	Once you have the pdfium source, you can rerun this script to build it.  Or, if you already have it
+	before first running this script, copy it to 3rdParty_sdk/vcpkg/pdfium once the script has created that folder
+	and it will be built during the first run - avoid disabling it by leaving out those steps flags of course.
 ]]
 
 function(usage_exit err_msg)
