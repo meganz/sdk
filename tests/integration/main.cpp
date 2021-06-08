@@ -11,6 +11,8 @@
     #define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
 #endif
 
+using namespace ::mega;
+
 bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
@@ -57,7 +59,7 @@ std::ostream& out(bool withTime)
 
 namespace {
 
-class MegaLogger : public mega::Logger
+class MegaLogger : public Logger
 {
 public:
     void log(const char* time, int loglevel, const char* source, const char* message
@@ -71,7 +73,7 @@ public:
         os << "[";
         os << getCurrentTimestamp();
 #ifdef ENABLE_LOG_PERFORMANCE
-        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": ";
+        os << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": ";
         if (message)
         {
             os << message;
@@ -79,7 +81,7 @@ public:
         // we can have the message AND the direct messages
         for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
 #else
-        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
+        os << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message;
 #endif
         if (source)
         {
@@ -87,7 +89,7 @@ public:
         }
         os << std::endl;
 
-        if (loglevel <= mega::SimpleLogger::logCurrentLevel)
+        if (loglevel <= SimpleLogger::logCurrentLevel)
         {
             if (gRunningInCI)
             {
@@ -104,9 +106,9 @@ public:
 #endif
                 if (!gTestingInvalidArgs)
                 {
-                    if (loglevel <= mega::logError)
+                    if (loglevel <= logError)
                     {
-                        ASSERT_GT(loglevel, mega::logError) << os.str();
+                        ASSERT_GT(loglevel, logError) << os.str();
                     }
                 }
             }
@@ -157,7 +159,8 @@ int main (int argc, char *argv[])
         }
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
-            mega::MegaClient::APIURL = std::string(*it).substr(9);
+            std::lock_guard<std::mutex> g(g_APIURL_default_mutex);
+            g_APIURL_default = std::string(*it).substr(9);
             argc -= 1;
         }
         else if (std::string(*it) == "--RESUMESESSIONS")
@@ -186,8 +189,8 @@ int main (int argc, char *argv[])
 
     MegaLogger megaLogger;
 
-    mega::SimpleLogger::setLogLevel(mega::logMax);
-    mega::SimpleLogger::setOutputClass(&megaLogger);
+    SimpleLogger::setLogLevel(logMax);
+    SimpleLogger::setOutputClass(&megaLogger);
 
 #if defined(_WIN32) && defined(NO_READLINE)
     using namespace mega;

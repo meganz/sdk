@@ -2142,8 +2142,9 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToLongName(int);
         static int userAttributeFromString(const char *name);
         static char userAttributeToScope(int);
-        static void setStatsID(const char *id);
-
+#ifdef WINDOWS_PHONE
+        void setStatsID(const char *id);
+#endif
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
