@@ -26989,6 +26989,9 @@ void MegaFolderDownloadController::start(MegaNode *node)
             return;
         }
 
+        // it's mandatory to notify stage change from MegaApi's thread to avoid deadlocks and other issues
+        notifyStage(MegaTransfer::STAGE_CREATE_TREE);
+
         // start worker thread to create local folder tree
         mWorkerThread = std::thread([this, fsType](){
 
@@ -27198,7 +27201,6 @@ bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
 
 Error MegaFolderDownloadController::createFolder()
 {
-    notifyStage(MegaTransfer::STAGE_CREATE_TREE);
     // Create all local directories in one shot (on the download worker thread)
     assert(mMainThreadId != std::this_thread::get_id());
     auto it = mLocalTree.begin();
