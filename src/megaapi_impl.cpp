@@ -25656,8 +25656,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
         // use a weak_ptr in case this operation was cancelled, and 'this' object doesn't exist
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
-
-        megaapiThreadClient()->putnodes(tree.megaNode->getHandle(), std::move(newnodes), nullptr,
+        megaapiThreadClient()->putnodes(tree.megaNode->getHandle(), std::move(newnodes), megaapiThreadClient()->reqtag, nullptr,
             [this, weak_this](const Error& e, targettype_t t, vector<NewNode>& nn)
             {
                 // double check our object still exists on request completion
