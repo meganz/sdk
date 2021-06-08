@@ -1539,26 +1539,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Create ephemeral account plus plus
-     *
-     * This kind account allows join to chat link and keeps the session in the device
-     * where it was created
-     *
-     * The associated request type with this request is MegaRequest::TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS.
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getName - Returns the firstname of the user
-     * - MegaRequest::getText - Returns the lastname of the user
-     *
-     * @param firstname Firstname of the user
-     * @param lastname  Lastname of the user
-     * @param listener  MegaRequestListener to track this request
-     * @note This account should be confirmed in same device it was created
-     */
-    public void createEphemeralAccountPlusPlus(String firstname, String lastname, MegaRequestListenerInterface listener) {
-        megaApi.createEphemeralAccountPlusPlus(firstname, lastname, createDelegateRequestListener(listener));
-    }
-
-    /**
      * Resume a registration process
      *
      * When a user begins the account registration process by calling MegaApi::createAccount,
