@@ -1514,10 +1514,11 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     if (!handleContainerStr) { return API_EACCESS; }
 
     std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &client->key));
-    if (!tlvRecords || !tlvRecords->find("h")) { return API_EINTERNAL; }
+    const string& rec = tlvRecords ? tlvRecords->get("h") : string();
+    if (rec.empty()) { return API_EINTERNAL; }
 
     handle h = 0; // make sure top two bytes are 0
-    memcpy(&h, tlvRecords->get("h").c_str(), MegaClient::NODEHANDLE);
+    memcpy(&h, rec.c_str(), MegaClient::NODEHANDLE);
 
     if (!h || h == UNDEF) { return API_ENOENT; }
 
@@ -1571,9 +1572,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
         if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
 
         tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
-        if (!tlvRecords || !tlvRecords->find(deviceId)) { return API_EINCOMPLETE; }
-
-        const string& deviceName = tlvRecords->get(deviceId);
+        const string& deviceName = tlvRecords ? tlvRecords->get(deviceId) : string();
         if (deviceName.empty()) { return API_EINCOMPLETE; }
 
         // add a new node for it
@@ -15501,14 +15500,15 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 if (h)
                 {
                     string key{h};
-                    if (!tlv->find(key))
+                    const string &rec = tlv ? tlv->get("h") : string();
+                    if (rec.empty())
                     {
                         e = API_ENOENT;
                         break;
                     }
                     else
                     {
-                        request->setName(Base64::atob(tlv->get(key)).c_str());
+                        request->setName(Base64::atob(rec).c_str());
                     }
                 }
                 break;

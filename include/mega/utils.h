@@ -324,13 +324,6 @@ private:
     vector<string> *getKeys() const;
 
     /**
-     * @brief find Checks whether a type of value is available in the TLV container.
-     * @param type Type of the value (without scope nor non-historic modifiers).
-     * @return True if the type of value is found, false otherwise.
-     */
-    bool find(string type) const;
-
-    /**
      * @brief add Adds a new record to the container
      * @param type Type for the new value (without scope nor non-historic modifiers).
      * @param value New value to be set.

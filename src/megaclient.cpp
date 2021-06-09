@@ -12334,35 +12334,29 @@ void MegaClient::initializekeys()
         if (tlvRecords)
         {
 
-            if (tlvRecords->find(EdDSA::TLV_KEY))
+            string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
+            if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
             {
-                string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-                if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
+                if (!signkey->initializationOK)
                 {
-                    signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
-                    if (!signkey->initializationOK)
-                    {
-                        delete signkey;
-                        signkey = NULL;
-                        clearKeys();
-                        return;
-                    }
+                    delete signkey;
+                    signkey = NULL;
+                    clearKeys();
+                    return;
                 }
             }
 
-            if (tlvRecords->find(ECDH::TLV_KEY))
+            string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
+            if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
             {
-                string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-                if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                chatkey = new ECDH((unsigned char *) prCu255.data());
+                if (!chatkey->initializationOK)
                 {
-                    chatkey = new ECDH((unsigned char *) prCu255.data());
-                    if (!chatkey->initializationOK)
-                    {
-                        delete chatkey;
-                        chatkey = NULL;
-                        clearKeys();
-                        return;
-                    }
+                    delete chatkey;
+                    chatkey = NULL;
+                    clearKeys();
+                    return;
                 }
             }
             delete tlvRecords;
@@ -15411,12 +15405,7 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
     string unencoded = Base64::atob(encoded);
 
     unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&unencoded, &key));
-    if (tlv && tlv->find(name)) {
-        // we have to check with "find" as get() will throw an exception (in contrast to the documented behaviour) if the key is not present
-        return tlv->get(name);
-    }
-
-    return "";
+    return tlv ? tlv->get(name) : string();
 }
 
 #ifdef ENABLE_SYNC

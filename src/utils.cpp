@@ -1385,7 +1385,8 @@ string* TLVstore::tlvRecordsToContainer()
 
 std::string TLVstore::get(string type) const
 {
-    return tlv.at(type);
+    auto it = tlv.find(type);
+    return it != tlv.cend() ? it->second : std::string();
 }
 
 const TLV_map * TLVstore::getMap() const
@@ -1401,11 +1402,6 @@ vector<string> *TLVstore::getKeys() const
         keys->push_back(it->first);
     }
     return keys;
-}
-
-bool TLVstore::find(string type) const
-{
-    return (tlv.find(type) != tlv.end());
 }
 
 void TLVstore::set(string type, string value)
