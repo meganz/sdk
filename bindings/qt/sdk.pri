@@ -544,22 +544,27 @@ else {
     DEFINES += USE_FREEIMAGE
     SOURCES += src/gfx/freeimage.cpp
 
-    macx {
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/FreeImage/Source
-        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
-    }
-    else {
-        vcpkg:LIBS += -lfreeimage$$DEBUG_SUFFIX
-        !vcpkg:LIBS += -lfreeimage
-    }
+    vcpkg {    
+        win32:LIBS += -llibpng16$$DEBUG_SUFFIX -llibwebpmux$$DEBUG_SUFFIX
+        else {
+            LIBS += -lpng16$$DEBUG_SUFFIX -lwebpmux$$DEBUG_SUFFIX
+        }
 
-    vcpkg {
-        LIBS += -ljpeg$$DEBUG_SUFFIX -ltiff$$DEBUG_SUFFIX -llibpng16$$DEBUG_SUFFIX \
+        LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX -ltiff$$DEBUG_SUFFIX \
         -lIlmImf-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_5$$UNDERSCORE_DEBUG_SUFFIX \
         -lIexMath-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_5$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_5$$UNDERSCORE_DEBUG_SUFFIX \
-        -llibwebpmux$$DEBUG_SUFFIX -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
+        -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
         -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX -lHalf-2_5$$UNDERSCORE_DEBUG_SUFFIX \
         -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw$$DEBUG_SUFFIX -lopenjp2
+    }
+    else {
+        macx{
+            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/FreeImage/Source
+            LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
+        }
+        else {
+            LIBS += -lfreeimage
+        }
     }
 }
 
