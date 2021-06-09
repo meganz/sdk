@@ -464,7 +464,6 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_half        half-2_5_d       half-2_5       libHalf-2_5_d       libHalf-2_5        )
             ImportStdVcpkgLibrary(freeimage_lzma        lzmad            lzma           liblzmad            liblzma            )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
-            ImportStdVcpkgLibrary(freeimage_tiffxx      tiffxxd          tiffxx         libtiffxxd          libtiffxx          )
             ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
             ImportStdVcpkgLibrary(freeimage_webpdecoder webpdecoderd     webpdecoder    libwebpdecoderd     libwebpdecoder     )
             ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
@@ -480,7 +479,6 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                                             libraw
                                             liblcms
                                             freeimage_tiff
-                                            freeimage_tiffxx
                                             freeimage_webp
                                             freeimage_webpdecoder
                                             freeimage_webpdemux
@@ -616,7 +614,17 @@ ELSE(WIN32)
 
     SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap)
     IF(APPLE)
-        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa -framework SystemConfiguration -framework Security")
+       SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework SystemConfiguration -framework Security")
+       if (NOT IOS)
+           set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa")
+       else()
+               set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                   "-framework Foundation"
+                   "-framework ImageIO"
+                   "-framework CoreGraphics"
+                   "-framework CoreMotion"
+                   "-framework MobileCoreServices")
+       endif()
     ELSE()
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
     ENDIF()
@@ -880,7 +888,48 @@ if(IOS)
     # -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_Swift_COMPILER_TARGET=arm64-apple-ios7.0.0 -DCMAKE_OSX_SYSROOT=iphoneos -DVCPKG_TRIPLET=arm64-ios-mega
     add_definitions( -DUSE_IOS )
     include_directories( ${MegaDir}/bindings/ios/ ${MegaDir}/bindings/ios/Private )
-    add_executable(simple_ios_build_test ${MegaDir}/bindings/ios/MEGASdk.mm )
+    add_executable(simple_ios_build_test
+        ${MegaDir}/src/gfx/GfxProcCG.mm
+        ${MegaDir}/bindings/ios/MEGAAccountDetails.mm
+        ${MegaDir}/bindings/ios/MEGAAchievementsDetails.mm
+        ${MegaDir}/bindings/ios/MEGABackgroundMediaUpload.mm
+        ${MegaDir}/bindings/ios/MEGABanner.mm
+        ${MegaDir}/bindings/ios/MEGABannerList.mm
+        ${MegaDir}/bindings/ios/MEGACancelToken.mm
+        ${MegaDir}/bindings/ios/MEGAChildrenLists.mm
+        ${MegaDir}/bindings/ios/MEGAContactRequest.mm
+        ${MegaDir}/bindings/ios/MEGAContactRequestList.mm
+        ${MegaDir}/bindings/ios/MEGAError.mm
+        ${MegaDir}/bindings/ios/MEGAEvent.mm
+        ${MegaDir}/bindings/ios/MEGAFolderInfo.mm
+        ${MegaDir}/bindings/ios/MEGAHandleList.mm
+        ${MegaDir}/bindings/ios/MEGANode.mm
+        ${MegaDir}/bindings/ios/MEGANodeList.mm
+        ${MegaDir}/bindings/ios/MEGAPricing.mm
+        ${MegaDir}/bindings/ios/MEGAPushNotificationSettings.mm
+        ${MegaDir}/bindings/ios/MEGARecentActionBucket.mm
+        ${MegaDir}/bindings/ios/MEGARequest.mm
+        ${MegaDir}/bindings/ios/MEGASdk.mm
+        ${MegaDir}/bindings/ios/MEGAShare.mm
+        ${MegaDir}/bindings/ios/MEGAShareList.mm
+        ${MegaDir}/bindings/ios/MEGAStringList.mm
+        ${MegaDir}/bindings/ios/MEGATimeZoneDetails.mm
+        ${MegaDir}/bindings/ios/MEGATransfer.mm
+        ${MegaDir}/bindings/ios/MEGATransferList.mm
+        ${MegaDir}/bindings/ios/MEGAUser.mm
+        ${MegaDir}/bindings/ios/MEGAUserAlert.mm
+        ${MegaDir}/bindings/ios/MEGAUserAlertList.mm
+        ${MegaDir}/bindings/ios/MEGAUserList.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGAGlobalListener.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGAListener.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGALoggerListener.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGARequestListener.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGATransferListener.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGATreeProcessorListener.mm
+        ${MegaDir}/bindings/ios/Private/ListenerDispatch.mm
+        ${MegaDir}/bindings/ios/Private/MEGADataInputStream.mm
+        ${MegaDir}/bindings/ios/Private/MEGAFileInputStream.mm
+    )
     target_link_libraries(simple_ios_build_test Mega )
 endif()
 
@@ -973,6 +1022,7 @@ configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
 
 # actual apps
 
+if (NOT IOS)
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
 target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
@@ -981,6 +1031,7 @@ endif (NOT NO_READLINE)
 
 add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)
 target_link_libraries(megasimplesync Mega )
+endif()
 
 if(WIN32)
 add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
