@@ -1018,7 +1018,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                     const auto& rootPath = sync->mFsEventsPath;
 
                     // Is the notification coming from within this sync?
-                    if (!IsContainingPathOf(rootPath, path, psize)) return;
+                    if (!IsContainingLocalPathOf(rootPath, path, psize)) return;
 
                     // Is this notification regarding a resource fork?
                     if (IsResourceFork(path, psize)) return;

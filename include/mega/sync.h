@@ -198,6 +198,60 @@ using SyncCompletionFunction =
   std::function<void(UnifiedSync*, const SyncError&, error)>;
 
 
+struct syncRow
+{
+    syncRow(Node* node, LocalNode* syncNode, FSNode* fsNode)
+        : cloudNode(node)
+        , syncNode(syncNode)
+        , fsNode(fsNode)
+    {
+    };
+
+    Node* cloudNode;
+    LocalNode* syncNode;
+    FSNode* fsNode;
+
+    vector<Node*> cloudClashingNames;
+    vector<FSNode*> fsClashingNames;
+
+    bool suppressRecursion = false;
+    bool itemProcessed = false;
+
+    // Sometimes when eg. creating a local a folder, we need to add to this list
+    // Note that it might be the cached version or a temporary regenerated list
+    vector<FSNode>* fsSiblings = nullptr;
+    vector<syncRow>* rowSiblings = nullptr;
+    const LocalPath& comparisonLocalname() const;
+};
+
+struct MEGA_API SyncPath
+{
+    // Tracks both local and remote absolute paths (whether they really exist or not) as we recurse the sync nodes
+    LocalPath localPath;
+    string cloudPath;
+
+    // this one purely from the sync root (using cloud name, to avoid escaped names)
+    string syncPath;
+
+    // convenience, performs the conversion
+    string localPath_utf8();
+
+    bool appendRowNames(const syncRow& row, FileSystemType filesystemType);
+
+    SyncPath(MegaClient* c, const LocalPath& fs, const string& cloud) : client(c), localPath(fs), cloudPath(cloud) {}
+private:
+    MegaClient* client;
+};
+
+
+class ScopedSyncPathRestore {
+    SyncPath& path;
+    size_t length1, length2, length3;
+public:
+    // On destruction, puts the LocalPath length back to what it was on construction of this class
+    ScopedSyncPathRestore(SyncPath&);
+    ~ScopedSyncPathRestore();
+};
 
 
 class MEGA_API Sync
@@ -274,32 +328,6 @@ public:
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = nullptr, LocalPath* outpath = nullptr);
 
-    struct syncRow
-    {
-        syncRow(Node* node, LocalNode* syncNode, FSNode* fsNode)
-          : cloudNode(node)
-          , syncNode(syncNode)
-          , fsNode(fsNode)
-        {
-        };
-
-        Node* cloudNode;
-        LocalNode* syncNode;
-        FSNode* fsNode;
-
-        vector<Node*> cloudClashingNames;
-        vector<FSNode*> fsClashingNames;
-
-        bool suppressRecursion = false;
-        bool itemProcessed = false;
-
-        // Sometimes when eg. creating a local a folder, we need to add to this list
-        // Note that it might be the cached version or a temporary regenerated list
-        vector<FSNode>* fsSiblings = nullptr;
-        vector<syncRow>* rowSiblings = nullptr;
-        const LocalPath& comparisonLocalname() const;
-    };
-
     vector<syncRow> computeSyncTriplets(Node* cloudNode,
         const LocalNode& root,
         vector<FSNode>& fsNodes) const;
@@ -308,27 +336,27 @@ public:
         vector<FSNode>& fsNodes,
         vector<syncRow>& inferredRows) const;
 
-    bool recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCommitter& committer);
-    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer);
-    bool syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer);
-    string logTriplet(syncRow& row, LocalPath& fullPath);
+    bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer);
+    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
+    bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
+    string logTriplet(syncRow& row, SyncPath& fullPath);
 
-    bool resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool considerSynced);
-    bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool considerSynced);
-    bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    bool resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer);
-    bool resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer, bool alreadyExists);
-    bool resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    bool resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
+    bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
+    bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
+    bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool alreadyExists);
+    bool resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
 
     bool syncEqual(const Node&, const FSNode&);
     bool syncEqual(const Node&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
-    bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult);
-    bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult);
+    bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult);
+    bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult);
 
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
@@ -593,6 +621,10 @@ struct SyncFlags
 
     // we can only perform moves after scanning is complete
     bool scanningWasComplete = false;
+
+    // track whether all our reachable nodes have been scanned
+    bool reachableNodesAllScannedThisPass = true;
+    bool reachableNodesAllScannedLastPass = true;
 
     // we can only delete/upload/download after moves are complete
     bool movesWereComplete = false;

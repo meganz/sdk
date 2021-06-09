@@ -985,7 +985,13 @@ public:
     void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
 };
 
-enum class SyncWaitReason { MoveNeedsTargetFolder, UpsyncNeedsTargetFolder, DownsyncNeedsTargetFolder, DeleteWaitingOnMoves };
+enum class SyncWaitReason {
+    MoveNeedsTargetFolder,
+    MoveNeedsDestinationNodeProcessing,
+    UpsyncNeedsTargetFolder,
+    DownsyncNeedsTargetFolder,
+    DeleteWaitingOnMoves
+};
 
 } // namespace
 

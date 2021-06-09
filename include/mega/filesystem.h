@@ -83,6 +83,7 @@ class MEGA_API LocalPath
 
     // only functions that need to call the OS or 3rdParty libraries - normal code should have no access (or accessor) to localpath
     friend class ScopedLengthRestore;
+    friend class ScopedSyncPathRestore;
     friend class WinFileSystemAccess;
     friend class PosixFileSystemAccess;
     friend struct WinDirAccess;
@@ -207,9 +208,11 @@ void RemoveHiddenFileAttribute(mega::LocalPath& path);
  * @return
  * True if a contains b.
  */
-bool IsContainingPathOf(const string& a, const string& b);
-bool IsContainingPathOf(const string& a, const char* b, size_t bLength);
-bool IsContainingPathOf(const string& a, const char* b);
+bool IsContainingLocalPathOf(const string& a, const string& b);
+bool IsContainingLocalPathOf(const string& a, const char* b, size_t bLength);
+
+bool IsContainingCloudPathOf(const string& a, const string& b);
+bool IsContainingCloudPathOf(const string& a, const char* b, size_t bLength);
 
 /**
  * @brief

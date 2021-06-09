@@ -2953,6 +2953,8 @@ void MegaClient::exec()
                 auto scanningCompletePreviously = mSyncFlags->scanningWasComplete;
                 //mSyncFlags->scanTargetReachable = false;
                 mSyncFlags->scanningWasComplete = !isAnySyncScanning();
+                mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass;
+                mSyncFlags->reachableNodesAllScannedThisPass = true;
                 mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
                 mSyncFlags->noProgress = true;
                 mSyncFlags->stalledNodePaths.clear();
@@ -2984,11 +2986,11 @@ void MegaClient::exec()
                         }
 
                         // pathBuffer will have leafnames appended as we recurse
-                        LocalPath pathBuffer = sync->localroot->localname;
+                        SyncPath pathBuffer(this, sync->localroot->localname, sync->cloudRoot()->displaypath());
 
                         DBTableTransactionCommitter committer(tctable);
                         FSNode rootFsNode(sync->localroot->getKnownFSDetails());
-                        Sync::syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
+                        syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
 
                         // Will be re-set if we can reach the scan target.
                         //mSyncFlags->scanTargetReachable = false;

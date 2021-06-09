@@ -223,35 +223,48 @@ bool isCaseInsensitive(const FileSystemType type)
 #endif
 }
 
-bool IsContainingPathOf(const string& a, const string& b)
-{
-    return IsContainingPathOf(a, b.c_str(), b.size());
-}
-
-#ifdef _WIN32
-#define SEP '\\'
-#else // _WIN32
-#define SEP '/'
-#endif // ! _WIN32
-
-bool IsContainingPathOf(const string& a, const char* b, size_t bLength)
+bool IsContainingPathOf(const string& a, const char* b, size_t bLength, char sep)
 {
     // a's longer than b so a can't contain b.
     if (bLength < a.size()) return false;
 
     // b's longer than a so there should be a separator.
-    if (bLength > a.size() && b[a.size()] != SEP) return false;
+    if (bLength > a.size() && b[a.size()] != sep) return false;
 
     // a and b must share a common prefix.
     return !a.compare(0, a.size(), b);
 }
 
-#undef SEP
 
-bool IsContainingPathOf(const string& a, const char* b)
+bool IsContainingCloudPathOf(const string& a, const string& b)
 {
-    return IsContainingPathOf(a, b, strlen(b));
+    return IsContainingPathOf(a, b.c_str(), b.size(), '/');
 }
+
+bool IsContainingCloudPathOf(const string& a, const char* b, size_t bLength)
+{
+    return IsContainingPathOf(a, b, bLength, '/');
+}
+
+bool IsContainingLocalPathOf(const string& a, const string& b)
+{
+#ifdef _WIN32
+    return IsContainingPathOf(a, b.c_str(), b.size(), '\\');
+#else
+    return IsContainingPathOf(a, b.c_str(), b.size(), '/');
+#endif
+}
+
+bool IsContainingLocalPathOf(const string& a, const char* b, size_t bLength)
+{
+#ifdef _WIN32
+    return IsContainingPathOf(a, b, bLength, '\\');
+#else
+    return IsContainingPathOf(a, b, bLength, '/');
+#endif
+}
+
+
 
 LocalPath NormalizeRelative(const LocalPath& path)
 {
