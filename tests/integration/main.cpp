@@ -223,11 +223,9 @@ int main (int argc, char *argv[])
         }
     }
 
-    if (gOutputToCout)
-    {
-        gBroadcastTargets.emplace_back(new StreamBroadcastTarget(std::cout));
-    }
-    else
+    gBroadcastTargets.emplace_back(new StreamBroadcastTarget(std::cout));
+
+    if (gRunningInCI)
     {
         gBroadcastTargets.emplace_back(new LoggerBroadcastTarget());
     }
