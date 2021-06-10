@@ -20,7 +20,7 @@ bool gOutputToCout = false;
 int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
-BroadcastStream::~BroadcastStream()
+LogStream::~LogStream()
 {
     auto data = mBuffer.str();
 
@@ -57,9 +57,9 @@ std::string logTime()
     return getCurrentTimestamp();
 }
 
-BroadcastStream out()
+LogStream out()
 {
-    return BroadcastStream();
+    return LogStream();
 }
 
 namespace {
