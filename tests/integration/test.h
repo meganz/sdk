@@ -26,22 +26,25 @@ class BroadcastStream
 {
 public:
     BroadcastStream(const BroadcastTargetVector& targets)
-      : mTargets(targets)
+      : mTargets(&targets)
       , mBuffer()
     {
     }
 
     BroadcastStream(BroadcastStream&& other) noexcept
-      : mTargets(other.mTargets)
+      : mTargets(std::move(other.mTargets))
       , mBuffer(std::move(other.mBuffer))
     {
+        other.mTargets = nullptr;
     }
 
     ~BroadcastStream()
     {
+        if (!mTargets) return;
+
         auto data = mBuffer.str();
 
-        for (auto& target : mTargets)
+        for (auto& target : *mTargets)
         {
             target->write(data);
         }
@@ -69,7 +72,7 @@ public:
     }
 
 private:
-    const BroadcastTargetVector& mTargets;
+    const BroadcastTargetVector* mTargets;
     std::ostringstream mBuffer;
 }; // BroadcastStream
 
