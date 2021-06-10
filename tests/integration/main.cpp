@@ -137,9 +137,17 @@ public:
             }
             else
             {
-#ifndef _WIN32
-                std::cout << os.str() << std::flush;
-#endif
+#ifdef _WIN32
+                if (IsDebuggerPresent())
+                {
+                    OutputDebugStringA(os.str().c_str());
+                }
+                else
+#endif // _WIN32
+                {
+                    std::cout << os.str() << std::flush;
+                }
+
                 if (!gTestingInvalidArgs)
                 {
                     if (loglevel <= logError)
@@ -148,9 +156,6 @@ public:
                     }
                 }
             }
-#ifdef _WIN32
-            OutputDebugStringA(os.str().c_str());
-#endif
         }
     }
 

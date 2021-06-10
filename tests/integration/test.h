@@ -1,4 +1,5 @@
 #pragma once
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -30,7 +31,7 @@ public:
     {
     }
 
-    BroadcastStream(BroadcastStream&& other)
+    BroadcastStream(BroadcastStream&& other) noexcept
       : mTargets(other.mTargets)
       , mBuffer(std::move(other.mBuffer))
     {
