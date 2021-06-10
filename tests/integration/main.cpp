@@ -20,6 +20,19 @@ bool gOutputToCout = false;
 int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
+BroadcastStream::~BroadcastStream()
+{
+    auto data = mBuffer.str();
+
+    // Always write messages via standard logger.
+    LOG_debug << data;
+
+    if (gOutputToCout)
+    {
+        std::cout << data << std::endl;
+    }
+}
+
 std::string getCurrentTimestamp()
 {
     using std::chrono::system_clock;
@@ -44,53 +57,9 @@ std::string logTime()
     return getCurrentTimestamp();
 }
 
-class LoggerBroadcastTarget
-  : public BroadcastTarget
-{
-public:
-    LoggerBroadcastTarget() = default;
-
-    ~LoggerBroadcastTarget() = default;
-
-    void write(const string& data) override
-    {
-        LOG_debug << data;
-    };
-}; // LoggerBroadcastTarget
-
-class StreamBroadcastTarget
-  : public BroadcastTarget
-{
-public:
-    explicit
-    StreamBroadcastTarget(std::ostream& stream)
-      : mOutputStream(stream)
-    {
-    }
-
-    ~StreamBroadcastTarget() = default;
-
-    void write(const string& data) override
-    {
-        mOutputStream << getCurrentTimestamp()
-                      << " "
-                      << data
-                      << std::endl;
-    }
-
-private:
-    std::ostream& mOutputStream;
-}; // StreamBroadcastTarget
-
-BroadcastTargetVector gBroadcastTargets;
-
 BroadcastStream out()
 {
-    auto stream = BroadcastStream(gBroadcastTargets);
-
-    //stream.logTime(withTime);
-
-    return stream;
+    return BroadcastStream();
 }
 
 namespace {
@@ -221,13 +190,6 @@ int main (int argc, char *argv[])
         {
             myargv2.push_back(*it);
         }
-    }
-
-    gBroadcastTargets.emplace_back(new LoggerBroadcastTarget());
-
-    if (gRunningInCI && gOutputToCout)
-    {
-        gBroadcastTargets.emplace_back(new StreamBroadcastTarget(std::cout));
     }
 
     MegaLogger megaLogger;

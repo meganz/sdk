@@ -8,47 +8,20 @@
 
 std::string logTime();
 
-class BroadcastTarget
-{
-public:
-    virtual ~BroadcastTarget() = default;
-
-    virtual void write(const std::string& data) = 0;
-
-protected:
-    BroadcastTarget() = default;
-}; // BroadcastTarget
-
-using BroadcastTargetPtr = std::unique_ptr<BroadcastTarget>;
-using BroadcastTargetVector = std::vector<BroadcastTargetPtr>;
-
 class BroadcastStream
 {
 public:
-    BroadcastStream(const BroadcastTargetVector& targets)
-      : mTargets(&targets)
-      , mBuffer()
+    BroadcastStream()
+      : mBuffer()
     {
     }
 
     BroadcastStream(BroadcastStream&& other) noexcept
-      : mTargets(std::move(other.mTargets))
-      , mBuffer(std::move(other.mBuffer))
+      : mBuffer(std::move(other.mBuffer))
     {
-        other.mTargets = nullptr;
     }
 
-    ~BroadcastStream()
-    {
-        if (!mTargets) return;
-
-        auto data = mBuffer.str();
-
-        for (auto& target : *mTargets)
-        {
-            target->write(data);
-        }
-    }
+    ~BroadcastStream();
 
     template<typename T>
     BroadcastStream& operator<<(const T* value)
@@ -72,7 +45,6 @@ public:
     }
 
 private:
-    const BroadcastTargetVector* mTargets;
     std::ostringstream mBuffer;
 }; // BroadcastStream
 
