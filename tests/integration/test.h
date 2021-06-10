@@ -7,13 +7,79 @@
 
 std::string logTime();
 
+class BroadcastTarget
+{
+public:
+    virtual ~BroadcastTarget() = default;
+
+    virtual void write(const std::string& data) = 0;
+
+protected:
+    BroadcastTarget() = default;
+}; // BroadcastTarget
+
+using BroadcastTargetPtr = std::unique_ptr<BroadcastTarget>;
+using BroadcastTargetVector = std::vector<BroadcastTargetPtr>;
+
+class BroadcastStream
+{
+public:
+    BroadcastStream(const BroadcastTargetVector& targets)
+      : mTargets(targets)
+      , mBuffer()
+    {
+    }
+
+    BroadcastStream(BroadcastStream&& other)
+      : mTargets(other.mTargets)
+      , mBuffer(std::move(other.mBuffer))
+    {
+    }
+
+    ~BroadcastStream()
+    {
+        auto data = mBuffer.str();
+
+        for (auto& target : mTargets)
+        {
+            target->write(data);
+        }
+    }
+
+    template<typename T>
+    BroadcastStream& operator<<(const T* value)
+    {
+        mBuffer << value;
+        return *this;
+    }
+
+    template<typename T, typename = typename std::enable_if<std::is_scalar<T>::value>::type>
+    BroadcastStream& operator<<(const T value)
+    {
+        mBuffer << value;
+        return *this;
+    }
+
+    template<typename T, typename = typename std::enable_if<!std::is_scalar<T>::value>::type>
+    BroadcastStream& operator<<(const T& value)
+    {
+        mBuffer << value;
+        return *this;
+    }
+
+private:
+    const BroadcastTargetVector& mTargets;
+    std::ostringstream mBuffer;
+}; // BroadcastStream
+
 extern std::string USER_AGENT;
 extern bool gRunningInCI;
 extern bool gTestingInvalidArgs;
 extern bool gResumeSessions;
-extern bool gOutputToCout;
 extern int gFseventsFd;
-std::ostream& out(bool withTime = true);
+
+BroadcastStream out();
+
 enum { THREADS_PER_MEGACLIENT = 3 };
 
 class TestingWithLogErrorAllowanceGuard

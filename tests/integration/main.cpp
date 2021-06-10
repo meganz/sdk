@@ -20,8 +20,6 @@ bool gOutputToCout = false;
 int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
-std::ofstream gUnopenedOfstream;
-
 std::string getCurrentTimestamp()
 {
     using std::chrono::system_clock;
@@ -46,15 +44,53 @@ std::string logTime()
     return getCurrentTimestamp();
 }
 
-
-std::ostream& out(bool withTime)
+class LoggerBroadcastTarget
+  : public BroadcastTarget
 {
-    if (withTime && gOutputToCout)
+public:
+    LoggerBroadcastTarget() = default;
+
+    ~LoggerBroadcastTarget() = default;
+
+    void write(const string& data) override
     {
-        std::cout << getCurrentTimestamp() << " ";
+        LOG_debug << data;
+    };
+}; // LoggerBroadcastTarget
+
+class StreamBroadcastTarget
+  : public BroadcastTarget
+{
+public:
+    explicit
+    StreamBroadcastTarget(std::ostream& stream)
+      : mOutputStream(stream)
+    {
     }
-    if (gOutputToCout) return std::cout;
-    else return gUnopenedOfstream;
+
+    ~StreamBroadcastTarget() = default;
+
+    void write(const string& data) override
+    {
+        mOutputStream << getCurrentTimestamp()
+                      << " "
+                      << data
+                      << std::endl;
+    }
+
+private:
+    std::ostream& mOutputStream;
+}; // StreamBroadcastTarget
+
+BroadcastTargetVector gBroadcastTargets;
+
+BroadcastStream out()
+{
+    auto stream = BroadcastStream(gBroadcastTargets);
+
+    //stream.logTime(withTime);
+
+    return stream;
 }
 
 namespace {
@@ -132,11 +168,6 @@ int main (int argc, char *argv[])
         return 1;
     }
 
-    // delete old test folders, created during previous runs
-    TestFS testFS;
-    testFS.DeleteTestFolder();
-    testFS.DeleteTrashFolder();
-
     std::vector<char*> myargv1(argv, argv + argc);
     std::vector<char*> myargv2;
 
@@ -187,10 +218,24 @@ int main (int argc, char *argv[])
         }
     }
 
+    if (gOutputToCout)
+    {
+        gBroadcastTargets.emplace_back(new StreamBroadcastTarget(std::cout));
+    }
+    else
+    {
+        gBroadcastTargets.emplace_back(new LoggerBroadcastTarget());
+    }
+
     MegaLogger megaLogger;
 
     SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&megaLogger);
+
+    // delete old test folders, created during previous runs
+    TestFS testFS;
+    testFS.DeleteTestFolder();
+    testFS.DeleteTrashFolder();
 
 #if defined(_WIN32) && defined(NO_READLINE)
     using namespace mega;
@@ -226,7 +271,7 @@ fs::path TestFS::GetTestFolder()
 #endif
 
     fs::path testpath = GetTestBaseFolder() / ("pid_" + std::to_string(pid));
-    out() << "Local Test folder: " << testpath << endl;
+    out() << "Local Test folder: " << testpath;
     return testpath;
 }
 
@@ -257,8 +302,8 @@ void TestFS::DeleteFolder(fs::path folder)
         // report failures, other than the case when it didn't exist
         if (ec != errc::no_such_file_or_directory)
         {
-            out() << "Renaming " << oldpath << " to " << newpath << " failed." << endl
-                 << ec.message() << endl;
+            out() << "Renaming " << oldpath << " to " << newpath << " failed."
+                 << ec.message();
         }
 
         return;
@@ -271,8 +316,8 @@ void TestFS::DeleteFolder(fs::path folder)
 
             if (ec)
             {
-                out() << "Deleting " << folder << " failed." << endl
-                     << ec.message() << endl;
+                out() << "Deleting " << folder << " failed."
+                     << ec.message();
             }
         }));
 }
