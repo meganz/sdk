@@ -1596,7 +1596,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     }
 
     // create the new node(s)
-    client->putnodes(deviceNameNode ? deviceNameNode->nodehandle : myBackupsNode->nodehandle, move(newnodes), nullptr, client->reqtag);  // followup in putnodes_result()
+    client->putnodes(deviceNameNode ? deviceNameNode->nodehandle : myBackupsNode->nodehandle, move(newnodes), client->reqtag, nullptr, nullptr);  // followup in putnodes_result()
 
     return API_OK;
 }
@@ -15091,7 +15091,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         request->setTag(nextTag);
         requestMap[nextTag]=request;
 
-        client->putnodes(parenthandle, move(newnodes), nullptr, nextTag);
+        client->putnodes(parenthandle, move(newnodes), nextTag, nullptr, nullptr);
     }
     else
     {
@@ -18617,7 +18617,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                             }
                             else
                             {
-                                client->putnodes(parent->nodehandle, move(tc.nn), nullptr, nextTag);
+                                client->putnodes(parent->nodehandle, move(tc.nn), nextTag, nullptr, nullptr);
                             }
 
                             transfer->setDeltaSize(size);
@@ -19327,7 +19327,7 @@ void MegaApiImpl::sendPendingRequests()
             client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
             // add the newly generated folder node
-            client->putnodes(parent->nodehandle, move(newnodes), nullptr, nextTag);
+            client->putnodes(parent->nodehandle, move(newnodes), nextTag, nullptr, nullptr);
             break;
         }
         case MegaRequest::TYPE_MOVE:
@@ -19473,7 +19473,7 @@ void MegaApiImpl::sendPendingRequests()
                     client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
-                client->putnodes(newParent->nodehandle, move(tc.nn), nullptr, nextTag);
+                client->putnodes(newParent->nodehandle, move(tc.nn), nextTag, nullptr, nullptr);
                 e = API_OK;
                 break;
             }
@@ -19571,7 +19571,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, std::move(tc.nn), megaNode->getChatAuth(), nextTag);
+                    client->putnodes(target->nodehandle, std::move(tc.nn), nextTag, megaNode->getChatAuth(), nullptr);
                 }
                 else
                 {
@@ -19659,7 +19659,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, move(tc.nn), nullptr, nextTag);
+                    client->putnodes(target->nodehandle, move(tc.nn), nextTag, nullptr, nullptr);
                 }
                 else
                 {
@@ -19714,7 +19714,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
 
-            client->putnodes(current->parent->nodehandle, move(newnodes), nullptr, nextTag);
+            client->putnodes(current->parent->nodehandle, move(newnodes), nextTag, nullptr);
             break;
         }
         case MegaRequest::TYPE_RENAME:
