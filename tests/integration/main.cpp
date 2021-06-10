@@ -223,11 +223,11 @@ int main (int argc, char *argv[])
         }
     }
 
-    gBroadcastTargets.emplace_back(new StreamBroadcastTarget(std::cout));
+    gBroadcastTargets.emplace_back(new LoggerBroadcastTarget());
 
-    if (gRunningInCI)
+    if (gRunningInCI && gOutputToCout)
     {
-        gBroadcastTargets.emplace_back(new LoggerBroadcastTarget());
+        gBroadcastTargets.emplace_back(new StreamBroadcastTarget(std::cout));
     }
 
     MegaLogger megaLogger;
