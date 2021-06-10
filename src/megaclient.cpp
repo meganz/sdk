@@ -1500,7 +1500,7 @@ bool MegaClient::conflictsDetected() const
     return found;
 }
 
-bool MegaClient::syncStallDetected(map<string, SyncWaitReason>& snp, map<LocalPath, SyncWaitReason>& slp) const
+bool MegaClient::syncStallDetected(SyncFlags::CloudStallInfoMap& snp, SyncFlags::LocalStallInfoMap& slp) const
 {
     bool stalled = !mSyncFlags->stalledNodePaths.empty() ||
                    !mSyncFlags->stalledLocalPaths.empty();

@@ -986,12 +986,15 @@ public:
 };
 
 enum class SyncWaitReason {
-    MoveNeedsTargetFolder,
-    MoveNeedsDestinationNodeProcessing,
+    NoReason,
+    ApplyMoveNeedsOtherSideParentFolderToExist,   // stuck at move destination node
+    MoveNeedsDestinationNodeProcessing,           // stuck at move source node
     UpsyncNeedsTargetFolder,
     DownsyncNeedsTargetFolder,
     DeleteWaitingOnMoves
 };
+
+string syncWaitReasonString(SyncWaitReason);
 
 } // namespace
 

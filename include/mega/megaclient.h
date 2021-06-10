@@ -536,7 +536,7 @@ public:
     // true if any name conflicts have been detected.
     bool conflictsDetected() const;
 
-    bool syncStallDetected(map<string, SyncWaitReason>& stalledNodePaths, map<LocalPath, SyncWaitReason>& stalledLocalPaths) const;
+    bool syncStallDetected(SyncFlags::CloudStallInfoMap& stalledNodePaths, SyncFlags::LocalStallInfoMap& stalledLocalPaths) const;
 
     // indicates whether all startup syncs have been fully scanned
     bool allSyncsIdle();

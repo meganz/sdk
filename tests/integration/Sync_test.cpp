@@ -2741,9 +2741,8 @@ struct StandardClient : public MegaApp
 struct SyncWaitResult
 {
     bool syncStalled = false;
-    map<string, SyncWaitReason> stalledNodePaths;
-    map<LocalPath, SyncWaitReason> stalledLocalPaths;
-
+    SyncFlags::CloudStallInfoMap stalledNodePaths;
+    SyncFlags::LocalStallInfoMap stalledLocalPaths;
 };
 
 vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity, int64_t millisecNoSyncing)> endCondition, StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)

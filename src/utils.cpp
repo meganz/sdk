@@ -2507,5 +2507,21 @@ std::string getSafeUrl(const std::string &posturl)
     return safeurl;
 }
 
+
+string syncWaitReasonString(SyncWaitReason r)
+{
+    switch(r)
+    {
+        case SyncWaitReason::NoReason:                                      return "NoReason";
+        case SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist:    return "ApplyMoveNeedsOtherSideParentFolderToExist";
+        case SyncWaitReason::MoveNeedsDestinationNodeProcessing:            return "MoveNeedsDestinationNodeProcessing";
+        case SyncWaitReason::UpsyncNeedsTargetFolder:                       return "UpsyncNeedsTargetFolder";
+        case SyncWaitReason::DownsyncNeedsTargetFolder:                     return "DownsyncNeedsTargetFolder";
+        case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
+    }
+    return "<out of range>";
+}
+
+
 } // namespace
 

@@ -1957,13 +1957,6 @@ LocalPath LocalNode::getLocalPath() const
 
 void LocalNode::getlocalpath(LocalPath& path) const
 {
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
-
     path.erase();
 
     for (const LocalNode* l = this; l != nullptr; l = l->parent)
@@ -1980,6 +1973,24 @@ string LocalNode::localnodedisplaypath(FileSystemAccess& fsa) const
     LocalPath local;
     getlocalpath(local);
     return local.toPath(fsa);
+}
+
+string LocalNode::getCloudPath() const
+{
+    string path;
+
+    for (const LocalNode* l = this; l != nullptr; l = l->parent)
+    {
+        assert(!l->parent || l->parent->sync == sync);
+
+        // sync root has absolute path, the rest are just their leafname
+        path = l->name + "/" + path;
+    }
+    if (auto cr = sync->cloudRoot())
+    {
+        path = cr->displaypath() + "/" + path;
+    }
+    return path;
 }
 
 // locate child by localname or slocalname

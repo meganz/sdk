@@ -632,8 +632,13 @@ struct SyncFlags
     // stall detection (for incompatible local and remote changes, eg file added locally in a folder removed remotely)
     bool noProgress = true;
     int noProgressCount = 0;
-    map<string, SyncWaitReason> stalledNodePaths;
-    map<LocalPath, SyncWaitReason> stalledLocalPaths;
+
+    struct CloudStallInfo { SyncWaitReason reason = SyncWaitReason::NoReason; string involvedPath; };
+    struct LocalStallInfo { SyncWaitReason reason = SyncWaitReason::NoReason; LocalPath involvedPath; };
+    typedef map<string, CloudStallInfo> CloudStallInfoMap;
+    typedef map<LocalPath, LocalStallInfo> LocalStallInfoMap;
+    CloudStallInfoMap stalledNodePaths;
+    LocalStallInfoMap stalledLocalPaths;
 };
 
 

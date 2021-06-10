@@ -46,11 +46,11 @@ enum FileSystemType
     FS_XFS = 9
 };
 
-// generic host filesystem node ID interface
-struct MEGA_API FsNodeId
-{
-    virtual bool isequalto(FsNodeId*) = 0;
-};
+//// generic host filesystem node ID interface
+//struct MEGA_API FsNodeId
+//{
+//    virtual bool isequalto(FsNodeId*) = 0;
+//};
 
 typedef void (*asyncfscallback)(void *);
 
