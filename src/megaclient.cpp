@@ -7618,7 +7618,7 @@ Node* MegaClient::nodebyhandle(handle h, bool fileVersionOk) const
     {
         // if this assert fails, please check the code calling it deals with file versions, and if not then fix,
         // if it already deals with file versions then just pass  fileVersionOk == true
-        assert(fileVersionOk || !it->second->parent || !it->second->parent->type == FILENODE);
+        assert(fileVersionOk || !it->second->parent || it->second->parent->type != FILENODE);
 
         return it->second;
     }
