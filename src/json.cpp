@@ -202,45 +202,30 @@ std::string JSON::getnameWithoutAdvance() const
 // no unescaping supported
 nameid JSON::getnameid()
 {
-    if (!pos || !*pos || *pos == '}' || *pos == ']')
-        return 0; // valid: empty string
-
     const char* ptr = pos;
+    nameid id = 0;
+
     if (*ptr == ',' || *ptr == ':')
     {
         ptr++;
     }
 
-    static constexpr nameid badJson = std::numeric_limits<nameid>::max();
-
-    if (*ptr++ != '"')
+    if (*ptr++ == '"')
     {
-        return badJson; // wrong format
+        while (*ptr && *ptr != '"')
+        {
+            id = (id << 8) + *ptr++;
+        }
+
+        assert(*ptr == '"'); // if either assert fails, check the json syntax, it might be something new/changed
+        pos = ptr + 1;
+        assert(*pos == ':' || *pos == ',');
+
+        if (*pos != '}' && *pos != ']')
+        {
+            pos++;  // don't skip the following char if we're at the end of a structure eg. actionpacket with only {"a":"xyz"}
+        }
     }
-
-    // read the id
-    nameid id = 0;
-    while (*ptr && *ptr != '"')
-    {
-        id = (id << 8) + *ptr++;
-    }
-
-    if (!*ptr)
-    {
-        pos = ptr;
-        return badJson; // end of string occurred too early
-    }
-
-    // *ptr is '"' so skip it
-    pos = ptr + 1;
-
-    if (*pos != ':' && *pos != ',')
-    {
-        return badJson; // needed a value or another id
-    }
-
-    // *pos is ':' or ',' so skip it
-    pos++;
 
     return id;
 }
