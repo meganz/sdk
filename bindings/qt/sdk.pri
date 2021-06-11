@@ -477,13 +477,11 @@ HEADERS  += include/mega.h \
             include/mega/crypto/cryptopp.h  \
             include/mega/crypto/sodium.h  \
             include/mega/db/sqlite.h  \
-            include/mega/gfx/qt.h \
             include/mega/gfx/freeimage.h \
             include/mega/gfx/gfx_pdfium.h \
             include/mega/gfx/external.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \
-            include/mega/thread/qtthread.h \
             include/megaapi.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
@@ -530,39 +528,42 @@ CONFIG(USE_PCRE) {
 
 CONFIG(qt) {
   DEFINES += USE_QT MEGA_QT_LOGGING
-  SOURCES += src/gfx/qt.cpp src/thread/qtthread.cpp
+}
+
+win32 {
+    DEFINES += USE_CPPTHREAD
+    SOURCES += src/thread/cppthread.cpp
 }
 else {
+    DEFINES += USE_PTHREAD
+    SOURCES += src/thread/posixthread.cpp
+    LIBS += -lpthread
+}
 
-    win32 {
-        SOURCES += src/thread/win32thread.cpp
+!CONFIG(nofreeimage) {
+    DEFINES += USE_FREEIMAGE
+    SOURCES += src/gfx/freeimage.cpp
+
+    vcpkg {    
+        win32:LIBS += -llibpng16$$DEBUG_SUFFIX -llibwebpmux$$DEBUG_SUFFIX
+        else {
+            LIBS += -lpng16$$DEBUG_SUFFIX -lwebpmux$$DEBUG_SUFFIX
+        }
+
+        LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX -ltiff$$DEBUG_SUFFIX \
+        -lIlmImf-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_5$$UNDERSCORE_DEBUG_SUFFIX \
+        -lIexMath-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_5$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_5$$UNDERSCORE_DEBUG_SUFFIX \
+        -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
+        -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX -lHalf-2_5$$UNDERSCORE_DEBUG_SUFFIX \
+        -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw$$DEBUG_SUFFIX -lopenjp2
     }
     else {
-        DEFINES += USE_PTHREAD
-        SOURCES += src/thread/posixthread.cpp
-        LIBS += -lpthread
-    }
-
-   !CONFIG(nofreeimage) {
-        DEFINES += USE_FREEIMAGE
-        SOURCES += src/gfx/freeimage.cpp
-
-        macx {
+        macx{
             INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/FreeImage/Source
             LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
         }
         else {
-            vcpkg:LIBS += -lfreeimage$$DEBUG_SUFFIX
-            !vcpkg:LIBS += -lfreeimage
-        }
-
-        vcpkg {
-            LIBS += -ljpeg$$DEBUG_SUFFIX -ltiff$$DEBUG_SUFFIX -llibpng16$$DEBUG_SUFFIX \
-            -lIlmImf-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_3$$UNDERSCORE_DEBUG_SUFFIX \
-            -lIexMath-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_3$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_3$$UNDERSCORE_DEBUG_SUFFIX \
-            -llibwebpmux$$DEBUG_SUFFIX -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
-            -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX -lHalf-2_3$$UNDERSCORE_DEBUG_SUFFIX \
-            -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw$$DEBUG_SUFFIX -lopenjp2
+            LIBS += -lfreeimage
         }
     }
 }

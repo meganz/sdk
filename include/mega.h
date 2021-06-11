@@ -67,9 +67,7 @@
 #include "mega/megaclient.h"
 
 // target-specific headers
-#include "mega/thread/qtthread.h"
 #include "mega/thread/posixthread.h"
-#include "mega/thread/win32thread.h"
 #include "mega/thread/cppthread.h"
 
 #include "megawaiter.h"
@@ -80,7 +78,6 @@
 
 #include "mega/db/sqlite.h"
 
-#include "mega/gfx/qt.h"
 #include "mega/gfx/freeimage.h"
 #include "mega/gfx/GfxProcCG.h"
 

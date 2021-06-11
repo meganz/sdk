@@ -1797,6 +1797,11 @@ int MegaApi::isLoggedIn()
     return pImpl->isLoggedIn();
 }
 
+bool MegaApi::isEphemeralPlusPlus()
+{
+    return pImpl->isEphemeralPlusPlus();
+}
+
 void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
 {
     pImpl->whyAmIBlocked(false, listener);

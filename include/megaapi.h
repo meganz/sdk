@@ -8328,13 +8328,7 @@ class MegaApi
         /**
          * @brief Set the ID for statistics
          *
-         * This function is not thread-safe so it must be used before
-         * the creation of instances of MegaApi to not interfere with
-         * the internal thread. Otherwise, the behavior of this
-         * function is undefined and it could even crash.
-         *
-         * Only the first call to this function will correctly set the ID.
-         * If you call this function more times, it won't have any effect.
+         * Call this function one time only per MegaApi, before using that MegaApi
          *
          * The id parameter is hashed before being used
          *
@@ -9534,6 +9528,12 @@ class MegaApi
          * @return 0 if not logged in, Otherwise, a number > 0
          */
         int isLoggedIn();
+
+        /**
+         * @brief Check if we are logged in into an Ephemeral account ++
+         * @return true if logged into an Ephemeral account ++, Otherwise return false
+         */
+        bool isEphemeralPlusPlus();
 
         /**
          * @brief Check the reason of being blocked.

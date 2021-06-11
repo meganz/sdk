@@ -96,6 +96,10 @@ HttpIO::HttpIO()
     lastdata = NEVER;
     downloadSpeed = 0;
     uploadSpeed = 0;
+
+    lock_guard<mutex> g(g_APIURL_default_mutex);
+    APIURL = g_APIURL_default;
+    disablepkp = g_disablepkp_default;
 }
 
 // signal Internet status - if the Internet was down for more than one minute,
