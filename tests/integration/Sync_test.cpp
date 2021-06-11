@@ -1059,7 +1059,7 @@ struct StandardClient : public MegaApp
                 attrs.map['n'] = newname;
                 attrs.getjson(&attrstring);
                 client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                client.putnodes(n2->nodehandle, move(tc.nn), nullptr, client.reqtag);
+                client.putnodes(n2->nodehandle, move(tc.nn), client.reqtag);
             },
             [pb](error e) {
                 pb->set_value(!e);
@@ -1073,7 +1073,7 @@ struct StandardClient : public MegaApp
                               ++next_request_tag,
                               [&]()
                               {
-                                  client.putnodes(parentHandle, std::move(nodes), nullptr, client.reqtag);
+                                  client.putnodes(parentHandle, std::move(nodes), client.reqtag);
                               },
                               [pb](error e)
                               {
@@ -1117,7 +1117,7 @@ struct StandardClient : public MegaApp
                 vector<NewNode> newnodes;
                 handle h = 1;
                 uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-                client.putnodes(n2->nodehandle, move(newnodes), nullptr, client.reqtag);
+                client.putnodes(n2->nodehandle, move(newnodes), client.reqtag);
             },
             [pb](error e) { pb->set_value(!e);  return true; });
     }
@@ -1404,7 +1404,7 @@ struct StandardClient : public MegaApp
                 nn[0] = makeSubfolder("mega_test_sync");
 
                 resultproc.prepresult(PUTNODES, ++next_request_tag,
-                    [&](){ client.putnodes(root->nodehandle, move(nn), nullptr, client.reqtag); },
+                    [&](){ client.putnodes(root->nodehandle, move(nn), client.reqtag); },
                     [this, pb](error e) { ensureTestBaseFolder(false, pb); return true; });
 
                 return;
@@ -1470,7 +1470,7 @@ struct StandardClient : public MegaApp
             }
 
             resultproc.prepresult(PUTNODES, ++next_request_tag,
-                [&](){ client.putnodes(atnode->nodehandle, move(nodearray), nullptr, client.reqtag); },
+                [&](){ client.putnodes(atnode->nodehandle, move(nodearray), client.reqtag); },
                 [pb](error e) {
                     pb->set_value(!e);
                     if (e)
@@ -4170,7 +4170,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     std::atomic<bool> putnodesDone{false};
     standardclient.resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
-        [&](){ standardclient.client.putnodes(targethandle, move(newnodes), nullptr, standardclient.client.reqtag); },
+        [&](){ standardclient.client.putnodes(targethandle, move(newnodes), standardclient.client.reqtag); },
         [&putnodesDone](error e) { putnodesDone = true; return true; });
 
     while (!putnodesDone)
@@ -4983,8 +4983,8 @@ TEST_F(SyncTest, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
         vector<NewNode> nodes(2);
 
         // Only some platforms will escape BEL.
-        cu.client.putnodes_prepareOneFolder(&nodes[0], "d\7");
-        cu.client.putnodes_prepareOneFolder(&nodes[1], "d");
+        cu.client.putnodes_prepareOneFolder(&nodes[0], "d\7", cu.client.rng, cu.client.tmpnodecipher);
+        cu.client.putnodes_prepareOneFolder(&nodes[1], "d", cu.client.rng, cu.client.tmpnodecipher);
 
         ASSERT_TRUE(cu.putnodes(node->nodehandle, std::move(nodes)));
 
@@ -6253,7 +6253,7 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
         vector<NewNode> nodes(1);
 
         // Initialize new node.
-        c.client.putnodes_prepareOneFolder(&nodes[0], "d");
+        c.client.putnodes_prepareOneFolder(&nodes[0], "d", c.client.rng, c.client.tmpnodecipher);
 
         // Get our hands on the sync root.
         auto* root = c.drillchildnodebyname(c.gettestbasenode(), "s");
@@ -7134,7 +7134,7 @@ struct TwoWaySyncSymmetryCase
         attrs = n1->attrs;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodehandle, move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodehandle, move(tc.nn), ++next_request_tag);
     }
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -7167,7 +7167,7 @@ struct TwoWaySyncSymmetryCase
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodehandle, move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodehandle, move(tc.nn), ++next_request_tag);
     }
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)

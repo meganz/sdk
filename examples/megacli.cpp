@@ -3971,7 +3971,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodehandle, move(tc.nn), nullptr, gNextClientTag++);
+                client->putnodes(tn->nodehandle, move(tc.nn), gNextClientTag++);
             }
             else
             {
@@ -4263,7 +4263,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
                 uploadLocalFolderContent(tmp, parent);
             };
 
-            client->putnodes(parent->nodehandle, move(nn), nullptr, gNextClientTag++);
+            client->putnodes(parent->nodehandle, move(nn), gNextClientTag++);
         }
     }
 }
@@ -4892,8 +4892,8 @@ void exec_mkdir(autocomplete::ACState& s)
             if (newname.size())
             {
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], newname);
-                client->putnodes(n->nodehandle, move(nn), nullptr, gNextClientTag++);
+                client->putnodes_prepareOneFolder(&nn[0], newname, client->rng, client->tmpnodecipher);
+                client->putnodes(n->nodehandle, move(nn), gNextClientTag++);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -4902,8 +4902,8 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], leafname);
-                client->putnodes(n->parent->nodehandle, move(nn), nullptr, gNextClientTag++);
+                client->putnodes_prepareOneFolder(&nn[0], leafname, client->rng, client->tmpnodecipher);
+                client->putnodes(n->parent->nodehandle, move(nn), gNextClientTag++);
             }
             else
             {
@@ -7537,7 +7537,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodehandle, move(nn), nullptr, client->restag);
+        client->putnodes(n->nodehandle, move(nn), client->restag);
     }
     else
     {
