@@ -228,7 +228,12 @@ int main (int argc, char *argv[])
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
             std::lock_guard<std::mutex> g(g_APIURL_default_mutex);
-            g_APIURL_default = std::string(*it).substr(9);
+            string s = std::string(*it).substr(9);
+            if (!s.empty())
+            {
+                if (s.back() != '/') s += "/";
+                g_APIURL_default = s;
+            }
             argc -= 1;
         }
         else if (std::string(*it) == "--RESUMESESSIONS")
