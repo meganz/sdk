@@ -132,6 +132,69 @@ private:
     std::ofstream mLogFile;
 };
 
+class GTestLogger
+  : public ::testing::EmptyTestEventListener
+{
+public:
+    void OnTestEnd(const ::testing::TestInfo& info) override
+    {
+        std::string result = "FAILED";
+
+        if (info.result()->Passed())
+        {
+            result = "PASSED";
+        }
+
+        out() << "GTEST: "
+              << result
+              << " "
+              << info.test_case_name()
+              << "."
+              << info.name();
+    }
+
+    void OnTestPartResult(const ::testing::TestPartResult& result) override
+    {
+        using namespace ::testing;
+
+        if (result.type() == TestPartResult::kSuccess) return;
+
+        std::string file = "unknown";
+        std::string line;
+
+        if (result.file_name())
+        {
+            file = result.file_name();
+        }
+
+        if (result.line_number() >= 0)
+        {
+            line = std::to_string(result.line_number()) + ":";
+        }
+
+        out() << "GTEST: "
+              << file
+              << ":"
+              << line
+              << " Failure";
+
+        std::istringstream istream(result.message());
+
+        for (std::string s; std::getline(istream, s); )
+        {
+            out() << "GTEST: " << s;
+        }
+    }
+
+    void OnTestStart(const ::testing::TestInfo& info) override
+    {
+        out() << "GTEST: RUNNING "
+              << info.test_case_name()
+              << "."
+              << info.name();
+    }
+}; // GTestLogger
+
 } // anonymous
 
 int main (int argc, char *argv[])
@@ -209,6 +272,13 @@ int main (int argc, char *argv[])
 #endif
 
     ::testing::InitGoogleTest(&argc, myargv2.data());
+
+    if (gRunningInCI)
+    {
+        auto& listeners = testing::UnitTest::GetInstance()->listeners();
+        listeners.Append(new GTestLogger());
+    }
+
     return RUN_ALL_TESTS();
 }
 
