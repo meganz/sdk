@@ -29,7 +29,7 @@ LogStream::~LogStream()
 
     if (gOutputToCout)
     {
-        std::cout << data << std::endl;
+        std::cout << logTime() << " " << data << std::endl;
     }
 }
 
