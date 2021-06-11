@@ -57,10 +57,11 @@ struct TransferTracker : public ::mega::MegaTransferListener
     std::atomic<bool> finished = { false };
     std::atomic<int> result = { INT_MAX };
     std::promise<int> promiseResult;
+    std::future<int> futureResult;
     MegaApi *mApi;
     std::shared_ptr<TransferTracker> selfDeleteOnFinalCallback;
 
-    TransferTracker(MegaApi *api): mApi(api)
+    TransferTracker(MegaApi *api): mApi(api), futureResult(promiseResult.get_future())
     {
 
     }
@@ -94,8 +95,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
     int waitForResult(int seconds = maxTimeout, bool unregisterListenerOnTimeout = true)
     {
         // running on test's main thread
-        auto f = promiseResult.get_future();
-        if (std::future_status::ready != f.wait_for(std::chrono::seconds(seconds)))
+        if (std::future_status::ready != futureResult.wait_for(std::chrono::seconds(seconds)))
         {
             assert(mApi);
             if (unregisterListenerOnTimeout)
@@ -104,7 +104,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
             }
             return -999; // local timeout
         }
-        return f.get();
+        return futureResult.get();
     }
 };
 
