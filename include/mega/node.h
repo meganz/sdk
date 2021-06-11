@@ -379,7 +379,8 @@ inline unsigned propagateSubtreeFlag(unsigned nodeFlag, unsigned childFlag)
     return nodeFlag == TREE_ACTION_SUBTREE ? TREE_ACTION_SUBTREE : childFlag;
 }
 
-
+struct syncRow;
+struct SyncPath;
 
 struct MEGA_API LocalNode : public Cacheable
 {
@@ -536,6 +537,16 @@ public:
 
     // True if this subtree requires syncing.
     bool syncRequired() const;
+
+    // Pass any TREE_ACTION_SUBTREE flags on to child nodes, so we can clear the flag at this level
+    void propagateAnySubtreeFlags();
+
+    // Queue a scan request for this node if needed, and if a slot is available (just one per sync)
+    // Also receive the results if they are ready
+    bool processBackgroundFolderScan(syncRow& row, SyncPath& fullPath);
+
+    void reassignUnstableFsidsOnceOnly(const FSNode* fsnode);
+
 
     // current subtree sync state: current and displayed
     treestate_t ts = TREESTATE_NONE;

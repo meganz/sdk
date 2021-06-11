@@ -217,6 +217,8 @@ struct syncRow
     bool suppressRecursion = false;
     bool itemProcessed = false;
 
+    bool recurseToScanforNewLocalNodesOnly = false;
+
     // Sometimes when eg. creating a local a folder, we need to add to this list
     // Note that it might be the cached version or a temporary regenerated list
     vector<FSNode>* fsSiblings = nullptr;
@@ -224,7 +226,7 @@ struct syncRow
     const LocalPath& comparisonLocalname() const;
 };
 
-struct MEGA_API SyncPath
+struct SyncPath
 {
     // Tracks both local and remote absolute paths (whether they really exist or not) as we recurse the sync nodes
     LocalPath localPath;
@@ -337,6 +339,7 @@ public:
         vector<syncRow>& inferredRows) const;
 
     bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer);
+    bool recursiveSync_localScanForNewOnly(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer);
     bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
     bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
     string logTriplet(syncRow& row, SyncPath& fullPath);
@@ -393,7 +396,6 @@ public:
 
     // true if the local synced folder is a network folder
     bool isnetwork = false;
-
 
     bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 

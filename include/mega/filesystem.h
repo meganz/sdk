@@ -734,8 +734,7 @@ public:
     ~ScanService();
 
     // Issue a scan for the given target.
-    RequestPtr queueScan(const LocalNode& target, LocalPath targetPath);
-    RequestPtr queueScan(const LocalNode& target);
+    RequestPtr queueScan(LocalPath targetPath, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren);
 
     // Track performance (debug only)
     static CodeCounter::ScopeStats computeSyncTripletsTime;
@@ -769,9 +768,10 @@ private:
         : public Request
     {
     public:
-        ScanRequest(const std::shared_ptr<Cookie>& cookie,
-            const LocalNode& target,
-            LocalPath targetPath);
+        ScanRequest(std::shared_ptr<Cookie> cookie,
+            bool followSymlinks,
+            LocalPath targetPath,
+            map<LocalPath, FSNode>&& priorScanChildren);
 
         MEGA_DISABLE_COPY_MOVE(ScanRequest);
 
@@ -779,11 +779,6 @@ private:
         {
             return mComplete;
         };
-
-        //bool matches(const LocalNode& target) const override
-        //{
-        //    return &target == &mTarget;
-        //};
 
         std::vector<FSNode> results() override
         {
@@ -795,9 +790,6 @@ private:
 
         // Whether the scan request is complete.
         std::atomic<bool> mComplete;
-
-        // Debris path of the sync containing the target.
-        const LocalPath mDebrisPath;
 
         // Whether we should follow symbolic links.
         const bool mFollowSymLinks;

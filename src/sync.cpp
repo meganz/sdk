@@ -71,54 +71,28 @@ ScanService::~ScanService()
     }
 }
 
-auto ScanService::queueScan(const LocalNode& target, LocalPath targetPath) -> RequestPtr
+auto ScanService::queueScan(LocalPath targetPath, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren) -> RequestPtr
 {
-    // For convenience.
-    const auto& debris = target.sync->localdebris;
-
     // Create a request to represent the scan.
-    auto request = std::make_shared<ScanRequest>(mCookie, target, targetPath);
+    auto request = std::make_shared<ScanRequest>(mCookie, followSymlinks, targetPath, move(priorScanChildren));
 
-    // Have we been asked to scan the debris?
-    request->mComplete = debris.isContainingPathOf(targetPath);
-
-    // Don't bother scanning the debris.
-    if (!request->mComplete)
-    {
-        // Queue request for processing.
-        mWorker->queue(request);
-    }
+    // Queue request for processing.
+    mWorker->queue(request);
 
     return request;
 }
 
-auto ScanService::queueScan(const LocalNode& target) -> RequestPtr
-{
-    return queueScan(target, target.getLocalPath());
-}
-
-ScanService::ScanRequest::ScanRequest(const std::shared_ptr<Cookie>& cookie,
-                                      const LocalNode& target,
-                                      LocalPath targetPath)
-  : mCookie(cookie)
+ScanService::ScanRequest::ScanRequest(std::shared_ptr<Cookie> cookie,
+                                      bool followSymLinks,
+                                      LocalPath targetPath,
+                                      map<LocalPath, FSNode>&& priorScanChildren)
+  : mCookie(move(cookie))
   , mComplete(false)
-  , mDebrisPath(target.sync->localdebris)
-  , mFollowSymLinks(target.sync->client->followsymlinks)
-  , mKnown()
+  , mFollowSymLinks(followSymLinks)
+  , mKnown(move(priorScanChildren))
   , mResults()
-//  , mTarget(target)
   , mTargetPath(std::move(targetPath))
 {
-    // Track details about mTarget's current children.
-    for (auto& childIt : target.children)
-    {
-        LocalNode& child = *childIt.second;
-
-        if (child.fsid != UNDEF)
-        {
-            mKnown.emplace(child.localname, child.getKnownFSDetails());
-        }
-    }
 }
 
 ScanService::Worker::Worker(size_t numThreads)
@@ -335,16 +309,6 @@ void ScanService::Worker::scan(ScanRequestPtr request)
 {
     CodeCounter::ScopeTimer rst(computeSyncTripletsTime);
 
-    // For convenience.
-    const auto& debris = request->mDebrisPath;
-
-    // Don't bother processing the debris directory.
-    if (debris.isContainingPathOf(request->mTargetPath))
-    {
-        LOG_debug << "Skipping scan of debris directory.";
-        return;
-    }
-
     // Have we been passed a valid target path?
     auto fileAccess = mFsAccess->newfileaccess();
     auto path = request->mTargetPath;
@@ -382,12 +346,6 @@ void ScanService::Worker::scan(ScanRequestPtr request)
     {
         ScopedLengthRestore restorer(path);
         path.appendWithSeparator(name, false);
-
-        // Except the debris...
-        if (debris.isContainingPathOf(path))
-        {
-            continue;
-        }
 
         // Learn everything we can about the file.
         auto info = interrogate(*dirAccess, name, path, *request);
@@ -4267,24 +4225,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
         << row.syncNode->conflicts << ") at "
         << fullPath.syncPath;
 
-    // make sure any subtree flags are passed to child nodes, so we can clear the flag at this level
-    for (auto& child : row.syncNode->children)
-    {
-        if (child.second->type != FILENODE)
-        {
-            if (row.syncNode->scanAgain == TREE_ACTION_SUBTREE)
-            {
-                child.second->scanDelayUntil = std::max<dstime>(child.second->scanDelayUntil,  row.syncNode->scanDelayUntil);
-            }
-
-            child.second->scanAgain = propagateSubtreeFlag(row.syncNode->scanAgain, child.second->scanAgain);
-            child.second->checkMovesAgain = propagateSubtreeFlag(row.syncNode->checkMovesAgain, child.second->checkMovesAgain);
-            child.second->syncAgain = propagateSubtreeFlag(row.syncNode->syncAgain, child.second->syncAgain);
-        }
-    }
-    if (row.syncNode->scanAgain == TREE_ACTION_SUBTREE) row.syncNode->scanAgain = TREE_ACTION_HERE;
-    if (row.syncNode->checkMovesAgain == TREE_ACTION_SUBTREE) row.syncNode->checkMovesAgain = TREE_ACTION_HERE;
-    if (row.syncNode->syncAgain == TREE_ACTION_SUBTREE) row.syncNode->syncAgain = TREE_ACTION_HERE;
+    row.syncNode->propagateAnySubtreeFlags();
 
     // Whether we should perform sync actions at this level.
     bool wasSynced = row.syncNode->scanAgain < TREE_ACTION_HERE
@@ -4312,66 +4253,13 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
 
             if (row.fsNode)
             {
-                std::shared_ptr<ScanService::Request> ourScanRequest = node.scanInProgress ? node.rare().scanRequest  : nullptr;
-
-                if (!ourScanRequest && (!mActiveScanRequest || mActiveScanRequest->completed()))
-                {
-                    // we can start a single new request if we are still recursing and the last request from this sync completed already
-                    if (node.scanDelayUntil != 0 && Waiter::ds < node.scanDelayUntil)
-                    {
-                        SYNC_verbose << "Too soon to scan this folder, needs more ds: " << node.scanDelayUntil - Waiter::ds;
-                        syncHere = false;
-                    }
-                    else
-                    {
-                        // queueScan() already logs: LOG_verbose << "Requesting scan for: " << fullPath.toPath(*client->fsaccess);
-                        node.scanObsolete = false;
-                        node.scanInProgress = true;
-                        ourScanRequest = client->mScanService->queueScan(node, fullPath.localPath);
-                        node.rare().scanRequest = ourScanRequest;
-                        mActiveScanRequest = ourScanRequest;
-                        syncHere = false;
-                    }
-                }
-                else if (ourScanRequest &&
-                         ourScanRequest->completed())
-                {
-                    if (ourScanRequest == mActiveScanRequest) mActiveScanRequest.reset();
-
-                    node.scanInProgress = false;
-                    if (node.scanObsolete)   // TODO: also consider obsolete if the results are more than 10 seconds old - eg a folder scanned but stuck (unvisitable) behind something unresolvable for hours.  Or if fsid of the folder was not a match after the scan
-                    {
-                        LOG_verbose << "Directory scan outdated for : " << fullPath.localPath_utf8();
-                        node.scanObsolete = false;
-                        node.scanInProgress = false;
-                        syncHere = false;
-                        node.scanDelayUntil = Waiter::ds + 10; // don't scan too frequently
-                    }
-                    else
-                    {
-                        node.lastFolderScan.reset(
-                            new vector<FSNode>(ourScanRequest->results()));
-
-                        LOG_verbose << "Received " << node.lastFolderScan->size() << " directory scan results for: " << fullPath.localPath_utf8();
-
-                        node.scanDelayUntil = Waiter::ds + 20; // don't scan too frequently
-                        row.syncNode->scanAgain = TREE_RESOLVED;
-                        row.syncNode->setCheckMovesAgain(false, true, false);
-                        row.syncNode->setSyncAgain(false, true, false);
-                        syncHere = true;
-                    }
-                }
-                else
-                {
-                    syncHere = false;
-                }
+                syncHere = node.processBackgroundFolderScan(row, fullPath);
             }
             else
             {
                 syncHere = false;
                 recurseHere = false;  // If we need to scan, we need the folder to exist first - revisit later
             }
-            node.trimRareFields();
         }
         else
         {
@@ -4385,7 +4273,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
         // Otherwise, we can reconstruct the filesystem entries from the LocalNodes
         if (!effectiveFsChildren)
         {
-            fsChildren.reserve(node.children.size() + 50);  // leave some room for others to be added in syncItem()
+            fsChildren.reserve(node.children.size() + 50);  // leave some room for others to be appeded in syncItem()
 
             for (auto &childIt : node.children)
             {
@@ -4455,35 +4343,23 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
 
             ScopedSyncPathRestore syncPathRestore(fullPath);
 
-            if (!fullPath.appendRowNames(childRow, mFilesystemType))
+            if (!fullPath.appendRowNames(childRow, mFilesystemType) ||
+                localdebris.isContainingPathOf(fullPath.localPath))
             {
-                // this is a legitimate case; eg. we only had a syncNode and it is removed in resolve_delSyncNode
+                // This is a legitimate case; eg. we only had a syncNode and it is removed in resolve_delSyncNode
+                // Or if this is the debris folder, ignore it
                 continue;
             }
 
-            if (!(!childRow.syncNode || childRow.syncNode->getLocalPath() == fullPath.localPath))
+            if (childRow.syncNode)
             {
-                auto s = childRow.syncNode->getLocalPath();
-                assert(!childRow.syncNode || 0 == compareUtf(childRow.syncNode->getLocalPath(), true, fullPath.localPath, true, false));
-            }
-
-            if (!fsstableids && !row.syncNode->unstableFsidAssigned)
-            {
-                // for FAT and other filesystems where we can't rely on fsid
-                // being the same after remount, so update our previously synced nodes
-                // with the actual fsids now attached to them (usually generated by FUSE driver)
-                FSNode* fsnode = childRow.fsNode;
-                LocalNode* localnode = childRow.syncNode;
-
-                if (localnode && localnode->fsid != UNDEF)
+                if (childRow.syncNode->getLocalPath() != fullPath.localPath)
                 {
-                    if (fsnode && syncEqual(*fsnode, *localnode))
-                    {
-                        localnode->setfsid(fsnode->fsid, client->localnodeByFsid, fsnode->localname);
-                        statecacheadd(localnode);
-                    }
+                    auto s = childRow.syncNode->getLocalPath();
+                    assert(0 == compareUtf(childRow.syncNode->getLocalPath(), true, fullPath.localPath, true, false));
                 }
-                row.syncNode->unstableFsidAssigned = true;
+
+                childRow.syncNode->reassignUnstableFsidsOnceOnly(childRow.fsNode);
             }
 
             switch (step)
@@ -4522,7 +4398,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
                 // third and final pass: recurse into the folders
                 if (recurseHere &&
                     childRow.syncNode &&
-                    childRow.syncNode->type == FOLDERNODE &&
+                    childRow.syncNode->type != FILENODE &&
                     !childRow.suppressRecursion &&
                     !childRow.syncNode->moveSourceApplyingToCloud &&  // we may not have visited syncItem if !syncHere, but skip these if we determine they are being moved from or deleted already
                     !childRow.syncNode->moveTargetApplyingToCloud &&
@@ -4539,6 +4415,20 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
                     {
                         subfoldersSynced = false;
                     }
+                }
+                else if (childRow.recurseToScanforNewLocalNodesOnly &&
+                         childRow.syncNode  &&
+                         childRow.syncNode->scanRequired() &&
+                         childRow.syncNode->type != FILENODE)
+                {
+                    // Add watches as necessary.
+                    if (childRow.fsNode)
+                    {
+                        childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
+                    }
+
+                    recursiveSync_localScanForNewOnly(childRow, fullPath, committer);
+                    subfoldersSynced = false;
                 }
                 break;
 
@@ -4576,7 +4466,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
             }
         }
 #endif
-
 
         // LocalNodes are now consistent with the last scan.
         LOG_debug << syncname << "Clearing folder scan records at " << fullPath.localPath_utf8();
@@ -4616,6 +4505,210 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
 
     return folderSynced && subfoldersSynced;
 }
+
+
+bool Sync::recursiveSync_localScanForNewOnly(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer)
+{
+    // in case of sync failing while we recurse
+    if (state < 0) return false;
+
+    assert(row.syncNode);
+    assert(row.syncNode->type != FILENODE);
+    assert(row.syncNode->getLocalPath() == fullPath.localPath);
+
+    // nothing to do for this subtree? Skip traversal
+    if (!(row.syncNode->scanRequired()))
+    {
+        SYNC_verbose << syncname << "No scanning needed at " << logTriplet(row, fullPath);
+        return true;
+    }
+
+    SYNC_verbose << syncname << " localScanForNewOnly Entering folder with "
+        << row.syncNode->scanAgain  << "-"
+        << row.syncNode->checkMovesAgain << "-"
+        << row.syncNode->syncAgain << " ("
+        << row.syncNode->conflicts << ") at "
+        << fullPath.syncPath;
+
+    row.syncNode->propagateAnySubtreeFlags();
+
+    // Whether we should perform sync actions at this level.
+    bool wasSynced = row.syncNode->scanAgain < TREE_ACTION_HERE
+        && row.syncNode->syncAgain < TREE_ACTION_HERE
+        && row.syncNode->checkMovesAgain < TREE_ACTION_HERE;
+    bool syncHere = !wasSynced;
+    bool recurseHere = true;
+
+    SYNC_verbose << syncname << "sync/recurse here: " << syncHere << recurseHere;
+
+    // reset this node's sync flag. It will be set again if anything remains to be done.
+    row.syncNode->syncAgain = TREE_RESOLVED;
+
+    vector<FSNode>* effectiveFsChildren;
+    vector<FSNode> fsChildren;
+
+    {
+        // For convenience.
+        LocalNode& node = *row.syncNode;
+
+        // Do we need to scan this node?
+        if (node.scanAgain >= TREE_ACTION_HERE)
+        {
+            client->mSyncFlags->reachableNodesAllScannedThisPass = false;
+
+            if (row.fsNode)
+            {
+                syncHere = node.processBackgroundFolderScan(row, fullPath);
+            }
+            else
+            {
+                syncHere = false;
+                recurseHere = false;  // If we need to scan, we need the folder to exist first - revisit later
+            }
+        }
+        else
+        {
+            // this will be restored at the end of the function if any nodes below in the tree need it
+            row.syncNode->scanAgain = TREE_RESOLVED;
+        }
+
+        // Effective children are from the last scan, if present.
+        effectiveFsChildren = node.lastFolderScan.get();
+
+        // Otherwise, we can reconstruct the filesystem entries from the LocalNodes
+        if (!effectiveFsChildren)
+        {
+            fsChildren.reserve(node.children.size() + 50);  // leave some room for others to be added in syncItem()
+
+            for (auto &childIt : node.children)
+            {
+                if (childIt.second->fsid != UNDEF)
+                {
+                    fsChildren.emplace_back(childIt.second->getKnownFSDetails());
+                }
+            }
+
+            effectiveFsChildren = &fsChildren;
+        }
+    }
+
+    // Get sync triplets.
+    vector<syncRow> childRows;
+    vector<FSNode> fsInferredChildren;
+
+    if (!wasSynced || !inferAlreadySyncedTriplets(row.cloudNode, *row.syncNode, fsInferredChildren, childRows))
+    {
+        childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
+    }
+
+    for (unsigned step = 0; step < 3; ++step)
+    {
+        for (auto& childRow : childRows)
+        {
+            // in case of sync failing while we recurse
+            if (state < 0) return false;
+
+            if (!childRow.cloudClashingNames.empty() ||
+                !childRow.fsClashingNames.empty())
+            {
+                // no tricky cases for localScanForNewOnly
+                continue;
+            }
+            childRow.fsSiblings = effectiveFsChildren;
+            childRow.rowSiblings = &childRows;
+
+            assert(!row.syncNode || row.syncNode->localname.empty() || row.syncNode->name.empty() || !row.syncNode->parent ||
+                0 == compareUtf(row.syncNode->localname, true, row.syncNode->name, false, true));
+
+            ScopedSyncPathRestore syncPathRestore(fullPath);
+
+            if (!fullPath.appendRowNames(childRow, mFilesystemType) ||
+                localdebris.isContainingPathOf(fullPath.localPath))
+            {
+                // This is a legitimate case; eg. we only had a syncNode and it is removed in resolve_delSyncNode
+                // Or if this is the debris folder, ignore it
+                continue;
+            }
+
+            if (childRow.syncNode)
+            {
+                if (childRow.syncNode->getLocalPath() != fullPath.localPath)
+                {
+                    auto s = childRow.syncNode->getLocalPath();
+                    assert(0 == compareUtf(childRow.syncNode->getLocalPath(), true, fullPath.localPath, true, false));
+                }
+
+                childRow.syncNode->reassignUnstableFsidsOnceOnly(childRow.fsNode);
+            }
+
+            switch (step)
+            {
+            case 0:
+                // first pass: (localScanForNewOnly)
+                // we don't consider moves in localScanForNewOnly
+                if (syncHere)
+                {
+                    //if (!syncItem_checkMoves(childRow, row, fullPath, committer))
+                    //{
+                    //    if (childRow.itemProcessed)
+                    //    {
+                    //        folderSynced = false;
+                    //        row.syncNode->setSyncAgain(false, true, false);
+                    //    }
+                    //}
+                }
+                break;
+
+            case 1:
+                // second pass:
+                // we don't do full syncItem processing, only look for new fsNodes.
+                if (syncHere && !childRow.itemProcessed)
+                {
+                    if (!childRow.cloudNode && !childRow.syncNode && childRow.fsNode)
+                    {
+                        resolve_makeSyncNode_fromFS(childRow, row, fullPath, false);
+                    }
+                }
+                break;
+
+            case 2:
+                // third and final pass: recurse into the folders  (localScanForNewOnly)
+                //
+                if (recurseHere &&
+                    childRow.syncNode &&
+                    childRow.syncNode->type != FILENODE &&
+                    !childRow.suppressRecursion &&
+                    !childRow.syncNode->moveSourceApplyingToCloud &&  // we may not have visited syncItem if !syncHere, but skip these if we determine they are being moved from or deleted already
+                    !childRow.syncNode->moveTargetApplyingToCloud &&
+                    //!childRow.syncNode->deletedFS &&   we should not check this one, or we won't remove the LocalNode
+                    !childRow.syncNode->deletingCloud)
+                {
+                    // Add watches as necessary.
+                    if (childRow.fsNode)
+                    {
+                        childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
+                    }
+
+                    recursiveSync_localScanForNewOnly(childRow, fullPath, committer);
+                }
+                break;
+
+            }
+        }
+    }
+
+
+    SYNC_verbose << syncname
+        << "localScanForNewOnly Exiting folder with "
+        << row.syncNode->scanAgain  << "-"
+        << row.syncNode->checkMovesAgain << "-"
+        << row.syncNode->syncAgain << " ("
+        << row.syncNode->conflicts << ") at "
+        << fullPath.syncPath;
+
+    return false;
+}
+
 
 string Sync::logTriplet(syncRow& row, SyncPath& fullPath)
 {
@@ -5325,6 +5418,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 
         }
         row.suppressRecursion = true;
+        row.recurseToScanforNewLocalNodesOnly = true;
         monitor.waitingCloud(fullPath.cloudPath, prevSyncedNode->displaypath(), SyncWaitReason::MoveNeedsDestinationNodeProcessing);
     }
     else if (row.syncNode->deletedFS)
