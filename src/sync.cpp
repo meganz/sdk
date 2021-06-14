@@ -5399,7 +5399,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 
     Node* prevSyncedNode = client->nodeByHandle(row.syncNode->syncedCloudNodeHandle);
 
-    if (prevSyncedNode)
+    if (prevSyncedNode && client->nodeIsInActiveSync(prevSyncedNode))
     {
         row.syncNode->setCheckMovesAgain(true, false, false);
 
