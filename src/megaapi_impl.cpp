@@ -4124,6 +4124,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
         case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
+        case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
+        case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
     }
     return "UNKNOWN";
 }
@@ -5482,6 +5484,11 @@ int MegaApiImpl::isLoggedIn()
     return result;
 }
 
+bool MegaApiImpl::isEphemeralPlusPlus()
+{
+    return isLoggedIn() == EPHEMERALACCOUNTPLUSPLUS;
+}
+
 void MegaApiImpl::whyAmIBlocked(bool logout, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_WHY_AM_I_BLOCKED, listener);
@@ -6019,15 +6026,13 @@ char MegaApiImpl::userAttributeToScope(int type)
     return scope;
 }
 
+#ifdef WINDOWS_PHONE
 void MegaApiImpl::setStatsID(const char *id)
 {
-    if (!id || !*id || MegaClient::statsid.size())
-    {
-        return;
-    }
-
-    MegaClient::statsid = id;
+    SdkMutexGuard g(sdkMutex);
+    client->statsid = id;
 }
+#endif
 
 bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()
 {
@@ -11553,16 +11558,20 @@ const char *MegaApiImpl::getBasePath()
 
 void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
 {
-    sdkMutex.lock();
-    MegaClient::APIURL = apiURL;
-    if(disablepkp)
     {
-        MegaClient::disablepkp = true;
+        // change defaults for future MegaApi construction
+        lock_guard<mutex> g(g_APIURL_default_mutex);
+        g_APIURL_default = apiURL;
+        g_disablepkp_default = disablepkp;
     }
+
+    // change this MegaApi too
+    SdkMutexGuard g(sdkMutex);
+    client->httpio->APIURL = apiURL;
+    client->httpio->disablepkp = disablepkp;
 
     client->abortbackoff();
     client->disconnect();
-    sdkMutex.unlock();
 }
 
 bool MegaApiImpl::setLanguage(const char *languageCode)
@@ -11752,9 +11761,8 @@ void MegaApiImpl::retrySSLerrors(bool enable)
 
 void MegaApiImpl::setPublicKeyPinning(bool enable)
 {
-    sdkMutex.lock();
-    client->disablepkp = !enable;
-    sdkMutex.unlock();
+    SdkMutexGuard g(sdkMutex);
+    client->httpio->disablepkp = !enable;
 }
 
 void MegaApiImpl::pauseActionPackets()

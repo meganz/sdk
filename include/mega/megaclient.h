@@ -967,9 +967,6 @@ public:
     // finish downloaded chunks in order
     bool orderdownloadedchunks;
 
-    // disable public key pinning (for testing purposes)
-    static bool disablepkp;
-
     // retry API_ESSL errors
     bool retryessl;
 
@@ -1017,20 +1014,17 @@ public:
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
 
-    // root URL for API requests
-    static string APIURL;
-
     // root URL for GeLB requests
-    static string GELBURL;
+    static const string GELBURL;
 
     // root URL for chat stats
-    static string CHATSTATSURL;
+    static const string CHATSTATSURL;
 
     // root URL for Website
-    static string MEGAURL;
+    static const string MEGAURL;
 
     // stats id
-    static std::string statsid;
+    std::string statsid;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
@@ -1990,9 +1984,9 @@ public:
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
-    std::string getDeviceid() const;
+    std::string getDeviceid();
 
-    std::string getDeviceidHash() const;
+    std::string getDeviceidHash();
 
     // generate a new drive id
     handle generateDriveId();

@@ -76,6 +76,7 @@ typedef unsigned char byte;
 #include <memory>
 #include <string>
 #include <chrono>
+#include <mutex>
 
 namespace mega {
 
@@ -95,6 +96,8 @@ using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
 using std::move;
+using std::mutex;
+using std::lock_guard;
 
 #ifdef WIN32
 using std::wstring;
@@ -762,6 +765,15 @@ typedef enum {
     ACCOUNT_TYPE_LITE = 4,
     ACCOUNT_TYPE_BUSINESS = 100,
 } AccountType;
+
+typedef enum
+{
+    ACTION_CREATE_ACCOUNT              = 0,
+    ACTION_RESUME_ACCOUNT              = 1,
+    ACTION_CANCEL_ACCOUNT              = 2,
+    ACTION_CREATE_EPLUSPLUS_ACCOUNT    = 3,
+    ACTION_RESUME_EPLUSPLUS_ACCOUNT    = 4,
+} AccountActionType;
 
 typedef enum {
     AUTH_METHOD_UNKNOWN     = -1,
