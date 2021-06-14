@@ -9364,7 +9364,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         testcase.second.CheckSetup(allstate, false);
     }
 
-    out() << "Checking Backups are Monitoring" << endl;
+    out() << "Checking Backups are Monitoring";
     bool anyNotMonitoring = false;
     for (auto& testcase : cases)
     {
@@ -9372,7 +9372,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         {
             if (testcase.second.isBackup() && sync && !sync->isBackupMonitoring())
             {
-                out() << " backup should be monitoring but isn't: " << testcase.second.name() << endl;
+                out() << " backup should be monitoring but isn't: " << testcase.second.name();
                 anyNotMonitoring = true;
             }
         }
@@ -9438,7 +9438,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
 
-    out() << "Checking Backups are Monitoring" << endl;
+    out() << "Checking Backups are Monitoring";
     anyNotMonitoring = false;
     for (auto& testcase : cases)
     {
@@ -9446,7 +9446,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         {
             if (testcase.second.isBackup() && sync && !sync->isBackupMonitoring())
             {
-                out() << " backup should be monitoring but isn't: " << testcase.second.name() << endl;
+                out() << " backup should be monitoring but isn't: " << testcase.second.name();
                 anyNotMonitoring = true;
             }
         }
