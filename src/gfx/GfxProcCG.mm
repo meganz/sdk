@@ -20,7 +20,7 @@
  */
 
 #include "mega.h"
-#include "GfxProcCG.h"
+#include "mega/gfx/GfxProcCG.h"
 #include <CoreGraphics/CGBitmapContext.h>
 #include <ImageIO/CGImageDestination.h>
 #include <MobileCoreServices/UTCoreTypes.h>
