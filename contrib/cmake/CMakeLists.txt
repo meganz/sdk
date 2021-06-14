@@ -620,10 +620,13 @@ ELSE(WIN32)
        else()
                set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
                    "-framework Foundation"
+                   "-framework AVFoundation"
                    "-framework ImageIO"
                    "-framework CoreGraphics"
-                   "-framework CoreMotion"
-                   "-framework MobileCoreServices")
+                   "-framework CoreMedia"
+                   "-framework MobileCoreServices"
+                   "-framework UIKit"
+                   resolv)
        endif()
     ELSE()
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
