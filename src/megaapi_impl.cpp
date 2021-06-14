@@ -18472,7 +18472,6 @@ void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
 
 unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken *cancelToken)
 {
-    assert(!queue || cancelToken);
     CodeCounter::ScopeTimer ccst(client->performanceStats.megaapiSendPendingTransfers);
 
     auto t0 = std::chrono::steady_clock::now();
