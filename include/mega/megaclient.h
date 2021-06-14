@@ -1620,6 +1620,8 @@ public:
     // number of sync-initiated putnodes() in progress
     int syncadding;
 
+    bool mDetailedSyncLogging = false;
+
     // total number of LocalNode objects
     long long totalLocalNodes;
 

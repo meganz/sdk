@@ -463,40 +463,64 @@ void DemoApp::syncupdate_conflicts(bool conflicts)
     }
 }
 
+// flags to turn off cout output that can be too volumnous/time consuming
+bool syncout_local_change_detection = true;
+bool syncout_remote_change_detection = true;
+bool syncout_transfer_activity = true;
+bool syncout_folder_sync_state = false;
+
 // sync update callbacks are for informational purposes only and must not change or delete the sync itself
 void DemoApp::syncupdate_local_folder_addition(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local folder addition detected: " << path.toPath(*client->fsaccess);
-    syncstat(sync);
+    if (syncout_local_change_detection)
+    {
+        cout << "Sync - local folder addition detected: " << path.toPath(*client->fsaccess);
+        syncstat(sync);
+    }
 }
 
 void DemoApp::syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local folder deletion detected: " << path.toPath(*client->fsaccess);
-    syncstat(sync);
+    if (syncout_local_change_detection)
+    {
+        cout << "Sync - local folder deletion detected: " << path.toPath(*client->fsaccess);
+        syncstat(sync);
+    }
 }
 
 void DemoApp::syncupdate_local_file_addition(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local file addition detected: " << path.toPath(*client->fsaccess);
-    syncstat(sync);
+    if (syncout_local_change_detection)
+    {
+        cout << "Sync - local file addition detected: " << path.toPath(*client->fsaccess);
+        syncstat(sync);
+    }
 }
 
 void DemoApp::syncupdate_local_file_deletion(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local file deletion detected: " << path.toPath(*client->fsaccess);
-    syncstat(sync);
+    if (syncout_local_change_detection)
+    {
+        cout << "Sync - local file deletion detected: " << path.toPath(*client->fsaccess);
+        syncstat(sync);
+    }
 }
 
 void DemoApp::syncupdate_local_file_change(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local file change detected: " << path.toPath(*client->fsaccess);
-    syncstat(sync);
+    if (syncout_local_change_detection)
+    {
+        cout << "Sync - local file change detected: " << path.toPath(*client->fsaccess);
+        syncstat(sync);
+    }
 }
 
 void DemoApp::syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath)
 {
-    cout << "Sync - local rename/move " << oldPath.toPath(*client->fsaccess) << " -> " << newPath.toPath(*client->fsaccess) << endl;
+    if (syncout_local_change_detection)
+    {
+        cout << "Sync - local rename/move " << oldPath.toPath(*client->fsaccess) << " -> " << newPath.toPath(*client->fsaccess) << endl;
+    }
 }
 
 void DemoApp::syncupdate_local_lockretry(bool locked)
@@ -513,48 +537,75 @@ void DemoApp::syncupdate_local_lockretry(bool locked)
 
 void DemoApp::syncupdate_remote_move(Sync *, Node *n, Node *prevparent)
 {
-    cout << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
+    if (syncout_remote_change_detection)
+    {
+        cout << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
             " -> " << (n->parent ? n->parent->displayname() : "?") << endl;
+    }
 }
 
 void DemoApp::syncupdate_remote_rename(Sync *, Node *n, const char *prevname)
 {
-    cout << "Sync - remote rename " << prevname << " -> " <<  n->displayname() << endl;
+    if (syncout_remote_change_detection)
+    {
+        cout << "Sync - remote rename " << prevname << " -> " << n->displayname() << endl;
+    }
 }
 
 void DemoApp::syncupdate_remote_folder_addition(Sync *, Node* n)
 {
-    cout << "Sync - remote folder addition detected " << n->displayname() << endl;
+    if (syncout_remote_change_detection)
+    {
+        cout << "Sync - remote folder addition detected " << n->displayname() << endl;
+    }
 }
 
 void DemoApp::syncupdate_remote_file_addition(Sync *, Node* n)
 {
-    cout << "Sync - remote file addition detected " << n->displayname() << endl;
+    if (syncout_remote_change_detection)
+    {
+        cout << "Sync - remote file addition detected " << n->displayname() << endl;
+    }
 }
 
 void DemoApp::syncupdate_remote_folder_deletion(Sync *, Node* n)
 {
-    cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
+    if (syncout_remote_change_detection)
+    {
+        cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
+    }
 }
 
 void DemoApp::syncupdate_remote_file_deletion(Sync *, Node* n)
 {
-    cout << "Sync - remote file deletion detected " << n->displayname() << endl;
+    if (syncout_remote_change_detection)
+    {
+        cout << "Sync - remote file deletion detected " << n->displayname() << endl;
+    }
 }
 
 void DemoApp::syncupdate_get(Sync*, Node *, const char* path)
 {
-    cout << "Sync - requesting file " << path << endl;
+    if (syncout_transfer_activity)
+    {
+        cout << "Sync - requesting file " << path << endl;
+    }
 }
 
 void DemoApp::syncupdate_put(Sync*, const char* path)
 {
-    cout << "Sync - sending file " << path << endl;
+    if (syncout_transfer_activity)
+    {
+        cout << "Sync - sending file " << path << endl;
+    }
 }
 
 void DemoApp::syncupdate_remote_copy(Sync*, const char* name)
 {
-    cout << "Sync - creating remote file " << name << " by copying existing remote file" << endl;
+    if (syncout_transfer_activity)
+    {
+        cout << "Sync - creating remote file " << name << " by copying existing remote file" << endl;
+    }
 }
 
 static const char* treestatename(treestate_t ts)
@@ -576,9 +627,12 @@ static const char* treestatename(treestate_t ts)
 
 void DemoApp::syncupdate_treestate(LocalNode* l)
 {
-    if (l->type != FILENODE)
+    if (syncout_folder_sync_state)
     {
-        cout << "Sync - state change of folder " << l->getLocalPath().toPath() << " to " << treestatename(l->ts) << endl;
+        if (l->type != FILENODE)
+        {
+            cout << "Sync - state change of folder " << l->getLocalPath().toPath() << " to " << treestatename(l->ts) << endl;
+        }
     }
 }
 
@@ -3102,6 +3156,40 @@ void exec_logFilenameAnomalies(autocomplete::ACState& s)
     client->mFilenameAnomalyReporter = std::move(reporter);
 }
 
+void exec_syncoutput(autocomplete::ACState& s)
+{
+    bool onOff = s.words[3].s == "on";
+
+    if (s.words[2].s == "local_change_detection")
+    {
+        syncout_local_change_detection = onOff;
+    }
+    else if (s.words[2].s == "remote_change_detection")
+    {
+        syncout_remote_change_detection = onOff;
+    }
+    else if (s.words[2].s == "transfer_activity")
+    {
+        syncout_transfer_activity = onOff;
+    }
+    else if (s.words[2].s == "folder_sync_state")
+    {
+        syncout_transfer_activity = onOff;
+    }
+    else if (s.words[2].s == "detail_log")
+    {
+        client->mDetailedSyncLogging = onOff;
+    }
+    else if (s.words[2].s == "all")
+    {
+        syncout_local_change_detection = onOff;
+        syncout_remote_change_detection = onOff;
+        syncout_transfer_activity = onOff;
+        syncout_transfer_activity = onOff;
+        client->mDetailedSyncLogging = onOff;
+    }
+}
+
 MegaCLILogger gLogger;
 
 autocomplete::ACN autocompleteSyntax()
@@ -3210,6 +3298,16 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_syncpause, sequence(text("syncpause"), param("id")));
     p->Add(exec_syncresume, sequence(text("syncresume"), param("id")));
+
+    p->Add(exec_syncoutput, sequence(text("sync"), text("output"),
+        either(text("local_change_detection"),
+            text("remote_change_detection"),
+            text("transfer_activity"),
+            text("folder_sync_state"),
+            text("detail_log"),
+            text("all")),
+        either(text("on"), text("off"))));
+
 #endif
 
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));

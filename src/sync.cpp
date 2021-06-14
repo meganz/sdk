@@ -40,10 +40,7 @@ const int Sync::FILE_UPDATE_DELAY_DS = 30;
 const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
 const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
-// set gLogsync true for very, very detailed sync logging
-bool gLogsync = true;
-//bool gLogsync = false;
-#define SYNC_verbose if (gLogsync) LOG_verbose
+#define SYNC_verbose if (client->mDetailedSyncLogging) LOG_verbose
 
 std::atomic<size_t> ScanService::mNumServices(0);
 std::unique_ptr<ScanService::Worker> ScanService::mWorker;
@@ -5821,6 +5818,7 @@ void MegaClient::triggerSync(NodeHandle h, bool recurse)
             // if the parent is a file, then it's just old versions being mentioned in the actionpackets, ignore
             if (n->type != FILENODE)
             {
+                MegaClient* client = this;
                 SYNC_verbose << clientname << "Trigger syncNode not fournd for " << n->displaypath() << ", will trigger parent";
                 if (n->parent) triggerSync(n->parent->nodeHandle(), true);
             }
@@ -5831,6 +5829,7 @@ void MegaClient::triggerSync(NodeHandle h, bool recurse)
         // we are already being called with the handle of the parent of the thing that changed
         for (auto it = range.first; it != range.second; ++it)
         {
+            MegaClient* client = this;
             SYNC_verbose << clientname << "Triggering sync flag for " << it->second->localnodedisplaypath(*fsaccess) << (recurse ? " recursive" : "");
             it->second->setSyncAgain(false, true, recurse);
         }

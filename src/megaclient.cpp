@@ -12293,6 +12293,8 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     uint32_t id;
     string data;
     Transfer* t;
+    size_t cachedTransfersLoaded = 0;
+    size_t cachedFilesLoaded = 0;
 
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
@@ -12308,7 +12310,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
                     {
                         transferlist.currentpriority = t->priority;
                     }
-                    LOG_debug << "Cached transfer loaded";
+                    cachedTransfersLoaded += 1;
                 }
                 else
                 {
@@ -12319,10 +12321,13 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
             case CACHEDFILE:
                 cachedfiles.push_back(data);
                 cachedfilesdbids.push_back(id);
-                LOG_debug << "Cached file loaded";
+                cachedFilesLoaded += 1;
                 break;
         }
     }
+    LOG_debug << "Cached transfers loaded: " << cachedTransfersLoaded;
+    LOG_debug << "Cached files loaded" << cachedFilesLoaded;
+
 
     // if we are logged in but the filesystem is not current yet
     // postpone the resumption until the filesystem is updated
