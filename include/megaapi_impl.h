@@ -1906,6 +1906,8 @@ public:
     bool analyseMediaInfo(const char* inputFilepath) override;
     char *encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath,
                      bool adjustsizeonly) override;
+    char *encryptBuffer(int64_t startPos, int64_t fileSize, unsigned char* buffer, int64_t* length,
+                        bool adjustsizeonly) override;
 
     char *getUploadURL() override;
 

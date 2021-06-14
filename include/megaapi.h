@@ -7352,6 +7352,23 @@ public:
     virtual char *encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly);
 
     /**
+     * @brief Encrypt the buffer or a portion of it
+     *
+     * TODO
+     *
+     * @param startPos
+     * @param startPos
+     * @param fileSize
+     * @param buffer
+     * @param length
+     * @param adjustsizeonly
+     * @return If the function tries to encrypt and succeeds, the return value is the suffix to append to the URL when uploading this enrypted chunk.
+     *         If adjustsizeonly was set, and the function succeeds, the return value will be non-NULL (and will need deallocation as usual).
+     *         If the function fails, the return value is NULL, and an error will have been logged.
+     */
+    virtual char *encryptBuffer(int64_t startPos, int64_t fileSize, unsigned char* buffer, int64_t* length, bool adjustsizeonly);
+
+    /**
      * @brief Retrieves the value of the uploadURL once it has been successfully requested via MegaApi::backgroundMediaUploadRequestUploadURL
      *
      * You take ownership of the returned value.

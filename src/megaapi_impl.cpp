@@ -1175,6 +1175,52 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
     return nullptr;
 }
 
+char *MegaBackgroundMediaUploadPrivate::encryptBuffer(int64_t startPos, int64_t fileSize, unsigned char* buffer, int64_t* length, bool adjustsizeonly)
+{
+    if (startPos != ChunkedHash::chunkfloor(startPos))
+    {
+        LOG_err << "non-chunk start postion supplied";
+        return nullptr;
+    }
+
+    if (startPos < 0 || startPos > fileSize)
+    {
+        LOG_err << "invalid startPos supplied";
+        return nullptr;
+    }
+    else if (!adjustsizeonly && (*length < 0 || startPos + *length > fileSize))
+    {
+        LOG_err << "invalid enryption length supplied";
+        return nullptr;
+    }
+    else
+    {
+        // make sure we load to a chunk boundary
+        m_off_t endPos = ChunkedHash::chunkceil(startPos, fileSize);
+        *length = endPos - startPos;
+        if (adjustsizeonly)
+        {
+            // return non-null to indicate success.  As it's a string return in the standard case, caller must deallocate as usual.
+            return MegaApi::strdup("1");
+        }
+        else
+        {
+            SymmCipher cipher;
+            cipher.setkey(filekey);
+            uint64_t ctriv = MemAccess::get<uint64_t>((const char*)filekey + SymmCipher::KEYLENGTH);
+
+            EncryptBufferByChunks eb(buffer, &cipher, &chunkmacs, ctriv);
+            string urlSuffix;
+            if (eb.encrypt(startPos, endPos, urlSuffix))
+            {
+                ((int64_t*)filekey)[3] = chunkmacs.macsmac(&cipher);
+                return MegaApi::strdup(urlSuffix.c_str());
+            }
+        }
+    }
+    return nullptr;
+}
+
 char *MegaBackgroundMediaUploadPrivate::getUploadURL()
 {
     return url.empty() ? nullptr : MegaApi::strdup(url.c_str());

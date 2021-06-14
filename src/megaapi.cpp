@@ -6253,6 +6253,11 @@ char *MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t 
     return NULL;
 }
 
+char *MegaBackgroundMediaUpload::encryptBuffer(int64_t startPos, int64_t fileSize, unsigned char* buffer, int64_t* length, bool adjustsizeonly)
+{
+    return NULL;
+}
+
 char *MegaBackgroundMediaUpload::getUploadURL()
 {
     return NULL;
