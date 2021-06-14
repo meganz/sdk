@@ -23,7 +23,7 @@ project(MegaSDK)
 
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
-if(CMAKE_HOST_APPLE)
+if (CMAKE_HOST_APPLE)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
     set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
@@ -45,8 +45,10 @@ set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
 set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
 set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
+set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
+set (MEGA_USE_C_ARES 1 CACHE STRING "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL")
 
-if (USE_QT)
+if (USE_PTHREAD)
     set( USE_CPPTHREAD 0)
 else()
     set( USE_CPPTHREAD 1)
@@ -241,7 +243,7 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
     add_definitions( -DNOMINMAX )
 
-    #Link against the static C/C++ libraries on windows. Though, if linking with prebuilt QT we need dynamic CRT
+    #Link against the static C/C++ libraries on windows, by default. Link with dynamic CRT if explicitly requested
     foreach(flag_var
             CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
             CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
@@ -267,13 +269,14 @@ if (WIN32)
     add_definitions( -D_WINSOCK_DEPRECATED_NO_WARNINGS )
 ENDIF(WIN32)
 
-include(CheckIncludeFile)
-include(CheckFunctionExists)
-check_include_file(inttypes.h HAVE_INTTYPES_H)
-check_include_file(dirent.h HAVE_DIRENT_H)
-check_include_file(uv.h HAVE_LIBUV)
-check_function_exists(aio_write, HAVE_AIO_RT)
-
+if (NOT WIN32)
+    include(CheckIncludeFile)
+    include(CheckFunctionExists)
+    check_include_file(inttypes.h HAVE_INTTYPES_H)
+    check_include_file(dirent.h HAVE_DIRENT_H)
+    check_include_file(uv.h HAVE_LIBUV)
+    check_function_exists(aio_write, HAVE_AIO_RT)
+endif()
 
 function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64debug lib64release)
     # function to import a library with different files for 32/64 & debug/release
@@ -462,12 +465,29 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
             ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmuxd      libwebpmux     libwebpmuxd         libwebpmux         )
 
-            set (freeimage_deps freeimage_Iex  freeimage_IlmImf freeimage_IlmImfUtil
-                freeimage_IlmThread libturbojpeg libopenjpeg
-                freeimage_half libpng liblcms libraw freeimage_tiff
-                freeimage_tiffxx freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux
-                freeimage_jpeg freeimage_Imath freeimage_lzma
-                libjasper libturbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
+            target_link_libraries(freeimage INTERFACE
+                                            freeimage_Iex
+                                            freeimage_IlmImf
+                                            freeimage_IlmImfUtil
+                                            freeimage_IlmThread
+                                            freeimage_half
+                                            libpng
+                                            libraw
+                                            liblcms
+                                            freeimage_tiff
+                                            freeimage_tiffxx
+                                            freeimage_webp
+                                            freeimage_webpdecoder
+                                            freeimage_webpdemux
+                                            freeimage_webpmux
+                                            freeimage_jpeg
+                                            freeimage_Imath
+                                            freeimage_lzma
+                                            libjasper
+                                            libopenjpeg
+                                            libturbojpeg
+                                            freeimage_jxrglue
+                                            freeimage_jpegxr)
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
@@ -496,6 +516,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_PCRE)
             ImportStdVcpkgLibrary(pcre     pcred pcre libpcre libpcre)
             ImportStdVcpkgLibrary(pcrecpp  pcrecppd pcrecpp libpcrecpp libpcrecpp)
+            target_link_libraries(pcrecpp  INTERFACE pcre)
         ENDIF(USE_PCRE)
 
         IF(USE_PDFIUM)
@@ -534,6 +555,12 @@ if(WIN32)
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
+    IF(HAVE_FFMPEG)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Mfplat.lib mfuuid.LIB strmiids.LIB)
+    ENDIF(HAVE_FFMPEG)
+    IF(USE_DRIVE_NOTIFICATIONS)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} wbemuuid)
+    ENDIF(USE_DRIVE_NOTIFICATIONS)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp
     ${MegaDir}/src/win32/consolewaiter.cpp
@@ -542,6 +569,9 @@ if(WIN32)
     ${MegaDir}/src/win32/waiter.cpp
     $<${USE_CPPTHREAD}:${MegaDir}/src/thread/cppthread.cpp>
     )
+    IF(USE_DRIVE_NOTIFICATIONS)
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/win32/drivenotifywin.h ${MegaDir}/src/win32/drivenotifywin.cpp)
+    ENDIF(USE_DRIVE_NOTIFICATIONS)
 
 ELSE(WIN32)
 
@@ -555,9 +585,27 @@ ELSE(WIN32)
     endif()
 
     SET(Mega_PlatformSpecificFiles $<$<NOT:${GLOB_H_FOUND}>:${MegaDir}/src/mega_glob.c> ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp $<${USE_CPPTHREAD}:${MegaDir}/src/thread/cppthread.cpp> )
+
     IF(APPLE)
-        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm )
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm)
     ENDIF()
+
+    IF(USE_DRIVE_NOTIFICATIONS)
+        IF(APPLE)
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} 
+                ${MegaDir}/include/mega/osx/drivenotifyosx.h
+                ${MegaDir}/src/osx/drivenotifyosx.cpp
+            )
+            SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                "-framework DiskArbitration"
+                "-framework CoreFoundation"
+            )
+        ENDIF()
+
+        IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/posix/drivenotifyposix.h ${MegaDir}/src/posix/drivenotifyposix.cpp)
+        ENDIF()
+    ENDIF(USE_DRIVE_NOTIFICATIONS)
 
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
 
@@ -567,6 +615,11 @@ ELSE(WIN32)
     ELSE()
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
     ENDIF()
+    IF(USE_DRIVE_NOTIFICATIONS)
+        IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+            SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} udev)
+        ENDIF()
+    ENDIF(USE_DRIVE_NOTIFICATIONS)
 
     IF(USE_WEBRTC)
         add_definitions( -DWEBRTC_POSIX )
@@ -579,15 +632,13 @@ add_definitions( -DHAVE_CONFIG_H) #otherwise, it won't be included in Windows bu
 
 SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/sodium.cpp)
 SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
-SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.cpp )
+SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.cpp ${MegaDir}/src/gfx/gfx_pdfium.cpp)
 
 add_library(Mega STATIC
             ${MegaDir}/include/megaapi.h
             ${MegaDir}/include/megaapi_impl.h
             ${MegaDir}/include/mega/osx/osxutils.h
             ${MegaDir}/include/mega/transferslot.h
-            ${MegaDir}/include/mega/thread/qtthread.h
-            ${MegaDir}/include/mega/thread/win32thread.h #TODO:only win32
             ${MegaDir}/include/mega/thread/cppthread.h
             ${MegaDir}/include/mega/thread/posixthread.h
             ${MegaDir}/include/mega/thread/libuvthread.h
@@ -641,8 +692,8 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/win32/megawaiter.h
             ${MegaDir}/include/mega/mega_dict-src.h
             ${MegaDir}/include/mega/gfx/GfxProcCG.h
-            ${MegaDir}/include/mega/gfx/qt.h
             ${MegaDir}/include/mega/gfx/freeimage.h
+            ${MegaDir}/include/mega/gfx/gfx_pdfium.h
             ${MegaDir}/include/mega/gfx/external.h
             ${MegaDir}/include/mega/pubkeyaction.h
             ${MegaDir}/include/mega/mega_http_parser.h
@@ -672,6 +723,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/node.h
             ${MegaDir}/include/mega/mediafileattribute.h
             ${MegaDir}/include/mega/mega_glob.h
+            ${MegaDir}/include/mega/drivenotify.h
             ${MegaDir}/include/mega.h
             ${MegaDir}/src/attrmap.cpp
             ${MegaDir}/src/autocomplete.cpp
@@ -719,9 +771,8 @@ add_library(Mega STATIC
             ${WIN_EXTRA_INCLUDE}
             ${MACOS_EXTRA_INCLUDE}
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp>
-            $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
-            $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
             $<${USE_ROTATIVEPERFORMANCELOGGER}:${MegaDir}/src/rotativeperformancelogger.cpp >
+            $<${USE_DRIVE_NOTIFICATIONS}:${MegaDir}/src/drivenotify.cpp>
             )
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
@@ -745,14 +796,14 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_WEBRTC}:webrtc>
                         $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen>
                         $<${USE_CURL}:curl>
-                        $<${USE_CURL}:cares>
+                        $<${MEGA_USE_C_ARES}:cares>
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
                         $<${USE_SQLITE}:sqlite3>
                         $<${USE_LIBUV}:uv>
-                        $<${USE_PCRE}:pcre pcrecpp>
+                        $<${USE_PCRE}:pcrecpp>
                         $<${USE_LIBRAW}:libraw> $<${USE_LIBRAW}:${raw_deps}>
-                        $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:${freeimage_deps}>
+                        $<${USE_FREEIMAGE}:freeimage>
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
                         $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
                         z
@@ -764,6 +815,7 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_CRYPTOPP}:USE_CRYPTOPP>
                 $<${USE_OPENSSL}:USE_OPENSSL>
                 $<${USE_CURL}:USE_CURL>
+                $<${MEGA_USE_C_ARES}:MEGA_USE_C_ARES>
                 USE_SODIUM
                 $<${ENABLE_SYNC}:ENABLE_SYNC>
                 $<${ENABLE_CHAT}:ENABLE_CHAT>
@@ -777,7 +829,8 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_CPPTHREAD}:USE_CPPTHREAD>
                 $<${USE_QT}:USE_QT>
                 $<${USE_PCRE}:USE_PCRE>
-                $<${USE_PDFIUM}:HAVE_PDFIUM>)
+                $<${USE_PDFIUM}:HAVE_PDFIUM>
+                $<${USE_DRIVE_NOTIFICATIONS}:USE_DRIVE_NOTIFICATIONS>)
 
 if (WIN32)
     target_link_libraries(Mega PUBLIC crypt32.lib)
@@ -859,6 +912,14 @@ add_executable(test_integration
     ${MegaDir}/tests/integration/SdkTest_test.cpp
     ${MegaDir}/tests/integration/Sync_test.cpp
 )
+
+if(APPLE)
+    add_executable(test_integration_fsevents_loader 
+        ${MegaDir}/tests/integration/fsevents_loader_main.cpp
+    )
+
+    add_dependencies(test_integration_fsevents_loader test_integration)
+endif()
 
 add_executable(tool_purge_account
     ${MegaDir}/tests/tool/purge_account.cpp

@@ -39,9 +39,11 @@
 #include "useralerts.h"
 #include "user.h"
 #include "sync.h"
+#include "drivenotify.h"
 
 namespace mega {
 
+class Logger;
 class SyncConfigBag;
 
 class MEGA_API FetchNodesStats
@@ -285,6 +287,7 @@ public:
     PrnGen rng;
 
     bool ephemeralSession = false;
+    bool ephemeralSessionPlusPlus = false;
 
     static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
@@ -317,7 +320,9 @@ public:
 
     // ephemeral session support
     void createephemeral();
+    void createephemeralPlusPlus();
     void resumeephemeral(handle, const byte*, int = 0);
+    void resumeephemeralPlusPlus(const std::string& session);
     void cancelsignup();
 
     // full account confirmation/creation support
@@ -462,7 +467,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, const char* prevattr = NULL);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
@@ -539,10 +544,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, const char * = NULL);
+    void putnodes(handle, vector<NewNode>&&, const char *, int tag);
 
     // send files/folders to user
-    void putnodes(const char*, vector<NewNode>&&);
+    void putnodes(const char*, vector<NewNode>&&, int tag);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -637,6 +642,25 @@ public:
     error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
+
+    /**
+     * @brief
+     * Import sync configs from JSON.
+     *
+     * @param configs
+     * A JSON string encoding the sync configs to import.
+     *
+     * @param completion
+     * The function to call when we've completed importing the configs.
+     *
+     * @see MegaApi::exportSyncConfigs
+     * @see MegaApi::importSyncConfigs
+     * @see Syncs::exportSyncConfig
+     * @see Syncs::exportSyncConfigs
+     * @see Syncs::importSyncConfig
+     * @see Syncs::importSyncConfigs
+     */
+    void importSyncConfigs(const char* configs, std::function<void(error)> completion);
 
     /**
      * @brief This method ensures that sync user attributes are available.
@@ -850,11 +874,6 @@ public:
     // get welcome pdf
     void getwelcomepdf();
 
-    // toggle global debug flag
-    bool toggledebug();
-
-    bool debugstate();
-
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
     void reportevent(const char*, const char*, int tag);
@@ -891,9 +910,6 @@ public:
 
     // finish downloaded chunks in order
     bool orderdownloadedchunks;
-
-    // disable public key pinning (for testing purposes)
-    static bool disablepkp;
 
     // retry API_ESSL errors
     bool retryessl;
@@ -942,23 +958,20 @@ public:
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
 
-    // root URL for API requests
-    static string APIURL;
-
     // root URL for GeLB requests
-    static string GELBURL;
+    static const string GELBURL;
 
     // root URL for chat stats
-    static string CHATSTATSURL;
+    static const string CHATSTATSURL;
 
     // root URL for Website
-    static string MEGAURL;
+    static const string MEGAURL;
 
     // file that is blocking the sync engine
     LocalPath blockedfile;
 
     // stats id
-    static std::string statsid;
+    std::string statsid;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
@@ -978,7 +991,19 @@ public:
     // if logged into writable folder
     bool loggedIntoWritableFolder() const;
 
+    // start receiving external drive [dis]connect notifications
+    bool startDriveMonitor();
+
+    // stop receiving external drive [dis]connect notifications
+    void stopDriveMonitor();
+
+    // returns true if drive monitor is started
+    bool driveMonitorEnabled();
+
 private:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    DriveInfoCollector mDriveInfoCollector;
+#endif
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
@@ -1177,7 +1202,7 @@ public:
     DbAccess* dbaccess = nullptr;
 
     // state cache table for logged in user
-    DbTable* sctable;
+    unique_ptr<DbTable> sctable;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;
@@ -1258,7 +1283,7 @@ public:
     // session key to protect local storage
     string sessionkey;
 
-    // key protecting non-shareable GPS coordinates in nodes
+    // key protecting non-shareable GPS coordinates in nodes (currently used only by CUv2 in iOS)
     string unshareablekey;
 
     // application key
@@ -1402,6 +1427,8 @@ public:
     void deltree(handle);
 
     Node* nodeByHandle(NodeHandle) const;
+    Node* nodeByPath(const char* path, Node* node = nullptr);
+
     Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
@@ -1644,6 +1671,7 @@ public:
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
     static const int BACKUPHANDLE = 8;
+    static const int DRIVEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
 
@@ -1883,12 +1911,25 @@ public:
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
-    std::string getDeviceid() const;
+    std::string getDeviceid();
 
-    std::string getDeviceidHash() const;
+    std::string getDeviceidHash();
+
+    // generate a new drive id
+    handle generateDriveId();
+
+    // return API_OK if success and set driveId handle to the drive id read from the drive,
+    // otherwise return error code and set driveId to UNDEF
+    error readDriveId(const char *pathToDrive, handle &driveId) const;
+
+    // return API_OK if success, otherwise error code
+    error writeDriveId(const char *pathToDrive, handle driveId);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
+
+    void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
+    unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
 };
 } // namespace
 

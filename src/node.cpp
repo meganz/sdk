@@ -60,7 +60,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     size = s;
     owner = u;
 
-    copystring(&fileattrstring, fa);
+    JSON::copystring(&fileattrstring, fa);
 
     ctime = ts;
 
@@ -212,7 +212,7 @@ void Node::detach(const bool recreate)
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
-    Node::copystring(&nodekeydata, k);
+    JSON::copystring(&nodekeydata, k);
     if (keyApplied()) ++client->mAppliedKeyNodeCount;
     assert(client->mAppliedKeyNodeCount >= 0);
 }
@@ -620,28 +620,6 @@ bool Node::serialize(string* d)
     }
 
     return true;
-}
-
-// copy remainder of quoted string (no unescaping, use for base64 data only)
-void Node::copystring(string* s, const char* p)
-{
-    if (p)
-    {
-        const char* pp;
-
-        if ((pp = strchr(p, '"')))
-        {
-            s->assign(p, pp - p);
-        }
-        else
-        {
-            *s = p;
-        }
-    }
-    else
-    {
-        s->clear();
-    }
 }
 
 // decrypt attrstring and check magic number prefix
@@ -1233,9 +1211,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     string prevname = node->attrs.map['n'];
 
                     // set new name
-                    node->attrs.map['n'] = name;
-                    sync->client->nextreqtag(); //make reqtag advance to use the next one
-                    sync->client->setattr(node, prevname.c_str());
+                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str());
                 }
             }
         }
@@ -1255,6 +1231,18 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             if (!newnode && node)
             {
                 assert(parent->node);
+
+                if(!parent->node)
+                {
+                    LOG_err << node->displayname() << " parent Localnode is missing its associated Node. Cross referenced must have been removed";
+
+                    sync->client->syncs.disableSelectedSyncs([&](SyncConfig& c, Sync* s) {
+                        return s == sync;
+                    }, MISSING_PARENT_NODE, false);
+
+                    sync->client->sendevent(99455,"Disabling sync after null parent->node cross referent", 0);
+                    return;
+                }
 
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
@@ -1561,11 +1549,11 @@ LocalNode::~LocalNode()
 
         if (type == FOLDERNODE)
         {
-            sync->client->app->syncupdate_local_folder_deletion(sync, this);
+            sync->client->app->syncupdate_local_folder_deletion(sync, getLocalPath());
         }
         else
         {
-            sync->client->app->syncupdate_local_file_deletion(sync, this);
+            sync->client->app->syncupdate_local_file_deletion(sync, getLocalPath());
         }
     }
 

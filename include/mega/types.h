@@ -76,6 +76,7 @@ typedef unsigned char byte;
 #include <memory>
 #include <string>
 #include <chrono>
+#include <mutex>
 
 namespace mega {
 
@@ -94,6 +95,8 @@ using std::streambuf;
 using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
+using std::mutex;
+using std::lock_guard;
 
 #ifdef WIN32
 using std::wstring;
@@ -260,7 +263,7 @@ private:
 };
 
 // returned by loggedin()
-typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } sessiontype_t;
+typedef enum { NOTLOGGEDIN = 0, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT, EPHEMERALACCOUNTPLUSPLUS } sessiontype_t;
 
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit
 // in a 64-bit int
@@ -398,9 +401,10 @@ enum SyncError {
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
     WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
-    BACKUP_MODIFIED = 28,                   // Backup has been externally modified.
-    BACKUP_SOURCE_NOT_BELOW_DRIVE = 29,     // Backup source path not below drive path.
-    SYNC_CONFIG_WRITE_FAILURE = 30,         // Unable to write sync config to disk.
+    MISSING_PARENT_NODE = 28,               // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
+    BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
+    SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
 };
 
 enum SyncWarning {
@@ -611,9 +615,10 @@ typedef enum {
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
-    //ATTR_BACKUP_NAMES = 32,                 // (deprecated) private - byte array - versioned
+    //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
-    ATTR_JSON_SYNC_CONFIG_DATA = 34         // private - byte array - non-versioned
+    ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
+    ATTR_DRIVE_NAMES = 35                   // private - byte array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -741,6 +746,15 @@ typedef enum {
     ACCOUNT_TYPE_BUSINESS = 100,
 } AccountType;
 
+typedef enum
+{
+    ACTION_CREATE_ACCOUNT              = 0,
+    ACTION_RESUME_ACCOUNT              = 1,
+    ACTION_CANCEL_ACCOUNT              = 2,
+    ACTION_CREATE_EPLUSPLUS_ACCOUNT    = 3,
+    ACTION_RESUME_EPLUSPLUS_ACCOUNT    = 4,
+} AccountActionType;
+
 typedef enum {
     AUTH_METHOD_UNKNOWN     = -1,
     AUTH_METHOD_SEEN        = 0,
@@ -833,11 +847,15 @@ namespace CodeCounter
         {
             if (!done) complete();
         }
+        high_resolution_clock::duration timeSpent()
+        {
+            return high_resolution_clock::now() - blockStart;
+        }
         void complete()
         {
             ++scope.count;
             ++scope.finishes;
-            scope.timeSpent += high_resolution_clock::now() - blockStart;
+            scope.timeSpent += timeSpent();
             done = true;
         }
 #else

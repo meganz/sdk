@@ -44,16 +44,14 @@ nobase_libmegainclude_HEADERS = \
 	mega/thread.h \
 	mega/thread/cppthread.h \
 	mega/thread/posixthread.h \
-	mega/thread/qtthread.h \
-	mega/thread/win32thread.h \
 	mega/gfx/external.h \
-	mega/gfx/qt.h \
 	mega/mega_utf8proc.h \
 	mega/mega_ccronexpr.h \
 	mega/mega_evt_tls.h \
 	mega/mega_evt_queue.h \
 	mega/mega_zxcvbn.h \
 	mega/mega_dict-src.h \
+	mega/gfx/gfx_pdfium.h \
 	mega/gfx/freeimage.h \
 	mega/gfx/GfxProcCG.h \
 	mega/raid.h \

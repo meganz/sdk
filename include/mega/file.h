@@ -22,7 +22,7 @@
 #ifndef MEGA_FILE_H
 #define MEGA_FILE_H 1
 
-#include "filefingerprint.h"
+#include "filesystem.h"
 
 namespace mega {
 
@@ -52,6 +52,7 @@ struct MEGA_API File: public FileFingerprint
 
     // generic filename for this transfer
     void displayname(string*);
+    string displayname();
 
     // normalized name (UTF-8 with unescaped special chars)
     string name;
