@@ -382,6 +382,7 @@ void exec_driveid(autocomplete::ACState& s);
 #ifdef ENABLE_SYNC
 
 void exec_syncadd(autocomplete::ACState& s);
+void exec_syncblock(autocomplete::ACState& s);
 void exec_syncclosedrive(autocomplete::ACState& s);
 void exec_syncexport(autocomplete::ACState& s);
 void exec_syncimport(autocomplete::ACState& s);
