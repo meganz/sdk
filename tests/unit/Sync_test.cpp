@@ -251,12 +251,12 @@ struct Fixture
 
     bool iteratorsCorrect(mega::LocalNode& l) const
     {
-        if (l.fsid_it == mLocalNodes.end())
+        if (l.fsid_lastSynced_it == mLocalNodes.end())
         {
             return false;
         }
-        auto localNodePair = mLocalNodes.find(l.fsid);
-        if (l.fsid_it != localNodePair)
+        auto localNodePair = mLocalNodes.find(l.fsid_lastSynced);
+        if (l.fsid_lastSynced_it != localNodePair)
         {
             return false;
         }
