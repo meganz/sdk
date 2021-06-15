@@ -9179,33 +9179,57 @@ void exec_synclist(autocomplete::ACState& s)
                << SyncConfig::synctypename(config.getType())
                << "\n";
 
-            list<NameConflict> conflicts;
-            if (sync && sync->recursiveCollectNameConflicts(conflicts))
-            {
-                for (auto& c : conflicts)
-                {
-                    if (!c.cloudPath.empty() || !c.clashingCloudNames.empty())
-                    {
-                        cout << "  Cloud Path conflict at " << c.cloudPath << ": ";
-                        for (auto& n : c.clashingCloudNames)
-                        {
-                            cout << n << " ";
-                        }
-                        cout << "\n";
-                    }
-                    if (!c.localPath.empty() || !c.clashingLocalNames.empty())
-                    {
-                        cout << "  Local Path conflict at " << c.localPath.toPath(*client->fsaccess) << ": ";
-                        for (auto& n : c.clashingLocalNames)
-                        {
-                            cout << n.toPath(*client->fsaccess) << " ";
-                        }
-                        cout << "\n";
-                    }
-                }
-            }
+          list<NameConflict> conflicts;
+          if (sync && sync->recursiveCollectNameConflicts(conflicts))
+          {
+              for (auto& c : conflicts)
+              {
+                  if (!c.cloudPath.empty() || !c.clashingCloudNames.empty())
+                  {
+                      cout << "  Cloud Path conflict at " << c.cloudPath << ": ";
+                      for (auto& n : c.clashingCloudNames)
+                      {
+                          cout << n << " ";
+                      }
+                      cout << "\n";
+                  }
+                  if (!c.localPath.empty() || !c.clashingLocalNames.empty())
+                  {
+                      cout << "  Local Path conflict at " << c.localPath.toPath(*client->fsaccess) << ": ";
+                      for (auto& n : c.clashingLocalNames)
+                      {
+                          cout << n.toPath(*client->fsaccess) << " ";
+                      }
+                      cout << "\n";
+                  }
+              }
+          }
 
-            cout << std::endl;
+          list<LocalPath> blocked;
+
+          if (sync->collectScanBlocked(blocked))
+          {
+              cout << "  Scan Blocked:\n";
+
+              while (!blocked.empty())
+              {
+                  cout << "    " << blocked.front().toPath() << "\n";
+                  blocked.pop_front();
+              }
+          }
+
+          if (sync->collectUseBlocked(blocked))
+          {
+              cout << "  Use Blocked:\n";
+
+              while (!blocked.empty())
+              {
+                  cout << "    " << blocked.front().toPath() << "\n";
+                  blocked.pop_front();
+              }
+          }
+
+          cout << std::endl;
       });
 
     SyncFlags::CloudStallInfoMap stalledNodePaths;
