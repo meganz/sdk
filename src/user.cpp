@@ -51,10 +51,10 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         const char *key = it.first.c_str();
         string newValue = it.second;
         string currentValue;
-        string rec;
-        if (tlv.get(key, rec) && !rec.empty())  // the key may not exist in the current user attribute
+        string attribute;
+        if (tlv.get(key, attribute) && !attribute.empty())  // the key may not exist in the current user attribute
         {
-            Base64::btoa(rec, currentValue);
+            Base64::btoa(attribute, currentValue);
         }
         if (newValue != currentValue)
         {
@@ -296,10 +296,10 @@ User* User::unserialize(MegaClient* client, string* d)
         TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
         if (tlvRecords)
         {
-            string rec;
-            if (tlvRecords->get(EdDSA::TLV_KEY, rec) && !rec.empty())
+            string edDsaValue;
+            if (tlvRecords->get(EdDSA::TLV_KEY, edDsaValue) && !edDsaValue.empty())
             {
-                client->signkey = new EdDSA(client->rng, (unsigned char *) rec.data());
+                client->signkey = new EdDSA(client->rng, (unsigned char *) edDsaValue.data());
                 if (!client->signkey->initializationOK)
                 {
                     delete client->signkey;
@@ -312,10 +312,10 @@ User* User::unserialize(MegaClient* client, string* d)
                 }
             }
 
-            string rec2;
-            if (tlvRecords->get(ECDH::TLV_KEY, rec2) && !rec2.empty())
+            string edchValue;
+            if (tlvRecords->get(ECDH::TLV_KEY, edchValue) && !edchValue.empty())
             {
-                client->chatkey = new ECDH((unsigned char *) rec2.data());
+                client->chatkey = new ECDH((unsigned char *) edchValue.data());
                 if (!client->chatkey->initializationOK)
                 {
                     delete client->chatkey;
