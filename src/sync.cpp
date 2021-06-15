@@ -873,6 +873,16 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
             readstatecache();
         }
     }
+    else
+    {
+        // we still need the fsid of the synced folder
+        auto fas = client->fsaccess->newfileaccess(false);
+
+        if (fas->fopen(mLocalPath, true, false))
+        {
+            localroot->fsid_lastSynced = fas->fsid;
+        }
+    }
 }
 
 Sync::~Sync()
