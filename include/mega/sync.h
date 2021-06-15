@@ -379,6 +379,12 @@ public:
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
+    bool collectScanBlocked(list<LocalPath>& paths) const;
+    void collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) const;
+
+    bool collectUseBlocked(list<LocalPath>& paths) const;
+    void collectUseBlocked(const LocalNode& node, list<LocalPath>& paths) const;
+
     //// rescan sequence number (incremented when a full rescan or a new
     //// notification batch starts)
     //int scanseqno = 0;

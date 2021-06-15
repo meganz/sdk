@@ -4036,6 +4036,56 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs)
     }
 }
 
+bool Sync::collectScanBlocked(list<LocalPath>& paths) const
+{
+    collectScanBlocked(*localroot, paths);
+
+    return !paths.empty();
+}
+
+void Sync::collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) const
+{
+    assert(node.type == FOLDERNODE);
+
+    if (node.scanBlocked == TREE_RESOLVED) return;
+
+    if (node.scanBlocked > TREE_DESCENDANT_FLAGGED)
+    {
+        paths.emplace_back(node.getLocalPath());
+        return;
+    }
+
+    for (auto& child : node.children)
+    {
+        if (child.second->type != FOLDERNODE) continue;
+
+        collectScanBlocked(*child.second, paths);
+    }
+}
+
+bool Sync::collectUseBlocked(list<LocalPath>& paths) const
+{
+    collectUseBlocked(*localroot, paths);
+
+    return !paths.empty();
+}
+
+void Sync::collectUseBlocked(const LocalNode& node, list<LocalPath>& paths) const
+{
+    if (node.useBlocked == TREE_RESOLVED) return;
+
+    if (node.useBlocked > TREE_DESCENDANT_FLAGGED)
+    {
+        paths.emplace_back(node.getLocalPath());
+        return;
+    }
+
+    for (auto& child : node.children)
+    {
+        collectUseBlocked(*child.second, paths);
+    }
+}
+
 const LocalPath& syncRow::comparisonLocalname() const
 {
     if (syncNode)
