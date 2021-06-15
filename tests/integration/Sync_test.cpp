@@ -790,6 +790,7 @@ struct StandardClient : public MegaApp
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
+        client.mDetailedSyncLogging = true;
 #ifdef GFX_CLASS
         gfx.startProcessingThread();
 #endif

@@ -635,6 +635,9 @@ struct SyncFlags
     bool noProgress = true;
     int noProgressCount = 0;
 
+    // to help with slowing down retries in stall state
+    dstime recursiveSyncLastCompletedDs = 0;
+
     struct CloudStallInfo { SyncWaitReason reason = SyncWaitReason::NoReason; string involvedPath; };
     struct LocalStallInfo { SyncWaitReason reason = SyncWaitReason::NoReason; LocalPath involvedPath; };
     typedef map<string, CloudStallInfo> CloudStallInfoMap;

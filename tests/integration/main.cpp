@@ -106,17 +106,10 @@ public:
             }
             else
             {
-#ifdef _WIN32
-                if (IsDebuggerPresent())
-                {
-                    OutputDebugStringA(os.str().c_str());
-                }
-                else
-#endif // _WIN32
-                {
-                    std::cout << os.str() << std::flush;
-                }
-
+#ifndef WIN32
+                // for non-windows, by default log output goes to console
+                std::cout << os.str() << std::flush;
+#endif
                 if (!gTestingInvalidArgs)
                 {
                     if (loglevel <= logError)
@@ -125,6 +118,13 @@ public:
                     }
                 }
             }
+#ifdef _WIN32
+            // in windows, send log output to the very convenient Visual Studio debug output window (makes it much easier to see the low-frequency high-level output in the console)
+            if (IsDebuggerPresent())
+            {
+                OutputDebugStringA(os.str().c_str());
+            }
+#endif
         }
     }
 

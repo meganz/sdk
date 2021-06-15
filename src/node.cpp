@@ -1427,7 +1427,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 //    scanseqno = sync->scanseqno;
 
     // mark fsid as not valid
-    fsid_it = sync->client->localnodeByFsid.end();
+    fsid_lastSynced_it = sync->client->localnodeByFsid.end();
     syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
 
     sync->client->syncactivity = true;
@@ -1470,7 +1470,7 @@ void LocalNode::init(const FSNode& fsNode)
     syncedFingerprint = fsNode.fingerprint;
 
     // Update our FSID.
-    setfsid(fsNode.fsid, sync->client->localnodeByFsid, fsNode.localname);
+    setSyncedFsid(fsNode.fsid, sync->client->localnodeByFsid, fsNode.localname);
 
     // Update our type.
     type = fsNode.type;
@@ -1715,10 +1715,10 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             map<LocalPath, FSNode> priorScanChildren;
             for (auto& c : children)
             {
-                if (c.second->fsid != UNDEF)
+                if (c.second->fsid_lastSynced != UNDEF)
                 {
                     assert(*c.first == c.second->localname);
-                    priorScanChildren.emplace(*c.first, c.second->getKnownFSDetails());
+                    priorScanChildren.emplace(*c.first, c.second->getLastSyncedFSDetails());   // todo: should be scannedFSDetails - but, we would need another fingerprint
                 }
             }
 
@@ -1775,13 +1775,13 @@ void LocalNode::reassignUnstableFsidsOnceOnly(const FSNode* fsnode)
 
         if (fsnode && sync->syncEqual(*fsnode, *this))
         {
-            setfsid(fsnode->fsid, sync->client->localnodeByFsid, localname);
+            setSyncedFsid(fsnode->fsid, sync->client->localnodeByFsid, localname);
             sync->statecacheadd(this);
         }
-        else if (fsid != UNDEF)
+        else if (fsid_lastSynced != UNDEF)
         {
             // this node was synced with something, but not the thing that's there now (or not there)
-            setfsid(UNDEF-1, sync->client->localnodeByFsid, localname);
+            setSyncedFsid(UNDEF-1, sync->client->localnodeByFsid, localname);
             sync->statecacheadd(this);
         }
         unstableFsidAssigned = true;
@@ -1854,33 +1854,33 @@ treestate_t LocalNode::checkstate()
 
 
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
-void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName)
+void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName)
 {
     assert(sync && sync->client);
 
-    if (fsid_it != fsidnodes.end())
+    if (fsid_lastSynced_it != fsidnodes.end())
     {
-        if (newfsid == fsid && localname == fsName)
+        if (newfsid == fsid_lastSynced && localname == fsName)
         {
             return;
         }
 
-        fsidnodes.erase(fsid_it);
+        fsidnodes.erase(fsid_lastSynced_it);
     }
 
-    fsid = newfsid;
+    fsid_lastSynced = newfsid;
     fsidReused = false;
 
     // if synced to fs, localname should match exactly (no differences in case/escaping etc)
     localname = fsName;
 
-    if (fsid == UNDEF)
+    if (fsid_lastSynced == UNDEF)
     {
-        fsid_it = fsidnodes.end();
+        fsid_lastSynced_it = fsidnodes.end();
     }
     else
     {
-        fsid_it = fsidnodes.insert(std::make_pair(fsid, this));
+        fsid_lastSynced_it = fsidnodes.insert(std::make_pair(fsid_lastSynced, this));
     }
 
     assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
@@ -1952,9 +1952,9 @@ LocalNode::~LocalNode()
     }
 
     // remove from fsidnode map, if present
-    if (fsid_it != sync->client->localnodeByFsid.end())
+    if (fsid_lastSynced_it != sync->client->localnodeByFsid.end())
     {
-        sync->client->localnodeByFsid.erase(fsid_it);
+        sync->client->localnodeByFsid.erase(fsid_lastSynced_it);
     }
     if (syncedCloudNodeHandle_it != sync->client->localnodeByNodeHandle.end())
     {
@@ -2129,15 +2129,33 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
     return it->second;
 }
 
-FSNode LocalNode::getKnownFSDetails()
+FSNode LocalNode::getLastSyncedFSDetails()
+{
+    assert(fsid_lastSynced != UNDEF);
+
+    FSNode n;
+    n.localname = localname;
+    n.name = name;
+    n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
+    n.type = type;
+    n.fsid = fsid_lastSynced;
+    n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
+    n.fingerprint = syncedFingerprint;
+    return n;
+}
+
+
+FSNode LocalNode::getScannedFSDetails()
 {
     FSNode n;
     n.localname = localname;
     n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
-    n.fsid = fsid;
+    n.fsid = fsid_asScanned;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
+
+    assert(false); // do we need scannedFingerprint too?  Prob nodes would be too large
     n.fingerprint = syncedFingerprint;
     return n;
 }
@@ -2225,7 +2243,7 @@ void LocalNode::Upload::completed(Transfer* t, LocalNode*)
 bool LocalNode::serialize(string* d)
 {
 #ifdef DEBUG
-    if (fsid != UNDEF)
+    if (fsid_lastSynced != UNDEF)
     {
         LocalPath localpath = getLocalPath();
         auto fa = sync->client->fsaccess->newfileaccess(false);
@@ -2243,7 +2261,7 @@ bool LocalNode::serialize(string* d)
 
     CacheableWriter w(*d);
     w.serializei64(type ? -type : syncedFingerprint.size);
-    w.serializehandle(fsid);
+    w.serializehandle(fsid_lastSynced);
     w.serializeu32(parent ? parent->dbid : 0);
     w.serializenodehandle(syncedCloudNodeHandle.as8byte());
     w.serializestring(localname.platformEncoded());
@@ -2331,8 +2349,8 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 
     l->parent_dbid = parent_dbid;
 
-    l->fsid = fsid;
-    l->fsid_it = sync->client->localnodeByFsid.end();
+    l->fsid_lastSynced = fsid;
+    l->fsid_lastSynced_it = sync->client->localnodeByFsid.end();
 
     l->localname = LocalPath::fromPlatformEncoded(localname);
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncoded(shortname)));

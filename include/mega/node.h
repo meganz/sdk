@@ -421,8 +421,12 @@ struct MEGA_API LocalNode : public Cacheable
     FileFingerprint syncedFingerprint;
 
     // local filesystem node ID (inode...) for rename/move detection
-    handle fsid = mega::UNDEF;
-    fsid_localnode_map::iterator fsid_it;
+    handle fsid_lastSynced = mega::UNDEF;
+    fsid_localnode_map::iterator fsid_lastSynced_it;
+
+    // we also need to track what fsid corresponded to our FSNode last time, even if not synced (not serialized)
+    // if it changes, we should rescan, in case of LocalNode pre-existing with no FSNode, then one appears.  Or, now it's different
+    handle fsid_asScanned = mega::UNDEF;
 
     // related cloud node, if any
     NodeHandle syncedCloudNodeHandle;
@@ -576,7 +580,8 @@ public:
     // return child node by name
     LocalNode* childbyname(LocalPath*);
 
-    FSNode getKnownFSDetails();
+    FSNode getLastSyncedFSDetails();
+    FSNode getScannedFSDetails();
 
     struct Upload : File
     {
@@ -592,7 +597,7 @@ public:
 
 //    void setnotseen(int);
 
-    void setfsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
+    void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
 
     void setSyncedNodeHandle(NodeHandle h, const string& cloudName);
 

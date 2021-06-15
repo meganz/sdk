@@ -2949,7 +2949,10 @@ void MegaClient::exec()
             //LOG_debug << clientname << " syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;
 
             // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
-            if (actionpacketsCurrent && isAnySyncSyncing())// && !tooSoon)
+
+            bool tooSoon = syncStallState && (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) && (waiter->ds > mSyncFlags->recursiveSyncLastCompletedDs);
+
+            if (actionpacketsCurrent && isAnySyncSyncing() && !tooSoon)
             {
                 CodeCounter::ScopeTimer rst(performanceStats.recursiveSyncTime);
 
@@ -2993,7 +2996,7 @@ void MegaClient::exec()
                         SyncPath pathBuffer(this, sync->localroot->localname, sync->cloudRoot()->displaypath());
 
                         DBTableTransactionCommitter committer(tctable);
-                        FSNode rootFsNode(sync->localroot->getKnownFSDetails());
+                        FSNode rootFsNode(sync->localroot->getLastSyncedFSDetails());
                         syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
 
                         // Will be re-set if we can reach the scan target.
@@ -3045,6 +3048,7 @@ void MegaClient::exec()
                 LOG_verbose << "recursiveSync took ms: " << std::chrono::duration_cast<std::chrono::milliseconds>(rst.timeSpent()).count();
                 rst.complete();
 #endif
+                mSyncFlags->recursiveSyncLastCompletedDs = waiter->ds;
 
                 if (mSyncFlags->noProgress)
                 {
