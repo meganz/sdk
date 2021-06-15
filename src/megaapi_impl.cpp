@@ -1513,9 +1513,9 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
     if (!handleContainerStr) { return API_EACCESS; }
 
+    string rec;
     std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &client->key));
-    const string& rec = tlvRecords ? tlvRecords->get("h") : string();
-    if (rec.empty()) { return API_EINTERNAL; }
+    if (!tlvRecords || !tlvRecords->get("h", rec) || rec.empty()) { return API_EINTERNAL; }
 
     handle h = 0; // make sure top two bytes are 0
     memcpy(&h, rec.c_str(), MegaClient::NODEHANDLE);
@@ -1571,9 +1571,9 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
         const string* deviceNameContainerStr = u->getattr(attrType);
         if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
 
+        string deviceName;
         tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
-        const string& deviceName = tlvRecords ? tlvRecords->get(deviceId) : string();
-        if (deviceName.empty()) { return API_EINCOMPLETE; }
+        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty()) { return API_EINCOMPLETE; }
 
         // add a new node for it
         newnodes.emplace_back();
@@ -15500,8 +15500,9 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 if (h)
                 {
                     string key{h};
-                    const string &rec = tlv ? tlv->get("h") : string();
-                    if (rec.empty())
+                    string rec;
+
+                    if (!tlv || !tlv->get("h", rec) || rec.empty())
                     {
                         e = API_ENOENT;
                         break;

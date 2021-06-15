@@ -3236,13 +3236,13 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
     constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
 
     // Verify payload contents.
-    auto authKey = store->get("ak");
-    auto cipherKey = store->get("ck");
-    auto name = store->get("fn");
+    string authKey;
+    string cipherKey;
+    string name;
 
-    if (authKey.size() != KEYLENGTH
-        || cipherKey.size() != KEYLENGTH
-        || name.size() != KEYLENGTH)
+    if (!store->get("ak", authKey) || authKey.size() != KEYLENGTH ||
+        !store->get("ck", cipherKey) || cipherKey.size() != KEYLENGTH ||
+        !store->get("fn", name) || name.size() != KEYLENGTH)
     {
         // Payload is malformed.
         LOG_err << "syncConfigIOContext: JSON config data is incomplete";

@@ -1383,10 +1383,14 @@ string* TLVstore::tlvRecordsToContainer()
     return result;
 }
 
-std::string TLVstore::get(string type) const
+bool TLVstore::get(string type, string& value) const
 {
     auto it = tlv.find(type);
-    return it != tlv.cend() ? it->second : std::string();
+    if (it == tlv.cend())
+        return false;
+
+    value = it->second;
+    return true;
 }
 
 const TLV_map * TLVstore::getMap() const

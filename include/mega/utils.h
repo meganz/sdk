@@ -296,13 +296,14 @@ private:
     /**
      * @brief get Get the value for a given key
      *
-     * In case the type is not found, it will throw. A previous call to TLVStore::find()
-     * might be necessary in order to check the existence of the type in advance.
+     * In case the type is found, it will update value parameter and return true.
+     * In case the type is not found, it will return false and value will not be changed.
      *
      * @param type Type of the value (without scope nor non-historic modifiers).
-     * @return String containing the array with the value.
+     * @param value Set to corresponding value if type was found.
+     * @return True if type was found, false otherwise.
      */
-    std::string get(string type) const;
+    bool get(string type, string& value) const;
 
     /**
      * @brief Get a reference to the TLV_map associated to this TLVstore

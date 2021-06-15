@@ -12334,8 +12334,8 @@ void MegaClient::initializekeys()
         if (tlvRecords)
         {
 
-            string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-            if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+            string prEd255;
+            if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
             {
                 signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
                 if (!signkey->initializationOK)
@@ -12347,8 +12347,8 @@ void MegaClient::initializekeys()
                 }
             }
 
-            string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-            if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+            string prCu255;
+            if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
             {
                 chatkey = new ECDH((unsigned char *) prCu255.data());
                 if (!chatkey->initializationOK)
@@ -15403,9 +15403,13 @@ string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& te
 string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& encoded)
 {
     string unencoded = Base64::atob(encoded);
+    string value;
 
     unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&unencoded, &key));
-    return tlv ? tlv->get(name) : string();
+    if (tlv)
+        tlv->get(name, value);
+
+    return value;
 }
 
 #ifdef ENABLE_SYNC

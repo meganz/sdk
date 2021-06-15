@@ -51,8 +51,8 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         const char *key = it.first.c_str();
         string newValue = it.second;
         string currentValue;
-        const string &rec = tlv.get(key);
-        if (!rec.empty())  // the key may not exist in the current user attribute
+        string rec;
+        if (tlv.get(key, rec) && !rec.empty())  // the key may not exist in the current user attribute
         {
             Base64::btoa(rec, currentValue);
         }
@@ -296,8 +296,8 @@ User* User::unserialize(MegaClient* client, string* d)
         TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
         if (tlvRecords)
         {
-            const string &rec = tlvRecords->get(EdDSA::TLV_KEY);
-            if (!rec.empty())
+            string rec;
+            if (tlvRecords->get(EdDSA::TLV_KEY, rec) && !rec.empty())
             {
                 client->signkey = new EdDSA(client->rng, (unsigned char *) rec.data());
                 if (!client->signkey->initializationOK)
@@ -312,8 +312,8 @@ User* User::unserialize(MegaClient* client, string* d)
                 }
             }
 
-            const string &rec2 = tlvRecords->get(ECDH::TLV_KEY);
-            if (!rec2.empty())
+            string rec2;
+            if (tlvRecords->get(ECDH::TLV_KEY, rec2) && !rec2.empty())
             {
                 client->chatkey = new ECDH((unsigned char *) rec2.data());
                 if (!client->chatkey->initializationOK)
@@ -1428,8 +1428,8 @@ AuthRing::AuthRing(attr_t type, const TLVstore &authring)
     : mType(type)
 {
     string authType = "";
-    string authValue = authring.get(authType);
-    if (!authValue.empty())  // key is an empty string, but may not be there if authring was reset
+    string authValue;
+    if (authring.get(authType, authValue) && !authValue.empty())  // key is an empty string, but may not be there if authring was reset
     {
         handle userhandle;
         byte authFingerprint[20];
