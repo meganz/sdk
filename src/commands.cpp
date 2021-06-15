@@ -481,6 +481,66 @@ bool CommandPutFileBackgroundURL::procresult(Result r)
     }
 }
 
+
+
+// request upload target URL
+CommandGetPutUrl::CommandGetPutUrl(m_off_t size, int putmbpscap, bool ssl, CommandGetPutUrl::Cb completion)
+    : mCompletion(completion)
+{
+    cmd("u");
+    if (ssl)
+    {
+        arg("ssl", 2);   // always SSL for background uploads
+    }
+    arg("v", 2);
+    arg("s", size);
+    arg("ms", putmbpscap);
+}
+
+
+// set up file transfer with returned target URL
+bool CommandGetPutUrl::procresult(Result r)
+{
+    string url;
+
+    if (r.wasErrorOrOK())
+    {
+        if (!canceled)
+        {
+            client->app->backgrounduploadurl_result(r.errorOrOK(), nullptr);
+        }
+        return true;
+    }
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'p':
+                client->json.storeobject(canceled ? nullptr : &url);
+                break;
+
+            case EOO:
+                if (canceled) return true;
+
+                mCompletion(API_OK, url);
+                return true;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    if (!canceled)
+                    {
+                        mCompletion(API_EINTERNAL, string());
+                    }
+                    return false;
+                }
+        }
+    }
+}
+
+
+
 // request temporary source URL for DirectRead
 CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
 {

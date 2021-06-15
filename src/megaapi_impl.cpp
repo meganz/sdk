@@ -9327,6 +9327,36 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     return result;
 }
 
+void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool useSSL, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_UPLOAD_URL, listener);
+    req->setNumber(fullFileSize); //TODO: doc these and out ones
+    req->setFlag(useSSL); //TODO: consider using client->usehttps
+    requestQueue.push(req);
+    waiter->notify();
+}
+
+void MegaApiImpl::uploadCompleted(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+                                  const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener)
+{
+    MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_UPLOAD_COMPLETED, listener);
+    req->setPassword(fingerprintoriginal); //TODO: doc these and out ones
+    req->setNewPassword(fingerprint);
+    req->setName(utf8Name);
+    req->setPrivateKey(string64FileKey);
+    if (parent)
+    {
+        req->setParentHandle(parent->getHandle());
+    }
+    if (string64UploadToken)
+    {
+        req->setSessionKey(MegaApi::strdup(string64UploadToken));
+    }
+    requestQueue.push(req);
+    waiter->notify();
+}
+
+
 void MegaApiImpl::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, listener);
@@ -13946,13 +13976,15 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
                     (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
+                    (request->getType() != MegaRequest::TYPE_UPLOAD_COMPLETED) &&
                     (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
 
 #ifdef ENABLE_SYNC
     client->syncdownrequired = true;
 #endif
 
-    if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
+    if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD
+        || request->getType() == MegaRequest::TYPE_UPLOAD_COMPLETED)
     {
         request->setNodeHandle(h);
         request->setFlag(targetOverride);
@@ -22808,6 +22840,19 @@ void MegaApiImpl::sendPendingRequests()
             client->reqs.add(new CommandPutFileBackgroundURL(request->getNumber(), client->putmbpscap, request->getTag()));
             break;
         }
+        case MegaRequest::TYPE_GET_UPLOAD_URL:
+        {
+            client->reqs.add(new CommandGetPutUrl(request->getNumber(), client->putmbpscap, request->getFlag(),
+                                                  [this, request](Error e, const std::string &url)
+            {
+                if (!url.empty())
+                {
+                    request->setLink(url.c_str());
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
         case MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD:
         {
             MegaBackgroundMediaUploadPrivate* uploadState = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
@@ -22906,6 +22951,101 @@ void MegaApiImpl::sendPendingRequests()
             client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, move(newnodes), request->getTag(), PUTNODES_APP));
             break;
         }
+            case MegaRequest::TYPE_UPLOAD_COMPLETED:
+            {
+                const char* utf8Name = request->getName();
+                MegaHandle parentHandle = request->getParentHandle();
+                const char *uploadToken = request->getSessionKey();
+                const char* fingerprintOriginal = request->getPassword();
+                const char* fingerprint = request->getNewPassword();
+
+                const char * base64fileKey = request->getPrivateKey();
+
+
+                if (!fingerprint || !utf8Name || !uploadToken || !base64fileKey || ISUNDEF(parentHandle))
+                {
+                    e = API_EINCOMPLETE;
+                    break;
+                }
+                unsigned char* binTok;
+                size_t binTokSize;
+                MegaApi::base64ToBinary(uploadToken, &binTok, &binTokSize);
+                std::string binaryUploadToken((char*)binTok, binTokSize);
+                delete[] binTok;
+                if (binaryUploadToken.size() != 36)
+                {
+                    LOG_err << "Invalid upload token";
+                    e = API_EARGS;
+                    break;
+                }
+
+                byte *mFilekey;
+                size_t binFileKeySize;
+                MegaApi::base64ToBinary(base64fileKey, &mFilekey, &binFileKeySize);
+
+                if (binFileKeySize != FILENODEKEYLENGTH)
+                {
+                    LOG_err << "Invalid file key";
+                    e = API_EARGS;
+                    break;
+                }
+
+
+                Node *parentNode = client->nodebyhandle(parentHandle);
+                if (!parentNode)
+                {
+                    LOG_err << "Parent node doesn't exist anymore";
+                    e = API_ENOENT;
+                    break;
+                }
+
+                std::unique_ptr<char[]> megafingerprint(getMegaFingerprintFromSdkFingerprint(fingerprint));
+                if (!megafingerprint)
+                {
+                    LOG_err << "Bad fingerprint";
+                    e = API_EARGS;
+                    break;
+                }
+
+                vector<NewNode> newnodes(1);
+                NewNode* newnode = &newnodes[0];
+                newnode->source = NEW_UPLOAD;
+                newnode->type = FILENODE;
+                memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
+                newnode->parenthandle = UNDEF;
+                newnode->uploadhandle = client->getuploadhandle();
+                newnode->attrstring.reset(new string);
+                newnode->fileattributes.reset(new string);
+
+                AttrMap attrs;
+                Node *previousNode = client->childnodebyname(parentNode, utf8Name, true);
+                client->honorPreviousVersionAttrs(previousNode, attrs);
+                attrs.map['n'] = utf8Name;
+                attrs.map['c'] = megafingerprint.get();
+                if (fingerprintOriginal)
+                {
+                    attrs.map[MAKENAMEID2('c', '0')] = fingerprintOriginal;
+                }
+
+                string tattrstring;
+                attrs.getjson(&tattrstring);
+
+                SymmCipher cipher;
+                cipher.setkey(mFilekey);
+                client->makeattr(&cipher, newnode->attrstring, tattrstring.c_str());
+                newnode->nodekey.assign((char*)mFilekey, FILENODEKEYLENGTH);
+                SymmCipher::xorblock((const byte*)newnode->nodekey.data() + SymmCipher::KEYLENGTH, (byte*)newnode->nodekey.data());
+
+                if (!client->versions_disabled)
+                {
+                    string name(utf8Name);
+                    newnode->ovhandle = client->getovhandle(parentNode, &name);
+                }
+
+                client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, move(newnodes), request->getTag(), PUTNODES_APP));
+                break;
+            }
+
         case MegaRequest::TYPE_VERIFY_CREDENTIALS:
         {
             handle uh = request->getNodeHandle();

@@ -544,6 +544,20 @@ public:
 };
 
 
+class MEGA_API CommandGetPutUrl : public Command
+{
+    using Cb = std::function<void(Error, const std::string &/*url*/)>;
+    Cb mCompletion;
+
+    string* result;
+
+public:
+    bool procresult(Result) override;
+
+    CommandGetPutUrl(m_off_t size, int putmbpscap, bool ssl, Cb completion);
+};
+
+
 class MEGA_API CommandAttachFA : public Command
 {
     handle h;

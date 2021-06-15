@@ -3024,6 +3024,7 @@ class MegaRequest
             TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
             TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
             TYPE_FETCH_GOOGLE_ADS, TYPE_QUERY_GOOGLE_ADS,
+            TYPE_GET_UPLOAD_URL, TYPE_UPLOAD_COMPLETED,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -16614,6 +16615,13 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
+
+
+        void uploadCompleted(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+                                          const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener);
+
+        // TODO: rename to avoid clashing with existing getUploadURL()// ? and doc
+        void getUploadURL(int64_t fullFileSize, bool useSSL, MegaRequestListener *listener);
 
         /**
          * @brief Create the node after completing the background upload of the file.
