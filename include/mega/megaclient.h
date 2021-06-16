@@ -1650,7 +1650,7 @@ public:
 
     void handleauth(handle, byte*);
 
-    int procsc();
+    bool procsc();
 
     // API warnings
     void warn(const char*);
