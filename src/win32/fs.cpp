@@ -19,6 +19,9 @@
  * program.
  */
 
+#include <cctype>
+#include <cwctype>
+
 #include "mega.h"
 #include <wow64apiset.h>
 
@@ -32,6 +35,57 @@ namespace mega {
 WinFileSystemAccess gWfsa;
 
 int sanitizedriveletter(std::wstring& localpath);
+
+LocalPath NormalizeAbsolute(const LocalPath& path)
+{
+    LocalPath result = path;
+
+    // Convenience.
+    wstring& raw = result.localpath;
+
+    // Absolute paths should never be empty.
+    assert(!raw.empty());
+
+    // Add a drive separator if necessary.
+    if (raw.back() == L':')
+    {
+        raw.push_back(L'\\');
+    }
+
+    if (raw.size() > 1)
+    {
+        // Remove trailing separator if we're not the root.
+        if (raw.back() == L'\\')
+        {
+            if (raw[raw.size() - 2] != L':')
+            {
+                raw.pop_back();
+            }
+        }
+    }
+
+    return result;
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
 
 WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 {
@@ -119,6 +173,31 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
          return false;
      }
      return true;
+}
+
+bool WinFileAccess::ftruncate()
+{
+    LARGE_INTEGER zero;
+
+    zero.QuadPart = 0x0;
+
+    // Set the file pointer to the start of the file.
+    if (SetFilePointerEx(hFile, zero, nullptr, FILE_BEGIN))
+    {
+        // Truncate the file.
+        if (SetEndOfFile(hFile))
+        {
+            return true;
+        }
+    }
+
+    // Why couldn't we truncate the file?
+    auto error = GetLastError();
+
+    // Is it a transient error?
+    retry = WinFileSystemAccess::istransient(error);
+
+    return false;
 }
 
 m_time_t FileTime_to_POSIX(FILETIME* ft)
@@ -1809,4 +1888,37 @@ WinDirAccess::~WinDirAccess()
         FindClose(hFind);
     }
 }
+
+bool isReservedName(const string& name, nodetype_t type)
+{
+    if (name.empty()) return false;
+
+    if (type == FOLDERNODE && name.back() == '.') return true;
+
+    if (name.size() == 3)
+    {
+        static const string reserved[] = {"AUX", "CON", "NUL", "PRN"};
+
+        for (auto& r : reserved)
+        {
+            if (!_stricmp(name.c_str(), r.c_str())) return true;
+        }
+
+        return false;
+    }
+
+    if (name.size() != 4) return false;
+
+    if (!std::isdigit(name.back())) return false;
+
+    static const string reserved[] = {"COM", "LPT"};
+
+    for (auto& r : reserved)
+    {
+        if (!_strnicmp(name.c_str(), r.c_str(), 3)) return true;
+    }
+
+    return false;
+}
+
 } // namespace

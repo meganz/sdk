@@ -84,13 +84,13 @@ std::unique_ptr<mega::UnifiedSync> makeSync(mega::MegaClient& client, const std:
 {
     mega::FSACCESS_CLASS fsaccess;
     std::string localdebris = gLocalDebris;
-    auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname));
+    auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname) & 0xFFFFFFFFFFFF);
     auto localdebrisLP = ::mega::LocalPath::fromPath(localdebris, fsaccess);
-    mega::SyncConfig config{127, localname, localname, n.nodehandle, std::string(), 0};
+    mega::SyncConfig config{::mega::LocalPath::fromPath(localname, *client.fsaccess), localname, ::mega::NodeHandle().set6byte(n.nodehandle), std::string(), 0, ::mega::LocalPath()};
 
     auto us = new mega::UnifiedSync(client, config);
 
-    us->mSync.reset(new mega::Sync(*us, nullptr, &localdebrisLP, &n, false, 0));
+    us->mSync.reset(new mega::Sync(*us, nullptr, &localdebrisLP, &n, false));
     us->mSync->state = mega::SYNC_CANCELED;
 
     return std::unique_ptr<mega::UnifiedSync>(us);

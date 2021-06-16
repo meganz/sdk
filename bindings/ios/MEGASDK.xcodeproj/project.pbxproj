@@ -97,6 +97,7 @@
 		B6657E9C225C2B6200EF8D91 /* raid.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B6657E9B225C2B6200EF8D91 /* raid.cpp */; };
 		B698890D2198CCE300D0EE89 /* MEGAFileInputStream.mm in Sources */ = {isa = PBXBuildFile; fileRef = B698890B2198CCE300D0EE89 /* MEGAFileInputStream.mm */; };
 		B6A6CB662170125A009032C9 /* MEGABackgroundMediaUpload.mm in Sources */ = {isa = PBXBuildFile; fileRef = B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */; };
+		B6DBB54925BE9A89005F46A5 /* ListenerDispatch.mm in Sources */ = {isa = PBXBuildFile; fileRef = B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */; };
 		BF9CF0D12541737500A3EBBB /* heartbeats.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BF9CF0D02541737500A3EBBB /* heartbeats.cpp */; };
 		BFD7F5172341B3A60039A6EE /* MEGAPushNotificationSettings.mm in Sources */ = {isa = PBXBuildFile; fileRef = BFD7F5162341B3A60039A6EE /* MEGAPushNotificationSettings.mm */; };
 /* End PBXBuildFile section */
@@ -332,6 +333,8 @@
 		B698890C2198CCE300D0EE89 /* MEGAFileInputStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAFileInputStream.h; sourceTree = "<group>"; };
 		B6A6CB642170125A009032C9 /* MEGABackgroundMediaUpload.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGABackgroundMediaUpload.h; sourceTree = "<group>"; };
 		B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGABackgroundMediaUpload.mm; sourceTree = "<group>"; };
+		B6DBB54725BE99AB005F46A5 /* ListenerDispatch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ListenerDispatch.h; sourceTree = "<group>"; };
+		B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ListenerDispatch.mm; sourceTree = "<group>"; };
 		BF9CF0CF2541734200A3EBBB /* heartbeats.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = heartbeats.h; sourceTree = "<group>"; };
 		BF9CF0D02541737500A3EBBB /* heartbeats.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = heartbeats.cpp; path = ../../src/heartbeats.cpp; sourceTree = "<group>"; };
 		BFD7F5152341B3A60039A6EE /* MEGAPushNotificationSettings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAPushNotificationSettings.h; sourceTree = "<group>"; };
@@ -692,6 +695,8 @@
 				B622FC762174261F00CF707C /* MEGABackgroundMediaUpload+init.h */,
 				A8FD7335230AC42B0070A5E8 /* MEGACancelToken+init.h */,
 				BFD7F5182341B3B50039A6EE /* MEGAPushNotificationSettings+init.h */,
+				B6DBB54725BE99AB005F46A5 /* ListenerDispatch.h */,
+				B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */,
 			);
 			path = Private;
 			sourceTree = "<group>";
@@ -763,7 +768,7 @@
 		9472043B19ED916F00F6805F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 1020;
+				LastUpgradeCheck = 1240;
 				ORGANIZATIONNAME = MEGA;
 				TargetAttributes = {
 					9472044219ED916F00F6805F = {
@@ -799,6 +804,7 @@
 				A87D97A21F4AD49B00A98C0E /* MEGAStringList.mm in Sources */,
 				940BF01519ED97B9007E7FA2 /* MEGAShareList.mm in Sources */,
 				5D830393256232A00082CA18 /* MEGABannerList.mm in Sources */,
+				B6DBB54925BE9A89005F46A5 /* ListenerDispatch.mm in Sources */,
 				41B2AEDA1A0A859C006C40FB /* DelegateMEGAListener.mm in Sources */,
 				A8A86BD51F559EDA00C214DA /* mega_zxcvbn.cpp in Sources */,
 				A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */,
@@ -913,12 +919,14 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_BITCODE = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -937,7 +945,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 12.1;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -966,6 +974,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -983,7 +992,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 12.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;

@@ -57,7 +57,7 @@ void QTMegaRequestListener::onRequestTemporaryError(MegaApi *api, MegaRequest *r
 void QTMegaRequestListener::customEvent(QEvent *e)
 {
     QTMegaEvent *event = (QTMegaEvent *)e;
-    switch(event->type())
+    switch(QTMegaEvent::MegaType(event->type()))
     {
         case QTMegaEvent::OnRequestStart:
             if(listener) listener->onRequestStart(event->getMegaApi(), event->getRequest());

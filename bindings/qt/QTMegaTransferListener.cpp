@@ -50,7 +50,7 @@ void QTMegaTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer
 void QTMegaTransferListener::customEvent(QEvent *e)
 {
     QTMegaEvent *event = (QTMegaEvent *)e;
-    switch(event->type())
+    switch(QTMegaEvent::MegaType(event->type()))
     {
         case QTMegaEvent::OnTransferStart:
             if(listener) listener->onTransferStart(event->getMegaApi(), event->getTransfer());

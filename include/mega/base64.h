@@ -77,6 +77,14 @@ struct Base64Str
     {
         return chars;
     }
+    const byte* bytes() const
+    {
+        return reinterpret_cast<const byte*>(chars);
+    }
+    unsigned int size() const
+    {
+        return STRLEN;
+    }
 };
 
 // lowercase base32 encoding

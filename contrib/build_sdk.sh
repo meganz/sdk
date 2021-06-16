@@ -39,6 +39,7 @@ enable_megaapi=0
 make_opts=""
 config_opts=""
 no_examples=""
+enable_drive_notifications=""
 configure_only=0
 disable_posix_threads=""
 enable_sodium=0
@@ -814,8 +815,9 @@ freeimage_pkg() {
     #patch to fix problem with raw strings
     find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
 
+    sed -i "s#CFLAGS ?=#CFLAGS +=#g" $freeimage_dir_extract/FreeImage/Makefile.gnu
     #patch to fix problem with newest compilers
-    sed -i "s#CXXFLAGS += -D__ANSI__#CXXFLAGS += -D__ANSI__ -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu 
+    sed -i "s#CXXFLAGS ?=#CXXFLAGS += -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu
 
     #freeimage uses some macros with a dollarsign in the name, and also has some constants that don't fit in a long
     #as gcc building for 32 bit linux has long as 32 bit.  Also some files have the utf-8 BOM which old gcc doesn't like
@@ -1101,6 +1103,7 @@ build_sdk() {
             $libuv_flags \
             $libraw_flags \
             $readline_flags \
+            $enable_drive_notifications \
             $disable_posix_threads \
             $no_examples \
             $config_opts \
@@ -1127,6 +1130,7 @@ build_sdk() {
             $libuv_flags \
             $libraw_flags \
             $readline_flags \
+            $enable_drive_notifications \
             $disable_posix_threads \
             $no_examples \
             $config_opts \
@@ -1157,7 +1161,7 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z]"
+    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-N] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z]"
     echo ""
     echo "By the default this script builds static megacli executable."
     echo "This script can be run with numerous options to configure and build MEGA SDK."
@@ -1174,6 +1178,7 @@ display_help() {
     echo " -I : Incremental build.  Already built dependencies will be skipped"
     echo " -l : Use local software archive files instead of downloading"
     echo " -n : Disable example applications"
+    echo " -N : Enable Drive Notifications (libudev / wbemuuid)"
     echo " -s : Disable OpenSSL"
     echo " -r : Enable Android build"
     echo " -R : Build ReadLine too (even with example apps disabled)"
@@ -1205,7 +1210,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:no:p:rRsS:tuvyx:XC:O:wWqz0" opt; do
+    while getopts ":habcdefgiIlm:nNo:p:rRsS:tuvyx:XC:O:wWqz0" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1257,6 +1262,10 @@ main() {
                 ;;
             n)
                 no_examples="--disable-examples"
+                ;;
+            N)
+                enable_drive_notifications="--enable-drive-notifications"
+                echo "* Enabling Drive Notifications (libudev / wbemuuid)."
                 ;;
             o)
                 local_dir=$(readlink -f $OPTARG)

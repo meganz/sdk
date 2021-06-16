@@ -9,6 +9,9 @@ for l in open(sys.argv[1]):
 
     if "cs POST target" in l:
         print l,
+    if "-v" in sys.argv and "Request " in l and (" starting" in l or " finished" in l):
+        print l,
+
     if ("sc Received" in l or "cs Received" in l or "sc Sending" in l or "cs Sending" in l) and "sc Received 1: 0" not in l and " sc Sending 0:" not in l:
 
         m = re.search('(.*): (\{.*\}|\[.*\])', l)

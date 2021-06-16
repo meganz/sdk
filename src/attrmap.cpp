@@ -52,6 +52,15 @@ int AttrMap::nameid2string(nameid id, char* buf)
     return static_cast<int>(ptr - buf);
 }
 
+string AttrMap::nameid2string(nameid id)
+{
+    string s;
+    s.resize(10);
+    s.resize(nameid2string(id, const_cast<char*>(s.data())));
+    return s;
+}
+
+
 nameid AttrMap::string2nameid(const char *a)
 {
     if (!a)
@@ -145,6 +154,15 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
     }
 
     return ptr;
+}
+
+void AttrMap::applyUpdates(const attr_map& updates)
+{
+    for (auto& u : updates)
+    {
+        if (u.second.empty()) map.erase(u.first);
+        else map[u.first] = u.second;
+    }
 }
 
 // generate JSON object containing attr_map

@@ -18,11 +18,14 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#include <cctype>
+#include <cstdint>
 
 #include "mega/json.h"
 #include "mega/base64.h"
 #include "mega/megaclient.h"
 #include "mega/logging.h"
+#include "mega/mega_utf8proc.h"
 
 namespace mega {
 // store array or object in string s
@@ -345,6 +348,11 @@ handle JSON::gethandle(int size)
     return UNDEF;
 }
 
+NodeHandle JSON::getNodeHandle()
+{
+    return NodeHandle().set6byte(gethandle(6));
+}
+
 // decode integer
 m_off_t JSON::getint()
 {
@@ -414,6 +422,39 @@ const char* JSON::getvalue()
         r = pos;
     }
 
+    storeobject();
+
+    return r;
+}
+
+fsfp_t JSON::getfp()
+{
+    return gethandle(sizeof(fsfp_t));
+}
+
+uint64_t JSON::getuint64()
+{
+    const char* ptr;
+
+    if (*pos == ':' || *pos == ',')
+    {
+        pos++;
+    }
+
+    ptr = pos;
+
+    if (*ptr == '"')
+    {
+        ptr++;
+    }
+
+    if (!std::isdigit(*ptr))
+    {
+        LOG_err << "Parse error (getuint64)";
+        return std::numeric_limits<uint64_t>::max();
+    }
+
+    uint64_t r = strtoull(ptr, nullptr, 0);
     storeobject();
 
     return r;
@@ -621,6 +662,28 @@ void JSON::begin(const char* json)
     pos = json;
 }
 
+// copy remainder of quoted string (no unescaping, use for base64 data only)
+void JSON::copystring(string* s, const char* p)
+{
+    if (p)
+    {
+        const char* pp;
+
+        if ((pp = strchr(p, '"')))
+        {
+            s->assign(p, pp - p);
+        }
+        else
+        {
+            *s = p;
+        }
+    }
+    else
+    {
+        s->clear();
+    }
+}
+
 JSONWriter::JSONWriter()
   : mJson()
   , mLevels()
@@ -654,6 +717,7 @@ void JSONWriter::arg(const char* name, const char* value, int quotes)
     mJson.append(name);
     mJson.append(quotes ? "\":\"" : "\":");
     mJson.append(value);
+
     if (quotes)
     {
         mJson.append("\"");
@@ -669,6 +733,12 @@ void JSONWriter::arg(const char* name, handle h, int len)
     arg(name, buf);
 }
 
+void JSONWriter::arg(const char* name, NodeHandle h)
+{
+    arg(name, h.as8byte(), 6);
+}
+
+
 void JSONWriter::arg(const char* name, const byte* value, int len)
 {
     char* buf = new char[len * 4 / 3 + 4];
@@ -678,6 +748,26 @@ void JSONWriter::arg(const char* name, const byte* value, int len)
     arg(name, buf);
 
     delete[] buf;
+}
+
+void JSONWriter::arg_B64(const char* n, const string& data)
+{
+    arg(n, (const byte*)data.data(), int(data.size()));
+}
+
+void JSONWriter::arg_fsfp(const char* n, fsfp_t fp)
+{
+    arg(n, (const byte*)&fp, int(sizeof(fp)));
+}
+
+void JSONWriter::arg_stringWithEscapes(const char* name, const string& value, int quote)
+{
+    arg(name, escape(value.c_str(), value.size()), quote);
+}
+
+void JSONWriter::arg_stringWithEscapes(const char* name, const char* value, int quote)
+{
+    arg(name, escape(value, strlen(value)), quote);
 }
 
 void JSONWriter::arg(const char* name, m_off_t n)
@@ -786,11 +876,21 @@ void JSONWriter::element(const byte* data, int len)
     mJson.append("\"");
 }
 
-void JSONWriter::element(const char* buf)
+void JSONWriter::element(const char* data)
 {
     mJson.append(elements() ? ",\"" : "\"");
-    mJson.append(buf, strlen(buf));
+    mJson.append(data);
     mJson.append("\"");
+}
+
+void JSONWriter::element(const string& data)
+{
+    element(data.c_str());
+}
+
+void JSONWriter::element_B64(const string& s)
+{
+    element((const byte*)s.data(), int(s.size()));
 }
 
 void JSONWriter::openobject()
@@ -820,6 +920,8 @@ size_t JSONWriter::size() const
 
 int JSONWriter::elements()
 {
+    assert(mLevel >= 0);
+
     if (!mLevels[mLevel])
     {
         mLevels[mLevel] = 1;
@@ -827,6 +929,45 @@ int JSONWriter::elements()
     }
 
     return 1;
+}
+
+string JSONWriter::escape(const char* data, size_t length) const
+{
+    const utf8proc_uint8_t* current = reinterpret_cast<const utf8proc_uint8_t *>(data);
+    utf8proc_ssize_t remaining = static_cast<utf8proc_ssize_t>(length);
+    utf8proc_int32_t codepoint = 0;
+    string result;
+
+    while (remaining > 0)
+    {
+        auto read = utf8proc_iterate(current, remaining, &codepoint);
+        assert(codepoint >= 0);
+        assert(read > 0);
+
+        current += read;
+        remaining -= read;
+
+        if (read > 1)
+        {
+            result.append(current - read, current);
+            continue;
+        }
+
+        switch (codepoint)
+        {
+        case '"':
+            result.append("\\\"");
+            break;
+        case '\\':
+            result.append("\\\\");
+            break;
+        default:
+            result.push_back(current[-1]);
+            break;
+        }
+    }
+
+    return result;
 }
 
 } // namespace

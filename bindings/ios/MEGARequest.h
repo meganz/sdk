@@ -28,6 +28,7 @@
 #import "MEGAStringList.h"
 #import "MEGAPushNotificationSettings.h"
 #import "MEGABannerList.h"
+#import "MEGAHandleList.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -60,6 +61,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeEnableSync,
     MEGARequestTypeCopySyncConfig,
     MEGARequestTypeCopyCachedConfig,
+    MEGARequestTypeImportSyncConfigs,
     MEGARequestTypeRemoveSyncs,
     MEGARequestTypePauseTransfers,
     MEGARequestTypeCancelTransfer,
@@ -165,6 +167,9 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeBackupPut,
     MEGARequestTypeBackupRemove,
     MEGARequestTypeBackupPutHeartbeat,
+    MEGARequestTypeFetchGoogleAds,
+    MEGARequestTypeQueryGoogleAds,
+    MEGARequestTypeGetAttrNode,
     TotalOfRequestTypes
 };
 
@@ -550,6 +555,12 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) MEGABannerList *bannerList;
+
+/**
+ * @brief Array of MEGAHandle (NSNumber)
+ *
+ */
+@property (readonly, nonatomic) NSArray<NSNumber *> *megaHandleArray;
 
 /**
  * @brief Creates a copy of this MEGARequest object

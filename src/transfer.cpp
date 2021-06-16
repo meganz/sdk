@@ -453,7 +453,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
+                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, false);
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -535,7 +535,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->syncs.disableSyncs(BUSINESS_EXPIRED, true); // still try to resume on start
+                client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
                 alreadyDisabled = true;
             }
 #endif
@@ -642,7 +642,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 syncxfer = true;
             }
 
-            if (!fixedfingerprint && (n = client->nodebyhandle((*it)->h))
+            if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
                  && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
@@ -712,7 +712,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 set<handle> nodes;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h))
                             && nodes.find(n->nodehandle) == nodes.end())
                     {
                         nodes.insert(n->nodehandle);
@@ -724,8 +724,9 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                             LOG_debug << "Fixing fingerprint";
                             *(FileFingerprint*)n = fingerprint;
 
-                            n->serializefingerprint(&n->attrs.map['c']);
-                            client->setattr(n);
+                            attr_map attrUpdate;
+                            n->serializefingerprint(&attrUpdate['c']);
+                            client->setattr(n, std::move(attrUpdate), client->reqtag, nullptr);
                         }
                     }
                 }
@@ -864,7 +865,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 if (success)
                 {
                     // set missing node attributes
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h)))
                     {
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
                             keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
@@ -893,6 +894,17 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
+                    if (auto node = client->nodeByHandle((*it)->h))
+                    {
+                        auto path = (*it)->localname;
+                        auto type = isFilenameAnomaly(path, node);
+
+                        if (type != FILENAME_ANOMALY_NONE)
+                        {
+                            client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
+                        }
+                    }
+
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
@@ -987,11 +999,28 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 synclocalpath = ll->getLocalPath();
                 localpath = &synclocalpath;
             }
-            else
+#endif
+            if (auto node = client->nodeByHandle(f->h))
+            {
+                auto type = isFilenameAnomaly(*localpath, f->name);
+
+                if (type != FILENAME_ANOMALY_NONE)
+                {
+                    // Construct remote path for reporting.
+                    ostringstream remotepath;
+
+                    remotepath << node->displaypath()
+                               << (node->parent ? "/" : "")
+                               << f->name;
+
+                    client->filenameAnomalyDetected(type, localpath->toPath(), remotepath.str());
+                }
+            }
+
+            if (localpath == &f->localname)
             {
                 LOG_debug << "Verifying regular upload";
             }
-#endif
 
             auto fa = client->fsaccess->newfileaccess();
             bool isOpen = fa->fopen(*localpath);

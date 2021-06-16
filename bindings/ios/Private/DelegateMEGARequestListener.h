@@ -21,12 +21,13 @@
 #import "MEGARequestDelegate.h"
 #import "megaapi.h"
 #import "MEGASdk.h"
+#import "ListenerDispatch.h"
 
 class DelegateMEGARequestListener : public mega::MegaRequestListener {
 
 public:
     
-    DelegateMEGARequestListener(MEGASdk *megaSDK, id<MEGARequestDelegate>listener, bool singleListener = true);
+    DelegateMEGARequestListener(MEGASdk *megaSDK, id<MEGARequestDelegate>listener, bool singleListener, ListenerQueueType queueType);
     id<MEGARequestDelegate>getUserListener();
     
     void onRequestStart(mega::MegaApi *api, mega::MegaRequest *request);
@@ -38,4 +39,5 @@ private:
     MEGASdk *megaSDK;
     id<MEGARequestDelegate>listener;
     bool singleListener;
+    ListenerQueueType queueType;
 };

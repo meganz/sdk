@@ -33,8 +33,6 @@
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
 
-#include "mega/logging.h"
-
 // Needed for Windows Phone (MSVS 2013 - C++ version 9.8)
 #if defined(_WIN32) && _MSC_VER <= 1800 && __cplusplus < 201103L && !defined(_TIMESPEC_DEFINED) && ! __struct_timespec_defined
 struct timespec
@@ -57,9 +55,14 @@ namespace mega {
 #define MAKENAMEID8(a, b, c, d, e, f, g, h) (nameid)((((uint64_t)a) << 56) + (((uint64_t)b) << 48) + (((uint64_t)c) << 40) + (((uint64_t)d) << 32) + ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
 
 std::string toNodeHandle(handle nodeHandle);
+std::string toNodeHandle(NodeHandle nodeHandle);
 std::string toHandle(handle h);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
+class SimpleLogger;
+SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
+
+std::string backupTypeToStr(BackupType type);
 
 struct MEGA_API ChunkedHash
 {
@@ -292,8 +295,12 @@ private:
 
     /**
      * @brief get Get the value for a given key
+     *
+     * In case the type is not found, it will throw. A previous call to TLVStore::find()
+     * might be necessary in order to check the existence of the type in advance.
+     *
      * @param type Type of the value (without scope nor non-historic modifiers).
-     * @return String containing the array with the value, or NULL if error.
+     * @return String containing the array with the value.
      */
     std::string get(string type) const;
 
@@ -419,6 +426,24 @@ public:
     {
         return utf8proc_toupper(c);
     }
+
+    // Platform-independent case-insensitive comparison.
+    static int icasecmp(const std::string& lhs,
+                        const std::string& rhs,
+                        const size_t length);
+
+    static int icasecmp(const std::wstring& lhs,
+                        const std::wstring& rhs,
+                        const size_t length);
+
+    // Same as above but only case-insensitive on Windows.
+    static int pcasecmp(const std::string& lhs,
+                        const std::string& rhs,
+                        const size_t length);
+
+    static int pcasecmp(const std::wstring& lhs,
+                        const std::wstring& rhs,
+                        const size_t length);
 };
 
 // for pre-c++11 where this version is not defined yet.
@@ -613,7 +638,7 @@ public:
         return mNotifications.empty();
     }
 
-    bool size()
+    size_t size()
     {
         std::lock_guard<std::mutex> g(m);
         return mNotifications.size();
@@ -738,6 +763,16 @@ public:
         return *this;
     }
 
+    bool operator==(const UnicodeCodepointIterator& rhs) const
+    {
+        return mCurrent == rhs.mCurrent && mEnd == rhs.mEnd;
+    }
+
+    bool operator!=(const UnicodeCodepointIterator& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
     bool end() const
     {
         return mCurrent == mEnd;
@@ -752,6 +787,31 @@ public:
             ptrdiff_t nConsumed = traits_type::get(result, mCurrent, mEnd);
             assert(nConsumed > 0);
             mCurrent += nConsumed;
+        }
+
+        return result;
+    }
+    
+    bool match(const int32_t character)
+    {
+        if (peek() != character)
+        {
+            return false;
+        }
+
+        (void)get();
+
+        return true;
+    }
+
+    int32_t peek() const
+    {
+        int32_t result = 0;
+
+        if (mCurrent < mEnd)
+        {
+            ptrdiff_t nConsumed = traits_type::get(result, mCurrent, mEnd);
+            assert(nConsumed > 0);
         }
 
         return result;
@@ -786,6 +846,9 @@ inline int hexval(const int c)
 }
 
 bool islchex(const int c);
+
+// gets a safe url by replacing private parts to be used in logs
+std::string getSafeUrl(const std::string &posturl);
 
 } // namespace
 

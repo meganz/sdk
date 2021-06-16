@@ -24,6 +24,8 @@
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
 
+#include "megafs.h"
+
 namespace mega {
 
 namespace detail {
@@ -68,11 +70,59 @@ bool isEscape(UnicodeCodepointIterator<CharT> it)
            && islchex(it.get());
 }
 
+#ifdef _WIN32
+
+template<typename CharT>
+UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>& it)
+{
+    auto i = it;
+
+    // Match leading \\.
+    if (!(i.match('\\') && i.match('\\')))
+    {
+        return it;
+    }
+
+    // Match . or ?
+    switch (i.peek())
+    {
+    case '.':
+    case '?':
+        (void)i.get();
+        break;
+    default:
+        return it;
+    }
+
+    // Match \.
+    if (!i.match('\\'))
+    {
+        return it;
+    }
+
+    auto j = i;
+
+    // Match drive letter.
+    if (j.get() && j.match(':'))
+    {
+        return i;
+    }
+
+    return it;
+}
+
+#endif // _WIN32
+
 template<typename CharT, typename CharU, typename UnaryOperation>
 int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
                UnicodeCodepointIterator<CharU> first2, bool unescaping2,
                UnaryOperation transform)
 {
+#ifdef _WIN32
+    first1 = skipPrefix(first1);
+    first2 = skipPrefix(first2);
+#endif // _WIN32
+
     while (!(first1.end() || first2.end()))
     {
         int c1;
@@ -166,6 +216,41 @@ bool isCaseInsensitive(const FileSystemType type)
 #else
     return false;
 #endif
+}
+
+LocalPath NormalizeRelative(const LocalPath& path)
+{
+#ifdef WIN32
+    using string_type = wstring;
+#else // _WIN32
+    using string_type = string;
+#endif // ! _WIN32
+
+    LocalPath result = path;
+
+    // Convenience.
+    string_type& raw = result.localpath;
+    auto sep = LocalPath::localPathSeparator;
+
+    // Nothing to do if the path's empty.
+    if (raw.empty())
+    {
+        return result;
+    }
+
+    // Remove trailing separator if present.
+    if (raw.back() == sep)
+    {
+        raw.pop_back();
+    }
+
+    // Remove leading separator if present.
+    if (!raw.empty() && raw.front() == sep)
+    {
+        raw.erase(0, 1);
+    }
+
+    return result;
 }
 
 FileSystemAccess::FileSystemAccess()
@@ -357,7 +442,7 @@ const char *FileSystemAccess::getPathSeparator()
 #endif
 }
 
-void FileSystemAccess::normalize(string* filename) const
+void FileSystemAccess::normalize(string* filename)
 {
     if (!filename) return;
 
@@ -393,7 +478,7 @@ void FileSystemAccess::normalize(string* filename) const
     *filename = std::move(result);
 }
 
-std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(LocalPath& localname)
+std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localname)
 {
     LocalPath s;
     if (getsname(localname, s))
@@ -432,6 +517,19 @@ int DirNotify::getFailed(string& reason)
     return mFailed;
 }
 
+
+bool DirNotify::empty()
+{
+    for (auto& q : notifyq)
+    {
+        if (!q.empty())
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
@@ -498,7 +596,8 @@ bool FileAccess::isfile(const LocalPath& path)
 
 bool FileAccess::isfolder(const LocalPath& path)
 {
-    return fopen(path) && type == FOLDERNODE;
+    fopen(path);
+    return type == FOLDERNODE;
 }
 
 // check if size and mtime are unchanged, then open for reading
@@ -885,7 +984,7 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
     if (separatorAlways || localpath.size())
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
-        if (!endsInSeparator())
+        if (!(endsInSeparator() || additionalPath.beginsWithSeparator()))
         {
             localpath.append(1, localPathSeparator);
         }
@@ -900,13 +999,19 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
     if (!localpath.empty() && localpath[0] != localPathSeparator)
     {
         // no additional separator if there is already one before
-
-        if (!additionalPath.endsInSeparator())
+        if (!(beginsWithSeparator() || additionalPath.endsInSeparator()))
         {
             localpath.insert(0, 1, localPathSeparator);
         }
     }
     localpath.insert(0, additionalPath.localpath);
+}
+
+LocalPath LocalPath::prependNewWithSeparator(const LocalPath& additionalPath) const
+{
+    LocalPath lp = *this;
+    lp.prependWithSeparator(additionalPath);
+    return lp;
 }
 
 void LocalPath::trimNonDriveTrailingSeparator()
@@ -1026,6 +1131,13 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
     return path;
 }
 
+string LocalPath::toPath() const
+{
+    // only use this one for logging, until we find out if it works for all platforms
+    static FSACCESS_CLASS fsAccess;
+    return toPath(fsAccess);  // fsAccess synchronization not needed, only the data passed to it is modified
+}
+
 string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const
 {
     std::string path = toPath(fsaccess);
@@ -1080,8 +1192,11 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
 {
+    assert(!empty());
+    assert(!path.empty());
+
     if (path.localpath.size() >= localpath.size()
-        && !path.localpath.compare(0, localpath.size(), localpath.data(), localpath.size()))
+        && !Utils::pcasecmp(path.localpath, localpath, localpath.size()))
     {
        if (path.localpath.size() == localpath.size())
        {
@@ -1136,6 +1251,36 @@ ScopedLengthRestore::~ScopedLengthRestore()
 {
     path.localpath.resize(length);
 };
+
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
+{
+    auto localName = localPath.leafName().toPath();
+
+    if (localName != remoteName)
+    {
+        return FILENAME_ANOMALY_NAME_MISMATCH;
+    }
+    else if (isReservedName(remoteName, type))
+    {
+        return FILENAME_ANOMALY_NAME_RESERVED;
+    }
+
+    return FILENAME_ANOMALY_NONE;
+}
+
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node)
+{
+    assert(node);
+
+    return isFilenameAnomaly(localPath, node->displayname(), node->type);
+}
+
+#ifdef ENABLE_SYNC
+FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
+{
+    return isFilenameAnomaly(node.localname, node.name, node.type);
+}
+#endif
 
 } // namespace
 

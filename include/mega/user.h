@@ -82,7 +82,9 @@ struct MEGA_API User : public Cacheable
         bool unshareablekey : 1;    // key to encrypt unshareable node attributes
         bool devicenames : 1; // device names
         bool myBackupsFolder : 1; // target folder for My Backups
-        bool backupNames : 1; // backup names
+        bool cookieSettings : 1; // bit map to indicate whether some cookies are enabled or not
+        bool jsonSyncConfigData : 1;
+        bool drivenames : 1;    // drive names
     } changed;
 
     // user's public key
