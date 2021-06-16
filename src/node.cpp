@@ -1232,18 +1232,6 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             {
                 assert(parent->node);
 
-                if(!parent->node)
-                {
-                    LOG_err << node->displayname() << " parent Localnode is missing its associated Node. Cross referenced must have been removed";
-
-                    sync->client->syncs.disableSelectedSyncs([&](SyncConfig& c, Sync* s) {
-                        return s == sync;
-                    }, MISSING_PARENT_NODE, false);
-
-                    sync->client->sendevent(99455,"Disabling sync after null parent->node cross referent", 0);
-                    return;
-                }
-
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
                 if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
