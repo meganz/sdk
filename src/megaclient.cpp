@@ -4546,34 +4546,17 @@ int MegaClient::procsc()
             switch (jsonsc.getnameid())
             {
                 case 'w':
-                    if (!jsonsc.storeobject(&scnotifyurl))
-                    {
-                        LOG_err << "Error parsing w in sc request";
-                        return 2;
-                    }
+                    jsonsc.storeobject(&scnotifyurl);
                     break;
 
                 case MAKENAMEID2('i', 'r'):
                     // when spoonfeeding is in action, there may still be more actionpackets to be delivered.
-                    { // scope for local variable
-                        auto ir = jsonsc.getint();
-                        if (ir == -1)
-                        {
-                            LOG_err << "Error parsing ir in sc request";
-                            return 2;
-                        }
-                        insca_notlast = ir == 1;
-                    }
+                    insca_notlast = jsonsc.getint() == 1;
                     break;
 
                 case MAKENAMEID2('s', 'n'):
                     // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
-                    if (!scsn.setScsn(&jsonsc))
-                    {
-                        LOG_err << "Error parsing sn in sc request";
-                        return 2;
-                    }
-
+                    scsn.setScsn(&jsonsc);
                     notifypurge();
                     if (sctable)
                     {
