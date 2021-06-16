@@ -264,7 +264,9 @@ nameid JSON::getnameid()
         }
     }
 
-    return id;
+    bool skippedNull = id && skipnullvalue();
+
+    return skippedNull ? getnameid() : id;
 }
 
 // specific string comparison/skipping
