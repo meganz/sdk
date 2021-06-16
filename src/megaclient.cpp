@@ -461,16 +461,16 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
             // check if the low(ered) access level is affecting any syncs
             // a) have we just cut off full access to a subtree of a sync?
             Sync * sync = getSyncContainingNodeHandle(n->nodehandle);
-            if (sync && (sync->active() || sync->paused()))
+            if (sync && (sync->active()))
             {
                 LOG_warn << "Existing inbound share sync or part thereof lost full access";
                 sync->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS, false, true);
             }
 
             // b) have we just lost full access to the subtree a sync is in?
-            syncs.forEachRunningSync([&](Sync* sync){
+            syncs.forEachRunningSync(true, [&](Sync* sync){
                 if (sync->inshare
-                    && (sync->active() || sync->paused())
+                    && (sync->active())
                     && !checkaccess(sync->cloudRoot(), FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
@@ -1418,12 +1418,12 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
 }
 #ifdef ENABLE_SYNC
 
-bool MegaClient::nodeIsInActiveSync(Node* n)
+bool MegaClient::nodeIsInActiveSync(Node* n, bool includePausedSyncs)
 {
     bool found = false;
     if (n)
     {
-        syncs.forEachRunningSync([&](Sync* sync) {
+        syncs.forEachRunningSync(includePausedSyncs, [&](Sync* sync) {
 
             if (sync->active() &&
                 n->isbelow(sync->cloudRoot()))
@@ -1435,10 +1435,10 @@ bool MegaClient::nodeIsInActiveSync(Node* n)
     return found;
 }
 
-bool MegaClient::isAnySyncSyncing()
+bool MegaClient::isAnySyncSyncing(bool includePausedSyncs)
 {
     bool found = false;
-    syncs.forEachRunningSync([&](Sync* sync) {
+    syncs.forEachRunningSync(includePausedSyncs, [&](Sync* sync) {
 
         if (sync->active() &&
             (sync->localroot->scanRequired()
@@ -1451,10 +1451,10 @@ bool MegaClient::isAnySyncSyncing()
     return found;
 }
 
-bool MegaClient::isAnySyncScanning()
+bool MegaClient::isAnySyncScanning(bool includePausedSyncs)
 {
     bool found = false;
-    syncs.forEachRunningSync([&](Sync* sync) {
+    syncs.forEachRunningSync(includePausedSyncs, [&](Sync* sync) {
 
         if (sync->active() &&
             sync->localroot->scanRequired())
@@ -1466,10 +1466,10 @@ bool MegaClient::isAnySyncScanning()
 }
 
 
-bool MegaClient::mightAnySyncsHaveMoves()
+bool MegaClient::mightAnySyncsHaveMoves(bool includePausedSyncs)
 {
     bool found = false;
-    syncs.forEachRunningSync([&](Sync* sync) {
+    syncs.forEachRunningSync(includePausedSyncs, [&](Sync* sync) {
 
         if (sync->active() &&
             (sync->localroot->mightHaveMoves()
@@ -1483,7 +1483,7 @@ bool MegaClient::mightAnySyncsHaveMoves()
 
 bool MegaClient::conflictsDetected(list<NameConflict>& conflicts) const
 {
-    syncs.forEachRunningSync([&](Sync* sync) {
+    syncs.forEachRunningSync(true, [&](Sync* sync) {
         sync->recursiveCollectNameConflicts(conflicts);
     });
 
@@ -1493,7 +1493,7 @@ bool MegaClient::conflictsDetected(list<NameConflict>& conflicts) const
 bool MegaClient::conflictsDetected() const
 {
     bool found = false;
-    syncs.forEachRunningSync([&](Sync* sync) {
+    syncs.forEachRunningSync(true, [&](Sync* sync) {
 
         if (sync->localroot->conflictsDetected())
         {
@@ -1518,14 +1518,9 @@ bool MegaClient::syncStallDetected(SyncFlags::CloudStallInfoMap& snp, SyncFlags:
     return false;
 }
 
-bool MegaClient::allSyncsIdle()
-{
-    return !isAnySyncSyncing();
-}
-
 void MegaClient::setAllSyncsNeedFullSync()
 {
-    syncs.forEachRunningSync([&](Sync* sync) {
+    syncs.forEachRunningSync(true, [&](Sync* sync) {
         sync->localroot->syncAgain = TREE_ACTION_SUBTREE;
     });
 }
@@ -2572,7 +2567,7 @@ void MegaClient::exec()
 #ifdef ENABLE_SYNC
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
-        syncs.forEachRunningSync([&](Sync* sync){
+        syncs.forEachRunningSync(true, [&](Sync* sync){
             if (sync->state != SYNC_FAILED && sync->fsfp)
             {
                 fsfp_t current = sync->dirnotify->fsfingerprint();
@@ -2940,7 +2935,7 @@ void MegaClient::exec()
 
             syncs.stopCancelledFailedDisabled();
 
-            syncs.forEachRunningSync([&](Sync* sync) {
+            syncs.forEachRunningSync(true, [&](Sync* sync) {
                 sync->procextraq();
                 sync->procscanq();
             });
@@ -2952,22 +2947,22 @@ void MegaClient::exec()
 
             bool tooSoon = syncStallState && (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) && (waiter->ds > mSyncFlags->recursiveSyncLastCompletedDs);
 
-            if (actionpacketsCurrent && isAnySyncSyncing() && !tooSoon)
+            if (actionpacketsCurrent && isAnySyncSyncing(true) && !tooSoon)
             {
                 CodeCounter::ScopeTimer rst(performanceStats.recursiveSyncTime);
 
                 // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
                 auto scanningCompletePreviously = mSyncFlags->scanningWasComplete;
                 //mSyncFlags->scanTargetReachable = false;
-                mSyncFlags->scanningWasComplete = !isAnySyncScanning();
+                mSyncFlags->scanningWasComplete = !isAnySyncScanning(false);   // paused syncs do not participate in move detection
                 mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass;
                 mSyncFlags->reachableNodesAllScannedThisPass = true;
-                mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
+                mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves(false); // paused syncs do not participate in move detection
                 mSyncFlags->noProgress = true;
                 mSyncFlags->stalledNodePaths.clear();
                 mSyncFlags->stalledLocalPaths.clear();
 
-                syncs.forEachRunningSync([&](Sync* sync) {
+                syncs.forEachRunningSync(true, [&](Sync* sync) {
 
                     if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                     {
@@ -2992,55 +2987,57 @@ void MegaClient::exec()
                             }
                         }
 
-                        // pathBuffer will have leafnames appended as we recurse
-                        SyncPath pathBuffer(this, sync->localroot->localname, sync->cloudRoot()->displaypath());
-
-                        DBTableTransactionCommitter committer(tctable);
-                        FSNode rootFsNode(sync->localroot->getLastSyncedFSDetails());
-                        syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
-
-                        // Will be re-set if we can reach the scan target.
-                        //mSyncFlags->scanTargetReachable = false;
-
-                        //bool allNodesSynced =
-                        sync->recursiveSync(row, pathBuffer, committer);
-
-                        // Cancel the scan request if we couldn't reach the scan target.
-                        //if (sync->mScanRequest && !mSyncFlags->scanTargetReachable)
-                        //{
-                        //    LOG_warn << "Abandoning unreachable scan request";
-                        //    sync->mScanRequest.reset();
-                        //}
-
-                        //{
-                        //    // a local filesystem item was locked - schedule periodic retry
-                        //    // and force a full rescan afterwards as the local item may
-                        //    // be subject to changes that are notified with obsolete paths
-                        //    success = false;
-                        //    sync->dirnotify->mErrorCount = true;
-                        //}
-                        sync->cachenodes();
-
-                        bool doneScanning = sync->localroot->scanAgain == TREE_RESOLVED;
-                        if (doneScanning && sync->state == SYNC_INITIALSCAN)
+                        if (!sync->syncPaused)
                         {
-                            sync->changestate(SYNC_ACTIVE, NO_SYNC_ERROR, true, true);
+                            // pathBuffer will have leafnames appended as we recurse
+                            SyncPath pathBuffer(this, sync->localroot->localname, sync->cloudRoot()->displaypath());
+
+                            DBTableTransactionCommitter committer(tctable);
+                            FSNode rootFsNode(sync->localroot->getLastSyncedFSDetails());
+                            syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
+
+                            // Will be re-set if we can reach the scan target.
+                            //mSyncFlags->scanTargetReachable = false;
+
+                            //bool allNodesSynced =
+                            sync->recursiveSync(row, pathBuffer, committer);
+
+                            // Cancel the scan request if we couldn't reach the scan target.
+                            //if (sync->mScanRequest && !mSyncFlags->scanTargetReachable)
+                            //{
+                            //    LOG_warn << "Abandoning unreachable scan request";
+                            //    sync->mScanRequest.reset();
+                            //}
+
+                            //{
+                            //    // a local filesystem item was locked - schedule periodic retry
+                            //    // and force a full rescan afterwards as the local item may
+                            //    // be subject to changes that are notified with obsolete paths
+                            //    success = false;
+                            //    sync->dirnotify->mErrorCount = true;
+                            //}
+                            sync->cachenodes();
+
+                            bool doneScanning = sync->localroot->scanAgain == TREE_RESOLVED;
+                            if (doneScanning && sync->state == SYNC_INITIALSCAN)
+                            {
+                                sync->changestate(SYNC_ACTIVE, NO_SYNC_ERROR, true, true);
+                            }
+
+                            //if (allNodesSynced && sync->isBackupAndMirroring())
+                            //{
+                            //    sync->setBackupMonitoring();
+                            //}
+
+                            if (sync->isBackupAndMirroring() &&
+                                !sync->localroot->scanRequired() &&
+                                !sync->localroot->mightHaveMoves() &&
+                                !sync->localroot->syncRequired())
+
+                            {
+                                sync->setBackupMonitoring();
+                            }
                         }
-
-                        //if (allNodesSynced && sync->isBackupAndMirroring())
-                        //{
-                        //    sync->setBackupMonitoring();
-                        //}
-
-                        if (sync->isBackupAndMirroring() &&
-                            !sync->localroot->scanRequired() &&
-                            !sync->localroot->mightHaveMoves() &&
-                            !sync->localroot->syncRequired())
-
-                        {
-                            sync->setBackupMonitoring();
-                        }
-
                     }
                 });
 
@@ -3082,14 +3079,14 @@ void MegaClient::exec()
                 execsyncdeletions();
             }
 
-            bool anySyncScanning = isAnySyncScanning();
+            bool anySyncScanning = isAnySyncScanning(false);
             if (anySyncScanning != syncscanstate)
             {
                 app->syncupdate_scanning(anySyncScanning);
                 syncscanstate = anySyncScanning;
             }
 
-            bool anySyncBusy = isAnySyncSyncing();
+            bool anySyncBusy = isAnySyncSyncing(false);
             if (anySyncBusy != syncBusyState)
             {
                 app->syncupdate_syncing(anySyncBusy);
@@ -3262,7 +3259,7 @@ int MegaClient::preparewait()
         nds = NEVER;
 
 #ifdef ENABLE_SYNC
-        if (isAnySyncSyncing())
+        if (isAnySyncSyncing(false))
         {
             nds = Waiter::ds + 1;
         }
@@ -3369,7 +3366,7 @@ int MegaClient::preparewait()
 
 #ifdef ENABLE_SYNC
         // sync rescan
-        syncs.forEachRunningSync([&](Sync* sync) {
+        syncs.forEachRunningSync(false, [&](Sync* sync) {
 
             sync->syncscanbt.update(&nds);
         });
@@ -4450,7 +4447,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
 #ifdef ENABLE_SYNC
 
     // remove the LocalNode cache databases first, otherwise disable would cause this to be skipped
-    syncs.forEachRunningSync([&](Sync* sync){
+    syncs.forEachRunningSync(true, [&](Sync* sync){
 
         if (sync->statecachetable)
         {
@@ -7404,7 +7401,7 @@ void MegaClient::notifypurge(void)
 
 #ifdef ENABLE_SYNC
         // update LocalNode <-> Node associations
-        syncs.forEachRunningSync([&](Sync* sync) {
+        syncs.forEachRunningSync(true, [&](Sync* sync) {
             sync->cachenodes();
         });
 #endif
@@ -12210,13 +12207,13 @@ void MegaClient::purgeOrphanTransfers(bool remove)
 #ifdef ENABLE_SYNC
     if (purgeOrphanTransfers && !remove)
     {
-        if (!statecurrent || !allSyncsIdle())
+        if (!statecurrent || isAnySyncSyncing(true))
         {
             purgeOrphanTransfers = false;
         }
         else
         {
-            syncs.forEachRunningSync([&](Sync* sync) {
+            syncs.forEachRunningSync(true, [&](Sync* sync) {
                 if (sync->state != SYNC_ACTIVE)
                 {
                     purgeOrphanTransfers = false;
@@ -13572,7 +13569,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
 
     // any active syncs below?
     bool anyBelow = false;
-    syncs.forEachRunningSyncContainingNode(remotenode, [&](Sync* sync) {
+    syncs.forEachRunningSyncContainingNode(remotenode, true, [&](Sync* sync) {
         anyBelow = true;
     });
 
@@ -13590,9 +13587,9 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
 
     do {
         bool anyAbove = false;
-        syncs.forEachRunningSync([&](Sync* sync) {
+        syncs.forEachRunningSync(true,[&](Sync* sync) {
 
-            if ((sync->active() || sync->paused()) && n == sync->cloudRoot())
+            if (sync->active() && n == sync->cloudRoot())
             {
                 anyAbove = true;
             }
@@ -13689,15 +13686,15 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
     fsaccess->expanselocalpath(newLocallyEncodedPath, newLocallyEncodedAbsolutePath);
 
     error e = API_OK;
-    syncs.forEachSyncConfig([&](const SyncConfig& config){
+    syncs.forEachUnifiedSync([&](UnifiedSync& us){
         // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
-        if (config.getBackupId() != excludeBackupId)
+        if (us.mConfig.getBackupId() != excludeBackupId)
         {
-            LocalPath otherLocallyEncodedPath = config.getLocalPath();
+            LocalPath otherLocallyEncodedPath = us.mConfig.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
-            if (config.getEnabled() && !config.getError() &&
+            if (us.mConfig.getEnabled() && !us.mConfig.getError() &&
                     ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
@@ -15478,32 +15475,6 @@ void MegaClient::failSync(Sync* sync, SyncError syncerror)
     syncactivity = true;
 }
 
-
-
-error MegaClient::pauseSync(Sync& sync)
-{
-    if (!sync.active())
-    {
-        return API_EFAILED;
-    }
-
-    sync.changestate(SYNC_DISABLED, NO_SYNC_ERROR, false, true);
-
-    return API_OK;
-}
-
-error MegaClient::resumeSync(Sync& sync)
-{
-    if (!sync.paused())
-    {
-        return API_EFAILED;
-    }
-
-    sync.changestate(SYNC_INITIALSCAN, NO_SYNC_ERROR, true, true);
-
-    return API_OK;
-}
-
 void MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag)
 {
     auto sync = getSyncContainingNodeHandle(nodeHandle);
@@ -15520,7 +15491,7 @@ Sync * MegaClient::getSyncContainingNodeHandle(mega::handle nodeHandle)
     Sync* syncFound = nullptr;
     while(!ISUNDEF(nodeHandle) && !syncFound)
     {
-        syncs.forEachRunningSync([&](Sync* sync) {
+        syncs.forEachRunningSync(true, [&](Sync* sync) {
 
             if (sync->localroot && sync->cloudRoot() && sync->cloudRoot()->nodehandle == nodeHandle)
             {
@@ -15536,7 +15507,7 @@ Sync * MegaClient::getSyncContainingNodeHandle(mega::handle nodeHandle)
 
 void MegaClient::failSyncs(SyncError syncError)
 {
-    syncs.forEachRunningSync([&](Sync* sync) {
+    syncs.forEachRunningSync(true, [&](Sync* sync) {
         sync->changestate(SYNC_FAILED, syncError, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
     });
     syncactivity = true;

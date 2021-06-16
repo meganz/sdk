@@ -538,17 +538,14 @@ public:
 
     bool syncStallDetected(SyncFlags::CloudStallInfoMap& stalledNodePaths, SyncFlags::LocalStallInfoMap& stalledLocalPaths) const;
 
-    // indicates whether all startup syncs have been fully scanned
-    bool allSyncsIdle();
-
     // manage syncdown flags inside the syncs
     void setAllSyncsNeedFullSync();
 
-    bool isAnySyncSyncing();
-    bool isAnySyncScanning();
-    bool mightAnySyncsHaveMoves();
+    bool isAnySyncSyncing(bool includePausedSyncs);
+    bool isAnySyncScanning(bool includePausedSyncs);
+    bool mightAnySyncsHaveMoves(bool includePausedSyncs);
 
-    bool nodeIsInActiveSync(Node* n);
+    bool nodeIsInActiveSync(Node* n, bool includePausedSyncs);
 
 #endif
 
@@ -735,16 +732,8 @@ public:
     // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
     void disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag);
 
-    // pause synchronization.
-    error pauseSync(Sync& sync);
-
-    // resume synchronization.
-    error resumeSync(Sync& sync);
-
     // fail all active syncs
     void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
-
-
 
     //void cancelSyncgetsOutsideSync(Node* n);
     Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);

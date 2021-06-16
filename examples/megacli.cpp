@@ -3296,8 +3296,9 @@ autocomplete::ACN autocompleteSyntax()
                            sequence(text("enable"),
                                     param("id")))));
 
-    p->Add(exec_syncpause, sequence(text("syncpause"), param("id")));
-    p->Add(exec_syncresume, sequence(text("syncresume"), param("id")));
+    p->Add(exec_syncpause, sequence(text("sync"), text("pause"), param("id")));
+    p->Add(exec_syncresume, sequence(text("sync"), text("resume"), param("id")));
+    p->Add(exec_syncrescan, sequence(text("sync"), text("rescan"), param("id")));
 
     p->Add(exec_syncoutput, sequence(text("sync"), text("output"),
         either(text("local_change_detection"),
@@ -4685,35 +4686,25 @@ void exec_open(autocomplete::ACState& s)
 }
 #ifdef ENABLE_SYNC
 
-void exec_rescan(autocomplete::ACState& s)
+void exec_syncrescan(autocomplete::ACState& s)
 {
     bool matched = false;
-    auto backupId = s.words[1].s;
+    auto backupId = s.words[2].s;
     client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
 
         if (toHandle(us.mConfig.getBackupId()) == backupId)
         {
             matched = true;
 
-            // Is the sync disabled?
             if (!us.mSync)
             {
                 cout << "Can't rescan sync " << backupId << " as it's not running." << endl;
-                return;
             }
-
-            // TODO
-            cout << "Needs to be re-implemneted" << endl;
-
-            //// Ask the client to issue a complete rescan of the sync.
-            //if (client->rescan(us.mSync.get()) == API_OK)
-            //{
-            //    cout << "Sync " << backupId << " rescanning." << endl;
-            //}
-            //else
-            //{
-            //    cout << "Error rescanning sync " << backupId << endl;
-            //}
+            else
+            {
+                us.mSync->localroot->setScanAgain(false, true, true, 5);
+                cout << "Full scan flagged for sync " << backupId << endl;
+            }
         }
     });
 
@@ -4731,7 +4722,7 @@ void exec_syncpause(autocomplete::ACState& s)
 {
 
     bool matched = false;
-    auto backupId = s.words[1].s;
+    auto backupId = s.words[2].s;
     client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
 
         if (toHandle(us.mConfig.getBackupId()) == backupId)
@@ -4741,17 +4732,13 @@ void exec_syncpause(autocomplete::ACState& s)
             {
                 cout << "Sync is not running." << endl;
             }
-            else if (error e = client->pauseSync(*us.mSync))
+            else if (us.mSync->isSyncPaused())
             {
-                cout << "Error encountered while pausing sync "
-                     << backupId
-                     << ": "
-                     << errorstring(e)
-                     << endl;
-                return;
+                cout << "Sync " << backupId << " is already paused." << endl;
             }
             else
             {
+                us.mSync->setSyncPaused(true);
                 cout << "Sync " << backupId << " paused." << endl;
             }
         }
@@ -4763,13 +4750,12 @@ void exec_syncpause(autocomplete::ACState& s)
         cout << "Invalid sync id: " << backupId << endl;
         return;
     }
-
 }
 
 void exec_syncresume(autocomplete::ACState& s)
 {
     bool matched = false;
-    auto backupId = s.words[1].s;
+    auto backupId = s.words[2].s;
     client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
 
         if (toHandle(us.mConfig.getBackupId()) == backupId)
@@ -4780,21 +4766,15 @@ void exec_syncresume(autocomplete::ACState& s)
             {
                 cout << "Sync is not running." << endl;
             }
-            else if (!us.mSync->paused())
+            else if (!us.mSync->isSyncPaused())
             {
                 cout << "Sync " << backupId << " is not paused." << endl;
             }
-            else if (error e = client->resumeSync(*us.mSync))
+            else
             {
-                cout << "Error encountered while resuming sync "
-                        << backupId
-                        << ": "
-                        << errorstring(e)
-                        << endl;
-                return;
+                us.mSync->setSyncPaused(false);
+                cout << "Sync " << backupId << " resumed." << endl;
             }
-
-            cout << "Sync " << backupId << " resumed." << endl;
         }
     });
 
@@ -4804,7 +4784,6 @@ void exec_syncresume(autocomplete::ACState& s)
         cout << "Invalid sync id: " << backupId << endl;
         return;
     }
-
 }
 
 #endif
@@ -9186,8 +9165,9 @@ void exec_synclist(autocomplete::ACState& s)
           {
               // Display status info.
               cout << "  State: "
-                   << SyncConfig::syncstatename(sync->state)
-                   << "\n";
+                  << SyncConfig::syncstatename(sync->state)
+                  << (sync->isSyncPaused() ? " (paused)" : "")
+                  << "\n";
 
               // Display some usage stats.
               cout << "  Statistics: "

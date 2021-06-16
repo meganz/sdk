@@ -2101,13 +2101,13 @@ struct StandardClient : public MegaApp
         auto localPath = LocalPath::fromPath(path.u8string(), *client.fsaccess);
         auto id = UNDEF;
 
-        client.syncs.forEachSyncConfig(
-          [&](const SyncConfig& config)
+        client.syncs.forEachUnifiedSync(
+          [&](UnifiedSync& us)
           {
-              if (config.mLocalPath != localPath) return;
+              if (us.mConfig.mLocalPath != localPath) return;
               if (id != UNDEF) return;
 
-              id = config.mBackupId;
+              id = us.mConfig.mBackupId;
           });
 
         result->set_value(id);
@@ -2495,7 +2495,7 @@ struct StandardClient : public MegaApp
 
             thread_do<bool>([&syncstates, &any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
             {
-                mc.client.syncs.forEachRunningSync(
+                mc.client.syncs.forEachRunningSync(false,
                   [&](Sync* s)
                   {
                       syncstates.push_back(s->state);
@@ -2775,7 +2775,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
                     if (!result[i].syncStalled)
                     {
-                        mc.client.syncs.forEachRunningSync(
+                        mc.client.syncs.forEachRunningSync(false,
                           [&](Sync* s)
                           {
                               syncstates.push_back(s->state);
@@ -2788,7 +2788,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                         {
                             any_activity = true;
                         }
-                        if (mc.client.isAnySyncSyncing())
+                        if (mc.client.isAnySyncSyncing(false))
                         {
                             any_still_syncing = true;
                         }
@@ -3505,7 +3505,7 @@ TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
             //    remaining += s->dirnotify->fsDelayedNetworkEventq.size();
             //  });
 
-            remaining += sc.client.isAnySyncScanning() ? 1 : 0;
+            remaining += sc.client.isAnySyncScanning(false) ? 1 : 0;
 
             p->set_value(true);
         });

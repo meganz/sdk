@@ -773,7 +773,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         if((*it)->syncxfer)
                         {
                             bool foundOne = false;
-                            client->syncs.forEachRunningSync([&](Sync* sync){
+                            client->syncs.forEachRunningSync(true, [&](Sync* sync){
 
                                 LocalNode *localNode = sync->localnodebypath(NULL, localname);
                                 if (localNode && !foundOne)

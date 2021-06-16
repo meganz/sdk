@@ -269,6 +269,9 @@ public:
     // for logging
     string syncname;
 
+    // are we calling recursiveSync for this one?
+    bool syncPaused = false;
+
     // sync-wide directory notification provider
     std::unique_ptr<DirNotify> dirnotify;
 
@@ -407,11 +410,9 @@ public:
     // Should we synchronize this sync?
     bool active() const;
 
-    // Is this sync paused?
-    bool paused() const;
-
-    // Should we remove this sync?
-    bool purgeable() const;
+    // pause synchronization.  Syncs are still "active" but we don't call recursiveSync for them.
+    void setSyncPaused(bool pause) { syncPaused = pause; }
+    bool isSyncPaused() { return syncPaused; }
 
     // Asynchronous scan request / result.
     std::shared_ptr<ScanService::Request> mActiveScanRequest;
@@ -659,10 +660,9 @@ struct Syncs
     SyncConfig* syncConfigByBackupId(handle backupId) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
-    void forEachRunningSync(std::function<void(Sync* s)>) const;
-    bool forEachRunningSync_shortcircuit(std::function<bool(Sync* s)>);
-    void forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f);
-    void forEachSyncConfig(std::function<void(const SyncConfig&)>);
+    void forEachRunningSync(bool includePaused, std::function<void(Sync* s)>) const;
+    bool forEachRunningSync_shortcircuit(bool includePaused, std::function<bool(Sync* s)>);
+    void forEachRunningSyncContainingNode(Node* node, bool includePaused, std::function<void(Sync* s)> f);
 
     void purgeRunningSyncs();
     void stopCancelledFailedDisabled();

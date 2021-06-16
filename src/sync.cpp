@@ -956,27 +956,6 @@ bool Sync::active() const
     return false;
 }
 
-bool Sync::paused() const
-{
-    return state == SYNC_DISABLED && getConfig().getError() == NO_SYNC_ERROR && !getConfig().getEnabled();
-}
-
-bool Sync::purgeable() const
-{
-    switch (state)
-    {
-    case SYNC_CANCELED:
-    case SYNC_FAILED:
-        return true;
-    case SYNC_DISABLED:
-        return !paused();
-    default:
-        break;
-    }
-
-    return false;
-}
-
 Node* Sync::cloudRoot()
 {
     return client->nodeByHandle(localroot->syncedCloudNodeHandle);
@@ -3390,22 +3369,22 @@ void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
     }
 }
 
-void Syncs::forEachRunningSync(std::function<void(Sync* s)> f) const
+void Syncs::forEachRunningSync(bool includePaused, std::function<void(Sync* s)> f) const
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mSync)
+        if (s->mSync && (includePaused || !s->mSync->syncPaused))
         {
             f(s->mSync.get());
         }
     }
 }
 
-void Syncs::forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f)
+void Syncs::forEachRunningSyncContainingNode(Node* node, bool includePaused, std::function<void(Sync* s)> f)
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mSync)
+        if (s->mSync && (includePaused || !s->mSync->syncPaused))
         {
             if (s->mSync->cloudRoot() &&
                 node->isbelow(s->mSync->cloudRoot()))
@@ -3416,11 +3395,11 @@ void Syncs::forEachRunningSyncContainingNode(Node* node, std::function<void(Sync
     }
 }
 
-bool Syncs::forEachRunningSync_shortcircuit(std::function<bool(Sync* s)> f)
+bool Syncs::forEachRunningSync_shortcircuit(bool includePaused, std::function<bool(Sync* s)> f)
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mSync)
+        if (s->mSync && (includePaused || !s->mSync->syncPaused))
         {
             if (!f(s->mSync.get()))
             {
@@ -3429,14 +3408,6 @@ bool Syncs::forEachRunningSync_shortcircuit(std::function<bool(Sync* s)> f)
         }
     }
     return true;
-}
-
-void Syncs::forEachSyncConfig(std::function<void(const SyncConfig&)> f)
-{
-    for (auto& s : mSyncVec)
-    {
-        f(s->mConfig);
-    }
 }
 
 bool Syncs::hasRunningSyncs()
@@ -5443,7 +5414,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 
     Node* prevSyncedNode = client->nodeByHandle(row.syncNode->syncedCloudNodeHandle);
 
-    if (prevSyncedNode && client->nodeIsInActiveSync(prevSyncedNode))
+    if (prevSyncedNode && client->nodeIsInActiveSync(prevSyncedNode, false))   // false because paused syncs do not particpate in move detection
     {
         row.syncNode->setCheckMovesAgain(true, false, false);
 

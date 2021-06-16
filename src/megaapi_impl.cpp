@@ -1383,7 +1383,7 @@ bool MegaApiImpl::isIndexing()
 
     SdkMutexGuard g(sdkMutex);
     bool indexing = false;
-    client->syncs.forEachRunningSync([&](Sync* sync) {
+    client->syncs.forEachRunningSync(false, [&](Sync* sync) {
 
         if(sync->state == SYNC_INITIALSCAN)
         {
@@ -1397,7 +1397,7 @@ bool MegaApiImpl::isSyncing()
 {
     SdkMutexGuard g(sdkMutex);
     bool syncing = false;
-    client->syncs.forEachRunningSync([&](Sync* sync) {
+    client->syncs.forEachRunningSync(false, [&](Sync* sync) {
 
         if (sync->localroot->conflictsDetected()
             || sync->localroot->ts == TREESTATE_PENDING
@@ -8695,7 +8695,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     auto localpath = LocalPath::fromPath(utf8path, *fsAccess);
 
     Sync *sync = NULL;
-    client->syncs.forEachRunningSync([&](Sync* s) {
+    client->syncs.forEachRunningSync(true, [&](Sync* s) {
 
         if (s->localroot->localname.isContainingPathOf(localpath))
         {
@@ -8752,7 +8752,7 @@ int MegaApiImpl::syncPathState(string* path)
 
     LocalPath localpath = LocalPath::fromPlatformEncoded(*path);
 
-    client->syncs.forEachRunningSync_shortcircuit([&](Sync* sync) {
+    client->syncs.forEachRunningSync_shortcircuit(true, [&](Sync* sync) {
 
         if (!sync->localroot->localname.isContainingPathOf(localpath))
         {
@@ -8809,7 +8809,7 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
     SdkMutexGuard g(sdkMutex);
 
     MegaNode *node = NULL;
-    client->syncs.forEachRunningSync([&](Sync* sync) {
+    client->syncs.forEachRunningSync(true, [&](Sync* sync) {
 
         if (!node)
         {
@@ -9161,7 +9161,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
         }
     }
 
-    client->syncs.forEachRunningSync([&](Sync* sync) {
+    client->syncs.forEachRunningSync(true, [&](Sync* sync) {
 
         if (sync->localnodebypath(NULL, localpath, &parent) || parent)
         {
@@ -23297,7 +23297,7 @@ void MegaApiImpl::update()
     LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
     LOG_debug << "PendingFA? " << client->activefa.size() << " active, " << client->queuedfa.size() << " queued";
     LOG_debug << "FLAGS: " << client->syncactivity
-              << " " << client->isAnySyncSyncing()
+              << " " << client->isAnySyncSyncing(false)
               << " " << client->syncnagleretry
               << " " << client->faputcompletion.size()
               << " " << client->fetchingnodes << " " << client->pendingfa.size()
@@ -23320,7 +23320,7 @@ int MegaApiImpl::isWaiting()
     SdkMutexGuard g(sdkMutex);
 
     bool found = false;
-    client->syncs.forEachRunningSync([&](Sync* sync) {
+    client->syncs.forEachRunningSync(false, [&](Sync* sync) {
             if (sync->localroot->useBlocked || sync->localroot->scanBlocked)
             {
                 LOG_debug << "SDK waiting for one or more a blocked files.";
