@@ -1879,9 +1879,6 @@ public:
     bool analyseMediaInfo(const char* inputFilepath) override;
     char *encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath,
                      bool adjustsizeonly) override;
-    char *encryptBuffer(int64_t startPos, int64_t fileSize, unsigned char* buffer, int64_t* length,
-                        bool adjustsizeonly) override;
-
     char *getUploadURL() override;
 
     bool serialize(string* s);
@@ -2627,7 +2624,7 @@ class MegaApiImpl : public MegaApp
         bool createPreview(const char* imagePath, const char *dstPath);
         bool createAvatar(const char* imagePath, const char *dstPath);
 
-        void getUploadURL(int64_t fullFileSize, bool useSSL, MegaRequestListener *listener);
+        void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
         void uploadCompleted(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
                                                const char *string64UploadToken, const char *string64FileKey, MegaRequestListener *listener);
 

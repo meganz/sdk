@@ -480,13 +480,13 @@ bool CommandPutFileBackgroundURL::procresult(Result r)
 
 
 // request upload target URL
-CommandGetPutUrl::CommandGetPutUrl(m_off_t size, int putmbpscap, bool ssl, CommandGetPutUrl::Cb completion)
+CommandGetPutUrl::CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbpscap, bool forceSSL, CommandGetPutUrl::Cb completion)
     : mCompletion(completion)
 {
     cmd("u");
-    if (ssl)
+    if (forceSSL || client->usehttps)
     {
-        arg("ssl", 2);   // always SSL for background uploads
+        arg("ssl", 2);
     }
     arg("v", 2);
     arg("s", size);

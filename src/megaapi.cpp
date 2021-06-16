@@ -5451,9 +5451,15 @@ void MegaApi::uploadCompleted(const char* utf8Name, MegaNode *parent, const char
     return pImpl->uploadCompleted(utf8Name, parent, fingerprint, fingerprintoriginal, string64UploadToken, string64FileKey, listener);
 }
 
-void MegaApi::getUploadURL(int64_t fullFileSize, bool useSSL, MegaRequestListener *listener)
+
+void MegaApi::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
 {
-    return pImpl->getUploadURL(fullFileSize, useSSL, listener);
+    return pImpl->getUploadURL(fullFileSize, forceSSL, listener);
+}
+
+void MegaApi::getUploadURL(int64_t fullFileSize, MegaRequestListener *listener)
+{
+    return pImpl->getUploadURL(fullFileSize, false, listener);
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
@@ -6261,11 +6267,6 @@ bool MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
 }
 
 char *MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly)
-{
-    return NULL;
-}
-
-char *MegaBackgroundMediaUpload::encryptBuffer(int64_t startPos, int64_t fileSize, unsigned char* buffer, int64_t* length, bool adjustsizeonly)
 {
     return NULL;
 }

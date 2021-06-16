@@ -1153,52 +1153,6 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
     return nullptr;
 }
 
-char *MegaBackgroundMediaUploadPrivate::encryptBuffer(int64_t startPos, int64_t fileSize, unsigned char* buffer, int64_t* length, bool adjustsizeonly)
-{
-    if (startPos != ChunkedHash::chunkfloor(startPos))
-    {
-        LOG_err << "non-chunk start postion supplied";
-        return nullptr;
-    }
-
-    if (startPos < 0 || startPos > fileSize)
-    {
-        LOG_err << "invalid startPos supplied";
-        return nullptr;
-    }
-    else if (!adjustsizeonly && (*length < 0 || startPos + *length > fileSize))
-    {
-        LOG_err << "invalid enryption length supplied";
-        return nullptr;
-    }
-    else
-    {
-        // make sure we load to a chunk boundary
-        m_off_t endPos = ChunkedHash::chunkceil(startPos, fileSize);
-        *length = endPos - startPos;
-        if (adjustsizeonly)
-        {
-            // return non-null to indicate success.  As it's a string return in the standard case, caller must deallocate as usual.
-            return MegaApi::strdup("1");
-        }
-        else
-        {
-            SymmCipher cipher;
-            cipher.setkey(filekey);
-            uint64_t ctriv = MemAccess::get<uint64_t>((const char*)filekey + SymmCipher::KEYLENGTH);
-
-            EncryptBufferByChunks eb(buffer, &cipher, &chunkmacs, ctriv);
-            string urlSuffix;
-            if (eb.encrypt(startPos, endPos, urlSuffix))
-            {
-                ((int64_t*)filekey)[3] = chunkmacs.macsmac(&cipher);
-                return MegaApi::strdup(urlSuffix.c_str());
-            }
-        }
-    }
-    return nullptr;
-}
-
 char *MegaBackgroundMediaUploadPrivate::getUploadURL()
 {
     return url.empty() ? nullptr : MegaApi::strdup(url.c_str());
@@ -9410,11 +9364,11 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     return result;
 }
 
-void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool useSSL, MegaRequestListener *listener)
+void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_UPLOAD_URL, listener);
-    req->setNumber(fullFileSize); //TODO: doc these and out ones
-    req->setFlag(useSSL); //TODO: consider using client->usehttps
+    req->setNumber(fullFileSize);
+    req->setFlag(forceSSL);
     requestQueue.push(req);
     waiter->notify();
 }
@@ -9423,7 +9377,7 @@ void MegaApiImpl::uploadCompleted(const char* utf8Name, MegaNode *parent, const 
                                   const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_UPLOAD_COMPLETED, listener);
-    req->setPassword(fingerprintoriginal); //TODO: doc these and out ones
+    req->setPassword(fingerprintoriginal);
     req->setNewPassword(fingerprint);
     req->setName(utf8Name);
     req->setPrivateKey(string64FileKey);
@@ -22957,7 +22911,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_UPLOAD_URL:
         {
-            client->reqs.add(new CommandGetPutUrl(request->getNumber(), client->putmbpscap, request->getFlag(),
+            client->reqs.add(new CommandGetPutUrl(client, request->getNumber(), client->putmbpscap, request->getFlag(),
                                                   [this, request](Error e, const std::string &url)
             {
                 if (!url.empty())
