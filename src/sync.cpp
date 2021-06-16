@@ -4325,7 +4325,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
                 anyNameConflicts = true;
                 row.syncNode->setContainsConflicts(false, true, false); // in case we don't call setItem due to !syncHere
             }
-            childRow.fsSiblings = effectiveFsChildren;
             childRow.rowSiblings = &childRows;
 
             assert(!row.syncNode || row.syncNode->localname.empty() || row.syncNode->name.empty() || !row.syncNode->parent ||
@@ -4600,7 +4599,6 @@ bool Sync::recursiveSync_localScanForNewOnly(syncRow& row, SyncPath& fullPath, D
                 // no tricky cases for localScanForNewOnly
                 continue;
             }
-            childRow.fsSiblings = effectiveFsChildren;
             childRow.rowSiblings = &childRows;
 
             assert(!row.syncNode || row.syncNode->localname.empty() || row.syncNode->name.empty() || !row.syncNode->parent ||
@@ -5333,22 +5331,12 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     // Mark other nodes with this FSID as having their FSID reused.
                     client->setFsidReused(fsnode->fsid, row.syncNode);
 
-                    if (row.fsSiblings->empty() && row.fsSiblings->capacity() < 50)
-                    {
-                        row.fsSiblings->reserve(50);
-                    }
-                    if (row.fsSiblings->capacity() > row.fsSiblings->size())
-                    {
-                        // However much room we left in the vector, is how many directories we can
-                        // drill into, recursively creating in this recursiveSync() iteration as we go.
-                        // Since we can't invalidate the pointers taken to these elements already
-                        row.fsSiblings->emplace_back(std::move(*fsnode));
-                        row.fsNode = &row.fsSiblings->back();
-                    }
+                    // So that we can recurse into the new directory immediately.
+                    parentRow.fsPendingSiblings.emplace_back(std::move(*fsnode));
+                    row.fsNode = &parentRow.fsPendingSiblings.back();
 
                     row.syncNode->setScanAgain(false, true, true, 0);
                     row.syncNode->setSyncAgain(false, true, false);
-
                 }
                 else
                 {

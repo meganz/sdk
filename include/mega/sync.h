@@ -219,11 +219,16 @@ struct syncRow
 
     bool recurseToScanforNewLocalNodesOnly = false;
 
-    // Sometimes when eg. creating a local a folder, we need to add to this list
-    // Note that it might be the cached version or a temporary regenerated list
-    vector<FSNode>* fsSiblings = nullptr;
     vector<syncRow>* rowSiblings = nullptr;
     const LocalPath& comparisonLocalname() const;
+
+    // This list stores "synthesized" FSNodes: That is, nodes that we
+    // haven't scanned yet but we know must exist.
+    //
+    // An example would be when we download a directory from the cloud.
+    // Here, we create directory locally and push an FSNode representing it
+    // to this list so that we recurse into it immediately.
+    list<FSNode> fsPendingSiblings;
 };
 
 struct SyncPath
