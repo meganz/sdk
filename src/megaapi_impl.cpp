@@ -1513,12 +1513,12 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
     if (!handleContainerStr) { return API_EACCESS; }
 
-    string rec;
+    string buffer;
     std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &client->key));
-    if (!tlvRecords || !tlvRecords->get("h", rec) || rec.empty()) { return API_EINTERNAL; }
+    if (!tlvRecords || !tlvRecords->get("h", buffer) || buffer.size() != MegaClient::NODEHANDLE) { return API_EINTERNAL; }
 
     handle h = 0; // make sure top two bytes are 0
-    memcpy(&h, rec.c_str(), MegaClient::NODEHANDLE);
+    memcpy(&h, buffer.c_str(), MegaClient::NODEHANDLE);
 
     if (!h || h == UNDEF) { return API_ENOENT; }
 
@@ -15500,16 +15500,16 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 if (h)
                 {
                     string key{h};
-                    string rec;
+                    string buffer;
 
-                    if (!tlv || !tlv->get("h", rec) || rec.empty())
+                    if (!tlv || !tlv->get("h", buffer) || buffer.size() != MegaClient::NODEHANDLE)
                     {
                         e = API_ENOENT;
                         break;
                     }
                     else
                     {
-                        request->setName(Base64::atob(rec).c_str());
+                        request->setName(Base64::atob(buffer).c_str());
                     }
                 }
                 break;

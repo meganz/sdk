@@ -51,10 +51,10 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         const char *key = it.first.c_str();
         string newValue = it.second;
         string currentValue;
-        string attribute;
-        if (tlv.get(key, attribute) && !attribute.empty())  // the key may not exist in the current user attribute
+        string buffer;
+        if (tlv.get(key, buffer) && !buffer.empty())  // the key may not exist in the current user attribute
         {
-            Base64::btoa(attribute, currentValue);
+            Base64::btoa(buffer, currentValue);
         }
         if (newValue != currentValue)
         {
@@ -312,10 +312,10 @@ User* User::unserialize(MegaClient* client, string* d)
                 }
             }
 
-            string edchValue;
-            if (tlvRecords->get(ECDH::TLV_KEY, edchValue) && !edchValue.empty())
+            string ecdhValue;
+            if (tlvRecords->get(ECDH::TLV_KEY, ecdhValue) && !ecdhValue.empty())
             {
-                client->chatkey = new ECDH((unsigned char *) edchValue.data());
+                client->chatkey = new ECDH((unsigned char *) ecdhValue.data());
                 if (!client->chatkey->initializationOK)
                 {
                     delete client->chatkey;
