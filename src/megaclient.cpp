@@ -2327,7 +2327,7 @@ void MegaClient::exec()
                     // parsing the json failed, get the last reached position
                     ptrdiff_t p = pendingsc && pendingsc->in.c_str() && jsonsc.pos ? jsonsc.pos - pendingsc->in.c_str() : 0;
                     ostringstream msgstream;
-                    msgstream << "Bad server-client json; SCSN " << scsn << "; position " << p << '.'; // avoid dealing with formatting p
+                    msgstream << "Bad server-client json; position " << p << '.'; // avoid dealing with formatting p
                     const string msg = msgstream.str();
 
                     // send event to API about "server-client" bad json
@@ -4704,10 +4704,7 @@ int MegaClient::procsc()
                     if (!jsonsc.storeobject())
                     {
                         LOG_err << "Error parsing sc request";
-                        if (!jsonsc.skipnullvalue())
-                        {
-                            return 2;
-                        }
+                        return 2;
                     }
             }
         }
@@ -4746,7 +4743,7 @@ int MegaClient::procsc()
                                 {
                                     // run syncdown() before continuing
                                     applykeys();
-                                    return 0;
+                                    return false;
                                 }
 #endif
                                 break;
@@ -4781,7 +4778,7 @@ int MegaClient::procsc()
                                     {
                                         // run syncdown() before continuing
                                         applykeys();
-                                        return 0;
+                                        return false;
                                     }
                                     else
                                     {
@@ -4814,7 +4811,7 @@ int MegaClient::procsc()
 
                                 // run syncdown() to process the deletion before continuing
                                 applykeys();
-                                return 0;
+                                return false;
 #endif
                                 break;
 
@@ -4941,7 +4938,7 @@ int MegaClient::procsc()
                 if (!fetchingnodes && newnodes)
                 {
                     applykeys();
-                    return 0;
+                    return false;
                 }
 #endif
             }
