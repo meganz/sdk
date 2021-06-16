@@ -5325,7 +5325,6 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                     row.syncNode->localname = fsnode->localname;
                     row.syncNode->slocalname = fsnode->cloneShortname();
-                    row.syncNode->setSyncedFsid(fsnode->fsid, client->localnodeByFsid, fsnode->localname);
                     statecacheadd(row.syncNode);
 
                     // Mark other nodes with this FSID as having their FSID reused.
