@@ -7,7 +7,7 @@ set -e
 ARCH=`uname -m`
 CURRENTPATH=`pwd`/3rdparty
 CURL_VERSION="7.58.0"
-LIBWEBSOCKETS_BRANCH="v2.4-stable"
+LIBWEBSOCKETS_BRANCH="v4.2-stable"
 OPENSSL_PREFIX="${CURRENTPATH}"
 QTPATH="$CURRENTPATH/../../../../.."
 
@@ -93,6 +93,7 @@ if [ ! -d "${CURRENTPATH}/webrtc" ] ; then
   rm -rf ${CURRENTPATH}/include/openssl
   ln -sf "${WEBRTC_SRC}/third_party/boringssl/src/include/openssl" ${CURRENTPATH}/include/openssl
   mkdir -p ${CURRENTPATH}/lib
+  # use libssl and libcrypto that have been embedded into libwebrtc
   ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libssl.a
   ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libcrypto.a
   ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libwebrtc.a
@@ -152,11 +153,19 @@ if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
   pushd libwebsockets
   git reset --hard && git clean -dfx
 
+  # To build libwebsockets in Debug mode, add -DCMAKE_BUILD_TYPE=DEBUG to the cmake command.
+  #
+  # Note: This will build in debug mode, but apparently without defining _DEBUG (which influences at least
+  # the default log level, see lws-logs.h). If this symbol is required, try adding -D_DEBUG too.
+  #
+  #
+  # It may happen that compilation fails due to warnings that are treated as errors, which is the default. To
+  # disable that, add -DDISABLE_WERROR=ON to cmake command.
   if [[ $(uname) == 'Darwin' ]]; then
-    cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${OPENSSL_PREFIX}/include -DOPENSSL_SSL_LIBRARY=${OPENSSL_PREFIX}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${OPENSSL_PREFIX}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${OPENSSL_PREFIX} -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include/libuv
+    cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include/libuv -DLWS_OPENSSL_INCLUDE_DIRS=${OPENSSL_PREFIX}/include -DLWS_OPENSSL_LIBRARIES="${OPENSSL_PREFIX}/lib/libssl.a;${OPENSSL_PREFIX}/lib/libcrypto.a" -DLWS_WITH_HTTP2=0 -DLWS_WITH_BORINGSSL=ON
     make -j `sysctl -n hw.physicalcpu`
   else
-    cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${OPENSSL_PREFIX}/include -DOPENSSL_SSL_LIBRARY=${OPENSSL_PREFIX}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${OPENSSL_PREFIX}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${OPENSSL_PREFIX} -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON
+    cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON -DLWS_OPENSSL_INCLUDE_DIRS=${OPENSSL_PREFIX}/include -DLWS_OPENSSL_LIBRARIES="${OPENSSL_PREFIX}/lib/libssl.a;${OPENSSL_PREFIX}/lib/libcrypto.a" -DLWS_WITH_HTTP2=0 -DLWS_WITH_BORINGSSL=ON
     make -j `nproc`
   fi
   make install
