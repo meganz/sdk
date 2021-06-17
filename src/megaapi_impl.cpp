@@ -23030,9 +23030,7 @@ void MegaApiImpl::sendPendingRequests()
                 const char *uploadToken = request->getSessionKey();
                 const char* fingerprintOriginal = request->getPassword();
                 const char* fingerprint = request->getNewPassword();
-
                 const char * base64fileKey = request->getPrivateKey();
-
 
                 if (!fingerprint || !utf8Name || !uploadToken || !base64fileKey || ISUNDEF(parentHandle))
                 {
@@ -23051,9 +23049,9 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                byte *mFilekey;
+                byte *filekey;
                 size_t binFileKeySize;
-                MegaApi::base64ToBinary(base64fileKey, &mFilekey, &binFileKeySize);
+                MegaApi::base64ToBinary(base64fileKey, &filekey, &binFileKeySize);
 
                 if (binFileKeySize != FILENODEKEYLENGTH)
                 {
@@ -23061,7 +23059,6 @@ void MegaApiImpl::sendPendingRequests()
                     e = API_EARGS;
                     break;
                 }
-
 
                 Node *parentNode = client->nodebyhandle(parentHandle);
                 if (!parentNode)
@@ -23103,9 +23100,10 @@ void MegaApiImpl::sendPendingRequests()
                 attrs.getjson(&tattrstring);
 
                 SymmCipher cipher;
-                cipher.setkey(mFilekey);
+                cipher.setkey(filekey);
                 client->makeattr(&cipher, newnode->attrstring, tattrstring.c_str());
-                newnode->nodekey.assign((char*)mFilekey, FILENODEKEYLENGTH);
+                newnode->nodekey.assign((char*)filekey, FILENODEKEYLENGTH);
+                delete filekey;
                 SymmCipher::xorblock((const byte*)newnode->nodekey.data() + SymmCipher::KEYLENGTH, (byte*)newnode->nodekey.data());
 
                 if (!client->versions_disabled)
