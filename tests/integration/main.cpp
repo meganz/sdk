@@ -11,23 +11,55 @@
     #define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
 #endif
 
+using namespace ::mega;
+
 bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
+int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 std::ofstream gUnopenedOfstream;
 
-std::ostream& out()
+std::string getCurrentTimestamp()
 {
+    using std::chrono::system_clock;
+    auto currentTime = std::chrono::system_clock::now();
+    char buffer[80];
+
+    auto transformed = currentTime.time_since_epoch().count() / 1000000;
+
+    auto millis = transformed % 1000;
+
+    std::time_t tt;
+    tt = system_clock::to_time_t ( currentTime );
+    auto timeinfo = localtime (&tt);
+    strftime (buffer,80,"%H:%M:%S",timeinfo);
+    sprintf(buffer, "%s:%03d",buffer,(int)millis);
+
+    return std::string(buffer);
+}
+
+std::string logTime()
+{
+    return getCurrentTimestamp();
+}
+
+
+std::ostream& out(bool withTime)
+{
+    if (withTime && gOutputToCout)
+    {
+        std::cout << getCurrentTimestamp() << " ";
+    }
     if (gOutputToCout) return std::cout;
     else return gUnopenedOfstream;
 }
 
 namespace {
 
-class MegaLogger : public mega::Logger
+class MegaLogger : public Logger
 {
 public:
     void log(const char* time, int loglevel, const char* source, const char* message
@@ -39,24 +71,9 @@ public:
         std::ostringstream os;
 
         os << "[";
-        if (time)
-        {
-            os << time;
-        }
-        else
-        {
-            auto t = std::time(NULL);
-            char ts[50];
-            struct tm dt;
-            mega::m_gmtime(t, &dt);
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", &dt))
-            {
-                ts[0] = '\0';
-            }
-            os << ts;
-        }
+        os << getCurrentTimestamp();
 #ifdef ENABLE_LOG_PERFORMANCE
-        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": ";
+        os << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": ";
         if (message)
         {
             os << message;
@@ -64,7 +81,7 @@ public:
         // we can have the message AND the direct messages
         for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
 #else
-        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
+        os << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message;
 #endif
         if (source)
         {
@@ -72,7 +89,7 @@ public:
         }
         os << std::endl;
 
-        if (loglevel <= mega::SimpleLogger::logCurrentLevel)
+        if (loglevel <= SimpleLogger::logCurrentLevel)
         {
             if (gRunningInCI)
             {
@@ -89,9 +106,9 @@ public:
 #endif
                 if (!gTestingInvalidArgs)
                 {
-                    if (loglevel <= mega::logError)
+                    if (loglevel <= logError)
                     {
-                        ASSERT_GT(loglevel, mega::logError) << os.str();
+                        ASSERT_GT(loglevel, logError) << os.str();
                     }
                 }
             }
@@ -135,14 +152,15 @@ int main (int argc, char *argv[])
             USER_AGENT = std::string(*it).substr(12);
             argc -= 1;
         }
-        else if (std::string(*it).substr(0, 12) == "--COUT")
+        else if (std::string(*it) == "--COUT")
         {
             gOutputToCout = true;
             argc -= 1;
         }
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
-            mega::MegaClient::APIURL = std::string(*it).substr(9);
+            std::lock_guard<std::mutex> g(g_APIURL_default_mutex);
+            g_APIURL_default = std::string(*it).substr(9);
             argc -= 1;
         }
         else if (std::string(*it) == "--RESUMESESSIONS")
@@ -150,6 +168,19 @@ int main (int argc, char *argv[])
             gResumeSessions = true;
             argc -= 1;
         }
+#ifdef __APPLE__
+        else if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
+        {
+            int fseventsFd = std::stoi(std::string(*it).substr(13));
+            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
+                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
+                return 1;
+            }
+
+            gFseventsFd = fseventsFd;
+            argc -= 1;
+        }
+#endif
         else
         {
             myargv2.push_back(*it);
@@ -158,8 +189,8 @@ int main (int argc, char *argv[])
 
     MegaLogger megaLogger;
 
-    mega::SimpleLogger::setLogLevel(mega::logMax);
-    mega::SimpleLogger::setOutputClass(&megaLogger);
+    SimpleLogger::setLogLevel(logMax);
+    SimpleLogger::setOutputClass(&megaLogger);
 
 #if defined(_WIN32) && defined(NO_READLINE)
     using namespace mega;
@@ -193,7 +224,7 @@ fs::path TestFS::GetTestFolder()
 #else
     auto pid = getpid();
 #endif
-    
+
     fs::path testpath = GetTestBaseFolder() / ("pid_" + std::to_string(pid));
     out() << "Local Test folder: " << testpath << endl;
     return testpath;
@@ -212,7 +243,7 @@ void TestFS::DeleteFolder(fs::path folder)
     error_code ec;
     fs::path oldpath(folder);
     fs::path newpath(folder);
-    
+
     for (int i = 10; i--; )
     {
         newpath += "_del"; // this can be improved later if needed
@@ -279,3 +310,4 @@ fs::path makeNewTestRoot()
     assert(b);
     return p;
 }
+

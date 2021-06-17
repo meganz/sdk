@@ -1596,7 +1596,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     }
 
     // create the new node(s)
-    client->putnodes(deviceNameNode ? deviceNameNode->nodehandle : myBackupsNode->nodehandle, move(newnodes));  // followup in putnodes_result()
+    client->putnodes(deviceNameNode ? deviceNameNode->nodehandle : myBackupsNode->nodehandle, move(newnodes), nullptr, client->reqtag);  // followup in putnodes_result()
 
     return API_OK;
 }
@@ -4068,6 +4068,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
         case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
+        case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
+        case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
     }
     return "UNKNOWN";
 }
@@ -5425,6 +5427,11 @@ int MegaApiImpl::isLoggedIn()
     return result;
 }
 
+bool MegaApiImpl::isEphemeralPlusPlus()
+{
+    return isLoggedIn() == EPHEMERALACCOUNTPLUSPLUS;
+}
+
 void MegaApiImpl::whyAmIBlocked(bool logout, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_WHY_AM_I_BLOCKED, listener);
@@ -5962,15 +5969,13 @@ char MegaApiImpl::userAttributeToScope(int type)
     return scope;
 }
 
+#ifdef WINDOWS_PHONE
 void MegaApiImpl::setStatsID(const char *id)
 {
-    if (!id || !*id || MegaClient::statsid.size())
-    {
-        return;
-    }
-
-    MegaClient::statsid = id;
+    SdkMutexGuard g(sdkMutex);
+    client->statsid = id;
 }
+#endif
 
 bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()
 {
@@ -6214,6 +6219,7 @@ void MegaApiImpl::createAccount(const char* email, const char* password, const c
     request->setNodeHandle(lastPublicHandle);
     request->setAccess(lastPublicHandleType);
     request->setTransferredBytes(lastAccessTimestamp);
+    request->setParamType(MegaApi::CREATE_ACCOUNT);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6223,7 +6229,7 @@ void MegaApiImpl::createEphemeralAccountPlusPlus(const char *firstname, const ch
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setName(firstname);
     request->setText(lastname);
-    request->setParamType(3);
+    request->setParamType(MegaApi::CREATE_EPLUSPLUS_ACCOUNT);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6232,7 +6238,7 @@ void MegaApiImpl::resumeCreateAccount(const char *sid, MegaRequestListener *list
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setSessionKey(sid);
-    request->setParamType(1);
+    request->setParamType(MegaApi::RESUME_ACCOUNT);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6241,7 +6247,7 @@ void MegaApiImpl::resumeCreateAccountEphemeralPlusPlus(const char *sid, MegaRequ
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setSessionKey(sid);
-    request->setParamType(4);
+    request->setParamType(MegaApi::RESUME_EPLUSPLUS_ACCOUNT);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6249,7 +6255,7 @@ void MegaApiImpl::resumeCreateAccountEphemeralPlusPlus(const char *sid, MegaRequ
 void MegaApiImpl::cancelCreateAccount(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
-    request->setParamType(2);
+    request->setParamType(MegaApi::CANCEL_ACCOUNT);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -11506,16 +11512,20 @@ const char *MegaApiImpl::getBasePath()
 
 void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
 {
-    sdkMutex.lock();
-    MegaClient::APIURL = apiURL;
-    if(disablepkp)
     {
-        MegaClient::disablepkp = true;
+        // change defaults for future MegaApi construction
+        lock_guard<mutex> g(g_APIURL_default_mutex);
+        g_APIURL_default = apiURL;
+        g_disablepkp_default = disablepkp;
     }
+
+    // change this MegaApi too
+    SdkMutexGuard g(sdkMutex);
+    client->httpio->APIURL = apiURL;
+    client->httpio->disablepkp = disablepkp;
 
     client->abortbackoff();
     client->disconnect();
-    sdkMutex.unlock();
 }
 
 bool MegaApiImpl::setLanguage(const char *languageCode)
@@ -11705,9 +11715,8 @@ void MegaApiImpl::retrySSLerrors(bool enable)
 
 void MegaApiImpl::setPublicKeyPinning(bool enable)
 {
-    sdkMutex.lock();
-    client->disablepkp = !enable;
-    sdkMutex.unlock();
+    SdkMutexGuard g(sdkMutex);
+    client->httpio->disablepkp = !enable;
 }
 
 void MegaApiImpl::pauseActionPackets()
@@ -12916,32 +12925,13 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getmegaachievements_result(AchievementsDetails *details, error e)
+void MegaApiImpl::getmegaachievements_result(AchievementsDetails *, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ACHIEVEMENTS)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::getwelcomepdf_result(handle ph, string *key, error e)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) return;
-
-    if (e == API_OK)
-    {
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
-        client->reqs.add(new CommandGetPH(client, ph, (const byte*) key->data(), 1));
-        client->reqtag = creqtag;
-    }
-    else
-    {
-        return fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // if import fails, notify account was successfuly created anyway
-    }
 }
 
 void MegaApiImpl::backgrounduploadurl_result(error e, string* url)
@@ -13325,24 +13315,25 @@ void MegaApiImpl::syncupdate_scanning(bool scanning)
     fireOnGlobalSyncStateChanged();
 }
 
-void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *, const char* path)
+void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, const LocalPath& lp)
 {
+    string path = lp.toPath(*fsAccess);
     LOG_debug << "Sync - local folder addition detected: " << path;
     client->abortbackoff(false);
 
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FOLDER_ADITION);
-        event->setPath(path);
+        event->setPath(path.c_str());
         fireOnSyncEvent(megaSync, event);
     }
 }
 
-void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localNode)
+void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, const LocalPath& lp)
 {
+    string path = lp.toPath(*fsAccess);
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath().toPath(*fsAccess);
     LOG_debug << "Sync - local folder deletion detected: " << path.c_str();
 
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
@@ -13353,24 +13344,25 @@ void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localN
     }
 }
 
-void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *, const char* path)
+void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, const LocalPath& lp)
 {
+    string path = lp.toPath(*fsAccess);
     LOG_debug << "Sync - local file addition detected: " << path;
     client->abortbackoff(false);
 
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_ADDITION);
-        event->setPath(path);
+        event->setPath(path.c_str());
         fireOnSyncEvent(megaSync, event);
     }
 }
 
-void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNode)
+void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, const LocalPath& lp)
 {
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath().toPath(*fsAccess);
+    string path = lp.toPath(*fsAccess);
     LOG_debug << "Sync - local file deletion detected: " << path.c_str();
 
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
@@ -13381,31 +13373,33 @@ void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNod
     }
 }
 
-void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *, const char* path)
+void MegaApiImpl::syncupdate_local_file_change(Sync *sync, const LocalPath& lp)
 {
+    string path = lp.toPath(*fsAccess);
     LOG_debug << "Sync - local file change detected: " << path;
     client->abortbackoff(false);
 
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_CHANGED);
-        event->setPath(path);
+        event->setPath(path.c_str());
         fireOnSyncEvent(megaSync, event);
     }
 }
 
-void MegaApiImpl::syncupdate_local_move(Sync *sync, LocalNode *localNode, const char *to)
+void MegaApiImpl::syncupdate_local_move(Sync *sync, const LocalPath& oldPath, const LocalPath& newPath)
 {
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath().toPath(*fsAccess);
-    LOG_debug << "Sync - local rename/move " << path.c_str() << " -> " << to;
+    string path = oldPath.toPath(*fsAccess);
+    string path2 = newPath.toPath(*fsAccess);
+    LOG_debug << "Sync - local rename/move " << path.c_str() << " -> " << path2.c_str();
 
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_MOVE);
         event->setPath(path.c_str());
-        event->setNewPath(to);
+        event->setNewPath(path2.c_str());
         fireOnSyncEvent(megaSync, event);
     }
 }
@@ -13423,7 +13417,7 @@ void MegaApiImpl::syncupdate_get(Sync *sync, Node* node, const char *path)
     }
 }
 
-void MegaApiImpl::syncupdate_put(Sync *sync, LocalNode *, const char *path)
+void MegaApiImpl::syncupdate_put(Sync *sync, const char *path)
 {
     LOG_debug << "Sync - sending file " << path;
 
@@ -13728,7 +13722,7 @@ void MegaApiImpl::pcrs_updated(PendingContactRequest **r, int count)
     delete requestList;
 }
 
-void MegaApiImpl::setattr_result(handle h, error e)
+void MegaApiImpl::setattr_result(handle h, Error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13867,7 +13861,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     }
     else    // TYPE_CREATE_ACCOUNT
     {
-        if (e != API_OK || request->getParamType() == 1)   // resuming ephemeral session
+        if (e != API_OK || request->getParamType() == MegaApi::RESUME_ACCOUNT)   // resuming ephemeral session
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             return;
@@ -13888,11 +13882,14 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             {
                 client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())), -1);
             }
+            client->reqtag = creqtag;   // restore current reqtag, for future requests
 
-            client->reqtag = client->restag;
-            byte pwkey[SymmCipher::KEYLENGTH];            
-            if (request->getParamType() == 3)   // creation of account ephemeral++
+            // Ephemeral++ don't have an email when account is created, so cannot send a signup link -> account is ready
+            if (request->getParamType() == MegaApi::CREATE_EPLUSPLUS_ACCOUNT)   // creation of account E++
             {
+                // import the PDF silently... (not chained)
+                client->getwelcomepdf();
+
                 // The session id cannot follow the same pattern, since no password is provided (yet)
                 // In consequence, the session resumption requires a regular session id (instead of the
                 // usual one with the user's handle and the pwd cipher)
@@ -13900,10 +13897,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                 client->dumpsession(sid);
                 request->setPrivateKey(sid.c_str());
 
-                // Ephemeral++ don't have an email when account is created, so cannot send a signup link
-                client->getwelcomepdf();
+                fireOnRequestFinish(request,  make_unique<MegaErrorPrivate>(e));
+                return;
             }
-            else if (!request->getPrivateKey()) // ...and finally send confirmation link
+
+            // Ephemeral accounts have an email -> send signup link
+            if (!request->getPrivateKey()) // ...and finally send confirmation link
             {
                 if (client->nsr_enabled)
                 {
@@ -13924,8 +13923,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                 }
                 else
                 {
+                    byte pwkey[SymmCipher::KEYLENGTH];
                     client->pw_key(request->getPassword(), pwkey);
+
+                    client->reqtag = client->restag;    // use result-tag to chain the request to this one
                     client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
+                    client->reqtag = creqtag;
 
                     char* buf = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
                     Base64::btoa((byte *)pwkey, SymmCipher::KEYLENGTH, buf);
@@ -13935,10 +13938,13 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             }
             else
             {
+                byte pwkey[SymmCipher::KEYLENGTH];
                 Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
+
+                client->reqtag = client->restag;    // use result-tag to chain the request to this one
                 client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
+                client->reqtag = creqtag;
             }
-            client->reqtag = creqtag;
         }
     }
 }
@@ -14011,7 +14017,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
                     (request->getType() != MegaRequest::TYPE_MOVE) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
                     (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
                     (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
@@ -14046,13 +14051,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     {
         request->setNodeHandle(h);
         request->setFlag(targetOverride);
-        if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
-            return;
-        }
 #ifdef ENABLE_SYNC
-        else if (request->getType() == MegaRequest::TYPE_ADD_SYNC && e == API_OK)
+        if (request->getType() == MegaRequest::TYPE_ADD_SYNC && e == API_OK)
         {
             // folders for the new backup have been created -> now proceed with the sync
             handle backupHandle = nn.back().mAddedHandle;
@@ -14826,7 +14826,7 @@ void MegaApiImpl::logout_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, error result)
+void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, Error result)
 {
     // notify apps about the availability/update of user-flags, such as `aplvp`
     // (note that usually the API command is triggered internally, so no request is associated)
@@ -14901,13 +14901,7 @@ void MegaApiImpl::openfilelink_result(const Error& result)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
-
-    if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
-    {
-        return fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // if import fails, notify account was successfuly created anyway
-    }
+                    (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE))) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
 }
@@ -14920,8 +14914,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
             || ( request->getType() != MegaRequest::TYPE_IMPORT_LINK
-                 && request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE
-                 && request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) ) return;
+                 && request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)) return;
 
     if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
     {
@@ -14974,20 +14967,9 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         request->setFlag(true);
     }
 
-    if ((request->getType() == MegaRequest::TYPE_IMPORT_LINK)
-            || (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT))
+    if (request->getType() == MegaRequest::TYPE_IMPORT_LINK)
     {
-        handle ovhandle = UNDEF;
-        handle parenthandle = UNDEF;
-        if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT) // importing Welcome PDF
-        {
-            parenthandle = client->rootnodes[0];
-        }
-        else
-        {
-            parenthandle = request->getParentHandle();
-        }
-
+        handle parenthandle = request->getParentHandle();
         Node *target = client->nodebyhandle(parenthandle);
         if (!target)
         {
@@ -14995,6 +14977,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
             return;
         }
 
+        handle ovhandle = UNDEF;
         Node *ovn = client->childnodebyname(target, validName.c_str(), true);
         if (ovn)
         {
@@ -15029,7 +15012,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         request->setTag(nextTag);
         requestMap[nextTag]=request;
 
-        client->putnodes(parenthandle, move(newnodes));
+        client->putnodes(parenthandle, move(newnodes), nullptr, nextTag);
     }
     else
     {
@@ -15677,13 +15660,22 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
     // save uh and pwcipher for session resumption of ephemeral accounts
-    char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
-    Base64::btoa((byte*) &uh, sizeof uh, buf);
     string sid;
-    sid.append(buf);
-    sid.append("#");
-    Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
-    sid.append(buf);
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
+        Base64::btoa((byte*) &uh, sizeof uh, buf);
+        sid.append(buf);
+        sid.append("#");
+        Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
+        sid.append(buf);
+    }
+    else // ephemeral++
+    {
+        string session;
+        client->dumpsession(session);
+        sid = Base64::btoa(session);
+    }
     request->setSessionKey(sid.c_str());
 
     // chain a fetchnodes to get waitlink for ephemeral account
@@ -16079,13 +16071,10 @@ void MegaApiImpl::sendsignuplink_result(error e)
                     (request->getType() != MegaRequest::TYPE_SEND_SIGNUP_LINK))) return;
 
     if ((request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
-            && (e == API_OK) && (request->getParamType() == 0))   // new account has been created
+            && (e == API_OK) && (request->getParamType() == MegaApi::CREATE_ACCOUNT))   // new account has been created
     {
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
+        // import the PDF silently... (not chained)
         client->getwelcomepdf();
-        client->reqtag = creqtag;
-        return;
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -18484,11 +18473,11 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                             if (uploadToInbox)
                             {
-                                client->putnodes(inboxTarget, move(tc.nn));
+                                client->putnodes(inboxTarget, move(tc.nn), nextTag);
                             }
                             else
                             {
-                                client->putnodes(parent->nodehandle, move(tc.nn));
+                                client->putnodes(parent->nodehandle, move(tc.nn), nullptr, nextTag);
                             }
 
                             transfer->setDeltaSize(size);
@@ -18736,7 +18725,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     transfer->setPath(wLocalPath.toPath(*fsAccess).c_str());
                     f->setTransfer(transfer);
-                    bool ok = client->startxfer(GET, f, committer, true, startFirst);
+
+                    bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
+                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -18930,15 +18921,15 @@ static void appendFileAttribute(string& s, int n, MegaHandle h)
     }
 }
 
-static error updateAttributesMapWithCoordinates(AttrMap& attrs, int latitude, int longitude, bool unshareable, MegaClient* client)
+static error updateAttributesMapWithCoordinates(attr_map& attrUpdates, int latitude, int longitude, bool unshareable, MegaClient* client)
 {
     static const nameid coordsNameShareable = AttrMap::string2nameid("l");
     static const nameid coordsNameUnshareable = AttrMap::string2nameid("gp");
 
     if (longitude == MegaNode::INVALID_COORDINATE && latitude == MegaNode::INVALID_COORDINATE)
     {
-        attrs.map.erase(coordsNameShareable);
-        attrs.map.erase(coordsNameUnshareable);
+        attrUpdates[coordsNameShareable] = "";
+        attrUpdates[coordsNameUnshareable] = "";
     }
     else
     {
@@ -18969,13 +18960,13 @@ static error updateAttributesMapWithCoordinates(AttrMap& attrs, int latitude, in
             memcpy(data + 8, (void*)coordsValue.data(), coordsValue.size());
             client->setkey(&c, client->unshareablekey.data());
             c.ctr_crypt(data, unsigned(8 + coordsValue.size()), 0, 0, NULL, true);
-            attrs.map[coordsNameUnshareable] = Base64Str<SymmCipher::BLOCKSIZE>(data);
-            attrs.map.erase(coordsNameShareable);
+            attrUpdates[coordsNameUnshareable] = Base64Str<SymmCipher::BLOCKSIZE>(data);
+            attrUpdates[coordsNameShareable] = "";
         }
         else
         {
-            attrs.map[coordsNameShareable] = coordsValue;
-            attrs.map.erase(coordsNameUnshareable);
+            attrUpdates[coordsNameShareable] = coordsValue;
+            attrUpdates[coordsNameUnshareable] = "";
         }
     }
     return API_OK;
@@ -19185,7 +19176,7 @@ void MegaApiImpl::sendPendingRequests()
             client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
             // add the newly generated folder node
-            client->putnodes(parent->nodehandle, move(newnodes));
+            client->putnodes(parent->nodehandle, move(newnodes), nullptr, nextTag);
             break;
         }
         case MegaRequest::TYPE_MOVE:
@@ -19331,7 +19322,7 @@ void MegaApiImpl::sendPendingRequests()
                     client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
-                client->putnodes(newParent->nodehandle, move(tc.nn));
+                client->putnodes(newParent->nodehandle, move(tc.nn), nullptr, nextTag);
                 e = API_OK;
                 break;
             }
@@ -19429,11 +19420,11 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, std::move(tc.nn), megaNode->getChatAuth());
+                    client->putnodes(target->nodehandle, std::move(tc.nn), megaNode->getChatAuth(), nextTag);
                 }
                 else
                 {
-                    client->putnodes(email, move(tc.nn));
+                    client->putnodes(email, move(tc.nn), nextTag);
                 }
             }
             else
@@ -19517,11 +19508,11 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, move(tc.nn));
+                    client->putnodes(target->nodehandle, move(tc.nn), nullptr, nextTag);
                 }
                 else
                 {
-                    client->putnodes(email, move(tc.nn));
+                    client->putnodes(email, move(tc.nn), nextTag);
                 }
             }
             break;
@@ -19572,7 +19563,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
 
-            client->putnodes(current->parent->nodehandle, move(newnodes));
+            client->putnodes(current->parent->nodehandle, move(newnodes), nullptr, nextTag);
             break;
         }
         case MegaRequest::TYPE_RENAME:
@@ -19591,8 +19582,7 @@ void MegaApiImpl::sendPendingRequests()
 
             string sname = newName;
             fsAccess->normalize(&sname);
-            node->attrs.map['n'] = sname;
-            e = client->setattr(node);
+            e = client->setattr(node, attr_map('n', sname), client->reqtag, nullptr);
             break;
         }
         case MegaRequest::TYPE_REMOVE:
@@ -19792,8 +19782,7 @@ void MegaApiImpl::sendPendingRequests()
                 if (client->sctable)
                 {
                     client->sctable->remove();
-                    delete client->sctable;
-                    client->sctable = NULL;
+                    client->sctable.reset();
                     client->pendingsccommit = false;
                     client->cachedscsn = UNDEF;
                 }
@@ -20378,6 +20367,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            attr_map attrUpdates;
+
             if (isOfficial)
             {
                 int type = request->getParamType();
@@ -20392,7 +20383,7 @@ void MegaApiImpl::sendPendingRequests()
 
                     if (secs == MegaNode::INVALID_DURATION)
                     {
-                        node->attrs.map.erase('d');
+                        attrUpdates['d'] = "";
                     }
                     else
                     {
@@ -20400,7 +20391,7 @@ void MegaApiImpl::sendPendingRequests()
                         Base64::itoa(secs, &attrVal);
                         if (attrVal.size())
                         {
-                            node->attrs.map['d'] = attrVal;
+                            attrUpdates['d'] = attrVal;
                         }
                     }
                 }
@@ -20416,7 +20407,7 @@ void MegaApiImpl::sendPendingRequests()
                     int latitude = request->getTransferTag();
                     int unshareable = request->getAccess();
 
-                    e = updateAttributesMapWithCoordinates(node->attrs, latitude, longitude, !!unshareable, client);
+                    e = updateAttributesMapWithCoordinates(attrUpdates, latitude, longitude, !!unshareable, client);
                     if (e != API_OK)
                     {
                         break;
@@ -20425,15 +20416,13 @@ void MegaApiImpl::sendPendingRequests()
                 else if (type == MegaApi::NODE_ATTR_ORIGINALFINGERPRINT)
                 {
                     nameid nid = AttrMap::string2nameid("c0");
-                    SymmCipher tkey;
-                    string tattrstring;
                     if (!request->getText())
                     {
-                        node->attrs.map.erase(nid);
+                        attrUpdates[nid] = "";
                     }
                     else
                     {
-                        node->attrs.map[nid] = request->getText();
+                        attrUpdates[nid] = request->getText();
                     }
                 }
                 else if (type == MegaApi::NODE_ATTR_LABEL || type == MegaApi::NODE_ATTR_FAV)
@@ -20461,18 +20450,18 @@ void MegaApiImpl::sendPendingRequests()
                         value = 1;
                     }
 
+                    if (remove)
+                    {
+                        attrUpdates[nid] = "";
+                    }
+                    else
+                    {
+                        attrUpdates[nid] = std::to_string(value);
+                    }
+
                     do
                     {
-                        if (remove)
-                        {
-                            current->attrs.map.erase(nid);
-                        }
-                        else
-                        {
-                           current->attrs.map[nid] = std::to_string(value);
-                        }
-
-                        e = client->setattr(current);
+                        e = client->setattr(current, attr_map(attrUpdates), client->reqtag, nullptr);
 
                         if (current->type != FILENODE || !current->children.size())
                         {
@@ -20485,6 +20474,9 @@ void MegaApiImpl::sendPendingRequests()
                         current = current->children.back();
                     }
                     while (current);
+
+                    attrUpdates.clear();
+
                     break;
                 }
                 else
@@ -20513,17 +20505,17 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     string svalue = attrValue;
                     fsAccess->normalize(&svalue);
-                    node->attrs.map[attr] = svalue;
+                    attrUpdates[attr] = svalue;
                 }
                 else
                 {
-                    node->attrs.map.erase(attr);
+                    attrUpdates[attr] = "";
                 }
             }
 
-            if (!e)
+            if (!e && !attrUpdates.empty())
             {
-                e = client->setattr(node);
+                e = client->setattr(node, std::move(attrUpdates), client->reqtag, nullptr);
             }
 
             break;
@@ -20694,10 +20686,10 @@ void MegaApiImpl::sendPendingRequests()
             const char *lastname = request->getText();
             const char *pwkey = request->getPrivateKey();
             const char *sid = request->getSessionKey();
-            bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
-            bool cancelProcess = (request->getParamType() == 2);
-            bool createEphemeralPlusPlus = (request->getParamType() == 3);   // resume existing ephemeral++ account
-            bool resumeEphemeralPlusPlus = (request->getParamType() == 4);  // create account, but ephemeral++
+            bool resumeProcess = (request->getParamType() == MegaApi::RESUME_ACCOUNT);   // resume existing ephemeral account
+            bool cancelProcess = (request->getParamType() == MegaApi::CANCEL_ACCOUNT);
+            bool createEphemeralPlusPlus = (request->getParamType() == MegaApi::CREATE_EPLUSPLUS_ACCOUNT);   // create ephemeral++ account
+            bool resumeEphemeralPlusPlus = (request->getParamType() == MegaApi::RESUME_EPLUSPLUS_ACCOUNT);   // resume existing ephemeral++ account
             handle lastPublicHandle = request->getNodeHandle();
             int lastPublicHandleType = request->getAccess();
             int64_t lastAccessTimestamp =request->getTransferredBytes();
@@ -20763,6 +20755,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
+                    assert(request->getParamType() == MegaApi::CREATE_ACCOUNT);
                     client->createephemeral();
                 }
             }
@@ -22961,10 +22954,13 @@ void MegaApiImpl::sendPendingRequests()
             }
             int lat, lon;
             encodeCoordinates(uploadState->latitude, uploadState->longitude, lat, lon);
-            if (API_OK != (e = updateAttributesMapWithCoordinates(attrs, lat, lon, uploadState->unshareableGPS, client)))
+            attr_map updates;
+            if (API_OK != (e = updateAttributesMapWithCoordinates(updates, lat, lon, uploadState->unshareableGPS, client)))
             {
                 break;
             }
+            attrs.applyUpdates(updates);
+
             string tattrstring;
             attrs.getjson(&tattrstring);
             SymmCipher cipher;

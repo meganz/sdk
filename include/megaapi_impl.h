@@ -55,7 +55,6 @@
 //Choose one of these options.
 //Otherwise, C++11 threads and mutexes will be used
 //#define USE_PTHREAD
-//#define USE_QT
 
 ////////// Support for thumbnails and previews.
 //If you selected QT for threads and mutexes, it will be also used for thumbnails and previews
@@ -69,23 +68,15 @@
 namespace mega
 {
 
-#ifdef USE_QT
-class MegaThread : public QtThread {};
-class MegaSemaphore : public QtSemaphore {};
-#elif USE_PTHREAD
+#if USE_PTHREAD
 class MegaThread : public PosixThread {};
 class MegaSemaphore : public PosixSemaphore {};
-#elif defined(_WIN32) && !defined(USE_CPPTHREAD) && !defined(WINDOWS_PHONE)
-class MegaThread : public Win32Thread {};
-class MegaSemaphore : public Win32Semaphore {};
 #else
 class MegaThread : public CppThread {};
 class MegaSemaphore : public CppSemaphore {};
 #endif
 
-#ifdef USE_QT
-class MegaGfxProc : public GfxProcQT {};
-#elif USE_FREEIMAGE
+#if USE_FREEIMAGE
 class MegaGfxProc : public GfxProcFreeImage {};
 #elif TARGET_OS_IPHONE
 class MegaGfxProc : public GfxProcCG {};
@@ -2151,8 +2142,9 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToLongName(int);
         static int userAttributeFromString(const char *name);
         static char userAttributeToScope(int);
-        static void setStatsID(const char *id);
-
+#ifdef WINDOWS_PHONE
+        void setStatsID(const char *id);
+#endif
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
@@ -2211,6 +2203,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
+        bool isEphemeralPlusPlus();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
         int64_t getAccountCreationTs();
@@ -2955,7 +2948,7 @@ protected:
         void prelogin_result(int, string*, string*, error) override;
         void login_result(error) override;
         void logout_result(error) override;
-        void userdata_result(string*, string*, string*, error) override;
+        void userdata_result(string*, string*, string*, Error) override;
         void pubkey_result(User *) override;
 
         // ephemeral session creation/resumption result
@@ -3011,7 +3004,7 @@ protected:
         void account_details(AccountDetails*, error) override;
         void querytransferquota_result(int) override;
 
-        void setattr_result(handle, error) override;
+        void setattr_result(handle, Error) override;
         void rename_result(handle, error) override;
         void unlink_result(handle, error) override;
         void unlinkversions_result(error) override;
@@ -3125,7 +3118,6 @@ protected:
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
         void getmegaachievements_result(AchievementsDetails*, error) override;
-        void getwelcomepdf_result(handle, string*, error) override;
         void backgrounduploadurl_result(error, string*) override;
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;
@@ -3183,14 +3175,14 @@ protected:
         void sync_removed(handle backupId) override;
 
         void syncupdate_scanning(bool scanning) override;
-        void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;
-        void syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode) override;
-        void syncupdate_local_file_addition(Sync* sync, LocalNode* localNode, const char *path) override;
-        void syncupdate_local_file_deletion(Sync* sync, LocalNode* localNode) override;
-        void syncupdate_local_file_change(Sync* sync, LocalNode* localNode, const char *path) override;
-        void syncupdate_local_move(Sync* sync, LocalNode* localNode, const char* path) override;
+        void syncupdate_local_folder_addition(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_addition(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_deletion(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_change(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_move(Sync* sync, const LocalPath& oldPath, const LocalPath& newPath) override;
         void syncupdate_get(Sync* sync, Node *node, const char* path) override;
-        void syncupdate_put(Sync* sync, LocalNode *localNode, const char*) override;
+        void syncupdate_put(Sync* sync, const char*) override;
         void syncupdate_remote_file_addition(Sync *sync, Node* n) override;
         void syncupdate_remote_file_deletion(Sync *sync, Node* n) override;
         void syncupdate_remote_folder_addition(Sync *sync, Node* n) override;

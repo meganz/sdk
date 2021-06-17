@@ -7840,6 +7840,15 @@ class MegaApi
             GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
         };
 
+        enum
+        {
+            CREATE_ACCOUNT              = 0,
+            RESUME_ACCOUNT              = 1,
+            CANCEL_ACCOUNT              = 2,
+            CREATE_EPLUSPLUS_ACCOUNT    = 3,
+            RESUME_EPLUSPLUS_ACCOUNT    = 4,
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -8259,13 +8268,7 @@ class MegaApi
         /**
          * @brief Set the ID for statistics
          *
-         * This function is not thread-safe so it must be used before
-         * the creation of instances of MegaApi to not interfere with
-         * the internal thread. Otherwise, the behavior of this
-         * function is undefined and it could even crash.
-         *
-         * Only the first call to this function will correctly set the ID.
-         * If you call this function more times, it won't have any effect.
+         * Call this function one time only per MegaApi, before using that MegaApi
          *
          * The id parameter is hashed before being used
          *
@@ -8955,6 +8958,7 @@ class MegaApi
          * - MegaRequest::getPassword - Returns the password for the account
          * - MegaRequest::getName - Returns the firstname of the user
          * - MegaRequest::getText - Returns the lastname of the user
+         * - MegaRequest::getParamType - Returns the value MegaApi::CREATE_ACCOUNT
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -8985,7 +8989,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the firstname of the user
          * - MegaRequest::getText - Returns the lastname of the user
-         * - MegaRequest::getParamType - Returns the value 3
+         * - MegaRequest::getParamType - Returns the value MegaApi:CREATE_EPLUSPLUS_ACCOUNT
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -9014,6 +9018,7 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
          * - MegaRequest::getAccess - Returns the type of lastPublicHandle
          * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+         * - MegaRequest::getParamType - Returns the value MegaApi::CREATE_ACCOUNT
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -9059,7 +9064,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getSessionKey - Returns the session id to resume the process
-         * - MegaRequest::getParamType - Returns the value 1
+         * - MegaRequest::getParamType - Returns the value MegaApi::RESUME_ACCOUNT
          *
          * In case the account is already confirmed, the associated request will fail with
          * error MegaError::API_EARGS.
@@ -9087,7 +9092,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getSessionKey - Returns the session id to resume the process
-         * - MegaRequest::getParamType - Returns the value 4
+         * - MegaRequest::getParamType - Returns the value MegaApi::RESUME_EPLUSPLUS_ACCOUNT
          *
          * In case the account is already confirmed, the associated request will fail with
          * error MegaError::API_EARGS.
@@ -9106,7 +9111,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the value 2
+         * - MegaRequest::getParamType - Returns the value MegaApi::CANCEL_ACCOUNT
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -9463,6 +9468,12 @@ class MegaApi
          * @return 0 if not logged in, Otherwise, a number > 0
          */
         int isLoggedIn();
+
+        /**
+         * @brief Check if we are logged in into an Ephemeral account ++
+         * @return true if logged into an Ephemeral account ++, Otherwise return false
+         */
+        bool isEphemeralPlusPlus();
 
         /**
          * @brief Check the reason of being blocked.
