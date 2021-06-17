@@ -37,19 +37,26 @@ namespace mega {
 // FIXME: prevent synced folder from being moved into another synced folder
 
 
-bool MegaClient::disablepkp = false;
+// default for disable public key pinning (for testing purposes) (determines if we check the public key from APIURL)
+bool g_disablepkp_default = false;
 
 // root URL for API access
-string MegaClient::APIURL = "https://g.api.mega.co.nz/";
+// MegaClient statics must be const or we get threading problems.  And this one is edited so it can't be const.
+// Instead, we require a mutex to be locked before editing/reading it.  MegaClient's HttpIO takes a copy on construction
+std::mutex g_APIURL_default_mutex;
+string g_APIURL_default = "https://g.api.mega.co.nz/";
 
 // root URL for GeLB requests
-string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
+// MegaClient statics must be const or we get threading problems
+const string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 
 // root URL for chat stats
-string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
+// MegaClient statics must be const or we get threading problems
+const string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
 // root URL for Website
-string MegaClient::MEGAURL = "https://mega.nz";
+// MegaClient statics must be const or we get threading problems
+const string MegaClient::MEGAURL = "https://mega.nz";
 
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
@@ -88,9 +95,6 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
-
-// stats id
-std::string MegaClient::statsid;
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
@@ -917,17 +921,17 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
     looprequested = true;
 }
 
-std::string MegaClient::getDeviceid() const
+std::string MegaClient::getDeviceid()
 {
     if (MegaClient::statsid.empty())
     {
-        fsaccess->statsid(&MegaClient::statsid);
+        fsaccess->statsid(&statsid);
     }
 
     return MegaClient::statsid;
 }
 
-std::string MegaClient::getDeviceidHash() const
+std::string MegaClient::getDeviceidHash()
 {
     string deviceIdHash;
     string id = getDeviceid();
@@ -2072,7 +2076,7 @@ void MegaClient::exec()
                     bool suppressSID = true;
                     reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes);
 
-                    pendingcs->posturl = APIURL;
+                    pendingcs->posturl = httpio->APIURL;
 
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(reqid, sizeof reqid);
@@ -2336,7 +2340,7 @@ void MegaClient::exec()
                 pendingscUserAlerts.reset(new HttpReq());
                 pendingscUserAlerts->logname = clientname + "sc50 ";
                 pendingscUserAlerts->protect = true;
-                pendingscUserAlerts->posturl = APIURL;
+                pendingscUserAlerts->posturl = httpio->APIURL;
                 pendingscUserAlerts->posturl.append("sc");  // notifications/useralerts on sc rather than wsc, no timeout
                 pendingscUserAlerts->posturl.append("?c=50");
                 pendingscUserAlerts->posturl.append(getAuthURI());
@@ -2353,7 +2357,7 @@ void MegaClient::exec()
                 }
                 else
                 {
-                    pendingsc->posturl = APIURL;
+                    pendingsc->posturl = httpio->APIURL;
                     pendingsc->posturl.append("wsc");
                 }
 
@@ -3068,7 +3072,7 @@ void MegaClient::exec()
             // report hosts affected by failed requests
             LOG_debug << "Sending badhost report: " << badhosts;
             badhostcs = new HttpReq();
-            badhostcs->posturl = APIURL;
+            badhostcs->posturl = httpio->APIURL;
             badhostcs->posturl.append("pf?h");
             badhostcs->outbuf = badhosts;
             badhostcs->type = REQ_JSON;
@@ -3084,7 +3088,7 @@ void MegaClient::exec()
                 LOG_debug << "Sending lock request";
                 workinglockcs.reset(new HttpReq());
                 workinglockcs->logname = clientname + "accountBusyCheck ";
-                workinglockcs->posturl = APIURL;
+                workinglockcs->posturl = httpio->APIURL;
                 workinglockcs->posturl.append("cs?");
                 workinglockcs->posturl.append(getAuthURI());
                 workinglockcs->posturl.append("&wlt=1");
@@ -12344,35 +12348,29 @@ void MegaClient::initializekeys()
         if (tlvRecords)
         {
 
-            if (tlvRecords->find(EdDSA::TLV_KEY))
+            string prEd255;
+            if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
             {
-                string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-                if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
+                if (!signkey->initializationOK)
                 {
-                    signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
-                    if (!signkey->initializationOK)
-                    {
-                        delete signkey;
-                        signkey = NULL;
-                        clearKeys();
-                        return;
-                    }
+                    delete signkey;
+                    signkey = NULL;
+                    clearKeys();
+                    return;
                 }
             }
 
-            if (tlvRecords->find(ECDH::TLV_KEY))
+            string prCu255;
+            if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
             {
-                string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-                if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                chatkey = new ECDH((unsigned char *) prCu255.data());
+                if (!chatkey->initializationOK)
                 {
-                    chatkey = new ECDH((unsigned char *) prCu255.data());
-                    if (!chatkey->initializationOK)
-                    {
-                        delete chatkey;
-                        chatkey = NULL;
-                        clearKeys();
-                        return;
-                    }
+                    delete chatkey;
+                    chatkey = NULL;
+                    clearKeys();
+                    return;
                 }
             }
             delete tlvRecords;
@@ -14227,7 +14225,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 if (fsaccess->renamelocal(curpath, localpath))
                 {
                     app->syncupdate_local_move(rit->second->localnode->sync,
-                                               rit->second->localnode->getLocalPath(), 
+                                               rit->second->localnode->getLocalPath(),
                                                localpath);
 
                     // update LocalNode tree to reflect the move/rename
@@ -15419,14 +15417,13 @@ string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& te
 string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& encoded)
 {
     string unencoded = Base64::atob(encoded);
+    string value;
 
     unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&unencoded, &key));
-    if (tlv && tlv->find(name)) {
-        // we have to check with "find" as get() will throw an exception (in contrast to the documented behaviour) if the key is not present
-        return tlv->get(name);
-    }
+    if (tlv)
+        tlv->get(name, value);
 
-    return "";
+    return value;
 }
 
 #ifdef ENABLE_SYNC

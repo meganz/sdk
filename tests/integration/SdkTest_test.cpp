@@ -247,7 +247,7 @@ void SdkTest::SetUp()
 
 void SdkTest::TearDown()
 {
-    out() << "Test done, teardown starts" << endl;
+    out() << "Test done, teardown starts";
     // do some cleanup
 
     for (size_t i = 0; i < megaApi.size(); ++i)
@@ -265,7 +265,7 @@ void SdkTest::TearDown()
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
 
-    out() << "Cleaning up account" << endl;
+    out() << "Cleaning up account";
     Cleanup();
 
     releaseMegaApi(1);
@@ -274,7 +274,7 @@ void SdkTest::TearDown()
     {
         releaseMegaApi(0);
     }
-    out() << "Teardown done, test exiting" << endl;
+    out() << "Teardown done, test exiting";
 }
 
 void SdkTest::Cleanup()
@@ -873,7 +873,7 @@ string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
 void SdkTest::getAccountsForTest(unsigned howMany)
 {
     assert(howMany > 0 && howMany <= 3);
-    out() << "Test setting up for " << howMany << " accounts " << endl;
+    out() << "Test setting up for " << howMany << " accounts ";
 
     megaApi.resize(howMany);
     mApi.resize(howMany);
@@ -903,12 +903,12 @@ void SdkTest::getAccountsForTest(unsigned howMany)
 
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
-            out() << "Logging into account " << index << endl;
+            out() << "Logging into account " << index;
             trackers[index] = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
         }
         else
         {
-            out() << "Resuming session for account " << index << endl;
+            out() << "Resuming session for account " << index;
             trackers[index] = asyncRequestFastLogin(index, gSessionIDs[index].c_str());
         }
     }
@@ -926,7 +926,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     // perform parallel fetchnodes for each
     for (unsigned index = 0; index < howMany; ++index)
     {
-        out() << "Fetching nodes for account " << index << endl;
+        out() << "Fetching nodes for account " << index;
         trackers[index] = asyncRequestFetchnodes(index);
     }
 
@@ -941,9 +941,9 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     ASSERT_FALSE(anyFetchnodesFailed);
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << "Cleaning up account 0" << endl;
+    out() << "Cleaning up account 0";
     Cleanup();
-    out() << "Test setup done, test starts" << endl;
+    out() << "Test setup done, test starts";
 }
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
@@ -1010,7 +1010,7 @@ void SdkTest::removeContact(string email, int timeout)
 void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
 {
     int apiIndex = 0;
-    ASSERT_EQ(MegaError::API_OK, synchronousShare(apiIndex, n, email, action)) << "Folder sharing failed" << endl << "User: " << email << " Action: " << action;
+    ASSERT_EQ(MegaError::API_OK, synchronousShare(apiIndex, n, email, action)) << "Folder sharing failed" << "User: " << email << " Action: " << action;
 }
 
 void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable)
@@ -3049,7 +3049,7 @@ bool cmp(const autocomplete::CompletionState& c, std::vector<std::string>& s)
     {
         for (size_t i = 0; i < c.completions.size() || i < s.size(); ++i)
         {
-            out() << (i < s.size() ? s[i] : "") << "/" << (i < c.completions.size() ? c.completions[i].s : "") << endl;
+            out() << (i < s.size() ? s[i] : "") << "/" << (i < c.completions.size() ? c.completions[i].s : "");
         }
     }
     return result;
@@ -4346,7 +4346,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    //cout << "Passed round " << i << endl; }
+    //cout << "Passed round " << i; }
 
 }
 #endif
@@ -4478,7 +4478,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     void onTransferTemporaryError(MegaApi *api, MegaTransfer * /*transfer*/, MegaError* error) override
     {
         ostringstream msg;
-        msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL") << endl;
+        msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL");
         api->log(MegaApi::LOG_LEVEL_WARNING, msg.str().c_str());
     }
     bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override
@@ -4667,7 +4667,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     ASSERT_GT(randomRunsDone, 10 /*(gRunningInCI ? 10 : 100)*/ );
 
     ostringstream msg;
-    msg << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
+    msg << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total";
     megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, msg.str().c_str());
 
     delete nimported;
@@ -4724,13 +4724,13 @@ TEST_F(SdkTest, SdkRecentsTest)
     ostringstream logMsg;
     for (int i = 0; i < buckets->size(); ++i)
     {
-        logMsg << "bucket " << to_string(i) << endl;
+        logMsg << "bucket " << to_string(i);
         megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, logMsg.str().c_str());
         auto bucket = buckets->get(i);
         for (int j = 0; j < buckets->get(i)->getNodes()->size(); ++j)
         {
             auto node = bucket->getNodes()->get(j);
-            logMsg << node->getName() << " " << node->getCreationTime() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia() << endl;
+            logMsg << node->getName() << " " << node->getCreationTime() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia();
             megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, logMsg.str().c_str());
         }
     }
@@ -5762,7 +5762,7 @@ struct SyncListener : MegaListener
     {
         for (auto &s: mErrors)
         {
-            out() << "SyncListener error: " << s << endl;
+            out() << "SyncListener error: " << s;
         }
         return anyErrors;
     }
@@ -5775,7 +5775,7 @@ struct SyncListener : MegaListener
             if (!e.empty())
             {
                 mErrors.push_back(e);
-                out() << "SyncListener added error: " << e << endl;
+                out() << "SyncListener added error: " << e;
             }
         }
     }
@@ -5789,17 +5789,17 @@ struct SyncListener : MegaListener
     void onSyncFileStateChanged(MegaApi* api, MegaSync* sync, std::string* localPath, int newState) override
     {
         // probably too frequent to output
-        //out() << "onSyncFileStateChanged " << sync << newState << endl;
+        //out() << "onSyncFileStateChanged " << sync << newState;
     }
 
     void onSyncEvent(MegaApi* api, MegaSync* sync, MegaSyncEvent* event) override
     {
-        out() << "onSyncEvent " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncEvent " << toHandle(sync->getBackupId());
     }
 
     void onSyncAdded(MegaApi* api, MegaSync* sync, int additionState) override
     {
-        out() << "onSyncAdded " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncAdded " << toHandle(sync->getBackupId());
         check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
 
         check(state(sync) == nonexistent);
@@ -5808,7 +5808,7 @@ struct SyncListener : MegaListener
 
     void onSyncDisabled(MegaApi* api, MegaSync* sync) override
     {
-        out() << "onSyncDisabled " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncDisabled " << toHandle(sync->getBackupId());
         check(!sync->isEnabled(), "sync enabled at onSyncDisabled");
         check(!sync->isActive(), "sync active at onSyncDisabled");
         check(state(sync) == enabled || state(sync) == added);
@@ -5818,7 +5818,7 @@ struct SyncListener : MegaListener
     // "onSyncStarted" would be more accurate?
     void onSyncEnabled(MegaApi* api, MegaSync* sync) override
     {
-        out() << "onSyncEnabled " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncEnabled " << toHandle(sync->getBackupId());
         check(sync->isEnabled(), "sync disabled at onSyncEnabled");
         check(sync->isActive(), "sync not active at onSyncEnabled");
         check(state(sync) == disabled || state(sync) == added);
@@ -5827,14 +5827,14 @@ struct SyncListener : MegaListener
 
     void onSyncDeleted(MegaApi* api, MegaSync* sync) override
     {
-        out() << "onSyncDeleted " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncDeleted " << toHandle(sync->getBackupId());
         check(state(sync) == disabled || state(sync) == added || state(sync) == enabled);
         state(sync) = nonexistent;
     }
 
     void onSyncStateChanged(MegaApi* api, MegaSync* sync) override
     {
-        out() << "onSyncStateChanged " << toHandle(sync->getBackupId()) << endl;
+        out() << "onSyncStateChanged " << toHandle(sync->getBackupId());
 
         check(sync->getBackupId() != UNDEF, "onSyncStateChanged with undef backup Id");
 
@@ -5846,7 +5846,7 @@ struct SyncListener : MegaListener
 
     void onGlobalSyncStateChanged(MegaApi* api) override
     {
-        out() << "onGlobalSyncStateChanged " << endl;
+        out() << "onGlobalSyncStateChanged ";
     }
 };
 
@@ -6701,7 +6701,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
         string nodelink = exportedLinks[index];
         string authKey = authKeys[index];
 
-        out() << "login to exported folder " << index << endl;
+        out() << "login to exported folder " << index;
         trackers[index] = asyncRequestLoginToFolder(exportedFolderApis[index].get(), nodelink.c_str(), authKey.c_str());
     }
 
@@ -6714,7 +6714,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     // perform parallel fetchnodes for each
     for (int index = 0; index < howMany; ++index)
     {
-        out() << "Fetching nodes for account " << index << endl;
+        out() << "Fetching nodes for account " << index;
         trackers[index] = asyncRequestFetchnodes(exportedFolderApis[index].get());
     }
 
@@ -6725,7 +6725,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << "Cleaning up account 0" << endl;
+    out() << "Cleaning up account 0";
     Cleanup();
 }
 
@@ -6834,7 +6834,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
         string nodelink = exportedLinks[index];
         string authKey = authKeys[index];
 
-        out() << logTime() << "login to exported folder " << index << endl;
+        out() << logTime() << "login to exported folder " << index;
         trackers[index] = asyncRequestLoginToFolder(exportedFolderApis[index].get(), nodelink.c_str(), authKey.c_str());
     }
 
@@ -6847,7 +6847,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // perform parallel fetchnodes for each
     for (unsigned index = 0; index < howMany; ++index)
     {
-        out() << logTime() << "Fetching nodes for account " << index << endl;
+        out() << logTime() << "Fetching nodes for account " << index;
         trackers[index] = asyncRequestFetchnodes(exportedFolderApis[index].get());
     }
 
@@ -6860,14 +6860,14 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // get session
     for (unsigned index = 0 ; index < howMany; index++ )
     {
-        out() << logTime() << "dump session of exported folder " << index << endl;
+        out() << logTime() << "dump session of exported folder " << index;
         sessions[index] = exportedFolderApis[index]->dumpSession();
     }
 
     // local logout
     for (unsigned index = 0 ; index < howMany; index++ )
     {
-        out() << logTime() << "local logout of exported folder " << index << endl;
+        out() << logTime() << "local logout of exported folder " << index;
         trackers[index] = asyncRequestLocalLogout(exportedFolderApis[index].get());
 
     }
@@ -6880,7 +6880,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // resume session
     for (unsigned index = 0 ; index < howMany; index++ )
     {
-        out() << logTime() << "fast login to exported folder " << index << endl;
+        out() << logTime() << "fast login to exported folder " << index;
         trackers[index] = asyncRequestFastLogin(exportedFolderApis[index].get(), sessions[index].c_str());
     }
     // wait for fast login to complete:
@@ -6892,7 +6892,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // perform parallel fetchnodes for each
     for (unsigned index = 0; index < howMany; ++index)
     {
-        out() << logTime() << "Fetching nodes for account " << index << endl;
+        out() << logTime() << "Fetching nodes for account " << index;
         trackers[index] = asyncRequestFetchnodes(exportedFolderApis[index].get());
     }
 
@@ -6910,7 +6910,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << logTime() << "Cleaning up account 0" << endl;
+    out() << logTime() << "Cleaning up account 0";
     Cleanup();
 }
 
