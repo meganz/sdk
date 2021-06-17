@@ -1284,7 +1284,12 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
         for (it=keys->begin(); it != keys->end(); it++)
         {
             key = (*it).empty() ? "(no key)" : *it;
-            tlv->get(*it, value);
+            if (!tlv->get(*it, value) || value.empty())
+            {
+                cout << "\t" << key << "\t" << "(no value)" << endl;
+                continue;
+            }
+
             valuelen = unsigned(value.length());
 
             buf = new char[valuelen * 4 / 3 + 4];
