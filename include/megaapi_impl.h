@@ -2625,7 +2625,7 @@ class MegaApiImpl : public MegaApp
         bool createAvatar(const char* imagePath, const char *dstPath);
 
         void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
-        void uploadCompleted(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+        void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
                                                const char *string64UploadToken, const char *string64FileKey, MegaRequestListener *listener);
 
 
@@ -3122,7 +3122,6 @@ protected:
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
         void getmegaachievements_result(AchievementsDetails*, error) override;
-        void backgrounduploadurl_result(error, string*) override;
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;
         void getmiscflags_result(error) override;

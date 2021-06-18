@@ -539,6 +539,12 @@ public:
     // generate & return next upload handle
     handle uploadhandle(int);
 
+    // helpfer function for preparing a putnodes call for new node
+    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const std::string &binaryUploadToken,
+                                  byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                  std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
+                                  std::function<error(std::string *)> addFileAttrsFunc = nullptr);
+
     // helper function for preparing a putnodes call for new folders
     void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
 

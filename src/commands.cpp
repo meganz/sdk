@@ -424,61 +424,6 @@ bool CommandPutFile::procresult(Result r)
     }
 }
 
-// request upload target URL for application to upload photo to using eg. iOS background upload feature
-CommandPutFileBackgroundURL::CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag)
-{
-    cmd("u");
-    arg("ssl", 2);   // always SSL for background uploads
-    arg("v", 2);
-    arg("s", size);
-    arg("ms", putmbpscap);
-
-    tag = ctag;
-}
-
-// set up file transfer with returned target URL
-bool CommandPutFileBackgroundURL::procresult(Result r)
-{
-    string url;
-
-    if (r.wasErrorOrOK())
-    {
-        if (!canceled)
-        {
-            client->app->backgrounduploadurl_result(r.errorOrOK(), NULL);
-        }
-        return true;
-    }
-
-    for (;;)
-    {
-        switch (client->json.getnameid())
-        {
-            case 'p':
-                client->json.storeobject(canceled ? NULL : &url);
-                break;
-
-            case EOO:
-                if (canceled) return true;
-
-                client->app->backgrounduploadurl_result(API_OK, &url);
-                return true;
-
-            default:
-                if (!client->json.storeobject())
-                {
-                    if (!canceled)
-                    {
-                        client->app->backgrounduploadurl_result(API_EINTERNAL, NULL);
-                    }
-                    return false;
-                }
-        }
-    }
-}
-
-
-
 // request upload target URL
 CommandGetPutUrl::CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbpscap, bool forceSSL, CommandGetPutUrl::Cb completion)
     : mCompletion(completion)
@@ -503,7 +448,7 @@ bool CommandGetPutUrl::procresult(Result r)
     {
         if (!canceled)
         {
-            client->app->backgrounduploadurl_result(r.errorOrOK(), nullptr);
+            mCompletion(r.errorOrOK(), url);
         }
         return true;
     }
@@ -534,8 +479,6 @@ bool CommandGetPutUrl::procresult(Result r)
         }
     }
 }
-
-
 
 // request temporary source URL for DirectRead
 CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)

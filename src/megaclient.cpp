@@ -7674,6 +7674,70 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
     return API_OK;
 }
 
+error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const string &binaryUploadToken,
+                                          byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                          std::function<error(AttrMap&)> addNodeAttrsFunc, std::function<error(std::string *)> addFileAttrsFunc)
+{
+    error e = API_OK;
+
+    // set up new node as file node
+    newnode->source = NEW_UPLOAD;
+    newnode->type = FILENODE;
+    memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
+    newnode->parenthandle = UNDEF;
+    newnode->uploadhandle = getuploadhandle();
+    newnode->attrstring.reset(new string);
+    newnode->fileattributes.reset(new string);
+
+    // add custom file attributes
+    if (addFileAttrsFunc)
+    {
+        e = addFileAttrsFunc(newnode->fileattributes.get());
+        if (e != API_OK)
+        {
+            return e;
+        }
+    }
+
+    // fill node attributes (honoring those in previous version)
+    AttrMap attrs;
+    Node *previousNode = childnodebyname(parentNode, utf8Name, true);
+    honorPreviousVersionAttrs(previousNode, attrs);
+    attrs.map['n'] = utf8Name;
+    attrs.map['c'] = megafingerprint;
+    if (fingerprintOriginal)
+    {
+        attrs.map[MAKENAMEID2('c', '0')] = fingerprintOriginal;
+    }
+
+    // add custom node attributes
+    if (addNodeAttrsFunc)
+    {
+        e = addNodeAttrsFunc(attrs);
+        if (e != API_OK)
+        {
+            return e;
+        }
+    }
+
+    // JSON-encode object and encrypt attribute string and node key itself too
+    string tattrstring;
+    attrs.getjson(&tattrstring);
+    SymmCipher cipher;
+    cipher.setkey(theFileKey);
+    makeattr(&cipher, newnode->attrstring, tattrstring.c_str());
+    newnode->nodekey.assign((char*)theFileKey, FILENODEKEYLENGTH);
+    SymmCipher::xorblock((const byte*)newnode->nodekey.data() + SymmCipher::KEYLENGTH, (byte*)newnode->nodekey.data());
+
+    // adjust previous version node
+    if (!versions_disabled)
+    {
+        string name(utf8Name);
+        newnode->ovhandle = getovhandle(parentNode, &name);
+    }
+    return e;
+}
+
 void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;

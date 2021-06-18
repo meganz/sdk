@@ -3183,9 +3183,7 @@ class MegaRequest
             TYPE_GET_ATTR_NODE                                              = 138,
             TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS                                = 139,
             TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS                               = 140,
-            TYPE_GET_UPLOAD_URL                                             = 141,
-            TYPE_UPLOAD_COMPLETED                                           = 142,
-            TOTAL_OF_REQUEST_TYPES                                          = 143,
+            TOTAL_OF_REQUEST_TYPES                                          = 141,
         };
 
         virtual ~MegaRequest();
@@ -16940,7 +16938,7 @@ class MegaApi
          * The node representing the file will be created in the cloud, with all the suitable
          * attributes and file attributes attached.
          *
-         * The associated request type with this request is MegaRequest::TYPE_UPLOAD_COMPLETED
+         * The associated request type with this request is MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getPassword - Returns the original fingerprint
          * - MegaRequest::getNewPassword - Returns the fingerprint
@@ -16964,7 +16962,7 @@ class MegaApi
          * @param string64FileKey file encryption key converted to a base 64 string with MegaApi::binaryToString64.
          * @param listener MegaRequestListener to track this request
          */
-        void uploadCompleted(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+        void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
                                           const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener);
 
         /**
@@ -16973,7 +16971,7 @@ class MegaApi
          * This function requests the base URL needed for uploading the file.
          * The URL will need the urlSuffix resulting from encryption.
          *
-         * The associated request type with this request is MegaRequest::TYPE_GET_UPLOAD_URL
+         * The associated request type with this request is MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getLink - The URL to use
@@ -16987,26 +16985,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
          void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
-
-        /**
-         * @brief Request the URL suitable for uploading a file\.
-         *
-         * This function requests the base URL needed for uploading the file.
-         * The URL will need the urlSuffix resulting from encryption.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_UPLOAD_URL
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getLink - The URL to use
-         *
-         * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
-         * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
-         * A new URL could specify a different upload server for example.
-         *
-         * @param fullFileSize The size of the file
-         * @param listener MegaRequestListener to track this request
-         */
-          void getUploadURL(int64_t fullFileSize, MegaRequestListener *listener);
 
         /**
          * @brief Create the node after completing the background upload of the file.

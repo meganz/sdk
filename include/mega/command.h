@@ -555,17 +555,6 @@ public:
     CommandPutFile(MegaClient *client, TransferSlot*, int);
 };
 
-class MEGA_API CommandPutFileBackgroundURL : public Command
-{
-    string* result;
-
-public:
-    bool procresult(Result) override;
-
-    CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag);
-};
-
-
 class MEGA_API CommandGetPutUrl : public Command
 {
     using Cb = std::function<void(Error, const std::string &/*url*/)>;
