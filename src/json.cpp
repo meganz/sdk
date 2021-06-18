@@ -122,6 +122,43 @@ bool JSON::storeobject(string* s)
     }
 }
 
+bool JSON::skipnullvalue()
+{
+    // this applies only to values, after ':'
+    if (!pos)
+        return false;
+
+    switch (*pos)
+    {
+    case ',':         // empty value, i.e.  "foo":,
+        ++pos;
+    case ']':         // empty value, i.e.  "foo":]
+    case'}':          // empty value, i.e.  "foo":}
+        return true;
+
+    default:          // some other value, don't skip it
+        return false;
+
+    case 'n':
+        if (strncmp(pos, "null", 4))
+            return false; // not enough information to skip it
+
+        // let's peak at what's after "null"
+        switch (*(pos + 4))
+        {
+        case ',':     // null value, i.e.  "foo":null,
+            ++pos;
+        case ']':     // null value, i.e.  "foo":null]
+        case '}':     // null value, i.e.  "foo":null}
+            pos += 4;
+            return true;
+
+        default:      // some other value, don't skip it
+            return false;
+        }
+    }
+}
+
 bool JSON::isnumeric()
 {
     if (*pos == ',')
@@ -227,7 +264,9 @@ nameid JSON::getnameid()
         }
     }
 
-    return id;
+    bool skippedNull = id && skipnullvalue();
+
+    return skippedNull ? getnameid() : id;
 }
 
 // specific string comparison/skipping
