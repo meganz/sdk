@@ -207,6 +207,10 @@ struct syncRow
     {
     };
 
+    // needs to be move constructable/assingable for sorting (note std::list of non-copyable below)
+    syncRow(syncRow&&) = default;
+    syncRow& operator=(syncRow&&) = default;
+
     Node* cloudNode;
     LocalNode* syncNode;
     FSNode* fsNode;
