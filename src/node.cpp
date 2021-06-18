@@ -1250,6 +1250,11 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                 }
             }
 
+            if (type != FILENODE && mScanFlags != SCAN_NONE)
+            {
+                updateScanFlags();
+            }
+
             if (sync != parent->sync)
             {
                 LOG_debug << "Moving files between different syncs";
@@ -1341,6 +1346,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     deleted = false;
     created = false;
     reported = false;
+    mScanFlags = SCAN_NONE;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1611,6 +1617,65 @@ void LocalNode::detach(const bool recreate)
         node.reset();
         created &= !recreate;
     }
+}
+
+void LocalNode::scan()
+{
+    assert(type != FILENODE);
+
+    mScanFlags |= SCAN_HERE;
+
+    updateScanFlags();
+}
+
+void LocalNode::updateScanFlags()
+{
+    assert(type != FILENODE);
+
+    for (auto* node = parent; node; node = node->parent)
+    {
+        if ((node->mScanFlags & SCAN_BELOW)) break;
+
+        node->mScanFlags |= SCAN_BELOW;
+    }
+}
+
+localnode_vector LocalNode::scannable()
+{
+    assert(type != FILENODE);
+
+    localnode_vector result;
+
+    if (mScanFlags == SCAN_NONE) return result;
+
+    localnode_list pending(1, this);
+
+    while (!pending.empty())
+    {
+        auto& node = *pending.front();
+
+        if ((node.mScanFlags & SCAN_HERE))
+        {
+            result.emplace_back(&node);
+        }
+
+        if ((node.mScanFlags & SCAN_BELOW))
+        {
+            for (auto& childIt : children)
+            {
+                auto& child = *childIt.second;
+
+                if (child.mScanFlags == SCAN_NONE) continue;
+
+                pending.emplace_back(&child);
+            }
+        }
+
+        node.mScanFlags = SCAN_NONE;
+        pending.pop_front();
+    }
+
+    return result;
 }
 
 LocalPath LocalNode::getLocalPath() const

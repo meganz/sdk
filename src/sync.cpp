@@ -1822,10 +1822,21 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     // unmark possible deletion
                     it->second->setnotseen(0);
 
-                    // immediately scan folder to detect deviations from cached state
-                    if (fullscan && fa->type == FOLDERNODE)
+                    if (fa->type == FOLDERNODE)
                     {
-                        scan(localpathNew, fa.get());
+                        if (fullscan)
+                        {
+                            // immediately scan folder to detect deviations from cached state
+                            scan(localpathNew, fa.get());
+                        }
+                        else
+                        {
+                            for (const auto* node : it->second->scannable())
+                            {
+                                auto path = node->getLocalPath();
+                                scan(&path, nullptr);
+                            }
+                        }
                     }
                 }
                 else if (fa->mIsSymLink)
@@ -2013,7 +2024,9 @@ bool Sync::checkValidNotification(int q, Notification& notification)
         auto fa = client->fsaccess->newfileaccess(false);
         bool success = fa->fopen(tmppath, false, false);
         LocalNode *ll = localnodebypath(notification.localnode, notification.path);
-        if ((!ll && !success && !fa->retry) // deleted file
+        auto deleted = !ll && !success && !fa->retry;
+
+        if (deleted
             || (ll && success && ll->node && ll->node->localnode == ll
                 && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
                 && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
@@ -2021,7 +2034,13 @@ bool Sync::checkValidNotification(int q, Notification& notification)
                 && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
                 && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
         {
+            if (deleted && notification.localnode)
+            {
+                notification.localnode->scan();
+            }
+
             LOG_debug << "Self filesystem notification skipped";
+
             return false;
         }
     }
