@@ -348,7 +348,7 @@ public:
 
     bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer);
     bool recursiveSync_localScanForNewOnly(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer);
-    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
+    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool localScanForNewOnly);
     bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
@@ -366,7 +366,7 @@ public:
     bool syncEqual(const Node&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
-    bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult);
+    bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool localScanForNewOnly);
     bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult);
 
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc);

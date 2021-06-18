@@ -6008,7 +6008,8 @@ struct SyncListener : MegaListener
 
     void onGlobalSyncStateChanged(MegaApi* api) override
     {
-        out() << "onGlobalSyncStateChanged ";
+        // just too frequent for out() really
+        //out() << "onGlobalSyncStateChanged ";
     }
 };
 

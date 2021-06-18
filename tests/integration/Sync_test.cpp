@@ -784,7 +784,7 @@ struct StandardClient : public MegaApp
                  "N9tSBJDC",
                  USER_AGENT.c_str(),
                  THREADS_PER_MEGACLIENT)
-        , clientname(name)
+        , clientname(name + " ")
         , fsBasePath(basepath / fs::u8path(name))
         , resultproc(*this)
         , clientthread([this]() { threadloop(); })
@@ -835,10 +835,10 @@ struct StandardClient : public MegaApp
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
-    void syncupdate_stateconfig(handle backupId) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << backupId; } }
-    void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
-    void syncupdate_stalled(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_stalled()" << b; } }
-    void syncupdate_local_folder_addition(Sync* s, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " yncupdate_local_folder_addition() " << path.toPath(*client.fsaccess); }}
+    void syncupdate_stateconfig(handle backupId) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << "syncupdate_stateconfig() " << toHandle(backupId); } }
+    void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_scanning()" << b; } }
+    void syncupdate_stalled(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_stalled()" << b; } }
+    void syncupdate_local_folder_addition(Sync* s, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_folder_addition() " << path.toPath(*client.fsaccess); }}
     void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << "syncupdate_local_folder_deletion() " << path.toPath(*client.fsaccess); }}
     void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) {
         lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " ";
@@ -850,7 +850,7 @@ struct StandardClient : public MegaApp
         onCallback();
         if (logcb) {
             lock_guard<mutex> g(om);
-            out() << clientname << " syncupdate_local_move() from:" << oldPath.toPath(*client.fsaccess) << " to:" << newPath.toPath(*client.fsaccess);
+            out() << clientname << "syncupdate_local_move() from:" << oldPath.toPath(*client.fsaccess) << " to:" << newPath.toPath(*client.fsaccess);
         }
     }
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
@@ -1516,10 +1516,10 @@ struct StandardClient : public MegaApp
     {
         SyncInfo result;
 
-        out() << "looking up id " << backupId;
+        out() << "looking up BackupId " << toHandle(backupId);
 
         client.syncs.forEachUnifiedSync([](UnifiedSync& us){
-            out() << " ids are: " << us.mConfig.mBackupId << " with local path '" << us.mConfig.getLocalPath().toPath(*us.mClient.fsaccess);
+            out() << " ids are: " << toHandle(us.mConfig.mBackupId) << " with local path '" << us.mConfig.getLocalPath().toPath(*us.mClient.fsaccess);
         });
 
         bool found = syncSet(backupId, result);
@@ -6413,6 +6413,45 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     // Confirm model.
     ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
 }
+
+TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.  8 nodes to sync to
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 2, 8));
+
+    // Get our hands on the sync root.
+    auto* cloudSyncRoot = c.drillchildnodebyname(c.gettestbasenode(), "s/s_0");
+    ASSERT_TRUE(cloudSyncRoot != nullptr);
+
+    // Add and start sync.
+    const auto id = c.setupSync_mainthread("s_0", "s/s_0");
+    ASSERT_NE(id, UNDEF);
+
+    const auto SYNCROOT = c.syncSet(id).localpath;
+
+    Model model;
+    model.addfolder("dA");
+    model.addfolder("dB");
+    model.generate(SYNCROOT);
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c);
+	
+	// todo:  tbc
+	
+
+    // Confirm state
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
 
 TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
 {

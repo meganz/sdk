@@ -427,6 +427,7 @@ struct MEGA_API LocalNode : public Cacheable
     // we also need to track what fsid corresponded to our FSNode last time, even if not synced (not serialized)
     // if it changes, we should rescan, in case of LocalNode pre-existing with no FSNode, then one appears.  Or, now it's different
     handle fsid_asScanned = mega::UNDEF;
+    fsid_localnode_map::iterator fsid_asScanned_it;
 
     // related cloud node, if any
     NodeHandle syncedCloudNodeHandle;
@@ -503,7 +504,8 @@ struct MEGA_API LocalNode : public Cacheable
 
         // Set when we've created a new directory (say, as part of downsync)
         // that has reused this node's FSID.
-        unsigned fsidReused : 1;
+        unsigned fsidSyncedReused : 1;
+        unsigned fsidScannedReused : 1;
     };
 
     // Fields which are hardly ever used.
@@ -598,6 +600,7 @@ public:
 //    void setnotseen(int);
 
     void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
+    void setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
 
     void setSyncedNodeHandle(NodeHandle h, const string& cloudName);
 

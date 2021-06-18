@@ -2947,7 +2947,7 @@ void MegaClient::exec()
 
             bool tooSoon = syncStallState && (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) && (waiter->ds > mSyncFlags->recursiveSyncLastCompletedDs);
 
-            if (actionpacketsCurrent && isAnySyncSyncing(true) && !tooSoon)
+            if (actionpacketsCurrent && (isAnySyncSyncing(true) || syncStallState) && !tooSoon)
             {
                 CodeCounter::ScopeTimer rst(performanceStats.recursiveSyncTime);
 

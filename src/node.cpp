@@ -1355,7 +1355,8 @@ LocalNode::LocalNode()
 , parentSetSyncAgain(false)
 , parentSetScanAgain(false)
 , parentSetContainsConflicts(false)
-, fsidReused(false)
+, fsidSyncedReused(false)
+, fsidScannedReused(false)
 , scanInProgress(false)
 , scanObsolete(false)
 , useBlocked(TREE_RESOLVED)
@@ -1384,7 +1385,8 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     parentSetSyncAgain = false;
     parentSetScanAgain = false;
     parentSetContainsConflicts = false;
-    fsidReused = false;
+    fsidSyncedReused = false;
+    fsidScannedReused = false;
     scanInProgress = false;
     scanObsolete = false;
     useBlocked = TREE_RESOLVED;
@@ -1427,7 +1429,8 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 //    scanseqno = sync->scanseqno;
 
     // mark fsid as not valid
-    fsid_lastSynced_it = sync->client->localnodeByFsid.end();
+    fsid_lastSynced_it = sync->client->localnodeBySyncedFsid.end();
+    fsid_asScanned_it = sync->client->localnodeByScannedFsid.end();
     syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
 
     sync->client->syncactivity = true;
@@ -1470,7 +1473,8 @@ void LocalNode::init(const FSNode& fsNode)
     syncedFingerprint = fsNode.fingerprint;
 
     // Update our FSID.
-    setSyncedFsid(fsNode.fsid, sync->client->localnodeByFsid, fsNode.localname);
+    setSyncedFsid(fsNode.fsid, sync->client->localnodeBySyncedFsid, fsNode.localname);
+    setScannedFsid(UNDEF, sync->client->localnodeByScannedFsid, fsNode.localname);
 
     // Update our type.
     type = fsNode.type;
@@ -1751,7 +1755,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
             scanDelayUntil = Waiter::ds + 20; // don't scan too frequently
             scanAgain = TREE_RESOLVED;
-            setCheckMovesAgain(false, true, false);
+            //setCheckMovesAgain(false, true, false);   // caution: if we have some of this flag set below a deleted node, and we don't visit the nodes below, we'll check the for-parent flags and set this one again, no way to clear it
             setSyncAgain(false, true, false);
             syncHere = true;
         }
@@ -1775,13 +1779,13 @@ void LocalNode::reassignUnstableFsidsOnceOnly(const FSNode* fsnode)
 
         if (fsnode && sync->syncEqual(*fsnode, *this))
         {
-            setSyncedFsid(fsnode->fsid, sync->client->localnodeByFsid, localname);
+            setSyncedFsid(fsnode->fsid, sync->client->localnodeBySyncedFsid, localname);
             sync->statecacheadd(this);
         }
         else if (fsid_lastSynced != UNDEF)
         {
             // this node was synced with something, but not the thing that's there now (or not there)
-            setSyncedFsid(UNDEF-1, sync->client->localnodeByFsid, localname);
+            setSyncedFsid(UNDEF-1, sync->client->localnodeBySyncedFsid, localname);
             sync->statecacheadd(this);
         }
         unstableFsidAssigned = true;
@@ -1869,7 +1873,7 @@ void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, con
     }
 
     fsid_lastSynced = newfsid;
-    fsidReused = false;
+    fsidSyncedReused = false;
 
     // if synced to fs, localname should match exactly (no differences in case/escaping etc)
     localname = fsName;
@@ -1885,6 +1889,30 @@ void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, con
 
     assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
         0 == compareUtf(localname, true, name, false, true));
+}
+
+void LocalNode::setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName)
+{
+    assert(sync && sync->client);
+
+    if (fsid_asScanned_it != fsidnodes.end())
+    {
+        fsidnodes.erase(fsid_asScanned_it);
+    }
+
+    fsid_asScanned = newfsid;
+    fsidScannedReused = false;
+
+    if (fsid_asScanned == UNDEF)
+    {
+        fsid_asScanned_it = fsidnodes.end();
+    }
+    else
+    {
+        fsid_asScanned_it = fsidnodes.insert(std::make_pair(fsid_asScanned, this));
+    }
+
+    assert(0 == compareUtf(localname, true, fsName, true, true));
 }
 
 void LocalNode::setSyncedNodeHandle(NodeHandle h, const string& cloudName)
@@ -1952,9 +1980,13 @@ LocalNode::~LocalNode()
     }
 
     // remove from fsidnode map, if present
-    if (fsid_lastSynced_it != sync->client->localnodeByFsid.end())
+    if (fsid_lastSynced_it != sync->client->localnodeBySyncedFsid.end())
     {
-        sync->client->localnodeByFsid.erase(fsid_lastSynced_it);
+        sync->client->localnodeBySyncedFsid.erase(fsid_lastSynced_it);
+    }
+    if (fsid_asScanned_it != sync->client->localnodeByScannedFsid.end())
+    {
+        sync->client->localnodeByScannedFsid.erase(fsid_asScanned_it);
     }
     if (syncedCloudNodeHandle_it != sync->client->localnodeByNodeHandle.end())
     {
@@ -2350,7 +2382,9 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->parent_dbid = parent_dbid;
 
     l->fsid_lastSynced = fsid;
-    l->fsid_lastSynced_it = sync->client->localnodeByFsid.end();
+    l->fsid_lastSynced_it = sync->client->localnodeBySyncedFsid.end();
+    l->fsid_asScanned = UNDEF;
+    l->fsid_asScanned_it = sync->client->localnodeByScannedFsid.end();
 
     l->localname = LocalPath::fromPlatformEncoded(localname);
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncoded(shortname)));
