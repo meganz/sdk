@@ -4612,145 +4612,172 @@ bool Sync::recursiveSync_localScanForNewOnly(syncRow& row, SyncPath& fullPath, D
         // restore sync flag
         row.syncNode->setSyncAgain(false, true, false);
         SYNC_verbose << syncname << "Early exit from recursiveSync_localScanForNewOnly due to no scan data. " << logTriplet(row, fullPath);
-        return false;
+
+        syncHere = false;
+        recurseHere = false;
     }
 
-
-    // Get sync triplets.
-    vector<syncRow> childRows;
-    vector<FSNode> fsInferredChildren;
-    vector<FSNode> fsChildren;
-
-    // Effective children are from the last scan, if present.
-    vector<FSNode>* effectiveFsChildren = row.syncNode->lastFolderScan.get();
-
-    if (wasSynced && inferAlreadySyncedTriplets(row.cloudNode, *row.syncNode, fsInferredChildren, childRows))
+    if (syncHere || recurseHere)
     {
-        effectiveFsChildren = &fsInferredChildren;
-    }
-    else
-    {
-        // Otherwise, we can reconstruct the filesystem entries from the LocalNodes
-        if (!effectiveFsChildren)
+
+        // Get sync triplets.
+        vector<syncRow> childRows;
+        vector<FSNode> fsInferredChildren;
+        vector<FSNode> fsChildren;
+
+        // Effective children are from the last scan, if present.
+        vector<FSNode>* effectiveFsChildren = row.syncNode->lastFolderScan.get();
+
+        if (wasSynced && inferAlreadySyncedTriplets(row.cloudNode, *row.syncNode, fsInferredChildren, childRows))
         {
-            fsChildren.reserve(row.syncNode->children.size() + 50);  // leave some room for others to be added in syncItem()
-
-            for (auto &childIt : row.syncNode->children)
+            effectiveFsChildren = &fsInferredChildren;
+        }
+        else
+        {
+            // Otherwise, we can reconstruct the filesystem entries from the LocalNodes
+            if (!effectiveFsChildren)
             {
-                if (childIt.second->fsid_lastSynced != UNDEF)
+                fsChildren.reserve(row.syncNode->children.size() + 50);  // leave some room for others to be added in syncItem()
+
+                for (auto &childIt : row.syncNode->children)
                 {
-                    fsChildren.emplace_back(childIt.second->getLastSyncedFSDetails());
+                    if (childIt.second->fsid_lastSynced != UNDEF)
+                    {
+                        fsChildren.emplace_back(childIt.second->getLastSyncedFSDetails());
+                    }
                 }
+
+                effectiveFsChildren = &fsChildren;
             }
 
-            effectiveFsChildren = &fsChildren;
+            childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
         }
 
-        childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
-    }
-
-    for (unsigned step = 0; step < 3; ++step)
-    {
-        for (auto& childRow : childRows)
+        for (unsigned step = 0; step < 3; ++step)
         {
-            // in case of sync failing while we recurse
-            if (state < 0) return false;
-
-            if (!childRow.cloudClashingNames.empty() ||
-                !childRow.fsClashingNames.empty())
+            for (auto& childRow : childRows)
             {
-                // no tricky cases for localScanForNewOnly
-                continue;
-            }
-            childRow.rowSiblings = &childRows;
+                // in case of sync failing while we recurse
+                if (state < 0) return false;
 
-            assert(!row.syncNode || row.syncNode->localname.empty() || row.syncNode->name.empty() || !row.syncNode->parent ||
-                0 == compareUtf(row.syncNode->localname, true, row.syncNode->name, false, true));
-
-            if (childRow.fsNode && childRow.syncNode &&
-                childRow.syncNode->fsid_asScanned != childRow.fsNode->fsid)
-            {
-                childRow.syncNode->setScannedFsid(childRow.fsNode->fsid, client->localnodeByScannedFsid, childRow.fsNode->localname);
-            }
-
-            ScopedSyncPathRestore syncPathRestore(fullPath);
-
-            if (!fullPath.appendRowNames(childRow, mFilesystemType) ||
-                localdebris.isContainingPathOf(fullPath.localPath))
-            {
-                // This is a legitimate case; eg. we only had a syncNode and it is removed in resolve_delSyncNode
-                // Or if this is the debris folder, ignore it
-                continue;
-            }
-
-            if (childRow.syncNode)
-            {
-                if (childRow.syncNode->getLocalPath() != fullPath.localPath)
+                if (!childRow.cloudClashingNames.empty() ||
+                    !childRow.fsClashingNames.empty())
                 {
-                    auto s = childRow.syncNode->getLocalPath();
-                    assert(0 == compareUtf(childRow.syncNode->getLocalPath(), true, fullPath.localPath, true, false));
+                    // no tricky cases for localScanForNewOnly
+                    continue;
+                }
+                childRow.rowSiblings = &childRows;
+
+                assert(!row.syncNode || row.syncNode->localname.empty() || row.syncNode->name.empty() || !row.syncNode->parent ||
+                    0 == compareUtf(row.syncNode->localname, true, row.syncNode->name, false, true));
+
+                if (childRow.fsNode && childRow.syncNode &&
+                    childRow.syncNode->fsid_asScanned != childRow.fsNode->fsid)
+                {
+                    childRow.syncNode->setScannedFsid(childRow.fsNode->fsid, client->localnodeByScannedFsid, childRow.fsNode->localname);
                 }
 
-                childRow.syncNode->reassignUnstableFsidsOnceOnly(childRow.fsNode);
-            }
+                ScopedSyncPathRestore syncPathRestore(fullPath);
 
-            switch (step)
-            {
-            case 0:
-                // first pass: (localScanForNewOnly)
-                // we don't consider moves in localScanForNewOnly
-                if (syncHere)
+                if (!fullPath.appendRowNames(childRow, mFilesystemType) ||
+                    localdebris.isContainingPathOf(fullPath.localPath))
                 {
-                    // we still have to check for moves or we won't detect where the maybe-deleted fsid moved to
-                    if (!syncItem_checkMoves(childRow, row, fullPath, committer, true))
+                    // This is a legitimate case; eg. we only had a syncNode and it is removed in resolve_delSyncNode
+                    // Or if this is the debris folder, ignore it
+                    continue;
+                }
+
+                if (childRow.syncNode)
+                {
+                    if (childRow.syncNode->getLocalPath() != fullPath.localPath)
                     {
-                        if (childRow.itemProcessed)
+                        auto s = childRow.syncNode->getLocalPath();
+                        assert(0 == compareUtf(childRow.syncNode->getLocalPath(), true, fullPath.localPath, true, false));
+                    }
+
+                    childRow.syncNode->reassignUnstableFsidsOnceOnly(childRow.fsNode);
+                }
+
+                switch (step)
+                {
+                case 0:
+                    // first pass: (localScanForNewOnly)
+                    // we don't consider moves in localScanForNewOnly
+                    if (syncHere)
+                    {
+                        // we still have to check for moves or we won't detect where the maybe-deleted fsid moved to
+                        if (!syncItem_checkMoves(childRow, row, fullPath, committer, true))
                         {
-                            //folderSynced = false;
-                            row.syncNode->setSyncAgain(false, true, false);
+                            if (childRow.itemProcessed)
+                            {
+                                //folderSynced = false;
+                                row.syncNode->setSyncAgain(false, true, false);
+                            }
                         }
                     }
-                }
-                break;
+                    break;
 
-            case 1:
-                // second pass:
-                // we don't do full syncItem processing, only look for new fsNodes.
-                if (syncHere && !childRow.itemProcessed)
-                {
-                    if (!childRow.cloudNode && !childRow.syncNode && childRow.fsNode)
+                case 1:
+                    // second pass:
+                    // we don't do full syncItem processing, only look for new fsNodes.
+                    if (syncHere && !childRow.itemProcessed)
                     {
-                        resolve_makeSyncNode_fromFS(childRow, row, fullPath, false);
+                        if (!childRow.cloudNode && !childRow.syncNode && childRow.fsNode)
+                        {
+                            resolve_makeSyncNode_fromFS(childRow, row, fullPath, false);
+                        }
                     }
-                }
-                break;
+                    break;
 
-            case 2:
-                // third and final pass: recurse into the folders  (localScanForNewOnly)
-                //
-                if (recurseHere &&
-                    childRow.syncNode &&
-                    childRow.syncNode->type != FILENODE &&
-                    !childRow.suppressRecursion &&
-                    !childRow.syncNode->moveSourceApplyingToCloud &&  // we may not have visited syncItem if !syncHere, but skip these if we determine they are being moved from or deleted already
-                    !childRow.syncNode->moveTargetApplyingToCloud &&
-                    //!childRow.syncNode->deletedFS &&   we should not check this one, or we won't remove the LocalNode
-                    !childRow.syncNode->deletingCloud)
-                {
-                    // Add watches as necessary.
-                    if (childRow.fsNode)
+                case 2:
+                    // third and final pass: recurse into the folders  (localScanForNewOnly)
+                    //
+                    if (recurseHere &&
+                        childRow.syncNode &&
+                        childRow.syncNode->type != FILENODE &&
+                        !childRow.suppressRecursion &&
+                        !childRow.syncNode->moveSourceApplyingToCloud &&  // we may not have visited syncItem if !syncHere, but skip these if we determine they are being moved from or deleted already
+                        !childRow.syncNode->moveTargetApplyingToCloud &&
+                        //!childRow.syncNode->deletedFS &&   we should not check this one, or we won't remove the LocalNode
+                        !childRow.syncNode->deletingCloud)
                     {
-                        childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
+                        // Add watches as necessary.
+                        if (childRow.fsNode)
+                        {
+                            childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
+                        }
+
+                        recursiveSync_localScanForNewOnly(childRow, fullPath, committer);
                     }
+                    break;
 
-                    recursiveSync_localScanForNewOnly(childRow, fullPath, committer);
                 }
-                break;
-
             }
         }
     }
 
+    // Recompute our LocalNode flags from children
+    // Flags for this row could have been set during calls to the node
+    // If we skipped a child node this time (or if not), the set-parent
+    // flags let us know if future actions are needed at this level
+    for (auto& child : row.syncNode->children)
+    {
+        if (child.second->type != FILENODE)
+        {
+            row.syncNode->scanAgain = updateTreestateFromChild(row.syncNode->scanAgain, child.second->scanAgain);
+            row.syncNode->syncAgain = updateTreestateFromChild(row.syncNode->syncAgain, child.second->syncAgain);
+        }
+        row.syncNode->checkMovesAgain = updateTreestateFromChild(row.syncNode->checkMovesAgain, child.second->checkMovesAgain);
+        row.syncNode->conflicts = updateTreestateFromChild(row.syncNode->conflicts, child.second->conflicts);
+        row.syncNode->scanBlocked = updateTreestateFromChild(row.syncNode->scanBlocked, child.second->scanBlocked);
+
+        if (child.second->parentSetScanAgain) row.syncNode->setScanAgain(false, true, false, 0);
+        if (child.second->parentSetCheckMovesAgain) row.syncNode->setCheckMovesAgain(false, true, false);
+        if (child.second->parentSetSyncAgain) row.syncNode->setSyncAgain(false, true, false);
+        if (child.second->parentSetContainsConflicts) row.syncNode->setContainsConflicts(false, true, false);
+
+        child.second->parentSetScanAgain = false;  // we should only use this one once
+    }
 
     SYNC_verbose << syncname
         << "localScanForNewOnly Exiting folder with "
@@ -5396,11 +5423,11 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                     row.syncNode->localname = fsnode->localname;
                     row.syncNode->slocalname = fsnode->cloneShortname();
-                    
+
 					// todo:  synced too, or is just scanned enough?
 					// was removed before stash-merge-back
 					//row.syncNode->setSyncedFsid(fsnode->fsid, client->localnodeBySyncedFsid, fsnode->localname);   // todo:  synced too, or is just scanned enough?
-                    
+
 					row.syncNode->setScannedFsid(fsnode->fsid, client->localnodeByScannedFsid, fsnode->localname);
                     statecacheadd(row.syncNode);
 
