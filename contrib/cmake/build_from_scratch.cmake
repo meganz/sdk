@@ -169,6 +169,7 @@ if(WIN32)
     endforeach()
 else()
     if(VCPKG_CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        set(_extra_cmake_args -DHAVE_FFMPEG=0)
         include(${_3rdparty_vcpkg_dir}/scripts/toolchains/ios.cmake)
         if(NOT CMAKE_OSX_SYSROOT)
             # Probably should figure out why vcpkg doesn't set this var for arm64 ios,
@@ -179,9 +180,8 @@ else()
             "-DCMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}"
             "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
             "-DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}"
-
+            "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}"
         )
-        message(STATUS "Got cross args ${_toolchain_cross_compile_args}")
     endif()
 
     foreach(_config "Debug" "Release")
@@ -193,6 +193,7 @@ else()
                 -B ${_build_dir}
                 "-DCMAKE_BUILD_TYPE=${_config}"
                 ${_common_cmake_args}
+                ${_extra_cmake_args}
                 ${_toolchain_cross_compile_args}
         )
 
