@@ -794,6 +794,7 @@ add_library(Mega STATIC
             $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
             $<${USE_ROTATIVEPERFORMANCELOGGER}:${MegaDir}/src/rotativeperformancelogger.cpp >
             $<${USE_DRIVE_NOTIFICATIONS}:${MegaDir}/src/drivenotify.cpp>
+            $<${IOS}:${MegaDir}/src/gfx/GfxProcCG.mm>
             )
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
@@ -891,7 +892,6 @@ if(IOS)
     # build with some of these settings as required
     # -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_Swift_COMPILER_TARGET=arm64-apple-ios7.0.0 -DCMAKE_OSX_SYSROOT=iphoneos -DVCPKG_TRIPLET=arm64-ios-mega
     add_executable(simple_ios_build_test
-        ${MegaDir}/src/gfx/GfxProcCG.mm
         ${MegaDir}/bindings/ios/MEGAAccountDetails.mm
         ${MegaDir}/bindings/ios/MEGAAchievementsDetails.mm
         ${MegaDir}/bindings/ios/MEGABackgroundMediaUpload.mm
