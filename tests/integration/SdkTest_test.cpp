@@ -4742,7 +4742,24 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
 }
 
-TEST_F(SdkTest, SdkMediaUploadRequestURL)
+
+#ifdef __linux__
+std::string exec(const char* cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe)
+    {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
+}
+#endif
+
+TEST_F(SdkTest, SdkMediaUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -4752,14 +4769,47 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
     std::unique_ptr<MegaBackgroundMediaUpload> req(MegaBackgroundMediaUpload::createInstance(megaApi[apiIndex].get()));
 
     // Request a media upload URL
-    int64_t dummyFileSize = 123456;
-    auto err = synchronousMediaUploadRequestURL(apiIndex, dummyFileSize, req.get(), nullptr);
+    int64_t fileSize = 10000;
+    auto err = synchronousMediaUploadRequestURL(apiIndex, fileSize, req.get(), nullptr);
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
 
     // Get the generated media upload URL
     std::unique_ptr<char[]> url(req->getUploadURL());
     ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
     ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
+
+    string filename1 = UPFILE;
+    createFile(filename1, false);
+
+    string filename2 = DOWNFILE;
+
+    // encrypt file contents and get URL suffix
+    req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), true);
+    auto suffix = req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), false);
+    ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
+
+#ifdef __linux__
+    string command = "curl -s --data-binary @";
+    command.append(DOWNFILE.c_str()).append(" ").append(url.get());
+    if (suffix) command.append(suffix);
+    auto uploadToken = exec(command.c_str());
+
+    auto fingreprint = megaApi[0]->getFingerprint(DOWNFILE.c_str());
+    auto fingreprintOrig = megaApi[0]->getFingerprint(UPFILE.c_str());
+    char *base64UploadToken = megaApi[0]->binaryToBase64(uploadToken.c_str(), uploadToken.length());
+
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+
+    err = synchronousMediaUploadComplete(apiIndex, req.get(), "newfile.txt", rootnode, fingreprint, fingreprintOrig, base64UploadToken, nullptr);
+    delete fingreprint;
+    delete fingreprintOrig;
+    delete base64UploadToken;
+    delete rootnode;
+
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
+#endif
+    delete suffix;
+
 }
 
 TEST_F(SdkTest, SdkGetBanners)
