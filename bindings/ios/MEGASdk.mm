@@ -51,6 +51,11 @@
 
 NSString * const MEGAIsBeingLogoutNotification = @"nz.mega.isBeingLogout";
 
+int main(int argc, char** argv)
+{
+    // TODO: NSApplicationMain(argc, argv); ?
+}
+
 using namespace mega;
 
 @interface MEGASdk () {
