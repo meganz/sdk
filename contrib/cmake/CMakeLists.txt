@@ -831,6 +831,7 @@ target_link_libraries(Mega PUBLIC
                         ${Mega_PlatformSpecificLibs})
 
 target_compile_definitions(Mega PUBLIC
+                $<${IOS}:USE_IOS>
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO>
                 $<${USE_SQLITE}:USE_SQLITE>
                 $<${USE_CRYPTOPP}:USE_CRYPTOPP>
@@ -889,8 +890,6 @@ endif (ENABLE_CODECOVERAGE )
 if(IOS)
     # build with some of these settings as required
     # -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_Swift_COMPILER_TARGET=arm64-apple-ios7.0.0 -DCMAKE_OSX_SYSROOT=iphoneos -DVCPKG_TRIPLET=arm64-ios-mega
-    add_definitions( -DUSE_IOS )
-    include_directories( ${MegaDir}/bindings/ios/ ${MegaDir}/bindings/ios/Private )
     add_executable(simple_ios_build_test
         ${MegaDir}/src/gfx/GfxProcCG.mm
         ${MegaDir}/bindings/ios/MEGAAccountDetails.mm
@@ -934,6 +933,11 @@ if(IOS)
         ${MegaDir}/bindings/ios/Private/MEGAFileInputStream.mm
     )
     target_link_libraries(simple_ios_build_test Mega )
+    target_include_directories(simple_ios_build_test
+        PUBLIC
+            ${MegaDir}/bindings/ios/
+            ${MegaDir}/bindings/ios/Private
+    )
 endif()
 
 #test apps
