@@ -1,7 +1,7 @@
-diff --git a/ports/jxrlib/portfile.cmake b/ports/jxrlib/portfile.cmake
+diff --git a/portfile.cmake b/portfile.cmake
 index a15541b99..a46eb7689 100644
---- a/ports/jxrlib/portfile.cmake
-+++ b/ports/jxrlib/portfile.cmake
+--- a/portfile.cmake
++++ b/portfile.cmake
 @@ -10,7 +10,7 @@ vcpkg_from_github(
  
  file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
