@@ -20,7 +20,7 @@ libmediainfo/19.09
 libzen/0.4.37
 
 # ffmpeg (video preview/thumbnail generation)
-ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649
+ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on ios:off
 
 #freeimage and its dependencies (image preview/thumbnail generation)
 freeimage/c303dd024e2dc03a0665ddffbb12a1077933e649 all:freeimage-bool-typedef-and-xbm-msvc-compiler-bug.patch
