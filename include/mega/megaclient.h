@@ -467,7 +467,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, const char* prevattr = NULL);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
@@ -544,10 +544,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, const char * = NULL);
+    void putnodes(handle, vector<NewNode>&&, const char *, int tag);
 
     // send files/folders to user
-    void putnodes(const char*, vector<NewNode>&&);
+    void putnodes(const char*, vector<NewNode>&&, int tag);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -874,11 +874,6 @@ public:
     // get welcome pdf
     void getwelcomepdf();
 
-    // toggle global debug flag
-    bool toggledebug();
-
-    bool debugstate();
-
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
     void reportevent(const char*, const char*, int tag);
@@ -915,9 +910,6 @@ public:
 
     // finish downloaded chunks in order
     bool orderdownloadedchunks;
-
-    // disable public key pinning (for testing purposes)
-    static bool disablepkp;
 
     // retry API_ESSL errors
     bool retryessl;
@@ -966,23 +958,20 @@ public:
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
 
-    // root URL for API requests
-    static string APIURL;
-
     // root URL for GeLB requests
-    static string GELBURL;
+    static const string GELBURL;
 
     // root URL for chat stats
-    static string CHATSTATSURL;
+    static const string CHATSTATSURL;
 
     // root URL for Website
-    static string MEGAURL;
+    static const string MEGAURL;
 
     // file that is blocking the sync engine
     LocalPath blockedfile;
 
     // stats id
-    static std::string statsid;
+    std::string statsid;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
@@ -1213,7 +1202,7 @@ public:
     DbAccess* dbaccess = nullptr;
 
     // state cache table for logged in user
-    DbTable* sctable;
+    unique_ptr<DbTable> sctable;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;
@@ -1294,7 +1283,7 @@ public:
     // session key to protect local storage
     string sessionkey;
 
-    // key protecting non-shareable GPS coordinates in nodes
+    // key protecting non-shareable GPS coordinates in nodes (currently used only by CUv2 in iOS)
     string unshareablekey;
 
     // application key
@@ -1922,9 +1911,9 @@ public:
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
-    std::string getDeviceid() const;
+    std::string getDeviceid();
 
-    std::string getDeviceidHash() const;
+    std::string getDeviceidHash();
 
     // generate a new drive id
     handle generateDriveId();

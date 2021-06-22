@@ -49,7 +49,7 @@ set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync r
 set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
 set (MEGA_USE_C_ARES 1 CACHE STRING "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL")
 
-if (USE_QT)
+if (USE_PTHREAD)
     set( USE_CPPTHREAD 0)
 else()
     set( USE_CPPTHREAD 1)
@@ -248,7 +248,7 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
     add_definitions( -DNOMINMAX )
 
-    #Link against the static C/C++ libraries on windows. Though, if linking with prebuilt QT we need dynamic CRT
+    #Link against the static C/C++ libraries on windows, by default. Link with dynamic CRT if explicitly requested
     foreach(flag_var
             CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
             CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
@@ -655,8 +655,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/megaapi_impl.h
             ${MegaDir}/include/mega/osx/osxutils.h
             ${MegaDir}/include/mega/transferslot.h
-            ${MegaDir}/include/mega/thread/qtthread.h
-            ${MegaDir}/include/mega/thread/win32thread.h #TODO:only win32
             ${MegaDir}/include/mega/thread/cppthread.h
             ${MegaDir}/include/mega/thread/posixthread.h
             ${MegaDir}/include/mega/thread/libuvthread.h
@@ -710,7 +708,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/win32/megawaiter.h
             ${MegaDir}/include/mega/mega_dict-src.h
             ${MegaDir}/include/mega/gfx/GfxProcCG.h
-            ${MegaDir}/include/mega/gfx/qt.h
             ${MegaDir}/include/mega/gfx/freeimage.h
             ${MegaDir}/include/mega/gfx/gfx_pdfium.h
             ${MegaDir}/include/mega/gfx/external.h
@@ -790,8 +787,6 @@ add_library(Mega STATIC
             ${WIN_EXTRA_INCLUDE}
             ${MACOS_EXTRA_INCLUDE}
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp>
-            $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
-            $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
             $<${USE_ROTATIVEPERFORMANCELOGGER}:${MegaDir}/src/rotativeperformancelogger.cpp >
             $<${USE_DRIVE_NOTIFICATIONS}:${MegaDir}/src/drivenotify.cpp>
             $<${IOS}:${MegaDir}/src/gfx/GfxProcCG.mm>
@@ -978,6 +973,14 @@ add_executable(test_integration
     ${MegaDir}/tests/integration/SdkTest_test.cpp
     ${MegaDir}/tests/integration/Sync_test.cpp
 )
+
+if(APPLE)
+    add_executable(test_integration_fsevents_loader 
+        ${MegaDir}/tests/integration/fsevents_loader_main.cpp
+    )
+
+    add_dependencies(test_integration_fsevents_loader test_integration)
+endif()
 
 add_executable(tool_purge_account
     ${MegaDir}/tests/tool/purge_account.cpp

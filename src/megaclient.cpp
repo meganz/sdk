@@ -37,19 +37,26 @@ namespace mega {
 // FIXME: prevent synced folder from being moved into another synced folder
 
 
-bool MegaClient::disablepkp = false;
+// default for disable public key pinning (for testing purposes) (determines if we check the public key from APIURL)
+bool g_disablepkp_default = false;
 
 // root URL for API access
-string MegaClient::APIURL = "https://g.api.mega.co.nz/";
+// MegaClient statics must be const or we get threading problems.  And this one is edited so it can't be const.
+// Instead, we require a mutex to be locked before editing/reading it.  MegaClient's HttpIO takes a copy on construction
+std::mutex g_APIURL_default_mutex;
+string g_APIURL_default = "https://g.api.mega.co.nz/";
 
 // root URL for GeLB requests
-string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
+// MegaClient statics must be const or we get threading problems
+const string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 
 // root URL for chat stats
-string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
+// MegaClient statics must be const or we get threading problems
+const string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
 // root URL for Website
-string MegaClient::MEGAURL = "https://mega.nz";
+// MegaClient statics must be const or we get threading problems
+const string MegaClient::MEGAURL = "https://mega.nz";
 
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
@@ -88,9 +95,6 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
-
-// stats id
-std::string MegaClient::statsid;
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
@@ -917,17 +921,17 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
     looprequested = true;
 }
 
-std::string MegaClient::getDeviceid() const
+std::string MegaClient::getDeviceid()
 {
     if (MegaClient::statsid.empty())
     {
-        fsaccess->statsid(&MegaClient::statsid);
+        fsaccess->statsid(&statsid);
     }
 
     return MegaClient::statsid;
 }
 
-std::string MegaClient::getDeviceidHash() const
+std::string MegaClient::getDeviceidHash()
 {
     string deviceIdHash;
     string id = getDeviceid();
@@ -1359,7 +1363,6 @@ MegaClient::~MegaClient()
 
     delete pendingcs;
     delete badhostcs;
-    delete sctable;
     delete dbaccess;
     LOG_debug << clientname << "~MegaClient completing";
 }
@@ -2073,7 +2076,7 @@ void MegaClient::exec()
                     bool suppressSID = true;
                     reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes);
 
-                    pendingcs->posturl = APIURL;
+                    pendingcs->posturl = httpio->APIURL;
 
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(reqid, sizeof reqid);
@@ -2337,7 +2340,7 @@ void MegaClient::exec()
                 pendingscUserAlerts.reset(new HttpReq());
                 pendingscUserAlerts->logname = clientname + "sc50 ";
                 pendingscUserAlerts->protect = true;
-                pendingscUserAlerts->posturl = APIURL;
+                pendingscUserAlerts->posturl = httpio->APIURL;
                 pendingscUserAlerts->posturl.append("sc");  // notifications/useralerts on sc rather than wsc, no timeout
                 pendingscUserAlerts->posturl.append("?c=50");
                 pendingscUserAlerts->posturl.append(getAuthURI());
@@ -2354,7 +2357,7 @@ void MegaClient::exec()
                 }
                 else
                 {
-                    pendingsc->posturl = APIURL;
+                    pendingsc->posturl = httpio->APIURL;
                     pendingsc->posturl.append("wsc");
                 }
 
@@ -3069,7 +3072,7 @@ void MegaClient::exec()
             // report hosts affected by failed requests
             LOG_debug << "Sending badhost report: " << badhosts;
             badhostcs = new HttpReq();
-            badhostcs->posturl = APIURL;
+            badhostcs->posturl = httpio->APIURL;
             badhostcs->posturl.append("pf?h");
             badhostcs->outbuf = badhosts;
             badhostcs->type = REQ_JSON;
@@ -3085,7 +3088,7 @@ void MegaClient::exec()
                 LOG_debug << "Sending lock request";
                 workinglockcs.reset(new HttpReq());
                 workinglockcs->logname = clientname + "accountBusyCheck ";
-                workinglockcs->posturl = APIURL;
+                workinglockcs->posturl = httpio->APIURL;
                 workinglockcs->posturl.append("cs?");
                 workinglockcs->posturl.append(getAuthURI());
                 workinglockcs->posturl.append("&wlt=1");
@@ -4200,8 +4203,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
         removeCaches(keepSyncsConfigFile);
     }
 
-    delete sctable;
-    sctable = NULL;
+    sctable.reset();
     pendingsccommit = false;
 
     statusTable.reset();
@@ -4359,8 +4361,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     if (sctable)
     {
         sctable->remove();
-        delete sctable;
-        sctable = NULL;
+        sctable.reset();
         pendingsccommit = false;
     }
 
@@ -5166,8 +5167,7 @@ void MegaClient::finalizesc(bool complete)
 
         LOG_err << "Cache update DB write error - disabling caching";
 
-        delete sctable;
-        sctable = NULL;
+        sctable.reset();
         pendingsccommit = false;
     }
 }
@@ -7643,7 +7643,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, const char *prevattr)
+error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -7662,11 +7662,14 @@ error MegaClient::setattr(Node* n, const char *prevattr)
         return API_EKEY;
     }
 
+    // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
+    n->attrs.applyUpdates(updates);
+
     n->changed.attrs = true;
-    n->tag = reqtag;
+    n->tag = tag;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
+    reqs.add(new CommandSetAttr(this, n, cipher, tag, prevattr));
 
     return API_OK;
 }
@@ -7703,25 +7706,24 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth)
+void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth, int tag)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), reqtag, PUTNODES_APP, cauth));
+    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
-void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes)
+void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag)
 {
     User* u;
 
-    restag = reqtag;
-
     if (!(u = finduser(user, 0)) && !user)
     {
+        restag = tag;
         app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
-        return;
+		return;
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), reqtag));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -7864,9 +7866,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         prevParent = n->parent;
     }
 
+    attr_map attrUpdates;
+
     if (n->setparent(p))
     {
-        bool updateNodeAttributes = false;
         if (prevParent)
         {
             Node *prevRoot = getrootnode(prevParent);
@@ -7883,8 +7886,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
                 if (strcmp(base64Handle, n->attrs.map[rrname].c_str()))
                 {
                     LOG_debug << "Adding rr attribute";
-                    n->attrs.map[rrname] = base64Handle;
-                    updateNodeAttributes = true;
+                    attrUpdates[rrname] = base64Handle;
                 }
             }
             else if (prevRoot->nodehandle == rubbishHandle
@@ -7895,8 +7897,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
                 if (it != n->attrs.map.end())
                 {
                     LOG_debug << "Removing rr attribute";
-                    n->attrs.map.erase(it);
-                    updateNodeAttributes = true;
+                    attrUpdates[rrname] = "";
                 }
             }
         }
@@ -7905,8 +7906,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         {
             string name(newName);
             fsaccess->normalize(&name);
-            n->attrs.map['n'] = name;
-            updateNodeAttributes = true;
+            attrUpdates['n'] = name;
         }
 
         n->changed.parent = true;
@@ -7917,9 +7917,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         rewriteforeignkeys(n);
 
         reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
-        if (updateNodeAttributes)
+        if (!attrUpdates.empty())
         {
-            setattr(n);
+            // send attribute changes first so that any rename is already applied when the move node completes
+            setattr(n, std::move(attrUpdates), reqtag, nullptr);
         }
     }
 
@@ -9558,6 +9559,7 @@ void MegaClient::killallsessions()
 
 void MegaClient::opensctable()
 {
+    // called from both login() and fetchnodes()
     if (dbaccess && !sctable)
     {
         string dbname;
@@ -9575,7 +9577,7 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            sctable = dbaccess->open(rng, *fsaccess, dbname);
+            sctable.reset(dbaccess->open(rng, *fsaccess, dbname));
             pendingsccommit = false;
 
             if (sctable)
@@ -12170,7 +12172,7 @@ void MegaClient::fetchnodes(bool nocache)
     // only initial load from local cache
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
             !nodes.size() && !ISUNDEF(cachedscsn) &&
-            sctable && fetchsc(sctable))
+            sctable && fetchsc(sctable.get()))
     {
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
@@ -12332,35 +12334,29 @@ void MegaClient::initializekeys()
         if (tlvRecords)
         {
 
-            if (tlvRecords->find(EdDSA::TLV_KEY))
+            string prEd255;
+            if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
             {
-                string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-                if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
+                if (!signkey->initializationOK)
                 {
-                    signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
-                    if (!signkey->initializationOK)
-                    {
-                        delete signkey;
-                        signkey = NULL;
-                        clearKeys();
-                        return;
-                    }
+                    delete signkey;
+                    signkey = NULL;
+                    clearKeys();
+                    return;
                 }
             }
 
-            if (tlvRecords->find(ECDH::TLV_KEY))
+            string prCu255;
+            if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
             {
-                string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-                if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                chatkey = new ECDH((unsigned char *) prCu255.data());
+                if (!chatkey->initializationOK)
                 {
-                    chatkey = new ECDH((unsigned char *) prCu255.data());
-                    if (!chatkey->initializationOK)
-                    {
-                        delete chatkey;
-                        chatkey = NULL;
-                        clearKeys();
-                        return;
-                    }
+                    delete chatkey;
+                    chatkey = NULL;
+                    clearKeys();
+                    return;
                 }
             }
             delete tlvRecords;
@@ -13891,7 +13887,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
         return false;
     }
 
-    if (!l->sync->isBackupMirroring())
+    if (!l->sync->isBackupAndMirroring())
     {
         return true;
     }
@@ -13911,7 +13907,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
     if (mirrorStable)
     {
         // Transition to monitor state.
-        l->sync->backupMonitor();
+        l->sync->setBackupMonitoring();
 
         // Cancel any active monitor timer.
         mSyncMonitorTimer.reset();
@@ -14006,7 +14002,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 LOG_warn << "Type changed: " << ll->name << " LNtype: " << ll->type << " Ntype: " << rit->second->type;
                 nchildren.erase(rit);
 
-                if (l->sync->isBackupMirroring())
+                if (l->sync->isBackupAndMirroring())
                 {
                     // Mirror hasn't stabilized yet.
                     cxt.mActionsPerformed = true;
@@ -14118,7 +14114,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
             }
 
-            if (l->sync->isBackupMirroring())
+            if (l->sync->isBackupAndMirroring())
             {
                 // Mirror hasn't stabilized.
                 cxt.mActionsPerformed = true;
@@ -14177,7 +14173,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
         {
             LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
 
-            if (l->sync->isBackupMirroring())
+            if (l->sync->isBackupAndMirroring())
             {
                 // Mirror hasn't stabilized.
                 cxt.mActionsPerformed = true;
@@ -14215,7 +14211,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 if (fsaccess->renamelocal(curpath, localpath))
                 {
                     app->syncupdate_local_move(rit->second->localnode->sync,
-                                               rit->second->localnode, localpath.toPath(*fsaccess).c_str());
+                                               rit->second->localnode->getLocalPath(),
+                                               localpath);
 
                     // update LocalNode tree to reflect the move/rename
                     rit->second->localnode->setnameparent(l, &localpath, fsaccess->fsShortname(localpath));
@@ -14272,7 +14269,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     // download, reconstruct localname in complete()
                     if (download)
                     {
-                        if (l->sync->isBackupMirroring())
+                        if (l->sync->isBackupAndMirroring())
                         {
                             // Mirror hasn't stabilized.
                             cxt.mActionsPerformed = true;
@@ -14306,7 +14303,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 {
                     LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                 }
-                else if (l->sync->isBackupMirroring())
+                else if (l->sync->isBackupAndMirroring())
                 {
                     // Mirror hasn't stabilized.
                     cxt.mActionsPerformed = true;
@@ -14564,6 +14561,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         if (rit->second->syncget)
                         {
                             LOG_debug << "Stopping unneeded download";
+                            DBTableTransactionCommitter committer(tctable);
                             delete rit->second->syncget;
                             rit->second->syncget = NULL;
                         }
@@ -15060,7 +15058,7 @@ void MegaClient::syncupdate()
                 l->sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, l->size, 0);
 
                 tmppath = l->getLocalPath().toPath(*fsaccess);
-                app->syncupdate_put(l->sync, l, tmppath.c_str());
+                app->syncupdate_put(l->sync, tmppath.c_str());
             }
         }
 
@@ -15406,14 +15404,13 @@ string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& te
 string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& encoded)
 {
     string unencoded = Base64::atob(encoded);
+    string value;
 
     unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&unencoded, &key));
-    if (tlv && tlv->find(name)) {
-        // we have to check with "find" as get() will throw an exception (in contrast to the documented behaviour) if the key is not present
-        return tlv->get(name);
-    }
+    if (tlv)
+        tlv->get(name, value);
 
-    return "";
+    return value;
 }
 
 #ifdef ENABLE_SYNC
@@ -16168,17 +16165,6 @@ void MegaClient::setchunkfailed(string* url)
         badhosts.append(ptr+6,7);
         btbadhost.reset();
     }
-}
-
-bool MegaClient::toggledebug()
-{
-     SimpleLogger::setLogLevel((SimpleLogger::logCurrentLevel >= logDebug) ? logWarning : logDebug);
-     return debugstate();
-}
-
-bool MegaClient::debugstate()
-{
-    return SimpleLogger::logCurrentLevel >= logDebug;
 }
 
 void MegaClient::reportevent(const char* event, const char* details)

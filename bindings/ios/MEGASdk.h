@@ -270,6 +270,14 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
     BackupHeartbeatStatusUnknown = 5
 };
 
+typedef NS_ENUM(NSInteger, AccountActionType) {
+    AccountActionTypeCreate = 0,
+    AccountActionTypeResume = 1,
+    AccountActionTypeCancel = 2,
+    AccountActionTypeCreateEphemeralPlusPlus = 3,
+    AccountActionTypeResumeEphemeralPlusPlus = 4,
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -1285,6 +1293,12 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * @return 0 if not logged in, Otherwise, a number >= 0.
  */
 - (NSInteger)isLoggedIn;
+
+/**
+ * @brief Check if we are logged in into an Ephemeral account ++
+ * @return true if logged into an Ephemeral account ++, Otherwise return false
+ */
+- (BOOL)isEphemeralPlusPlus;
 
 /**
  * @brief Fetch the filesystem in MEGA.

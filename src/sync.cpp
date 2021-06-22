@@ -940,9 +940,10 @@ bool Sync::isBackup() const
     return getConfig().isBackup();
 }
 
-bool Sync::isBackupMirroring() const
+bool Sync::isBackupAndMirroring() const
 {
-    return getConfig().getBackupState() == SYNC_BACKUP_MIRROR;
+    return isBackup() &&
+           getConfig().getBackupState() == SYNC_BACKUP_MIRROR;
 }
 
 bool Sync::isBackupMonitoring() const
@@ -950,7 +951,7 @@ bool Sync::isBackupMonitoring() const
     return getConfig().getBackupState() == SYNC_BACKUP_MONITOR;
 }
 
-void Sync::backupMonitor()
+void Sync::setBackupMonitoring()
 {
     auto& config = getConfig();
 
@@ -1560,7 +1561,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                         client->execsyncdeletions();
 
                                         // ...and atomically replace with moved one
-                                        client->app->syncupdate_local_move(this, it->second, path.c_str());
+                                        client->app->syncupdate_local_move(this, it->second->getLocalPath(), LocalPath::fromPath(path, *client->fsaccess));
 
                                         // (in case of a move, this synchronously updates l->parent and l->node->parent)
                                         it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
@@ -1595,7 +1596,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                 localbytes -= dsize - l->size;
                             }
 
-                            client->app->syncupdate_local_file_change(this, l, path.c_str());
+                            client->app->syncupdate_local_file_change(this, LocalPath::fromPath(path, *client->fsaccess));
 
                             DBTableTransactionCommitter committer(client->tctable);
                             client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
@@ -1774,7 +1775,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         }
                     }
 
-                    client->app->syncupdate_local_move(this, it->second, path.c_str());
+                    client->app->syncupdate_local_move(this, it->second->getLocalPath(), LocalPath::fromPath(path, *client->fsaccess));
 
                     // (in case of a move, this synchronously updates l->parent
                     // and l->node->parent)
@@ -1838,7 +1839,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                 if (newnode)
                 {
                     scan(localpathNew, fa.get());
-                    client->app->syncupdate_local_folder_addition(this, l, path.c_str());
+                    client->app->syncupdate_local_folder_addition(this, LocalPath::fromPath(path, *client->fsaccess));
 
                     if (!isroot)
                     {
@@ -1884,11 +1885,11 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                     if (newnode)
                     {
-                        client->app->syncupdate_local_file_addition(this, l, path.c_str());
+                        client->app->syncupdate_local_file_addition(this, LocalPath::fromPath(path, *client->fsaccess));
                     }
                     else if (changed)
                     {
-                        client->app->syncupdate_local_file_change(this, l, path.c_str());
+                        client->app->syncupdate_local_file_change(this, LocalPath::fromPath(path, *client->fsaccess));
                         DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                         client->stopxfer(l, &committer);
                     }
@@ -3235,13 +3236,13 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
     constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
 
     // Verify payload contents.
-    auto authKey = store->get("ak");
-    auto cipherKey = store->get("ck");
-    auto name = store->get("fn");
+    string authKey;
+    string cipherKey;
+    string name;
 
-    if (authKey.size() != KEYLENGTH
-        || cipherKey.size() != KEYLENGTH
-        || name.size() != KEYLENGTH)
+    if (!store->get("ak", authKey) || authKey.size() != KEYLENGTH ||
+        !store->get("ck", cipherKey) || cipherKey.size() != KEYLENGTH ||
+        !store->get("fn", name) || name.size() != KEYLENGTH)
     {
         // Payload is malformed.
         LOG_err << "syncConfigIOContext: JSON config data is incomplete";

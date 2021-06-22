@@ -76,6 +76,7 @@ typedef unsigned char byte;
 #include <memory>
 #include <string>
 #include <chrono>
+#include <mutex>
 
 namespace mega {
 
@@ -94,6 +95,8 @@ using std::streambuf;
 using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
+using std::mutex;
+using std::lock_guard;
 
 #ifdef WIN32
 using std::wstring;
@@ -743,6 +746,15 @@ typedef enum {
     ACCOUNT_TYPE_BUSINESS = 100,
 } AccountType;
 
+typedef enum
+{
+    ACTION_CREATE_ACCOUNT              = 0,
+    ACTION_RESUME_ACCOUNT              = 1,
+    ACTION_CANCEL_ACCOUNT              = 2,
+    ACTION_CREATE_EPLUSPLUS_ACCOUNT    = 3,
+    ACTION_RESUME_EPLUSPLUS_ACCOUNT    = 4,
+} AccountActionType;
+
 typedef enum {
     AUTH_METHOD_UNKNOWN     = -1,
     AUTH_METHOD_SEEN        = 0,
@@ -835,11 +847,15 @@ namespace CodeCounter
         {
             if (!done) complete();
         }
+        high_resolution_clock::duration timeSpent()
+        {
+            return high_resolution_clock::now() - blockStart;
+        }
         void complete()
         {
             ++scope.count;
             ++scope.finishes;
-            scope.timeSpent += high_resolution_clock::now() - blockStart;
+            scope.timeSpent += timeSpent();
             done = true;
         }
 #else

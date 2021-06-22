@@ -1,39 +1,5 @@
-asio
-zlib
-cryptopp
-cryptopp-staticcrt
-libsodium
-sqlite3
-openssl
-c-ares
-curl
-libevent
-libzen
-libmediainfo
 
-# The ffmpeg port needs yasm in the PATH as a build dependency. If you do not have it, it is easy to build from source:
-# https://github.com/yasm/yasm/
-# and set CMAKE_INSTALL_PREFIX to /usr/local for example
-ffmpeg
-
-gtest
-
-#freeimage is not needed for MEGASync (but might be for other projects. e.g: MEGAcmd)
-#freeimage
-
-#REM MEGASync needs libuv and libraw
-libuv
-libraw
-
-# MEGASync needs pdfium, and building it is quite tricky - we can build it statically though with its own CMakeLists.txt after getting the code per their instructions.
-# It in turn depends on these libs which are easier to build with vcpkg as part of our compatible static library set than as part of its own third_party dependencies
-icu
-lcms
-libjpeg-turbo
-openjpeg
-
-# If building for use with MEGAChat messaging then libwebsocket is needed (but voice/video calling needs WebRTC which changes the dependencies a lot, openssl in particular)
-libwebsockets
+Currently it's just pdfium that needs manual fetching of the source code.  Instructions below:
 
 #POSIX:
 # ------ building pdifum - this one needs some manual steps - these can be done before calling the script ---------------
@@ -77,7 +43,4 @@ libwebsockets
 # - If using the latest Pdfium, use at least VS2017 and skip the branch checkout above, and substitute CMakeLists.txt with pdfium-masterbranch-CMakeLists.txt
 #   in sdk/contrib/cmake/vcpkg_extra_ports/pdfium/3710/  (subfolder named '3710' is indeed confusing)
 # - change directory to 3rdparty\vcpkg folder and run build3rdparty.cmd with the desired triplet
-
-pdfium
-pdfium-freetype
 

@@ -85,12 +85,8 @@ bool HttpReqCommandPutFA::procresult(Result r)
                         (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
-                    n->attrs.map['f'] = me64;
 
-                    int creqtag = client->reqtag;
-                    client->reqtag = 0;
-                    client->setattr(n);
-                    client->reqtag = creqtag;
+                    client->setattr(n, attr_map('f', me64), 0, nullptr);
                 }
             }
 
@@ -989,7 +985,7 @@ bool CommandGetFile::procresult(Result r)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, int reqtag, const char* prevattr)
 {
     cmd("a");
     notself(client);
@@ -1003,7 +999,7 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
     arg("at", (byte*)at.c_str(), int(at.size()));
 
     h = n->nodehandle;
-    tag = client->reqtag;
+    tag = reqtag;
     syncop = prevattr;
 
     if(prevattr)
@@ -1796,8 +1792,7 @@ bool CommandLogin::procresult(Result r)
                     if (fa && client->sctable)
                     {
                         client->sctable->remove();
-                        delete client->sctable;
-                        client->sctable = NULL;
+                        client->sctable.reset();
                         client->pendingsccommit = false;
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
@@ -2746,22 +2741,16 @@ bool CommandPutMultipleUAVer::procresult(Result r)
                 TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
                 if (tlvRecords)
                 {
-                    if (tlvRecords->find(EdDSA::TLV_KEY))
+                    string prEd255;
+                    if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                     {
-                        string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-                        if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
-                        {
-                            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
-                        }
+                        client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
                     }
 
-                    if (tlvRecords->find(ECDH::TLV_KEY))
+                    string prCu255;
+                    if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                     {
-                        string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-                        if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
-                        {
-                            client->chatkey = new ECDH((unsigned char *) prCu255.data());
-                        }
+                        client->chatkey = new ECDH((unsigned char *) prCu255.data());
                     }
 
                     if (!client->chatkey || !client->chatkey->initializationOK ||
@@ -4161,6 +4150,13 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
                     client->unshareablekey.swap(unshareableKey);
                 }
+                else if (client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                {
+                    // cannot configure CameraUploads, so it's not needed at this stage.
+                    // It will be created when the account gets confirmed.
+                    // (motivation: speed up the E++ account's setup)
+                    LOG_info << "Skip creation of unshareable key for E++ account";
+                }
                 else if (unshareableKey.empty())    // it has not been created yet
                 {
                     LOG_info << "Creating unshareable key...";
@@ -4200,6 +4196,13 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_DATA,
                                              &jsonSyncConfigData,
                                              &jsonSyncConfigDataVersion);
+                }
+                else if (client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                {
+                    // cannot configure any sync/backupp yet, so it's not needed at this stage.
+                    // It will be created when the account gets confirmed.
+                    // (motivation: speed up the E++ account's setup)
+                    LOG_info << "Skip creation of *~jscd key for E++ account";
                 }
                 else
                 {
@@ -5041,7 +5044,25 @@ bool CommandGetPH::procresult(Result r)
                 if (s >= 0)
                 {
                     a.resize(Base64::atob(a.c_str(), (byte*)a.data(), int(a.size())));
-                    if (havekey)
+
+                    if (op == 2)    // importing WelcomePDF for new account
+                    {
+                        assert(havekey);
+
+                        vector<NewNode> newnodes(1);
+                        auto newnode = &newnodes[0];
+
+                        // set up new node
+                        newnode->source = NEW_PUBLIC;
+                        newnode->type = FILENODE;
+                        newnode->nodehandle = ph;
+                        newnode->parenthandle = UNDEF;
+                        newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
+                        newnode->attrstring.reset(new string(a));
+
+                        client->putnodes(client->rootnodes[0], move(newnodes), nullptr, 0);
+                    }
+                    else if (havekey)
                     {
                         client->app->openfilelink_result(ph, key, s, &a, &fa, op);
                     }
@@ -7503,7 +7524,7 @@ bool CommandGetWelcomePDF::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->getwelcomepdf_result(UNDEF, NULL, r.errorOrOK());
+        LOG_err << "Unexpected response of 'wpdf' command: missing 'ph' and 'k'";
         return true;
     }
 
@@ -7527,18 +7548,17 @@ bool CommandGetWelcomePDF::procresult(Result r)
             case EOO:
                 if (ISUNDEF(ph) || len_key != FILENODEKEYLENGTH)
                 {
-                    client->app->getwelcomepdf_result(UNDEF, NULL, API_EINTERNAL);
+                    LOG_err << "Failed to import welcome PDF: invalid response";
                     return false;
                 }
                 key.assign((const char *) keybuf, len_key);
-                client->app->getwelcomepdf_result(ph, &key, API_OK);
+                client->reqs.add(new CommandGetPH(client, ph, (const byte*) key.data(), 2));
                 return true;
 
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Failed to parse welcome PDF response";
-                    client->app->getwelcomepdf_result(UNDEF, NULL, API_EINTERNAL);
                     return false;
                 }
                 break;

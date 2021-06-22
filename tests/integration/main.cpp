@@ -11,23 +11,60 @@
     #define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
 #endif
 
+using namespace ::mega;
+
 bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
+int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
-std::ofstream gUnopenedOfstream;
-
-std::ostream& out()
+LogStream::~LogStream()
 {
-    if (gOutputToCout) return std::cout;
-    else return gUnopenedOfstream;
+    auto data = mBuffer.str();
+
+    // Always write messages via standard logger.
+    LOG_debug << data;
+
+    if (gOutputToCout)
+    {
+        std::cout << logTime() << " " << data << std::endl;
+    }
+}
+
+std::string getCurrentTimestamp()
+{
+    using std::chrono::system_clock;
+    auto currentTime = std::chrono::system_clock::now();
+    char buffer[80];
+
+    auto transformed = currentTime.time_since_epoch().count() / 1000000;
+
+    auto millis = transformed % 1000;
+
+    std::time_t tt;
+    tt = system_clock::to_time_t ( currentTime );
+    auto timeinfo = localtime (&tt);
+    strftime (buffer,80,"%H:%M:%S",timeinfo);
+    sprintf(buffer, "%s:%03d",buffer,(int)millis);
+
+    return std::string(buffer);
+}
+
+std::string logTime()
+{
+    return getCurrentTimestamp();
+}
+
+LogStream out()
+{
+    return LogStream();
 }
 
 namespace {
 
-class MegaLogger : public mega::Logger
+class MegaLogger : public Logger
 {
 public:
     void log(const char* time, int loglevel, const char* source, const char* message
@@ -39,24 +76,9 @@ public:
         std::ostringstream os;
 
         os << "[";
-        if (time)
-        {
-            os << time;
-        }
-        else
-        {
-            auto t = std::time(NULL);
-            char ts[50];
-            struct tm dt;
-            mega::m_gmtime(t, &dt);
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", &dt))
-            {
-                ts[0] = '\0';
-            }
-            os << ts;
-        }
+        os << getCurrentTimestamp();
 #ifdef ENABLE_LOG_PERFORMANCE
-        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": ";
+        os << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": ";
         if (message)
         {
             os << message;
@@ -64,7 +86,7 @@ public:
         // we can have the message AND the direct messages
         for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
 #else
-        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
+        os << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message;
 #endif
         if (source)
         {
@@ -72,7 +94,7 @@ public:
         }
         os << std::endl;
 
-        if (loglevel <= mega::SimpleLogger::logCurrentLevel)
+        if (loglevel <= SimpleLogger::logCurrentLevel)
         {
             if (gRunningInCI)
             {
@@ -84,26 +106,94 @@ public:
             }
             else
             {
-#ifndef _WIN32
-                std::cout << os.str() << std::flush;
-#endif
+#ifdef _WIN32
+                if (IsDebuggerPresent())
+                {
+                    OutputDebugStringA(os.str().c_str());
+                }
+                else
+#endif // _WIN32
+                {
+                    std::cout << os.str() << std::flush;
+                }
+
                 if (!gTestingInvalidArgs)
                 {
-                    if (loglevel <= mega::logError)
+                    if (loglevel <= logError)
                     {
-                        ASSERT_GT(loglevel, mega::logError) << os.str();
+                        ASSERT_GT(loglevel, logError) << os.str();
                     }
                 }
             }
-#ifdef _WIN32
-            OutputDebugStringA(os.str().c_str());
-#endif
         }
     }
 
 private:
     std::ofstream mLogFile;
 };
+
+class GTestLogger
+  : public ::testing::EmptyTestEventListener
+{
+public:
+    void OnTestEnd(const ::testing::TestInfo& info) override
+    {
+        std::string result = "FAILED";
+
+        if (info.result()->Passed())
+        {
+            result = "PASSED";
+        }
+
+        out() << "GTEST: "
+              << result
+              << " "
+              << info.test_case_name()
+              << "."
+              << info.name();
+    }
+
+    void OnTestPartResult(const ::testing::TestPartResult& result) override
+    {
+        using namespace ::testing;
+
+        if (result.type() == TestPartResult::kSuccess) return;
+
+        std::string file = "unknown";
+        std::string line;
+
+        if (result.file_name())
+        {
+            file = result.file_name();
+        }
+
+        if (result.line_number() >= 0)
+        {
+            line = std::to_string(result.line_number()) + ":";
+        }
+
+        out() << "GTEST: "
+              << file
+              << ":"
+              << line
+              << " Failure";
+
+        std::istringstream istream(result.message());
+
+        for (std::string s; std::getline(istream, s); )
+        {
+            out() << "GTEST: " << s;
+        }
+    }
+
+    void OnTestStart(const ::testing::TestInfo& info) override
+    {
+        out() << "GTEST: RUNNING "
+              << info.test_case_name()
+              << "."
+              << info.name();
+    }
+}; // GTestLogger
 
 } // anonymous
 
@@ -114,11 +204,6 @@ int main (int argc, char *argv[])
         std::cout << "please set username and password env variables for test" << std::endl;
         return 1;
     }
-
-    // delete old test folders, created during previous runs
-    TestFS testFS;
-    testFS.DeleteTestFolder();
-    testFS.DeleteTrashFolder();
 
     std::vector<char*> myargv1(argv, argv + argc);
     std::vector<char*> myargv2;
@@ -135,14 +220,20 @@ int main (int argc, char *argv[])
             USER_AGENT = std::string(*it).substr(12);
             argc -= 1;
         }
-        else if (std::string(*it).substr(0, 12) == "--COUT")
+        else if (std::string(*it) == "--COUT")
         {
             gOutputToCout = true;
             argc -= 1;
         }
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
-            mega::MegaClient::APIURL = std::string(*it).substr(9);
+            std::lock_guard<std::mutex> g(g_APIURL_default_mutex);
+            string s = std::string(*it).substr(9);
+            if (!s.empty())
+            {
+                if (s.back() != '/') s += "/";
+                g_APIURL_default = s;
+            }
             argc -= 1;
         }
         else if (std::string(*it) == "--RESUMESESSIONS")
@@ -150,6 +241,19 @@ int main (int argc, char *argv[])
             gResumeSessions = true;
             argc -= 1;
         }
+#ifdef __APPLE__
+        else if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
+        {
+            int fseventsFd = std::stoi(std::string(*it).substr(13));
+            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
+                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
+                return 1;
+            }
+
+            gFseventsFd = fseventsFd;
+            argc -= 1;
+        }
+#endif
         else
         {
             myargv2.push_back(*it);
@@ -158,8 +262,13 @@ int main (int argc, char *argv[])
 
     MegaLogger megaLogger;
 
-    mega::SimpleLogger::setLogLevel(mega::logMax);
-    mega::SimpleLogger::setOutputClass(&megaLogger);
+    SimpleLogger::setLogLevel(logMax);
+    SimpleLogger::setOutputClass(&megaLogger);
+
+    // delete old test folders, created during previous runs
+    TestFS testFS;
+    testFS.DeleteTestFolder();
+    testFS.DeleteTrashFolder();
 
 #if defined(_WIN32) && defined(NO_READLINE)
     using namespace mega;
@@ -168,6 +277,13 @@ int main (int argc, char *argv[])
 #endif
 
     ::testing::InitGoogleTest(&argc, myargv2.data());
+
+    if (gRunningInCI)
+    {
+        auto& listeners = testing::UnitTest::GetInstance()->listeners();
+        listeners.Append(new GTestLogger());
+    }
+
     return RUN_ALL_TESTS();
 }
 
@@ -193,9 +309,9 @@ fs::path TestFS::GetTestFolder()
 #else
     auto pid = getpid();
 #endif
-    
+
     fs::path testpath = GetTestBaseFolder() / ("pid_" + std::to_string(pid));
-    out() << "Local Test folder: " << testpath << endl;
+    out() << "Local Test folder: " << testpath;
     return testpath;
 }
 
@@ -212,7 +328,7 @@ void TestFS::DeleteFolder(fs::path folder)
     error_code ec;
     fs::path oldpath(folder);
     fs::path newpath(folder);
-    
+
     for (int i = 10; i--; )
     {
         newpath += "_del"; // this can be improved later if needed
@@ -226,8 +342,8 @@ void TestFS::DeleteFolder(fs::path folder)
         // report failures, other than the case when it didn't exist
         if (ec != errc::no_such_file_or_directory)
         {
-            out() << "Renaming " << oldpath << " to " << newpath << " failed." << endl
-                 << ec.message() << endl;
+            out() << "Renaming " << oldpath << " to " << newpath << " failed."
+                 << ec.message();
         }
 
         return;
@@ -240,8 +356,8 @@ void TestFS::DeleteFolder(fs::path folder)
 
             if (ec)
             {
-                out() << "Deleting " << folder << " failed." << endl
-                     << ec.message() << endl;
+                out() << "Deleting " << folder << " failed."
+                     << ec.message();
             }
         }));
 }
@@ -279,3 +395,4 @@ fs::path makeNewTestRoot()
     assert(b);
     return p;
 }
+

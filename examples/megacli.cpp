@@ -24,6 +24,11 @@
 #include <fstream>
 #include <bitset>
 
+#if defined(_WIN32) && defined(_DEBUG)
+// so we can delete a secret internal CrytpoPP singleton
+#include <cryptopp\osrng.h>
+#endif
+
 #define USE_VARARGS
 #define PREFER_STDARG
 
@@ -427,39 +432,39 @@ void DemoApp::syncupdate_scanning(bool active)
 }
 
 // sync update callbacks are for informational purposes only and must not change or delete the sync itself
-void DemoApp::syncupdate_local_folder_addition(Sync* sync, LocalNode *, const char* path)
+void DemoApp::syncupdate_local_folder_addition(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local folder addition detected: " << path;
+    cout << "Sync - local folder addition detected: " << path.toPath(*client->fsaccess);
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode)
+void DemoApp::syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local folder deletion detected: " << localNode->name;
+    cout << "Sync - local folder deletion detected: " << path.toPath(*client->fsaccess);
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_file_addition(Sync* sync, LocalNode *, const char* path)
+void DemoApp::syncupdate_local_file_addition(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local file addition detected: " << path;
+    cout << "Sync - local file addition detected: " << path.toPath(*client->fsaccess);
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_file_deletion(Sync* sync, LocalNode *localNode)
+void DemoApp::syncupdate_local_file_deletion(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local file deletion detected: " << localNode->name;
+    cout << "Sync - local file deletion detected: " << path.toPath(*client->fsaccess);
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_file_change(Sync* sync, LocalNode *, const char* path)
+void DemoApp::syncupdate_local_file_change(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local file change detected: " << path;
+    cout << "Sync - local file change detected: " << path.toPath(*client->fsaccess);
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_move(Sync*, LocalNode *localNode, const char* path)
+void DemoApp::syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath)
 {
-    cout << "Sync - local rename/move " << localNode->name << " -> " << path << endl;
+    cout << "Sync - local rename/move " << oldPath.toPath(*client->fsaccess) << " -> " << newPath.toPath(*client->fsaccess) << endl;
 }
 
 void DemoApp::syncupdate_local_lockretry(bool locked)
@@ -510,7 +515,7 @@ void DemoApp::syncupdate_get(Sync*, Node *, const char* path)
     cout << "Sync - requesting file " << path << endl;
 }
 
-void DemoApp::syncupdate_put(Sync*, LocalNode *, const char* path)
+void DemoApp::syncupdate_put(Sync*, const char* path)
 {
     cout << "Sync - sending file " << path << endl;
 }
@@ -1023,7 +1028,7 @@ void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
     }
 }
 
-void DemoApp::setattr_result(handle, error e)
+void DemoApp::setattr_result(handle, Error e)
 {
     if (e)
     {
@@ -1284,7 +1289,12 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
         for (it=keys->begin(); it != keys->end(); it++)
         {
             key = (*it).empty() ? "(no key)" : *it;
-            value = tlv->get(*it);
+            if (!tlv->get(*it, value) || value.empty())
+            {
+                cout << "\t" << key << "\t" << "(no value)" << endl;
+                continue;
+            }
+
             valuelen = unsigned(value.length());
 
             buf = new char[valuelen * 4 / 3 + 4];
@@ -1380,7 +1390,7 @@ static AccountDetails account;
 static NodeHandle cwd;
 
 // Where we were on the local filesystem when megacli started.
-static LocalPath startDir;
+static unique_ptr<LocalPath> startDir(new LocalPath);
 
 static const char* rootnodenames[] =
 { "ROOT", "INBOX", "RUBBISH" };
@@ -1720,6 +1730,7 @@ void TreeProcListOutShares::proc(MegaClient*, Node* n)
 }
 
 bool handles_on = false;
+bool showattrs = false;
 
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
@@ -1762,7 +1773,18 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                 const char* p;
                 if ((p = strchr(n->fileattrstring.c_str(), ':')))
                 {
-                    stream << ", has attributes " << p + 1;
+                    stream << ", has file attributes " << p + 1;
+                }
+
+                if (showattrs && n->attrs.map.size())
+                {
+                    stream << ", has attrs";
+                    for (auto& a : n->attrs.map)
+                    {
+                        char namebuf[100]{};
+                        AttrMap::nameid2string(a.first, namebuf);
+                        stream << " " << namebuf << "=" << a.second;
+                    }
                 }
 
                 if (n->plink)
@@ -2634,6 +2656,49 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     }
 }
 
+void exec_lreplace(autocomplete::ACState& s)
+{
+    bool file = s.extractflag("-file");
+    bool folder = s.extractflag("-folder");
+
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
+
+    // replace (or create) a file/folder - this is to test a changed fsid in sync code
+    if (file)
+    {
+        string content = s.words[2].s;
+        ofstream f(p);
+        f << content;
+    }
+    else if (folder)
+    {
+        if (fs::exists(p)) fs::remove(p);
+        fs::create_directory(p);
+    }
+}
+
+void exec_lrenamereplace(autocomplete::ACState& s)
+{
+    bool file = s.extractflag("-file");
+    bool folder = s.extractflag("-folder");
+
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
+    string content = s.words[2].s;
+    fs::path p2 = pathFromLocalPath(s.words[3].s, false);
+
+    // replace (or create) a file/folder - this is to test a changed fsid in sync code
+    fs::rename(p, p2);
+    if (file)
+    {
+        ofstream f(p);
+        f << content;
+    }
+    else if (folder)
+    {
+        fs::create_directory(p);
+    }
+}
+
 #endif
 
 void exec_getcloudstorageused(autocomplete::ACState& s)
@@ -2765,16 +2830,23 @@ public:
         else
         {
 #ifdef _WIN32
-            auto t = std::time(NULL);
+            using namespace std::chrono;
+            auto et =system_clock::now().time_since_epoch();
+            auto millisec_since_epoch =  duration_cast<milliseconds>(et).count();
+            auto sec_since_epoch = duration_cast<seconds>(et).count();
             char ts[50];
+            auto t = std::time(NULL);
+            t = (m_time_t) sec_since_epoch;
             if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
             {
                 ts[0] = '\0';
             }
 
+            auto ms = std::to_string(unsigned(millisec_since_epoch - 1000*sec_since_epoch));
             string s;
             s.reserve(1024);
             s += ts;
+            s += "." + string(3 - std::min<size_t>(3, ms.size()), '0') + ms;
             s += " ";
             if (message) s += message;
 #ifdef ENABLE_LOG_PERFORMANCE
@@ -2814,6 +2886,29 @@ void exec_fingerprint(autocomplete::ACState& s)
     else
     {
         cout << "Failed to open: " << s.words[1].s << endl;
+    }
+}
+
+void exec_showattrs(autocomplete::ACState& s)
+{
+    if (s.words.size() == 2)
+    {
+        if (s.words[1].s == "on")
+        {
+            showattrs = true;
+        }
+        else if (s.words[1].s == "off")
+        {
+            showattrs = false;
+        }
+        else
+        {
+            cout << "invalid showattrs setting" << endl;
+        }
+    }
+    else
+    {
+        cout << "      showattrs on|off " << endl;
     }
 }
 
@@ -3126,7 +3221,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_locallogout, sequence(text("locallogout")));
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
-    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off"))), opt(localFSFile())));
+    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off"), flag("-verbose"))), opt(localFSFile())));
     p->Add(exec_verbose, sequence(text("verbose"), opt(either(flag("-on"), flag("-off")))));
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
@@ -3157,6 +3252,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
+    p->Add(exec_showattrs, sequence(text("showattrs"), opt(either(text("on"), text("off")))));
     p->Add(exec_timelocal, sequence(text("mtimelocal"), either(text("set"), text("get")), localFSPath(), opt(param("datetime"))));
 
     p->Add(exec_mfac, sequence(text("mfac"), param("email")));
@@ -3186,6 +3282,9 @@ autocomplete::ACN autocompleteSyntax()
                                                                                                    sequence(flag("-filecount"), param("count")),
                                                                                                    sequence(flag("-filesize"), param("size")),
                                                                                                    sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
+    p->Add(exec_lreplace, sequence(text("lreplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content")));
+    p->Add(exec_lrenamereplace, sequence(text("lrenamereplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content"), localFSPath("renamed")));
+
 #endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
@@ -3202,6 +3301,11 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("logfilenameanomalies"), either(text("on"), text("off"))));
 
     p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
+
+    p->Add(exec_driveid,
+           sequence(text("driveid"),
+                    either(sequence(text("get"), localFSFolder()),
+                           sequence(text("set"), localFSFolder(), opt(text("force"))))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -3650,9 +3754,8 @@ void exec_mv(autocomplete::ACState& s)
 
                             // rename
                             client->fsaccess->normalize(&newname);
-                            n->attrs.map['n'] = newname;
 
-                            if ((e = client->setattr(n)))
+                            if ((e = client->setattr(n, attr_map('n', newname), gNextClientTag++, nullptr)))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -3683,8 +3786,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            n->attrs.map['n'] = tn->attrs.map['n'];
-                            e = client->setattr(n);
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), gNextClientTag++, nullptr);
 
                             if (e)
                             {
@@ -3879,7 +3981,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodehandle, move(tc.nn));
+                client->putnodes(tn->nodehandle, move(tc.nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -3887,7 +3989,7 @@ void exec_cp(autocomplete::ACState& s)
                 {
                     cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
 
-                    client->putnodes(targetuser.c_str(), move(tc.nn));
+                    client->putnodes(targetuser.c_str(), move(tc.nn), gNextClientTag++);
                 }
                 else
                 {
@@ -4171,9 +4273,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
                 uploadLocalFolderContent(tmp, parent);
             };
 
-            client->reqtag = gNextClientTag++;
-            client->putnodes(parent->nodehandle, move(nn));
-            client->reqtag = 0;
+            client->putnodes(parent->nodehandle, move(nn), nullptr, gNextClientTag++);
         }
     }
 }
@@ -4428,7 +4528,7 @@ void exec_open(autocomplete::ACState& s)
                                           client->httpio,
                                           new FSACCESS_CLASS,
                 #ifdef DBACCESS_CLASS
-                                          new DBACCESS_CLASS(startDir),
+                                          new DBACCESS_CLASS(*startDir),
                 #else
                                           NULL,
                 #endif
@@ -4595,7 +4695,7 @@ void exec_begin(autocomplete::ACState& s)
     }
 }
 
-void exec_mount(autocomplete::ACState& s)
+void exec_mount(autocomplete::ACState& )
 {
     listtrees();
 }
@@ -4803,7 +4903,7 @@ void exec_mkdir(autocomplete::ACState& s)
             {
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], newname);
-                client->putnodes(n->nodehandle, move(nn));
+                client->putnodes(n->nodehandle, move(nn), nullptr, gNextClientTag++);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -4813,7 +4913,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], leafname);
-                client->putnodes(n->parent->nodehandle, move(nn));
+                client->putnodes(n->parent->nodehandle, move(nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -5116,8 +5216,18 @@ void exec_pause(autocomplete::ACState& s)
 
 void exec_debug(autocomplete::ACState& s)
 {
-    bool turnon = s.extractflag("-on");
-    bool turnoff = s.extractflag("-off");
+    if (s.extractflag("-off"))
+    {
+        SimpleLogger::setLogLevel(logWarning);
+    }
+    if (s.extractflag("-on"))
+    {
+        SimpleLogger::setLogLevel(logDebug);
+    }
+    if (s.extractflag("-verbose"))
+    {
+        SimpleLogger::setLogLevel(logMax);
+    }
 
     if (s.words.size() > 1)
     {
@@ -5132,13 +5242,7 @@ void exec_debug(autocomplete::ACState& s)
         }
     }
 
-    bool state = client->debugstate();
-    if ((turnon && !state) || (turnoff && state) || (!turnon && !turnoff))
-    {
-        client->toggledebug();
-    }
-
-    cout << "Debug mode " << (client->debugstate() ? "on" : "off") << endl;
+    cout << "Debug mode " << SimpleLogger::logCurrentLevel << endl;
 }
 
 void exec_verbose(autocomplete::ACState& s)
@@ -5499,8 +5603,8 @@ void exec_apiurl(autocomplete::ACState& s)
 {
     if (s.words.size() == 1)
     {
-        cout << "Current APIURL = " << MegaClient::APIURL << endl;
-        cout << "Current disablepkp = " << (MegaClient::disablepkp ? "true" : "false") << endl;
+        cout << "Current APIURL = " << client->httpio->APIURL << endl;
+        cout << "Current disablepkp = " << (client->httpio->disablepkp ? "true" : "false") << endl;
     }
     else if (client->loggedin() != NOTLOGGEDIN)
     {
@@ -5516,10 +5620,10 @@ void exec_apiurl(autocomplete::ACState& s)
         {
             s.words[1].s += '/';
         }
-        MegaClient::APIURL = s.words[1].s;
+        client->httpio->APIURL = s.words[1].s;
         if (s.words.size() == 3)
         {
-            MegaClient::disablepkp = s.words[2].s == "true";
+            client->httpio->disablepkp = s.words[2].s == "true";
         }
     }
 }
@@ -6698,6 +6802,68 @@ void exec_drivemonitor(autocomplete::ACState& s)
 #endif // USE_DRIVE_NOTIFICATIONS
 }
 
+void exec_driveid(autocomplete::ACState& s)
+{
+    auto drivePath = s.words[2].s.c_str();
+    auto get = s.words[1].s == "get";
+    auto force = s.words.size() == 4;
+
+    if (!force)
+    {
+        auto id = UNDEF;
+        auto result = client->readDriveId(drivePath, id);
+
+        switch (result)
+        {
+        case API_ENOENT:
+            if (!get) break;
+
+            cout << "No drive ID has been assigned to "
+                 << drivePath
+                 << endl;
+            return;
+
+        case API_EREAD:
+            cout << "Unable to read drive ID from "
+                 << drivePath
+                 << endl;
+            return;
+
+        case API_OK:
+            cout << "Drive "
+                 << drivePath
+                 << " has the ID "
+                 << toHandle(id)
+                 << endl;
+            return;
+
+        default:
+            assert(!"Uexpected result from readDriveID(...)");
+            cerr << "Unexpected result from readDriveId(...): "
+                 << errorstring(result)
+                 << endl;
+            return;
+        }
+    }
+
+    auto id = client->generateDriveId();
+    auto result = client->writeDriveId(drivePath, id);
+
+    if (result != API_OK)
+    {
+        cout << "Unable to write drive ID to "
+             << drivePath
+             << endl;
+        return;
+    }
+
+    cout << "Drive ID "
+         << toHandle(id)
+         << " has been written to "
+         << drivePath
+         << endl;
+}
+
 #ifdef USE_DRIVE_NOTIFICATIONS
 void DemoApp::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
 {
@@ -7381,7 +7547,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodehandle, move(nn));
+        client->putnodes(n->nodehandle, move(nn), nullptr, client->restag);
     }
     else
     {
@@ -7666,20 +7832,6 @@ void DemoApp::getmegaachievements_result(AchievementsDetails *details, error /*e
     delete details;
 }
 
-void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
-{
-    if (e)
-    {
-        cout << "Failed to get Welcome PDF. Error: " << e << endl;
-        pdf_to_import = false;
-    }
-    else
-    {
-        cout << "Importing Welcome PDF file. Public handle: " << LOG_NODEHANDLE(ph) << endl;
-        client->reqs.add(new CommandGetPH(client, ph, (const byte *)k->data(), 1));
-    }
-}
-
 #ifdef ENABLE_CHAT
 void DemoApp::richlinkrequest_result(string *json, error e)
 {
@@ -7854,7 +8006,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
             }
         }
 
-        if(client->debugstate())
+        if(gVerboseMode)
         {
             cout << endl << "Full Session history:" << endl;
 
@@ -8245,6 +8397,10 @@ void megacli()
 
 int main()
 {
+#if defined(_WIN32) && defined(_DEBUG)
+    _CrtSetBreakAlloc(124);  // set this to an allocation number to hunt leaks.  Prior to 124 and prior are from globals/statics so won't be detected by this
+#endif
+
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&gLogger);
@@ -8257,38 +8413,46 @@ int main()
 #ifdef GFX_CLASS
     auto gfx = new GFX_CLASS;
     gfx->startProcessingThread();
+#else
+    mega::GfxProc* gfx = nullptr;
 #endif
 
     // Needed so we can get the cwd.
     auto fsAccess = new FSACCESS_CLASS();
 
     // Where are we?
-    if (!fsAccess->cwd(startDir))
+    if (!fsAccess->cwd(*startDir))
     {
         cerr << "Unable to determine current working directory." << endl;
         return EXIT_FAILURE;
     }
 
+    auto httpIO = new HTTPIO_CLASS;
+
+#ifdef WIN32
+    auto waiter = new CONSOLE_WAIT_CLASS(static_cast<CONSOLE_CLASS*>(console));
+#else
+    auto waiter = new CONSOLE_WAIT_CLASS;
+#endif
+
+    auto demoApp = new DemoApp;
+
+    auto dbAccess =
+#ifdef DBACCESS_CLASS
+        new DBACCESS_CLASS(*startDir);
+#else
+        nullptr;
+#endif
+
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
-    client = new MegaClient(new DemoApp,
-#ifdef WIN32
-                            new CONSOLE_WAIT_CLASS(static_cast<CONSOLE_CLASS*>(console)),
-#else
-                            new CONSOLE_WAIT_CLASS,
-#endif
-                            new HTTPIO_CLASS,
+    client = new MegaClient(demoApp,
+                            waiter,
+                            httpIO,
                             fsAccess,
-#ifdef DBACCESS_CLASS
-                            new DBACCESS_CLASS(startDir),
-#else
-                            NULL,
-#endif
-#ifdef GFX_CLASS
+                            dbAccess,
                             gfx,
-#else
-                            NULL,
-#endif
                             "Gk8DyQBS",
                             "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
                             "." TOSTRING(MEGA_MINOR_VERSION)
@@ -8302,6 +8466,29 @@ int main()
 
     clientFolder = NULL;    // additional for folder links
     megacli();
+
+    delete client;
+    delete waiter;
+    delete httpIO;
+    delete gfx;
+    //delete dbAccess; // already deleted
+    delete fsAccess;
+    delete demoApp;
+    acs.reset();
+    autocompleteTemplate.reset();
+    delete console;
+    startDir.reset();
+
+    delete CurlHttpIO::sslMutexes;
+
+#if defined(_WIN32) && defined(_DEBUG)
+
+    // Singleton enthusiasts rarely think about shutdown...
+    const CryptoPP::MicrosoftCryptoProvider &hProvider = CryptoPP::Singleton<CryptoPP::MicrosoftCryptoProvider>().Ref();
+    delete &hProvider;
+
+    _CrtDumpMemoryLeaks();
+#endif
 }
 
 
@@ -8330,8 +8517,6 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
         {
             cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
         }
-
-        pdf_to_import = false;
     }
     else
     {
@@ -8346,11 +8531,6 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
 
             delete clientFolder;
             clientFolder = NULL;
-        }
-
-        if (pdf_to_import)
-        {
-            client->getwelcomepdf();
         }
     }
 }
@@ -8533,9 +8713,28 @@ void exec_syncadd(autocomplete::ACState& s)
                  true,
                  backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
-    if (external && !backup)
+    if (external)
     {
-        cerr << "Sorry, external syncs must be backups for now" << endl;
+        if (!backup)
+        {
+            cerr << "Sorry, external syncs must be backups for now" << endl;
+        }
+
+        // Try and generate a drive ID.
+        auto id = UNDEF;
+        auto result = client->readDriveId(drive.c_str(), id);
+
+        if (result == API_ENOENT)
+        {
+            id = client->generateDriveId();
+            result = client->writeDriveId(drive.c_str(), id);
+        }
+
+        if (result != API_OK)
+        {
+            cerr << "Unable to generate drive ID for " << drive << endl;
+            return;
+        }
     }
 
     // Try and add the new sync.
@@ -8609,7 +8808,7 @@ void exec_syncimport(autocomplete::ACState& s)
       {
           if (result)
           {
-              cerr << "Unable to import sync configs: " 
+              cerr << "Unable to import sync configs: "
                    << errorstring(result)
                    << endl;
               return;
