@@ -8460,6 +8460,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                             // updates cache with the new node associated
                             nn_nni.localnode->sync->statecacheadd(nn_nni.localnode);
                             nn_nni.localnode->newnode.reset(); // localnode ptr now null also
+
+                            // scan in case we had pending moves.
+                            if (n->type == FOLDERNODE)
+                            {
+                                auto path = n->localnode->getLocalPath();
+                                n->localnode->sync->scan(&path, nullptr);
+                            }
                         }
                     }
 #endif
@@ -15108,10 +15115,6 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
             if (n->type == FOLDERNODE)
             {
                 app->syncupdate_remote_folder_addition(nn[nni].localnode->sync, n);
-
-                // in case we had notifications from anything under that folder previously that we couldn't process then, rescan
-                nn[nni].localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, nn[nni].localnode, LocalPath());
-
             }
             else
             {
