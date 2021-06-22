@@ -814,7 +814,6 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     }
     else
     {
-        assert(false);  // we suspect this code path is not used, please notify us if it actually is.
         localdebris = *clocaldebris;
     }
 
