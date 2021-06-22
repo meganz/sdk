@@ -398,7 +398,12 @@ struct Notification
 {
     dstime timestamp;
     LocalPath path;
-    LocalNode* localnode;
+    LocalNode* localnode = nullptr;
+
+    Notification() {}
+    Notification(dstime ts, const LocalPath& p, LocalNode* ln)
+        : timestamp(ts), path(p), localnode(ln)
+        {}
 };
 
 struct NotificationDeque : ThreadSafeDeque<Notification>
@@ -466,7 +471,7 @@ public:
 
     Sync *sync;
 
-    DirNotify(const LocalPath&, const LocalPath&);
+    DirNotify(const LocalPath&, const LocalPath&, Sync* s);
     virtual ~DirNotify() {}
 
     bool empty();
@@ -493,7 +498,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
-    virtual DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*);
+    virtual DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*, LocalNode* syncroot);
 
     // check if character is lowercase hex ASCII
     bool isControlChar(unsigned char c) const;

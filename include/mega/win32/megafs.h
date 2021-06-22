@@ -57,7 +57,7 @@ public:
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
 
     DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
+    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*, LocalNode* syncroot) override;
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
 
@@ -138,7 +138,7 @@ public:
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
 
-    WinDirNotify(LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter);
+    WinDirNotify(LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot);
     ~WinDirNotify();
 };
 

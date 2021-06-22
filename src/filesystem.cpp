@@ -489,7 +489,7 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
 }
 
 // default DirNotify: no notification available
-DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore)
+DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore, Sync* s)
 {
     localbasepath = clocalbasepath;
     ignore = cignore;
@@ -497,7 +497,7 @@ DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore)
     mFailed = 1;
     mFailReason = "Not initialized";
     mErrorCount = 0;
-    sync = NULL;
+    sync = s;
 }
 
 
@@ -537,10 +537,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immed
     // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
 
-    Notification n;
-    n.timestamp = immediate ? 0 : Waiter::ds;
-    n.localnode = l;
-    n.path = std::move(path);
+    Notification n(immediate ? 0 : Waiter::ds, std::move(path), l);
     notifyq[q].pushBack(std::move(n));
 
 #ifdef ENABLE_SYNC
@@ -563,9 +560,9 @@ bool DirNotify::fsstableids() const
     return true;
 }
 
-DirNotify* FileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter*)
+DirNotify* FileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter*, LocalNode* syncroot)
 {
-    return new DirNotify(localpath, ignore);
+    return new DirNotify(localpath, ignore, syncroot->sync);
 }
 
 FileAccess::FileAccess(Waiter *waiter)

@@ -1382,7 +1382,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     fsid_it = sync->client->fsidnode.end();
 
     // enable folder notification
-    if (type == FOLDERNODE)
+    if (type == FOLDERNODE && sync->dirnotify)
     {
         sync->dirnotify->addnotify(this, cfullpath);
     }
