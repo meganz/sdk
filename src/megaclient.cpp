@@ -14568,6 +14568,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         if (rit->second->syncget)
                         {
                             LOG_debug << "Stopping unneeded download";
+                            DBTableTransactionCommitter committer(tctable);
                             delete rit->second->syncget;
                             rit->second->syncget = NULL;
                         }
