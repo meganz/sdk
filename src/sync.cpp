@@ -810,14 +810,12 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     {
         debris = cdebris;
         localdebris = LocalPath::fromPath(debris, *client->fsaccess);
-
-
         localdebris.prependWithSeparator(mLocalPath);
     }
     else
     {
+        assert(false);  // we suspect this code path is not used, please notify us if it actually is.
         localdebris = *clocaldebris;
-        // FIXME: pass last segment of localdebris
     }
 
     mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
@@ -826,7 +824,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     localroot->setnode(remotenode);
 
     // notifications may be queueing from this moment
-    dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris, client->waiter, localroot.get()));
+    dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris.leafName(), client->waiter, localroot.get()));
     assert(dirnotify->sync == this);
 
     // set specified fsfp or get from fs if none

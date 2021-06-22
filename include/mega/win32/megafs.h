@@ -58,7 +58,7 @@ public:
 
     DirAccess* newdiraccess() override;
 #ifdef ENABLE_SYNC
-    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*, LocalNode* syncroot) override;
+    DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
 #endif
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
@@ -143,7 +143,7 @@ public:
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
 
-    WinDirNotify(LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot);
+    WinDirNotify(const LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot);
     ~WinDirNotify();
 };
 #endif

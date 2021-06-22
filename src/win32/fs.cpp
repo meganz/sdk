@@ -1556,7 +1556,7 @@ void WinDirNotify::notifierThreadFunction()
     LOG_debug << "Filesystem notify thread stopped";
 }
 
-WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot)
+WinDirNotify::WinDirNotify(const LocalPath& localbasepathParam, const LocalPath& ignore, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot)
     : DirNotify(localbasepath, ignore, syncroot->sync)
     , localrootnode(syncroot)
 {
@@ -1583,7 +1583,7 @@ WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, Wi
     mOverlappedEnabled = false;
     mOverlappedExit = false;
 
-    ScopedLengthRestore restoreLocalbasePath(localbasepath);
+    LocalPath localbasepath(localbasepathParam);
     sanitizedriveletter(localbasepath.localpath);
 
     // ReadDirectoryChangesW: If you opened the file using the short name, you can receive change notifications for the short name.  (so make sure it's a long name)
@@ -1729,7 +1729,7 @@ DirAccess* WinFileSystemAccess::newdiraccess()
 }
 
 #ifdef ENABLE_SYNC
-DirNotify* WinFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter* waiter, LocalNode* syncroot)
+DirNotify* WinFileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter* waiter, LocalNode* syncroot)
 {
     return new WinDirNotify(localpath, ignore, this, waiter, syncroot);
 }

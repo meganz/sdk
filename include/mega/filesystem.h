@@ -501,7 +501,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 #ifdef ENABLE_SYNC
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
-    virtual DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*, LocalNode* syncroot);
+    virtual DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot);
 #endif
 
     // check if character is lowercase hex ASCII
