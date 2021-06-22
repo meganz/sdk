@@ -681,8 +681,10 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 {
     assert(sizeof(off_t) == 8);
 
+#ifdef ENABLE_SYNC
     notifyerr = false;
     notifyfailed = true;
+#endif
     notifyfd = -1;
 
     defaultfilepermissions = 0600;
@@ -706,7 +708,9 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     lastlocalnode = NULL;
     if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
     {
+#ifdef ENABLE_SYNC
         notifyfailed = false;
+#endif
     }
 #endif
 
@@ -765,7 +769,9 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
             if (ioctl(notifyfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
             {
+#ifdef ENABLE_SYNC
                 notifyfailed = false;
+#endif
             }
             else
             {
@@ -1899,7 +1905,8 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
     return new PosixDirAccess();
 }
 
-DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter*, LocalNode* syncroot)
+#ifdef ENABLE_SYNC
+DirNotify* PosixFileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter*, LocalNode* syncroot)
 {
     PosixDirNotify* dirnotify = new PosixDirNotify(localpath, ignore, syncroot->sync);
 
@@ -1907,6 +1914,7 @@ DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& 
 
     return dirnotify;
 }
+#endif
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {
