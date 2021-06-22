@@ -203,7 +203,7 @@ public:
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
 
-    PosixDirNotify(LocalPath&, const LocalPath&, Sync* s);
+    PosixDirNotify(const LocalPath&, const LocalPath&, Sync* s);
 };
 #endif
 

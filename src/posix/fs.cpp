@@ -1815,7 +1815,7 @@ void PosixFileSystemAccess::statsid(string *id) const
 
 #ifdef ENABLE_SYNC
 
-PosixDirNotify::PosixDirNotify(LocalPath& localbasepath, const LocalPath& ignore, Sync* s)
+PosixDirNotify::PosixDirNotify(const LocalPath& localbasepath, const LocalPath& ignore, Sync* s)
   : DirNotify(localbasepath, ignore, s)
 {
 #ifdef USE_INOTIFY
