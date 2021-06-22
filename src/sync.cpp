@@ -1796,10 +1796,6 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
                     }
 
-                    // (in case of a move, this synchronously updates l->parent
-                    // and l->node->parent)
-                    it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
-
                     // Has the move (rename) resulted in a filename anomaly?
                     if (Node* node = it->second->node)
                     {
