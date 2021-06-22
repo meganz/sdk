@@ -189,6 +189,7 @@ private:
 
 };
 
+#ifdef ENABLE_SYNC
 class MEGA_API PosixDirNotify : public DirNotify
 {
 public:
@@ -202,6 +203,7 @@ public:
 
     PosixDirNotify(LocalPath&, const LocalPath&, Sync* s);
 };
+#endif
 
 } // namespace
 

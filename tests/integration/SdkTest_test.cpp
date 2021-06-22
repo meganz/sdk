@@ -720,7 +720,11 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT] = false;
+#ifdef ENABLE_SYNC
     mApi[apiIndex].megaApi->logout(keepSyncConfigs, this);
+#else
+    mApi[apiIndex].megaApi->logout(this);
+#endif
 
     EXPECT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT], timeout) )
             << "Logout failed after " << timeout  << " seconds";
@@ -4778,7 +4782,6 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // create My Backups folder
     syncTestMyBackupsRemoteFolder(0);
-    MegaHandle mh = mApi[0].h;
 
     // look for Device Name attr
     string deviceName;
@@ -4802,6 +4805,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
 #ifdef ENABLE_SYNC
+    MegaHandle mh = mApi[0].h;
+
     // Create a test root directory
     fs::path localBasePath = makeNewTestRoot();
 
@@ -5076,6 +5081,7 @@ TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 }
 
 
+#ifdef ENABLE_SYNC
 TEST_F(SdkTest, SdkExternalDriveFolder)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -5138,6 +5144,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     err = synchronousGetDriveName(0, pathToDriveStr.c_str());
     ASSERT_EQ(MegaError::API_ENOENT, err) << "getDriveName not failed as it should (error: " << err << ")";
 }
+#endif
 
 void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 {
@@ -5472,7 +5479,12 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     // logout while the upload (which consists of many transfers) is ongoing
     gSessionIDs[0].clear();
+#ifdef ENABLE_SYNC
     ASSERT_EQ(API_OK, doRequestLogout(0, false));
+#else
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+#endif
+
     int result = uploadListener->waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
@@ -5512,7 +5524,11 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 
     // logout while the download (which consists of many transfers) is ongoing
 
+#ifdef ENABLE_SYNC
     ASSERT_EQ(API_OK, doRequestLogout(0, false));
+#else
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+#endif
 
     int result = downloadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);

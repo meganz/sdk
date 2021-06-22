@@ -257,8 +257,10 @@ FileSystemAccess::FileSystemAccess()
     : waiter(NULL)
     , skip_errorreport(false)
     , transient_error(false)
+#ifdef ENABLE_SYNC
     , notifyerr(false)
     , notifyfailed(false)
+#endif
     , target_exists(false)
     , client(NULL)
 {
@@ -488,6 +490,8 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
+#ifdef ENABLE_SYNC
+
 // default DirNotify: no notification available
 DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore, Sync* s)
 {
@@ -564,6 +568,8 @@ DirNotify* FileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignor
 {
     return new DirNotify(localpath, ignore, syncroot->sync);
 }
+
+#endif  // ENABLE_SYNC
 
 FileAccess::FileAccess(Waiter *waiter)
 {
