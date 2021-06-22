@@ -5917,7 +5917,9 @@ MegaRegExp::MegaRegExp(MegaRegExpPrivate *pImpl)
     this->pImpl = pImpl;
 }
 
-MegaRegExp::~MegaRegExp() { }
+MegaRegExp::~MegaRegExp() {
+    delete pImpl;
+}
 
 MegaRegExp *MegaRegExp::copy()
 {
