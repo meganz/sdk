@@ -2215,7 +2215,7 @@ bool CommandSetPendingContact::procresult(Result r)
             {
                 if (it->second->targetemail == temail)
                 {
-                    pcr = it->second;
+                    pcr = it->second.get();
                     pcrhandle = pcr->id;
                     break;
                 }
@@ -2297,7 +2297,7 @@ bool CommandSetPendingContact::procresult(Result r)
                 }
 
                 pcr = new PendingContactRequest(p, eValue, m, ts, uts, msg, true);
-                client->mappcr(p, pcr);
+                client->mappcr(p, unique_ptr<PendingContactRequest>(pcr));
 
                 client->notifypcr(pcr);
                 client->app->setpcr_result(p, API_OK, this->action);

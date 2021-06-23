@@ -265,7 +265,6 @@ void SdkTest::TearDown()
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
 
-    out() << "Cleaning up account";
     Cleanup();
 
     releaseMegaApi(1);
@@ -279,6 +278,8 @@ void SdkTest::TearDown()
 
 void SdkTest::Cleanup()
 {
+    out() << "Cleaning up accounts";
+
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
     deleteFile(PUBLICFILE);
@@ -317,14 +318,26 @@ void SdkTest::Cleanup()
         {
             removeContact(ul->get(i)->getEmail());
         }
+    }
 
+    for (auto nApi = unsigned(megaApi.size()); nApi--; ) if (megaApi[nApi])
+    {
         // Remove pending contact requests
-        std::unique_ptr<MegaContactRequestList> crl{megaApi[0]->getOutgoingContactRequests()};
+
+        std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
         for (int i = 0; i < crl->size(); i++)
         {
             MegaContactRequest *cr = crl->get(i);
-            megaApi[0]->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
+            synchronousInviteContact(nApi, cr->getTargetEmail(), "Test cleanup removing outgoing contact request", MegaContactRequest::INVITE_ACTION_DELETE);
         }
+
+        crl.reset(megaApi[nApi]->getIncomingContactRequests());
+        for (int i = 0; i < crl->size(); i++)
+        {
+            MegaContactRequest *cr = crl->get(i);
+            synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
+        }
+
     }
 }
 
@@ -941,7 +954,6 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     ASSERT_FALSE(anyFetchnodesFailed);
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << "Cleaning up account 0";
     Cleanup();
     out() << "Test setup done, test starts";
 }
@@ -6725,7 +6737,6 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << "Cleaning up account 0";
     Cleanup();
 }
 
@@ -6910,7 +6921,6 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << logTime() << "Cleaning up account 0";
     Cleanup();
 }
 
