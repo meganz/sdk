@@ -572,7 +572,7 @@ typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIV
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
-typedef map<handle, PendingContactRequest*> handlepcr_map;
+typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 
 // Type-Value (for user attributes)
 typedef vector<string> string_vector;
