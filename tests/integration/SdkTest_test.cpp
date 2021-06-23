@@ -728,7 +728,7 @@ void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
     mApi[apiIndex].megaApi->logout(this);
 #endif
     gSessionIDs[apiIndex] = "invalid";
-	
+
     EXPECT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT], timeout) )
             << "Logout failed after " << timeout  << " seconds";
 
@@ -5501,7 +5501,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     ASSERT_EQ(API_OK, doRequestLogout(0));
 #endif
     gSessionIDs[0] = "invalid";
-	
+
     int result = uploadListener->waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
@@ -5547,7 +5547,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_EQ(API_OK, doRequestLogout(0));
 #endif
     gSessionIDs[0] = "invalid";
-	
+
     int result = downloadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
     fs::remove_all(uploadpath, ec);
@@ -6440,6 +6440,11 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr)) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
+
+    // Give the sync a chance to scan and get ready
+    LOG_verbose << "SyncPersistence :  wait 5 sec";
+    WaitMillisec(5000);
+    LOG_verbose << "SyncPersistence :  5 sec wait ended";
 
     LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced.";
     createFile(filePath.u8string(), false);
