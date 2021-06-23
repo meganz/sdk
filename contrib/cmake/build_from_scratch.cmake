@@ -168,6 +168,8 @@ set(_common_cmake_args
 
 if(TARGET)
     set(_cmake_target_args --target ${TARGET})
+elseif(TARGETS) # allow TARGETS as a synonym for TARGET :)
+    set(_cmake_target_args --target ${TARGETS})
 endif()
 
 if(WIN32)
