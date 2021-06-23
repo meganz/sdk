@@ -250,17 +250,6 @@ void SdkTest::TearDown()
     out() << "Test done, teardown starts";
     // do some cleanup
 
-    for (size_t i = 0; i < megaApi.size(); ++i)
-    {
-        if (gResumeSessions && megaApi[i] && (gSessionIDs[i].empty() || gSessionIDs[i] == "invalid"))
-        {
-            if (auto p = unique_ptr<char[]>(megaApi[i]->dumpSession()))
-            {
-                gSessionIDs[i] = p.get();
-            }
-        }
-    }
-
     gTestingInvalidArgs = false;
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
@@ -734,6 +723,7 @@ void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT] = false;
     mApi[apiIndex].megaApi->logout(keepSyncConfigs, this);
+    gSessionIDs[apiIndex] = "invalid";
 
     EXPECT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT], timeout) )
             << "Logout failed after " << timeout  << " seconds";
@@ -933,6 +923,16 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         auto loginResult = trackers[index]->waitForResult();
         EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for account " << index;
         if (loginResult != API_OK) anyLoginFailed = true;
+        else {
+            gSessionIDs[index] = "invalid"; // default
+            if (gResumeSessions && megaApi[index]->isLoggedIn() == FULLACCOUNT)
+            {
+                if (auto p = unique_ptr<char[]>(megaApi[index]->dumpSession()))
+                {
+                    gSessionIDs[index] = p.get();
+                }
+            }
+        }
     }
     ASSERT_FALSE(anyLoginFailed);
 
@@ -1244,6 +1244,8 @@ TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
     ASSERT_NO_FATAL_FAILURE(locallogout());
     synchronousResumeCreateAccountEphemeralPlusPlus(0, sid.c_str());
     ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Account creation failed after resume (error: " << mApi[0].lastError << ")";
+
+    gSessionIDs[0] = "invalid";
 }
 
 bool veryclose(double a, double b)
@@ -1331,6 +1333,7 @@ TEST_F(SdkTest, SdkTestKillSession)
 
     // Log out the primary account.
     logout(0, false, maxTimeout);
+    gSessionIDs[0] = "invalid";
 }
 
 /**
@@ -4928,6 +4931,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
     // getMiscFlags() -- not logged in
     logout(0, false, maxTimeout);
+    gSessionIDs[0] = "invalid";
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 }
@@ -5485,6 +5489,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     // logout while the upload (which consists of many transfers) is ongoing
     gSessionIDs[0].clear();
     ASSERT_EQ(API_OK, doRequestLogout(0, false));
+    gSessionIDs[0] = "invalid";
     int result = uploadListener->waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
@@ -5525,6 +5530,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     // logout while the download (which consists of many transfers) is ongoing
 
     ASSERT_EQ(API_OK, doRequestLogout(0, false));
+    gSessionIDs[0] = "invalid";
 
     int result = downloadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
@@ -6349,6 +6355,7 @@ TEST_F(SdkTest, SyncPersistence)
 
     // Check if a logout with keepSyncsAfterLogout keeps the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, true, maxTimeout));
+    gSessionIDs[0] = "invalid";
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
@@ -6358,6 +6365,7 @@ TEST_F(SdkTest, SyncPersistence)
 
     // Check if a logout without keepSyncsAfterLogout doesn't keep the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, false, maxTimeout));
+    gSessionIDs[0] = "invalid";
     trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
@@ -6829,6 +6837,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     }
 
     ASSERT_NO_FATAL_FAILURE( logout(0, false, maxTimeout) );
+    gSessionIDs[0] = "invalid";
 
     // create apis to exported folders
     for (unsigned index = 0 ; index < howMany; index++ )
