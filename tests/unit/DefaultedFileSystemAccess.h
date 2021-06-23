@@ -35,8 +35,10 @@ public:
 
     DefaultedFileSystemAccess()
     {
+#ifdef ENABLE_SYNC
         notifyerr = false;
         notifyfailed = true;
+#endif   // ENABLE_SYNC
     }
     std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {

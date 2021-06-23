@@ -2319,6 +2319,8 @@ public:
 
     void SetUp() override
     {
+        SimpleLogger::setLogLevel(logMax);
+
         ASSERT_TRUE(client0->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "d", 1, 2));
         ASSERT_TRUE(client1->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
         ASSERT_EQ(client0->basefolderhandle, client1->basefolderhandle);

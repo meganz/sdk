@@ -768,19 +768,24 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     {
         debris = cdebris;
         localdebris = LocalPath::fromPath(debris, *client->fsaccess);
-
-        dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris, client->waiter));
-
         localdebris.prependWithSeparator(mLocalPath);
     }
     else
     {
         localdebris = *clocaldebris;
-
-        // FIXME: pass last segment of localdebris
-        dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris, client->waiter));
     }
-    dirnotify->sync = this;
+
+    mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
+
+    localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
+    localroot->setnode(remotenode);
+
+    // notifications may be queueing from this moment
+    dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris.leafName(), client->waiter, localroot.get()));
+    assert(dirnotify->sync == this);
+
+    // order issue - localroot->init() couldn't do this until dirnotify is created but that needs
+    dirnotify->addnotify(localroot.get(), mLocalPath);
 
     // set specified fsfp or get from fs if none
     const auto cfsfp = mUnifiedSync.mConfig.getLocalFingerprint();
@@ -796,10 +801,6 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
-
-    localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
-    localroot->setnode(remotenode);
 
 #ifdef __APPLE__
     if (macOSmajorVersion() >= 19) //macOS catalina+

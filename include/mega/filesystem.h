@@ -389,7 +389,12 @@ struct Notification
 {
     dstime timestamp;
     LocalPath path;
-    LocalNode* localnode;
+    LocalNode* localnode = nullptr;
+
+    Notification() {}
+    Notification(dstime ts, const LocalPath& p, LocalNode* ln)
+        : timestamp(ts), path(p), localnode(ln)
+        {}
 };
 
 struct NotificationDeque : ThreadSafeDeque<Notification>
@@ -407,7 +412,8 @@ struct NotificationDeque : ThreadSafeDeque<Notification>
     }
 };
 
-// generic filesystem change notification
+#ifdef ENABLE_SYNC
+// filesystem change notification, highly coupled to Syncs and LocalNodes.
 struct MEGA_API DirNotify
 {
     typedef enum { EXTRA, DIREVENTS, RETRY, NUMQUEUES } notifyqueue;
@@ -457,11 +463,12 @@ public:
 
     Sync *sync;
 
-    DirNotify(const LocalPath&, const LocalPath&);
+    DirNotify(const LocalPath&, const LocalPath&, Sync* s);
     virtual ~DirNotify() {}
 
     bool empty();
 };
+#endif
 
 // generic host filesystem access interface
 struct MEGA_API FileSystemAccess : public EventTrigger
@@ -482,9 +489,11 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // instantiate DirAccess object
     virtual DirAccess* newdiraccess() = 0;
 
+#ifdef ENABLE_SYNC
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
-    virtual DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*);
+    virtual DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot);
+#endif
 
     // check if character is lowercase hex ASCII
     bool isControlChar(unsigned char c) const;
@@ -565,10 +574,12 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
 
+#ifdef ENABLE_SYNC
     // set whenever there was a global file notification error or permanent failure
     // (this is in addition to the DirNotify-local error)
     bool notifyerr;
     bool notifyfailed;
+#endif
 
     // set whenever an operation fails because the target already exists
     bool target_exists;
