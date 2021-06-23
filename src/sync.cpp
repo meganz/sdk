@@ -826,6 +826,9 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris.leafName(), client->waiter, localroot.get()));
     assert(dirnotify->sync == this);
 
+    // order issue - localroot->init() couldn't do this until dirnotify is created but that needs
+    dirnotify->addnotify(localroot.get(), mLocalPath);
+
     // set specified fsfp or get from fs if none
     const auto cfsfp = mUnifiedSync.mConfig.getLocalFingerprint();
     if (cfsfp)

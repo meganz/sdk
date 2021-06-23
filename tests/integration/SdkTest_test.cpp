@@ -6441,12 +6441,7 @@ TEST_F(SdkTest, SyncPaths)
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
 
-    // Give the sync a chance to scan and get ready
-    LOG_verbose << "SyncPersistence :  wait 5 sec";
-    WaitMillisec(5000);
-    LOG_verbose << "SyncPersistence :  5 sec wait ended";
-
-    LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced.";
+    LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced: " << filePath.u8string();
     createFile(filePath.u8string(), false);
     std::unique_ptr<MegaNode> remoteNode;
     WaitFor([this, &remoteNode, &remoteBaseNode, fileNameStr]() -> bool
