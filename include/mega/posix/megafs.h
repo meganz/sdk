@@ -88,7 +88,9 @@ public:
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
+#ifdef ENABLE_SYNC
+    DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
+#endif
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
     bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning);
@@ -189,6 +191,7 @@ private:
 
 };
 
+#ifdef ENABLE_SYNC
 class MEGA_API PosixDirNotify : public DirNotify
 {
 public:
@@ -200,8 +203,9 @@ public:
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
 
-    PosixDirNotify(LocalPath&, const LocalPath&);
+    PosixDirNotify(const LocalPath&, const LocalPath&, Sync* s);
 };
+#endif
 
 } // namespace
 

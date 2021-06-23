@@ -484,7 +484,7 @@ void SyncApp::syncupdate_stateconfig(handle backupId)
 
 // sync update callbacks are for informational purposes only and must not
 // change or delete the sync itself
-void SyncApp::syncupdate_local_folder_addition(Sync*, const LocalPath& path) 
+void SyncApp::syncupdate_local_folder_addition(Sync*, const LocalPath& path)
 {
     assert(client && !!client->fsaccess);
 
@@ -603,7 +603,7 @@ int main(int argc, char *argv[])
 #ifndef ENABLE_SYNC
     cerr << "Synchronization features are disabled" << endl;
     return 1;
-#endif
+#else
 
     SyncApp *app;
 
@@ -686,4 +686,5 @@ int main(int argc, char *argv[])
     }
 
     return 0;
+#endif
 }
