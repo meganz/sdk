@@ -905,6 +905,9 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         mApi[index].megaApi = megaApi[index].get();
 
+        // helps with restoring logging after tests that fiddle with log level
+        mApi[index].megaApi->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+
         megaApi[index]->setLoggingName(to_string(index).c_str());
         megaApi[index]->addListener(this);    // TODO: really should be per api
 
