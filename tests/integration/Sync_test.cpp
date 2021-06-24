@@ -1764,6 +1764,24 @@ struct StandardClient : public MegaApp
         return removed;
     }
 
+    struct CloudNameLess
+    {
+        bool operator()(const string& lhs, const string& rhs) const
+        {
+            return compare(lhs, rhs) < 0;
+        }
+
+        int compare(const string& lhs, const string& rhs) const
+        {
+            return compareUtf(lhs, false, rhs, false, false);
+        }
+
+        bool equal(const string& lhs, const string& rhs) const
+        {
+            return compare(lhs, rhs) == 0;
+        }
+    }; // CloudNameLess
+
     bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported)
     {
         // top level names can differ so we don't check those
@@ -1771,7 +1789,7 @@ struct StandardClient : public MegaApp
 
         if (depth)
         {
-            if (0 != compareUtf(mn->cloudName(), false, n->displayname(), false, false))
+            if (!CloudNameLess().equal(mn->cloudName(), n->displayname()))
             {
                 out() << "Node name mismatch: " << mn->path() << " " << n->displaypath();
                 return false;
@@ -1790,8 +1808,8 @@ struct StandardClient : public MegaApp
             return true;
         }
 
-        multimap<string, Model::ModelNode*> ms;
-        multimap<string, Node*> ns;
+        multimap<string, Model::ModelNode*, CloudNameLess> ms;
+        multimap<string, Node*, CloudNameLess> ns;
         for (auto& m : mn->kids)
         {
             ms.emplace(m->cloudName(), m.get());
@@ -1864,7 +1882,7 @@ struct StandardClient : public MegaApp
 
         if (depth)
         {
-            if (0 != compareUtf(mn->cloudName(), false, n->name, false, false))
+            if (!CloudNameLess().equal(mn->cloudName(), n->name))
             {
                 out() << "LocalNode name mismatch: " << mn->path() << " " << n->name;
                 return false;
@@ -1907,8 +1925,8 @@ struct StandardClient : public MegaApp
             EXPECT_EQ(n->parent->node, n->node->parent);
         }
 
-        multimap<string, Model::ModelNode*> ms;
-        multimap<string, LocalNode*> ns;
+        multimap<string, Model::ModelNode*, CloudNameLess> ms;
+        multimap<string, LocalNode*, CloudNameLess> ns;
         for (auto& m : mn->kids)
         {
             ms.emplace(m->cloudName(), m.get());
