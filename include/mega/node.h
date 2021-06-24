@@ -358,6 +358,9 @@ struct MEGA_API LocalNode : public File
 
         // checked for missing attributes
         bool checked : 1;
+
+        // set after the cloud node is created
+        bool folderNeedsRescan : 1;
     };
 
     // current subtree sync state: current and displayed
@@ -414,21 +417,7 @@ struct MEGA_API LocalNode : public File
 
     void detach(const bool recreate = false);
 
-    void scan();
-
-    localnode_vector scannable();
-
-private:
-    enum ScanFlag : unsigned
-    {
-        SCAN_NONE  = 0,
-        SCAN_HERE  = 1,
-        SCAN_BELOW = 2
-    };
-
-    void updateScanFlags();
-    
-    unsigned mScanFlags;
+    void setSubtreeNeedsRescan();
 };
 
 template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }

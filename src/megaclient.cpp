@@ -8463,8 +8463,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                             // scan in case we had pending moves.
                             if (n->type == FOLDERNODE)
                             {
-                                auto path = n->localnode->getLocalPath();
-                                n->localnode->sync->scan(&path, nullptr);
+                                // mark this and folders below to be rescanned
+                                n->localnode->setSubtreeNeedsRescan();
+
+                                // queue this one to be scanned, recursion is by notify of subdirs
+                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, n->localnode, LocalPath(), true);
                             }
                         }
                     }

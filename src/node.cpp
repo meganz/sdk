@@ -1173,7 +1173,6 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
 
     assert(!newparent || newparent->node || newnode);
 
-
     if (parent)
     {
         // remove existing child linkage
@@ -1248,11 +1247,6 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                 {
                     ts = TREESTATE_SYNCING;
                 }
-            }
-
-            if (type != FILENODE && mScanFlags != SCAN_NONE)
-            {
-                updateScanFlags();
             }
 
             if (sync != parent->sync)
@@ -1334,6 +1328,7 @@ LocalNode::LocalNode()
 , created{false}
 , reported{false}
 , checked{false}
+, folderNeedsRescan(false)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1346,7 +1341,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     deleted = false;
     created = false;
     reported = false;
-    mScanFlags = SCAN_NONE;
+    folderNeedsRescan = false;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1619,63 +1614,19 @@ void LocalNode::detach(const bool recreate)
     }
 }
 
-void LocalNode::scan()
+void LocalNode::setSubtreeNeedsRescan()
 {
     assert(type != FILENODE);
 
-    mScanFlags |= SCAN_HERE;
+    folderNeedsRescan = true;
 
-    updateScanFlags();
-}
-
-void LocalNode::updateScanFlags()
-{
-    assert(type != FILENODE);
-
-    for (auto* node = parent; node; node = node->parent)
+    for (auto& child : children)
     {
-        if ((node->mScanFlags & SCAN_BELOW)) break;
-
-        node->mScanFlags |= SCAN_BELOW;
-    }
-}
-
-localnode_vector LocalNode::scannable()
-{
-    assert(type != FILENODE);
-
-    localnode_vector result;
-
-    if (mScanFlags == SCAN_NONE) return result;
-
-    localnode_list pending(1, this);
-
-    while (!pending.empty())
-    {
-        auto& node = *pending.front();
-
-        if ((node.mScanFlags & SCAN_HERE))
+        if (child.second->type != FILENODE)
         {
-            result.emplace_back(&node);
+            child.second->setSubtreeNeedsRescan();
         }
-
-        if ((node.mScanFlags & SCAN_BELOW))
-        {
-            for (auto& childIt : children)
-            {
-                auto& child = *childIt.second;
-
-                if (child.mScanFlags == SCAN_NONE) continue;
-
-                pending.emplace_back(&child);
-            }
-        }
-
-        node.mScanFlags = SCAN_NONE;
-        pending.pop_front();
     }
-
-    return result;
 }
 
 LocalPath LocalNode::getLocalPath() const
@@ -1878,6 +1829,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->created = false;
     l->reported = false;
     l->checked = h != UNDEF; // TODO: Is this a bug? h will never be UNDEF
+    l->folderNeedsRescan = false;
 
     return l;
 }

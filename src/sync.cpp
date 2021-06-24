@@ -1221,6 +1221,12 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         l = localroot.get();
     }
 
+    if (localpath.empty())
+    {
+        if (outpath) outpath->clear();
+        *parent = l->parent;
+        return l;
+    }
 
     LocalPath component;
 
@@ -1339,13 +1345,14 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
 // path references a new FOLDERNODE: returns created node
 // path references a existing FILENODE: returns node
 // otherwise, returns NULL
+// empty input_localpath means to process l rather than a named subitem of l (for scan propagation purposes with folderNeedsRescan flag)
 LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* const localname, dstime *backoffds, bool wejustcreatedthisfolder, DirAccess* iteratingDir)
 {
     LocalNode* ll = l;
     bool newnode = false, changed = false;
     bool isroot;
 
-    LocalNode* parent;
+    LocalNode* parent = nullptr;
     string path;           // UTF-8 representation of tmppath
     LocalPath tmppath;     // full path represented by l + localpath
 
@@ -1462,6 +1469,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     if (l->type == FOLDERNODE)
                     {
                         scan(localpathNew, fa.get());
+                        l->folderNeedsRescan = false;
                     }
                     else
                     {
@@ -1554,7 +1562,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                         {
                                             // we can't handle such a move yet, the target cloud node doesn't exist.
                                             // when it does, we'll rescan that node's local node (ie, this folder)
-                                            LOG_debug << "File move/overwrite detected BUT can't be processed yet - waiting on parent's cloud node creation";
+                                            LOG_debug << "File move/overwrite detected BUT can't be processed yet - waiting on parent's cloud node creation:" << parent->getLocalPath().toPath();
                                             return NULL;
                                         }
                                         else
@@ -1787,7 +1795,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     {
                         // we can't handle such a move yet, the target cloud node doesn't exist.
                         // when it does, we'll rescan that node's local node (ie, this folder)
-                        LOG_debug << "Move or rename of existing node detected BUT can't be processed yet - waiting on parent's cloud node creation";
+                        LOG_debug << "Move or rename of existing node detected BUT can't be processed yet - waiting on parent's cloud node creation: " << parent->getLocalPath().toPath();
                         return NULL;
                     }
                     else
@@ -1825,14 +1833,15 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         {
                             // immediately scan folder to detect deviations from cached state
                             scan(localpathNew, fa.get());
+                            it->second->folderNeedsRescan = false;
                         }
                         else
                         {
-                            for (const auto* node : it->second->scannable())
-                            {
-                                auto path = node->getLocalPath();
-                                scan(&path, nullptr);
-                            }
+                            // mark this and folders below to be rescanned
+                            it->second->setSubtreeNeedsRescan();
+
+                            // queue this one to be scanned, recursion is by notify of subdirs
+                            dirnotify->notify(DirNotify::DIREVENTS, it->second, LocalPath(), true);
                         }
                     }
                 }
@@ -1863,14 +1872,19 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // detect file changes or recurse into new subfolders
             if (l->type == FOLDERNODE)
             {
-                if (newnode)
+                if (newnode || l->folderNeedsRescan)
                 {
                     scan(localpathNew, fa.get());
-                    client->app->syncupdate_local_folder_addition(this, LocalPath::fromPath(path, *client->fsaccess));
+                    l->folderNeedsRescan = false;
 
-                    if (!isroot)
+                    if (newnode)
                     {
-                        statecacheadd(l);
+                        client->app->syncupdate_local_folder_addition(this, LocalPath::fromPath(path, *client->fsaccess));
+
+                        if (!isroot)
+                        {
+                            statecacheadd(l);
+                        }
                     }
                 }
                 else
@@ -2025,19 +2039,14 @@ bool Sync::checkValidNotification(int q, Notification& notification)
 
         if (deleted
             || (ll && success && ll->node && ll->node->localnode == ll
+                && !ll->folderNeedsRescan
                 && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
                 && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
                 && ait->second == ll->name
                 && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
                 && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
         {
-            if (deleted && notification.localnode)
-            {
-                notification.localnode->scan();
-            }
-
             LOG_debug << "Self filesystem notification skipped";
-
             return false;
         }
     }
