@@ -152,6 +152,20 @@ bool createDataFile(const fs::path &path, const std::string &data)
     return createFile(path, data.data(), data.size());
 }
 
+bool createDataFile(const fs::path& path, const std::string& data, std::chrono::seconds delta)
+{
+    if (!createDataFile(path, data)) return false;
+
+    std::error_code result;
+    auto current = fs::last_write_time(path, result);
+
+    if (result) return false;
+
+    fs::last_write_time(path, current + delta, result);
+
+    return !result;
+}
+
 struct Model
 {
     // records what we think the tree should look like after sync so we can confirm it
@@ -1040,6 +1054,16 @@ struct StandardClient : public MegaApp
             [pb](error e) { pb->set_value(!e);  return true; });
     }
 
+    bool cloudCopyTreeAs(Node* from, Node* to, string name)
+    {
+        auto promise = newPromiseBoolSP();
+        auto future = promise->get_future();
+
+        cloudCopyTreeAs(from, to, std::move(name), std::move(promise));
+
+        return future.get();
+    }
+
     void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb)
     {
         resultproc.prepresult(PUTNODES, ++next_request_tag,
@@ -1182,13 +1206,12 @@ struct StandardClient : public MegaApp
 
     bool uploadFolderTree(fs::path p, Node* n2)
     {
-        auto result =
-          thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb)
-                    {
-                        sc.uploadFolderTree(p, n2, pb);
-                    });
+        auto promise = newPromiseBoolSP();
+        auto future = promise->get_future();
 
-        return result.get();
+        uploadFolderTree(p, n2, std::move(promise));
+
+        return future.get();
     }
 
     void uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer)
@@ -1253,6 +1276,16 @@ struct StandardClient : public MegaApp
         }
     }
 
+    bool uploadFilesInTree(fs::path p, Node* n2)
+    {
+        auto promise = newPromiseBoolSP();
+        auto future = promise->get_future();
+
+        std::atomic_int dummy(0);
+        uploadFilesInTree(p, n2, dummy, std::move(promise));
+
+        return future.get();
+    }
 
     void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb)
     {
@@ -6788,8 +6821,6 @@ struct TwoWaySyncSymmetryCase
         fs::path localBaseFolderSteady;
         fs::path localBaseFolderResume;
         std::string remoteBaseFolder = "twoway";   // leave out initial / so we can drill down from root node
-        std::string first_test_name;
-        fs::path first_test_initiallocalfolders;
 
         State(StandardClient& ssc, StandardClient& rsc, StandardClient& sc2) : steadyClient(ssc), resumeClient(rsc), nonsyncClient(sc2) {}
     };
@@ -6858,94 +6889,109 @@ struct TwoWaySyncSymmetryCase
 
     fs::path localTestBasePath() { return pauseDuringAction ? localTestBasePathResume : localTestBasePathSteady; }
 
-    void makeMtimeFile(std::string name, int mtime_delta, Model& m1, Model& m2)
+    bool CopyLocalTree(const fs::path& destination, const fs::path& source) try
     {
-        createNameFile(state.first_test_initiallocalfolders, name);
-        auto initial_mtime = fs::last_write_time(state.first_test_initiallocalfolders / name);
-        fs::last_write_time(state.first_test_initiallocalfolders / name, initial_mtime + std::chrono::seconds(mtime_delta));
-        fs::rename(state.first_test_initiallocalfolders / name, state.first_test_initiallocalfolders / "f" / name); // move it after setting the time to be 100% sure the sync sees it with the adjusted mtime only
-        m1.findnode("f")->addkid(m1.makeModelSubfile(name));
-        m2.findnode("f")->addkid(m2.makeModelSubfile(name));
-    }
+        using PathPair = std::pair<fs::path, fs::path>;
 
-    PromiseBoolSP cloudCopySetupPromise = newPromiseBoolSP();
+        // Assume we've already copied if the destination exists.
+        if (fs::exists(destination)) return true;
+
+        std::list<PathPair> pending;
+
+        pending.emplace_back(destination, source);
+
+        for (; !pending.empty(); pending.pop_front())
+        {
+            const auto& dst = pending.front().first;
+            const auto& src = pending.front().second;
+
+            // Assume target directory doesn't exist.
+            fs::create_directories(dst);
+
+            // Iterate over source directory's children.
+            auto i = fs::directory_iterator(src);
+            auto j = fs::directory_iterator();
+
+            for ( ; i != j; ++i)
+            {
+                auto from = i->path();
+                auto to = dst / from.filename();
+
+                // If it's a file, copy it and preserve its modification time.
+                if (fs::is_regular_file(from))
+                {
+                    // Copy the file.
+                    fs::copy_file(from, to);
+
+                    // Preserve modification time.
+                    fs::last_write_time(to, fs::last_write_time(from));
+
+                    // Process next child.
+                    continue;
+                }
+
+                // If it's not a file, it must be a directory.
+                assert(fs::is_directory(from));
+
+                // So, create it!
+                fs::create_directories(to);
+
+                // And copy its content.
+                pending.emplace_back(to, from);
+            }
+        }
+
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
 
     // prepares a local folder for testing, which will be two-way synced before the test
     void SetupForSync()
     {
-        localTestBasePathSteady = state.localBaseFolderSteady / name();
-        localTestBasePathResume = state.localBaseFolderResume / name();
-        remoteTestBasePath = state.remoteBaseFolder + "/" + name();
-        std::error_code ec;
-
-        fs::create_directories(localTestBasePathSteady, ec);
-        ASSERT_TRUE(!ec);
-        fs::create_directories(localTestBasePathResume, ec);
-        ASSERT_TRUE(!ec);
-
-        localModel.root->addkid(localModel.buildModelSubdirs("f", 2, 2, 2));
-        localModel.root->addkid(localModel.buildModelSubdirs("outside", 2, 1, 1));
-        remoteModel.root->addkid(remoteModel.buildModelSubdirs("f", 2, 2, 2));
-        remoteModel.root->addkid(remoteModel.buildModelSubdirs("outside", 2, 1, 1));
-
-        // for the first one, copy that to the cloud.
-        // for subsequent, duplicate in the cloud with this test's name.
-
-        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
-        ASSERT_NE(testRoot, nullptr);
-        Node* n2 = changeClient().drillchildnodebyname(testRoot, state.remoteBaseFolder);
-        ASSERT_NE(n2, nullptr);
-        if (state.first_test_name.empty())
+        // Prepare Cloud
         {
-            state.first_test_name = name();
-            state.first_test_initiallocalfolders = pauseDuringAction ? localTestBasePathResume : localTestBasePathSteady;
+            remoteTestBasePath = state.remoteBaseFolder + "/" + name();
 
-            ASSERT_TRUE(buildLocalFolders(state.first_test_initiallocalfolders, "f", 2, 2, 2));
-            ASSERT_TRUE(buildLocalFolders(state.first_test_initiallocalfolders, "outside", 2, 1, 1));
-            makeMtimeFile("file_older_1", -3600, localModel, remoteModel);
-            makeMtimeFile("file_newer_1", 3600, localModel, remoteModel);
-            makeMtimeFile("file_older_2", -3600, localModel, remoteModel);
-            makeMtimeFile("file_newer_2", 3600, localModel, remoteModel);
+            auto& client = changeClient();
 
-            auto pb = newPromiseBoolSP();
-            changeClient().uploadFolderTree(state.first_test_initiallocalfolders, n2, pb);
-            ASSERT_TRUE(pb->get_future().get());
+            auto* root = client.gettestbasenode();
+            ASSERT_NE(root, nullptr);
 
-            auto pb2 = newPromiseBoolSP();
-            std::atomic<int> inprogress(0);
-            changeClient().uploadFilesInTree(state.first_test_initiallocalfolders, n2, inprogress, pb2);
-            ASSERT_TRUE(pb2->get_future().get());
-            out() << "Uploaded tree for " << name();
-        }
-        else
-        {
-            // since we will intiially sync everything in the two main test accounts,
-            // it's much quicker if the files are already present for both cases in both
-            fs::copy(state.first_test_initiallocalfolders,
-                localTestBasePathSteady,
-                    fs::copy_options::recursive,  ec);
-            ASSERT_TRUE(!ec);
-            fs::copy(state.first_test_initiallocalfolders,
-                localTestBasePathResume,
-                fs::copy_options::recursive,  ec);
-            ASSERT_TRUE(!ec);
+            root = client.drillchildnodebyname(root, state.remoteBaseFolder);
+            ASSERT_NE(root, nullptr);
 
-            Node* n1 = changeClient().drillchildnodebyname(testRoot, state.remoteBaseFolder + "/" + state.first_test_name);
-            ASSERT_NE(n1, nullptr);
-            changeClient().cloudCopyTreeAs(n1, n2, name(), cloudCopySetupPromise);
-            ASSERT_TRUE(cloudCopySetupPromise->get_future().get());
-            out() << "Copied cloud tree for " << name();
+            auto* from = client.drillchildnodebyname(root, "initial");
+            ASSERT_NE(from, nullptr);
 
-            localModel.findnode("f")->addkid(localModel.makeModelSubfile("file_older_1"));
-            remoteModel.findnode("f")->addkid(remoteModel.makeModelSubfile("file_older_1"));
-            localModel.findnode("f")->addkid(localModel.makeModelSubfile("file_newer_1"));
-            remoteModel.findnode("f")->addkid(remoteModel.makeModelSubfile("file_newer_1"));
-            localModel.findnode("f")->addkid(localModel.makeModelSubfile("file_older_2"));
-            remoteModel.findnode("f")->addkid(remoteModel.makeModelSubfile("file_older_2"));
-            localModel.findnode("f")->addkid(localModel.makeModelSubfile("file_newer_2"));
-            remoteModel.findnode("f")->addkid(remoteModel.makeModelSubfile("file_newer_2"));
+            ASSERT_TRUE(client.cloudCopyTreeAs(from, root, name()));
         }
 
+        // Prepare Local Filesystem
+        {
+            localTestBasePathSteady = state.localBaseFolderSteady / name();
+            localTestBasePathResume = state.localBaseFolderResume / name();
+
+            auto from = state.nonsyncClient.fsBasePath / "twoway" / "initial";
+            ASSERT_TRUE(CopyLocalTree(localTestBasePathResume, from));
+            ASSERT_TRUE(CopyLocalTree(localTestBasePathSteady, from));
+
+            ASSERT_TRUE(CopyLocalTree(state.localBaseFolderResume / "initial", from));
+            ASSERT_TRUE(CopyLocalTree(state.localBaseFolderSteady / "initial", from));
+        }
+
+        // Prepare models.
+        {
+            localModel.root->addkid(localModel.buildModelSubdirs("f", 2, 2, 2));
+            localModel.root->addkid(localModel.buildModelSubdirs("outside", 2, 1, 1));
+            localModel.addfile("f/file_older_1", "file_older_1");
+            localModel.addfile("f/file_older_2", "file_older_2");
+            localModel.addfile("f/file_newer_1", "file_newer_1");
+            localModel.addfile("f/file_newer_2", "file_newer_2");
+            remoteModel = localModel;
+        }
     }
 
     bool isBackup() const
@@ -7662,17 +7708,44 @@ void CatchupClients(StandardClient* c1, StandardClient* c2 = nullptr, StandardCl
     out() << "Caught up";
 }
 
+void PrepareForSync(StandardClient& client)
+{
+    using namespace std::chrono_literals;
+
+    auto local = client.fsBasePath / "twoway" / "initial";
+
+    fs::create_directories(local);
+
+    ASSERT_TRUE(buildLocalFolders(local, "f", 2, 2, 2));
+    ASSERT_TRUE(buildLocalFolders(local, "outside", 2, 1, 1));
+
+    ASSERT_TRUE(createDataFile(local / "f" / "file_older_1", "file_older_1", -3600s));
+    ASSERT_TRUE(createDataFile(local / "f" / "file_older_2", "file_older_2", -3600s));
+    ASSERT_TRUE(createDataFile(local / "f" / "file_newer_1", "file_newer_1", 3600s));
+    ASSERT_TRUE(createDataFile(local / "f" / "file_newer_2", "file_newer_2", 3600s));
+
+    auto* remote = client.drillchildnodebyname(client.gettestbasenode(), "twoway");
+    ASSERT_NE(remote, nullptr);
+
+    ASSERT_TRUE(client.uploadFolderTree(local, remote));
+    ASSERT_TRUE(client.uploadFilesInTree(local, remote));
+}
+
 TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
 
+    StandardClient clientA2(localtestroot, "clientA2");
+
+    ASSERT_TRUE(clientA2.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "twoway", 0, 0, true));
+
+    PrepareForSync(clientA2);
+
     StandardClient clientA1Steady(localtestroot, "clientA1S");
     StandardClient clientA1Resume(localtestroot, "clientA1R");
-    StandardClient clientA2(localtestroot, "clientA2");
-    ASSERT_TRUE(clientA1Steady.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "twoway", 0, 0, true));
+    ASSERT_TRUE(clientA1Steady.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
     ASSERT_TRUE(clientA1Resume.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
     fs::create_directory(clientA1Steady.fsBasePath / fs::u8path("twoway"));
     fs::create_directory(clientA1Resume.fsBasePath / fs::u8path("twoway"));
     fs::create_directory(clientA2.fsBasePath / fs::u8path("twoway"));
@@ -7684,8 +7757,6 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     std::map<std::string, TwoWaySyncSymmetryCase> cases;
 
     static set<string> tests = {
-        // investigating why this one fails sometimes in jenkins MR jobs
-        "internal_backup_delete_down_self_file_steady"
     }; // tests
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
@@ -7804,7 +7875,6 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     {
         testcase.second.CheckSetup(allstate, true);
     }
-
 
     // make changes in destination to set up test
     for (auto& testcase : cases)
