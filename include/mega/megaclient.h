@@ -1747,7 +1747,7 @@ public:
     void mapuser(handle, const char*);
     void discarduser(handle, bool = true);
     void discarduser(const char*);
-    void mappcr(handle, PendingContactRequest*);
+    void mappcr(handle, unique_ptr<PendingContactRequest>&&);
     bool discardnotifieduser(User *);
 
     PendingContactRequest* findpcr(handle);
