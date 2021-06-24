@@ -2976,7 +2976,7 @@ GTEST_TEST(Sync, BasicSync_MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-GTEST_TEST(Sync, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
+GTEST_TEST(Sync, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -4744,3 +4744,67 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 }
 
 #endif
+GTEST_TEST(Sync, MoveExistingIntoNewDirectoryWhilePaused)
+{
+    auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    auto TIMEOUT  = chrono::seconds(4);
+
+    Model model;
+    fs::path root;
+    string session;
+    handle id;
+
+    // Initial setup.
+    {
+        StandardClient c(TESTROOT, "c");
+
+        // Log in client.
+        ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+        // Add and start sync.
+        id = c.setupSync_mainthread("s", "s");
+        ASSERT_NE(id, UNDEF);
+
+        // Squirrel away for later use.
+        root = c.syncSet(id).localpath.u8string();
+
+        // Populate filesystem.
+        model.addfolder("a");
+        model.addfolder("c");
+        model.generate(root);
+
+        // Wait for initial sync to complete.
+        waitonsyncs(TIMEOUT, &c);
+
+        // Make sure everything arrived safely.
+        ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+        // Save the session so we can resume later.
+        c.client.dumpsession(session);
+
+        // Log out client, taking care to keep caches.
+        c.localLogout();
+    }
+
+    StandardClient c(TESTROOT, "c");
+
+    // Add a new hierarchy to be scanned.
+    model.addfolder("b");
+    model.generate(root);
+
+    // Move c under b.
+    fs::rename(root / "c", root / "b" / "c");
+
+    // Update the model.
+    model.movenode("c", "b");
+
+    // Log in client resuming prior session.
+    ASSERT_TRUE(c.login_fetchnodes(session));
+
+    // Wait for the sync to catch up.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Were the changes propagated?
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
