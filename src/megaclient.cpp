@@ -8459,6 +8459,16 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                             // updates cache with the new node associated
                             nn_nni.localnode->sync->statecacheadd(nn_nni.localnode);
                             nn_nni.localnode->newnode.reset(); // localnode ptr now null also
+
+                            // scan in case we had pending moves.
+                            if (n->type == FOLDERNODE)
+                            {
+                                // mark this and folders below to be rescanned
+                                n->localnode->setSubtreeNeedsRescan();
+
+                                // queue this one to be scanned, recursion is by notify of subdirs
+                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, n->localnode, LocalPath(), true);
+                            }
                         }
                     }
 #endif
