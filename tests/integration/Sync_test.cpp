@@ -7923,7 +7923,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
                 {
                     //if (action != TwoWaySyncSymmetryCase::action_rename) continue;
 
-                    for (int file = 1; file < 2; ++file)
+                    for (int file = 0; file < 2; ++file)
                     {
                         //if (!file) continue;
 
@@ -7938,7 +7938,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
                             for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
                             {
-                                if (pauseDuringAction) continue;
+                                //if (pauseDuringAction) continue;
 
                                 // we can't make changes if the client is not running
                                 if (pauseDuringAction && selfChange) continue;
