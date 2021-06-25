@@ -264,7 +264,7 @@ struct Model
             return kids.back().get();
         }
 
-        bool typematchesnodetype(nodetype_t nodetype)
+        bool typematchesnodetype(nodetype_t nodetype) const
         {
             switch (type)
             {
@@ -1559,6 +1559,11 @@ struct StandardClient : public MegaApp
         return result;
     }
 
+    SyncInfo syncSet(handle backupId) const
+    {
+        return const_cast<StandardClient&>(*this).syncSet(backupId);
+    }
+
     Node* getcloudrootnode()
     {
         return client.nodebyhandle(client.rootnodes[0]);
@@ -1771,12 +1776,12 @@ struct StandardClient : public MegaApp
             return compare(lhs, rhs) < 0;
         }
 
-        int compare(const string& lhs, const string& rhs) const
+        static int compare(const string& lhs, const string& rhs)
         {
             return compareUtf(lhs, false, rhs, false, false);
         }
 
-        bool equal(const string& lhs, const string& rhs) const
+        static bool equal(const string& lhs, const string& rhs)
         {
             return compare(lhs, rhs) == 0;
         }
@@ -2734,6 +2739,98 @@ struct StandardClient : public MegaApp
         future<bool> fb;
         fb = thread_do<bool>([backupId, mnode, ignoreDebris, confirm](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris)); });
         return fb.get();
+    }
+
+    bool match(handle id, const Model::ModelNode* source)
+    {
+        if (!source) return false;
+
+        auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
+            client.match(id, source, std::move(result));
+        });
+
+        return result.get();
+    }
+
+    void match(handle id, const Model::ModelNode* source, PromiseBoolSP result)
+    {
+        SyncInfo info;
+
+        if (!syncSet(id, info))
+        {
+            result->set_value(false);
+            return;
+        }
+
+        const auto* destination = client.nodeByHandle(info.h);
+        result->set_value(destination && match(*destination, *source));
+    }
+
+    bool match(const Node& destination, const Model::ModelNode& source) const
+    {
+        list<pair<const Node*, decltype(&source)>> pending;
+
+        pending.emplace_back(&destination, &source);
+
+        for ( ; !pending.empty(); pending.pop_front())
+        {
+            const auto& dn = *pending.front().first;
+            const auto& sn = *pending.front().second;
+
+            // Nodes must have matching types.
+            if (!sn.typematchesnodetype(dn.type)) return false;
+
+            // Files require no further processing.
+            if (dn.type == FILENODE) continue;
+
+            map<string, decltype(&dn), CloudNameLess> dc;
+            map<string, decltype(&sn), CloudNameLess> sc;
+
+            // Index children for pairing.
+            for (const auto* child : dn.children)
+            {
+                auto result = dc.emplace(child->displayname(), child);
+
+                // For simplicity, duplicates consistute a match failure.
+                if (!result.second) return false;
+            }
+
+            for (const auto& child : sn.kids)
+            {
+                auto result = sc.emplace(child->cloudName(), child.get());
+                if (!result.second) return false;
+            }
+
+            // Pair children.
+            for (const auto& s : sc)
+            {
+                // Skip the debris folder if it appears in the root.
+                if (&sn == &source)
+                {
+                    if (CloudNameLess::equal(s.first, DEBRISFOLDER))
+                    {
+                        continue;
+                    }
+                }
+
+                // Does this node have a pair in the destination?
+                auto d = dc.find(s.first);
+
+                // If not then there can be no match.
+                if (d == dc.end()) return false;
+
+                // Queue pair for more detailed matching.
+                pending.emplace_back(d->second, s.second);
+
+                // Consider the destination node paired.
+                dc.erase(d);
+            }
+
+            // Can't have a match if we couldn't pair all destination nodes.
+            if (!dc.empty()) return false;
+        }
+
+        return true;
     }
 };
 
@@ -7749,6 +7846,39 @@ void PrepareForSync(StandardClient& client)
     ASSERT_TRUE(client.uploadFilesInTree(local, remote));
 }
 
+bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
+                        chrono::seconds timeout)
+{
+    using namespace std::chrono_literals;
+
+    auto began = chrono::steady_clock::now();
+
+    do
+    {
+        auto i = testcases.begin();
+        auto j = testcases.end();
+
+        for ( ; i != j; ++i)
+        {
+            auto& testcase = i->second;
+            auto& client = testcase.client1();
+            auto& id = testcase.backupId;
+            auto& model = testcase.remoteModel;
+
+            if (!client.match(id, model.findnode("f"))) break;
+        }
+
+        if (i == j) return true;
+
+        out() << "dgw: Waiting...";
+
+        std::this_thread::sleep_for(500ms);
+    }
+    while (chrono::steady_clock::now() - began < timeout);
+
+    return false;
+}
+
 TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
@@ -7961,6 +8091,8 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         WaitMillisec(3000);
     }
 
+    out() << "Waiting for remote changes to make it to clients...";
+    EXPECT_TRUE(WaitForRemoteMatch(cases, chrono::seconds(16)));
 
     out() << "Letting all " << cases.size() << " Two-way syncs run";
 
