@@ -681,8 +681,10 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 {
     assert(sizeof(off_t) == 8);
 
+#ifdef ENABLE_SYNC
     notifyerr = false;
     notifyfailed = true;
+#endif
     notifyfd = -1;
 
     defaultfilepermissions = 0600;
@@ -706,7 +708,9 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     lastlocalnode = NULL;
     if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
     {
+#ifdef ENABLE_SYNC
         notifyfailed = false;
+#endif
     }
 #endif
 
@@ -765,7 +769,9 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
             if (ioctl(notifyfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
             {
+#ifdef ENABLE_SYNC
                 notifyfailed = false;
+#endif
             }
             else
             {
@@ -1807,8 +1813,10 @@ void PosixFileSystemAccess::statsid(string *id) const
 #endif
 }
 
-PosixDirNotify::PosixDirNotify(LocalPath& localbasepath, const LocalPath& ignore)
-  : DirNotify(localbasepath, ignore)
+#ifdef ENABLE_SYNC
+
+PosixDirNotify::PosixDirNotify(const LocalPath& localbasepath, const LocalPath& ignore, Sync* s)
+  : DirNotify(localbasepath, ignore, s)
 {
 #ifdef USE_INOTIFY
     setFailed(0, "");
@@ -1823,7 +1831,6 @@ PosixDirNotify::PosixDirNotify(LocalPath& localbasepath, const LocalPath& ignore
 
 void PosixDirNotify::addnotify(LocalNode* l, const LocalPath& path)
 {
-#ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     int wd;
 
@@ -1841,18 +1848,15 @@ void PosixDirNotify::addnotify(LocalNode* l, const LocalPath& path)
         LOG_warn << "Unable to addnotify path: " <<  path.localpath.c_str() << ". Error code: " << errno;
     }
 #endif
-#endif
 }
 
 void PosixDirNotify::delnotify(LocalNode* l)
 {
-#ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     if (fsaccess->wdnodes.erase((int)(long)l->dirnotifytag))
     {
         inotify_rm_watch(fsaccess->notifyfd, (int)l->dirnotifytag);
     }
-#endif
 #endif
 }
 
@@ -1889,6 +1893,7 @@ bool PosixDirNotify::fsstableids() const
         && statfsbuf.f_type != 0x65735546; // FUSE
 #endif
 }
+#endif // ENABLE_SYNC
 
 std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)
 {
@@ -1900,14 +1905,16 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
     return new PosixDirAccess();
 }
 
-DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter*)
+#ifdef ENABLE_SYNC
+DirNotify* PosixFileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter*, LocalNode* syncroot)
 {
-    PosixDirNotify* dirnotify = new PosixDirNotify(localpath, ignore);
+    PosixDirNotify* dirnotify = new PosixDirNotify(localpath, ignore, syncroot->sync);
 
     dirnotify->fsaccess = this;
 
     return dirnotify;
 }
+#endif
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {

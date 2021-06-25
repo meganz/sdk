@@ -702,13 +702,17 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
 WinFileSystemAccess::WinFileSystemAccess()
 {
+#ifdef ENABLE_SYNC
     notifyerr = false;
     notifyfailed = false;
+#endif  // ENABLE_SYNC
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
 {
+#ifdef ENABLE_SYNC
     assert(!dirnotifys.size());
+#endif
 }
 
 bool WinFileSystemAccess::cwd(LocalPath& path) const
@@ -1300,15 +1304,11 @@ void WinFileSystemAccess::statsid(string *id) const
 #endif
 }
 
+#ifdef ENABLE_SYNC
+
 // set DirNotify's root LocalNode
 void WinDirNotify::addnotify(LocalNode* l, const LocalPath&)
 {
-#ifdef ENABLE_SYNC
-    if (!l->parent)
-    {
-        localrootnode = l;
-    }
-#endif
 }
 
 fsfp_t WinDirNotify::fsfingerprint() const
@@ -1331,6 +1331,7 @@ fsfp_t WinDirNotify::fsfingerprint() const
     return fi.dwVolumeSerialNumber + 1;
 #endif
 }
+
 
 bool WinDirNotify::fsstableids() const
 {
@@ -1555,7 +1556,9 @@ void WinDirNotify::notifierThreadFunction()
     LOG_debug << "Filesystem notify thread stopped";
 }
 
-WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, WinFileSystemAccess* owner, Waiter* waiter) : DirNotify(localbasepath, ignore)
+WinDirNotify::WinDirNotify(const LocalPath& localbasepathParam, const LocalPath& ignore, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot)
+    : DirNotify(localbasepath, ignore, syncroot->sync)
+    , localrootnode(syncroot)
 {
     fsaccess = owner;
     fsaccess->dirnotifys.insert(this);
@@ -1580,7 +1583,7 @@ WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, Wi
     mOverlappedEnabled = false;
     mOverlappedExit = false;
 
-    ScopedLengthRestore restoreLocalbasePath(localbasepath);
+    LocalPath localbasepath(localbasepathParam);
     sanitizedriveletter(localbasepath.localpath);
 
     // ReadDirectoryChangesW: If you opened the file using the short name, you can receive change notifications for the short name.  (so make sure it's a long name)
@@ -1662,6 +1665,7 @@ WinDirNotify::~WinDirNotify()
     }
 
 }
+#endif   // ENABLE_SYNC
 
 std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool followSymLinks)
 {
@@ -1724,10 +1728,12 @@ DirAccess* WinFileSystemAccess::newdiraccess()
     return new WinDirAccess();
 }
 
-DirNotify* WinFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter* waiter)
+#ifdef ENABLE_SYNC
+DirNotify* WinFileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter* waiter, LocalNode* syncroot)
 {
-    return new WinDirNotify(localpath, ignore, this, waiter);
+    return new WinDirNotify(localpath, ignore, this, waiter, syncroot);
 }
+#endif
 
 bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {

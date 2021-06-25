@@ -11063,7 +11063,7 @@ MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
     {
         if(!it->second->isoutgoing && !it->second->removed())
         {
-            vContactRequests.push_back(it->second);
+            vContactRequests.push_back(it->second.get());
         }
     }
 
@@ -11081,7 +11081,7 @@ MegaContactRequestList *MegaApiImpl::getOutgoingContactRequests()
     {
         if(it->second->isoutgoing && !it->second->removed())
         {
-            vContactRequests.push_back(it->second);
+            vContactRequests.push_back(it->second.get());
         }
     }
 
@@ -18319,15 +18319,11 @@ MegaNode* MegaApiImpl::getNodeByHandle(handle handle)
 
 MegaContactRequest *MegaApiImpl::getContactRequestByHandle(MegaHandle handle)
 {
-    sdkMutex.lock();
-    if(client->pcrindex.find(handle) == client->pcrindex.end())
-    {
-        sdkMutex.unlock();
-        return NULL;
-    }
-    MegaContactRequest* request = MegaContactRequestPrivate::fromContactRequest(client->pcrindex.at(handle));
-    sdkMutex.unlock();
-    return request;
+    SdkMutexGuard guard(sdkMutex);
+    auto it = client->pcrindex.find(handle);
+    return it == client->pcrindex.end() ?
+        nullptr :
+        MegaContactRequestPrivate::fromContactRequest(it->second.get());
 }
 
 void MegaApiImpl::updateBackups()

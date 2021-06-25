@@ -1171,6 +1171,8 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     int nc = 0;
     Sync* oldsync = NULL;
 
+    assert(!newparent || newparent->node || newnode);
+
     if (parent)
     {
         // remove existing child linkage
@@ -1230,20 +1232,6 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
 
             if (!newnode && node)
             {
-                assert(parent->node);
-
-                if(!parent->node)
-                {
-                    LOG_err << node->displayname() << " parent Localnode is missing its associated Node. Cross referenced must have been removed";
-
-                    sync->client->syncs.disableSelectedSyncs([&](SyncConfig& c, Sync* s) {
-                        return s == sync;
-                    }, MISSING_PARENT_NODE, false);
-
-                    sync->client->sendevent(99455,"Disabling sync after null parent->node cross referent", 0);
-                    return;
-                }
-
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
                 if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
@@ -1340,6 +1328,7 @@ LocalNode::LocalNode()
 , created{false}
 , reported{false}
 , checked{false}
+, folderNeedsRescan(false)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1352,6 +1341,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     deleted = false;
     created = false;
     reported = false;
+    folderNeedsRescan = false;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1382,7 +1372,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     fsid_it = sync->client->fsidnode.end();
 
     // enable folder notification
-    if (type == FOLDERNODE)
+    if (type == FOLDERNODE && sync->dirnotify)
     {
         sync->dirnotify->addnotify(this, cfullpath);
     }
@@ -1624,6 +1614,21 @@ void LocalNode::detach(const bool recreate)
     }
 }
 
+void LocalNode::setSubtreeNeedsRescan()
+{
+    assert(type != FILENODE);
+
+    folderNeedsRescan = true;
+
+    for (auto& child : children)
+    {
+        if (child.second->type != FILENODE)
+        {
+            child.second->setSubtreeNeedsRescan();
+        }
+    }
+}
+
 LocalPath LocalNode::getLocalPath() const
 {
     LocalPath lp;
@@ -1824,6 +1829,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->created = false;
     l->reported = false;
     l->checked = h != UNDEF; // TODO: Is this a bug? h will never be UNDEF
+    l->folderNeedsRescan = false;
 
     return l;
 }

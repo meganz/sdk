@@ -9,6 +9,24 @@
 		
     It will set up and build 3rdparty dependencies in a folder next to the SDK folder, and also
     set up the project (Visual Studio on Windows) and bulid it in an SDK subfolder "build-<triplet>"
+
+    The parameters EXTRA_ARGS and TARGET are both optional parameters. You may pass a single argument
+    in the normal way, but lists of arguments must be semicolon-delimited to conform with CMake's list syntax.
+    Please note in the examples below the use of quotes when a list is passed: this is needed to prevent your
+    shell from parsing the semicolons.
+
+    The parameter EXTRA_ARGS controls configuration parameters that will be used to control the SDK build.
+    These must be passed with the CMake definition syntax. For example:
+
+        -DEXTRA_ARGS=-DUSE_PDFIUM=0
+        -DEXTRA_ARGS="-DUSE_PDFIUM=0;-DUSE_FREEIMAGE=0"
+
+    The parameter TARGET, if provided, will build only the selected targets. For example:
+
+        -DTARGET=megacli
+        -DTARGET="megacli;test_unit"
+
+    If omitted, the script will build the whole project in a manner equivalent to calling `make all`.
     
 	Pdfium is one third party library dependency whose source must be fetched manually, see 3rdparty_deps.txt.
 	Once you have the pdfium source, you can rerun this script to build it.  Or, if you already have it
@@ -24,7 +42,6 @@ Build from scratch helper script usage:
 Script must be run from its current folder")
 endfunction()
 
-get_filename_component(_prog_name ${CMAKE_ARGV2} NAME)
 set(_script_cwd ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(NOT EXISTS "${_script_cwd}/build_from_scratch.cmake")
@@ -150,9 +167,15 @@ set(_common_cmake_args
     -S ${_script_cwd}
 )
 
+if(TARGET)
+    set(_cmake_target_args --target ${TARGET})
+elseif(TARGETS) # allow TARGETS as a synonym for TARGET :)
+    set(_cmake_target_args --target ${TARGETS})
+endif()
+
 if(WIN32)
     if(_triplet MATCHES "staticdev$")
-        set(_extra_cmake_args ${_extra_cmake_args} -DMEGA_LINK_DYNAMIC_CRT=0 -DUNCHECKED_ITERATORS=1)
+        list(APPEND _extra_cmake_args -DMEGA_LINK_DYNAMIC_CRT=0 -DUNCHECKED_ITERATORS=1)
     endif()
 
     if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x86")
@@ -180,6 +203,7 @@ if(WIN32)
         execute_checked_command(
             COMMAND ${_cmake}
                 --build ${_build_dir}
+                ${_cmake_target_args}
                 --config ${_config}
                 --parallel 4
         )
@@ -217,6 +241,7 @@ else()
         execute_checked_command(
             COMMAND ${_cmake}
                 --build ${_build_dir}
+                ${_cmake_target_args}
                 --parallel 4
         )
     endforeach()
