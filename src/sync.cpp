@@ -1469,12 +1469,13 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     if (l->type == FOLDERNODE)
                     {
                         scan(localpathNew, fa.get());
-                        l->folderNeedsRescan = false;
                     }
                     else
                     {
                         localbytes += l->size;
                     }
+
+                    l->needsRescan = false;
 
                     return l;
                 }
@@ -1829,17 +1830,19 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                     if (fa->type == FOLDERNODE)
                     {
+                        // mark this and folders below to be rescanned
+                        it->second->setSubtreeNeedsRescan(fullscan);
+
                         if (fullscan)
                         {
                             // immediately scan folder to detect deviations from cached state
                             scan(localpathNew, fa.get());
-                            it->second->folderNeedsRescan = false;
+
+                            // consider this folder scanned.
+                            it->second->needsRescan = false;
                         }
                         else
                         {
-                            // mark this and folders below to be rescanned
-                            it->second->setSubtreeNeedsRescan();
-
                             // queue this one to be scanned, recursion is by notify of subdirs
                             dirnotify->notify(DirNotify::DIREVENTS, it->second, LocalPath(), true);
                         }
@@ -1872,10 +1875,10 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // detect file changes or recurse into new subfolders
             if (l->type == FOLDERNODE)
             {
-                if (newnode || l->folderNeedsRescan)
+                if (newnode || l->needsRescan)
                 {
                     scan(localpathNew, fa.get());
-                    l->folderNeedsRescan = false;
+                    l->needsRescan = false;
 
                     if (newnode)
                     {
@@ -1934,6 +1937,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                         client->stopxfer(l, &committer);
                     }
+
+                    l->needsRescan = false;
 
                     if (newnode || changed)
                     {
@@ -2039,7 +2044,7 @@ bool Sync::checkValidNotification(int q, Notification& notification)
 
         if (deleted
             || (ll && success && ll->node && ll->node->localnode == ll
-                && !ll->folderNeedsRescan
+                && !ll->needsRescan
                 && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
                 && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
                 && ait->second == ll->name

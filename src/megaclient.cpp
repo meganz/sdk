@@ -8464,7 +8464,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                             if (n->type == FOLDERNODE)
                             {
                                 // mark this and folders below to be rescanned
-                                n->localnode->setSubtreeNeedsRescan();
+                                n->localnode->setSubtreeNeedsRescan(false);
 
                                 // queue this one to be scanned, recursion is by notify of subdirs
                                 n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, n->localnode, LocalPath(), true);
