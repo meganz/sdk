@@ -8479,7 +8479,9 @@ int main()
     delete console;
     startDir.reset();
 
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
     delete CurlHttpIO::sslMutexes;
+#endif
 
 #if defined(_WIN32) && defined(_DEBUG)
 
