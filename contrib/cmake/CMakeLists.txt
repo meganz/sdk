@@ -24,7 +24,7 @@ project(MegaSDK)
 
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
-if (CMAKE_HOST_APPLE)
+if (CMAKE_HOST_APPLE AND NOT IOS)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
     set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
@@ -887,6 +887,7 @@ if(IOS)
     # build with some of these settings as required
     # -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_Swift_COMPILER_TARGET=arm64-apple-ios7.0.0 -DCMAKE_OSX_SYSROOT=iphoneos -DVCPKG_TRIPLET=arm64-ios-mega
     add_executable(simple_ios_build_test
+        ${MegaDir}/bindings/ios/main.mm # stub main to make the executable link
         ${MegaDir}/bindings/ios/MEGAAccountDetails.mm
         ${MegaDir}/bindings/ios/MEGAAchievementsDetails.mm
         ${MegaDir}/bindings/ios/MEGABackgroundMediaUpload.mm
@@ -935,6 +936,7 @@ if(IOS)
     )
 endif()
 
+if (NOT IOS)
 #test apps
 add_executable(test_unit
     ${MegaDir}/tests/unit/AttrMap_test.cpp
@@ -1032,7 +1034,6 @@ configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
 
 # actual apps
 
-if (NOT IOS)
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
 target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
