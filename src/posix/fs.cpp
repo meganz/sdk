@@ -681,8 +681,10 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 {
     assert(sizeof(off_t) == 8);
 
+#ifdef ENABLE_SYNC
     notifyerr = false;
     //notifyfailed = true;
+#endif
     notifyfd = -1;
 
     defaultfilepermissions = 0600;
@@ -704,7 +706,9 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #ifdef USE_INOTIFY
     if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
     {
+#ifdef ENABLE_SYNC
         // notifyfailed = false;
+#endif
     }
 #endif
 
@@ -763,7 +767,9 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
             if (ioctl(notifyfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
             {
+#ifdef ENABLE_SYNC
                 // notifyfailed = false;
+#endif
             }
             else
             {
@@ -1863,6 +1869,7 @@ bool PosixDirNotify::fsstableids() const
         && statfsbuf.f_type != 0x65735546; // FUSE
 #endif
 }
+#endif // ENABLE_SYNC
 
 std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)
 {

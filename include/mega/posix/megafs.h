@@ -82,8 +82,9 @@ public:
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
-
+#ifdef ENABLE_SYNC
     DirNotify* newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter) override;
+#endif
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
     bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning);
@@ -184,6 +185,7 @@ private:
 
 };
 
+#ifdef ENABLE_SYNC
 class MEGA_API PosixDirNotify : public DirNotify
 {
 public:
@@ -199,6 +201,7 @@ public:
     void removeWatch(WatchMapIterator entry);
 #endif // ENABLE_SYNC && USE_INOTIFY
 };
+#endif
 
 } // namespace
 

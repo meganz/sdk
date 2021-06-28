@@ -792,6 +792,8 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
         // FIXME: pass last segment of localdebris
         dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, client->waiter));
     }
+    // notifications may be queueing from this moment
+    dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, client->waiter));
 
     // set specified fsfp or get from fs if none
     const auto cfsfp = mUnifiedSync.mConfig.getLocalFingerprint();
@@ -1235,6 +1237,12 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         l = localroot.get();
     }
 
+    if (localpath.empty())
+    {
+        if (outpath) outpath->clear();
+        *parent = l->parent;
+        return l;
+    }
 
     LocalPath component;
 
@@ -1428,7 +1436,8 @@ struct ProgressingMonitor
             {
                 if (IsContainingCloudPathOf(i->first, cloudPath))
                 {
-                    // we already have a parent or ancestor listed
+                // Passing immediate == false, so that if we are being called from DIREVENTS,
+                // we will break the loop rather than always being called back for the item we just pushed
                     return;
                 }
                 else if (IsContainingCloudPathOf(cloudPath, i->first))
@@ -3302,13 +3311,13 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
     constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
 
     // Verify payload contents.
-    auto authKey = store->get("ak");
-    auto cipherKey = store->get("ck");
-    auto name = store->get("fn");
+    string authKey;
+    string cipherKey;
+    string name;
 
-    if (authKey.size() != KEYLENGTH
-        || cipherKey.size() != KEYLENGTH
-        || name.size() != KEYLENGTH)
+    if (!store->get("ak", authKey) || authKey.size() != KEYLENGTH ||
+        !store->get("ck", cipherKey) || cipherKey.size() != KEYLENGTH ||
+        !store->get("fn", name) || name.size() != KEYLENGTH)
     {
         // Payload is malformed.
         LOG_err << "syncConfigIOContext: JSON config data is incomplete";

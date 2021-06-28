@@ -702,13 +702,17 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
 WinFileSystemAccess::WinFileSystemAccess()
 {
+#ifdef ENABLE_SYNC
     //notifyerr = false;
     //notifyfailed = false;
+#endif  // ENABLE_SYNC
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
 {
+#ifdef ENABLE_SYNC
     assert(!dirnotifys.size());
+#endif
 }
 
 bool WinFileSystemAccess::cwd(LocalPath& path) const
@@ -1300,6 +1304,8 @@ void WinFileSystemAccess::statsid(string *id) const
 #endif
 }
 
+#ifdef ENABLE_SYNC
+
 fsfp_t WinDirNotify::fsfingerprint() const
 {
 #ifdef WINDOWS_PHONE
@@ -1504,7 +1510,7 @@ void WinDirNotify::notifierThreadFunction()
 }
 
 WinDirNotify::WinDirNotify(LocalNode& root,
-                           LocalPath& rootPath,
+                           const LocalPath& rootPath,
                            WinFileSystemAccess* owner,
                            Waiter* waiter)
   : DirNotify(rootPath)
@@ -1618,6 +1624,7 @@ WinDirNotify::~WinDirNotify()
     }
 
 }
+#endif   // ENABLE_SYNC
 
 std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool followSymLinks)
 {
@@ -1680,10 +1687,12 @@ DirAccess* WinFileSystemAccess::newdiraccess()
     return new WinDirAccess();
 }
 
+#ifdef ENABLE_SYNC
 DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter)
 {
     return new WinDirNotify(root, rootPath, this, waiter);
 }
+#endif
 
 bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {

@@ -51,9 +51,10 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         const char *key = it.first.c_str();
         string newValue = it.second;
         string currentValue;
-        if (tlv.find(key))  // the key may not exist in the current user attribute
+        string buffer;
+        if (tlv.get(key, buffer) && !buffer.empty())  // the key may not exist in the current user attribute
         {
-            Base64::btoa(tlv.get(key), currentValue);
+            Base64::btoa(buffer, currentValue);
         }
         if (newValue != currentValue)
         {
@@ -295,9 +296,10 @@ User* User::unserialize(MegaClient* client, string* d)
         TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
         if (tlvRecords)
         {
-            if (tlvRecords->find(EdDSA::TLV_KEY))
+            string edDsaValue;
+            if (tlvRecords->get(EdDSA::TLV_KEY, edDsaValue) && !edDsaValue.empty())
             {
-                client->signkey = new EdDSA(client->rng, (unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
+                client->signkey = new EdDSA(client->rng, (unsigned char *) edDsaValue.data());
                 if (!client->signkey->initializationOK)
                 {
                     delete client->signkey;
@@ -310,9 +312,10 @@ User* User::unserialize(MegaClient* client, string* d)
                 }
             }
 
-            if (tlvRecords->find(ECDH::TLV_KEY))
+            string ecdhValue;
+            if (tlvRecords->get(ECDH::TLV_KEY, ecdhValue) && !ecdhValue.empty())
             {
-                client->chatkey = new ECDH((unsigned char *) tlvRecords->get(ECDH::TLV_KEY).data());
+                client->chatkey = new ECDH((unsigned char *) ecdhValue.data());
                 if (!client->chatkey->initializationOK)
                 {
                     delete client->chatkey;
@@ -1426,10 +1429,8 @@ AuthRing::AuthRing(attr_t type, const TLVstore &authring)
 {
     string authType = "";
     string authValue;
-    if (authring.find(authType))  // key is an empty string, but may not be there if authring was reset
+    if (authring.get(authType, authValue) && !authValue.empty())  // key is an empty string, but may not be there if authring was reset
     {
-        authValue = authring.get(authType);
-
         handle userhandle;
         byte authFingerprint[20];
         signed char authMethod = AUTH_METHOD_UNKNOWN;

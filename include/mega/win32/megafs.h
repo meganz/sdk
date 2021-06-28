@@ -57,8 +57,9 @@ public:
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
 
     DirAccess* newdiraccess() override;
-
+#ifdef ENABLE_SYNC
     DirNotify* newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter) override;
+#endif
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
 
@@ -97,9 +98,12 @@ public:
 
     bool cwd(LocalPath& path) const override;
 
+#ifdef ENABLE_SYNC
     std::set<WinDirNotify*> dirnotifys;
+#endif
 };
 
+#ifdef ENABLE_SYNC
 struct MEGA_API WinDirNotify : public DirNotify
 {
 private:
@@ -138,12 +142,13 @@ public:
     bool fsstableids() const override;
 
     WinDirNotify(LocalNode& root,
-                 LocalPath& rootPath,
+                 const LocalPath& rootPath,
                  WinFileSystemAccess* owner,
                  Waiter* waiter);
 
     ~WinDirNotify();
 };
+#endif
 
 #ifndef WINDOWS_PHONE
 struct MEGA_API WinAsyncIOContext : public AsyncIOContext

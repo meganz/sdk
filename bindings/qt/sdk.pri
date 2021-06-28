@@ -544,7 +544,7 @@ else {
     DEFINES += USE_FREEIMAGE
     SOURCES += src/gfx/freeimage.cpp
 
-    vcpkg {    
+    vcpkg {
         win32:LIBS += -llibpng16$$DEBUG_SUFFIX -llibwebpmux$$DEBUG_SUFFIX
         else {
             LIBS += -lpng16$$DEBUG_SUFFIX -lwebpmux$$DEBUG_SUFFIX
@@ -563,7 +563,12 @@ else {
             LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
         }
         else {
-            LIBS += -lfreeimage
+            exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.so.3) {
+                LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.so.3
+            }
+            else {
+                LIBS += -lfreeimage
+            }
         }
     }
 }

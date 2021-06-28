@@ -5107,7 +5107,7 @@ void MegaClient::initsc()
             // 4. write new or modified pcrs, purge deleted pcrs
             for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
             {
-                if (!(complete = sctable->put(CACHEDPCR, it->second, &key)))
+                if (!(complete = sctable->put(CACHEDPCR, it->second.get(), &key)))
                 {
                     break;
                 }
@@ -6454,7 +6454,7 @@ void MegaClient::sc_ipc()
                     useralerts.add(new UserAlert::IncomingPendingContact(dts, rts, p, email, ts, useralerts.nextId()));
                 }
 
-                pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
+                pcr = pcrindex.count(p) ? pcrindex[p].get() : (PendingContactRequest *) NULL;
 
                 if (dts != 0)
                 {
@@ -6498,7 +6498,7 @@ void MegaClient::sc_ipc()
                     }
 
                     pcr = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
-                    mappcr(p, pcr);
+                    mappcr(p, unique_ptr<PendingContactRequest>(pcr));
                     pcr->autoaccepted = clv;
                 }
                 notifypcr(pcr);
@@ -6564,7 +6564,7 @@ void MegaClient::sc_opc()
                     break;
                 }
 
-                pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
+                pcr = pcrindex.count(p) ? pcrindex[p].get() : (PendingContactRequest *) NULL;
 
                 if (dts != 0) // delete PCR
                 {
@@ -6583,7 +6583,7 @@ void MegaClient::sc_opc()
                 else if (ts == uts) // add PCR
                 {
                     pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
-                    mappcr(p, pcr);
+                    mappcr(p, unique_ptr<PendingContactRequest>(pcr));
                 }
                 else    // remind PCR
                 {
@@ -6649,7 +6649,7 @@ void MegaClient::sc_upc(bool incoming)
                     break;
                 }
 
-                pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
+                pcr = pcrindex.count(p) ? pcrindex[p].get() : (PendingContactRequest *) NULL;
 
                 if (!pcr)
                 {
@@ -7528,7 +7528,6 @@ void MegaClient::notifypurge(void)
             if (pcr->removed())
             {
                 pcrindex.erase(pcr->id);
-                delete pcr;
             }
             else
             {
@@ -8979,7 +8978,7 @@ void MegaClient::readipc(JSON *j)
                         }
                         else
                         {
-                            pcrindex[p] = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
+                            pcrindex[p].reset(new PendingContactRequest(p, m, NULL, ts, uts, msg, false));
                         }
 
                         break;
@@ -9062,7 +9061,7 @@ void MegaClient::readopc(JSON *j)
                         }
                         else
                         {
-                            pcrindex[p] = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                            pcrindex[p].reset(new PendingContactRequest(p, e, m, ts, uts, msg, true));
                         }
 
                         break;
@@ -10099,22 +10098,20 @@ PendingContactRequest* MegaClient::findpcr(handle p)
         return NULL;
     }
 
-    PendingContactRequest* pcr = pcrindex[p];
+    auto& pcr = pcrindex[p];
     if (!pcr)
     {
-        pcr = new PendingContactRequest(p);
-        pcrindex[p] = pcr;
+        pcr.reset(new PendingContactRequest(p));
         assert(fetchingnodes);
         // while fetchingnodes, outgoing shares reference an "empty" PCR that is completed when `opc` is parsed
     }
 
-    return pcrindex[p];
+    return pcr.get();
 }
 
-void MegaClient::mappcr(handle id, PendingContactRequest *pcr)
+void MegaClient::mappcr(handle id, unique_ptr<PendingContactRequest>&& pcr)
 {
-    delete pcrindex[id];
-    pcrindex[id] = pcr;
+    pcrindex[id] = move(pcr);
 }
 
 bool MegaClient::discardnotifieduser(User *u)
@@ -12105,7 +12102,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
             case CACHEDPCR:
                 if ((pcr = PendingContactRequest::unserialize(&data)))
                 {
-                    mappcr(pcr->id, pcr);
+                    mappcr(pcr->id, unique_ptr<PendingContactRequest>(pcr));
                     pcr->dbid = id;
                 }
                 else
@@ -12588,35 +12585,29 @@ void MegaClient::initializekeys()
         if (tlvRecords)
         {
 
-            if (tlvRecords->find(EdDSA::TLV_KEY))
+            string prEd255;
+            if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
             {
-                string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-                if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
+                if (!signkey->initializationOK)
                 {
-                    signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
-                    if (!signkey->initializationOK)
-                    {
-                        delete signkey;
-                        signkey = NULL;
-                        clearKeys();
-                        return;
-                    }
+                    delete signkey;
+                    signkey = NULL;
+                    clearKeys();
+                    return;
                 }
             }
 
-            if (tlvRecords->find(ECDH::TLV_KEY))
+            string prCu255;
+            if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
             {
-                string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-                if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                chatkey = new ECDH((unsigned char *) prCu255.data());
+                if (!chatkey->initializationOK)
                 {
-                    chatkey = new ECDH((unsigned char *) prCu255.data());
-                    if (!chatkey->initializationOK)
-                    {
-                        delete chatkey;
-                        chatkey = NULL;
-                        clearKeys();
-                        return;
-                    }
+                    delete chatkey;
+                    chatkey = NULL;
+                    clearKeys();
+                    return;
                 }
             }
             delete tlvRecords;
@@ -13357,11 +13348,6 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
         }
     }
     assert(users.size() <= 1 && uhindex.size() <= 1 && umindex.size() <= 1);
-
-    for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
-    {
-        delete it->second;
-    }
 
     pcrindex.clear();
 
@@ -15454,14 +15440,13 @@ string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& te
 string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& encoded)
 {
     string unencoded = Base64::atob(encoded);
+    string value;
 
     unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&unencoded, &key));
-    if (tlv && tlv->find(name)) {
-        // we have to check with "find" as get() will throw an exception (in contrast to the documented behaviour) if the key is not present
-        return tlv->get(name);
-    }
+    if (tlv)
+        tlv->get(name, value);
 
-    return "";
+    return value;
 }
 
 #ifdef ENABLE_SYNC

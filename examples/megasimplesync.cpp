@@ -603,7 +603,7 @@ int main(int argc, char *argv[])
 #ifndef ENABLE_SYNC
     cerr << "Synchronization features are disabled" << endl;
     return 1;
-#endif
+#else
 
     SyncApp *app;
 
@@ -686,4 +686,5 @@ int main(int argc, char *argv[])
     }
 
     return 0;
+#endif
 }

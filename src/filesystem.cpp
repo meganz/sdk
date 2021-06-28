@@ -305,8 +305,10 @@ FileSystemAccess::FileSystemAccess()
     : waiter(NULL)
     , skip_errorreport(false)
     , transient_error(false)
+#ifdef ENABLE_SYNC
     //, notifyerr(false)
     //, notifyfailed(false)
+#endif
     , target_exists(false)
     , client(NULL)
 {
@@ -580,6 +582,8 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
+#ifdef ENABLE_SYNC
+
 // default DirNotify: no notification available
 DirNotify::DirNotify(const LocalPath& rootPath)
 {
@@ -619,10 +623,7 @@ void DirNotify::notify(NotificationDeque& q, LocalNode* l, LocalPath&& path, boo
     // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
 
-    Notification n;
-    n.timestamp = immediate ? 0 : Waiter::ds;
-    n.localnode = l;
-    n.path = std::move(path);
+    Notification n(immediate ? 0 : Waiter::ds, std::move(path), l);
     q.pushBack(std::move(n));
 }
 
@@ -641,6 +642,7 @@ DirNotify* FileSystemAccess::newdirnotify(LocalNode&, LocalPath& rootPath, Waite
 {
     return new DirNotify(rootPath);
 }
+#endif  // ENABLE_SYNC
 
 FileAccess::FileAccess(Waiter *waiter)
 {

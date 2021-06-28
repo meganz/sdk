@@ -106,10 +106,14 @@ public:
             }
             else
             {
-#ifndef WIN32
-                // for non-windows, by default log output goes to console
-                std::cout << os.str() << std::flush;
-#endif
+#ifdef _WIN32
+                if (!IsDebuggerPresent())
+#endif // _WIN32
+
+                {
+                    std::cout << os.str() << std::flush;
+                }
+
                 if (!gTestingInvalidArgs)
                 {
                     if (loglevel <= logError)
@@ -118,13 +122,12 @@ public:
                     }
                 }
             }
+
 #ifdef _WIN32
-            // in windows, send log output to the very convenient Visual Studio debug output window (makes it much easier to see the low-frequency high-level output in the console)
-            if (IsDebuggerPresent())
-            {
-                OutputDebugStringA(os.str().c_str());
-            }
-#endif
+            // Always show the logging in the output window in VS, very useful to see what's going on as the tests run
+            // (with the high level --CI output visible in the app's own console window)
+            OutputDebugStringA(os.str().c_str());
+#endif // _WIN32
         }
     }
 

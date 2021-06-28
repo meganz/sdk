@@ -416,7 +416,12 @@ struct Notification
 
     dstime timestamp;
     LocalPath path;
-    LocalNode* localnode;
+    LocalNode* localnode = nullptr;
+
+    Notification() {}
+    Notification(dstime ts, const LocalPath& p, LocalNode* ln)
+        : timestamp(ts), path(p), localnode(ln)
+        {}
 };
 
 struct NotificationDeque : ThreadSafeDeque<Notification>
@@ -434,7 +439,8 @@ struct NotificationDeque : ThreadSafeDeque<Notification>
     }
 };
 
-// generic filesystem change notification
+#ifdef ENABLE_SYNC
+// filesystem change notification, highly coupled to Syncs and LocalNodes.
 struct MEGA_API DirNotify
 {
     // Thread safe so that a separate thread can listen for filesystem notifications (for windows for now, maybe more platforms later)
@@ -477,6 +483,7 @@ public:
 
     bool empty();
 };
+#endif
 
 // generic host filesystem access interface
 struct MEGA_API FileSystemAccess : public EventTrigger
@@ -497,9 +504,11 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // instantiate DirAccess object
     virtual DirAccess* newdiraccess() = 0;
 
+#ifdef ENABLE_SYNC
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
     virtual DirNotify* newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter);
+#endif
 
     // Returns the character encoded by the escape s.
     // This function returns -1 if s is not a valid escape sequence.
@@ -585,12 +594,14 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
 
+#ifdef ENABLE_SYNC
     // set whenever there was a global file notification error or permanent failure
     // (this is in addition to the DirNotify-local error)
 
     // now managing these on a per-dirnotify basis
     //bool notifyerr;
     //bool notifyfailed;
+#endif
 
     // set whenever an operation fails because the target already exists
     bool target_exists;
