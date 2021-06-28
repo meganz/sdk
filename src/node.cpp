@@ -1652,7 +1652,7 @@ void LocalNode::setSubtreeNeedsRescan(bool includeFiles)
         }
         else
         {
-            child.second->needsRescan = includeFiles;
+            child.second->needsRescan |= includeFiles;
         }
     }
 }
