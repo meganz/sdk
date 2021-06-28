@@ -7902,7 +7902,14 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
             auto& id = testcase.backupId;
             auto& model = testcase.remoteModel;
 
-            if (!client.match(id, model.findnode("f"))) break;
+            if (!client.match(id, model.findnode("f")))
+            {
+                out() << "dgw: mismatch: " << testcase.name();
+            }
+            else
+            {
+                out() << "dgw: match: " << testcase.name();
+            }
         }
 
         if (i == j) return true;
@@ -7992,7 +7999,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
                                 testcase.file = file;
                                 testcase.isExternal = isExternal;
                                 testcase.pauseDuringAction = pauseDuringAction;
-                                testcase.printTreesBeforeAndAfter = !tests.empty();
+                                testcase.printTreesBeforeAndAfter = true;//!tests.empty();
 
                                 if (tests.empty() || tests.count(testcase.name()) > 0)
                                 {
