@@ -410,6 +410,9 @@ struct MEGA_API LocalNode : public Cacheable
     // Removed again when the folder is fully synced.
     std::unique_ptr<vector<FSNode>> lastFolderScan;
 
+    // If we can regenerate the filsystem data at this node, no need to store it, save some RAM
+    void clearRegeneratableFolderScan(SyncPath& fullPath);
+
     // The name of the node that we are (or will be) synced with
     // It may not be an exact match due to escaping considerations?  // todo: check this
     string name;

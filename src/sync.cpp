@@ -778,9 +778,6 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     {
         debris = cdebris;
         localdebrisname = LocalPath::fromPath(debris, *client->fsaccess);
-
-        dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, client->waiter));
-
         localdebris = localdebrisname;
         localdebris.prependWithSeparator(mLocalPath);
     }
@@ -788,9 +785,6 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     {
         localdebrisname = clocaldebris->leafName();
         localdebris = *clocaldebris;
-
-        // FIXME: pass last segment of localdebris
-        dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, client->waiter));
     }
     // notifications may be queueing from this moment
     dirnotify.reset(client->fsaccess->newdirnotify(*localroot, mLocalPath, client->waiter));
@@ -4254,7 +4248,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
     if (!row.fsNode)
     {
         row.syncNode->scanAgain = TREE_RESOLVED;
-        row.syncNode->fsid_asScanned = UNDEF;
+        row.syncNode->setScannedFsid(UNDEF, client->localnodeByScannedFsid, LocalPath());
         syncHere = row.syncNode->parent ? row.syncNode->parent->scanAgain < TREE_ACTION_HERE : true;
         recurseHere = false;  // If we need to scan, we need the folder to exist first - revisit later
     }
@@ -4470,40 +4464,9 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
         }
     }
 
-    if (syncHere && folderSynced &&
-        !anyNameConflicts &&
-        row.syncNode->lastFolderScan &&
-        row.syncNode->lastFolderScan->size() == row.syncNode->children.size())
+    if (syncHere && folderSynced && !anyNameConflicts)
     {
-#ifdef DEBUG
-        // Double check we really can recreate the filesystem entries correctly
-        vector<FSNode> generated;
-        for (auto &childIt : row.syncNode->children)
-        {
-            if (childIt.second->fsid_lastSynced != UNDEF)
-            {
-                generated.emplace_back(childIt.second->getLastSyncedFSDetails());
-            }
-        }
-        assert(generated.size() == row.syncNode->lastFolderScan->size());
-        sort(generated.begin(), generated.end(), [](FSNode& a, FSNode& b){ return a.localname < b.localname; });
-        sort(row.syncNode->lastFolderScan->begin(), row.syncNode->lastFolderScan->end(), [](FSNode& a, FSNode& b){ return a.localname < b.localname; });
-        for (size_t i = generated.size(); i--; )
-        {
-            assert(generated[i].type == (*row.syncNode->lastFolderScan)[i].type);
-            if (generated[i].type == FILENODE)
-            {
-                if (!(generated[i].equivalentTo((*row.syncNode->lastFolderScan)[i])))
-                {
-                    assert(generated[i].equivalentTo((*row.syncNode->lastFolderScan)[i]));
-                }
-            }
-        }
-#endif
-
-        // LocalNodes are now consistent with the last scan.
-        LOG_debug << syncname << "Clearing folder scan records at " << fullPath.localPath_utf8();
-        row.syncNode->lastFolderScan.reset();
+        row.syncNode->clearRegeneratableFolderScan(fullPath);
     }
 
     // Recompute our LocalNode flags from children
@@ -4581,7 +4544,7 @@ bool Sync::recursiveSync_localScanForNewOnly(syncRow& row, SyncPath& fullPath, D
     if (!row.fsNode)
     {
         row.syncNode->scanAgain = TREE_RESOLVED;
-        row.syncNode->fsid_asScanned = UNDEF;
+        row.syncNode->setScannedFsid(UNDEF, client->localnodeByScannedFsid, LocalPath());
         syncHere = false;
         recurseHere = false;  // If we need to scan, we need the folder to exist first - revisit later
     }

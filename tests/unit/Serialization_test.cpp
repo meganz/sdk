@@ -377,7 +377,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     auto& sync = us->mSync;
     auto& l = *sync->localroot;
     l.mSyncable = false;
-    l.setSyncedFsid(10, client.cli->localnodeByFsid, ::mega::LocalPath::fromPath("CRYPTO_ERROR", client.fs));
+    l.setSyncedFsid(10, client.cli->localnodeBySyncedFsid, ::mega::LocalPath::fromPath("CRYPTO_ERROR", client.fs));
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
 #ifndef WIN32
@@ -395,7 +395,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->mSyncable = false;
     l->syncedFingerprint.size = 124;
-    l->setSyncedFsid(10, client.cli->localnodeByFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
+    l->setSyncedFsid(10, client.cli->localnodeBySyncedFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->syncedFingerprint.mtime = 124124124;
@@ -416,7 +416,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
     auto& sync = us->mSync;
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->syncedFingerprint.size = 124;
-    l->setSyncedFsid(10, client.cli->localnodeByFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
+    l->setSyncedFsid(10, client.cli->localnodeBySyncedFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->syncedFingerprint.mtime = std::numeric_limits<decltype(l->syncedFingerprint.mtime)>::max();
@@ -436,7 +436,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
     auto us = mt::makeSync(*client.cli, "wicked");
     auto& sync = us->mSync;
     auto& l = *sync->localroot;
-    l.setSyncedFsid(10, client.cli->localnodeByFsid, ::mega::LocalPath::fromPath("CRYPTO_ERROR", client.fs));
+    l.setSyncedFsid(10, client.cli->localnodeBySyncedFsid, ::mega::LocalPath::fromPath("CRYPTO_ERROR", client.fs));
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
 #ifndef WIN32
@@ -456,7 +456,7 @@ TEST(Serialization, LocalNode_forFolder)
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
-    l->setSyncedFsid(10, client.cli->localnodeByFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
+    l->setSyncedFsid(10, client.cli->localnodeBySyncedFsid, ::mega::LocalPath::fromPath("sweet", client.fs));
     l->syncedCloudNodeHandle.set6byte(n.nodehandle);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));

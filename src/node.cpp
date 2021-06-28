@@ -1645,6 +1645,44 @@ bool LocalNode::scanRequired() const
     return scanAgain != TREE_RESOLVED;
 }
 
+
+void LocalNode::checkLastFolderScanRegeneration(SyncPath& fullPath)
+{
+    if (lastFolderScan &&
+        lastFolderScan->size() == children.size())
+    {
+#ifdef DEBUG
+        // Double check we really can recreate the filesystem entries correctly
+        vector<FSNode> generated;
+        for (auto& childIt : children)
+        {
+            if (childIt.second->fsid_lastSynced != UNDEF)
+            {
+                generated.emplace_back(childIt.second->getLastSyncedFSDetails());
+            }
+        }
+        assert(generated.size() == lastFolderScan->size());
+        sort(generated.begin(), generated.end(), [](FSNode& a, FSNode& b) { return a.localname < b.localname; });
+        sort(lastFolderScan->begin(), lastFolderScan->end(), [](FSNode& a, FSNode& b) { return a.localname < b.localname; });
+        for (size_t i = generated.size(); i--; )
+        {
+            assert(generated[i].type == (*lastFolderScan)[i].type);
+            if (generated[i].type == FILENODE)
+            {
+                if (!(generated[i].equivalentTo((*lastFolderScan)[i])))
+                {
+                    assert(generated[i].equivalentTo((*lastFolderScan)[i]));
+                }
+            }
+        }
+#endif
+
+        // LocalNodes are now consistent with the last scan.
+        LOG_debug << sync->syncname << "Clearing folder scan records at " << fullPath.localPath_utf8();
+        lastFolderScan.reset();
+    }
+}
+
 bool LocalNode::mightHaveMoves() const
 {
     return checkMovesAgain != TREE_RESOLVED;
@@ -1898,7 +1936,7 @@ void LocalNode::setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, co
         fsid_asScanned_it = fsidnodes.insert(std::make_pair(fsid_asScanned, this));
     }
 
-    assert(0 == compareUtf(localname, true, fsName, true, true));
+    assert(fsid_asScanned == UNDEF || 0 == compareUtf(localname, true, fsName, true, true));
 }
 
 void LocalNode::setSyncedNodeHandle(NodeHandle h, const string& cloudName)
