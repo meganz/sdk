@@ -1,7 +1,7 @@
 #[[
     Run this file from its current folder in script mode, with triplet as a defined parameter:
 	
-        cmake -DTRIPLET=<triplet> [-DEXTRA_ARGS=<>] [-DTARGET=<target>[;<targets>...] ] -P build_from_scratch.cmake
+        cmake -DTRIPLET=<triplet> [-DPLATFORM=<platform>] [-DEXTRA_ARGS=<-DVAR=VALUE>[;<-DVAR=VALUE...>] ] [-DTARGET=<target>[;<targets>...] ] -P build_from_scratch.cmake
 		
 	eg, for getting started on windows:
 	
@@ -9,6 +9,11 @@
 		
     It will set up and build 3rdparty dependencies in a folder next to the SDK folder, and also
     set up the project (Visual Studio on Windows) and bulid it in an SDK subfolder "build-<triplet>"
+
+    The parameter PLATFORM is optional. If specified, its argument will be used to set the target platform
+    for a cross-compile build. Valid platforms are given in the platform enumerator
+    in build3rdparty/build3rdparty.cpp. Passing a PLATFORM arg that disagrees with that in the TRIPLET is
+    undefined behavior. If PLATFORM is not specified, a build for the host platform is assumed.
 
     The parameters EXTRA_ARGS and TARGET are both optional parameters. You may pass a single argument
     in the normal way, but lists of arguments must be semicolon-delimited to conform with CMake's list syntax.
@@ -53,10 +58,9 @@ if(NOT TRIPLET)
 endif()
 
 if(NOT EXTRA_ARGS)
-	message(STATUS "No extra args")
+    set(_extra_cmake_args "")
 else()
     set(_extra_cmake_args ${EXTRA_ARGS})
-	message(STATUS "Applying extra args: ${EXTRA_ARGS}")
 endif()
 
 set(_triplet ${TRIPLET})
@@ -113,8 +117,11 @@ set(_3rdparty_tool_common_args
     --ports "${_script_cwd}/preferred-ports-sdk.txt"
     --triplet ${_triplet}
     --sdkroot ${_sdk_dir}
-    --platform ios
 )
+
+if(PLATFORM)
+    list(APPEND _3rdparty_tool_common_args --platform ${PLATFORM})
+endif()
 
 execute_checked_command(
     COMMAND ${_3rdparty_tool_exe}
@@ -210,7 +217,7 @@ if(WIN32)
     endforeach()
 else()
     if(VCPKG_CMAKE_SYSTEM_NAME STREQUAL "iOS")
-        set(_extra_cmake_args -DHAVE_FFMPEG=0)
+        LIST(APPEND _extra_cmake_args -DHAVE_FFMPEG=0 -DENABLE_SYNC=0)
         include(${_3rdparty_vcpkg_dir}/scripts/toolchains/ios.cmake)
         if(NOT CMAKE_OSX_SYSROOT)
             # Probably should figure out why vcpkg doesn't set this var for arm64 ios,
