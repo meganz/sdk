@@ -7895,6 +7895,9 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
         for ( ; i != j; ++i)
         {
             auto& testcase = i->second;
+
+            if (testcase.pauseDuringAction) continue;
+
             auto& client = testcase.client1();
             auto& id = testcase.backupId;
             auto& model = testcase.remoteModel;
