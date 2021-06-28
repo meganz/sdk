@@ -8312,34 +8312,34 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
     ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
 }
 
+class BackupClient
+  : public StandardClient
+{
+public:
+    BackupClient(const fs::path& basePath, const string& name)
+      : StandardClient(basePath, name)
+      , mOnSyncPut()
+    {
+    }
+
+    void syncupdate_put(Sync* sync, const char* path) override
+    {
+        StandardClient::syncupdate_put(sync, path);
+
+        if (mOnSyncPut) mOnSyncPut(*sync);
+    }
+
+    using SyncPutCallback = std::function<void(Sync&)>;
+
+    SyncPutCallback mOnSyncPut;
+}; // Client
+
 TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 {
-    class Client
-      : public StandardClient
-    {
-    public:
-        Client(const fs::path& basePath, const string& name)
-          : StandardClient(basePath, name)
-          , mOnSyncPut()
-        {
-        }
-
-        void syncupdate_put(Sync* sync, const char* path) override
-        {
-            StandardClient::syncupdate_put(sync, path);
-
-            if (mOnSyncPut) mOnSyncPut(*sync);
-        }
-
-        using SyncPutCallback = std::function<void(Sync&)>;
-
-        SyncPutCallback mOnSyncPut;
-    }; // Client
-
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
 
-    Client c(TESTROOT, "c");
+    BackupClient c(TESTROOT, "c");
     Model m;
 
     // Log callbacks.
