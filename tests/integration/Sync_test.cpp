@@ -7966,7 +7966,11 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
                         for (int isExternal = 0; isExternal < 2; ++isExternal)
                         {
-                            //if (!isExternal) continue;
+                            // Temporarily disable tests for internal backups.
+                            if (!isExternal && syncType == TwoWaySyncSymmetryCase::type_backupSync)
+                            {
+                                continue;
+                            }
 
                             if (isExternal && syncType != TwoWaySyncSymmetryCase::type_backupSync)
                             {
