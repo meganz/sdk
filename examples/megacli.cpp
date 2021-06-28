@@ -9275,25 +9275,30 @@ void exec_synclist(autocomplete::ACState& s)
     SyncFlags::LocalStallInfoMap stalledLocalPaths;
     if (client->syncStallDetected(stalledNodePaths, stalledLocalPaths))
     {
-        cout << "Stalled (mutually unresolvable) paths detected!" << endl;
+        cout << "Stalled (mutually unresolvable) changes detected!" << endl;
         for (auto& p : stalledNodePaths)
         {
             cout << "stalled node path: " << p.first << " " << syncWaitReasonString(p.second.reason);
-            if (!p.second.involvedPath.empty())
+            if (!p.second.involvedCloudPath.empty())
             {
-                cout << " (involved path: " << p.second.involvedPath << ")";
+                cout << " (involved path: " << p.second.involvedCloudPath << ")";
+            }
+            if (!p.second.involvedLocalPath.empty())
+            {
+                cout << " (involved Local path: " << p.second.involvedLocalPath.toPath() << ")";
             }
             cout << endl;
         }
         for (auto& p : stalledLocalPaths)
         {
             cout << "stalled local path: " << p.first.toPath(*client->fsaccess) << " " << syncWaitReasonString(p.second.reason);
-            if (!p.second.involvedPath.empty())
+            if (!p.second.involvedLocalPath.empty())
             {
-                if (!p.second.involvedPath.empty())
-                {
-                    cout << " (involved path: " << p.second.involvedPath.toPath(*client->fsaccess) << ")";
-                }
+                cout << " (involved path: " << p.second.involvedLocalPath.toPath(*client->fsaccess) << ")";
+            }
+            if (!p.second.involvedCloudPath.empty())
+            {
+                cout << " (involved cloud path: " << p.second.involvedCloudPath << ")";
             }
             cout << endl;
         }

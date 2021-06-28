@@ -2159,16 +2159,13 @@ string LocalNode::getCloudPath() const
 {
     string path;
 
-    for (const LocalNode* l = this; l != nullptr; l = l->parent)
-    {
-        assert(!l->parent || l->parent->sync == sync);
-
-        // sync root has absolute path, the rest are just their leafname
-        path = l->name + "/" + path;
-    }
     if (auto cr = sync->cloudRoot())
     {
-        path = cr->displaypath() + "/" + path;
+        for (const LocalNode* l = this; l != nullptr; l = l->parent)
+        {
+            assert(!l->parent || l->parent->sync == sync);
+            path = (l->parent ? l->name : cr->displaypath()) + "/" + path;
+        }
     }
     return path;
 }

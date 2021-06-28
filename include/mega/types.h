@@ -1001,6 +1001,7 @@ public:
 enum class SyncWaitReason {
     NoReason,
     ApplyMoveNeedsOtherSideParentFolderToExist,   // stuck at move destination node
+    ApplyMoveIsBlockedByExistingItem,             // stuck at move destination node
     MoveNeedsDestinationNodeProcessing,           // stuck at move source node
     UpsyncNeedsTargetFolder,
     DownsyncNeedsTargetFolder,
