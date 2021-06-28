@@ -1165,9 +1165,6 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
 {
     auto& config = getConfig();
 
-    // See explanation in disableSelectedSyncs(...).
-    newEnableFlag &= !(config.isBackup() && newstate < SYNC_INITIALSCAN);
-
     config.setError(newSyncError);
     config.setEnabled(newEnableFlag);
 
@@ -3515,26 +3512,8 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
             }
             else
             {
-                // Backups should not be automatically resumed unless we can be sure
-                // that mirror phase completed, and no cloud changes occurred since.
-                //
-                // If the backup was mirroring, the mirror may be incomplete. In that
-                // case, the cloud may still contain files/folders that should not be
-                // in the backup, and so we would need to restore in mirror phase, but
-                // we must have the user's permission and instruction to do that.
-                //
-                // If the backup was monitoring when it was disabled, it's possible that
-                // the cloud has changed in the meantime. If it was resumed, there may
-                // be cloud changes that cause it to immediately fail.  Again we should
-                // have the user's instruction to start again with mirroring phase.
-                //
-                // For initial implementation we are keeping things simple and reliable,
-                // the user must resume the sync manually, and confirm that starting
-                // with mirroring phase is appropriate.
-                auto enabled = newEnabledFlag & !mSyncVec[i]->mConfig.isBackup();
-
                 mSyncVec[i]->mConfig.setError(syncError);
-                mSyncVec[i]->mConfig.setEnabled(enabled);
+                mSyncVec[i]->mConfig.setEnabled(newEnabledFlag);
                 mSyncVec[i]->changedConfigState(true);
             }
 
@@ -3689,9 +3668,6 @@ void Syncs::enableResumeableSyncs()
                 SyncError syncError = unifiedSync->mConfig.getError();
                 LOG_debug << "Restoring sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
 
-                // We should never try to resume a backup sync.
-                assert(!unifiedSync->mConfig.isBackup());
-
                 anySyncRestored |= unifiedSync->enableSync(false, true) == API_OK;
             }
             else
@@ -3740,19 +3716,6 @@ void Syncs::resumeResumableSyncsOnStartup()
                 {
                     auto newpath = node->displaypath();
                     unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = newpath;//update loaded config
-                }
-            }
-
-            if (unifiedSync->mConfig.getBackupState() == SYNC_BACKUP_MIRROR)
-            {
-                // Should only be possible for a backup sync.
-                assert(unifiedSync->mConfig.isBackup());
-
-                // Disable only if necessary.
-                if (unifiedSync->mConfig.getEnabled())
-                {
-                    unifiedSync->mConfig.setEnabled(false);
-                    saveSyncConfig(unifiedSync->mConfig);
                 }
             }
 
