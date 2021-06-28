@@ -14152,6 +14152,12 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
         }
         else
         {
+            if (l->sync->isBackupAndMirroring())
+            {
+                // Local node needs to be uploaded.
+                cxt.mActionsPerformed |= !ll->node;
+            }
+
             lit++;
         }
     }
