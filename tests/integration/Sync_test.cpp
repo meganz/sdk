@@ -7556,6 +7556,18 @@ struct TwoWaySyncSymmetryCase
         }
     }
 
+    void PrintLocalTree(const LocalNode& node)
+    {
+        out() << node.getLocalPath().toPath();
+
+        if (node.type == FILENODE) return;
+
+        for (const auto& childIt : node.children)
+        {
+            PrintLocalTree(*childIt.second);
+        }
+    }
+
     void PrintRemoteTree(Node* n, string prefix = "")
     {
         prefix += string("/") + n->displayname();
@@ -7590,6 +7602,13 @@ struct TwoWaySyncSymmetryCase
         {
             out() << " ---- local filesystem initial state ----";
             PrintLocalTree(fs::path(localTestBasePath()));
+
+            if (auto* sync = client1().syncByBackupId(backupId))
+            {
+                out() << " ---- local node tree initial state ----";
+                PrintLocalTree(*sync->localroot);
+            }
+
             out() << " ---- remote node tree initial state ----";
             Node* testRoot = client1().client.nodebyhandle(changeClient().basefolderhandle);
             if (Node* n = client1().drillchildnodebyname(testRoot, remoteTestBasePath))
@@ -7736,6 +7755,13 @@ struct TwoWaySyncSymmetryCase
         {
             out() << " ---- local filesystem before change ----";
             PrintLocalTree(fs::path(localTestBasePath()));
+
+            if (auto* sync = client1().syncByBackupId(backupId))
+            {
+                out() << " ---- local node tree before change ----";
+                PrintLocalTree(*sync->localroot);
+            }
+
             out() << " ---- remote node tree before change ----";
             Node* testRoot = client1().client.nodebyhandle(changeClient().basefolderhandle);
             if (Node* n = client1().drillchildnodebyname(testRoot, remoteTestBasePath))
@@ -7760,10 +7786,19 @@ struct TwoWaySyncSymmetryCase
     bool finalResult = false;
     void CheckResult(State&)
     {
+        Sync* sync = client1().syncByBackupId(backupId);
+
         if (printTreesBeforeAndAfter)
         {
             out() << " ---- local filesystem after sync of change ----";
             PrintLocalTree(fs::path(localTestBasePath()));
+
+            if (sync)
+            {
+                out() << " ---- local node tree after sync of change ----";
+                PrintLocalTree(*sync->localroot);
+            }
+
             out() << " ---- remote node tree after sync of change ----";
             Node* testRoot = client1().client.nodebyhandle(changeClient().basefolderhandle);
             if (Node* n = client1().drillchildnodebyname(testRoot, remoteTestBasePath))
@@ -7775,7 +7810,6 @@ struct TwoWaySyncSymmetryCase
         }
 
         out() << "Checking twoway sync "<< name();
-        Sync* sync = client1().syncByBackupId(backupId);
 
         if (shouldDisableSync())
         {
