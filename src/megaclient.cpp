@@ -2953,7 +2953,6 @@ void MegaClient::exec()
 
                 // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
                 auto scanningCompletePreviously = mSyncFlags->scanningWasComplete;
-                //mSyncFlags->scanTargetReachable = false;
                 mSyncFlags->scanningWasComplete = !isAnySyncScanning(false);   // paused syncs do not participate in move detection
                 mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass;
                 mSyncFlags->reachableNodesAllScannedThisPass = true;
@@ -2996,18 +2995,8 @@ void MegaClient::exec()
                             FSNode rootFsNode(sync->localroot->getLastSyncedFSDetails());
                             syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
 
-                            // Will be re-set if we can reach the scan target.
-                            //mSyncFlags->scanTargetReachable = false;
-
                             //bool allNodesSynced =
-                            sync->recursiveSync(row, pathBuffer, committer);
-
-                            // Cancel the scan request if we couldn't reach the scan target.
-                            //if (sync->mScanRequest && !mSyncFlags->scanTargetReachable)
-                            //{
-                            //    LOG_warn << "Abandoning unreachable scan request";
-                            //    sync->mScanRequest.reset();
-                            //}
+                            sync->recursiveSync(row, pathBuffer, committer, false);
 
                             //{
                             //    // a local filesystem item was locked - schedule periodic retry
@@ -9176,7 +9165,7 @@ void MegaClient::procph(JSON *j)
                             break;
                         }
 
-                        n = nodebyhandle(h);
+                        n = nodebyhandle(h, true); // even if it is a version, it's still the node with the link
                         if (n)
                         {
                             n->setpubliclink(ph, cts, ets, takendown, authKey);

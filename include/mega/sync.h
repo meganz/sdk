@@ -350,8 +350,7 @@ public:
         vector<FSNode>& fsNodes,
         vector<syncRow>& inferredRows) const;
 
-    bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer);
-    bool recursiveSync_localScanForNewOnly(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer);
+    bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode);
     bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool localScanForNewOnly);
     bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
     string logTriplet(syncRow& row, SyncPath& fullPath);
@@ -628,9 +627,6 @@ private:
 
 struct SyncFlags
 {
-    // whether the target of an asynchronous scan request is reachable.
-    //bool scanTargetReachable = false;
-
     // we can only perform moves after scanning is complete
     bool scanningWasComplete = false;
 

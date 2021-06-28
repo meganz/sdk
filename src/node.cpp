@@ -1646,7 +1646,7 @@ bool LocalNode::scanRequired() const
 }
 
 
-void LocalNode::checkLastFolderScanRegeneration(SyncPath& fullPath)
+void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath)
 {
     if (lastFolderScan &&
         lastFolderScan->size() == children.size())
@@ -1721,6 +1721,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
     bool syncHere;
 
     assert(row.syncNode == this);
+    assert(row.fsNode);
     assert(!sync->localdebris.isContainingPathOf(fullPath.localPath));
 
     std::shared_ptr<ScanService::Request> ourScanRequest = scanInProgress ? rare().scanRequest  : nullptr;
