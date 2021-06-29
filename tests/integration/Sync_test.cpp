@@ -7913,7 +7913,7 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
 {
     using namespace std::chrono_literals;
 
-    auto began = chrono::steady_clock::now();
+    auto total = 0ms;
 
     do
     {
@@ -7932,21 +7932,24 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
 
             if (!client.match(id, model.findnode("f")))
             {
-                out() << "dgw: mismatch: " << testcase.name();
-            }
-            else
-            {
-                out() << "dgw: match: " << testcase.name();
+                out() << "Cloud/model misatch: " << testcase.name();
             }
         }
 
-        if (i == j) return true;
+        if (i == j)
+        {
+            out() << "Cloud/model matched.";
+            return true;
+        }
 
-        out() << "dgw: Waiting...";
+        out() << "Waiting for cloud/model match...";
 
         std::this_thread::sleep_for(500ms);
+        total += 500ms;
     }
-    while (chrono::steady_clock::now() - began < timeout);
+    while (total < timeout);
+
+    out() << "Timed out waiting for cloud/model match.";
 
     return false;
 }
