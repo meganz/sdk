@@ -221,7 +221,8 @@ struct syncRow
     bool suppressRecursion = false;
     bool itemProcessed = false;
 
-    bool recurseToScanforNewLocalNodesOnly = false;
+    bool recurseBelowRemovedCloudNode = false;
+    bool recurseBelowRemovedFsNode = false;
 
     vector<syncRow>* rowSiblings = nullptr;
     const LocalPath& comparisonLocalname() const;
@@ -350,8 +351,8 @@ public:
         vector<FSNode>& fsNodes,
         vector<syncRow>& inferredRows) const;
 
-    bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode);
-    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool localScanForNewOnly);
+    bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode);
+    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode);
     bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
@@ -369,8 +370,8 @@ public:
     bool syncEqual(const Node&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
-    bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool localScanForNewOnly);
-    bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult);
+    bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
+    bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
 
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);

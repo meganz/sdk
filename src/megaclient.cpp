@@ -2996,7 +2996,7 @@ void MegaClient::exec()
                             syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
 
                             //bool allNodesSynced =
-                            sync->recursiveSync(row, pathBuffer, committer, false);
+                            sync->recursiveSync(row, pathBuffer, committer, false, false);
 
                             //{
                             //    // a local filesystem item was locked - schedule periodic retry
