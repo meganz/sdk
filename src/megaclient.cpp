@@ -2952,9 +2952,9 @@ void MegaClient::exec()
                 CodeCounter::ScopeTimer rst(performanceStats.recursiveSyncTime);
 
                 // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
-                auto scanningCompletePreviously = mSyncFlags->scanningWasComplete;
+                auto scanningCompletePreviously = mSyncFlags->scanningWasComplete && !mSyncFlags->isInitialPass;
                 mSyncFlags->scanningWasComplete = !isAnySyncScanning(false);   // paused syncs do not participate in move detection
-                mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass;
+                mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass && !mSyncFlags->isInitialPass;
                 mSyncFlags->reachableNodesAllScannedThisPass = true;
                 mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves(false); // paused syncs do not participate in move detection
                 mSyncFlags->noProgress = true;
@@ -2996,7 +2996,7 @@ void MegaClient::exec()
                             syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
 
                             //bool allNodesSynced =
-                            sync->recursiveSync(row, pathBuffer, committer, false, false);
+                            sync->recursiveSync(row, pathBuffer, committer, false, false, 0);
 
                             //{
                             //    // a local filesystem item was locked - schedule periodic retry
@@ -3029,6 +3029,8 @@ void MegaClient::exec()
                         }
                     }
                 });
+
+                mSyncFlags->isInitialPass = false;
 
 #ifdef MEGA_MEASURE_CODE
                 LOG_verbose << "recursiveSync took ms: " << std::chrono::duration_cast<std::chrono::milliseconds>(rst.timeSpent()).count();
@@ -7838,7 +7840,7 @@ Node* MegaClient::sc_deltree()
 
                 if (!ISUNDEF((h = jsonsc.gethandle())))
                 {
-                    n = nodebyhandle(h);
+                    n = nodebyhandle(h, true);  // ok even if it's a file version
                 }
                 break;
 

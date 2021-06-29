@@ -952,6 +952,16 @@ bool Sync::active() const
     return false;
 }
 
+void Sync::setSyncPaused(bool pause)
+{
+    syncPaused = pause;
+    client->mSyncFlags->isInitialPass = true;
+}
+
+bool Sync::isSyncPaused() {
+    return syncPaused;
+}
+
 Node* Sync::cloudRoot()
 {
     return client->nodeByHandle(localroot->syncedCloudNodeHandle);
@@ -2485,6 +2495,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     mSync->isnetwork = isNetwork;
 
     client->syncs.saveSyncConfig(mConfig);
+    client->mSyncFlags->isInitialPass = true;
     return API_OK;
 }
 
@@ -4253,10 +4264,11 @@ bool Sync::inferAlreadySyncedTriplets(Node* cloudParent, const LocalNode& syncPa
     return true;
 }
 
-bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode)
+bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth)
 {
     // in case of sync failing while we recurse
     if (state < 0) return false;
+    (void)depth;  // just useful for setting conditional breakpoints when debugging
 
     assert(row.syncNode);
     assert(row.syncNode->type != FILENODE);
@@ -4493,8 +4505,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
                         ||
                         (recurseHere &&
                         !childRow.suppressRecursion &&
-                        !childRow.syncNode->moveSourceApplyingToCloud &&  // we may not have visited syncItem if !syncHere, but skip these if we determine they are being moved from or deleted already
-                        !childRow.syncNode->moveTargetApplyingToCloud &&
+                        //!childRow.syncNode->moveSourceApplyingToCloud &&  // we may not have visited syncItem if !syncHere, but skip these if we determine they are being moved from or deleted already
+                        //!childRow.syncNode->moveTargetApplyingToCloud &&
                         //!childRow.syncNode->deletedFS &&   we should not check this one, or we won't remove the LocalNode
                         !childRow.syncNode->deletingCloud)))
                 {
@@ -4504,7 +4516,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
                         childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
                     }
 
-                    if (!recursiveSync(childRow, fullPath, committer, belowRemovedCloudNode || childRow.recurseBelowRemovedCloudNode, belowRemovedFsNode || childRow.recurseBelowRemovedFsNode))
+                    if (!recursiveSync(childRow, fullPath, committer, belowRemovedCloudNode || childRow.recurseBelowRemovedCloudNode, belowRemovedFsNode || childRow.recurseBelowRemovedFsNode, depth+1))
                     {
                         subfoldersSynced = false;
                     }
@@ -4564,8 +4576,8 @@ string Sync::logTriplet(syncRow& row, SyncPath& fullPath)
     return s.str();
 }
 
-bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, 
-        DBTableTransactionCommitter& committer, 
+bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath,
+        DBTableTransactionCommitter& committer,
         bool belowRemovedCloudNode, bool belowRemovedFsNode)
 {
     CodeCounter::ScopeTimer rst(client->performanceStats.syncItemTime1);
@@ -4934,18 +4946,18 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
 {
     ProgressingMonitor monitor(client);
 
-    if (!row.fsNode && row.syncNode->scanAgain != TREESTATE_NONE)
-    {
-        SYNC_verbose << syncname << "Clearing scan flag for no-fsNode resolve_delSyncNode. " << logTriplet(row, fullPath);
-        row.syncNode->scanAgain = TREESTATE_NONE;
-    }
+    //if (!row.fsNode && row.syncNode->scanAgain != TREESTATE_NONE)
+    //{
+    //    SYNC_verbose << syncname << "Clearing scan flag for no-fsNode resolve_delSyncNode. " << logTriplet(row, fullPath);
+    //    row.syncNode->scanAgain = TREESTATE_NONE;
+    //}
 
-    if (client->mSyncFlags->movesWereComplete ||
-        row.syncNode->moveSourceAppliedToCloud ||
-        row.syncNode->moveAppliedToLocal ||
-        row.syncNode->deletedFS ||
-        row.syncNode->deletingCloud) // once the cloud delete finishes, the fs node is gone and so we visit here on the next run
-    {
+    //if (client->mSyncFlags->movesWereComplete ||
+    //    row.syncNode->moveSourceAppliedToCloud ||
+    //    row.syncNode->moveAppliedToLocal ||
+    //    row.syncNode->deletedFS ||
+    //    row.syncNode->deletingCloud) // once the cloud delete finishes, the fs node is gone and so we visit here on the next run
+    //{
 
         // local and cloud disappeared; remove sync item also
         if (row.syncNode->moveSourceAppliedToCloud)
@@ -4970,7 +4982,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         }
         else
         {
-            assert(false);
+            SYNC_verbose << syncname << "Deleting Localnode (not due to this sync's actions)" << logTriplet(row, fullPath);
         }
 
         if (row.syncNode->deletedFS)
@@ -4988,20 +5000,20 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         // deletes itself and subtree, queues db record removal
         delete row.syncNode;
         row.syncNode = nullptr; // todo: maybe could return true here?
-    }
-    else if (row.syncNode->moveSourceApplyingToCloud)
-    {
-        // The logic for a move can detect when it's finished, and sets moveAppliedToCloud
-        LOG_verbose << syncname << "Cloud move still in progress" << logTriplet(row, fullPath);
-        row.syncNode->setSyncAgain(true, false, false); // visit again
-        row.suppressRecursion = true;
-    }
-    else
-    {
-        // this case can occur, eg. when the user deletes some nodes that were an unresolved/stalled move, to resolve it.
-        LOG_debug << syncname << "resolve_delSyncNode not resolved yet, waiting for movesWereComplete flag: " << logTriplet(row, fullPath);
-        monitor.noResult();
-    }
+    //}
+    //else if (row.syncNode->moveSourceApplyingToCloud)
+    //{
+    //    // The logic for a move can detect when it's finished, and sets moveAppliedToCloud
+    //    LOG_verbose << syncname << "Cloud move still in progress" << logTriplet(row, fullPath);
+    //    row.syncNode->setSyncAgain(true, false, false); // visit again
+    //    row.suppressRecursion = true;
+    //}
+    //else
+    //{
+    //    // this case can occur, eg. when the user deletes some nodes that were an unresolved/stalled move, to resolve it.
+    //    LOG_debug << syncname << "resolve_delSyncNode not resolved yet, waiting for movesWereComplete flag: " << logTriplet(row, fullPath);
+    //    monitor.noResult();
+    //}
     return false;
 }
 
@@ -5289,14 +5301,11 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 			             << prevSyncedNode->displaypath() << "): " << logTriplet(row, fullPath);
 
         }
-        row.suppressRecursion = true;
-        row.recurseBelowRemovedCloudNode = true;
         monitor.waitingCloud(fullPath.cloudPath, prevSyncedNode->displaypath(), fullPath.localPath, SyncWaitReason::MoveNeedsDestinationNodeProcessing);
     }
     else if (row.syncNode->deletedFS)
     {
         SYNC_verbose << syncname << "FS item already removed: " << logTriplet(row, fullPath);
-        row.suppressRecursion = true;
         monitor.noResult();
     }
     else if (client->mSyncFlags->movesWereComplete)
@@ -5316,7 +5325,6 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 
             // don't let revisits do anything until the tree is cleaned up
             row.syncNode->deletedFS = true;
-            row.suppressRecursion = true;
         }
         else
         {
@@ -5338,6 +5346,10 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
             monitor.noResult();
         }
     }
+
+    row.suppressRecursion = true;
+    row.recurseBelowRemovedCloudNode = true;
+
     return false;
 }
 
@@ -5655,11 +5667,6 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         }
         // todo: do we need an equivalent to row.recurseToScanforNewLocalNodesOnly = true;  (in resolve_cloudNodeGone)
         monitor.waitingLocal(fullPath.localPath, movedLocalNode->getLocalPath(), string(), SyncWaitReason::MoveNeedsDestinationNodeProcessing);
-
-        row.suppressRecursion = true;
-        row.recurseBelowRemovedFsNode = true;
-        row.syncNode->setSyncAgain(true, false, false); // make sure we revisit
-
     }
     else if (client->mSyncFlags->movesWereComplete)
     {
@@ -5673,16 +5680,11 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         {
             SYNC_verbose << syncname << "Already moving cloud item to cloud sync debris: " << row.cloudNode->displaypath() << logTriplet(row, fullPath);
         }
-
-        row.suppressRecursion = true;
-        row.syncNode->setSyncAgain(true, false, false); // make sure we revisit
-
     }
     else
     {
         // in case it's actually a move and we just haven't seen the fsid yet
         SYNC_verbose << syncname << "Wait for scanning/moving to finish before confirming fsid " << toHandle(row.syncNode->fsid_lastSynced) << " deleted: " << logTriplet(row, fullPath);
-        row.syncNode->setSyncAgain(true, false, false); // make sure we revisit
 
         monitor.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::DeleteWaitingOnMoves);
     }
@@ -5690,6 +5692,10 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
     // there's no folder so clear the flag so we don't stall
     row.syncNode->scanAgain = TREE_RESOLVED;
     row.syncNode->checkMovesAgain = TREE_RESOLVED;
+
+    row.suppressRecursion = true;
+    row.recurseBelowRemovedFsNode = true;
+    row.syncNode->setSyncAgain(true, false, false); // make sure we revisit
 
     //bool inProgress = row.syncNode->deletingCloud || row.syncNode->moveApplyingToLocal || row.syncNode->moveSourceApplyingToCloud;
 

@@ -351,7 +351,7 @@ public:
         vector<FSNode>& fsNodes,
         vector<syncRow>& inferredRows) const;
 
-    bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode);
+    bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
     bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode);
     bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
     string logTriplet(syncRow& row, SyncPath& fullPath);
@@ -420,8 +420,8 @@ public:
     bool active() const;
 
     // pause synchronization.  Syncs are still "active" but we don't call recursiveSync for them.
-    void setSyncPaused(bool pause) { syncPaused = pause; }
-    bool isSyncPaused() { return syncPaused; }
+    void setSyncPaused(bool pause);
+    bool isSyncPaused();
 
     // Asynchronous scan request / result.
     std::shared_ptr<ScanService::Request> mActiveScanRequest;
@@ -634,6 +634,9 @@ struct SyncFlags
     // track whether all our reachable nodes have been scanned
     bool reachableNodesAllScannedThisPass = true;
     bool reachableNodesAllScannedLastPass = true;
+
+    // true anytime we have just added a new sync, or unpaused one
+    bool isInitialPass = true;
 
     // we can only delete/upload/download after moves are complete
     bool movesWereComplete = false;
