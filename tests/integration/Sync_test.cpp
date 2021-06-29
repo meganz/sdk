@@ -8319,6 +8319,9 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
     }
 
     // Give our sync some time to process remote changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Wait for the sync to be disabled.
     ASSERT_TRUE(c.waitFor(SyncDisabled(id), TIMEOUT));
 
     // Has the sync failed?
@@ -8578,6 +8581,9 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
         // Enable the backup.
         ASSERT_TRUE(cb.enableSyncByBackupId(id));
 
+        // Give the sync some time to think.
+        waitonsyncs(TIMEOUT, &cb);
+
         // Wait for the sync to be disabled.
         ASSERT_TRUE(cb.waitFor(SyncDisabled(id), TIMEOUT));
 
@@ -8624,6 +8630,9 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
     // Log in the client.
     ASSERT_TRUE(cb.login_fetchnodes(sessionID));
+
+    // Give the sync some time to think.
+    waitonsyncs(TIMEOUT, &cb);
 
     // Wait for the sync to be disabled.
     ASSERT_TRUE(cb.waitFor(SyncDisabled(id), TIMEOUT));
