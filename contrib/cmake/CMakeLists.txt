@@ -120,7 +120,6 @@ endif()
 if(APPLE)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" )
 endif()
 
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")
@@ -208,7 +207,11 @@ if (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
 
         ELSE(WIN32)
              IF(CMAKE_HOST_APPLE)
-                set(VCPKG_TRIPLET "x64-osx-mega" CACHE STRING "")
+                if(NOT IOS)
+                    set(VCPKG_TRIPLET "x64-osx-mega" CACHE STRING "")
+                else()
+                    set(VCPKG_TRIPLET "arm64-ios" CACHE STRING "")
+                endif()
             ELSE(CMAKE_HOST_APPLE)
                 set(VCPKG_TRIPLET "x64-linux" CACHE STRING "")
             endif(CMAKE_HOST_APPLE)
@@ -491,6 +494,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                                             libturbojpeg
                                             freeimage_jxrglue
                                             freeimage_jpegxr)
+            if(NOT IOS)
+                ImportStdVcpkgLibrary(freeimage_tiffxx        tiffxxd            tiffxx           libtiffxxd            libtiffxx            )
+                target_link_libraries(freeimage INTERFACE freeimage_tiffxx)
+            endif()
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
