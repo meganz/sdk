@@ -8266,6 +8266,13 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
+// Useful predicate.
+const auto SyncDisabled = [](handle id) {
+    return [id](StandardClient& client) {
+        return client.syncByBackupId(id) == nullptr;
+    };
+};
+
 TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
 {
     const auto TESTROOT = makeNewTestRoot();
@@ -8312,7 +8319,7 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
     }
 
     // Give our sync some time to process remote changes.
-    waitonsyncs(TIMEOUT, &c);
+    ASSERT_TRUE(c.waitFor(SyncDisabled(id), TIMEOUT));
 
     // Has the sync failed?
     {
@@ -8322,22 +8329,6 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
         ASSERT_EQ(config.mEnabled, false);
         ASSERT_EQ(config.mError, BACKUP_MODIFIED);
     }
-
-    // If we manually enable the sync, does it come back up in mirror?
-    ASSERT_TRUE(c.enableSyncByBackupId(id));
-
-    // Give the backup something to synchronize.
-    Model m;
-
-    m.addfile("g/f");
-    m.addfile("f");
-    m.generate(c.syncSet(id).localpath);
-
-    // Wait for sync to complete.
-    waitonsyncs(TIMEOUT, &c);
-
-    // Make sure the cloud's been brought in line with the local disk.
-    ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
 }
 
 class BackupClient
@@ -8514,13 +8505,6 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(8);
-
-    // Useful predicate.
-    auto SyncDisabled = [](handle id) {
-        return [id](StandardClient& client) {
-            return client.syncByBackupId(id) == nullptr;
-        };
-    };
 
     // Sync Backup ID.
     handle id;
