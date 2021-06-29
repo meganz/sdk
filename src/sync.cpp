@@ -806,9 +806,17 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
 
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
+    // If we're a backup sync...
     if (mUnifiedSync.mConfig.isBackup())
     {
-        mUnifiedSync.mConfig.setBackupState(SYNC_BACKUP_MIRROR);
+        // If we're being added for the first time *or* if we were
+        // previously disabled because the cloud had changed...
+        if (mUnifiedSync.mConfig.mBackupState == SYNC_BACKUP_NONE
+            || mUnifiedSync.mConfig.knownError() == BACKUP_MODIFIED)
+        {
+            // Then we must come up in mirroring mode.
+            mUnifiedSync.mConfig.mBackupState = SYNC_BACKUP_MIRROR;
+        }
     }
 
     if (cdebris)
@@ -2559,7 +2567,7 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
         size_t numRestored = 0;
 
         // Create a unified sync for each backup config.
-        for (const auto& config : configs)
+        for (auto& config : configs)
         {
             // Make sure there aren't any syncs with this backup id.
             if (syncConfigByBackupId(config.mBackupId))
@@ -2573,6 +2581,9 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
 
                 continue;
             }
+
+            // Restore in mirroring mode.
+            config.mBackupState = SYNC_BACKUP_MIRROR;
 
             // Create the unified sync.
             mSyncVec.emplace_back(new UnifiedSync(mClient, config));
