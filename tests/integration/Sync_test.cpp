@@ -2775,6 +2775,34 @@ struct StandardClient : public MegaApp
         result->set_value(destination && match(*destination, *source));
     }
 
+    template<typename Predicate>
+    bool waitFor(Predicate predicate, const std::chrono::seconds &timeout)
+    {
+        using namespace std::chrono_literals;
+
+        auto total = 0ms;
+
+        do
+        {
+            if (predicate(*this))
+            {
+                out() << "Predicate has matched!";
+
+                return true;
+            }
+
+            out() << "Waiting for predicate to match...";
+
+            std::this_thread::sleep_for(500ms);
+            total += 500ms;
+        }
+        while (total < timeout);
+
+        out() << "Timed out waiting for predicate to match.";
+
+        return false;
+    }
+
     bool match(const Node& destination, const Model::ModelNode& source) const
     {
         list<pair<const Node*, decltype(&source)>> pending;
