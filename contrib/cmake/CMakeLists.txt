@@ -72,6 +72,7 @@ message(STATUS " Using 3rd party from vcpkg = ${USE_THIRDPARTY_FROM_VCPKG}")
 message(STATUS " CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
 
 if (WIN32)
+    set(IOS 0)
     set (NO_READLINE 1 CACHE STRING "")
     set (UNCHECKED_ITERATORS 0 CACHE STRING "")
     IF (USE_WEBRTC)
