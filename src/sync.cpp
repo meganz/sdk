@@ -773,6 +773,11 @@ bool SyncConfig::synctypefromname(const string& name, Type& type)
     return false;
 }
 
+SyncError SyncConfig::knownError() const
+{
+    return mKnownError;
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const char* cdebris,
