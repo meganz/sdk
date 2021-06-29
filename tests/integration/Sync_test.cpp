@@ -8513,76 +8513,140 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
-    const auto TIMEOUT = chrono::seconds(4);
+    const auto TIMEOUT = chrono::seconds(8);
 
-    StandardClient c(TESTROOT, "c");
+    // Useful predicate.
+    auto SyncDisabled = [](handle id) {
+        return [id](StandardClient& client) {
+            return client.syncByBackupId(id) == nullptr;
+        };
+    };
 
-    // Log callbacks.
-    c.logcb = true;
+    // Sync Backup ID.
+    handle id;
 
-    // Log client in.
-    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+    // Sync Root Handle.
+    handle rootHandle;
 
-    // Populate local filesystem.
+    // Session ID.
+    string sessionID;
+
+    // "Foreign" client.
+    StandardClient cf(TESTROOT, "cf");
+
+    // Model.
     Model m;
 
-    m.addfile("d/f");
-    m.addfile("f");
-    m.generate(c.fsBasePath / "s");
+    // Log callbacks.
+    cf.logcb = true;
 
-    // Add and start sync.
-    const auto id = c.setupSync_mainthread("s", "s", true);
-    ASSERT_NE(id, UNDEF);
+    // Log foreign client in.
+    ASSERT_TRUE(cf.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
-    // Wait for the sync to complete.
-    waitonsyncs(TIMEOUT, &c);
-
-    // Make sure everything made it up to the cloud.
-    ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
-
-    // Disable the sync.
-    ASSERT_TRUE(c.disableSync(id, NO_SYNC_ERROR, false));
-
-    // Was the sync properly disabled?
+    // Manual resume.
     {
-        auto config = c.syncConfigByBackupID(id);
-        
-        ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
-        ASSERT_EQ(config.mEnabled, false);
-        ASSERT_EQ(config.mError, NO_SYNC_ERROR);
+        StandardClient cb(TESTROOT, "cb");
+
+        // Log callbacks.
+        cb.logcb = true;
+
+        // Log in client.
+        ASSERT_TRUE(cb.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+        // Give the sync something to mirror.
+        m.addfile("d/f");
+        m.addfile("f");
+        m.generate(cb.fsBasePath / "s");
+
+        // Add and start backup.
+        id = cb.setupSync_mainthread("s", "s", true);
+        ASSERT_NE(id, UNDEF);
+
+        // Wait for the backup to complete.
+        waitonsyncs(TIMEOUT, &cb);
+
+        // Disable the sync.
+        ASSERT_TRUE(cb.disableSync(id, NO_SYNC_ERROR, true));
+
+        // Make sure the sync was monitoring.
+        {
+            auto config = cb.syncConfigByBackupID(id);
+
+            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
+            ASSERT_EQ(config.mEnabled, true);
+            ASSERT_EQ(config.mError, NO_SYNC_ERROR);
+        }
+
+        // Get our hands on the sync's root handle.
+        rootHandle = cb.syncSet(id).h.as8byte();
+
+        // Make a remote change.
+        //
+        // This is so the backup will fail upon resume.
+        {
+            vector<NewNode> node(1);
+
+            cf.client.putnodes_prepareOneFolder(&node[0], "g");
+
+            ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
+        }
+
+        // Enable the backup.
+        ASSERT_TRUE(cb.enableSyncByBackupId(id));
+
+        // Wait for the sync to be disabled.
+        ASSERT_TRUE(cb.waitFor(SyncDisabled(id), TIMEOUT));
+
+        // Make sure it's been disabled for the right reasons.
+        {
+            auto config = cb.syncConfigByBackupID(id);
+
+            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
+            ASSERT_EQ(config.mEnabled, false);
+            ASSERT_EQ(config.mError, BACKUP_MODIFIED);
+        }
+
+        // Manually enable the sync.
+        // It should come up in mirror mode.
+        ASSERT_TRUE(cb.enableSyncByBackupId(id));
+
+        // Let it bring the cloud in line.
+        waitonsyncs(TIMEOUT, &cb);
+
+        // Cloud should match the local disk precisely.
+        ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
+
+        // Save the session ID.
+        cb.client.dumpsession(sessionID);
+
+        // Log out the client.
+        cb.localLogout();
     }
 
     // Make a remote change.
     {
-        StandardClient cu(TESTROOT, "cu");
+        vector<NewNode> node(1);
 
-        // Log callbacks.
-        cu.logcb = true;
+        cf.client.putnodes_prepareOneFolder(&node[0], "h");
 
-        // Log client in.
-        ASSERT_TRUE(cu.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
-
-        // Create a couple directories.
-        vector<NewNode> nodes(2);
-
-        cu.client.putnodes_prepareOneFolder(&nodes[0], "g");
-        cu.client.putnodes_prepareOneFolder(&nodes[1], "h");
-
-        ASSERT_TRUE(cu.putnodes(c.syncSet(id).h.as8byte(), std::move(nodes)));
+        ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
     }
 
-    // Resume the sync.
-    ASSERT_TRUE(c.enableSyncByBackupId(id));
+    // Automatic resume.
+    StandardClient cb(TESTROOT, "cb");
 
-    // Give the sync some time to think.
-    waitonsyncs(TIMEOUT, &c);
+    // Log callbacks.
+    cb.logcb = true;
 
-    // Check if the sync's been disabled.
-    //
-    // If the sync came up in monitoring mode, it would've been disabled due
-    // to the remote addition of g and h (above.)
+    // Log in the client.
+    ASSERT_TRUE(cb.login_fetchnodes(sessionID));
+
+    // Wait for the sync to be disabled.
+    ASSERT_TRUE(cb.waitFor(SyncDisabled(id), TIMEOUT));
+
+    // Make sure it's been disabled for the right reasons.
     {
-        auto config = c.syncConfigByBackupID(id);
+        auto config = cb.syncConfigByBackupID(id);
 
         ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
         ASSERT_EQ(config.mEnabled, false);
@@ -8590,18 +8654,13 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     }
 
     // Re-enable the sync.
-    //
-    // It was previously in monitor mode.
-    // Disabled because of a foreign change.
-    //
-    // When the user re-enables the sync, it should come up in mirror mode.
-    ASSERT_TRUE(c.enableSyncByBackupId(id));
+    ASSERT_TRUE(cb.enableSyncByBackupId(id));
 
-    // Wait for the mirror to complete.
-    waitonsyncs(TIMEOUT, &c);
+    // Wait for the sync to complete mirroring.
+    waitonsyncs(TIMEOUT, &cb);
 
-    // Cloud should match the disk precisely.
-    ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
+    // Cloud should mirror the disk.
+    ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
 #endif
