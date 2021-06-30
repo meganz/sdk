@@ -109,6 +109,7 @@ public:
 
     // Whether this sync is backed by an external device.
     bool isExternal() const;
+    bool isInternal() const;
 
     // check if we need to notify the App about error/enable flag changes
     bool errorOrEnabledChanged();

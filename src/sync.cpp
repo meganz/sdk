@@ -609,6 +609,11 @@ bool SyncConfig::isExternal() const
     return !mExternalDrivePath.empty();
 }
 
+bool SyncConfig::isInternal() const
+{
+    return mExternalDrivePath.empty();
+}
+
 bool SyncConfig::errorOrEnabledChanged()
 {
     bool changed = mError != mKnownError ||
@@ -809,10 +814,13 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     // If we're a backup sync...
     if (mUnifiedSync.mConfig.isBackup())
     {
-        // If we're being added for the first time *or* if we were
-        // previously disabled because the cloud had changed...
-        if (mUnifiedSync.mConfig.mBackupState == SYNC_BACKUP_NONE
-            || mUnifiedSync.mConfig.knownError() == BACKUP_MODIFIED)
+        auto& config = mUnifiedSync.mConfig;
+
+        auto firstTime = config.mBackupState == SYNC_BACKUP_NONE;
+        auto isExternal = config.isExternal();
+        auto wasDisabled = config.knownError() == BACKUP_MODIFIED;
+
+        if (firstTime || isExternal || wasDisabled)
         {
             // Then we must come up in mirroring mode.
             mUnifiedSync.mConfig.mBackupState = SYNC_BACKUP_MIRROR;
@@ -1177,6 +1185,13 @@ void Sync::cachenodes()
 void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
 {
     auto& config = getConfig();
+
+    // Transitioning to a 'stopped' state...
+    if (newstate < SYNC_INITIALSCAN)
+    {
+        // Should "user-disable" external backups...
+        newEnableFlag &= config.isInternal();
+    }
 
     config.setError(newSyncError);
     config.setEnabled(newEnableFlag);
@@ -2582,9 +2597,6 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
                 continue;
             }
 
-            // Restore in mirroring mode.
-            config.mBackupState = SYNC_BACKUP_MIRROR;
-
             // Create the unified sync.
             mSyncVec.emplace_back(new UnifiedSync(mClient, config));
 
@@ -3519,18 +3531,22 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
 {
     for (auto i = mSyncVec.size(); i--; )
     {
-        if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
+        auto& us = *mSyncVec[i];
+        auto& config = us.mConfig;
+        auto* sync = us.mSync.get();
+
+        if (selector(config, sync))
         {
-            if (auto sync = mSyncVec[i]->mSync.get())
+            if (sync)
             {
                 sync->changestate(SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
                 mClient.syncactivity = true;
             }
             else
             {
-                mSyncVec[i]->mConfig.setError(syncError);
-                mSyncVec[i]->mConfig.setEnabled(newEnabledFlag);
-                mSyncVec[i]->changedConfigState(true);
+                config.setError(syncError);
+                config.setEnabled(config.isInternal() && newEnabledFlag);
+                us.changedConfigState(true);
             }
 
             mHeartBeatMonitor->updateOrRegisterSync(*mSyncVec[i]);
