@@ -834,7 +834,7 @@ target_link_libraries(Mega PUBLIC
                         ${Mega_PlatformSpecificLibs})
 
 target_compile_definitions(Mega PUBLIC
-                $<${IOS}:USE_IOS>
+                $<$<PLATFORM_ID:iOS>:USE_IOS>
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO>
                 $<${USE_SQLITE}:USE_SQLITE>
                 $<${USE_CRYPTOPP}:USE_CRYPTOPP>
