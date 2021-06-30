@@ -620,13 +620,30 @@ bool CommandDirectRead::procresult(Result r)
     }
 }
 
+
+CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot *ctslot, const byte *key, handle h, bool p, const char *privateauth, const char *publicauth, const char *chatauth)
+{
+    initialize(client, ctslot, key, h, p, privateauth, publicauth, chatauth, false, nullptr);
+}
+
+CommandGetFile::CommandGetFile(MegaClient *client, const byte *key, handle h, bool p, bool singleUrl, CommandGetFile::Cb &&completion)
+{
+    initialize(client, nullptr, key, h, p, nullptr, nullptr, nullptr, singleUrl, std::move(completion));
+}
+
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, const byte* key, handle h, bool p, const char *privateauth, const char *publicauth, const char *chatauth)
+void CommandGetFile::initialize(MegaClient *client, TransferSlot* ctslot, const byte* key,
+                               handle h, bool p, const char *privateauth,
+                               const char *publicauth, const char *chatauth,
+                               bool singleUrl, Cb &&completion)
 {
     cmd("g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
-    arg("v", 2);  // version 2: server can supply details for cloudraid files
+    if (!singleUrl)
+    {
+        arg("v", 2);  // version 2: server can supply details for cloudraid files
+    }
 
     if (client->usehttps)
     {
@@ -648,41 +665,68 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, const b
         arg("cauth", chatauth);
     }
 
-    tslot = ctslot;
-    priv = p;
-    ph = h;
+    mTslot = ctslot;
+    mPriv = p;
+    mPh = h;
 
-    if (!tslot)
+    if (!mTslot)
     {
-        memcpy(filekey, key, FILENODEKEYLENGTH);
+        memcpy(mFilekey, key, FILENODEKEYLENGTH);
+    }
+
+    if (completion)
+    {
+        mCompletion = completion;
+    }
+
+    if (!mCompletion && !mTslot) //using MegaApp::checkfile_result callbacks
+    {
+        //NOTE for reviewer: if I'm not mistaken, this usage is only existing from MEGAcli
+        // Code prior to this, would always have an associated transfer slot
+        // (Note: MegaClient::openfilelink is always called with op = 1)
+
+        mCompletion = [this](error e, m_off_t size, m_time_t ts, m_time_t tm,
+                std::string*filename, std::string*fingerprint, std::string*fileattrstring,
+                const std::vector<std::string> &/*urls*/, const std::vector<std::string> &/*ips*/)
+        {
+            if (mFailedCompletion)
+            {
+                this->client->app->checkfile_result(mPh, e);
+            }
+            else
+            {
+                this->client->app->checkfile_result(mPh, e, mFilekey, size,
+                                                    ts, tm, filename, fingerprint, fileattrstring);
+            }
+        };
     }
 }
 
 void CommandGetFile::cancel()
 {
     Command::cancel();
-    tslot = NULL;
+    mTslot = NULL;
 }
 
 // process file credentials
 bool CommandGetFile::procresult(Result r)
 {
-    if (tslot)
+    if (mTslot)
     {
-        tslot->pendingcmd = NULL;
+        mTslot->pendingcmd = NULL;
     }
 
     if (r.wasErrorOrOK())
     {
         if (!canceled)
         {
-            if (tslot)
+            if (mTslot)
             {
-                tslot->transfer->failed(r.errorOrOK(), *client->mTctableRequestCommitter);
+                mTslot->transfer->failed(r.errorOrOK(), *client->mTctableRequestCommitter);
             }
             else
             {
-                client->app->checkfile_result(ph, r.errorOrOK());
+                callFailedCompletion(r.errorOrOK());
             }
         }
         return true;
@@ -769,9 +813,9 @@ bool CommandGetFile::procresult(Result r)
                 break;
 
             case MAKENAMEID2('f', 'a'):
-                if (tslot)
+                if (mTslot)
                 {
-                    client->json.storeobject(&tslot->fileattrstring);
+                    client->json.storeobject(&mTslot->fileattrstring);
                 }
                 else
                 {
@@ -780,9 +824,9 @@ bool CommandGetFile::procresult(Result r)
                 break;
 
             case MAKENAMEID3('p', 'f', 'a'):
-                if (tslot)
+                if (mTslot)
                 {
-                    tslot->fileattrsmutable = (int)client->json.getint();
+                    mTslot->fileattrsmutable = (int)client->json.getint();
                 }
                 break;
 
@@ -801,24 +845,28 @@ bool CommandGetFile::procresult(Result r)
 
                     if (!canceled)
                     {
-                        if (tslot)
+                        if (mTslot)
                         {
-                            tslot->transfer->failed(e, *client->mTctableRequestCommitter);
+                            mTslot->transfer->failed(e, *client->mTctableRequestCommitter);
                         }
                         else
                         {
-                            client->app->checkfile_result(ph, e);
+                            callFailedCompletion(e);
                         }
                     }
                     return true;
                 }
-                else
+                else // all good
                 {
+                    decltype (tempips) ips;
                     // cache resolved URLs if received
                     if (tempurls.size() * 2 == tempips.size())
                     {
+                        if (!mTslot)
+                        {
+                            ips = tempips; //get a copy of the ips, before they are moved
+                        }
                         client->httpio->cacheresolvedurls(tempurls, move(tempips));
-                        tempips.clear(); // should never be needed, but can't harm either
                     }
                     else
                     {
@@ -831,9 +879,9 @@ bool CommandGetFile::procresult(Result r)
                     SymmCipher key;
                     const char* eos = strchr(at, '"');
 
-                    key.setkey(filekey, FILENODE);
+                    key.setkey(mFilekey, FILENODE);
 
-                    if ((buf = Node::decryptattr(tslot ? tslot->transfer->transfercipher() : &key,
+                    if ((buf = Node::decryptattr(mTslot ? mTslot->transfer->transfercipher() : &key,
                                                  at, eos ? eos - at : strlen(at))))
                     {
                         JSON json;
@@ -849,13 +897,15 @@ bool CommandGetFile::procresult(Result r)
                                     {
                                         delete[] buf;
 
-                                        if (tslot)
+                                        if (mTslot)
                                         {
-                                            tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
+                                            mTslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
                                             return true;
                                         }
 
-                                        client->app->checkfile_result(ph, API_EINTERNAL);
+                                        callFailedCompletion(API_EINTERNAL);
+
+
                                         return true;
                                     }
                                     break;
@@ -865,13 +915,13 @@ bool CommandGetFile::procresult(Result r)
                                     {
                                         delete[] buf;
 
-                                        if (tslot)
+                                        if (mTslot)
                                         {
-                                            tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
+                                            mTslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
                                             return true;
                                         }
 
-                                        client->app->checkfile_result(ph, API_EINTERNAL);
+                                        callFailedCompletion(API_EINTERNAL);
                                         return true;
                                     }
                                     break;
@@ -879,19 +929,19 @@ bool CommandGetFile::procresult(Result r)
                                 case EOO:
                                     delete[] buf;
 
-                                    if (tslot)
+                                    if (mTslot)
                                     {
-                                        if (s >= 0 && s != tslot->transfer->size)
+                                        if (s >= 0 && s != mTslot->transfer->size)
                                         {
-                                            tslot->transfer->size = s;
-                                            for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
+                                            mTslot->transfer->size = s;
+                                            for (file_list::iterator it = mTslot->transfer->files.begin(); it != mTslot->transfer->files.end(); it++)
                                             {
                                                 (*it)->size = s;
                                             }
 
-                                            if (priv)
+                                            if (mPriv)
                                             {
-                                                Node *n = client->nodebyhandle(ph);
+                                                Node *n = client->nodebyhandle(mPh);
                                                 if (n)
                                                 {
                                                     n->size = s;
@@ -902,13 +952,13 @@ bool CommandGetFile::procresult(Result r)
                                             client->sendevent(99411, "Node size mismatch", 0);
                                         }
 
-                                        tslot->starttime = tslot->lastdata = client->waiter->ds;
+                                        mTslot->starttime = mTslot->lastdata = client->waiter->ds;
 
                                         if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
                                         {
-                                            tslot->transfer->tempurls = tempurls;
-                                            tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
-                                            tslot->progress();
+                                            mTslot->transfer->tempurls = tempurls;
+                                            mTslot->transferbuf.setIsRaid(mTslot->transfer, tempurls, mTslot->transfer->pos, mTslot->maxRequestSize);
+                                            mTslot->progress();
                                             return true;
                                         }
 
@@ -918,15 +968,14 @@ bool CommandGetFile::procresult(Result r)
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                                         }
 
-                                        tslot->transfer->failed(e, *client->mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
+                                        mTslot->transfer->failed(e, *client->mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
                                         return true;
                                     }
                                     else
                                     {
-                                        client->app->checkfile_result(ph, e, filekey, s, ts, tm,
-                                                                             &filenamestring,
-                                                                             &filefingerprint,
-                                                                             &fileattrstring);
+                                        mCompletion(e, s, ts, tm,
+                                                    &filenamestring, &filefingerprint, &fileattrstring,
+                                                    tempurls, ips);
                                         return true;
                                     }
 
@@ -935,14 +984,14 @@ bool CommandGetFile::procresult(Result r)
                                     {
                                         delete[] buf;
 
-                                        if (tslot)
+                                        if (mTslot)
                                         {
-                                            tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
+                                            mTslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
                                             return true;
                                         }
                                         else
                                         {
-                                            client->app->checkfile_result(ph, API_EINTERNAL);
+                                            callFailedCompletion(API_EINTERNAL);
                                             return true;
                                         }
                                     }
@@ -955,14 +1004,14 @@ bool CommandGetFile::procresult(Result r)
                         return true;
                     }
 
-                    if (tslot)
+                    if (mTslot)
                     {
-                        tslot->transfer->failed(API_EKEY, *client->mTctableRequestCommitter);
+                        mTslot->transfer->failed(API_EKEY, *client->mTctableRequestCommitter);
                         return true;
                     }
                     else
                     {
-                        client->app->checkfile_result(ph, API_EKEY);
+                        callFailedCompletion(API_EKEY);
                         return true;
                     }
                 }
@@ -970,14 +1019,14 @@ bool CommandGetFile::procresult(Result r)
             default:
                 if (!client->json.storeobject())
                 {
-                    if (tslot)
+                    if (mTslot)
                     {
-                        tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
+                        mTslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
                         return false;
                     }
                     else
                     {
-                        client->app->checkfile_result(ph, API_EINTERNAL);
+                        callFailedCompletion(API_EINTERNAL);
                         return false;
                     }
                 }
