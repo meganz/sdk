@@ -2869,6 +2869,21 @@ struct StandardClient : public MegaApp
 
         return true;
     }
+
+    bool backupOpenDrive(const fs::path& drivePath)
+    {
+        auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
+            client.backupOpenDrive(drivePath, std::move(result));
+        });
+
+        return result.get();
+    }
+
+    void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
+    {
+        auto localDrivePath = LocalPath::fromPath(drivePath.u8string(), *client.fsaccess);
+        result->set_value(client.syncs.backupOpenDrive(localDrivePath) == API_OK);
+    }
 };
 
 
@@ -8352,6 +8367,175 @@ public:
 
     SyncPutCallback mOnSyncPut;
 }; // Client
+
+TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    // Model.
+    Model m;
+
+    // Sync Root Handle.
+    handle rootHandle;
+
+    // Session ID.
+    string sessionID;
+
+    // Sync Backup ID.
+    handle id;
+
+    {
+        StandardClient cb(TESTROOT, "cb");
+
+        // Log callbacks.
+        cb.logcb = true;
+
+        // Log in client.
+        ASSERT_TRUE(cb.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+        // Create some files to synchronize.
+        m.addfile("d/f");
+        m.addfile("f");
+        m.generate(cb.fsBasePath / "s");
+
+        // Add and start sync.
+        {
+            // Generate drive ID.
+            auto driveID = cb.client.generateDriveId();
+
+            // Write drive ID.
+            auto drivePath = cb.fsBasePath.u8string();
+            auto result = cb.client.writeDriveId(drivePath.c_str(), driveID);
+            ASSERT_EQ(result, API_OK);
+
+            // Add sync.
+            id = cb.backupAdd_mainthread("", "s", "s");
+            ASSERT_NE(id, UNDEF);
+        }
+
+        // Wait for sync to complete.
+        waitonsyncs(TIMEOUT, &cb);
+
+        // Make sure everything made it to the cloud.
+        ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
+
+        // Get our hands on the sync's root handle.
+        rootHandle = cb.syncSet(id).h.as8byte();
+
+        // Record this client's session.
+        cb.client.dumpsession(sessionID);
+
+        // Log out the client.
+        cb.localLogout();
+    }
+
+    StandardClient cb(TESTROOT, "cb");
+
+    cb.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(cb.login_fetchnodes(sessionID));
+
+    // Make a change in the cloud.
+    {
+        vector<NewNode> node(1);
+
+        cb.client.putnodes_prepareOneFolder(&node[0], "g");
+
+        ASSERT_TRUE(cb.putnodes(rootHandle, std::move(node)));
+    }
+
+    // Restore the backup sync.
+    ASSERT_TRUE(cb.backupOpenDrive(cb.fsBasePath));
+
+    // Re-enable the sync.
+    ASSERT_TRUE(cb.enableSyncByBackupId(id));
+
+    // Wait for the mirror to complete.
+    waitonsyncs(TIMEOUT, &cb);
+
+    // Cloud should mirror the local disk.
+    ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
+}
+
+TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT  = chrono::seconds(4);
+
+    StandardClient cb(TESTROOT, "cb");
+
+    // Log callbacks.
+    cb.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(cb.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Create some files to be synchronized.
+    Model m;
+
+    m.addfile("d/f");
+    m.addfile("f");
+    m.generate(cb.fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = UNDEF;
+
+    {
+        // Generate drive ID.
+        auto driveID = cb.client.generateDriveId();
+
+        // Write drive ID.
+        auto drivePath = cb.fsBasePath.u8string();
+        auto result = cb.client.writeDriveId(drivePath.c_str(), driveID);
+        ASSERT_EQ(result, API_OK);
+
+        // Add sync.
+        id = cb.backupAdd_mainthread("", "s", "s");
+        ASSERT_NE(id, UNDEF);
+    }
+
+    // Wait for the mirror to complete.
+    waitonsyncs(TIMEOUT, &cb);
+
+    // Make sure everything arrived safe and sound.
+    ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
+
+    // Disable the sync.
+    ASSERT_TRUE(cb.disableSync(id, NO_SYNC_ERROR, true));
+
+    // Make sure the sync's config is as we expect.
+    {
+        auto config = cb.syncConfigByBackupID(id);
+
+        // Backup should remain in monitoring mode.
+        ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
+
+        // Disabled external backups are always considered "user-disabled."
+        // That is, the user must consciously decide to resume these syncs.
+        ASSERT_EQ(config.mEnabled, false);
+    }
+
+    // Make a change in the cloud.
+    {
+        vector<NewNode> node(1);
+
+        cb.client.putnodes_prepareOneFolder(&node[0], "g");
+
+        auto rootHandle = cb.syncSet(id).h.as8byte();
+        ASSERT_TRUE(cb.putnodes(rootHandle, std::move(node)));
+    }
+
+    // Re-enable the sync.
+    ASSERT_TRUE(cb.enableSyncByBackupId(id));
+
+    // Wait for the mirror to complete.
+    waitonsyncs(TIMEOUT, &cb);
+
+    // Cloud should mirror the disk.
+    ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
+}
 
 TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 {
