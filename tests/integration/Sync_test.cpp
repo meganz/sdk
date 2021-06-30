@@ -8237,10 +8237,17 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
-// Useful predicate.
+// Useful predicates.
 const auto SyncDisabled = [](handle id) {
     return [id](StandardClient& client) {
         return client.syncByBackupId(id) == nullptr;
+    };
+};
+
+const auto SyncMonitoring = [](handle id) {
+    return [id](StandardClient& client) {
+        const auto* sync = client.syncByBackupId(id);
+        return sync && sync->isBackupMonitoring();
     };
 };
 
@@ -8265,11 +8272,7 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
     waitonsyncs(TIMEOUT, &c);
 
     // Make sure we're in monitoring mode.
-    {
-        const auto* sync = c.syncByBackupId(id);
-        ASSERT_NE(sync, nullptr);
-        ASSERT_TRUE(sync->isBackupMonitoring());
-    }
+    ASSERT_TRUE(c.waitFor(SyncMonitoring(id), TIMEOUT));
 
     // Make a (foreign) change to the cloud.
     {
@@ -8379,6 +8382,9 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
         // Make sure everything made it to the cloud.
         ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 
+        // Wait for sync to transition to monitoring mode.
+        ASSERT_TRUE(cb.waitFor(SyncMonitoring(id), TIMEOUT));
+
         // Get our hands on the sync's root handle.
         rootHandle = cb.syncSet(id).h.as8byte();
 
@@ -8460,6 +8466,9 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
 
     // Make sure everything arrived safe and sound.
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
+
+    // Wait for transition to monitoring mode.
+    ASSERT_TRUE(cb.waitFor(SyncMonitoring(id), TIMEOUT));
 
     // Disable the sync.
     ASSERT_TRUE(cb.disableSync(id, NO_SYNC_ERROR, true));
@@ -8691,6 +8700,9 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
         // Wait for the backup to complete.
         waitonsyncs(TIMEOUT, &cb);
+
+        // Wait for transition to monitoring mode.
+        ASSERT_TRUE(cb.waitFor(SyncMonitoring(id), TIMEOUT));
 
         // Disable the sync.
         ASSERT_TRUE(cb.disableSync(id, NO_SYNC_ERROR, true));
