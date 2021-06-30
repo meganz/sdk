@@ -7282,6 +7282,8 @@ struct TwoWaySyncSymmetryCase
 
     void remote_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
+        std::lock_guard<std::recursive_mutex> g(changeClient().clientMutex);
+
         if (deleteTargetFirst) remote_delete(parentpath(nodepath) + "/" + newname, updatemodel, reportaction, true); // in case the target already exists
 
         if (updatemodel) remoteModel.emulate_rename(nodepath, newname);
@@ -7300,6 +7302,7 @@ struct TwoWaySyncSymmetryCase
 
     void remote_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
+        std::lock_guard<std::recursive_mutex> g(changeClient().clientMutex);
 
         if (deleteTargetFirst) remote_delete(newparentpath + "/" + leafname(nodepath), updatemodel, reportaction, true); // in case the target already exists
 
@@ -7319,6 +7322,8 @@ struct TwoWaySyncSymmetryCase
 
     void remote_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
     {
+        std::lock_guard<std::recursive_mutex> g(changeClient().clientMutex);
+
         if (updatemodel) remoteModel.emulate_copy(nodepath, newparentpath);
 
         Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
@@ -7347,6 +7352,8 @@ struct TwoWaySyncSymmetryCase
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
     {
+        std::lock_guard<std::recursive_mutex> g(changeClient().clientMutex);
+
         if (updatemodel)
         {
             remoteModel.emulate_rename_copy(nodepath, newparentpath, newname);
@@ -7380,6 +7387,8 @@ struct TwoWaySyncSymmetryCase
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
     {
+        std::lock_guard<std::recursive_mutex> g(changeClient().clientMutex);
+
         if (updatemodel)
         {
             remoteModel.emulate_rename_copy(nodepath, newparentpath, newname);
@@ -7399,6 +7408,7 @@ struct TwoWaySyncSymmetryCase
 
     void remote_delete(std::string nodepath, bool updatemodel, bool reportaction, bool mightNotExist)
     {
+        std::lock_guard<std::recursive_mutex> g(changeClient().clientMutex);
 
         Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
         Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
