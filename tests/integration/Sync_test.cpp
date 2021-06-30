@@ -7533,57 +7533,6 @@ struct TwoWaySyncSymmetryCase
         else remote_delete(nodepath, updatemodel, reportaction, false);
     }
 
-    void destination_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
-    {
-        if (!up) local_rename(nodepath, newname, updatemodel, reportaction, deleteTargetFirst);
-        else remote_rename(nodepath, newname, updatemodel, reportaction, deleteTargetFirst);
-    }
-
-    void destination_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction, bool deleteTargetFirst)
-    {
-        if (!up) local_move(nodepath, newparentpath, updatemodel, reportaction, deleteTargetFirst);
-        else remote_move(nodepath, newparentpath, updatemodel, reportaction, deleteTargetFirst);
-    }
-
-    void destination_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
-    {
-        if (!up) local_copy(nodepath, newparentpath, updatemodel, reportaction);
-        else remote_copy(nodepath, newparentpath, updatemodel, reportaction);
-    }
-
-    void destination_delete(std::string nodepath, bool updatemodel, bool reportaction)
-    {
-        if (!up) local_delete(nodepath, updatemodel, reportaction, false);
-        else remote_delete(nodepath, updatemodel, reportaction, false);
-    }
-
-    void destination_copy_renamed(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst)
-    {
-        if (up)
-        {
-            remote_renamed_copy(sourcefolder + "/" + oldname, targetfolder, newname, updatemodel, reportaction);
-            return;
-        }
-
-        // avoid name clashes in any one folder
-        if (sourcefolder != "f") destination_copy(sourcefolder + "/" + oldname, "f", updatemodel, reportaction);
-        destination_rename("f/" + oldname, newname, updatemodel, reportaction, false);
-        if (targetfolder != "f") destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
-    }
-
-    void destination_rename_move(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst, std::string deleteNameInTargetFirst)
-    {
-        if (up)
-        {
-            remote_renamed_move(sourcefolder + "/" + oldname, targetfolder, newname, updatemodel, reportaction);
-            return;
-        }
-
-        if (!deleteNameInTargetFirst.empty()) destination_delete(targetfolder + "/" + deleteNameInTargetFirst, updatemodel, reportaction);
-        destination_rename("f/" + oldname, newname, updatemodel, reportaction, false);
-        destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
-    }
-
     void fileMayDiffer(std::string filepath)
     {
         fs::path p(localTestBasePath());
