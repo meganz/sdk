@@ -4003,14 +4003,17 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
     vector<SyncWaitResult> waitResult = waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
 
-    ASSERT_EQ(waitResult[0].syncStalled, true);
-    ASSERT_EQ(1, waitResult[0].stalledNodePaths.size());
-    ASSERT_EQ(1, waitResult[0].stalledLocalPaths.size());
+    // Sync rework update:  for now at least, delete wins in this case
+
+    //ASSERT_EQ(waitResult[0].syncStalled, true);
+    //ASSERT_EQ(1, waitResult[0].stalledNodePaths.size());
+    //ASSERT_EQ(1, waitResult[0].stalledLocalPaths.size());
 
     Model modelLocal1;
     modelLocal1.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
     modelLocal1.findnode("f/f_1/f_1_2")->addkid(model.buildModelSubdirs("newlocal", 2, 2, 2));
-    pclientA1->localNodesMustHaveNodes = false;
+    //pclientA1->localNodesMustHaveNodes = false;
+    ASSERT_TRUE(modelLocal1.movetosynctrash("f/f_1", "f"));
 
     Model modelRemote1;
     modelRemote1.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
