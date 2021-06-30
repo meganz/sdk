@@ -232,7 +232,7 @@ bool IsContainingPathOf(const string& a, const char* b, size_t bLength, char sep
     if (bLength > a.size() && b[a.size()] != sep) return false;
 
     // a and b must share a common prefix.
-    return !a.compare(0, a.size(), b);
+    return !a.compare(0, a.size(), b, a.size());
 }
 
 

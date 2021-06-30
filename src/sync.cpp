@@ -1244,7 +1244,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     if (localpath.empty())
     {
         if (outpath) outpath->clear();
-        *parent = l->parent;
+        if (parent) *parent = l->parent;
         return l;
     }
 
@@ -1440,8 +1440,7 @@ struct ProgressingMonitor
             {
                 if (IsContainingCloudPathOf(i->first, cloudPath))
                 {
-                // Passing immediate == false, so that if we are being called from DIREVENTS,
-                // we will break the loop rather than always being called back for the item we just pushed
+                    // we already have a parent or ancestor listed
                     return;
                 }
                 else if (IsContainingCloudPathOf(cloudPath, i->first))

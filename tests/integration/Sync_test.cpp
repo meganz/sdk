@@ -4076,10 +4076,12 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
     vector<SyncWaitResult> waitResult = waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
 
     ASSERT_EQ(waitResult[0].syncStalled, true);
-    ASSERT_EQ(1, waitResult[0].stalledNodePaths.size());
-    ASSERT_EQ(1, waitResult[0].stalledLocalPaths.size());
+    ASSERT_EQ(2, waitResult[0].stalledNodePaths.size());  // for now at least, reporting source and destination nodes for each move
+    ASSERT_EQ(2, waitResult[0].stalledLocalPaths.size());
     ASSERT_EQ(waitResult[0].stalledNodePaths.begin()->first, "/mega_test_sync/f/f_0");
-    ASSERT_EQ(waitResult[0].stalledLocalPaths.begin()->first, LocalPath::fromPath( (client1LocalSyncRoot / "f_1").u8string(), *pclientA1->fsaccess) );
+    ASSERT_EQ(waitResult[0].stalledNodePaths.rbegin()->first, "/mega_test_sync/f/f_1/f_0");
+    ASSERT_EQ(waitResult[0].stalledLocalPaths.begin()->first.toPath(), (client1LocalSyncRoot / "f_0" / "f_1").u8string() );
+    ASSERT_EQ(waitResult[0].stalledLocalPaths.rbegin()->first.toPath(), (client1LocalSyncRoot / "f_1").u8string() );
 }
 
 
@@ -6448,9 +6450,9 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
-	
+
 	// todo:  tbc
-	
+
 
     // Confirm state
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
