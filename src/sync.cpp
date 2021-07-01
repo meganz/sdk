@@ -1549,9 +1549,10 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // logic to detect files being updated in the local computer moving the original file
             // to another location as a temporary backup
             if (sourceSyncNode->type == FILENODE &&
-                client->checkIfFileIsChanging(*row.fsNode, sourceSyncNode->getLocalPath()))
+                checkIfFileIsChanging(*row.fsNode, sourceSyncNode->getLocalPath()))
             {
                 // if we revist here and the file is still the same after enough time, we'll move it
+                monitor.waitingLocal(sourceSyncNode->getLocalPath(), LocalPath(), string(), SyncWaitReason::WatiingForFileToStopChanging);
                 rowResult = false;
                 return true;
             }
@@ -1579,8 +1580,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     << " old localnode: " << sourceSyncNode->localnodedisplaypath(*client->fsaccess)
                     << logTriplet(row, fullPath);
                 sourceSyncNode->moveSourceApplyingToCloud = true;
-                row.syncNode->moveTargetApplyingToCloud = true;
-                //sourceSyncNode->setScanAgain(true, false, false);
             }
             row.suppressRecursion = true;   // wait until we have moved the other LocalNodes below this one
 
@@ -1705,7 +1704,10 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << "Renaming node: " << sourceCloudNode->displaypath()
                                   << " to " << newName  << logTriplet(row, fullPath);
                         client->setattr(sourceCloudNode, attr_map('n', newName), 0);
+                        row.syncNode->moveTargetApplyingToCloud = true;
+
                         client->app->syncupdate_local_move(this, sourceSyncNode->getLocalPath(), fullPath.localPath);
+
                         rowResult = false;
                         return true;
                     }
@@ -1741,7 +1743,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                             client->app->syncupdate_local_move(this, sourceSyncNode->getLocalPath(), fullPath.localPath);
 
                             assert(sourceSyncNode->moveSourceApplyingToCloud);
-                            assert(row.syncNode->moveTargetApplyingToCloud);
+                            row.syncNode->moveTargetApplyingToCloud = true;
 
                             row.suppressRecursion = true;
 
@@ -4756,6 +4758,12 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTabl
 
                         row.syncNode->treestate(TREESTATE_SYNCED);
 
+                        if (row.syncNode->type == FILENODE)
+                        {
+                            row.syncNode->checkMovesAgain = 0;
+                            row.syncNode->moveTargetApplyingToCloud = false;
+                        }
+
                         statecacheadd(row.syncNode);
                         ProgressingMonitor monitor(client); // not stalling
                     }
@@ -5509,11 +5517,11 @@ LocalNode* MegaClient::findLocalNodeByNodeHandle(NodeHandle h)
     return nullptr;
 }
 
-
-
-bool MegaClient::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
+bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
 {
-    // logic to prevent moving files that may still be being updated
+    // code extracted from the old checkpath()
+
+    // logic to prevent moving/uploading files that may still be being updated
 
     // (original sync code comment:)
     // detect files being updated in the local computer moving the original file
@@ -5522,7 +5530,7 @@ bool MegaClient::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath
     assert(fsNode.type == FILENODE);
 
     bool waitforupdate = false;
-    FileChangingState& state = mFileChangingCheckState[fullPath];
+    Syncs::FileChangingState& state = client->syncs.mFileChangingCheckState[fullPath];
 
     m_time_t currentsecs = m_time();
     if (!state.updatedfileinitialts)
@@ -5534,25 +5542,23 @@ bool MegaClient::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath
     {
         if (currentsecs - state.updatedfileinitialts <= Sync::FILE_UPDATE_MAX_DELAY_SECS)
         {
-            auto prevfa = fsaccess->newfileaccess(false);
-
-            bool exists = prevfa->fopen(fullPath);
-            if (exists)
+            auto prevfa = client->fsaccess->newfileaccess(false);
+            if (prevfa->fopen(fullPath))
             {
-                LOG_debug << clientname << "File detected in the origin of a move";
+                LOG_debug << syncname << "File detected in the origin of a move";
 
                 if (currentsecs >= state.updatedfilets)
                 {
                     if ((currentsecs - state.updatedfilets) < (Sync::FILE_UPDATE_DELAY_DS / 10))
                     {
-                        LOG_verbose << clientname << "currentsecs = " << currentsecs << "  lastcheck = " << state.updatedfilets
+                        LOG_verbose << syncname << "currentsecs = " << currentsecs << "  lastcheck = " << state.updatedfilets
                             << "  currentsize = " << prevfa->size << "  lastsize = " << state.updatedfilesize;
                         LOG_debug << "The file size changed too recently. Waiting " << currentsecs - state.updatedfilets << " ds for " << fsNode.localname.toPath();
                         waitforupdate = true;
                     }
                     else if (state.updatedfilesize != prevfa->size)
                     {
-                        LOG_verbose << clientname << "currentsecs = " << currentsecs << "  lastcheck = " << state.updatedfilets
+                        LOG_verbose << syncname << "currentsecs = " << currentsecs << "  lastcheck = " << state.updatedfilets
                             << "  currentsize = " << prevfa->size << "  lastsize = " << state.updatedfilesize;
                         LOG_debug << "The file size has changed since the last check. Waiting...";
                         state.updatedfilesize = prevfa->size;
@@ -5561,12 +5567,12 @@ bool MegaClient::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath
                     }
                     else
                     {
-                        LOG_debug << clientname << "The file size seems stable";
+                        LOG_debug << syncname << "The file size seems stable";
                     }
                 }
                 else
                 {
-                    LOG_warn << clientname << "File checked in the future";
+                    LOG_warn << syncname << "File checked in the future";
                 }
 
                 if (!waitforupdate)
@@ -5575,18 +5581,18 @@ bool MegaClient::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath
                     {
                         if (currentsecs - prevfa->mtime < (Sync::FILE_UPDATE_DELAY_DS / 10))
                         {
-                            LOG_verbose << clientname << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
-                            LOG_debug << clientname << "File modified too recently. Waiting...";
+                            LOG_verbose << syncname << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
+                            LOG_debug << syncname << "File modified too recently. Waiting...";
                             waitforupdate = true;
                         }
                         else
                         {
-                            LOG_debug << clientname << "The modification time seems stable.";
+                            LOG_debug << syncname << "The modification time seems stable.";
                         }
                     }
                     else
                     {
-                        LOG_warn << clientname << "File modified in the future";
+                        LOG_warn << syncname << "File modified in the future";
                     }
                 }
             }
@@ -5594,34 +5600,28 @@ bool MegaClient::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath
             {
                 if (prevfa->retry)
                 {
-                    LOG_debug << clientname << "The file in the origin is temporarily blocked. Waiting...";
+                    LOG_debug << syncname << "The file in the origin is temporarily blocked. Waiting...";
                     waitforupdate = true;
                 }
                 else
                 {
-                    LOG_debug << clientname << "There isn't anything in the origin path";
+                    LOG_debug << syncname << "There isn't anything in the origin path";
                 }
-            }
-
-            if (waitforupdate)
-            {
-                LOG_debug << clientname << "Possible file update detected.";
-                return NULL;
             }
         }
         else
         {
-            sendevent(99438, "Timeout waiting for file update", 0);
+            client->sendevent(99438, "Timeout waiting for file update", 0);
         }
     }
     else
     {
-        LOG_warn << clientname << "File check started in the future";
+        LOG_warn << syncname << "File check started in the future";
     }
 
     if (!waitforupdate)
     {
-        mFileChangingCheckState.erase(fullPath);
+        client->syncs.mFileChangingCheckState.erase(fullPath);
     }
     return waitforupdate;
 }

@@ -2519,6 +2519,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::UpsyncNeedsTargetFolder:                       return "UpsyncNeedsTargetFolder";
         case SyncWaitReason::DownsyncNeedsTargetFolder:                     return "DownsyncNeedsTargetFolder";
         case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
+        case SyncWaitReason::WatiingForFileToStopChanging:                  return "WatiingForFileToStopChanging";
     }
     return "<out of range>";
 }

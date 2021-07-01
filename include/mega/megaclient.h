@@ -1589,17 +1589,6 @@ public:
     nodehandle_localnode_map localnodeByNodeHandle;
     LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
 
-    // Keep track of files that we can't move yet because they are changing
-    struct FileChangingState
-    {
-        // values related to possible files being updated
-        m_off_t updatedfilesize = ~0;
-        m_time_t updatedfilets = 0;
-        m_time_t updatedfileinitialts = 0;
-    };
-    std::map<LocalPath, FileChangingState> mFileChangingCheckState;
-    bool checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath);
-
     // local nodes that need to be added remotely
 //    localnode_vector synccreate;
 

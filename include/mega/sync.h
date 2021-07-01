@@ -335,6 +335,9 @@ public:
     // process all outstanding filesystem notifications (mark sections of the sync tree to visit)
     dstime procscanq();
 
+    // helper for checking moves etc
+    bool checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath);
+
     //// recursively look for vanished child nodes and delete them
     //void deletemissing(LocalNode*);
 
@@ -716,6 +719,16 @@ struct Syncs
 
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool isEmpty = true;
+
+    // Keep track of files that we can't move yet because they are changing
+    struct FileChangingState
+    {
+        // values related to possible files being updated
+        m_off_t updatedfilesize = ~0;
+        m_time_t updatedfilets = 0;
+        m_time_t updatedfileinitialts = 0;
+    };
+    std::map<LocalPath, FileChangingState> mFileChangingCheckState;
 
     unique_ptr<BackupMonitor> mHeartBeatMonitor;
 
