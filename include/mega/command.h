@@ -548,10 +548,10 @@ class MEGA_API CommandGetFile : public Command
     bool mSingleUrl = false; // ! v=2 // using megad to do the unraiding
 
 
-    TransferSlot* mTslot;
-    handle mPh;
-    bool mPriv;
-    byte mFilekey[FILENODEKEYLENGTH];
+    TransferSlot* tslot;
+    handle ph;
+    bool priv;
+    byte filekey[FILENODEKEYLENGTH];
 
 
     void initialize(MegaClient *client, TransferSlot* ctslot, const byte* key,
