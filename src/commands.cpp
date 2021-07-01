@@ -425,7 +425,7 @@ bool CommandPutFile::procresult(Result r)
 }
 
 // request upload target URL
-CommandGetPutUrl::CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbpscap, bool forceSSL, CommandGetPutUrl::Cb completion)
+CommandGetPutUrl::CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbpscap, bool forceSSL, bool getIP, CommandGetPutUrl::Cb completion)
     : mCompletion(completion)
 {
     cmd("u");
@@ -433,7 +433,14 @@ CommandGetPutUrl::CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbps
     {
         arg("ssl", 2);
     }
-    arg("v", 2);
+    if (getIP)
+    {
+        arg("v", 2);
+    }
+    else
+    {
+        arg("v", 3);
+    }
     arg("s", size);
     arg("ms", putmbpscap);
 }
@@ -443,12 +450,13 @@ CommandGetPutUrl::CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbps
 bool CommandGetPutUrl::procresult(Result r)
 {
     string url;
+    std::vector<string> ips;
 
     if (r.wasErrorOrOK())
     {
         if (!canceled)
         {
-            mCompletion(r.errorOrOK(), url);
+            mCompletion(r.errorOrOK(), url, ips);
         }
         return true;
     }
@@ -460,11 +468,24 @@ bool CommandGetPutUrl::procresult(Result r)
             case 'p':
                 client->json.storeobject(canceled ? nullptr : &url);
                 break;
-
+            case MAKENAMEID2('i', 'p'):
+                if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+                {
+                    for (;;)
+                    {
+                        std::string ti;
+                        if (!client->json.storeobject(&ti))
+                        {
+                            break;
+                        }
+                        ips.push_back(ti);
+                    }
+                    client->json.leavearray();
+                }
+                break;
             case EOO:
                 if (canceled) return true;
-
-                mCompletion(API_OK, url);
+                mCompletion(API_OK, url, ips);
                 return true;
 
             default:
@@ -472,7 +493,7 @@ bool CommandGetPutUrl::procresult(Result r)
                 {
                     if (!canceled)
                     {
-                        mCompletion(API_EINTERNAL, string());
+                        mCompletion(API_EINTERNAL, string(), string());
                     }
                     return false;
                 }

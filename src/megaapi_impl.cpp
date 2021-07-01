@@ -22890,8 +22890,11 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL:
         {
-            client->reqs.add(new CommandGetPutUrl(client, request->getNumber(), client->putmbpscap, request->getFlag(),
-                                                  [this, request](Error e, const std::string &url)
+            //if not using MegaBackgroundMediaUpload, ask for IPs
+            bool getIp = !request->getMegaBackgroundMediaUploadPtr();
+
+            client->reqs.add(new CommandGetPutUrl(client, request->getNumber(), client->putmbpscap, request->getFlag(), getIp,
+                                                  [this, request](Error e, const std::string &url, const std::vector<std::string> &ips)
             {
                 assert(e != API_OK || !url.empty());
                 if (e == API_OK && !url.empty())
@@ -22903,7 +22906,15 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-                        request->setLink(url.c_str());
+                        request->setName(url.c_str());
+                        if (!ips.empty())
+                        {
+                            request->setLink(ips.at(0).c_str());
+                        }
+                        if (ips.size() > 1)
+                        {
+                            request->setText(ips.at(1).c_str());
+                        }
                     }
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

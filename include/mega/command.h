@@ -557,7 +557,7 @@ public:
 
 class MEGA_API CommandGetPutUrl : public Command
 {
-    using Cb = std::function<void(Error, const std::string &/*url*/)>;
+    using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
     Cb mCompletion;
 
     string* result;
@@ -565,7 +565,7 @@ class MEGA_API CommandGetPutUrl : public Command
 public:
     bool procresult(Result) override;
 
-    CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbpscap, bool forceSSL, Cb completion);
+    CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbpscap, bool forceSSL, bool getIP, Cb completion);
 };
 
 

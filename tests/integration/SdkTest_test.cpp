@@ -4785,13 +4785,13 @@ TEST_F(SdkTest, SdkMediaUploadTest)
 
     // encrypt file contents and get URL suffix
     req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), true);
-    auto suffix = req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), false);
+    std::unique_ptr<char[]> suffix(req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), false));
     ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
 
 #ifdef __linux__
     string command = "curl -s --data-binary @";
     command.append(DOWNFILE.c_str()).append(" ").append(url.get());
-    if (suffix) command.append(suffix);
+    if (suffix) command.append(suffix.get());
     auto uploadToken = exec(command.c_str());
 
     auto fingreprint = megaApi[0]->getFingerprint(DOWNFILE.c_str());
@@ -4808,7 +4808,6 @@ TEST_F(SdkTest, SdkMediaUploadTest)
 
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
 #endif
-    delete suffix;
 
 }
 
