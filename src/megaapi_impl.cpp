@@ -19708,9 +19708,9 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             bool p = true;
-            client->reqs.add(new CommandGetFile(client, (const byte*)node->nodekey().data(),
-                node->nodehandle, p, singleUrl,
-                [this, request](error e, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/,
+            client->reqs.add(new CommandGetFile(client, (const byte*)node->nodekey().data(), nullptr,
+                node->nodehandle, p, nullptr, nullptr, nullptr, singleUrl,
+                [this, request](error e, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/, dstime /*timeleft*/,
                 std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
                 const std::vector<std::string> &urls, const std::vector<std::string> &ips)
                 {
@@ -19739,6 +19739,7 @@ void MegaApiImpl::sendPendingRequests()
                     }
 
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    return true;
                 })
             );
 

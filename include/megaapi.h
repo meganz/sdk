@@ -3310,7 +3310,7 @@ class MegaRequest
          * - MegaApi::getPaymentId - Returns the payment identifier
          * - MegaApi::getUrlChat - Returns the user-specific URL for the chat
          * - MegaApi::getChatPresenceURL - Returns the user-specific URL for the chat presence server
-         * - MegaApi::getDownloadUrl - Returns comma-separated IPv4 of the server in the URL(s)
+         * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv4 of the server in the URL(s)
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -3376,7 +3376,7 @@ class MegaRequest
          * - MegaApi::confirmAccount - Returns the name of the user
          * - MegaApi::fastConfirmAccount - Returns the name of the user
          * - MegaApi::getUserData - Returns the name of the user
-         * - MegaApi::getDownloadUrl - Returns comma-separated download URL(s) to the file
+         * - MegaApi::getDownloadUrl - Returns semicolon-separated download URL(s) to the file
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -3583,7 +3583,7 @@ class MegaRequest
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
          * - MegaApi::setBackup - Returns the cron like time string to define period
-         * - MegaApi::getDownloadUrl - Returns comma-separated IPv6 of the server in the URL(s)
+         * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv6 of the server in the URL(s)
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -10445,9 +10445,9 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getName - Returns comma-separated download URL(s) to the file
-         * - MegaRequest::getLink - Returns comma-separated IPv4 of the server in the URL(s)
-         * - MegaRequest::getText - Returns comma-separated IPv6 of the server in the URL(s)
+         * - MegaRequest::getName - Returns semicolon-separated download URL(s) to the file
+         * - MegaRequest::getLink - Returns semicolon-separated IPv4 of the server in the URL(s)
+         * - MegaRequest::getText - Returns semicolon-separated IPv6 of the server in the URL(s)
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.

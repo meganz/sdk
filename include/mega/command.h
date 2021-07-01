@@ -532,42 +532,27 @@ public:
 
 class MEGA_API CommandGetFile : public Command
 {
-    using Cb = std::function<void(error /*e*/, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/,
-    std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
+    using Cb = std::function<bool(error /*e*/, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/,
+    dstime /*timeleft*/, std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
     const std::vector<std::string> &/*urls*/, const std::vector<std::string> &/*ips*/)>;
     Cb mCompletion;
 
-    bool mFailedCompletion = false;
-    void callFailedCompletion (const Error& e)
-    {
-        mFailedCompletion = true; //this will come handy for the default mCompletion that uses checkfile_result
-        assert(mCompletion);
-        mCompletion(e, -1, -1, -1, nullptr, nullptr, nullptr, {}, {});
-    }
+    void callFailedCompletion (const Error& e);
 
     bool mSingleUrl = false; // ! v=2 // using megad to do the unraiding
 
-
-    TransferSlot* tslot;
-    handle ph;
-    bool priv;
     byte filekey[FILENODEKEYLENGTH];
+    SymmCipher *mCypherer = nullptr;
 
-
-    void initialize(MegaClient *client, TransferSlot* ctslot, const byte* key,
-                   handle h, bool p, const char *privateauth = NULL,
-                   const char *publicauth = NULL, const char *chatauth = NULL,
-                   bool singleUrl = false, Cb &&completion = nullptr);
 public:
+    // notice: cancelation will entail that mCompletion will not be called
     void cancel() override;
     bool procresult(Result) override;
 
-
-    CommandGetFile(MegaClient *client, TransferSlot* ctslot, const byte* key,
-                   handle h, bool p, const char *privateauth = NULL,
-                   const char *publicauth = NULL, const char *chatauth = NULL);
-    CommandGetFile(MegaClient *client, const byte* key,
-                   handle h, bool p, bool singleUrl = false, Cb &&completion = nullptr);
+    CommandGetFile(MegaClient *client, const byte* key, SymmCipher *cypherer,
+                       handle h, bool p, const char *privateauth = NULL,
+                       const char *publicauth = NULL, const char *chatauth = NULL,
+                       bool singleUrl = false, Cb &&completion = nullptr);
 };
 
 class MEGA_API CommandPutFile : public Command

@@ -194,7 +194,7 @@ namespace mega {
     {
     public:
         // call this before starting a transfer. Extracts the vector content
-        void setIsRaid(Transfer* transfer, std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t maxDownloadRequestSize);
+        void setIsRaid(Transfer* transfer, const std::vector<std::string> &tempUrls, m_off_t resumepos, m_off_t maxDownloadRequestSize);
 
         // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the full file position in the Transfer object, as it used to prior to raid.
         m_off_t& transferPos(unsigned connectionNum) override;
