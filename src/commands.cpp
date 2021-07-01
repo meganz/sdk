@@ -493,7 +493,7 @@ bool CommandGetPutUrl::procresult(Result r)
                 {
                     if (!canceled)
                     {
-                        mCompletion(API_EINTERNAL, string(), string());
+                        mCompletion(API_EINTERNAL, string(), {});
                     }
                     return false;
                 }
