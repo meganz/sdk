@@ -484,7 +484,7 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
 
     cmd("g");
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
-    arg("g", 1);
+    arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
     arg("v", 2);  // version 2: server can supply details for cloudraid files
 
     if (drn->privateauth.size())
@@ -621,14 +621,14 @@ bool CommandDirectRead::procresult(Result r)
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, SymmCipher *cypherer,
+CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, unsigned keySize,
                                handle h, bool p, const char *privateauth,
                                const char *publicauth, const char *chatauth,
                                bool singleUrl, Cb &&completion)
 {
     cmd("g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
-    arg("g", 1);
+    arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
     if (!singleUrl)
     {
         arg("v", 2);  // version 2: server can supply details for cloudraid files
@@ -654,15 +654,16 @@ CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, SymmCipher *
         arg("cauth", chatauth);
     }
 
-    assert(key || cypherer); //client needs to provide a way to decypher attr
-
-    if (cypherer)
+    assert(key && "no key provided!");
+    if (key && keySize != SymmCipher::KEYLENGTH) //needs xor cooking
     {
-        mCypherer = cypherer;
+        assert (keySize <= FILENODEKEYLENGTH);
+        memcpy(filekey, key, keySize);
+        SymmCipher::xorblock(filekey + SymmCipher::KEYLENGTH, filekey);
     }
-    else
+    else if (key && keySize == SymmCipher::KEYLENGTH)
     {
-        memcpy(filekey, key, FILENODEKEYLENGTH);
+        memcpy(filekey, key, SymmCipher::KEYLENGTH);
     }
 
     mCompletion = std::move(completion);
@@ -695,11 +696,10 @@ bool CommandGetFile::procresult(Result r)
         return true;
     }
 
-    const char* at = NULL;
+    const char* at = nullptr;
     Error e(API_EINTERNAL);
     m_off_t s = -1;
     dstime tl = 0;
-    int d = 0; //blocked
     std::unique_ptr<byte[]> buf;
     m_time_t ts = 0, tm = 0;
 
@@ -759,10 +759,6 @@ bool CommandGetFile::procresult(Result r)
                 s = client->json.getint();
                 break;
 
-            case 'd':
-                d = 1;
-                break;
-
             case MAKENAMEID2('t', 's'):
                 ts = client->json.getint();
                 break;
@@ -811,26 +807,16 @@ bool CommandGetFile::procresult(Result r)
                     return true;
                 }
 
-                if (d || !at)
+                if (!at)
                 {
-                    e = at ? API_EBLOCKED : API_EINTERNAL;
-                    callFailedCompletion(e);
+                    callFailedCompletion(API_EINTERNAL);
                     return true;
                 }
 
                 // decrypt at and set filename
-                std::unique_ptr<SymmCipher> adhocCypherer;
-                SymmCipher * cypherer = mCypherer; //use cypherer if provided
-                if (!cypherer) // or construct one using the provided key
-                {
-                    assert(filekey);
-                    adhocCypherer.reset(new SymmCipher());
-                    adhocCypherer->setkey(filekey, FILENODE);
-                    cypherer = adhocCypherer.get();
-                }
-
+                SymmCipher * cipherer = client->getRecycledTemporaryTransferCipher(filekey);
                 const char* eos = strchr(at, '"');
-                buf.reset(Node::decryptattr(cypherer, at, eos ? eos - at : strlen(at)));
+                buf.reset(Node::decryptattr(cipherer, at, eos ? eos - at : strlen(at)));
                 if (!buf)
                 {
                     callFailedCompletion(API_EKEY);

@@ -79,6 +79,9 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // file crypto key and shared cipher
     std::array<byte, SymmCipher::KEYLENGTH> transferkey;
+
+    // returns a pointer to MegaClient::tmptransfercipher setting its key to the transfer
+    // tmptransfercipher key will change: to be used right away: this is not a dedicated SymmCipher for this transfer!
     SymmCipher *transfercipher();
 
     chunkmac_map chunkmacs;

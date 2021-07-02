@@ -532,7 +532,7 @@ public:
 
 class MEGA_API CommandGetFile : public Command
 {
-    using Cb = std::function<bool(error /*e*/, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/,
+    using Cb = std::function<bool(const Error &/*e*/, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/,
     dstime /*timeleft*/, std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
     const std::vector<std::string> &/*urls*/, const std::vector<std::string> &/*ips*/)>;
     Cb mCompletion;
@@ -542,16 +542,15 @@ class MEGA_API CommandGetFile : public Command
     bool mSingleUrl = false; // ! v=2 // using megad to do the unraiding
 
     byte filekey[FILENODEKEYLENGTH];
-    SymmCipher *mCypherer = nullptr;
 
 public:
     // notice: cancelation will entail that mCompletion will not be called
     void cancel() override;
     bool procresult(Result) override;
 
-    CommandGetFile(MegaClient *client, const byte* key, SymmCipher *cypherer,
-                       handle h, bool p, const char *privateauth = NULL,
-                       const char *publicauth = NULL, const char *chatauth = NULL,
+    CommandGetFile(MegaClient *client, const byte* key, unsigned keySize,
+                       handle h, bool p, const char *privateauth = nullptr,
+                       const char *publicauth = nullptr, const char *chatauth = nullptr,
                        bool singleUrl = false, Cb &&completion = nullptr);
 };
 

@@ -3061,9 +3061,6 @@ protected:
         void sendevent_result(error) override;
         void supportticket_result(error) override;
 
-        void checkfile_result(handle h, const Error& e) override;
-        void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring) override;
-
         // user invites/attributes
         void removecontact_result(error) override;
         void putua_result(error) override;

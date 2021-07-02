@@ -194,9 +194,6 @@ struct DemoApp : public MegaApp
 
     void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
 
-    void checkfile_result(handle, const Error&) override;
-    void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) override;
-
     dstime pread_failure(const Error&, int, void*, dstime) override;
     bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) override;
 
@@ -266,7 +263,7 @@ struct DemoApp : public MegaApp
 
     void notify_retry(dstime, retryreason_t) override;
 
-    string getExtraInfoErrorString(const Error&);
+    static string getExtraInfoErrorString(const Error&);
 
 protected:
 #ifdef USE_DRIVE_NOTIFICATIONS

@@ -4095,7 +4095,56 @@ void exec_get(autocomplete::ACState& s)
         if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, false) == API_OK)
         {
             cout << "Checking link..." << endl;
-            client->openfilelink(ph, key, 0);
+
+            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
+                [key, ph](const Error &e, m_off_t size, m_time_t ts, m_time_t tm, dstime /*timeleft*/,
+                   std::string* filename, std::string* fingerprint, std::string* fileattrstring,
+                   const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
+                {
+                    if (!fingerprint) // failed processing the command
+                    {
+                        if (e == API_ETOOMANY && e.hasExtraInfo())
+                        {
+                             cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e) << endl;
+                        }
+                        else
+                        {
+                            cout << "Link check failed: " << errorstring(e) << endl;
+                        }
+                        return true;
+                    }
+
+                    cout << "Name: " << *filename << ", size: " << size;
+
+                    if (fingerprint->size())
+                    {
+                        cout << ", fingerprint available";
+                    }
+
+                    if (fileattrstring->size())
+                    {
+                        cout << ", has attributes";
+                    }
+
+                    cout << endl;
+
+                    if (e)
+                    {
+                        cout << "Not available: " << errorstring(e) << endl;
+                    }
+                    else
+                    {
+                        cout << "Initiating download..." << endl;
+
+                        DBTableTransactionCommitter committer(client->tctable);
+                        AppFileGet* f = new AppFileGet(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+                        client->startxfer(GET, f, committer);
+                    }
+
+                    return true;
+                }));
+
             return;
         }
 
@@ -7624,50 +7673,6 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     }
 
     publiclink.clear();
-}
-
-void DemoApp::checkfile_result(handle /*h*/, const Error& e)
-{
-    if (e == API_ETOOMANY && e.hasExtraInfo())
-    {
-         cout << "Link check failed: " << getExtraInfoErrorString(e) << endl;
-    }
-    else
-    {
-        cout << "Link check failed: " << errorstring(e) << endl;
-    }
-}
-
-void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t /*ts*/, m_time_t tm, string* filename,
-                               string* fingerprint, string* fileattrstring)
-{
-    cout << "Name: " << *filename << ", size: " << size;
-
-    if (fingerprint->size())
-    {
-        cout << ", fingerprint available";
-    }
-
-    if (fileattrstring->size())
-    {
-        cout << ", has attributes";
-    }
-
-    cout << endl;
-
-    if (e)
-    {
-        cout << "Not available: " << errorstring(e) << endl;
-    }
-    else
-    {
-        cout << "Initiating download..." << endl;
-
-        DBTableTransactionCommitter committer(client->tctable);
-        AppFileGet* f = new AppFileGet(NULL, NodeHandle().set6byte(h), filekey, size, tm, filename, fingerprint);
-        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-        client->startxfer(GET, f, committer);
-    }
 }
 
 bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* /*appdata*/)

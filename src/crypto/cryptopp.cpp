@@ -65,6 +65,12 @@ byte SymmCipher::zeroiv[BLOCKSIZE];
 
 void SymmCipher::setkey(const byte* newkey, int type)
 {
+    if (type && type == mLastType && !memcmp(key, newkey, KEYLENGTH))
+    {
+        LOG_verbose << "Reusing symmetric cypher key";
+        return;
+    }
+
     memcpy(key, newkey, KEYLENGTH);
 
     if (!type)
@@ -86,6 +92,8 @@ void SymmCipher::setkey(const byte* newkey, int type)
 
     aesgcm_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
     aesgcm_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+
+    mLastType = type;
 }
 
 bool SymmCipher::setkey(const string* key)

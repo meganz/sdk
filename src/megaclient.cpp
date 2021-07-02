@@ -3938,15 +3938,14 @@ void MegaClient::dispatchTransfers()
                     {
                         reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
                             ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                            : new CommandGetFile(this, nullptr, ts->transfer->transfercipher(),
-                                                           h.as8byte(), hprivate, privauth, pubauth, chatauth, false,
-                            [this, ts, hprivate, h](error e, m_off_t s, m_time_t /*ts*/, m_time_t /*tm*/, dstime tl /*timeleft*/,
+                            : new CommandGetFile(this, ts->transfer->transferkey.data(), SymmCipher::KEYLENGTH,
+                                                 h.as8byte(), hprivate, privauth, pubauth, chatauth, false,
+                            [this, ts, hprivate, h](const Error &e, m_off_t s, m_time_t /*ts*/, m_time_t /*tm*/, dstime tl /*timeleft*/,
                                std::string* filename, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
                                const std::vector<std::string> &tempurls, const std::vector<std::string> &/*ips*/)
                         {
                             auto tslot = ts;
                             auto priv = hprivate;
-                            auto client = this;
                             auto ph = h.as8byte();
 
                             tslot->pendingcmd = nullptr;
@@ -3954,7 +3953,7 @@ void MegaClient::dispatchTransfers()
                             if (!filename) //failed! (Notice: calls not coming from !callFailedCompletion) will allways have that != nullptr
                             {
                                 assert(s == -1 && "failing a transfer too soon: coming from a successful mCompletion call");
-                                tslot->transfer->failed(e, *client->mTctableRequestCommitter);
+                                tslot->transfer->failed(e, *mTctableRequestCommitter);
                                 return true;
                             }
 
@@ -3968,18 +3967,18 @@ void MegaClient::dispatchTransfers()
 
                                 if (priv)
                                 {
-                                    Node *n = client->nodebyhandle(ph);
+                                    Node *n = nodebyhandle(ph);
                                     if (n)
                                     {
                                         n->size = s;
-                                        client->notifynode(n);
+                                        notifynode(n);
                                     }
                                 }
 
-                                client->sendevent(99411, "Node size mismatch", 0);
+                                sendevent(99411, "Node size mismatch", 0);
                             }
 
-                            tslot->starttime = tslot->lastdata = client->waiter->ds;
+                            tslot->starttime = tslot->lastdata = waiter->ds;
 
                             if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
                             {
@@ -3995,7 +3994,7 @@ void MegaClient::dispatchTransfers()
                                 tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                             }
 
-                            tslot->transfer->failed(e, *client->mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
+                            tslot->transfer->failed(e, *mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
                             return true;
 
                         })));
@@ -8195,6 +8194,12 @@ error MegaClient::pw_key(const char* utf8pw, byte* key) const
     delete[] pw;
 
     return API_OK;
+}
+
+SymmCipher *MegaClient::getRecycledTemporaryTransferCipher(const byte *key, int type)
+{
+    tmptransfercipher.setkey(key, type);
+    return &tmptransfercipher;
 }
 
 // compute generic string hash
