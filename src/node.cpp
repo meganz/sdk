@@ -1328,7 +1328,7 @@ LocalNode::LocalNode()
 , created{false}
 , reported{false}
 , checked{false}
-, folderNeedsRescan(false)
+, needsRescan(false)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1341,7 +1341,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     deleted = false;
     created = false;
     reported = false;
-    folderNeedsRescan = false;
+    needsRescan = false;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1614,17 +1614,21 @@ void LocalNode::detach(const bool recreate)
     }
 }
 
-void LocalNode::setSubtreeNeedsRescan()
+void LocalNode::setSubtreeNeedsRescan(bool includeFiles)
 {
     assert(type != FILENODE);
 
-    folderNeedsRescan = true;
+    needsRescan = true;
 
     for (auto& child : children)
     {
         if (child.second->type != FILENODE)
         {
-            child.second->setSubtreeNeedsRescan();
+            child.second->setSubtreeNeedsRescan(includeFiles);
+        }
+        else
+        {
+            child.second->needsRescan |= includeFiles;
         }
     }
 }
@@ -1829,7 +1833,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->created = false;
     l->reported = false;
     l->checked = h != UNDEF; // TODO: Is this a bug? h will never be UNDEF
-    l->folderNeedsRescan = false;
+    l->needsRescan = false;
 
     return l;
 }
