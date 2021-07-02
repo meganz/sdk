@@ -3183,8 +3183,7 @@ class MegaRequest
             TYPE_GET_ATTR_NODE                                              = 138,
             TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS                                = 139,
             TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS                               = 140,
-            TYPE_GET_DOWNLOAD_URLS                                          = 141,
-            TOTAL_OF_REQUEST_TYPES                                          = 142,
+            TOTAL_OF_REQUEST_TYPES                                          = 141,
         };
 
         virtual ~MegaRequest();
@@ -3310,7 +3309,6 @@ class MegaRequest
          * - MegaApi::getPaymentId - Returns the payment identifier
          * - MegaApi::getUrlChat - Returns the user-specific URL for the chat
          * - MegaApi::getChatPresenceURL - Returns the user-specific URL for the chat presence server
-         * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv4 of the server in the URL(s)
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -3376,7 +3374,6 @@ class MegaRequest
          * - MegaApi::confirmAccount - Returns the name of the user
          * - MegaApi::fastConfirmAccount - Returns the name of the user
          * - MegaApi::getUserData - Returns the name of the user
-         * - MegaApi::getDownloadUrl - Returns semicolon-separated download URL(s) to the file
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -3583,7 +3580,6 @@ class MegaRequest
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
          * - MegaApi::setBackup - Returns the cron like time string to define period
-         * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv6 of the server in the URL(s)
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -10437,25 +10433,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Get downloads urls for a node
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_DOWNLOAD_URLS
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getName - Returns semicolon-separated download URL(s) to the file
-         * - MegaRequest::getLink - Returns semicolon-separated IPv4 of the server in the URL(s)
-         * - MegaRequest::getText - Returns semicolon-separated IPv6 of the server in the URL(s)
-         *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
-         *
-         * @param singleUrl Always return one URL (even for raided files)
-         * @param listener MegaRequestListener to track this request
-         */
-        void getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Build the URL for a public link
