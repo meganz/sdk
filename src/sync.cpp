@@ -1123,7 +1123,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     if (localpath.empty())
     {
         if (outpath) outpath->clear();
-        *parent = l->parent;
+        if (parent) *parent = l->parent;
         return l;
     }
 
