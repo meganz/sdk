@@ -8280,20 +8280,20 @@ class BackupClient
 public:
     BackupClient(const fs::path& basePath, const string& name)
       : StandardClient(basePath, name)
-      , mOnSyncPut()
+      , mOnFileAdded()
     {
     }
 
-    void syncupdate_put(Sync* sync, const char* path) override
+    void file_added(File* file) override
     {
-        StandardClient::syncupdate_put(sync, path);
+        StandardClient::file_added(file);
 
-        if (mOnSyncPut) mOnSyncPut(*sync);
+        if (mOnFileAdded) mOnFileAdded(*file);
     }
 
-    using SyncPutCallback = std::function<void(Sync&)>;
+    using FileAddedCallback = std::function<void(File&)>;
 
-    SyncPutCallback mOnSyncPut;
+    FileAddedCallback mOnFileAdded;
 }; // Client
 
 TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
@@ -8519,7 +8519,14 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Disable the sync when it starts uploading a file.
-        cb.mOnSyncPut = [&cb](Sync& sync) {
+        cb.mOnFileAdded = [&cb](File& file) {
+            // Get our hands on the local node.
+            auto* node = dynamic_cast<LocalNode*>(&file);
+            if (!node) return;
+
+            // Get our hands on the sync.
+            auto& sync = *node->sync;
+
             // Make sure the sync's in mirroring mode.
             ASSERT_TRUE(sync.isBackupAndMirroring());
 
@@ -8530,7 +8537,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
             cb.client.syncactivity = true;
 
             // Callback's done its job.
-            cb.mOnSyncPut = nullptr;
+            cb.mOnFileAdded = nullptr;
         };
 
         // Add and start sync.
@@ -8566,15 +8573,19 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         // Log out the client when we try and upload a file.
         std::promise<void> waiter;
 
-        cb.mOnSyncPut = [&cb, &waiter](Sync& sync) {
+        cb.mOnFileAdded = [&cb, &waiter](File& file) {
+            // Get our hands on the local node.
+            auto* node = dynamic_cast<LocalNode*>(&file);
+            if (!node) return;
+            
             // Make sure we're mirroring.
-            ASSERT_TRUE(sync.isBackupAndMirroring());
+            ASSERT_TRUE(node->sync->isBackupAndMirroring());
 
             // Notify the waiter.
             waiter.set_value();
 
             // Callback's done its job.
-            cb.mOnSyncPut = nullptr;
+            cb.mOnFileAdded = nullptr;
         };
 
         // Resume the backup.
