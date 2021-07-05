@@ -655,15 +655,16 @@ CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySi
     }
 
     assert(key && "no key provided!");
-    if (key && keySize != SymmCipher::KEYLENGTH) //needs xor cooking
+    if (key && keySize != SymmCipher::KEYLENGTH)
     {
         assert (keySize <= FILENODEKEYLENGTH);
         memcpy(filekey, key, keySize);
-        SymmCipher::xorblock(filekey + SymmCipher::KEYLENGTH, filekey);
+        mFileKeyType = FILENODE;
     }
     else if (key && keySize == SymmCipher::KEYLENGTH)
     {
         memcpy(filekey, key, SymmCipher::KEYLENGTH);
+        mFileKeyType = 1;
     }
 
     mCompletion = std::move(completion);
@@ -814,7 +815,7 @@ bool CommandGetFile::procresult(Result r)
                 }
 
                 // decrypt at and set filename
-                SymmCipher * cipherer = client->getRecycledTemporaryTransferCipher(filekey);
+                SymmCipher * cipherer = client->getRecycledTemporaryTransferCipher(filekey, mFileKeyType);
                 const char* eos = strchr(at, '"');
                 buf.reset(Node::decryptattr(cipherer, at, eos ? eos - at : strlen(at)));
                 if (!buf)
