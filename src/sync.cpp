@@ -1575,7 +1575,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                             client->execsyncdeletions();
 
                                             // ...and atomically replace with moved one
-                                            client->app->syncupdate_local_move(this, it->second->getLocalPath(), LocalPath::fromPath(path, *client->fsaccess));
+                                            LOG_debug << "Sync - local rename/move " << it->second->getLocalPath().toPath(*client->fsaccess) << " -> " << path;
 
                                             // (in case of a move, this synchronously updates l->parent and l->node->parent)
                                             it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
@@ -1611,7 +1611,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                 localbytes -= dsize - l->size;
                             }
 
-                            client->app->syncupdate_local_file_change(this, LocalPath::fromPath(path, *client->fsaccess));
+                            LOG_debug << "Sync - local file change detected: " << path;
 
                             DBTableTransactionCommitter committer(client->tctable);
                             client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
@@ -1790,7 +1790,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         }
                     }
 
-                    client->app->syncupdate_local_move(this, it->second->getLocalPath(), LocalPath::fromPath(path, *client->fsaccess));
+                    LOG_debug << "Sync - local rename/move " << it->second->getLocalPath().toPath(*client->fsaccess) << " -> " << path.c_str();
 
                     if (parent && !parent->node)
                     {
@@ -1882,7 +1882,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                     if (newnode)
                     {
-                        client->app->syncupdate_local_folder_addition(this, LocalPath::fromPath(path, *client->fsaccess));
+                        LOG_debug << "Sync - local folder addition detected: " << path;
 
                         if (!isroot)
                         {
@@ -1929,11 +1929,11 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                     if (newnode)
                     {
-                        client->app->syncupdate_local_file_addition(this, LocalPath::fromPath(path, *client->fsaccess));
+                        LOG_debug << "Sync - local file addition detected: " << path;
                     }
                     else if (changed)
                     {
-                        client->app->syncupdate_local_file_change(this, LocalPath::fromPath(path, *client->fsaccess));
+                        LOG_debug << "Sync - local file change detected: " << path;
                         DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                         client->stopxfer(l, &committer);
                     }

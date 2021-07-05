@@ -1710,8 +1710,6 @@ void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
-void MegaListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
-{ }
 void MegaListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
 { }
 void MegaListener::onSyncDisabled(MegaApi *, MegaSync *)
@@ -5955,43 +5953,6 @@ void MegaSyncList::addSync(MegaSync *sync)
 
 }
 
-MegaSyncEvent::~MegaSyncEvent()
-{ }
-
-MegaSyncEvent *MegaSyncEvent::copy()
-{
-    return NULL;
-}
-
-int MegaSyncEvent::getType() const
-{
-    return 0;
-}
-
-const char *MegaSyncEvent::getPath() const
-{
-    return NULL;
-}
-
-MegaHandle MegaSyncEvent::getNodeHandle() const
-{
-    return INVALID_HANDLE;
-}
-
-const char *MegaSyncEvent::getNewPath() const
-{
-    return NULL;
-}
-
-const char *MegaSyncEvent::getPrevName() const
-{
-    return NULL;
-}
-
-MegaHandle MegaSyncEvent::getPrevParent() const
-{
-    return INVALID_HANDLE;
-}
 #endif
 
 
