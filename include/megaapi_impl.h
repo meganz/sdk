@@ -1021,35 +1021,6 @@ protected:
 
 #ifdef ENABLE_SYNC
 
-class MegaSyncEventPrivate: public MegaSyncEvent
-{
-public:
-    explicit MegaSyncEventPrivate(int type);
-
-    MegaSyncEvent *copy() override;
-
-    int getType() const override;
-    const char *getPath() const override;
-    MegaHandle getNodeHandle() const override;
-    const char *getNewPath() const override;
-    const char* getPrevName() const override;
-    MegaHandle getPrevParent() const override;
-
-    void setPath(const char* path);
-    void setNodeHandle(MegaHandle nodeHandle);
-    void setNewPath(const char* newPath);
-    void setPrevName(const char* prevName);
-    void setPrevParent(MegaHandle prevParent);
-
-protected:
-    int type;
-    std::unique_ptr<char[]> path;
-    std::unique_ptr<char[]> newPath;
-    std::unique_ptr<char[]> prevName;
-    MegaHandle nodeHandle = INVALID_HANDLE;
-    MegaHandle prevParent = INVALID_HANDLE;
-};
-
 class MegaSyncPrivate : public MegaSync
 {
 public:
@@ -2837,7 +2808,6 @@ protected:
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
-        void fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event);
         void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
         void fireOnSyncDisabled(MegaSyncPrivate *sync);
         void fireOnSyncEnabled(MegaSyncPrivate *sync);
@@ -3175,21 +3145,6 @@ protected:
         void sync_removed(handle backupId) override;
 
         void syncupdate_scanning(bool scanning) override;
-        void syncupdate_local_folder_addition(Sync* sync, const LocalPath& path) override;
-        void syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path) override;
-        void syncupdate_local_file_addition(Sync* sync, const LocalPath& path) override;
-        void syncupdate_local_file_deletion(Sync* sync, const LocalPath& path) override;
-        void syncupdate_local_file_change(Sync* sync, const LocalPath& path) override;
-        void syncupdate_local_move(Sync* sync, const LocalPath& oldPath, const LocalPath& newPath) override;
-        void syncupdate_get(Sync* sync, Node *node, const char* path) override;
-        void syncupdate_put(Sync* sync, const char*) override;
-        void syncupdate_remote_file_addition(Sync *sync, Node* n) override;
-        void syncupdate_remote_file_deletion(Sync *sync, Node* n) override;
-        void syncupdate_remote_folder_addition(Sync *sync, Node* n) override;
-        void syncupdate_remote_folder_deletion(Sync* sync, Node* n) override;
-        void syncupdate_remote_copy(Sync*, const char*) override;
-        void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent) override;
-        void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname) override;
         void syncupdate_treestate(LocalNode*) override;
         bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
         bool sync_syncable(Sync *, const char*, LocalPath&) override;

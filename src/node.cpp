@@ -1539,11 +1539,11 @@ LocalNode::~LocalNode()
 
         if (type == FOLDERNODE)
         {
-            sync->client->app->syncupdate_local_folder_deletion(sync, getLocalPath());
+            LOG_debug << "Sync - local folder deletion detected: " << getLocalPath().toPath(*sync->client->fsaccess);
         }
         else
         {
-            sync->client->app->syncupdate_local_file_deletion(sync, getLocalPath());
+            LOG_debug << "Sync - local file deletion detected: " << getLocalPath().toPath(*sync->client->fsaccess);
         }
     }
 
