@@ -78,8 +78,6 @@ public:
 // symmetric cryptography: AES-128
 class MEGA_API SymmCipher
 {
-public:
-
 private:
     CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aesecb_e;
     CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesecb_d;
@@ -95,8 +93,6 @@ private:
 
     CryptoPP::GCM<CryptoPP::AES>::Encryption aesgcm_e;
     CryptoPP::GCM<CryptoPP::AES>::Decryption aesgcm_d;
-
-    int mLastType = -9;
 
 public:
     static byte zeroiv[CryptoPP::AES::BLOCKSIZE];
