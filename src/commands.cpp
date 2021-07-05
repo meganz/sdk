@@ -1017,9 +1017,7 @@ bool CommandSetAttr::procresult(Result r)
         if(node)
         {
             // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-            client->syncs.forEachRunningSyncContainingNode(node, [&](Sync* s) {
-                    client->app->syncupdate_remote_rename(s, node, pa.c_str());
-                });
+            LOG_debug << "Sync - remote rename from " << pa << " to " << node->displayname();
         }
     }
 #endif
@@ -1400,11 +1398,11 @@ bool CommandMoveNode::procresult(Result r)
                                     client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
                                         if ((*it)->type == FOLDERNODE)
                                         {
-                                            s->client->app->syncupdate_remote_folder_deletion(s, n);
+                                            LOG_debug << "Sync - remote folder deletion detected " << n->displayname(); 
                                         }
                                         else
                                         {
-                                            s->client->app->syncupdate_remote_file_deletion(s, n);
+                                            LOG_debug << "Sync - remote file deletion detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
                                         }
                                     });
                                 }
@@ -1443,9 +1441,10 @@ bool CommandMoveNode::procresult(Result r)
             if(n)
             {
                 // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-                client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
-                    client->app->syncupdate_remote_move(s, n, client->nodebyhandle(pp));
-                });
+                Node* prevparent = client->nodebyhandle(pp);
+                LOG_debug << "Sync - remote move detected: " << n->displayname() <<
+                    " from " << (prevparent ? prevparent->displayname() : "?") <<
+                    " to " << (n->parent ? n->parent->displayname() : "?");
             }
         }
 #endif

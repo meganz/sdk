@@ -859,41 +859,7 @@ struct StandardClient : public MegaApp
 
     void syncupdate_stateconfig(handle backupId) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << backupId; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
-    void syncupdate_local_folder_addition(Sync* s, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " yncupdate_local_folder_addition() " << path.toPath(*client.fsaccess); }}
-    void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << "syncupdate_local_folder_deletion() " << path.toPath(*client.fsaccess); }}
-    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) {
-        lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " ";
-    }}
-    void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_deletion() " << path.toPath(*client.fsaccess); }}
-    void syncupdate_local_file_change(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_change() " << path.toPath(*client.fsaccess); }}
-    void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override
-    {
-        onCallback();
-        if (logcb) {
-            lock_guard<mutex> g(om);
-            out() << clientname << " syncupdate_local_move() from:" << oldPath.toPath(*client.fsaccess) << " to:" << newPath.toPath(*client.fsaccess);
-        }
-    }
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
-    void syncupdate_get(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_get()" << n->displaypath() << " " << cp; }}
-    void syncupdate_put(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_put()" << cp; }}
-    void syncupdate_remote_file_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_file_addition() " << n->displaypath(); }}
-    void syncupdate_remote_file_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_file_deletion() " << n->displaypath(); }}
-    void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_folder_addition() " << n->displaypath(); }}
-    void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_folder_deletion() " << n->displaypath(); }}
-    void syncupdate_remote_copy(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_copy() " << cp; }}
-    void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override
-    {
-        onCallback();
-        if (logcb) {
-            lock_guard<mutex> g(om);
-            out() << clientname << "syncupdate_remote_move() to:" << n1->displaypath() << " from:" << n2->displaypath();
-        }
-    }
-    void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) {
-        lock_guard<mutex> g(om);
-        out() << clientname << "syncupdate_remote_rename() new: " << n->displaypath() << " old: " << cp;
-    }}
     //void syncupdate_treestate(LocalNode* ln) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);   out() << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln); }}
 
     bool sync_syncable(Sync* sync, const char* name, LocalPath& path, Node*) override

@@ -214,22 +214,7 @@ struct DemoApp : public MegaApp
     void sync_removed(handle backupId) override;
 
     void syncupdate_scanning(bool) override;
-    void syncupdate_local_folder_addition(Sync*, const LocalPath& path) override;
-    void syncupdate_local_folder_deletion(Sync* , const LocalPath& path) override;
-    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override;
-    void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override;
-    void syncupdate_local_file_change(Sync*, const LocalPath& path) override;
-    void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override;
     void syncupdate_local_lockretry(bool) override;
-    void syncupdate_get(Sync*, Node*, const char*) override;
-    void syncupdate_put(Sync*, const char*) override;
-    void syncupdate_remote_file_addition(Sync*, Node*) override;
-    void syncupdate_remote_file_deletion(Sync*, Node*) override;
-    void syncupdate_remote_folder_addition(Sync*, Node*) override;
-    void syncupdate_remote_folder_deletion(Sync*, Node*) override;
-    void syncupdate_remote_copy(Sync*, const char*) override;
-    void syncupdate_remote_move(Sync*, Node*, Node*) override;
-    void syncupdate_remote_rename(Sync*, Node*, const char*) override;
     void syncupdate_treestate(LocalNode*) override;
 
     bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;

@@ -10455,11 +10455,11 @@ void MegaClient::notifynode(Node* n)
             {
                 if (n->type == FOLDERNODE)
                 {
-                    app->syncupdate_remote_folder_deletion(n->localnode->sync, n);
+                    LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
                 }
                 else
                 {
-                    app->syncupdate_remote_file_deletion(n->localnode->sync, n);
+                    LOG_debug << "Sync - remote file deletion detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
                 }
             }
 
@@ -10489,23 +10489,25 @@ void MegaClient::notifynode(Node* n)
                     {
                         if (n->type == FOLDERNODE)
                         {
-                            app->syncupdate_remote_folder_addition(n->parent->localnode->sync, n);
+                            LOG_debug << "Sync - remote folder addition detected " << n->displayname();
                         }
                         else
                         {
-                            app->syncupdate_remote_file_addition(n->parent->localnode->sync, n);
+                            LOG_debug << "Sync - remote file addition detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
                         }
                     }
                     else
                     {
-                        app->syncupdate_remote_move(n->localnode->sync, n,
-                            n->localnode->parent ? n->localnode->parent->node.get() : nullptr);
+                        Node* prevparent = n->localnode->parent ? n->localnode->parent->node.get() : nullptr;
+                        LOG_debug << "Sync - remote move " << n->displayname() <<
+                            " from " << (prevparent ? prevparent->displayname() : "?") <<
+                            " to " << (n->parent ? n->parent->displayname() : "?");
                     }
                 }
             }
             else if (!n->changed.removed && n->changed.attrs && n->localnode && n->localnode->name.compare(n->displayname()))
             {
-                app->syncupdate_remote_rename(n->localnode->sync, n, n->localnode->name.c_str());
+                LOG_debug << "Sync - remote rename from " << n->localnode->name << " to " << n->displayname();
             }
         }
 #endif
@@ -14218,9 +14220,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 LOG_debug << "Renaming/moving from the previous location to the new one";
                 if (fsaccess->renamelocal(curpath, localpath))
                 {
-                    app->syncupdate_local_move(rit->second->localnode->sync,
-                                               rit->second->localnode->getLocalPath(),
-                                               localpath);
+                    LOG_debug << "Sync - local rename/move " << rit->second->localnode->getLocalPath().toPath(*fsaccess) << " -> " << localpath.toPath(*fsaccess);
 
                     // update LocalNode tree to reflect the move/rename
                     rit->second->localnode->setnameparent(l, &localpath, fsaccess->fsShortname(localpath));
@@ -14292,8 +14292,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                         }
                         else
                         {
-                            LOG_debug << "Start fetching file node";
-                            app->syncupdate_get(l->sync, rit->second, localpath.toPath(*fsaccess).c_str());
+                            LOG_debug << "Sync - requesting file " << localpath.toPath(*fsaccess);
 
                             rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
                             nextreqtag();
@@ -15034,7 +15033,7 @@ void MegaClient::syncupdate()
                         tattrs.map.erase(it);
                     }
 
-                    app->syncupdate_remote_copy(l->sync, l->name.c_str());
+                    LOG_debug << "Sync - creating remote file " << l->name << " by copying existing remote file";
                 }
                 else
                 {
@@ -15058,15 +15057,12 @@ void MegaClient::syncupdate()
                 l->treestate(TREESTATE_PENDING);
 
                 // the overwrite will happen upon PUT completion
-                string tmppath;
-
                 nextreqtag();
                 startxfer(PUT, l, committer);
 
                 l->sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, l->size, 0);
 
-                tmppath = l->getLocalPath().toPath(*fsaccess);
-                app->syncupdate_put(l->sync, tmppath.c_str());
+                LOG_debug << "Sync - sending file " << l->getLocalPath().toPath(*fsaccess);
             }
         }
 
@@ -15116,11 +15112,11 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
         {
             if (n->type == FOLDERNODE)
             {
-                app->syncupdate_remote_folder_addition(nn[nni].localnode->sync, n);
+                LOG_debug << "Sync - remote folder addition detected " << n->displayname();
             }
             else
             {
-                app->syncupdate_remote_file_addition(nn[nni].localnode->sync, n);
+                LOG_debug << "Sync - remote file addition detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
             }
         }
 
