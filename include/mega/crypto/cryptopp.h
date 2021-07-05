@@ -108,7 +108,9 @@ public:
 
     typedef uint64_t ctr_iv;
 
-    void setkey(const byte*, int = 1);
+    // type != 1 will enatil xoring the second KEYLENGTH bytes into the first ones
+    // otherwise only first KEYLENGTH raw bytes will be used.
+    void setkey(const byte*, int type = 1);
     bool setkey(const std::string*);
 
     /**

@@ -539,9 +539,8 @@ class MEGA_API CommandGetFile : public Command
 
     void callFailedCompletion (const Error& e);
 
-    bool mSingleUrl = false; // ! v=2 // using megad to do the unraiding
-
     byte filekey[FILENODEKEYLENGTH];
+    int mFileKeyType; // as expected by SymmCipher::setKey
 
 public:
     // notice: cancelation will entail that mCompletion will not be called
