@@ -179,10 +179,6 @@ struct MEGA_API MegaApp
     virtual void openfilelink_result(const Error&) { }
     virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) { }
 
-    // node opening result
-    virtual void checkfile_result(handle, const Error&) { }
-    virtual void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) { }
-
     // URL suitable for iOS (or other system) background upload feature
     virtual void backgrounduploadurl_result(error, string*) { }
 

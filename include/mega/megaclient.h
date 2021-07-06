@@ -1796,6 +1796,10 @@ public:
     SymmCipher tmpnodecipher;
     SymmCipher tmptransfercipher;
 
+    // returns a pointer to tmptransfercipher setting its key to the one provided
+    // tmptransfercipher key will change: to be used right away: this is not a dedicated SymmCipher for this transfer!
+    SymmCipher *getRecycledTemporaryTransferCipher(const byte *key, int type = 1);
+
     // request a link to recover account
     void getrecoverylink(const char *email, bool hasMasterkey);
 
