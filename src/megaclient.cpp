@@ -8202,6 +8202,12 @@ SymmCipher *MegaClient::getRecycledTemporaryTransferCipher(const byte *key, int 
     return &tmptransfercipher;
 }
 
+SymmCipher *MegaClient::getRecycledTemporaryNodeCipher(const byte *key)
+{
+    tmpnodecipher.setkey(key);
+    return &tmpnodecipher;
+}
+
 // compute generic string hash
 void MegaClient::stringhash(const char* s, byte* hash, SymmCipher* cipher)
 {

@@ -696,12 +696,13 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
-    if (client->tmpnodecipher.setkey(&nodekeydata))
+    SymmCipher *cipher = client->getRecycledTemporaryNodeCipher((const byte *)nodekeydata.data());
+    if (cipher)
     {
-        return &client->tmpnodecipher;
+        return cipher;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 // decrypt attributes and build attribute hash
