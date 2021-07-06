@@ -411,7 +411,7 @@ public:
     error folderaccess(const char*folderlink, const char* authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
-    void openfilelink(handle ph, const byte *key, int op);
+    void openfilelink(handle ph, const byte *key);
 
     // decrypt password-protected public link
     // the caller takes the ownership of the returned value in decryptedLink parameter
