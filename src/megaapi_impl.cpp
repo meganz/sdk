@@ -23265,9 +23265,9 @@ void MegaApiImpl::sendPendingRequests()
             handle chatid = request->getNodeHandle();
             handle callid = request->getParentHandle();
             int reason = request->getAccess();
-            if (chatid == INVALID_HANDLE || callid == INVALID_HANDLE)
+            if (chatid == INVALID_HANDLE || callid == INVALID_HANDLE || reason != END_CALL_REASON_REJECTED)
             {
-                // TODO: sanity checks for `reason`
+                // for the moment just REJECTED(0x02) reason is valid
                 e = API_EARGS;
                 break;
             }
