@@ -90,12 +90,6 @@ struct MEGA_API TransferSlot
     // last error
     error lasterror;
 
-    // file attribute string
-    string fileattrstring;
-
-    // file attributes mutable
-    int fileattrsmutable;
-
     // maximum number of parallel connections and connection array.
     // shared_ptr for convenient coordination with the worker threads that do encrypt/decrypt on this data.
     int connections;

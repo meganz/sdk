@@ -6,8 +6,6 @@ if BUILD_FUSE_EXAMPLE
 EXAMPLES += examples/linux/megafuse
 endif
 
-bin_PROGRAMS = 
-
 if BUILD_EXAMPLES
 bin_PROGRAMS += $(EXAMPLES)
 endif

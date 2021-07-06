@@ -3938,7 +3938,66 @@ void MegaClient::dispatchTransfers()
                     {
                         reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
                             ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                            : (Command*)new CommandGetFile(this, ts, NULL, h.as8byte(), hprivate, privauth, pubauth, chatauth)));
+                            : new CommandGetFile(this, ts->transfer->transferkey.data(), SymmCipher::KEYLENGTH,
+                                                 h.as8byte(), hprivate, privauth, pubauth, chatauth, false,
+                            [this, ts, hprivate, h](const Error &e, m_off_t s, m_time_t /*ts*/, m_time_t /*tm*/, dstime tl /*timeleft*/,
+                               std::string* filename, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
+                               const std::vector<std::string> &tempurls, const std::vector<std::string> &/*ips*/)
+                        {
+                            auto tslot = ts;
+                            auto priv = hprivate;
+                            auto ph = h.as8byte();
+
+                            tslot->pendingcmd = nullptr;
+
+                            if (!filename) //failed! (Notice: calls not coming from !callFailedCompletion) will allways have that != nullptr
+                            {
+                                assert(s == -1 && "failing a transfer too soon: coming from a successful mCompletion call");
+                                tslot->transfer->failed(e, *mTctableRequestCommitter);
+                                return true;
+                            }
+
+                            if (s >= 0 && s != tslot->transfer->size)
+                            {
+                                tslot->transfer->size = s;
+                                for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
+                                {
+                                    (*it)->size = s;
+                                }
+
+                                if (priv)
+                                {
+                                    Node *n = nodebyhandle(ph);
+                                    if (n)
+                                    {
+                                        n->size = s;
+                                        notifynode(n);
+                                    }
+                                }
+
+                                sendevent(99411, "Node size mismatch", 0);
+                            }
+
+                            tslot->starttime = tslot->lastdata = waiter->ds;
+
+                            if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
+                            {
+                                tslot->transfer->tempurls = tempurls;
+                                tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
+                                tslot->progress();
+                                return true;
+                            }
+
+                            if (e == API_EOVERQUOTA && tl <= 0)
+                            {
+                                // default retry interval
+                                tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                            }
+
+                            tslot->transfer->failed(e, *mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
+                            return true;
+
+                        })));
                     }
 
                     LOG_debug << "Activating transfer";
@@ -8137,6 +8196,12 @@ error MegaClient::pw_key(const char* utf8pw, byte* key) const
     return API_OK;
 }
 
+SymmCipher *MegaClient::getRecycledTemporaryTransferCipher(const byte *key, int type)
+{
+    tmptransfercipher.setkey(key, type);
+    return &tmptransfercipher;
+}
+
 // compute generic string hash
 void MegaClient::stringhash(const char* s, byte* hash, SymmCipher* cipher)
 {
@@ -11329,14 +11394,10 @@ void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable
 // formats supported: ...#!publichandle!key, publichandle!key or file/<ph>[<params>][#<key>]
 void MegaClient::openfilelink(handle ph, const byte *key, int op)
 {
-    if (op)
+    assert(op);
+    if (op) //check link
     {
         reqs.add(new CommandGetPH(this, ph, key, op));
-    }
-    else
-    {
-        assert(key);
-        reqs.add(new CommandGetFile(this, NULL, key, ph, false));
     }
 }
 

@@ -87,8 +87,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     failure = false;
     retrying = false;
 
-    fileattrsmutable = 0;
-
     connections = 0;
     asyncIO = NULL;
     pendingcmd = NULL;

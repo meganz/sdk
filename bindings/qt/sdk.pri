@@ -88,9 +88,6 @@ CONFIG(USE_MEGAAPI) {
   }
 }
 
-CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
-  SOURCES += src/rotativeperformancelogger.cpp
-}
 
 !win32 {
     QMAKE_CXXFLAGS += -std=c++11 -Wextra -Wconversion -Wno-unused-parameter
@@ -101,6 +98,12 @@ CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
             LIBS += -lstdc++fs
         }
     }
+}
+
+
+
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+  SOURCES += src/rotativeperformancelogger.cpp
 }
 
 CONFIG(USE_AUTOCOMPLETE) {
