@@ -867,7 +867,11 @@ bool CommandGetFile::procresult(Result r)
             default:
                 if (!client->json.storeobject())
                 {
-                    callFailedCompletion(API_EINTERNAL);
+                    if (!canceled)
+                    {
+                        callFailedCompletion(API_EINTERNAL);
+                    }
+                    return false;
                 }
         }
     }
