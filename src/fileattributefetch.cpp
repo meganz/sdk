@@ -137,7 +137,7 @@ void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
 
             if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
             {
-                SymmCipher *cipher = client->getRecycledTemporaryNodeCipher((const byte *)it->second->nodekey.data());
+                SymmCipher *cipher = client->getRecycledTemporaryNodeCipher(&it->second->nodekey);
                 if (cipher)
                 {
                     cipher->cbc_decrypt((byte*)ptr, falen);

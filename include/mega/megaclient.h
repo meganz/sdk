@@ -1798,6 +1798,7 @@ public:
 
     // returns a pointer to tmpnodecipher setting its key to the one provided
     // tmpnodecipher key will change: to be used right away: this is not a dedicated SymmCipher for the node!
+    SymmCipher *getRecycledTemporaryNodeCipher(const string *key);
     SymmCipher *getRecycledTemporaryNodeCipher(const byte *key);
 
     // request a link to recover account

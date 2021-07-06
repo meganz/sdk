@@ -8202,6 +8202,12 @@ SymmCipher *MegaClient::getRecycledTemporaryTransferCipher(const byte *key, int 
     return &tmptransfercipher;
 }
 
+SymmCipher *MegaClient::getRecycledTemporaryNodeCipher(const string *key)
+{
+    tmpnodecipher.setkey(key);
+    return &tmpnodecipher;
+}
+
 SymmCipher *MegaClient::getRecycledTemporaryNodeCipher(const byte *key)
 {
     tmpnodecipher.setkey(key);
