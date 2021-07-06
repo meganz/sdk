@@ -1537,15 +1537,9 @@ SynchronousRequestListener::~SynchronousRequestListener()
 void SynchronousRequestListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error)
 {
     this->megaApi = api;
-    if (megaRequest)
-    {
-        delete megaRequest;              //in case of reused listener
-    }
-    this->megaRequest = request->copy();
-    if (megaError)
-    {
-        delete megaError;            //in case of reused listener
-    }
+    delete megaRequest;              //in case of reused listener
+    this->megaRequest = request ? request->copy() : nullptr;
+    delete megaError;            //in case of reused listener
     this->megaError = error->copy();
 
     doOnRequestFinish(api, request, error);
@@ -1616,9 +1610,9 @@ void SynchronousTransferListener::onTransferFinish(MegaApi *api, MegaTransfer *t
 {
     this->megaApi = api;
     delete megaTransfer;               //in case of reused listener
-    this->megaTransfer = transfer->copy();
+    this->megaTransfer = transfer ? transfer->copy() : nullptr;
     delete megaError;            //in case of reused listener
-    this->megaError = error->copy();
+    this->megaError = error ? error->copy() : nullptr;
 
     doOnTransferFinish(api, transfer, error);
     semaphore->release();
@@ -1764,6 +1758,10 @@ MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent
 {
     pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd, workerThreadCount);
 }
+#endif
+
+#ifdef HAVE_MEGAAPI_RPC
+MegaApi::MegaApi() {}
 #endif
 
 MegaApi::~MegaApi()

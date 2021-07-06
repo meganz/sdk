@@ -7829,6 +7829,9 @@ class MegaApi
         MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount = 1);
 #endif
 
+#ifdef HAVE_MEGAAPI_RPC
+        MegaApi();
+#endif
         virtual ~MegaApi();
 
 
@@ -13698,7 +13701,6 @@ class MegaApi
             const char* driveRootIfExternal,
             MegaRequestListener *listener);
 
-
         /**
          * @brief Copy sync data to SDK cache.
          *
@@ -18798,7 +18800,7 @@ class MegaApi
         bool driveMonitorEnabled();
 
  private:
-        MegaApiImpl *pImpl;
+        MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
 };
 

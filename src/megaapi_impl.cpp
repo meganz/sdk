@@ -4462,6 +4462,25 @@ int MegaNodeListPrivate::size() const
     return s;
 }
 
+
+void MegaNodeListPrivate::addNode(std::unique_ptr<MegaNode> node)
+{
+    MegaNode** copyList = list;
+    s = s + 1;
+    list = new MegaNode*[s];
+    for (int i = 0; i < s - 1; ++i)
+    {
+        list[i] = copyList[i];
+    }
+
+    list[s - 1] = node.release();
+
+    if (copyList != NULL)
+    {
+        delete [] copyList;
+    }
+}
+
 void MegaNodeListPrivate::addNode(MegaNode *node)
 {
     MegaNode** copyList = list;
