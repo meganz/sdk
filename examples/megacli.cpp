@@ -24,6 +24,11 @@
 #include <fstream>
 #include <bitset>
 
+#if defined(_WIN32) && defined(_DEBUG)
+// so we can delete a secret internal CrytpoPP singleton
+#include <cryptopp\osrng.h>
+#endif
+
 #define USE_VARARGS
 #define PREFER_STDARG
 
@@ -1284,7 +1289,12 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
         for (it=keys->begin(); it != keys->end(); it++)
         {
             key = (*it).empty() ? "(no key)" : *it;
-            value = tlv->get(*it);
+            if (!tlv->get(*it, value) || value.empty())
+            {
+                cout << "\t" << key << "\t" << "(no value)" << endl;
+                continue;
+            }
+
             valuelen = unsigned(value.length());
 
             buf = new char[valuelen * 4 / 3 + 4];
@@ -1380,7 +1390,7 @@ static AccountDetails account;
 static NodeHandle cwd;
 
 // Where we were on the local filesystem when megacli started.
-static LocalPath startDir;
+static unique_ptr<LocalPath> startDir(new LocalPath);
 
 static const char* rootnodenames[] =
 { "ROOT", "INBOX", "RUBBISH" };
@@ -4518,7 +4528,7 @@ void exec_open(autocomplete::ACState& s)
                                           client->httpio,
                                           new FSACCESS_CLASS,
                 #ifdef DBACCESS_CLASS
-                                          new DBACCESS_CLASS(startDir),
+                                          new DBACCESS_CLASS(*startDir),
                 #else
                                           NULL,
                 #endif
@@ -8387,6 +8397,10 @@ void megacli()
 
 int main()
 {
+#if defined(_WIN32) && defined(_DEBUG)
+    _CrtSetBreakAlloc(124);  // set this to an allocation number to hunt leaks.  Prior to 124 and prior are from globals/statics so won't be detected by this
+#endif
+
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&gLogger);
@@ -8399,38 +8413,46 @@ int main()
 #ifdef GFX_CLASS
     auto gfx = new GFX_CLASS;
     gfx->startProcessingThread();
+#else
+    mega::GfxProc* gfx = nullptr;
 #endif
 
     // Needed so we can get the cwd.
     auto fsAccess = new FSACCESS_CLASS();
 
     // Where are we?
-    if (!fsAccess->cwd(startDir))
+    if (!fsAccess->cwd(*startDir))
     {
         cerr << "Unable to determine current working directory." << endl;
         return EXIT_FAILURE;
     }
 
+    auto httpIO = new HTTPIO_CLASS;
+
+#ifdef WIN32
+    auto waiter = new CONSOLE_WAIT_CLASS(static_cast<CONSOLE_CLASS*>(console));
+#else
+    auto waiter = new CONSOLE_WAIT_CLASS;
+#endif
+
+    auto demoApp = new DemoApp;
+
+    auto dbAccess =
+#ifdef DBACCESS_CLASS
+        new DBACCESS_CLASS(*startDir);
+#else
+        nullptr;
+#endif
+
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
-    client = new MegaClient(new DemoApp,
-#ifdef WIN32
-                            new CONSOLE_WAIT_CLASS(static_cast<CONSOLE_CLASS*>(console)),
-#else
-                            new CONSOLE_WAIT_CLASS,
-#endif
-                            new HTTPIO_CLASS,
+    client = new MegaClient(demoApp,
+                            waiter,
+                            httpIO,
                             fsAccess,
-#ifdef DBACCESS_CLASS
-                            new DBACCESS_CLASS(startDir),
-#else
-                            NULL,
-#endif
-#ifdef GFX_CLASS
+                            dbAccess,
                             gfx,
-#else
-                            NULL,
-#endif
                             "Gk8DyQBS",
                             "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
                             "." TOSTRING(MEGA_MINOR_VERSION)
@@ -8444,6 +8466,29 @@ int main()
 
     clientFolder = NULL;    // additional for folder links
     megacli();
+
+    delete client;
+    delete waiter;
+    delete httpIO;
+    delete gfx;
+    //delete dbAccess; // already deleted
+    delete fsAccess;
+    delete demoApp;
+    acs.reset();
+    autocompleteTemplate.reset();
+    delete console;
+    startDir.reset();
+
+    delete CurlHttpIO::sslMutexes;
+
+#if defined(_WIN32) && defined(_DEBUG)
+
+    // Singleton enthusiasts rarely think about shutdown...
+    const CryptoPP::MicrosoftCryptoProvider &hProvider = CryptoPP::Singleton<CryptoPP::MicrosoftCryptoProvider>().Ref();
+    delete &hProvider;
+
+    _CrtDumpMemoryLeaks();
+#endif
 }
 
 

@@ -1,9 +1,19 @@
 #[[
-    Run this file from its current folder in script mode, with triplet as a parameter:
-        cmake -P build_from_scratch.cmake <triplet>
-    It will set up and build 3rdparty in a folder next to the SDK repo, and also
-    build the SDK against those 3rd party libraries.
-    pdfium must be supplied manually, or it can be commented out in preferred-ports-sdk.txt
+    Run this file from its current folder in script mode, with triplet as a defined parameter:
+	
+        cmake -DTRIPLET=<triplet> [-DEXTRA_ARGS=<>] [-DTARGET=<target>[;<targets>...] ] -P build_from_scratch.cmake
+		
+	eg, for getting started on windows:
+	
+		cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
+		
+    It will set up and build 3rdparty dependencies in a folder next to the SDK folder, and also
+    set up the project (Visual Studio on Windows) and bulid it in an SDK subfolder "build-<triplet>"
+    
+	Pdfium is one third party library dependency whose source must be fetched manually, see 3rdparty_deps.txt.
+	Once you have the pdfium source, you can rerun this script to build it.  Or, if you already have it
+	before first running this script, copy it to 3rdParty_sdk/vcpkg/pdfium once the script has created that folder
+	and it will be built during the first run - avoid disabling it by leaving out those steps flags of course.
 ]]
 
 function(usage_exit err_msg)
@@ -17,15 +27,22 @@ endfunction()
 get_filename_component(_prog_name ${CMAKE_ARGV2} NAME)
 set(_script_cwd ${CMAKE_CURRENT_SOURCE_DIR})
 
-if(NOT EXISTS "${_script_cwd}/${_prog_name}")
+if(NOT EXISTS "${_script_cwd}/build_from_scratch.cmake")
     usage_exit("Script was not run from its containing directory")
 endif()
 
-if(NOT CMAKE_ARGV3)
+if(NOT TRIPLET)
     usage_exit("Triplet was not provided")
 endif()
 
-set(_triplet ${CMAKE_ARGV3})
+if(NOT EXTRA_ARGS)
+	message(STATUS "No extra args")
+else()
+    set(_extra_cmake_args ${EXTRA_ARGS})
+	message(STATUS "Applying extra args: ${EXTRA_ARGS}")
+endif()
+
+set(_triplet ${TRIPLET})
 set(_sdk_dir "${_script_cwd}/../..")
 
 message(STATUS "Building for triplet ${_triplet} with SDK dir ${_sdk_dir}")
@@ -134,7 +151,7 @@ set(_common_cmake_args
 
 if(WIN32)
     if(_triplet MATCHES "staticdev$")
-        set(_extra_cmake_args -DMEGA_LINK_DYNAMIC_CRT=0 -DUNCHECKED_ITERATORS=1)
+        set(_extra_cmake_args ${_extra_cmake_args} -DMEGA_LINK_DYNAMIC_CRT=0 -DUNCHECKED_ITERATORS=1)
     endif()
 
     if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x86")
@@ -174,6 +191,7 @@ else()
         execute_checked_command(
             COMMAND ${_cmake}
                 ${_common_cmake_args}
+				${_extra_cmake_args}
                 -B ${_build_dir}
                 "-DCMAKE_BUILD_TYPE=${_config}"
         )

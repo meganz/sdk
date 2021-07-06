@@ -57,34 +57,45 @@ struct TransferTracker : public ::mega::MegaTransferListener
     std::atomic<bool> finished = { false };
     std::atomic<int> result = { INT_MAX };
     std::promise<int> promiseResult;
+    std::future<int> futureResult;
     MegaApi *mApi;
     std::shared_ptr<TransferTracker> selfDeleteOnFinalCallback;
 
-    TransferTracker(MegaApi *api): mApi(api)
+    TransferTracker(MegaApi *api): mApi(api), futureResult(promiseResult.get_future())
     {
 
     }
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
     {
+        // called back on a different thread
         started = true;
     }
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
     {
+        // called back on a different thread
         result = error->getErrorCode();
         finished = true;
-        promiseResult.set_value(result);
+
+        // this local version still valid even after we self-delete
+        std::promise<int> local_promise = move(promiseResult);
+
         if (selfDeleteOnFinalCallback)
         {
-            // sometimes in tests we need to abandon the listener, because we need to time out (which a normal app would not do)
-            // another case is when we deliberately destroy MegaApi or other objects to exercise shutdown cases
-            // allowing the listener to destroy on final callback simplifies test object lifetime management
-            selfDeleteOnFinalCallback.reset();
+            // this class can be used as a local on the stack, or constructed on the heap.
+            // for the stack case, this object will be destroyed after the wait completes
+            // but for the heap case, that is usually chosen so that deletion can occur on completion
+            // or whenever the last needed reference is deleted.  So for that case,
+            // set the selfDeleteOnFinalCallback to be a shared_ptr to this object.
+            selfDeleteOnFinalCallback.reset();  // self-delete
         }
+
+        // let the test main thread know it can now continue
+        local_promise.set_value(result);
     }
     int waitForResult(int seconds = maxTimeout, bool unregisterListenerOnTimeout = true)
     {
-        auto f = promiseResult.get_future();
-        if (std::future_status::ready != f.wait_for(std::chrono::seconds(seconds)))
+        // running on test's main thread
+        if (std::future_status::ready != futureResult.wait_for(std::chrono::seconds(seconds)))
         {
             assert(mApi);
             if (unregisterListenerOnTimeout)
@@ -93,7 +104,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
             }
             return -999; // local timeout
         }
-        return f.get();
+        return futureResult.get();
     }
 };
 

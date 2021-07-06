@@ -2741,22 +2741,16 @@ bool CommandPutMultipleUAVer::procresult(Result r)
                 TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
                 if (tlvRecords)
                 {
-                    if (tlvRecords->find(EdDSA::TLV_KEY))
+                    string prEd255;
+                    if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                     {
-                        string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-                        if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
-                        {
-                            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
-                        }
+                        client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
                     }
 
-                    if (tlvRecords->find(ECDH::TLV_KEY))
+                    string prCu255;
+                    if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                     {
-                        string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-                        if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
-                        {
-                            client->chatkey = new ECDH((unsigned char *) prCu255.data());
-                        }
+                        client->chatkey = new ECDH((unsigned char *) prCu255.data());
                     }
 
                     if (!client->chatkey || !client->chatkey->initializationOK ||

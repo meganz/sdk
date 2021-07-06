@@ -26,6 +26,6 @@
 
 - (void)freeRequestListener:(DelegateMEGARequestListener *)delegate;
 - (void)freeTransferListener:(DelegateMEGATransferListener *)delegate;
-- (mega::MegaApi *)getCPtr;
+- (nullable mega::MegaApi *)getCPtr;
 
 @end

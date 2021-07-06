@@ -20,7 +20,18 @@ bool gOutputToCout = false;
 int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
-std::ofstream gUnopenedOfstream;
+LogStream::~LogStream()
+{
+    auto data = mBuffer.str();
+
+    // Always write messages via standard logger.
+    LOG_debug << data;
+
+    if (gOutputToCout)
+    {
+        std::cout << logTime() << " " << data << std::endl;
+    }
+}
 
 std::string getCurrentTimestamp()
 {
@@ -46,15 +57,9 @@ std::string logTime()
     return getCurrentTimestamp();
 }
 
-
-std::ostream& out(bool withTime)
+LogStream out()
 {
-    if (withTime && gOutputToCout)
-    {
-        std::cout << getCurrentTimestamp() << " ";
-    }
-    if (gOutputToCout) return std::cout;
-    else return gUnopenedOfstream;
+    return LogStream();
 }
 
 namespace {
@@ -101,9 +106,17 @@ public:
             }
             else
             {
-#ifndef _WIN32
-                std::cout << os.str() << std::flush;
-#endif
+#ifdef _WIN32
+                if (IsDebuggerPresent())
+                {
+                    OutputDebugStringA(os.str().c_str());
+                }
+                else
+#endif // _WIN32
+                {
+                    std::cout << os.str() << std::flush;
+                }
+
                 if (!gTestingInvalidArgs)
                 {
                     if (loglevel <= logError)
@@ -112,15 +125,75 @@ public:
                     }
                 }
             }
-#ifdef _WIN32
-            OutputDebugStringA(os.str().c_str());
-#endif
         }
     }
 
 private:
     std::ofstream mLogFile;
 };
+
+class GTestLogger
+  : public ::testing::EmptyTestEventListener
+{
+public:
+    void OnTestEnd(const ::testing::TestInfo& info) override
+    {
+        std::string result = "FAILED";
+
+        if (info.result()->Passed())
+        {
+            result = "PASSED";
+        }
+
+        out() << "GTEST: "
+              << result
+              << " "
+              << info.test_case_name()
+              << "."
+              << info.name();
+    }
+
+    void OnTestPartResult(const ::testing::TestPartResult& result) override
+    {
+        using namespace ::testing;
+
+        if (result.type() == TestPartResult::kSuccess) return;
+
+        std::string file = "unknown";
+        std::string line;
+
+        if (result.file_name())
+        {
+            file = result.file_name();
+        }
+
+        if (result.line_number() >= 0)
+        {
+            line = std::to_string(result.line_number()) + ":";
+        }
+
+        out() << "GTEST: "
+              << file
+              << ":"
+              << line
+              << " Failure";
+
+        std::istringstream istream(result.message());
+
+        for (std::string s; std::getline(istream, s); )
+        {
+            out() << "GTEST: " << s;
+        }
+    }
+
+    void OnTestStart(const ::testing::TestInfo& info) override
+    {
+        out() << "GTEST: RUNNING "
+              << info.test_case_name()
+              << "."
+              << info.name();
+    }
+}; // GTestLogger
 
 } // anonymous
 
@@ -131,11 +204,6 @@ int main (int argc, char *argv[])
         std::cout << "please set username and password env variables for test" << std::endl;
         return 1;
     }
-
-    // delete old test folders, created during previous runs
-    TestFS testFS;
-    testFS.DeleteTestFolder();
-    testFS.DeleteTrashFolder();
 
     std::vector<char*> myargv1(argv, argv + argc);
     std::vector<char*> myargv2;
@@ -160,7 +228,12 @@ int main (int argc, char *argv[])
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
             std::lock_guard<std::mutex> g(g_APIURL_default_mutex);
-            g_APIURL_default = std::string(*it).substr(9);
+            string s = std::string(*it).substr(9);
+            if (!s.empty())
+            {
+                if (s.back() != '/') s += "/";
+                g_APIURL_default = s;
+            }
             argc -= 1;
         }
         else if (std::string(*it) == "--RESUMESESSIONS")
@@ -192,6 +265,11 @@ int main (int argc, char *argv[])
     SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&megaLogger);
 
+    // delete old test folders, created during previous runs
+    TestFS testFS;
+    testFS.DeleteTestFolder();
+    testFS.DeleteTrashFolder();
+
 #if defined(_WIN32) && defined(NO_READLINE)
     using namespace mega;
     WinConsole* wc = new CONSOLE_CLASS;
@@ -199,6 +277,13 @@ int main (int argc, char *argv[])
 #endif
 
     ::testing::InitGoogleTest(&argc, myargv2.data());
+
+    if (gRunningInCI)
+    {
+        auto& listeners = testing::UnitTest::GetInstance()->listeners();
+        listeners.Append(new GTestLogger());
+    }
+
     return RUN_ALL_TESTS();
 }
 
@@ -226,7 +311,7 @@ fs::path TestFS::GetTestFolder()
 #endif
 
     fs::path testpath = GetTestBaseFolder() / ("pid_" + std::to_string(pid));
-    out() << "Local Test folder: " << testpath << endl;
+    out() << "Local Test folder: " << testpath;
     return testpath;
 }
 
@@ -257,8 +342,8 @@ void TestFS::DeleteFolder(fs::path folder)
         // report failures, other than the case when it didn't exist
         if (ec != errc::no_such_file_or_directory)
         {
-            out() << "Renaming " << oldpath << " to " << newpath << " failed." << endl
-                 << ec.message() << endl;
+            out() << "Renaming " << oldpath << " to " << newpath << " failed."
+                 << ec.message();
         }
 
         return;
@@ -271,8 +356,8 @@ void TestFS::DeleteFolder(fs::path folder)
 
             if (ec)
             {
-                out() << "Deleting " << folder << " failed." << endl
-                     << ec.message() << endl;
+                out() << "Deleting " << folder << " failed."
+                     << ec.message();
             }
         }));
 }

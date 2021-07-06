@@ -37,7 +37,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @return A pointer to an object that keeps some needed state through the process of
  *         uploading a media file via iOS low power background uploads (or similar).
  */
-- (instancetype)initWithMEGASdk:(MEGASdk *)sdk;
+- (nullable instancetype)initWithMEGASdk:(MEGASdk *)sdk;
 
 /**
  * @brief Extract mediainfo information about the photo or video.
@@ -131,7 +131,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @return A new MEGABackgroundMediaUpload instance with all fields set to the data that was
  *         stored in the serialized binary data.
  */
-+ (instancetype)unserializByData:(NSData *)data MEGASdk:(MEGASdk *)sdk;
++ (nullable instancetype)unserializByData:(NSData *)data MEGASdk:(MEGASdk *)sdk;
 
 @end
 
