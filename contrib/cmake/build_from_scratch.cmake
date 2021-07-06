@@ -69,6 +69,9 @@ set(_sdk_dir "${_script_cwd}/../..")
 message(STATUS "Building for triplet ${_triplet} with SDK dir ${_sdk_dir}")
 
 set (_3rdparty_sdk_dir "${_sdk_dir}/../3rdparty_sdk")
+if(PLATFORM)
+    set(_3rdparty_sdk_dir ${_3rdparty_sdk_dir}_${PLATFORM})
+endif()
 
 file(MAKE_DIRECTORY ${_3rdparty_sdk_dir})
 
