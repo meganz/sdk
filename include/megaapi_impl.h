@@ -1687,6 +1687,9 @@ class MegaNodeListPrivate : public MegaNodeList
 
         void addNode(MegaNode* node) override;
 
+        //This ones takes the ownership of the given node
+        void addNode(std::unique_ptr<MegaNode> node);
+
 	protected:
 		MegaNode** list;
 		int s;
