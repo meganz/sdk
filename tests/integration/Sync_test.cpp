@@ -883,6 +883,39 @@ struct StandardClient : public MegaApp
     void transfer_update(Transfer*) override { onCallback(); ++transfersUpdated; }
     void transfer_complete(Transfer*) override { onCallback(); ++transfersComplete; }
 
+    void notify_retry(dstime t, retryreason_t r) override
+    {
+        onCallback();
+
+        if (!logcb) return;
+
+        lock_guard<mutex> guard(om);
+
+        out() << clientname << " notify_retry: " << t << " " << r;
+    }
+
+    void request_error(error e) override
+    {
+        onCallback();
+
+        if (!logcb) return;
+
+        lock_guard<mutex> guard(om);
+
+        out() << clientname << " request_error: " << e;
+    }
+
+    void request_response_progress(m_off_t a, m_off_t b) override
+    {
+        onCallback();
+
+        if (!logcb) return;
+
+        lock_guard<mutex> guard(om);
+
+        out() << clientname << " request_response_progress: " << a << " " << b;
+    }
+
     void threadloop()
         try
     {
