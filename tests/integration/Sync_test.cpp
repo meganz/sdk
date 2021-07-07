@@ -1363,17 +1363,14 @@ struct StandardClient : public MegaApp
             {
                 if (mayneeddeleting)
                 {
-                    //out() << "old test base folder found, deleting";
-                    resultproc.prepresult(UNLINK, ++next_request_tag,
-                        [&](){ client.unlink(basenode, false, client.reqtag); },
-                        [this, pb](error e) {
-                            if (e)
-                            {
-                                out() << "delete of test base folder reply reports: " << e;
-                            }
-                            deleteTestBaseFolder(false, pb);
-                            return true;
-                        });
+                    auto completion = [this, pb](handle, error e) {
+                        if (e) out() << "delete of test base folder reply reports: " << e;
+                        deleteTestBaseFolder(false, pb);
+                    };
+
+                    resultproc.prepresult(COMPLETION, ++next_request_tag,
+                        [&](){ client.unlink(basenode, false, 0, std::move(completion)); },
+                        nullptr);
                     return;
                 }
                 out() << "base folder found, but not expected, failing";
@@ -2384,10 +2381,13 @@ struct StandardClient : public MegaApp
     {
         if (Node* n = drillchildnodebyname(gettestbasenode(), path))
         {
-            auto f = [pb](handle h, error e){ pb->set_value(!e); }; // todo: probably need better lifetime management for the promise, so multiple things can be tracked at once
-            resultproc.prepresult(UNLINK, ++next_request_tag,
-                [&](){ client.unlink(n, false, 0, f); },
-                [pb](error e) { pb->set_value(!e); return true; });
+            auto completion = [pb](handle, error e) {
+                pb->set_value(!e);
+            };
+
+            resultproc.prepresult(COMPLETION, ++next_request_tag,
+                [&](){ client.unlink(n, false, 0, std::move(completion)); },
+                nullptr);
         }
         else
         {
@@ -2416,9 +2416,13 @@ struct StandardClient : public MegaApp
         {
             for (size_t i = ns.size(); i--; )
             {
-                resultproc.prepresult(UNLINK, ++next_request_tag,
-                    [&](){ client.unlink(ns[i], false, client.reqtag); },
-                    [pb, i](error e) { if (!i) pb->set_value(!e); return true; });
+                auto completion = [i, pb](handle, error e) {
+                    if (!i) pb->set_value(!e);
+                };
+
+                resultproc.prepresult(COMPLETION, ++next_request_tag,
+                    [&](){ client.unlink(ns[i], false, 0, std::move(completion)); },
+                    nullptr);
             }
         }
     }
