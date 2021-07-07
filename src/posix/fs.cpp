@@ -1016,7 +1016,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 const auto psize = strlen(path);
                 auto foundOne = false;
 
-                client->syncs.forEachRunningSync([&](Sync* sync) {
+                client->syncs.forEachRunningSync(true, [&](Sync* sync) {
                     // No need to continue searching as we've found a match.
                     if (foundOne) return;
 
