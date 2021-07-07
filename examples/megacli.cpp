@@ -987,7 +987,7 @@ void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
     }
 }
 
-void DemoApp::setattr_result(handle, Error e)
+static void setattr_result(NodeHandle, Error e)
 {
     if (e)
     {
@@ -995,7 +995,7 @@ void DemoApp::setattr_result(handle, Error e)
     }
 }
 
-void DemoApp::rename_result(handle, error e)
+static void rename_result(NodeHandle, error e)
 {
     if (e)
     {
@@ -2375,7 +2375,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
             if (moveToTrash)
             {
                 cout << "moving to trash: " << c->displaypath() << endl;
-                client->rename(c, trash);
+                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
             }
             else
             {
@@ -3762,7 +3762,7 @@ void exec_mv(autocomplete::ACState& s)
                             // rename
                             client->fsaccess->normalize(&newname);
 
-                            if ((e = client->setattr(n, attr_map('n', newname), gNextClientTag++)))
+                            if ((e = client->setattr(n, attr_map('n', newname), setattr_result)))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -3793,7 +3793,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), gNextClientTag++);
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), setattr_result);
 
                             if (e)
                             {
@@ -3825,7 +3825,7 @@ void exec_mv(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        e = client->rename(n, tn);
+                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
 
                         if (e)
                         {
@@ -3988,7 +3988,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodehandle, move(tc.nn), nullptr, gNextClientTag++);
+                client->putnodes(tn->nodeHandle(), move(tc.nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -4329,7 +4329,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
                 uploadLocalFolderContent(tmp, parent);
             };
 
-            client->putnodes(parent->nodehandle, move(nn), nullptr, gNextClientTag++);
+            client->putnodes(parent->nodeHandle(), move(nn), nullptr, gNextClientTag++);
         }
     }
 }
@@ -5062,7 +5062,7 @@ void exec_mkdir(autocomplete::ACState& s)
             {
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], newname);
-                client->putnodes(n->nodehandle, move(nn), nullptr, gNextClientTag++);
+                client->putnodes(n->nodeHandle(), move(nn), nullptr, gNextClientTag++);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -5072,7 +5072,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], leafname);
-                client->putnodes(n->parent->nodehandle, move(nn), nullptr, gNextClientTag++);
+                client->putnodes(n->parent->nodeHandle(), move(nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -7706,7 +7706,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodehandle, move(nn), nullptr, client->restag);
+        client->putnodes(n->nodeHandle(), move(nn), nullptr, client->restag);
     }
     else
     {

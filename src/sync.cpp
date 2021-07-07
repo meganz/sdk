@@ -1754,7 +1754,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         row.syncNode->rare().moveFromHere = movePtr;
                         sourceSyncNode->rare().moveToHere = movePtr;
 
-                        client->app->syncupdate_local_move(this, sourceSyncNode->getLocalPath(), fullPath.localPath);
+                        LOG_debug << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath(*client->fsaccess) << " -> " << fullPath.localPath.toPath(*client->fsaccess);
 
                         rowResult = false;
                         return true;
@@ -1789,7 +1789,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         {
                             // command sent, now we wait for the actinpacket updates, later we will recognise
                             // the row as synced from fsNode, cloudNode and update the syncNode from those
-                            client->app->syncupdate_local_move(this, sourceSyncNode->getLocalPath(), fullPath.localPath);
+                            LOG_debug << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath(*client->fsaccess) << " -> " << fullPath.localPath.toPath(*client->fsaccess);
 
                             //assert(sourceSyncNode->moveSourceApplyingToCloud);
                             //row.syncNode->moveTargetApplyingToCloud = true;
@@ -1965,7 +1965,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         {
             SYNC_verbose << syncname << "Move detected by nodehandle, but something else with that name is already here locally. Type: " << row.fsNode->type
                 << " moved node: " << row.cloudNode->displaypath()
-                << " old parent: " << oldCloudParent->displaypath()
+                << " old parent: " << (oldCloudParent ? oldCloudParent->displaypath() : "?")
                 << logTriplet(row, fullPath);
 
             row.syncNode->setCheckMovesAgain(false, true, false);
@@ -1978,10 +1978,13 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         {
             LOG_debug << syncname << "Move detected by nodehandle. Type: " << sourceSyncNode->type
                 << " moved node: " << row.cloudNode->displaypath()
-                << " old parent: " << oldCloudParent->displaypath()
+                << " old parent: " << (oldCloudParent ? oldCloudParent->displaypath() : "?")
                 << logTriplet(row, fullPath);
 
-            client->app->syncupdate_remote_move(this, row.cloudNode, oldCloudParent);
+            LOG_debug << "Sync - remote move " << row.cloudNode->displaypath() <<
+                " from " << (oldCloudParent ? oldCloudParent->displayname() : "?") <<
+                " to " << (row.cloudNode->parent ? row.cloudNode->parent->displayname() : "?");
+
             sourceSyncNode->moveApplyingToLocal = true;
         }
 
@@ -2040,7 +2043,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // check filesystem is not changing fsids as a result of rename
             assert(sourceSyncNode->fsid_lastSynced == debug_getfsid(fullPath.localPath, client->fsaccess));
 
-            client->app->syncupdate_local_move(this, sourceSyncNode->getLocalPath(), fullPath.localPath);
+            LOG_debug << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath(*client->fsaccess) << " -> " << fullPath.localPath.toPath(*client->fsaccess);
 
             if (!row.syncNode)
             {
@@ -5069,11 +5072,11 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         {
             if (row.syncNode->type == FOLDERNODE)
             {
-                client->app->syncupdate_local_folder_deletion(this, fullPath.localPath);
+                LOG_debug << "Sync - local folder deletion detected: " << fullPath.localPath.toPath(*client->fsaccess);
             }
             else
             {
-                client->app->syncupdate_local_file_deletion(this, fullPath.localPath);
+                LOG_debug << "Sync - local file deletion detected: " << fullPath.localPath.toPath(*client->fsaccess);
             }
         }
 
@@ -5120,14 +5123,14 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, 
 
             if (parentRow.cloudNode && parentRow.cloudNode->nodeHandle() == parentRow.syncNode->syncedCloudNodeHandle)
             {
-                client->app->syncupdate_local_file_addition(this, fullPath.localPath);
+                LOG_debug << "Sync - local file addition detected: " << fullPath.localPath.toPath(*client->fsaccess);
 
                 LOG_debug << syncname << "Uploading file " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
                 assert(row.syncNode->syncedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint
                 client->nextreqtag();
                 row.syncNode->upload.reset(new LocalNode::Upload(*row.syncNode, *row.fsNode, parentRow.cloudNode->nodeHandle(), fullPath.localPath));
                 client->startxfer(PUT, row.syncNode->upload.get(), committer);  // full path will be calculated in the prepare() callback
-                client->app->syncupdate_put(this, fullPath.localPath_utf8().c_str());
+                LOG_debug << "Sync - sending file " << fullPath.localPath_utf8();
             }
             else
             {
@@ -5212,12 +5215,12 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
         {
             if (!row.syncNode->download)
             {
-                client->app->syncupdate_remote_file_addition(this, row.cloudNode);
+                LOG_debug << "Sync - remote file addition detected: " << row.cloudNode->displaypath();
 
                 // FIXME: to cover renames that occur during the
                 // download, reconstruct localname in complete()
                 LOG_debug << syncname << "Start sync download: " << row.syncNode << logTriplet(row, fullPath);
-                client->app->syncupdate_get(this, row.cloudNode, fullPath.cloudPath.c_str());
+                LOG_debug << "Sync - requesting file " << fullPath.localPath_utf8();
 
                 row.syncNode->download.reset(new SyncFileGet(*row.syncNode, *row.cloudNode, fullPath.localPath));
                 client->nextreqtag();
