@@ -8202,6 +8202,18 @@ SymmCipher *MegaClient::getRecycledTemporaryTransferCipher(const byte *key, int 
     return &tmptransfercipher;
 }
 
+SymmCipher *MegaClient::getRecycledTemporaryNodeCipher(const string *key)
+{
+    tmpnodecipher.setkey(key);
+    return &tmpnodecipher;
+}
+
+SymmCipher *MegaClient::getRecycledTemporaryNodeCipher(const byte *key)
+{
+    tmpnodecipher.setkey(key);
+    return &tmpnodecipher;
+}
+
 // compute generic string hash
 void MegaClient::stringhash(const char* s, byte* hash, SymmCipher* cipher)
 {
@@ -11392,13 +11404,9 @@ void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable
 
 // open exported file link
 // formats supported: ...#!publichandle!key, publichandle!key or file/<ph>[<params>][#<key>]
-void MegaClient::openfilelink(handle ph, const byte *key, int op)
+void MegaClient::openfilelink(handle ph, const byte *key)
 {
-    assert(op);
-    if (op) //check link
-    {
-        reqs.add(new CommandGetPH(this, ph, key, op));
-    }
+    reqs.add(new CommandGetPH(this, ph, key, 1));   // check link
 }
 
 /* Format of password-protected links

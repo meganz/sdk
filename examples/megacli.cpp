@@ -5915,7 +5915,7 @@ void exec_import(autocomplete::ACState& s)
     if (e == API_OK)
     {
         cout << "Opening link..." << endl;
-        client->openfilelink(ph, key, 1);
+        client->openfilelink(ph, key);
     }
     else
     {
