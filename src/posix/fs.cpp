@@ -1836,6 +1836,9 @@ void PosixDirNotify::removeWatch(WatchMapIterator entry)
 
 #endif // ENABLE_SYNC && USE_INOTIFY
 
+
+#ifdef ENABLE_SYNC
+
 fsfp_t PosixDirNotify::fsfingerprint() const
 {
     struct statfs statfsbuf;

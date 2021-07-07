@@ -409,6 +409,8 @@ struct MEGA_API DirAccess
     virtual ~DirAccess() { }
 };
 
+#ifdef ENABLE_SYNC
+
 struct Notification
 {
     bool fromDebris(const Sync& sync) const;
@@ -439,7 +441,6 @@ struct NotificationDeque : ThreadSafeDeque<Notification>
     }
 };
 
-#ifdef ENABLE_SYNC
 // filesystem change notification, highly coupled to Syncs and LocalNodes.
 struct MEGA_API DirNotify
 {
@@ -748,7 +749,7 @@ public:
     RequestPtr queueScan(LocalPath targetPath, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren);
 
     // Track performance (debug only)
-    static CodeCounter::ScopeStats computeSyncTripletsTime;
+    static CodeCounter::ScopeStats syncScanTime;
 
 private:
     // State shared by the service and its requests.

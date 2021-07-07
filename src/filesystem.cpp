@@ -1367,7 +1367,6 @@ FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
 {
     return isFilenameAnomaly(node.localname, node.name, node.type);
 }
-#endif
 
 bool Notification::fromDebris(const Sync& sync) const
 {
@@ -1388,6 +1387,7 @@ bool Notification::invalidated() const
 {
     return localnode == (LocalNode*)~0;
 }
+#endif
 
 } // namespace
 

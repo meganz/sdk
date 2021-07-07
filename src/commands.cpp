@@ -1123,10 +1123,12 @@ void CommandPutNodes::performAppCallback(Error e, bool targetOverride)
     // but the app should not know about them, and if it calls move(nn)
     // then we may not remove newnode references from the LocalNodes in a timely fashion.
 
+#ifdef ENABLE_SYNC
     for (size_t i = 0; i < nn.size(); i++)
     {
         nn[i].localnode.reset();
     }
+#endif
 
     client->app->putnodes_result(e, type, nn, targetOverride);
 }

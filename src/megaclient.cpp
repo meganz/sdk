@@ -1216,9 +1216,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , syncs(*this)
     , syncnaglebt(rng) /*, syncextrabt(rng),*/ /*syncscanbt(rng)*/
     , mSyncMonitorRetry(false), mSyncMonitorTimer(rng)
+    , mSyncFlags(new SyncFlags)
 #endif
     , mCachedStatus(this)
-    , mSyncFlags(new SyncFlags)
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -1361,7 +1361,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
 
+#ifdef ENABLE_SYNC
     mScanService.reset(new ScanService(*w));
+#endif
 }
 
 MegaClient::~MegaClient()
@@ -5730,11 +5732,13 @@ void MegaClient::sc_updatenode()
                             n->changed.attrs = true;
                             notify = true;
 
+#ifdef ENABLE_SYNC
                             if (n->parent)
                             {
                                 // possible node name change; sync parent
                                 triggerSync(n->parent->nodeHandle());
                             }
+#endif
                         }
 
                         if (ts != -1 && n->ctime != ts)
@@ -7918,11 +7922,12 @@ Node* MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
 
+#ifdef ENABLE_SYNC
                     if (n->parent)
                     {
                         triggerSync(n->parent->nodeHandle());
                     }
-
+#endif
                     useralerts.convertNotedSharedNodes(false, originatingUser);
                 }
                 return n;
@@ -16579,11 +16584,13 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << scProcessingTime.report(reset) << "\n"
         << csResponseProcessingTime.report(reset) << "\n"
         << recursiveSyncTime.report(reset) << "\n"
+#ifdef ENABLE_SYNC
         << computeSyncTripletsTime.report(reset) << "\n"
+        << ScanService::syncScanTime.report(reset) << "\n"
+#endif
         << inferSyncTripletsTime.report(reset) << "\n"
         << syncItemTime1.report(reset) << "\n"
         << syncItemTime2.report(reset) << "\n"
-        << ScanService::computeSyncTripletsTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
         << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"

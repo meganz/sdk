@@ -300,11 +300,11 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
 
 // Really we only have one worker despite the vector of threads - maybe we should just have one
 // regardless of multiple clients too - there is only one filesystem after all (but not singleton!!)
-CodeCounter::ScopeStats ScanService::computeSyncTripletsTime = { "folderScan" };
+CodeCounter::ScopeStats ScanService::syncScanTime = { "folderScan" };
 
 void ScanService::Worker::scan(ScanRequestPtr request)
 {
-    CodeCounter::ScopeTimer rst(computeSyncTripletsTime);
+    CodeCounter::ScopeTimer rst(syncScanTime);
 
     // Have we been passed a valid target path?
     auto fileAccess = mFsAccess->newfileaccess();
@@ -5830,7 +5830,6 @@ void MegaClient::triggerSync(NodeHandle h, bool recurse)
 {
     if (fetchingnodes) return;  // on start everything needs scan+sync anyway
 
-#ifdef ENABLE_SYNC
 #ifdef DEBUG
     // this was only needed for the fetchingnodes case anyway?
     //for (auto* n = nodeByHandle(h); n; n = n->parent)
@@ -5872,7 +5871,6 @@ void MegaClient::triggerSync(NodeHandle h, bool recurse)
             it->second->setSyncAgain(false, true, recurse);
         }
     }
-#endif
 }
 
 #ifdef _WIN32

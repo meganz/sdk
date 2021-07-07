@@ -1145,8 +1145,10 @@ private:
     // close the local transfer cache
     void closetc(bool remove = false);
 
-    // avoid many ifdefs by testing inside
+#ifdef ENABLE_SYNC
+    // mark nodes as needing to be checked for sync actions
     void triggerSync(NodeHandle, bool recurse = false);
+#endif
 
     // server-client command processing
     bool sc_checkSequenceTag(const string& tag);
@@ -1957,7 +1959,9 @@ public:
         CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
         CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
         CodeCounter::ScopeStats recursiveSyncTime = { "recursiveSync" };
+#ifdef ENABLE_SYNC
         CodeCounter::ScopeStats computeSyncTripletsTime = { "computeSyncTriplets" };
+#endif
         CodeCounter::ScopeStats inferSyncTripletsTime = { "inferSyncTriplets" };
         CodeCounter::ScopeStats syncItemTime1 = { "syncItem1" };
         CodeCounter::ScopeStats syncItemTime2 = { "syncItem2" };

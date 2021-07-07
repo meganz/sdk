@@ -3034,6 +3034,7 @@ void exec_logFilenameAnomalies(autocomplete::ACState& s)
     client->mFilenameAnomalyReporter = std::move(reporter);
 }
 
+#ifdef ENABLE_SYNC
 void exec_syncoutput(autocomplete::ACState& s)
 {
     bool onOff = s.words[3].s == "on";
@@ -3067,6 +3068,7 @@ void exec_syncoutput(autocomplete::ACState& s)
         client->mDetailedSyncLogging = onOff;
     }
 }
+#endif
 
 MegaCLILogger gLogger;
 
