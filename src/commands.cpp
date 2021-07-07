@@ -485,7 +485,7 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
 
     cmd("g");
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
-    arg("g", 1);
+    arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
     arg("v", 2);  // version 2: server can supply details for cloudraid files
 
     if (drn->privateauth.size())
@@ -622,12 +622,18 @@ bool CommandDirectRead::procresult(Result r)
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, const byte* key, handle h, bool p, const char *privateauth, const char *publicauth, const char *chatauth)
+CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, unsigned keySize,
+                               handle h, bool p, const char *privateauth,
+                               const char *publicauth, const char *chatauth,
+                               bool singleUrl, Cb &&completion)
 {
     cmd("g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
-    arg("g", 1);
-    arg("v", 2);  // version 2: server can supply details for cloudraid files
+    arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
+    if (!singleUrl)
+    {
+        arg("v", 2);  // version 2: server can supply details for cloudraid files
+    }
 
     if (client->usehttps)
     {
@@ -649,52 +655,54 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, const b
         arg("cauth", chatauth);
     }
 
-    tslot = ctslot;
-    priv = p;
-    ph = h;
-
-    if (!tslot)
+    assert(key && "no key provided!");
+    if (key && keySize != SymmCipher::KEYLENGTH)
     {
-        memcpy(filekey, key, FILENODEKEYLENGTH);
+        assert (keySize <= FILENODEKEYLENGTH);
+        memcpy(filekey, key, keySize);
+        mFileKeyType = FILENODE;
     }
+    else if (key && keySize == SymmCipher::KEYLENGTH)
+    {
+        memcpy(filekey, key, SymmCipher::KEYLENGTH);
+        mFileKeyType = 1;
+    }
+
+    mCompletion = std::move(completion);
 }
 
 void CommandGetFile::cancel()
 {
     Command::cancel();
-    tslot = NULL;
+}
+
+
+void CommandGetFile::callFailedCompletion(const Error &e)
+{
+    assert(mCompletion);
+    if (mCompletion)
+    {
+        mCompletion(e, -1, -1, -1, 0, nullptr, nullptr, nullptr, {}, {});
+    }
 }
 
 // process file credentials
 bool CommandGetFile::procresult(Result r)
 {
-    if (tslot)
-    {
-        tslot->pendingcmd = NULL;
-    }
-
     if (r.wasErrorOrOK())
     {
         if (!canceled)
         {
-            if (tslot)
-            {
-                tslot->transfer->failed(r.errorOrOK(), *client->mTctableRequestCommitter);
-            }
-            else
-            {
-                client->app->checkfile_result(ph, r.errorOrOK());
-            }
+            callFailedCompletion(r.errorOrOK());
         }
         return true;
     }
 
-    const char* at = NULL;
+    const char* at = nullptr;
     Error e(API_EINTERNAL);
     m_off_t s = -1;
     dstime tl = 0;
-    int d = 0;
-    byte* buf;
+    std::unique_ptr<byte[]> buf;
     m_time_t ts = 0, tm = 0;
 
     // credentials relevant to a non-TransferSlot scenario (node query)
@@ -753,10 +761,6 @@ bool CommandGetFile::procresult(Result r)
                 s = client->json.getint();
                 break;
 
-            case 'd':
-                d = 1;
-                break;
-
             case MAKENAMEID2('t', 's'):
                 ts = client->json.getint();
                 break;
@@ -770,21 +774,7 @@ bool CommandGetFile::procresult(Result r)
                 break;
 
             case MAKENAMEID2('f', 'a'):
-                if (tslot)
-                {
-                    client->json.storeobject(&tslot->fileattrstring);
-                }
-                else
-                {
-                    client->json.storeobject(&fileattrstring);
-                }
-                break;
-
-            case MAKENAMEID3('p', 'f', 'a'):
-                if (tslot)
-                {
-                    tslot->fileattrsmutable = (int)client->json.getint();
-                }
+                client->json.storeobject(&fileattrstring);
                 break;
 
             case 'e':
@@ -796,30 +786,15 @@ bool CommandGetFile::procresult(Result r)
                 break;
 
             case EOO:
-                if (d || !at)
-                {
-                    e = at ? API_EBLOCKED : API_EINTERNAL;
-
-                    if (!canceled)
-                    {
-                        if (tslot)
-                        {
-                            tslot->transfer->failed(e, *client->mTctableRequestCommitter);
-                        }
-                        else
-                        {
-                            client->app->checkfile_result(ph, e);
-                        }
-                    }
-                    return true;
-                }
-                else
+            {
+                // defer code that steals the ips <move(tempips)> and stores them in the cache
+                // thus we can use them before going out of scope
+                std::shared_ptr<void> deferThis(nullptr, [this, &tempurls, &tempips](...)
                 {
                     // cache resolved URLs if received
                     if (tempurls.size() * 2 == tempips.size())
                     {
                         client->httpio->cacheresolvedurls(tempurls, move(tempips));
-                        tempips.clear(); // should never be needed, but can't harm either
                     }
                     else
                     {
@@ -827,160 +802,73 @@ bool CommandGetFile::procresult(Result r)
                         client->sendevent(99556, "Unpaired IPs received for URLs in `g` command");
                         LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
                     }
+                });
 
-                    // decrypt at and set filename
-                    SymmCipher key;
-                    const char* eos = strchr(at, '"');
-
-                    key.setkey(filekey, FILENODE);
-
-                    if ((buf = Node::decryptattr(tslot ? tslot->transfer->transfercipher() : &key,
-                                                 at, eos ? eos - at : strlen(at))))
-                    {
-                        JSON json;
-
-                        json.begin((char*)buf + 5);
-
-                        for (;;)
-                        {
-                            switch (json.getnameid())
-                            {
-                                case 'c':
-                                    if (!json.storeobject(&filefingerprint))
-                                    {
-                                        delete[] buf;
-
-                                        if (tslot)
-                                        {
-                                            tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
-                                            return true;
-                                        }
-
-                                        client->app->checkfile_result(ph, API_EINTERNAL);
-                                        return true;
-                                    }
-                                    break;
-
-                                case 'n':
-                                    if (!json.storeobject(&filenamestring))
-                                    {
-                                        delete[] buf;
-
-                                        if (tslot)
-                                        {
-                                            tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
-                                            return true;
-                                        }
-
-                                        client->app->checkfile_result(ph, API_EINTERNAL);
-                                        return true;
-                                    }
-                                    break;
-
-                                case EOO:
-                                    delete[] buf;
-
-                                    if (tslot)
-                                    {
-                                        if (s >= 0 && s != tslot->transfer->size)
-                                        {
-                                            tslot->transfer->size = s;
-                                            for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
-                                            {
-                                                (*it)->size = s;
-                                            }
-
-                                            if (priv)
-                                            {
-                                                Node *n = client->nodebyhandle(ph);
-                                                if (n)
-                                                {
-                                                    n->size = s;
-                                                    client->notifynode(n);
-                                                }
-                                            }
-
-                                            client->sendevent(99411, "Node size mismatch", 0);
-                                        }
-
-                                        tslot->starttime = tslot->lastdata = client->waiter->ds;
-
-                                        if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
-                                        {
-                                            tslot->transfer->tempurls = tempurls;
-                                            tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
-                                            tslot->progress();
-                                            return true;
-                                        }
-
-                                        if (e == API_EOVERQUOTA && tl <= 0)
-                                        {
-                                            // default retry interval
-                                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
-                                        }
-
-                                        tslot->transfer->failed(e, *client->mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
-                                        return true;
-                                    }
-                                    else
-                                    {
-                                        client->app->checkfile_result(ph, e, filekey, s, ts, tm,
-                                                                             &filenamestring,
-                                                                             &filefingerprint,
-                                                                             &fileattrstring);
-                                        return true;
-                                    }
-
-                                default:
-                                    if (!json.storeobject())
-                                    {
-                                        delete[] buf;
-
-                                        if (tslot)
-                                        {
-                                            tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
-                                            return true;
-                                        }
-                                        else
-                                        {
-                                            client->app->checkfile_result(ph, API_EINTERNAL);
-                                            return true;
-                                        }
-                                    }
-                            }
-                        }
-                    }
-
-                    if (canceled)
-                    {
-                        return true;
-                    }
-
-                    if (tslot)
-                    {
-                        tslot->transfer->failed(API_EKEY, *client->mTctableRequestCommitter);
-                        return true;
-                    }
-                    else
-                    {
-                        client->app->checkfile_result(ph, API_EKEY);
-                        return true;
-                    }
+                if (canceled) //do not proceed: SymmCipher may no longer exist
+                {
+                    return true;
                 }
 
+                if (!at)
+                {
+                    callFailedCompletion(API_EINTERNAL);
+                    return true;
+                }
+
+                // decrypt at and set filename
+                SymmCipher * cipherer = client->getRecycledTemporaryTransferCipher(filekey, mFileKeyType);
+                const char* eos = strchr(at, '"');
+                buf.reset(Node::decryptattr(cipherer, at, eos ? eos - at : strlen(at)));
+                if (!buf)
+                {
+                    callFailedCompletion(API_EKEY);
+                    return true;
+                }
+
+                // all good, lets parse the attribute string
+                JSON json;
+                json.begin((char*)buf.get() + 5);
+
+                for (;;)
+                {
+                    switch (json.getnameid())
+                    {
+                        case 'c':
+                            if (!json.storeobject(&filefingerprint))
+                            {
+                                callFailedCompletion(API_EINTERNAL);
+                                return true;
+                            }
+                            break;
+
+                        case 'n':
+                            if (!json.storeobject(&filenamestring))
+                            {
+                                callFailedCompletion(API_EINTERNAL);
+                                return true;
+                            }
+                            break;
+
+                        case EOO:
+                            { //succeded, call completion function!
+                                return mCompletion ? mCompletion(e, s, ts, tm, tl,
+                                            &filenamestring, &filefingerprint, &fileattrstring,
+                                            tempurls, tempips) : false;
+                            }
+
+                        default:
+                            if (!json.storeobject())
+                            {
+                                callFailedCompletion(API_EINTERNAL);
+                                return false;
+                            }
+                    }
+                }
+            }
             default:
                 if (!client->json.storeobject())
                 {
-                    if (tslot)
-                    {
-                        tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
-                        return false;
-                    }
-                    else
-                    {
-                        client->app->checkfile_result(ph, API_EINTERNAL);
-                        return false;
-                    }
+                    callFailedCompletion(API_EINTERNAL);
                 }
         }
     }

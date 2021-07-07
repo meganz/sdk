@@ -4519,6 +4519,25 @@ int MegaNodeListPrivate::size() const
     return s;
 }
 
+
+void MegaNodeListPrivate::addNode(std::unique_ptr<MegaNode> node)
+{
+    MegaNode** copyList = list;
+    s = s + 1;
+    list = new MegaNode*[s];
+    for (int i = 0; i < s - 1; ++i)
+    {
+        list[i] = copyList[i];
+    }
+
+    list[s - 1] = node.release();
+
+    if (copyList != NULL)
+    {
+        delete [] copyList;
+    }
+}
+
 void MegaNodeListPrivate::addNode(MegaNode *node)
 {
     MegaNode** copyList = list;
@@ -13371,208 +13390,6 @@ void MegaApiImpl::syncupdate_conflicts(bool conflicts)
     fireOnGlobalSyncStateChanged();
 }
 
-void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, const LocalPath& lp)
-{
-    string path = lp.toPath(*fsAccess);
-    LOG_debug << "Sync - local folder addition detected: " << path;
-    client->abortbackoff(false);
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FOLDER_ADITION);
-        event->setPath(path.c_str());
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, const LocalPath& lp)
-{
-    string path = lp.toPath(*fsAccess);
-    client->abortbackoff(false);
-
-    LOG_debug << "Sync - local folder deletion detected: " << path.c_str();
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FOLDER_DELETION);
-        event->setPath(path.c_str());
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, const LocalPath& lp)
-{
-    string path = lp.toPath(*fsAccess);
-    LOG_debug << "Sync - local file addition detected: " << path;
-    client->abortbackoff(false);
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_ADDITION);
-        event->setPath(path.c_str());
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, const LocalPath& lp)
-{
-    client->abortbackoff(false);
-
-    string path = lp.toPath(*fsAccess);
-    LOG_debug << "Sync - local file deletion detected: " << path.c_str();
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_DELETION);
-        event->setPath(path.c_str());
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_local_file_change(Sync *sync, const LocalPath& lp)
-{
-    string path = lp.toPath(*fsAccess);
-    LOG_debug << "Sync - local file change detected: " << path;
-    client->abortbackoff(false);
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_CHANGED);
-        event->setPath(path.c_str());
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_local_move(Sync *sync, const LocalPath& oldPath, const LocalPath& newPath)
-{
-    client->abortbackoff(false);
-
-    string path = oldPath.toPath(*fsAccess);
-    string path2 = newPath.toPath(*fsAccess);
-    LOG_debug << "Sync - local rename/move " << path.c_str() << " -> " << path2.c_str();
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_MOVE);
-        event->setPath(path.c_str());
-        event->setNewPath(path2.c_str());
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_get(Sync *sync, Node* node, const char *path)
-{
-    LOG_debug << "Sync - requesting file " << path;
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_FILE_GET);
-        event->setNodeHandle(node->nodehandle);
-        event->setPath(path);
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_put(Sync *sync, const char *path)
-{
-    LOG_debug << "Sync - sending file " << path;
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_FILE_PUT);
-        event->setPath(path);
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_remote_file_addition(Sync *sync, Node *n)
-{
-    LOG_debug << "Sync - remote file addition detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-    client->abortbackoff(false);
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FILE_ADDITION);
-        event->setNodeHandle(n->nodehandle);
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_remote_file_deletion(Sync *sync, Node *n)
-{
-    LOG_debug << "Sync - remote file deletion detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-    client->abortbackoff(false);
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FILE_DELETION);
-        event->setNodeHandle(n->nodehandle);
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_remote_folder_addition(Sync *sync, Node *n)
-{
-    LOG_debug << "Sync - remote folder addition detected " << n->displayname();
-    client->abortbackoff(false);
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FOLDER_ADDITION);
-        event->setNodeHandle(n->nodehandle);
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_remote_folder_deletion(Sync *sync, Node *n)
-{
-    LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
-    client->abortbackoff(false);
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FOLDER_DELETION);
-        event->setNodeHandle(n->nodehandle);
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_remote_copy(Sync *, const char *name)
-{
-    LOG_debug << "Sync - creating remote file " << name << " by copying existing remote file";
-    client->abortbackoff(false);
-}
-
-void MegaApiImpl::syncupdate_remote_move(Sync *sync, Node *n, Node *prevparent)
-{
-    LOG_debug << "Sync - remote move " << n->displayname() <<
-                 " from " << (prevparent ? prevparent->displayname() : "?") <<
-                 " to " << (n->parent ? n->parent->displayname() : "?");
-    client->abortbackoff(false);
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_MOVE);
-        event->setNodeHandle(n->nodehandle);
-        event->setPrevParent(prevparent ? prevparent->nodehandle : UNDEF);
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
-void MegaApiImpl::syncupdate_remote_rename(Sync *sync, Node *n, const char *prevname)
-{
-    LOG_debug << "Sync - remote rename from " << prevname << " to " << n->displayname();
-    client->abortbackoff(false);
-
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
-    {
-        MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_RENAME);
-        event->setNodeHandle(n->nodehandle);
-        event->setPrevName(prevname);
-        fireOnSyncEvent(megaSync, event);
-    }
-}
-
 void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 {
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(l->sync->getConfig().getBackupId()))
@@ -14028,6 +13845,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
         else
         {
             transfer->setState(MegaTransfer::STATE_FAILED);
+            transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(NodeHandle().set6byte(transfer->getParentHandle())));
         }
 
         DBTableTransactionCommitter committer(client->tctable);
@@ -16212,52 +16030,6 @@ void MegaApiImpl::setkeypair_result(error)
 
 }
 
-void MegaApiImpl::checkfile_result(handle h, const Error &e)
-{
-    if(e)
-    {
-        for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
-        {
-            MegaTransferPrivate *transfer = iter->second;
-            if (transfer->getNodeHandle() == h)
-            {
-                auto megaError = make_unique<MegaErrorPrivate>(e);
-                transfer->setLastError(megaError.get());
-
-                if (e == API_ETOOMANY && e.hasExtraInfo())
-                {
-                    DBTableTransactionCommitter committer(client->tctable);
-                    transfer->setState(MegaTransfer::STATE_FAILED);
-                    fireOnTransferFinish(transfer, std::move(megaError), committer);
-                }
-                else
-                {
-                    transfer->setState(MegaTransfer::STATE_RETRYING);
-                    fireOnTransferTemporaryError(transfer, std::move(megaError));
-                }
-            }
-        }
-    }
-}
-
-void MegaApiImpl::checkfile_result(handle h, error e, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*)
-{
-    if(e)
-    {
-        for(std::map<int, MegaTransferPrivate *>::iterator iter = transferMap.begin(); iter != transferMap.end(); iter++)
-        {
-            MegaTransferPrivate *transfer = iter->second;
-            if (transfer->getNodeHandle() == h)
-            {
-                auto megaError = make_unique<MegaErrorPrivate>(e);
-                transfer->setLastError(megaError.get());
-                transfer->setState(MegaTransfer::STATE_RETRYING);
-                fireOnTransferTemporaryError(transfer, std::move(megaError));
-            }
-        }
-    }
-}
-
 void MegaApiImpl::getbanners_result(error e)
 {
     auto it = requestMap.find(client->restag);
@@ -16831,18 +16603,6 @@ void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
         (*it++)->onSyncStateChanged(api, sync);
     }
 }
-
-void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
-{
-    assert(sync->getBackupId() != INVALID_HANDLE);
-    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
-    {
-        (*it++)->onSyncEvent(api, sync, event);
-    }
-
-    delete event;
-}
-
 
 void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
 {
@@ -24771,78 +24531,6 @@ void MegaSyncListPrivate::addSync(MegaSync *sync)
         delete [] copyList;
     }
 }
-
-MegaSyncEventPrivate::MegaSyncEventPrivate(int type)
-    : type(type)
-{
-}
-
-MegaSyncEvent *MegaSyncEventPrivate::copy()
-{
-    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(type);
-    event->setPath(this->path.get());
-    event->setNodeHandle(this->nodeHandle);
-    event->setNewPath(this->newPath.get());
-    event->setPrevName(this->prevName.get());
-    event->setPrevParent(this->prevParent);
-    return event;
-}
-
-int MegaSyncEventPrivate::getType() const
-{
-    return type;
-}
-
-const char *MegaSyncEventPrivate::getPath() const
-{
-    return path.get();
-}
-
-MegaHandle MegaSyncEventPrivate::getNodeHandle() const
-{
-    return nodeHandle;
-}
-
-const char *MegaSyncEventPrivate::getNewPath() const
-{
-    return newPath.get();
-}
-
-const char *MegaSyncEventPrivate::getPrevName() const
-{
-    return prevName.get();
-}
-
-MegaHandle MegaSyncEventPrivate::getPrevParent() const
-{
-    return prevParent;
-}
-
-void MegaSyncEventPrivate::setPath(const char *path)
-{
-    this->path.reset(MegaApi::strdup(path));
-}
-
-void MegaSyncEventPrivate::setNodeHandle(MegaHandle nodeHandle)
-{
-    this->nodeHandle = nodeHandle;
-}
-
-void MegaSyncEventPrivate::setNewPath(const char *newPath)
-{
-    this->newPath.reset(MegaApi::strdup(newPath));
-}
-
-void MegaSyncEventPrivate::setPrevName(const char *prevName)
-{
-    this->prevName.reset(MegaApi::strdup(prevName));
-}
-
-void MegaSyncEventPrivate::setPrevParent(MegaHandle prevParent)
-{
-    this->prevParent = prevParent;
-}
-
 #endif
 
 

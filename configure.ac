@@ -337,6 +337,16 @@ if test "x$enable_megaapi" != "xno"; then
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "x$enable_megaapi" = "xyes"])
 
+# MEGA API RPC
+AC_ARG_ENABLE(megaapirpc,
+    AS_HELP_STRING([--disable-megaapirpc], [disable MEGA API RPC support]),
+    [enable_megaapirpc=${enableval}],
+    [enable_megaapirpc=no])
+if test "x$enable_megaapirpc" != "xno"; then
+    [enable_megaapirpc=yes]
+    AC_DEFINE(HAVE_MEGAAPI_RPC, 1, [Defined if MEGA API enabled])
+fi
+
 # Rotative Performance Logger
 AC_ARG_ENABLE(rotative-performance-logger,
     AS_HELP_STRING([--enable-rotative-performance-logger], [enable Rotative Performance Logger [default=no]]),
@@ -2182,6 +2192,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   sync subsystem:   $enable_sync
   chat:             $enable_chat
   MEGA API          $enable_megaapi
+  MEGA API RPC      $enable_megaapirpc
   example apps:     $enable_examples
   Rot Perf Logger:  $enable_rotative_performance_logger
   Drive Notif:      $enable_drive_notifications

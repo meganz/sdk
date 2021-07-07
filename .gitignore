@@ -7,6 +7,9 @@
 *.lo
 *.pyc
 
+#Compiled Headers
+*.gch
+
 # Compiled Dynamic libraries
 *.so
 *.dylib
@@ -98,6 +101,11 @@ Release
 /contrib/cmake/build
 /contrib/cmake/build3rdParty/build
 megaclient_statecache*
+
+# Building stuff
+build-*Debug
+build-*Release
+*.pro.user*
 
 # Mega SDK runtime
 *.db-journal

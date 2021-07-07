@@ -380,11 +380,6 @@ void DemoApp::transfer_prepare(Transfer* t)
 }
 
 #ifdef ENABLE_SYNC
-static void syncstat(Sync* sync)
-{
-    cout << ", " << sync->localnodes[FILENODE] << " file(s) and "
-         << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
-}
 
 void DemoApp::syncupdate_stateconfig(handle backupId)
 {
@@ -474,60 +469,6 @@ bool syncout_remote_change_detection = true;
 bool syncout_transfer_activity = true;
 bool syncout_folder_sync_state = false;
 
-// sync update callbacks are for informational purposes only and must not change or delete the sync itself
-void DemoApp::syncupdate_local_folder_addition(Sync* sync, const LocalPath& path)
-{
-    if (syncout_local_change_detection)
-    {
-        cout << "Sync - local folder addition detected: " << path.toPath(*client->fsaccess);
-        syncstat(sync);
-    }
-}
-
-void DemoApp::syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path)
-{
-    if (syncout_local_change_detection)
-    {
-        cout << "Sync - local folder deletion detected: " << path.toPath(*client->fsaccess);
-        syncstat(sync);
-    }
-}
-
-void DemoApp::syncupdate_local_file_addition(Sync* sync, const LocalPath& path)
-{
-    if (syncout_local_change_detection)
-    {
-        cout << "Sync - local file addition detected: " << path.toPath(*client->fsaccess);
-        syncstat(sync);
-    }
-}
-
-void DemoApp::syncupdate_local_file_deletion(Sync* sync, const LocalPath& path)
-{
-    if (syncout_local_change_detection)
-    {
-        cout << "Sync - local file deletion detected: " << path.toPath(*client->fsaccess);
-        syncstat(sync);
-    }
-}
-
-void DemoApp::syncupdate_local_file_change(Sync* sync, const LocalPath& path)
-{
-    if (syncout_local_change_detection)
-    {
-        cout << "Sync - local file change detected: " << path.toPath(*client->fsaccess);
-        syncstat(sync);
-    }
-}
-
-void DemoApp::syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath)
-{
-    if (syncout_local_change_detection)
-    {
-        cout << "Sync - local rename/move " << oldPath.toPath(*client->fsaccess) << " -> " << newPath.toPath(*client->fsaccess) << endl;
-    }
-}
-
 void DemoApp::syncupdate_local_lockretry(bool locked)
 {
     if (locked)
@@ -537,79 +478,6 @@ void DemoApp::syncupdate_local_lockretry(bool locked)
     else
     {
         cout << "Sync - local filesystem lock issue resolved, continuing..." << endl;
-    }
-}
-
-void DemoApp::syncupdate_remote_move(Sync *, Node *n, Node *prevparent)
-{
-    if (syncout_remote_change_detection)
-    {
-        cout << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
-            " -> " << (n->parent ? n->parent->displayname() : "?") << endl;
-    }
-}
-
-void DemoApp::syncupdate_remote_rename(Sync *, Node *n, const char *prevname)
-{
-    if (syncout_remote_change_detection)
-    {
-        cout << "Sync - remote rename " << prevname << " -> " << n->displayname() << endl;
-    }
-}
-
-void DemoApp::syncupdate_remote_folder_addition(Sync *, Node* n)
-{
-    if (syncout_remote_change_detection)
-    {
-        cout << "Sync - remote folder addition detected " << n->displayname() << endl;
-    }
-}
-
-void DemoApp::syncupdate_remote_file_addition(Sync *, Node* n)
-{
-    if (syncout_remote_change_detection)
-    {
-        cout << "Sync - remote file addition detected " << n->displayname() << endl;
-    }
-}
-
-void DemoApp::syncupdate_remote_folder_deletion(Sync *, Node* n)
-{
-    if (syncout_remote_change_detection)
-    {
-        cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
-    }
-}
-
-void DemoApp::syncupdate_remote_file_deletion(Sync *, Node* n)
-{
-    if (syncout_remote_change_detection)
-    {
-        cout << "Sync - remote file deletion detected " << n->displayname() << endl;
-    }
-}
-
-void DemoApp::syncupdate_get(Sync*, Node *, const char* path)
-{
-    if (syncout_transfer_activity)
-    {
-        cout << "Sync - requesting file " << path << endl;
-    }
-}
-
-void DemoApp::syncupdate_put(Sync*, const char* path)
-{
-    if (syncout_transfer_activity)
-    {
-        cout << "Sync - sending file " << path << endl;
-    }
-}
-
-void DemoApp::syncupdate_remote_copy(Sync*, const char* name)
-{
-    if (syncout_transfer_activity)
-    {
-        cout << "Sync - creating remote file " << name << " by copying existing remote file" << endl;
     }
 }
 
@@ -4234,7 +4102,56 @@ void exec_get(autocomplete::ACState& s)
         if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, false) == API_OK)
         {
             cout << "Checking link..." << endl;
-            client->openfilelink(ph, key, 0);
+
+            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
+                [key, ph](const Error &e, m_off_t size, m_time_t ts, m_time_t tm, dstime /*timeleft*/,
+                   std::string* filename, std::string* fingerprint, std::string* fileattrstring,
+                   const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
+                {
+                    if (!fingerprint) // failed processing the command
+                    {
+                        if (e == API_ETOOMANY && e.hasExtraInfo())
+                        {
+                             cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e) << endl;
+                        }
+                        else
+                        {
+                            cout << "Link check failed: " << errorstring(e) << endl;
+                        }
+                        return true;
+                    }
+
+                    cout << "Name: " << *filename << ", size: " << size;
+
+                    if (fingerprint->size())
+                    {
+                        cout << ", fingerprint available";
+                    }
+
+                    if (fileattrstring->size())
+                    {
+                        cout << ", has attributes";
+                    }
+
+                    cout << endl;
+
+                    if (e)
+                    {
+                        cout << "Not available: " << errorstring(e) << endl;
+                    }
+                    else
+                    {
+                        cout << "Initiating download..." << endl;
+
+                        DBTableTransactionCommitter committer(client->tctable);
+                        AppFileGet* f = new AppFileGet(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+                        client->startxfer(GET, f, committer);
+                    }
+
+                    return true;
+                }));
+
             return;
         }
 
@@ -7868,50 +7785,6 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     publiclink.clear();
 }
 
-void DemoApp::checkfile_result(handle /*h*/, const Error& e)
-{
-    if (e == API_ETOOMANY && e.hasExtraInfo())
-    {
-         cout << "Link check failed: " << getExtraInfoErrorString(e) << endl;
-    }
-    else
-    {
-        cout << "Link check failed: " << errorstring(e) << endl;
-    }
-}
-
-void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t /*ts*/, m_time_t tm, string* filename,
-                               string* fingerprint, string* fileattrstring)
-{
-    cout << "Name: " << *filename << ", size: " << size;
-
-    if (fingerprint->size())
-    {
-        cout << ", fingerprint available";
-    }
-
-    if (fileattrstring->size())
-    {
-        cout << ", has attributes";
-    }
-
-    cout << endl;
-
-    if (e)
-    {
-        cout << "Not available: " << errorstring(e) << endl;
-    }
-    else
-    {
-        cout << "Initiating download..." << endl;
-
-        DBTableTransactionCommitter committer(client->tctable);
-        AppFileGet* f = new AppFileGet(NULL, NodeHandle().set6byte(h), filekey, size, tm, filename, fingerprint);
-        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-        client->startxfer(GET, f, committer);
-    }
-}
-
 bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* /*appdata*/)
 {
     // Improvement: is there a way to have different pread_data receivers for
@@ -8766,7 +8639,9 @@ int main()
     delete console;
     startDir.reset();
 
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
     delete CurlHttpIO::sslMutexes;
+#endif
 
 #if defined(_WIN32) && defined(_DEBUG)
 

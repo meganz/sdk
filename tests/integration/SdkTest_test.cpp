@@ -5990,11 +5990,6 @@ struct SyncListener : MegaListener
         //out() << "onSyncFileStateChanged " << sync << newState;
     }
 
-    void onSyncEvent(MegaApi* api, MegaSync* sync, MegaSyncEvent* event) override
-    {
-        out() << "onSyncEvent " << toHandle(sync->getBackupId());
-    }
-
     void onSyncAdded(MegaApi* api, MegaSync* sync, int additionState) override
     {
         out() << "onSyncAdded " << toHandle(sync->getBackupId());
