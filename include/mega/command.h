@@ -547,7 +547,7 @@ public:
     void cancel() override;
     bool procresult(Result) override;
 
-    CommandGetFile(MegaClient *client, const byte* key, unsigned keySize,
+    CommandGetFile(MegaClient *client, const byte* key, size_t keySize,
                        handle h, bool p, const char *privateauth = nullptr,
                        const char *publicauth = nullptr, const char *chatauth = nullptr,
                        bool singleUrl = false, Cb &&completion = nullptr);

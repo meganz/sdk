@@ -2427,6 +2427,11 @@ void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *liste
     pImpl->getPublicNode(megaFileLink, listener);
 }
 
+void MegaApi::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener)
+{
+    pImpl->getDownloadUrl(node, singleUrl, listener);
+}
+
 const char *MegaApi::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
 {
     return pImpl->buildPublicLink(publicHandle, key, isFolder);

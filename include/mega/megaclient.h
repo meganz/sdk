@@ -411,7 +411,7 @@ public:
     error folderaccess(const char*folderlink, const char* authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
-    void openfilelink(handle ph, const byte *key, int op);
+    void openfilelink(handle ph, const byte *key);
 
     // decrypt password-protected public link
     // the caller takes the ownership of the returned value in decryptedLink parameter
@@ -1792,13 +1792,14 @@ public:
     // hash password
     error pw_key(const char*, byte*) const;
 
-    // Since it's quite expensive to create a SymmCipher, these are provided to use for quick operations - just set the key and use.
-    SymmCipher tmpnodecipher;
-    SymmCipher tmptransfercipher;
-
     // returns a pointer to tmptransfercipher setting its key to the one provided
-    // tmptransfercipher key will change: to be used right away: this is not a dedicated SymmCipher for this transfer!
+    // tmptransfercipher key will change: to be used right away: this is not a dedicated SymmCipher for the transfer!
     SymmCipher *getRecycledTemporaryTransferCipher(const byte *key, int type = 1);
+
+    // returns a pointer to tmpnodecipher setting its key to the one provided
+    // tmpnodecipher key will change: to be used right away: this is not a dedicated SymmCipher for the node!
+    SymmCipher *getRecycledTemporaryNodeCipher(const string *key);
+    SymmCipher *getRecycledTemporaryNodeCipher(const byte *key);
 
     // request a link to recover account
     void getrecoverylink(const char *email, bool hasMasterkey);
@@ -1934,6 +1935,13 @@ public:
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
     unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
+
+private:
+    // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
+    SymmCipher tmpnodecipher;
+
+    // Since it's quite expensive to create a SymmCipher, this is provided to use for quick operation - just set the key and use.
+    SymmCipher tmptransfercipher;
 };
 } // namespace
 

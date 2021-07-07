@@ -246,8 +246,8 @@ TransferSlot::~TransferSlot()
                 {
                     if (!outputPiece->finalized)
                     {
-                        transfer->client->tmptransfercipher.setkey(transfer->transferkey.data());
-                        outputPiece->finalize(true, transfer->size, transfer->ctriv, &transfer->client->tmptransfercipher, &transfer->chunkmacs);
+                        SymmCipher *cipher = transfer->client->getRecycledTemporaryTransferCipher(transfer->transferkey.data());
+                        outputPiece->finalize(true, transfer->size, transfer->ctriv, cipher, &transfer->chunkmacs);
                     }
                     anyData = true;
                     if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))

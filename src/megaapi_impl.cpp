@@ -1058,8 +1058,7 @@ void MegaBackgroundMediaUploadPrivate::setCoordinates(double lat, double lon, bo
 
 SymmCipher* MegaBackgroundMediaUploadPrivate::nodecipher(MegaClient* client)
 {
-    client->tmpnodecipher.setkey(filekey);
-    return &client->tmpnodecipher;
+    return client->getRecycledTemporaryNodeCipher(filekey);
 }
 
 MegaBackgroundMediaUploadPrivate::~MegaBackgroundMediaUploadPrivate()
@@ -4069,6 +4068,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
         case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
+        case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
     }
     return "UNKNOWN";
 }
@@ -6718,6 +6718,15 @@ void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *l
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PUBLIC_NODE, listener);
     request->setLink(megaFileLink);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_DOWNLOAD_URLS, listener);
+    request->setFlag(singleUrl);
+    if(node) request->setNodeHandle(node->getHandle());
     requestQueue.push(request);
     waiter->notify();
 }
@@ -19438,13 +19447,60 @@ void MegaApiImpl::sendPendingRequests()
             e = client->parsepubliclink(megaFileLink, ph, key, false);
             if (e == API_OK)
             {
-                client->openfilelink(ph, key, 1);
+                client->openfilelink(ph, key);
             }
             else if (e == API_EINCOMPLETE)  // no key provided, check only the existence of the node
             {
-                client->openfilelink(ph, nullptr, 1);
+                client->openfilelink(ph, nullptr);
                 e = API_OK;
             }
+            break;
+        }
+        case MegaRequest::TYPE_GET_DOWNLOAD_URLS:
+        {
+            Node *node = client->nodebyhandle(request->getNodeHandle());
+            bool singleUrl = request->getFlag();
+            if(!node)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandGetFile(client, (const byte*)node->nodekey().data(), node->nodekey().size(),
+                node->nodehandle, true, nullptr, nullptr, nullptr, singleUrl,
+                [this, request](const Error &e, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/, dstime /*timeleft*/,
+                std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
+                const std::vector<std::string> &urls, const std::vector<std::string> &ips)
+                {
+                    if (e == API_OK && urls.size() && ips.size())
+                    {
+                        string surls, sipsv4, sipsv6;
+
+                        auto delimFields=";";
+                        for (auto &u : urls)
+                        {
+                            if (!surls.empty()) surls.append(delimFields);
+                            surls.append(u);
+                        }
+                        bool ipv4 = true;
+                        for (auto &ip : ips)
+                        {
+                            auto &w = ipv4 ? sipsv4 : sipsv6;
+                            if (!w.empty()) w.append(delimFields);
+                            w.append(ip);
+                            ipv4 = !ipv4;
+                        }
+
+                        request->setName(surls.c_str());
+                        request->setLink(sipsv4.c_str());
+                        request->setText(sipsv6.c_str());
+                    }
+
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    return true;
+                })
+            );
+
             break;
         }
         case MegaRequest::TYPE_PASSWORD_LINK:
