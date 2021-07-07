@@ -250,22 +250,10 @@ void SdkTest::TearDown()
     out() << "Test done, teardown starts";
     // do some cleanup
 
-    for (size_t i = 0; i < megaApi.size(); ++i)
-    {
-        if (gResumeSessions && megaApi[i] && (gSessionIDs[i].empty() || gSessionIDs[i] == "invalid"))
-        {
-            if (auto p = unique_ptr<char[]>(megaApi[i]->dumpSession()))
-            {
-                gSessionIDs[i] = p.get();
-            }
-        }
-    }
-
     gTestingInvalidArgs = false;
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
 
-    out() << "Cleaning up account";
     Cleanup();
 
     releaseMegaApi(1);
@@ -279,6 +267,8 @@ void SdkTest::TearDown()
 
 void SdkTest::Cleanup()
 {
+    out() << "Cleaning up accounts";
+
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
     deleteFile(PUBLICFILE);
@@ -317,14 +307,26 @@ void SdkTest::Cleanup()
         {
             removeContact(ul->get(i)->getEmail());
         }
+    }
 
+    for (auto nApi = unsigned(megaApi.size()); nApi--; ) if (megaApi[nApi])
+    {
         // Remove pending contact requests
-        std::unique_ptr<MegaContactRequestList> crl{megaApi[0]->getOutgoingContactRequests()};
+
+        std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
         for (int i = 0; i < crl->size(); i++)
         {
             MegaContactRequest *cr = crl->get(i);
-            megaApi[0]->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
+            synchronousInviteContact(nApi, cr->getTargetEmail(), "Test cleanup removing outgoing contact request", MegaContactRequest::INVITE_ACTION_DELETE);
         }
+
+        crl.reset(megaApi[nApi]->getIncomingContactRequests());
+        for (int i = 0; i < crl->size(); i++)
+        {
+            MegaContactRequest *cr = crl->get(i);
+            synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
+        }
+
     }
 }
 
@@ -720,7 +722,12 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT] = false;
+#ifdef ENABLE_SYNC
     mApi[apiIndex].megaApi->logout(keepSyncConfigs, this);
+#else
+    mApi[apiIndex].megaApi->logout(this);
+#endif
+    gSessionIDs[apiIndex] = "invalid";
 
     EXPECT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT], timeout) )
             << "Logout failed after " << timeout  << " seconds";
@@ -898,6 +905,9 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         mApi[index].megaApi = megaApi[index].get();
 
+        // helps with restoring logging after tests that fiddle with log level
+        mApi[index].megaApi->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+
         megaApi[index]->setLoggingName(to_string(index).c_str());
         megaApi[index]->addListener(this);    // TODO: really should be per api
 
@@ -920,6 +930,16 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         auto loginResult = trackers[index]->waitForResult();
         EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for account " << index;
         if (loginResult != API_OK) anyLoginFailed = true;
+        else {
+            gSessionIDs[index] = "invalid"; // default
+            if (gResumeSessions && megaApi[index]->isLoggedIn() == FULLACCOUNT)
+            {
+                if (auto p = unique_ptr<char[]>(megaApi[index]->dumpSession()))
+                {
+                    gSessionIDs[index] = p.get();
+                }
+            }
+        }
     }
     ASSERT_FALSE(anyLoginFailed);
 
@@ -941,7 +961,6 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     ASSERT_FALSE(anyFetchnodesFailed);
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << "Cleaning up account 0";
     Cleanup();
     out() << "Test setup done, test starts";
 }
@@ -1232,6 +1251,8 @@ TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
     ASSERT_NO_FATAL_FAILURE(locallogout());
     synchronousResumeCreateAccountEphemeralPlusPlus(0, sid.c_str());
     ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Account creation failed after resume (error: " << mApi[0].lastError << ")";
+
+    gSessionIDs[0] = "invalid";
 }
 
 bool veryclose(double a, double b)
@@ -1319,6 +1340,7 @@ TEST_F(SdkTest, SdkTestKillSession)
 
     // Log out the primary account.
     logout(0, false, maxTimeout);
+    gSessionIDs[0] = "invalid";
 }
 
 /**
@@ -4827,7 +4849,6 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // create My Backups folder
     syncTestMyBackupsRemoteFolder(0);
-    MegaHandle mh = mApi[0].h;
 
     // look for Device Name attr
     string deviceName;
@@ -4851,6 +4872,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
 #ifdef ENABLE_SYNC
+    MegaHandle mh = mApi[0].h;
+
     // Create a test root directory
     fs::path localBasePath = makeNewTestRoot();
 
@@ -4965,6 +4988,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
     // getMiscFlags() -- not logged in
     logout(0, false, maxTimeout);
+    gSessionIDs[0] = "invalid";
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 }
@@ -5125,6 +5149,7 @@ TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 }
 
 
+#ifdef ENABLE_SYNC
 TEST_F(SdkTest, SdkExternalDriveFolder)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -5187,6 +5212,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     err = synchronousGetDriveName(0, pathToDriveStr.c_str());
     ASSERT_EQ(MegaError::API_ENOENT, err) << "getDriveName not failed as it should (error: " << err << ")";
 }
+#endif
 
 void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 {
@@ -5521,7 +5547,13 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     // logout while the upload (which consists of many transfers) is ongoing
     gSessionIDs[0].clear();
+#ifdef ENABLE_SYNC
     ASSERT_EQ(API_OK, doRequestLogout(0, false));
+#else
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+#endif
+    gSessionIDs[0] = "invalid";
+
     int result = uploadListener->waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
@@ -5561,7 +5593,12 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 
     // logout while the download (which consists of many transfers) is ongoing
 
+#ifdef ENABLE_SYNC
     ASSERT_EQ(API_OK, doRequestLogout(0, false));
+#else
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+#endif
+    gSessionIDs[0] = "invalid";
 
     int result = downloadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
@@ -5839,11 +5876,6 @@ struct SyncListener : MegaListener
     {
         // probably too frequent to output
         //out() << "onSyncFileStateChanged " << sync << newState;
-    }
-
-    void onSyncEvent(MegaApi* api, MegaSync* sync, MegaSyncEvent* event) override
-    {
-        out() << "onSyncEvent " << toHandle(sync->getBackupId());
     }
 
     void onSyncAdded(MegaApi* api, MegaSync* sync, int additionState) override
@@ -6386,6 +6418,7 @@ TEST_F(SdkTest, SyncPersistence)
 
     // Check if a logout with keepSyncsAfterLogout keeps the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, true, maxTimeout));
+    gSessionIDs[0] = "invalid";
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
@@ -6395,6 +6428,7 @@ TEST_F(SdkTest, SyncPersistence)
 
     // Check if a logout without keepSyncsAfterLogout doesn't keep the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, false, maxTimeout));
+    gSessionIDs[0] = "invalid";
     trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
@@ -6454,7 +6488,7 @@ TEST_F(SdkTest, SyncPaths)
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
 
-    LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced.";
+    LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced: " << filePath.u8string();
     createFile(filePath.u8string(), false);
     std::unique_ptr<MegaNode> remoteNode;
     WaitFor([this, &remoteNode, &remoteBaseNode, fileNameStr]() -> bool
@@ -6774,7 +6808,6 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << "Cleaning up account 0";
     Cleanup();
 }
 
@@ -6867,6 +6900,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     }
 
     ASSERT_NO_FATAL_FAILURE( logout(0, false, maxTimeout) );
+    gSessionIDs[0] = "invalid";
 
     // create apis to exported folders
     for (unsigned index = 0 ; index < howMany; index++ )
@@ -6959,7 +6993,6 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << logTime() << "Cleaning up account 0";
     Cleanup();
 }
 

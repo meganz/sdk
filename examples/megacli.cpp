@@ -24,6 +24,11 @@
 #include <fstream>
 #include <bitset>
 
+#if defined(_WIN32) && defined(_DEBUG)
+// so we can delete a secret internal CrytpoPP singleton
+#include <cryptopp\osrng.h>
+#endif
+
 #define USE_VARARGS
 #define PREFER_STDARG
 
@@ -374,11 +379,6 @@ void DemoApp::transfer_prepare(Transfer* t)
 }
 
 #ifdef ENABLE_SYNC
-static void syncstat(Sync* sync)
-{
-    cout << ", local data in this sync: " << sync->localbytes << " byte(s) in " << sync->localnodes[FILENODE]
-         << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
-}
 
 void DemoApp::syncupdate_stateconfig(handle backupId)
 {
@@ -426,42 +426,6 @@ void DemoApp::syncupdate_scanning(bool active)
     }
 }
 
-// sync update callbacks are for informational purposes only and must not change or delete the sync itself
-void DemoApp::syncupdate_local_folder_addition(Sync* sync, const LocalPath& path)
-{
-    cout << "Sync - local folder addition detected: " << path.toPath(*client->fsaccess);
-    syncstat(sync);
-}
-
-void DemoApp::syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path)
-{
-    cout << "Sync - local folder deletion detected: " << path.toPath(*client->fsaccess);
-    syncstat(sync);
-}
-
-void DemoApp::syncupdate_local_file_addition(Sync* sync, const LocalPath& path)
-{
-    cout << "Sync - local file addition detected: " << path.toPath(*client->fsaccess);
-    syncstat(sync);
-}
-
-void DemoApp::syncupdate_local_file_deletion(Sync* sync, const LocalPath& path)
-{
-    cout << "Sync - local file deletion detected: " << path.toPath(*client->fsaccess);
-    syncstat(sync);
-}
-
-void DemoApp::syncupdate_local_file_change(Sync* sync, const LocalPath& path)
-{
-    cout << "Sync - local file change detected: " << path.toPath(*client->fsaccess);
-    syncstat(sync);
-}
-
-void DemoApp::syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath)
-{
-    cout << "Sync - local rename/move " << oldPath.toPath(*client->fsaccess) << " -> " << newPath.toPath(*client->fsaccess) << endl;
-}
-
 void DemoApp::syncupdate_local_lockretry(bool locked)
 {
     if (locked)
@@ -472,52 +436,6 @@ void DemoApp::syncupdate_local_lockretry(bool locked)
     {
         cout << "Sync - local filesystem lock issue resolved, continuing..." << endl;
     }
-}
-
-void DemoApp::syncupdate_remote_move(Sync *, Node *n, Node *prevparent)
-{
-    cout << "Sync - remote move " << n->displayname() << ": " << (prevparent ? prevparent->displayname() : "?") <<
-            " -> " << (n->parent ? n->parent->displayname() : "?") << endl;
-}
-
-void DemoApp::syncupdate_remote_rename(Sync *, Node *n, const char *prevname)
-{
-    cout << "Sync - remote rename " << prevname << " -> " <<  n->displayname() << endl;
-}
-
-void DemoApp::syncupdate_remote_folder_addition(Sync *, Node* n)
-{
-    cout << "Sync - remote folder addition detected " << n->displayname() << endl;
-}
-
-void DemoApp::syncupdate_remote_file_addition(Sync *, Node* n)
-{
-    cout << "Sync - remote file addition detected " << n->displayname() << endl;
-}
-
-void DemoApp::syncupdate_remote_folder_deletion(Sync *, Node* n)
-{
-    cout << "Sync - remote folder deletion detected " << n->displayname() << endl;
-}
-
-void DemoApp::syncupdate_remote_file_deletion(Sync *, Node* n)
-{
-    cout << "Sync - remote file deletion detected " << n->displayname() << endl;
-}
-
-void DemoApp::syncupdate_get(Sync*, Node *, const char* path)
-{
-    cout << "Sync - requesting file " << path << endl;
-}
-
-void DemoApp::syncupdate_put(Sync*, const char* path)
-{
-    cout << "Sync - sending file " << path << endl;
-}
-
-void DemoApp::syncupdate_remote_copy(Sync*, const char* name)
-{
-    cout << "Sync - creating remote file " << name << " by copying existing remote file" << endl;
 }
 
 static const char* treestatename(treestate_t ts)
@@ -1284,7 +1202,12 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
         for (it=keys->begin(); it != keys->end(); it++)
         {
             key = (*it).empty() ? "(no key)" : *it;
-            value = tlv->get(*it);
+            if (!tlv->get(*it, value) || value.empty())
+            {
+                cout << "\t" << key << "\t" << "(no value)" << endl;
+                continue;
+            }
+
             valuelen = unsigned(value.length());
 
             buf = new char[valuelen * 4 / 3 + 4];
@@ -1380,7 +1303,7 @@ static AccountDetails account;
 static NodeHandle cwd;
 
 // Where we were on the local filesystem when megacli started.
-static LocalPath startDir;
+static unique_ptr<LocalPath> startDir(new LocalPath);
 
 static const char* rootnodenames[] =
 { "ROOT", "INBOX", "RUBBISH" };
@@ -4085,7 +4008,56 @@ void exec_get(autocomplete::ACState& s)
         if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, false) == API_OK)
         {
             cout << "Checking link..." << endl;
-            client->openfilelink(ph, key, 0);
+
+            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
+                [key, ph](const Error &e, m_off_t size, m_time_t ts, m_time_t tm, dstime /*timeleft*/,
+                   std::string* filename, std::string* fingerprint, std::string* fileattrstring,
+                   const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
+                {
+                    if (!fingerprint) // failed processing the command
+                    {
+                        if (e == API_ETOOMANY && e.hasExtraInfo())
+                        {
+                             cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e) << endl;
+                        }
+                        else
+                        {
+                            cout << "Link check failed: " << errorstring(e) << endl;
+                        }
+                        return true;
+                    }
+
+                    cout << "Name: " << *filename << ", size: " << size;
+
+                    if (fingerprint->size())
+                    {
+                        cout << ", fingerprint available";
+                    }
+
+                    if (fileattrstring->size())
+                    {
+                        cout << ", has attributes";
+                    }
+
+                    cout << endl;
+
+                    if (e)
+                    {
+                        cout << "Not available: " << errorstring(e) << endl;
+                    }
+                    else
+                    {
+                        cout << "Initiating download..." << endl;
+
+                        DBTableTransactionCommitter committer(client->tctable);
+                        AppFileGet* f = new AppFileGet(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+                        client->startxfer(GET, f, committer);
+                    }
+
+                    return true;
+                }));
+
             return;
         }
 
@@ -4518,7 +4490,7 @@ void exec_open(autocomplete::ACState& s)
                                           client->httpio,
                                           new FSACCESS_CLASS,
                 #ifdef DBACCESS_CLASS
-                                          new DBACCESS_CLASS(startDir),
+                                          new DBACCESS_CLASS(*startDir),
                 #else
                                           NULL,
                 #endif
@@ -5943,7 +5915,7 @@ void exec_import(autocomplete::ACState& s)
     if (e == API_OK)
     {
         cout << "Opening link..." << endl;
-        client->openfilelink(ph, key, 1);
+        client->openfilelink(ph, key);
     }
     else
     {
@@ -7616,50 +7588,6 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     publiclink.clear();
 }
 
-void DemoApp::checkfile_result(handle /*h*/, const Error& e)
-{
-    if (e == API_ETOOMANY && e.hasExtraInfo())
-    {
-         cout << "Link check failed: " << getExtraInfoErrorString(e) << endl;
-    }
-    else
-    {
-        cout << "Link check failed: " << errorstring(e) << endl;
-    }
-}
-
-void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t /*ts*/, m_time_t tm, string* filename,
-                               string* fingerprint, string* fileattrstring)
-{
-    cout << "Name: " << *filename << ", size: " << size;
-
-    if (fingerprint->size())
-    {
-        cout << ", fingerprint available";
-    }
-
-    if (fileattrstring->size())
-    {
-        cout << ", has attributes";
-    }
-
-    cout << endl;
-
-    if (e)
-    {
-        cout << "Not available: " << errorstring(e) << endl;
-    }
-    else
-    {
-        cout << "Initiating download..." << endl;
-
-        DBTableTransactionCommitter committer(client->tctable);
-        AppFileGet* f = new AppFileGet(NULL, NodeHandle().set6byte(h), filekey, size, tm, filename, fingerprint);
-        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-        client->startxfer(GET, f, committer);
-    }
-}
-
 bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* /*appdata*/)
 {
     // Improvement: is there a way to have different pread_data receivers for
@@ -8387,6 +8315,10 @@ void megacli()
 
 int main()
 {
+#if defined(_WIN32) && defined(_DEBUG)
+    _CrtSetBreakAlloc(124);  // set this to an allocation number to hunt leaks.  Prior to 124 and prior are from globals/statics so won't be detected by this
+#endif
+
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&gLogger);
@@ -8399,38 +8331,46 @@ int main()
 #ifdef GFX_CLASS
     auto gfx = new GFX_CLASS;
     gfx->startProcessingThread();
+#else
+    mega::GfxProc* gfx = nullptr;
 #endif
 
     // Needed so we can get the cwd.
     auto fsAccess = new FSACCESS_CLASS();
 
     // Where are we?
-    if (!fsAccess->cwd(startDir))
+    if (!fsAccess->cwd(*startDir))
     {
         cerr << "Unable to determine current working directory." << endl;
         return EXIT_FAILURE;
     }
 
+    auto httpIO = new HTTPIO_CLASS;
+
+#ifdef WIN32
+    auto waiter = new CONSOLE_WAIT_CLASS(static_cast<CONSOLE_CLASS*>(console));
+#else
+    auto waiter = new CONSOLE_WAIT_CLASS;
+#endif
+
+    auto demoApp = new DemoApp;
+
+    auto dbAccess =
+#ifdef DBACCESS_CLASS
+        new DBACCESS_CLASS(*startDir);
+#else
+        nullptr;
+#endif
+
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
-    client = new MegaClient(new DemoApp,
-#ifdef WIN32
-                            new CONSOLE_WAIT_CLASS(static_cast<CONSOLE_CLASS*>(console)),
-#else
-                            new CONSOLE_WAIT_CLASS,
-#endif
-                            new HTTPIO_CLASS,
+    client = new MegaClient(demoApp,
+                            waiter,
+                            httpIO,
                             fsAccess,
-#ifdef DBACCESS_CLASS
-                            new DBACCESS_CLASS(startDir),
-#else
-                            NULL,
-#endif
-#ifdef GFX_CLASS
+                            dbAccess,
                             gfx,
-#else
-                            NULL,
-#endif
                             "Gk8DyQBS",
                             "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
                             "." TOSTRING(MEGA_MINOR_VERSION)
@@ -8444,6 +8384,31 @@ int main()
 
     clientFolder = NULL;    // additional for folder links
     megacli();
+
+    delete client;
+    delete waiter;
+    delete httpIO;
+    delete gfx;
+    //delete dbAccess; // already deleted
+    delete fsAccess;
+    delete demoApp;
+    acs.reset();
+    autocompleteTemplate.reset();
+    delete console;
+    startDir.reset();
+
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
+    delete CurlHttpIO::sslMutexes;
+#endif
+
+#if defined(_WIN32) && defined(_DEBUG)
+
+    // Singleton enthusiasts rarely think about shutdown...
+    const CryptoPP::MicrosoftCryptoProvider &hProvider = CryptoPP::Singleton<CryptoPP::MicrosoftCryptoProvider>().Ref();
+    delete &hProvider;
+
+    _CrtDumpMemoryLeaks();
+#endif
 }
 
 

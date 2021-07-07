@@ -31,8 +31,13 @@
 #define HAVE_FILESYSTEM
 
 #if (__cplusplus >= 201700L)
-    #include <filesystem>
-    namespace fs = std::filesystem;
+    #if __has_include(<filesystem>)
+        #include <filesystem>
+        namespace fs = std::filesystem;
+    #else
+        #include <experimental/filesystem>
+        namespace fs = std::experimental::filesystem;
+    #endif
 #else
 #ifdef WIN32
     #include <filesystem>

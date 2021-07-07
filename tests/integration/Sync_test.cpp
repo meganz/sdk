@@ -836,41 +836,7 @@ struct StandardClient : public MegaApp
 
     void syncupdate_stateconfig(handle backupId) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << backupId; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
-    void syncupdate_local_folder_addition(Sync* s, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " yncupdate_local_folder_addition() " << path.toPath(*client.fsaccess); }}
-    void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << "syncupdate_local_folder_deletion() " << path.toPath(*client.fsaccess); }}
-    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) {
-        lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " ";
-    }}
-    void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_deletion() " << path.toPath(*client.fsaccess); }}
-    void syncupdate_local_file_change(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_change() " << path.toPath(*client.fsaccess); }}
-    void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override
-    {
-        onCallback();
-        if (logcb) {
-            lock_guard<mutex> g(om);
-            out() << clientname << " syncupdate_local_move() from:" << oldPath.toPath(*client.fsaccess) << " to:" << newPath.toPath(*client.fsaccess);
-        }
-    }
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
-    void syncupdate_get(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_get()" << n->displaypath() << " " << cp; }}
-    void syncupdate_put(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_put()" << cp; }}
-    void syncupdate_remote_file_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_file_addition() " << n->displaypath(); }}
-    void syncupdate_remote_file_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_file_deletion() " << n->displaypath(); }}
-    void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_folder_addition() " << n->displaypath(); }}
-    void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_folder_deletion() " << n->displaypath(); }}
-    void syncupdate_remote_copy(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_remote_copy() " << cp; }}
-    void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override
-    {
-        onCallback();
-        if (logcb) {
-            lock_guard<mutex> g(om);
-            out() << clientname << "syncupdate_remote_move() to:" << n1->displaypath() << " from:" << n2->displaypath();
-        }
-    }
-    void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) {
-        lock_guard<mutex> g(om);
-        out() << clientname << "syncupdate_remote_rename() new: " << n->displaypath() << " old: " << cp;
-    }}
     //void syncupdate_treestate(LocalNode* ln) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);   out() << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln); }}
 
     bool sync_syncable(Sync* sync, const char* name, LocalPath& path, Node*) override
@@ -2905,6 +2871,8 @@ public:
 
     void SetUp() override
     {
+        SimpleLogger::setLogLevel(logMax);
+
         ASSERT_TRUE(client0->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "d", 1, 2));
         ASSERT_TRUE(client1->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
         ASSERT_EQ(client0->basefolderhandle, client1->basefolderhandle);
@@ -3090,6 +3058,8 @@ public:
     void SetUp() override
     {
         LOG_info << "____TEST SetUp: " << ::testing::UnitTest::GetInstance()->current_test_info()->name();
+
+        SimpleLogger::setLogLevel(logMax);
     }
 
     // Tears down the test fixture.
@@ -3587,7 +3557,7 @@ TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-TEST_F(SyncTest, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
+TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot();
@@ -7900,6 +7870,70 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         StandardClient cC(localtestroot, "cC");
         ASSERT_TRUE(cC.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
     }
+}
+
+TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = chrono::seconds(4);
+
+    Model model;
+    fs::path root;
+    string session;
+    handle id;
+
+    // Initial setup.
+    {
+        StandardClient c(TESTROOT, "c");
+
+        // Log in client.
+        ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+        // Add and start sync.
+        id = c.setupSync_mainthread("s", "s");
+        ASSERT_NE(id, UNDEF);
+
+        // Squirrel away for later use.
+        root = c.syncSet(id).localpath.u8string();
+
+        // Populate filesystem.
+        model.addfolder("a");
+        model.addfolder("c");
+        model.generate(root);
+
+        // Wait for initial sync to complete.
+        waitonsyncs(TIMEOUT, &c);
+
+        // Make sure everything arrived safely.
+        ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+        // Save the session so we can resume later.
+        c.client.dumpsession(session);
+
+        // Log out client, taking care to keep caches.
+        c.localLogout();
+    }
+
+    StandardClient c(TESTROOT, "c");
+
+    // Add a new hierarchy to be scanned.
+    model.addfolder("b");
+    model.generate(root);
+
+    // Move c under b.
+    fs::rename(root / "c", root / "b" / "c");
+
+    // Update the model.
+    model.movenode("c", "b");
+
+    // Log in client resuming prior session.
+    ASSERT_TRUE(c.login_fetchnodes(session));
+
+    // Wait for the sync to catch up.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Were the changes propagated?
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
 #endif

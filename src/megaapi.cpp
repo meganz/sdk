@@ -1537,15 +1537,9 @@ SynchronousRequestListener::~SynchronousRequestListener()
 void SynchronousRequestListener::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error)
 {
     this->megaApi = api;
-    if (megaRequest)
-    {
-        delete megaRequest;              //in case of reused listener
-    }
-    this->megaRequest = request->copy();
-    if (megaError)
-    {
-        delete megaError;            //in case of reused listener
-    }
+    delete megaRequest;              //in case of reused listener
+    this->megaRequest = request ? request->copy() : nullptr;
+    delete megaError;            //in case of reused listener
     this->megaError = error->copy();
 
     doOnRequestFinish(api, request, error);
@@ -1616,9 +1610,9 @@ void SynchronousTransferListener::onTransferFinish(MegaApi *api, MegaTransfer *t
 {
     this->megaApi = api;
     delete megaTransfer;               //in case of reused listener
-    this->megaTransfer = transfer->copy();
+    this->megaTransfer = transfer ? transfer->copy() : nullptr;
     delete megaError;            //in case of reused listener
-    this->megaError = error->copy();
+    this->megaError = error ? error->copy() : nullptr;
 
     doOnTransferFinish(api, transfer, error);
     semaphore->release();
@@ -1710,8 +1704,6 @@ void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
-void MegaListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
-{ }
 void MegaListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
 { }
 void MegaListener::onSyncDisabled(MegaApi *, MegaSync *)
@@ -1766,6 +1758,10 @@ MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent
 {
     pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd, workerThreadCount);
 }
+#endif
+
+#ifdef HAVE_MEGAAPI_RPC
+MegaApi::MegaApi() {}
 #endif
 
 MegaApi::~MegaApi()
@@ -2429,6 +2425,11 @@ void MegaApi::encryptLinkWithPassword(const char *link, const char *password, Me
 void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *listener)
 {
     pImpl->getPublicNode(megaFileLink, listener);
+}
+
+void MegaApi::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener)
+{
+    pImpl->getDownloadUrl(node, singleUrl, listener);
 }
 
 const char *MegaApi::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
@@ -5967,43 +5968,6 @@ void MegaSyncList::addSync(MegaSync *sync)
 
 }
 
-MegaSyncEvent::~MegaSyncEvent()
-{ }
-
-MegaSyncEvent *MegaSyncEvent::copy()
-{
-    return NULL;
-}
-
-int MegaSyncEvent::getType() const
-{
-    return 0;
-}
-
-const char *MegaSyncEvent::getPath() const
-{
-    return NULL;
-}
-
-MegaHandle MegaSyncEvent::getNodeHandle() const
-{
-    return INVALID_HANDLE;
-}
-
-const char *MegaSyncEvent::getNewPath() const
-{
-    return NULL;
-}
-
-const char *MegaSyncEvent::getPrevName() const
-{
-    return NULL;
-}
-
-MegaHandle MegaSyncEvent::getPrevParent() const
-{
-    return INVALID_HANDLE;
-}
 #endif
 
 
