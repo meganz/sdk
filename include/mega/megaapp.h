@@ -80,12 +80,6 @@ struct MEGA_API MegaApp
     // sessionid is undef if all sessions except the current were killed
     virtual void sessions_killed(handle /*sessionid*/, error) { }
 
-    // node attribute update failed (not invoked unless error != API_OK)
-    virtual void setattr_result(handle, Error) { }
-
-    // move node failed (not invoked unless error != API_OK)
-    virtual void rename_result(handle, error) { }
-
     // node deletion failed (not invoked unless error != API_OK)
     virtual void unlink_result(handle, error) { }
 

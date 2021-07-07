@@ -86,7 +86,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                    client->setattr(n, attr_map('f', me64), 0);
+                    client->setattr(n, attr_map('f', me64), nullptr);
                 }
             }
 
@@ -986,12 +986,12 @@ bool CommandGetFile::procresult(Result r)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, attr_map&& attrMapUpdates, int reqtag)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, attr_map&& attrMapUpdates, Completion&& c)
     : mAttrMapUpdates(attrMapUpdates)
 {
-    tag = reqtag;
-    h = n->nodehandle;
+    h = n->nodeHandle();
     generationError = API_OK;
+    completion = c;
 
     addToNodePendingCommands(n);
 }
@@ -1006,7 +1006,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
     cmd("a");
 
     string at;
-    if (Node* n = client->nodebyhandle(h))
+    if (Node* n = client->nodeByHandle(h))
     {
         AttrMap m = n->attrs;
 
@@ -1033,13 +1033,13 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
         }
         else
         {
-            h = UNDEF;  // dummy command to generate an error, with no effect
+            h.setUndef();  // dummy command to generate an error, with no effect
             generationError = API_EKEY;
         }
     }
     else
     {
-        h = UNDEF;  // dummy command to generate an error, with no effect
+        h.setUndef();  // dummy command to generate an error, with no effect
         generationError = API_ENOENT;
     }
 
@@ -1053,13 +1053,13 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 bool CommandSetAttr::procresult(Result r)
 {
     removeFromNodePendingCommands(h, client);
-    client->app->setattr_result(h, generationError ? Error(generationError) : r.errorResultOrActionpacket());
+    if (completion) completion(h, generationError ? Error(generationError) : r.errorResultOrActionpacket());
     return r.wasErrorOrActionpacket();
 }
 
 // (the result is not processed directly - we rely on the server-client
 // response)
-CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
+CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                                  const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth)
 {
     byte key[FILENODEKEYLENGTH];
@@ -1075,7 +1075,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (userhandle)
     {
         arg("t", userhandle);
-        targethandle = UNDEF;
+        targethandle.setUndef();
     }
     else
     {
@@ -1166,7 +1166,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (type == NODE_HANDLE)
     {
         Node* tn;
-        if ((tn = client->nodebyhandle(th)))
+        if ((tn = client->nodeByHandle(th)))
         {
             ShareNodeKeys snk;
 
@@ -1315,9 +1315,7 @@ bool CommandPutNodes::procresult(Result r)
 	    // when the target has been removed, the API automatically adds the new node/s
 	    // into the rubbish bin
 	    Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
-	    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle);
-
-
+	    bool targetOverride = (tempNode && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
 
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1348,7 +1346,7 @@ bool CommandPutNodes::procresult(Result r)
         LOG_debug << "Putnodes error " << r.errorOrOK();
         if (r.wasError(API_EOVERQUOTA))
         {
-            if (client->isPrivateNode(NodeHandle().set6byte(targethandle)))
+            if (client->isPrivateNode(targethandle))
             {
                 client->activateoverquota(0, false);
             }
@@ -1357,7 +1355,7 @@ bool CommandPutNodes::procresult(Result r)
             {
                 if (source == PUTNODES_SYNC)
                 {
-                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, false);
+                    client->disableSyncContainingNode(targethandle.as8byte(), FOREIGN_TARGET_OVERSTORAGE, false);
                 }
             }
 #endif
@@ -1392,13 +1390,14 @@ bool CommandPutNodes::procresult(Result r)
 }
 
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent)
+CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c)
 {
-    h = n->nodehandle;
+    h = n->nodeHandle();
     syncdel = csyncdel;
-    np = t->nodehandle;
+    np = t->nodeHandle();
     pp = prevparent;
     syncop = pp != UNDEF;
+    completion = c;
 
     cmd("m");
 
@@ -1407,8 +1406,8 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     // Additionally the servers can't deliver `st` in that packet for the same reason.  And of course we will not ignore this `t` packet, despite setting 'i'.
     notself(client);
 
-    arg("n", (byte*)&h, MegaClient::NODEHANDLE);
-    arg("t", (byte*)&t->nodehandle, MegaClient::NODEHANDLE);
+    arg("n", h);
+    arg("t", t->nodeHandle());
     assert(t->type != FILENODE);
 
     TreeProcShareKeys tpsk;
@@ -1436,7 +1435,7 @@ bool CommandMoveNode::procresult(Result r)
 #ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
         {
-            Node* syncn = client->nodebyhandle(h);
+            Node* syncn = client->nodeByHandle(h);
 
             if (syncn)
             {
@@ -1474,7 +1473,7 @@ bool CommandMoveNode::procresult(Result r)
                         int creqtag = client->reqtag;
                         client->reqtag = syncn->tag;
                         LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
-                        client->rename(syncn, tn, SYNCDEL_FAILED, pp);
+                        client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, nullptr); // if we don't succeed here, just stop rather than cycling forever
                         client->reqtag = creqtag;
                     }
                 }
@@ -1488,12 +1487,12 @@ bool CommandMoveNode::procresult(Result r)
         }
     }
 
-    if (Node* n = client->nodebyhandle(h))
+    if (Node* n = client->nodeByHandle(h))
     {
         client->rewriteforeignkeys(n);
     }
 
-    client->app->rename_result(h, r.errorResultOrActionpacket());
+    if (completion) completion(h, r.errorResultOrActionpacket());
     return r.wasErrorOrActionpacket();
 }
 
@@ -5137,7 +5136,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
 
-                        client->putnodes(client->rootnodes[0], move(newnodes), nullptr, 0);
+                        client->putnodes(NodeHandle().set6byte(client->rootnodes[0]), move(newnodes), nullptr, 0);
                     }
                     else if (havekey)
                     {

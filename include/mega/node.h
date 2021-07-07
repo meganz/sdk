@@ -466,9 +466,9 @@ struct MEGA_API LocalNode : public Cacheable
         bool deletedFS : 1;
 
         // we saw this node moved/renamed locally, cloud move is underway or complete
-        bool moveSourceApplyingToCloud : 1;
-        bool moveSourceAppliedToCloud : 1;
-        bool moveTargetApplyingToCloud : 1;
+        //bool moveSourceApplyingToCloud : 1;
+        //bool moveSourceAppliedToCloud : 1;
+        //bool moveTargetApplyingToCloud : 1;
 
         // we saw this node moved/renamed in the cloud, local move expected (or active)
         bool moveApplyingToLocal : 1;
@@ -517,12 +517,24 @@ struct MEGA_API LocalNode : public Cacheable
     {
         unique_ptr<BackoffTimer> useBlockedTimer;
         unique_ptr<BackoffTimer> scanBlockedTimer;
-        std::shared_ptr<ScanService::Request> scanRequest;
+        shared_ptr<ScanService::Request> scanRequest;
+
+        struct MoveInProgress
+        {
+            ~MoveInProgress() {
+                int breakpointhere = 0;
+                breakpointhere = 1;
+            }
+        };
+
+        weak_ptr<MoveInProgress> moveFromHere;
+        weak_ptr<MoveInProgress> moveToHere;
     };
 
 private:
     unique_ptr<RareFields> rareFields;
 public:
+    bool hasRare() { return !!rareFields; }
     RareFields& rare();
     void trimRareFields();
 

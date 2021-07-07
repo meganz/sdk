@@ -658,7 +658,7 @@ struct StandardClient : public MegaApp
 
     handle basefolderhandle = UNDEF;
 
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP, SETATTR,
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, CATCHUP,
                           COMPLETION };  // use COMPLETION when we use a completion function, rather than trying to match tags on callbacks
 
     struct ResultProc
@@ -1061,7 +1061,7 @@ struct StandardClient : public MegaApp
                 attrs.map['n'] = newname;
                 attrs.getjson(&attrstring);
                 client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                client.putnodes(n2->nodehandle, move(tc.nn), nullptr, client.reqtag);
+                client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, client.reqtag);
             },
             [pb](error e) {
                 pb->set_value(!e);
@@ -1075,7 +1075,7 @@ struct StandardClient : public MegaApp
                               ++next_request_tag,
                               [&]()
                               {
-                                  client.putnodes(parentHandle, std::move(nodes), nullptr, client.reqtag);
+                                  client.putnodes(NodeHandle().set6byte(parentHandle), std::move(nodes), nullptr, client.reqtag);
                               },
                               [pb](error e)
                               {
@@ -1119,7 +1119,7 @@ struct StandardClient : public MegaApp
                 vector<NewNode> newnodes;
                 handle h = 1;
                 uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-                client.putnodes(n2->nodehandle, move(newnodes), nullptr, client.reqtag);
+                client.putnodes(n2->nodeHandle(), move(newnodes), nullptr, client.reqtag);
             },
             [pb](error e) { pb->set_value(!e);  return true; });
     }
@@ -1406,7 +1406,7 @@ struct StandardClient : public MegaApp
                 nn[0] = makeSubfolder("mega_test_sync");
 
                 resultproc.prepresult(PUTNODES, ++next_request_tag,
-                    [&](){ client.putnodes(root->nodehandle, move(nn), nullptr, client.reqtag); },
+                    [&](){ client.putnodes(root->nodeHandle(), move(nn), nullptr, client.reqtag); },
                     [this, pb](error e) { ensureTestBaseFolder(false, pb); return true; });
 
                 return;
@@ -1472,7 +1472,7 @@ struct StandardClient : public MegaApp
             }
 
             resultproc.prepresult(PUTNODES, ++next_request_tag,
-                [&](){ client.putnodes(atnode->nodehandle, move(nodearray), nullptr, client.reqtag); },
+                [&](){ client.putnodes(atnode->nodeHandle(), move(nodearray), nullptr, client.reqtag); },
                 [pb](error e) {
                     pb->set_value(!e);
                     if (e)
@@ -2079,6 +2079,24 @@ struct StandardClient : public MegaApp
         return client.syncs.runningSyncByBackupId(backupId);
     }
 
+    bool setSyncPausedByBackupId(handle id, bool pauseState)
+    {
+        auto result =
+            thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                {
+                    bool v = false;
+                    if (auto s = client.client.syncs.runningSyncByBackupId(id))
+                    {
+                        s->setSyncPaused(pauseState);
+                        v = true;
+                    }
+                    result->set_value(v);
+                });
+
+        return result.get();
+    }
+
+
     void enableSyncByBackupId(handle id, PromiseBoolSP result)
     {
         UnifiedSync* sync;
@@ -2284,22 +2302,17 @@ struct StandardClient : public MegaApp
 
     void setattr(Node* node, attr_map&& updates, PromiseBoolSP result)
     {
-        resultproc.prepresult(SETATTR,
+        resultproc.prepresult(COMPLETION,
                               ++next_request_tag,
                               [=]()
                               {
-                                  client.setattr(node, attr_map(updates), client.reqtag);
-                              },
-                              [result](error e)
-                              {
-                                  result->set_value(!e);
-                                  return true;
-                              });
-    }
-
-    void setattr_result(handle h, Error e) override
-    {
-        resultproc.processresult(SETATTR, e, h);
+                                  client.setattr(node, attr_map(updates),
+                                      [result](NodeHandle, error e)
+                                      {
+                                          result->set_value(!e);
+                                          return true;
+                                      });
+                              }, nullptr);
     }
 
     void unlink_result(handle h, error e) override
@@ -2321,11 +2334,6 @@ struct StandardClient : public MegaApp
         }
 
         resultproc.processresult(PUTNODES, e, client.restag);
-    }
-
-    void rename_result(handle h, error e)  override
-    {
-        resultproc.processresult(MOVENODE, e, h);
     }
 
     void catchup_result() override
@@ -2426,9 +2434,14 @@ struct StandardClient : public MegaApp
         Node* p = drillchildnodebyname(gettestbasenode(), newparentpath);
         if (n && p)
         {
-            resultproc.prepresult(MOVENODE, ++next_request_tag,
-                [&](){ client.rename(n, p); },
-                [pb](error e) { pb->set_value(!e); return true; });
+            resultproc.prepresult(COMPLETION, ++next_request_tag,
+                [pb, n, p, this]()
+                {
+                    client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
+                        [pb](NodeHandle h, Error e)
+                        { pb->set_value(!e); return true; });
+                },
+                nullptr);
             return;
         }
         out() << "node or new parent not found";
@@ -2441,9 +2454,14 @@ struct StandardClient : public MegaApp
         Node* p = client.nodebyhandle(h2);
         if (n && p)
         {
-            resultproc.prepresult(MOVENODE, ++next_request_tag,
-                [&](){ client.rename(n, p);},
-                [pb](error e) { pb->set_value(!e); return true; });
+            resultproc.prepresult(COMPLETION, ++next_request_tag,
+                [pb, n, p, this]()
+                {
+                    client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
+                        [pb](NodeHandle h, Error e)
+                        { pb->set_value(!e); return true; });
+                },
+                nullptr);
             return;
         }
         out() << "node or new parent not found by handle";
@@ -2456,9 +2474,14 @@ struct StandardClient : public MegaApp
         Node* p = getcloudrubbishnode();
         if (n && p && n->parent)
         {
-            resultproc.prepresult(MOVENODE, ++next_request_tag,
-                [&](){ client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle); },
-                [pb](error e) { pb->set_value(!e);  return true; });
+            resultproc.prepresult(COMPLETION, ++next_request_tag,
+                [pb, n, p, this]()
+                {
+                    client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
+                        [pb](NodeHandle h, Error e)
+                        { pb->set_value(!e); return true; });
+                },
+                nullptr);
             return;
         }
         out() << "node or rubbish or node parent not found";
@@ -4333,7 +4356,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
 
-    handle targethandle = standardclient.client.rootnodes[0];
+    auto targethandle = NodeHandle().set6byte(standardclient.client.rootnodes[0]);
 
     std::atomic<bool> putnodesDone{false};
     standardclient.resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
@@ -4345,7 +4368,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
         WaitMillisec(100);
     }
 
-    Node* cloudRoot = standardclient.client.nodebyhandle(targethandle);
+    Node* cloudRoot = standardclient.client.nodeByHandle(targethandle);
 
     ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder1"));
     ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2"));
@@ -5806,7 +5829,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     }
     reporter->mAnomalies.clear();
 
-    // Move f -> d/g:0.
+    // Move f -> d/g:0.    (which overwrites the file that is already there)
     model.findnode("d/g:0")->content = "f";
     model.removenode("f");
     fs::rename(root / "f", root / "d" / "g%3a0");
@@ -6433,29 +6456,44 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     // Log callbacks.
     c.logcb = true;
 
-    // Log in client.  8 nodes to sync to
-    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 2, 8));
-
-    // Get our hands on the sync root.
-    auto* cloudSyncRoot = c.drillchildnodebyname(c.gettestbasenode(), "s/s_0");
-    ASSERT_TRUE(cloudSyncRoot != nullptr);
+    // Log client in.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
 
     // Add and start sync.
-    const auto id = c.setupSync_mainthread("s_0", "s/s_0");
+    const auto id = c.setupSync_mainthread("s", "x");
     ASSERT_NE(id, UNDEF);
-
     const auto SYNCROOT = c.syncSet(id).localpath;
 
+    // Create and populate model.
     Model model;
-    model.addfolder("dA");
-    model.addfolder("dB");
+    model.root->addkid(model.buildModelSubdirs("d", 8, 2, 0));
     model.generate(SYNCROOT);
-
-    // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
 
-	// todo:  tbc
+    c.setSyncPausedByBackupId(id, true);
 
+    // make some crossed-over moves
+    fs::rename(SYNCROOT / "d" / "d_0",
+               SYNCROOT / "d" / "d_1" / "d_0");
+    c.movenode("x/d/d_1", "x/d/d_0");
+
+    c.setSyncPausedByBackupId(id, false);
+
+    vector<SyncWaitResult> waitResult = waitonsyncs(chrono::seconds(4), &c);
+    ASSERT_EQ(waitResult[0].syncStalled, true);
+
+    // uncross one
+    fs::rename(
+        SYNCROOT / "d" / "d_1" / "d_0",
+        SYNCROOT / "d" / "d_0");
+    waitResult = waitonsyncs(chrono::seconds(4), &c);
+    ASSERT_EQ(waitResult[0].syncStalled, false);
+
+
+// todo: many more test cases to add here
+
+    // now the sync should have unstalled and performed the other move:
+    model.movenode("d/d_1", "d/d_0");
 
     // Confirm state
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
@@ -7312,7 +7350,7 @@ struct TwoWaySyncSymmetryCase
         if (reportaction) out() << name() << " action: remote rename " << n->displaypath() << " to " << newname;
 
         attr_map updates('n', newname);
-        auto e = changeClient().client.setattr(n, move(updates), ++next_request_tag);
+        auto e = changeClient().client.setattr(n, move(updates), nullptr);
 
         ASSERT_EQ(API_OK, error(e));
     }
@@ -7332,7 +7370,7 @@ struct TwoWaySyncSymmetryCase
 
         if (reportaction) out() << name() << " action: remote move " << n1->displaypath() << " to " << n2->displaypath();
 
-        auto e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, UNDEF, nullptr);
+        auto e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), nullptr, nullptr);
         ASSERT_EQ(API_OK, e);
     }
 
@@ -7361,7 +7399,7 @@ struct TwoWaySyncSymmetryCase
         attrs = n1->attrs;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodehandle, move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, ++next_request_tag);
     }
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -7394,7 +7432,7 @@ struct TwoWaySyncSymmetryCase
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodehandle, move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, ++next_request_tag);
     }
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -7412,7 +7450,7 @@ struct TwoWaySyncSymmetryCase
 
         if (reportaction) out() << name() << " action: remote rename + move " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname;
 
-        error e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, UNDEF, newname.c_str());
+        error e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), newname.c_str(), nullptr);
         EXPECT_EQ(e, API_OK);
     }
 

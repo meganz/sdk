@@ -170,9 +170,9 @@ public:
 
     bool checkError(Error &errorDetails, JSON &json);
 
-    void addToNodePendingCommands(handle h, MegaClient* client);
+    void addToNodePendingCommands(NodeHandle h, MegaClient* client);
     void addToNodePendingCommands(Node* n);
-    void removeFromNodePendingCommands(handle h, MegaClient* client);
+    void removeFromNodePendingCommands(NodeHandle h, MegaClient* client);
     void removeFromNodePendingCommands(Node* n);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
@@ -475,16 +475,21 @@ public:
 
 class MEGA_API CommandMoveNode : public Command
 {
-    handle h;
-    handle pp;  // previous parent
-    handle np;  // new parent
+public:
+    using Completion = std::function<void(NodeHandle, Error)>;
+
+private:
+    NodeHandle h;
+    NodeHandle pp;  // previous parent
+    NodeHandle np;  // new parent
     bool syncop;
     syncdel_t syncdel;
+    Completion completion;
 
 public:
     bool procresult(Result) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, handle = UNDEF);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -621,7 +626,7 @@ class MEGA_API CommandPutNodes : public Command
     targettype_t type;
     putsource_t source;
     bool emptyResponse = false;
-    handle targethandle;
+    NodeHandle targethandle;
 
     void removePendingDBRecordsAndTempFiles();
     void performAppCallback(Error e, bool targetOverride = false);
@@ -629,21 +634,27 @@ class MEGA_API CommandPutNodes : public Command
 public:
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
+    CommandPutNodes(MegaClient*, NodeHandle, const char*, vector<NewNode>&&, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
 };
 
 class MEGA_API CommandSetAttr : public Command
 {
-    handle h;
+public:
+    using Completion = std::function<void(NodeHandle, Error)>;
+
+private:
+    NodeHandle h;
     attr_map mAttrMapUpdates;
     error generationError;
 
     const char* getJSON(MegaClient* client) override;
 
+    Completion completion;
+
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, attr_map&& attrMapUpdates, int tag);
+    CommandSetAttr(MegaClient*, Node*, attr_map&& attrMapUpdates, Completion&& c);
 };
 
 class MEGA_API CommandSetShare : public Command

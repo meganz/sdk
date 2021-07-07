@@ -44,9 +44,9 @@ void Command::cancel()
     canceled = true;
 }
 
-void Command::addToNodePendingCommands(handle h, MegaClient* client)
+void Command::addToNodePendingCommands(NodeHandle h, MegaClient* client)
 {
-    if (auto node = client->nodebyhandle(h))
+    if (auto node = client->nodeByHandle(h))
     {
         addToNodePendingCommands(node);
     }
@@ -57,9 +57,9 @@ void Command::addToNodePendingCommands(Node* node)
     node->mPendingChanges.push_back(this);
 }
 
-void Command::removeFromNodePendingCommands(handle h, MegaClient* client)
+void Command::removeFromNodePendingCommands(NodeHandle h, MegaClient* client)
 {
-    if (auto node = client->nodebyhandle(h))
+    if (auto node = client->nodeByHandle(h))
     {
         removeFromNodePendingCommands(node);
     }

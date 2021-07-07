@@ -1328,9 +1328,9 @@ LocalNode::LocalNode()
 : unstableFsidAssigned(false)
 , deletingCloud{false}
 , deletedFS{false}
-, moveSourceAppliedToCloud(false)
-, moveSourceApplyingToCloud(false)
-, moveTargetApplyingToCloud(false)
+//, moveSourceAppliedToCloud(false)
+//, moveSourceApplyingToCloud(false)
+//, moveTargetApplyingToCloud(false)
 , moveAppliedToLocal(false)
 , moveApplyingToLocal(false)
 , conflicts(TREE_RESOLVED)
@@ -1358,9 +1358,9 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     unstableFsidAssigned = false;
     deletingCloud = false;
     deletedFS = false;
-    moveSourceAppliedToCloud = false;
-    moveSourceApplyingToCloud = false;
-    moveTargetApplyingToCloud = false;
+    //moveSourceAppliedToCloud = false;
+    //moveSourceApplyingToCloud = false;
+    //moveTargetApplyingToCloud = false;
     moveAppliedToLocal = false;
     moveApplyingToLocal = false;
     conflicts = TREE_RESOLVED;
@@ -1488,7 +1488,9 @@ void LocalNode::trimRareFields()
 
         if (!rareFields->useBlockedTimer &&
             !rareFields->scanBlockedTimer &&
-            !rareFields->scanRequest)
+            !rareFields->scanRequest &&
+            rareFields->moveFromHere.expired() &&
+            rareFields->moveToHere.expired())
         {
             rareFields.reset();
         }

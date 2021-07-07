@@ -7913,7 +7913,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 }
 
 // update node attributes
-error MegaClient::setattr(Node* n, attr_map&& updates, int reqtag)
+error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completion&& c)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -7926,7 +7926,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int reqtag)
     }
 
     // we only update the values stored in the node once the command completes successfully
-    reqs.add(new CommandSetAttr(this, n, std::move(updates), reqtag));
+    reqs.add(new CommandSetAttr(this, n, std::move(updates), move(c)));
 
     return API_OK;
 }
@@ -7963,7 +7963,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth, int tag)
+void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag)
 {
     reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth));
 }
@@ -8098,7 +8098,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent, const char *newName)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& completion)
 {
     error e;
 
@@ -8114,9 +8114,9 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     }
 
     Node *prevParent = NULL;
-    if (!ISUNDEF(prevparent))
+    if (!prevparent.isUndef())
     {
-        prevParent = nodebyhandle(prevparent);
+        prevParent = nodeByHandle(prevparent);
     }
     else
     {
@@ -8165,10 +8165,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     if (!attrUpdates.empty())
     {
         // send attribute changes first so that any rename is already applied when the move node completes
-        setattr(n, std::move(attrUpdates), reqtag);
+        setattr(n, std::move(attrUpdates), nullptr);  // no completion function, result is after the move completes
     }
 
-    reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+    reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(completion)));
 
     return API_OK;
 }
@@ -15345,7 +15345,7 @@ void MegaClient::execmovetosyncdebris()
                     int creqtag = reqtag;
                     reqtag = n->tag;
                     LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                    rename(n, tn, target, n->parent ? n->parent->nodehandle : UNDEF);
+                    rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, nullptr);
                     reqtag = creqtag;
                     it++;
                 }
@@ -15411,7 +15411,7 @@ void MegaClient::execmovetosyncdebris()
             makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
-        reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, move(nnVec),
+        reqs.add(new CommandPutNodes(this, tn->nodeHandle(), NULL, move(nnVec),
                                         -reqtag,
                                         PUTNODES_SYNCDEBRIS));
     }

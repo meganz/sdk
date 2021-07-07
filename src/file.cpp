@@ -335,12 +335,12 @@ void File::completed(Transfer* t, LocalNode* l)
         }
         else
         {
-            handle th = h.as8byte();
+            NodeHandle th = h;
 
             // inaccessible target folder - use //bin instead
-            if (!t->client->nodebyhandle(th))
+            if (!t->client->nodeByHandle(th))
             {
-                th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
+                th.set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
             }
 #ifdef ENABLE_SYNC
             if (l)
@@ -369,7 +369,7 @@ void File::completed(Transfer* t, LocalNode* l)
 #endif
             if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
             {
-                newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
+                newnode->ovhandle = t->client->getovhandle(t->client->nodeByHandle(th), &name);
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,
