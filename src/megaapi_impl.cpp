@@ -19661,9 +19661,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            bool p = true;
             client->reqs.add(new CommandGetFile(client, (const byte*)node->nodekey().data(), node->nodekey().size(),
-                node->nodehandle, p, nullptr, nullptr, nullptr, singleUrl,
+                node->nodehandle, true, nullptr, nullptr, nullptr, singleUrl,
                 [this, request](const Error &e, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/, dstime /*timeleft*/,
                 std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
                 const std::vector<std::string> &urls, const std::vector<std::string> &ips)

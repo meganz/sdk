@@ -10452,6 +10452,7 @@ class MegaApi
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
+         * @param node Node to get the downloads URLs
          * @param singleUrl Always return one URL (even for raided files)
          * @param listener MegaRequestListener to track this request
          */
