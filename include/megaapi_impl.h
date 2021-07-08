@@ -467,7 +467,19 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         char *getBase64Key() override;
         std::string* getAttrString() override;
         char* getFileAttrString() override;
+
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(disable:4996)
+#endif // _WIN32
+
+        // avoid deprecated warning within the SDK, we still have to override until we remove it
         int getTag() override;
+
+#ifdef _WIN32
+#pragma warning(pop)
+#endif // _WIN32
+
         int64_t getExpirationTime() override;
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
@@ -2978,8 +2990,6 @@ protected:
         void account_details(AccountDetails*, error) override;
         void querytransferquota_result(int) override;
 
-        void setattr_result(handle, Error) override;
-        void rename_result(handle, error) override;
         void unlink_result(handle, error) override;
         void unlinkversions_result(error) override;
         void nodes_updated(Node**, int) override;

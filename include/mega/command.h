@@ -449,16 +449,21 @@ public:
 
 class MEGA_API CommandMoveNode : public Command
 {
-    handle h;
-    handle pp;  // previous parent
-    handle np;  // new parent
+public:
+    using Completion = std::function<void(NodeHandle, Error)>;
+
+private:
+    NodeHandle h;
+    NodeHandle pp;  // previous parent
+    NodeHandle np;  // new parent
     bool syncop;
     syncdel_t syncdel;
+    Completion completion;
 
 public:
     bool procresult(Result) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, handle = UNDEF);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -612,14 +617,19 @@ public:
 
 class MEGA_API CommandSetAttr : public Command
 {
-    handle h;
+public:
+    using Completion = std::function<void(NodeHandle, Error)>;
+
+private:
+    NodeHandle h;
     string pa;
     bool syncop;
 
+    Completion completion;
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, int tag, const char*);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char*, Completion&& c);
 };
 
 class MEGA_API CommandSetShare : public Command

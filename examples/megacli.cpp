@@ -33,8 +33,9 @@
 #define PREFER_STDARG
 
 #ifndef NO_READLINE
-    #include <readline/readline.h>
-    #include <readline/history.h>
+#include <signal.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 #endif
 
 #if (__cplusplus >= 201703L)
@@ -425,6 +426,11 @@ void DemoApp::syncupdate_scanning(bool active)
         cout << "Sync - scan completed" << endl;
     }
 }
+// flags to turn off cout output that can be too volumnous/time consuming
+bool syncout_local_change_detection = true;
+bool syncout_remote_change_detection = true;
+bool syncout_transfer_activity = true;
+bool syncout_folder_sync_state = false;
 
 void DemoApp::syncupdate_local_lockretry(bool locked)
 {
@@ -457,7 +463,13 @@ static const char* treestatename(treestate_t ts)
 
 void DemoApp::syncupdate_treestate(LocalNode* l)
 {
-    cout << "Sync - state change of node " << l->name << " to " << treestatename(l->ts) << endl;
+    if (syncout_folder_sync_state)
+    {
+        if (l->type != FILENODE)
+        {
+            cout << "Sync - state change of folder " << l->getLocalPath().toPath() << " to " << treestatename(l->ts) << endl;
+        }
+    }
 }
 
 // generic name filter
@@ -941,7 +953,7 @@ void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
     }
 }
 
-void DemoApp::setattr_result(handle, Error e)
+static void setattr_result(NodeHandle, Error e)
 {
     if (e)
     {
@@ -949,7 +961,7 @@ void DemoApp::setattr_result(handle, Error e)
     }
 }
 
-void DemoApp::rename_result(handle, error e)
+static void rename_result(NodeHandle, error e)
 {
     if (e)
     {
@@ -2341,7 +2353,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
             if (moveToTrash)
             {
                 cout << "moving to trash: " << c->displaypath() << endl;
-                client->rename(c, trash);
+                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
             }
             else
             {
@@ -3000,6 +3012,37 @@ void exec_logFilenameAnomalies(autocomplete::ACState& s)
     client->mFilenameAnomalyReporter = std::move(reporter);
 }
 
+#ifdef ENABLE_SYNC
+void exec_syncoutput(autocomplete::ACState& s)
+{
+    bool onOff = s.words[3].s == "on";
+
+    if (s.words[2].s == "local_change_detection")
+    {
+        syncout_local_change_detection = onOff;
+    }
+    else if (s.words[2].s == "remote_change_detection")
+    {
+        syncout_remote_change_detection = onOff;
+    }
+    else if (s.words[2].s == "transfer_activity")
+    {
+        syncout_transfer_activity = onOff;
+    }
+    else if (s.words[2].s == "folder_sync_state")
+    {
+        syncout_transfer_activity = onOff;
+    }
+    else if (s.words[2].s == "all")
+    {
+        syncout_local_change_detection = onOff;
+        syncout_remote_change_detection = onOff;
+        syncout_transfer_activity = onOff;
+        syncout_transfer_activity = onOff;
+    }
+}
+#endif
+
 MegaCLILogger gLogger;
 
 autocomplete::ACN autocompleteSyntax()
@@ -3105,6 +3148,16 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(param("error"))),
                            sequence(text("enable"),
                                     param("id")))));
+
+    p->Add(exec_syncoutput, sequence(text("sync"), text("output"),
+        either(text("local_change_detection"),
+            text("remote_change_detection"),
+            text("transfer_activity"),
+            text("folder_sync_state"),
+            text("detail_log"),
+            text("all")),
+        either(text("on"), text("off"))));
+
 #endif
 
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
@@ -3680,7 +3733,7 @@ void exec_mv(autocomplete::ACState& s)
                             // rename
                             client->fsaccess->normalize(&newname);
 
-                            if ((e = client->setattr(n, attr_map('n', newname), gNextClientTag++, nullptr)))
+                            if ((e = client->setattr(n, attr_map('n', newname), 0, nullptr, setattr_result)))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -3711,7 +3764,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), gNextClientTag++, nullptr);
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), 0, nullptr, setattr_result);
 
                             if (e)
                             {
@@ -3743,7 +3796,7 @@ void exec_mv(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        e = client->rename(n, tn);
+                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
 
                         if (e)
                         {
@@ -8325,11 +8378,55 @@ void megacli()
     }
 }
 
+#ifndef NO_READLINE
+
+static void onFatalSignal(int signum)
+{
+    // Restore the terminal's settings.
+    rl_callback_handler_remove();
+
+    // Re-trigger the signal.
+    raise(signum);
+}
+
+static void registerSignalHandlers()
+{
+    std::vector<int> signals = {
+        SIGABRT,
+        SIGBUS,
+        SIGILL,
+        SIGKILL,
+        SIGSEGV,
+        SIGTERM
+    }; // signals
+
+    struct sigaction action;
+
+    action.sa_handler = &onFatalSignal;
+
+    // Restore default signal handler after invoking our own.
+    action.sa_flags = SA_NODEFER | SA_RESETHAND;
+
+    // Don't ignore any signals.
+    sigemptyset(&action.sa_mask);
+
+    for (int signal : signals)
+    {
+        (void)sigaction(signal, &action, nullptr);
+    }
+}
+
+#endif // ! NO_READLINE
+
 int main()
 {
 #if defined(_WIN32) && defined(_DEBUG)
     _CrtSetBreakAlloc(124);  // set this to an allocation number to hunt leaks.  Prior to 124 and prior are from globals/statics so won't be detected by this
 #endif
+
+#ifndef NO_READLINE
+    registerSignalHandlers();
+#endif // NO_READLINE
 
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
@@ -8828,7 +8925,7 @@ void exec_synclist(autocomplete::ACState& s)
     {
         cout << "No syncs configured yet" << endl;
         return;
-     }
+    }
 
     client->syncs.forEachUnifiedSync(
       [](UnifiedSync& us)

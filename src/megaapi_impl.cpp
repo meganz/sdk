@@ -180,7 +180,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->changed = node->getChanges();
     this->thumbnailAvailable = node->hasThumbnail();
     this->previewAvailable = node->hasPreview();
-    this->tag = node->getTag();
+    this->tag = static_cast<MegaNodePrivate*>(node)->tag; // deprecated; will be removed in future (this syntax just to avoid the warning)
     this->isPublicNode = node->isPublic();
     this->privateAuth = *node->getPrivateAuth();
     this->publicAuth = *node->getPublicAuth();
@@ -13547,34 +13547,6 @@ void MegaApiImpl::pcrs_updated(PendingContactRequest **r, int count)
     delete requestList;
 }
 
-void MegaApiImpl::setattr_result(handle h, Error e)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || ((request->getType() != MegaRequest::TYPE_RENAME)
-            && request->getType() != MegaRequest::TYPE_SET_ATTR_NODE))
-    {
-        return;
-    }
-
-    request->setNodeHandle(h);
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::rename_result(handle h, error e)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_MOVE)) return;
-
-#ifdef ENABLE_SYNC
-    client->syncdownrequired = true;
-#endif
-
-    request->setNodeHandle(h);
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
 void MegaApiImpl::unlink_result(handle h, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -19093,7 +19065,15 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->rename(node, newParent, SYNCDEL_NONE, UNDEF, name);
+            e = client->rename(node, newParent, SYNCDEL_NONE, NodeHandle(), name,
+                [request, this](NodeHandle h, Error e)
+                {
+#ifdef ENABLE_SYNC
+                    client->syncdownrequired = true;
+#endif
+                    request->setNodeHandle(h.as8byte());
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
             break;
         }
         case MegaRequest::TYPE_COPY:
@@ -19348,7 +19328,12 @@ void MegaApiImpl::sendPendingRequests()
 
             string sname = newName;
             fsAccess->normalize(&sname);
-            e = client->setattr(node, attr_map('n', sname), client->reqtag, nullptr);
+            e = client->setattr(node, attr_map('n', sname), client->reqtag, nullptr,
+                [request, this](NodeHandle h, Error e)
+                {
+                    request->setNodeHandle(h.as8byte());
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
             break;
         }
         case MegaRequest::TYPE_REMOVE:
@@ -20272,23 +20257,22 @@ void MegaApiImpl::sendPendingRequests()
                         attrUpdates[nid] = std::to_string(value);
                     }
 
-                    do
+                    // update file versions if any
+                    if (current->type == FILENODE)
                     {
-                        e = client->setattr(current, attr_map(attrUpdates), client->reqtag, nullptr);
-
-                        if (current->type != FILENODE || !current->children.size())
+                        for (Node* n = current->children.empty() ? nullptr : current->children.back();
+                              n;   n = n->children.empty() ? nullptr : n->children.back())
                         {
-                            // If node is a folder or doesn't have any versions
-                            break;
+                            client->setattr(n, attr_map(attrUpdates), 0, nullptr, nullptr); // no callback for these
                         }
-
-                        // Retrieve next node version (all versions must have the same lbl/fav value)
-                        assert(current->children.back()->parent == current);
-                        current = current->children.back();
                     }
-                    while (current);
 
-                    attrUpdates.clear();
+                    e = client->setattr(current, move(attrUpdates), client->reqtag, nullptr,
+                        [request, this](NodeHandle h, Error e)
+                        {
+                            request->setNodeHandle(h.as8byte());
+                            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                        });
 
                     break;
                 }
@@ -20328,7 +20312,12 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!e && !attrUpdates.empty())
             {
-                e = client->setattr(node, std::move(attrUpdates), client->reqtag, nullptr);
+                e = client->setattr(node, std::move(attrUpdates), client->reqtag, nullptr,
+                    [request, this](NodeHandle h, Error e)
+                    {
+                        request->setNodeHandle(h.as8byte());
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    });
             }
 
             break;

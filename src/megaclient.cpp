@@ -7701,7 +7701,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr)
+error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr, CommandSetAttr::Completion&& c)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -7727,7 +7727,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
     n->tag = tag;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, tag, prevattr));
+    reqs.add(new CommandSetAttr(this, n, cipher, prevattr, move(c)));
 
     return API_OK;
 }
@@ -7899,7 +7899,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent, const char *newName)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c)
 {
     error e;
 
@@ -7915,9 +7915,9 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     }
 
     Node *prevParent = NULL;
-    if (!ISUNDEF(prevparent))
+    if (!prevparent.isUndef())
     {
-        prevParent = nodebyhandle(prevparent);
+        prevParent = nodeByHandle(prevparent);
     }
     else
     {
@@ -7974,11 +7974,11 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c)));
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
-            setattr(n, std::move(attrUpdates), reqtag, nullptr);
+            setattr(n, std::move(attrUpdates), reqtag, nullptr, nullptr);
         }
     }
 
@@ -15385,7 +15385,7 @@ void MegaClient::execmovetosyncdebris()
                     int creqtag = reqtag;
                     reqtag = n->tag;
                     LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                    rename(n, tn, target, n->parent ? n->parent->nodehandle : UNDEF);
+                    rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, nullptr);
                     reqtag = creqtag;
                     it++;
                 }
