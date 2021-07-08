@@ -791,7 +791,6 @@ class MegaNode
          * @return The tag associated with the node.
          * @deprecated This function will be removed in future releases, it was unreliable due to race conditions
          */
-        MEGA_DEPRECATED
         virtual int getTag();
 
         /**

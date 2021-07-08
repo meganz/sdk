@@ -468,17 +468,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string* getAttrString() override;
         char* getFileAttrString() override;
 
-#ifdef _WIN32
-#pragma warning(push)
-#pragma warning(disable:4996)
-#endif // _WIN32
-
-        // avoid deprecated warning within the SDK, we still have to override until we remove it
         int getTag() override;
-
-#ifdef _WIN32
-#pragma warning(pop)
-#endif // _WIN32
 
         int64_t getExpirationTime() override;
         MegaHandle getPublicHandle() override;
