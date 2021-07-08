@@ -1208,7 +1208,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     string prevname = node->attrs.map['n'];
 
                     // set new name
-                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str());
+                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr);
                 }
             }
         }
@@ -1229,7 +1229,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             {
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, nullptr) == API_EACCESS
                         && sync != parent->sync)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
