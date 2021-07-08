@@ -2978,8 +2978,6 @@ protected:
         void account_details(AccountDetails*, error) override;
         void querytransferquota_result(int) override;
 
-        void setattr_result(handle, Error) override;
-        void rename_result(handle, error) override;
         void unlink_result(handle, error) override;
         void unlinkversions_result(error) override;
         void nodes_updated(Node**, int) override;

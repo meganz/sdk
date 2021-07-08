@@ -789,7 +789,9 @@ class MegaNode
          * If the node hasn't been created/modified during the current execution, this function returns 0
          *
          * @return The tag associated with the node.
+         * @deprecated This function will be removed in future releases, it was unreliable due to race conditions
          */
+        MEGA_DEPRECATED
         virtual int getTag();
 
         /**
