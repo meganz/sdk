@@ -467,7 +467,10 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         char *getBase64Key() override;
         std::string* getAttrString() override;
         char* getFileAttrString() override;
+
+        MEGA_DEPRECATED  // hopefully avoids error-as-warning in jenkins
         int getTag() override;
+
         int64_t getExpirationTime() override;
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;

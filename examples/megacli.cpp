@@ -33,8 +33,9 @@
 #define PREFER_STDARG
 
 #ifndef NO_READLINE
-    #include <readline/readline.h>
-    #include <readline/history.h>
+#include <signal.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 #endif
 
 #if (__cplusplus >= 201703L)
