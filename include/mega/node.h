@@ -358,6 +358,9 @@ struct MEGA_API LocalNode : public File
 
         // checked for missing attributes
         bool checked : 1;
+
+        // set after the cloud node is created
+        bool needsRescan : 1;
     };
 
     // current subtree sync state: current and displayed
@@ -413,6 +416,8 @@ struct MEGA_API LocalNode : public File
     ~LocalNode();
 
     void detach(const bool recreate = false);
+
+    void setSubtreeNeedsRescan(bool includeFiles);
 };
 
 template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
