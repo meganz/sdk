@@ -22761,7 +22761,7 @@ void MegaApiImpl::sendPendingRequests()
             auto binTokSize = Base64::atob(uploadToken, binTok, 36);
             if (binTokSize != 36)
             {
-                LOG_err << "Invalid upload token";
+                LOG_err << "Invalid upload token: " << uploadToken;
                 e = API_EARGS;
                 break;
             }

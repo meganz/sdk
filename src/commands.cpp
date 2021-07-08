@@ -435,11 +435,11 @@ CommandGetPutUrl::CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbps
     }
     if (getIP)
     {
-        arg("v", 2);
+        arg("v", 3);
     }
     else
     {
-        arg("v", 3);
+        arg("v", 2);
     }
     arg("s", size);
     arg("ms", putmbpscap);
