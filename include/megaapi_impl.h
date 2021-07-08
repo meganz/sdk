@@ -468,8 +468,11 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string* getAttrString() override;
         char* getFileAttrString() override;
 
-        MEGA_DEPRECATED  // hopefully avoids error-as-warning in jenkins
+#pragma warning(push)
+#pragma warning(disable:4996)
+        // avoid deprecated warning within the SDK, we still have to override until we remove it
         int getTag() override;
+#pragma warning(pop)
 
         int64_t getExpirationTime() override;
         MegaHandle getPublicHandle() override;
