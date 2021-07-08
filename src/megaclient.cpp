@@ -7935,8 +7935,8 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
             handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
             nameid rrname = AttrMap::string2nameid("rr");
 
-            if (prevRoot->nodehandle != rubbishHandle
-                    && p->nodehandle == rubbishHandle)
+            if (prevRoot->nodehandle != rubbishHandle &&
+                newRoot->nodehandle == rubbishHandle)
             {
                 // deleted node
                 char base64Handle[12];
