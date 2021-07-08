@@ -592,7 +592,7 @@ ELSE(WIN32)
 
     IF(USE_DRIVE_NOTIFICATIONS)
         IF(APPLE)
-            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} 
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                 ${MegaDir}/include/mega/osx/drivenotifyosx.h
                 ${MegaDir}/src/osx/drivenotifyosx.cpp
             )
@@ -914,7 +914,7 @@ add_executable(test_integration
 )
 
 if(APPLE)
-    add_executable(test_integration_fsevents_loader 
+    add_executable(test_integration_fsevents_loader
         ${MegaDir}/tests/integration/fsevents_loader_main.cpp
     )
 
