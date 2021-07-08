@@ -2243,11 +2243,7 @@ struct StandardClient : public MegaApp
                               [=]()
                               {
                                   client.setattr(node, attr_map(updates), client.reqtag, nullptr,
-                                      [result](NodeHandle, error e)
-                                      {
-                                          result->set_value(!e);
-                                          return true;
-                                      });
+                                      [result](NodeHandle, error e) { result->set_value(!e); });
                               }, nullptr);
     }
 
@@ -2374,8 +2370,7 @@ struct StandardClient : public MegaApp
                 [pb, n, p, this]()
                 {
                     client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
-                        [pb](NodeHandle h, Error e)
-                        { pb->set_value(!e); return true; });
+                        [pb](NodeHandle h, Error e) { pb->set_value(!e); });
                 },
                 nullptr);
             return;
@@ -2394,8 +2389,7 @@ struct StandardClient : public MegaApp
                 [pb, n, p, this]()
                 {
                     client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
-                        [pb](NodeHandle h, Error e)
-                        { pb->set_value(!e); return true; });
+                        [pb](NodeHandle h, Error e) { pb->set_value(!e); });
                 },
                 nullptr);
             return;
@@ -2414,8 +2408,7 @@ struct StandardClient : public MegaApp
                 [pb, n, p, this]()
                 {
                     client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
-                        [pb](NodeHandle h, Error e)
-                        { pb->set_value(!e); return true; });
+                        [pb](NodeHandle h, Error e) { pb->set_value(!e); });
                 },
                 nullptr);
             return;
