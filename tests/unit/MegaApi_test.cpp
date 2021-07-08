@@ -40,8 +40,7 @@ unique_ptr<MegaStringList> createMegaStringList(const vector<const char*>& data)
         list.emplace_back(value);
     }
 
-    return unique_ptr<MegaStringList>{
-        new MegaStringListPrivate{std::move(list)}};
+    return unique_ptr<MegaStringList>(new MegaStringListPrivate(std::move(list)));
 }
 
 } // anonymous

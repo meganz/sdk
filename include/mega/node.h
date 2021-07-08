@@ -45,6 +45,9 @@ struct MEGA_API NodeCore
     // node's own handle
     handle nodehandle = UNDEF;
 
+    // inline convenience function to get a typed version that ensures we use the 6 bytes of a node handle, and not 8
+    NodeHandle nodeHandle() const { return NodeHandle().set6byte(nodehandle); }
+
     // parent node handle (in a Node context, temporary placeholder until parent is set)
     handle parenthandle = UNDEF;
 
@@ -133,10 +136,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool setparent(Node*);
 
     // follow the parent links all the way to the top
-    Node* firstancestor();
-
-    // copy JSON-delimited string
-    static void copystring(string*, const char*);
+    const Node* firstancestor() const;
 
     // try to resolve node key string
     bool applykey();

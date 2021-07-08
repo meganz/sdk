@@ -76,6 +76,7 @@ typedef unsigned char byte;
 #include <memory>
 #include <string>
 #include <chrono>
+#include <mutex>
 
 namespace mega {
 
@@ -94,6 +95,8 @@ using std::streambuf;
 using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
+using std::mutex;
+using std::lock_guard;
 
 #ifdef WIN32
 using std::wstring;
@@ -260,7 +263,7 @@ private:
 };
 
 // returned by loggedin()
-typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } sessiontype_t;
+typedef enum { NOTLOGGEDIN = 0, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT, EPHEMERALACCOUNTPLUSPLUS } sessiontype_t;
 
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit
 // in a 64-bit int
@@ -338,7 +341,7 @@ typedef enum { OPCA_ADD = 0, OPCA_DELETE, OPCA_REMIND} opcactions_t;
 typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
 
 
-typedef vector<struct Node*> node_vector;
+typedef vector<Node*> node_vector;
 
 // contact visibility:
 // HIDDEN - not shown
@@ -357,6 +360,17 @@ typedef enum {
     SYNC_INITIALSCAN = 0,
     SYNC_ACTIVE
 } syncstate_t;
+
+typedef enum
+{
+    // Sync is not operating in a backup capacity.
+    SYNC_BACKUP_NONE = 0,
+    // Sync is mirroring the local source.
+    SYNC_BACKUP_MIRROR = 1,
+    // Sync is monitoring (and propagating) local changes.
+    SYNC_BACKUP_MONITOR = 2
+}
+SyncBackupState;
 
 enum SyncError {
     NO_SYNC_ERROR = 0,
@@ -388,6 +402,9 @@ enum SyncError {
     LOGGED_OUT = 26,                        // Logged out
     WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
     MISSING_PARENT_NODE = 28,               // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
+    BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
+    SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
 };
 
 enum SyncWarning {
@@ -598,9 +615,10 @@ typedef enum {
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
-    //ATTR_BACKUP_NAMES = 32,                 // (deprecated) private - byte array - versioned
+    //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
-    ATTR_JSON_SYNC_CONFIG_DATA = 34         // private - byte array - non-versioned
+    ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
+    ATTR_DRIVE_NAMES = 35                   // private - byte array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -728,6 +746,15 @@ typedef enum {
     ACCOUNT_TYPE_BUSINESS = 100,
 } AccountType;
 
+typedef enum
+{
+    ACTION_CREATE_ACCOUNT              = 0,
+    ACTION_RESUME_ACCOUNT              = 1,
+    ACTION_CANCEL_ACCOUNT              = 2,
+    ACTION_CREATE_EPLUSPLUS_ACCOUNT    = 3,
+    ACTION_RESUME_EPLUSPLUS_ACCOUNT    = 4,
+} AccountActionType;
+
 typedef enum {
     AUTH_METHOD_UNKNOWN     = -1,
     AUTH_METHOD_SEEN        = 0,
@@ -810,6 +837,7 @@ namespace CodeCounter
 #ifdef MEGA_MEASURE_CODE
         ScopeStats& scope;
         high_resolution_clock::time_point blockStart;
+        bool done = false;
 
         ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
         {
@@ -817,14 +845,22 @@ namespace CodeCounter
         }
         ~ScopeTimer()
         {
+            if (!done) complete();
+        }
+        high_resolution_clock::duration timeSpent()
+        {
+            return high_resolution_clock::now() - blockStart;
+        }
+        void complete()
+        {
             ++scope.count;
             ++scope.finishes;
-            scope.timeSpent += high_resolution_clock::now() - blockStart;
+            scope.timeSpent += timeSpent();
+            done = true;
         }
 #else
-        ScopeTimer(ScopeStats& sm)
-        {
-        }
+        ScopeTimer(ScopeStats& sm) {}
+        void complete() {}
 #endif
     };
 }
@@ -843,7 +879,7 @@ public:
         STATUS_PRO_LEVEL = 4,
     };
 
-    CacheableStatus(int64_t type, int64_t value);
+    CacheableStatus(Type type, int64_t value);
 
     // serializes the object to a string
     bool serialize(string* data) override;
@@ -851,17 +887,20 @@ public:
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
     static CacheableStatus* unserialize(MegaClient *client, const std::string& data);
-    int64_t type() const;
+    Type type() const;
     int64_t value() const;
 
     void setValue(const int64_t value);
+
+    string typeToStr();
+    static string typeToStr(Type type);
 
 private:
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
-    int64_t mType = STATUS_UNKNOWN;
+    Type mType = STATUS_UNKNOWN;
     int64_t mValue = 0;
 
 };

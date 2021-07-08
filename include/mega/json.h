@@ -39,6 +39,11 @@ struct MEGA_API JSON
     {
     }
 
+    explicit JSON(const char* data)
+      : pos(data)
+    {
+    }
+
     const char* pos;
 
     bool isnumeric();
@@ -74,6 +79,7 @@ struct MEGA_API JSON
     bool leaveobject();
 
     bool storeobject(string* = NULL);
+    bool skipnullvalue();
 
     static void unescape(string*);
 
@@ -93,6 +99,10 @@ struct MEGA_API JSON
 
     // Only advance the pointer if it's an error (0, -1, -2, -3, ...)
     bool isNumericError(error& e);
+
+    // copy JSON-delimited string
+    static void copystring(string*, const char*);
+
 };
 
 class MEGA_API JSONWriter
@@ -113,6 +123,13 @@ public:
     void arg(const char*, m_off_t);
     void arg_B64(const char*, const string&);
     void arg_fsfp(const char*, fsfp_t);
+
+    // These should only be used when producing JSON meant for human consumption.
+    // If you're generating JSON meant to be consumed by our servers, you
+    // should escape things using arg_B64 above.
+    void arg_stringWithEscapes(const char*, const char*, int = 1);
+    void arg_stringWithEscapes(const char*, const string&, int = 1);
+
     void addcomma();
     void appendraw(const char*);
     void appendraw(const char*, int);
@@ -125,7 +142,8 @@ public:
     void element(int);
     void element(handle, int = sizeof(handle));
     void element(const byte*, int);
-    void element(const char*);
+    void element(const char* data);
+    void element(const string& data);
     void element_B64(const string&);
 
     void openobject();
@@ -135,6 +153,10 @@ public:
     const string& getstring() const;
 
     size_t size() const;
+    void clear() { mJson.clear(); }
+
+protected:
+    string escape(const char* data, size_t length) const;
 
 private:
     static const int MAXDEPTH = 8;

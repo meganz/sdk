@@ -6,7 +6,7 @@ SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 ##############################################
 CURRENTPATH=`pwd`
 OPENSSL_PREFIX="${CURRENTPATH}"
-ARCHS="i386 x86_64 armv7 armv7s arm64"
+ARCHS="arm64 x86_64"
 DEVELOPER=`xcode-select -print-path`
 
 if [ ! -d "$DEVELOPER" ]; then
@@ -36,13 +36,13 @@ set -e
 
 if [ ! -d "libwebsockets" ]
 then
-git clone -b v2.4-stable https://github.com/warmcat/libwebsockets.git
+git clone -b v4.2-stable https://github.com/warmcat/libwebsockets.git
 fi
 
 for ARCH in ${ARCHS}
 do
 
-if [[ "${ARCH}" == "i386" || "${ARCH}" == "x86_64" ]];
+if [ "${ARCH}" == "x86_64" ];
 then
 PLATFORM="iPhoneSimulator"
 else
@@ -52,7 +52,7 @@ fi
 echo "BUILDING FOR ${ARCH}"
 
 IOSC_TARGET=iphoneos
-IOSC_OS_VERSION=-mios-version-min=7.0
+IOSC_OS_VERSION=-mios-version-min=12.1
 IOSC_ARCH=${ARCH}
 IOSC_PLATFORM_SDKNAME=${PLATFORM}
 IOSC_CMAKE_TOOLCHAIN="../ios.toolchain.cmake"
@@ -70,8 +70,8 @@ export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
 mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
-export LDFLAGS="-arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=7.0 -L${BUILD_SDKROOT}/usr/lib"
-export CFLAGS="-arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=7.0 -g3"
+export LDFLAGS="-arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=12.1 -L${BUILD_SDKROOT}/usr/lib"
+export CFLAGS="-arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=12.1 -g3"
 export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
 export CXXFLAGS="${CPPFLAGS}"
 
@@ -79,25 +79,13 @@ if [ "${ARCH}" == "arm64" ]; then
 
 IOSC_HOST_TRIPLET=aarch64-apple-darwin
 
-cmake . -DCMAKE_TOOLCHAIN_FILE=${CURRENTPATH}/iOS.cmake -DIOS_PLATFORM=OS -DIOS_PLATFORM_TYPE=${ARCH} -DBUILD_ARM64=1 -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${CURRENTPATH}/webrtc/third_party/boringssl/src/include -DOPENSSL_SSL_LIBRARY=${CURRENTPATH}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${CURRENTPATH}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${CURRENTPATH} -DLWS_WITH_LIBUV=1 -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include -DLIBUV_LIBRARIES=${CURRENTPATH}/lib -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON
-
-elif [ "${ARCH}" == "i386" ]; then
-
-IOSC_HOST_TRIPLET=${ARCH}-apple-darwin
-
-cmake . -DCMAKE_TOOLCHAIN_FILE=${CURRENTPATH}/iOS.cmake -DIOS_PLATFORM=SIMULATOR -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${CURRENTPATH}/webrtc/third_party/boringssl/src/include -DOPENSSL_SSL_LIBRARY=${CURRENTPATH}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${CURRENTPATH}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${CURRENTPATH} -DLWS_WITH_LIBUV=1 -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include -DLIBUV_LIBRARIES=${CURRENTPATH}/lib -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON
+cmake . -DCMAKE_TOOLCHAIN_FILE=${CURRENTPATH}/libwebsockets/contrib/iOS.cmake -DIOS_PLATFORM=OS -DBUILD_ARM64=1  -DLWS_OPENSSL_INCLUDE_DIRS=${CURRENTPATH}/webrtc/third_party/boringssl/src/include -DLWS_OPENSSL_LIBRARIES=${CURRENTPATH}/lib/libwebrtc.a -DLWS_WITH_LIBUV=1 -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include -DLIBUV_LIBRARIES=${CURRENTPATH}/lib/libuv.a -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON -DIOS_BITCODE=1 -DLWS_WITH_HTTP2=0 -DLWS_WITH_BORINGSSL=1
 
 elif [ "${ARCH}" == "x86_64" ]; then
 
 IOSC_HOST_TRIPLET=${ARCH}-apple-darwin
 
-cmake . -DCMAKE_TOOLCHAIN_FILE=${CURRENTPATH}/iOS.cmake -DIOS_PLATFORM=SIMULATOR64 -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${CURRENTPATH}/webrtc/third_party/boringssl/src/include -DOPENSSL_SSL_LIBRARY=${CURRENTPATH}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${CURRENTPATH}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${CURRENTPATH} -DLWS_WITH_LIBUV=1 -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include -DLIBUV_LIBRARIES=${CURRENTPATH}/lib -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON
-
-else
-
-IOSC_HOST_TRIPLET=${ARCH}-apple-darwin
-
-cmake . -DCMAKE_TOOLCHAIN_FILE=${CURRENTPATH}/iOS.cmake -DIOS_PLATFORM=OS -DIOS_PLATFORM_TYPE=${ARCH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${CURRENTPATH}/webrtc/third_party/boringssl/src/include -DOPENSSL_SSL_LIBRARY=${CURRENTPATH}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${CURRENTPATH}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${CURRENTPATH} -DLWS_WITH_LIBUV=1 -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include -DLIBUV_LIBRARIES=${CURRENTPATH}/lib -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON
+cmake . -DCMAKE_TOOLCHAIN_FILE=${CURRENTPATH}/libwebsockets/contrib/iOS.cmake -DIOS_PLATFORM=SIMULATOR64  -DLWS_OPENSSL_INCLUDE_DIRS=${CURRENTPATH}/webrtc/third_party/boringssl/src/include -DLWS_OPENSSL_LIBRARIES=${CURRENTPATH}/lib/libwebrtc.a -DLWS_WITH_LIBUV=1 -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include -DLIBUV_LIBRARIES=${CURRENTPATH}/lib/libuv.a -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON -DIOS_BITCODE=1 -DLWS_WITH_HTTP2=0 -DLWS_WITH_BORINGSSL=1
 
 fi
 
@@ -113,7 +101,10 @@ popd
 done
 
 mkdir lib || true
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libwebsockets.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libwebsockets.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libwebsockets.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libwebsockets.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libwebsockets.a -output ${CURRENTPATH}/lib/libwebsockets.a
+lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libwebsockets.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libwebsockets.a -output ${CURRENTPATH}/lib/libwebsockets.a
 
-cp -f -R libwebsockets/include/*.h include/
+cp -f -R libwebsockets/include/* include/
+
+rm -fr bin
+rm -fr libwebsockets
 echo "Done."

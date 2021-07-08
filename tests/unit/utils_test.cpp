@@ -28,6 +28,7 @@
 
 #include <mega/db.h>
 #include <mega/db/sqlite.h>
+#include <mega/json.h>
 
 TEST(utils, hashCombine_integer)
 {
@@ -655,6 +656,30 @@ TEST(Filesystem, NormalizeRelativeEmpty)
     EXPECT_EQ(NormalizeRelative(path), path);
 }
 
+TEST(Filesystem, isReservedName)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+    bool expected = false;
+
+#ifdef _WIN32
+    expected = true;
+#endif // _WIN32
+    
+    // Representative examples.
+    static const string reserved[] = {"AUX", "com1", "LPT4"};
+
+    for (auto& r : reserved)
+    {
+        EXPECT_EQ(isReservedName(r, FILENODE),   expected);
+        EXPECT_EQ(isReservedName(r, FOLDERNODE), expected);
+    }
+
+    EXPECT_EQ(isReservedName("a.", FILENODE),   false);
+    EXPECT_EQ(isReservedName("a.", FOLDERNODE), expected);
+}
+
 class SqliteDBTest
   : public ::testing::Test
 {
@@ -1049,4 +1074,35 @@ TEST(LocalPath, PrependWithSeparator)
 }
 
 #undef SEP
+
+TEST(JSONWriter, arg_stringWithEscapes)
+{
+    JSONWriter writer;
+    writer.arg_stringWithEscapes("ke", "\"\\");
+    EXPECT_EQ(writer.getstring(), "\"ke\":\"\\\"\\\\\"");
+}
+
+TEST(JSONWriter, escape)
+{
+    class Writer
+      : public JSONWriter
+    {
+    public:
+        using JSONWriter::escape;
+    };
+
+    Writer writer;
+    string input = "\"\\";
+    string expected = "\\\"\\\\";
+
+    EXPECT_EQ(writer.escape(input.c_str(), input.size()), expected);
+}
+
+TEST(JSON, NullValue)
+{
+    string s = "\"foo\":,\"bar\":null,\"restof\":\"json\"}remainder"; // no leading '{'
+    JSON j(s);
+    EXPECT_EQ(j.getnameid(), j.getnameid("restof\"")); // no leading '"'
+    EXPECT_EQ(0, strcmp(j.pos, "\"json\"}remainder"));
+}
 

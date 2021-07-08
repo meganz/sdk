@@ -33,8 +33,6 @@
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
 
-#include "mega/logging.h"
-
 // Needed for Windows Phone (MSVS 2013 - C++ version 9.8)
 #if defined(_WIN32) && _MSC_VER <= 1800 && __cplusplus < 201103L && !defined(_TIMESPEC_DEFINED) && ! __struct_timespec_defined
 struct timespec
@@ -298,13 +296,14 @@ private:
     /**
      * @brief get Get the value for a given key
      *
-     * In case the type is not found, it will throw. A previous call to TLVStore::find()
-     * might be necessary in order to check the existence of the type in advance.
+     * In case the type is found, it will update value parameter and return true.
+     * In case the type is not found, it will return false and value will not be changed.
      *
      * @param type Type of the value (without scope nor non-historic modifiers).
-     * @return String containing the array with the value.
+     * @param value Set to corresponding value if type was found.
+     * @return True if type was found, false otherwise.
      */
-    std::string get(string type) const;
+    bool get(string type, string& value) const;
 
     /**
      * @brief Get a reference to the TLV_map associated to this TLVstore
@@ -324,13 +323,6 @@ private:
      * @return A new vector with the keys included in the TLV
      */
     vector<string> *getKeys() const;
-
-    /**
-     * @brief find Checks whether a type of value is available in the TLV container.
-     * @param type Type of the value (without scope nor non-historic modifiers).
-     * @return True if the type of value is found, false otherwise.
-     */
-    bool find(string type) const;
 
     /**
      * @brief add Adds a new record to the container
@@ -848,6 +840,9 @@ inline int hexval(const int c)
 }
 
 bool islchex(const int c);
+
+// gets a safe url by replacing private parts to be used in logs
+std::string getSafeUrl(const std::string &posturl);
 
 } // namespace
 

@@ -301,7 +301,7 @@ public:
     CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
 
 private:
-    std::unique_ptr<byte> privkBuffer;
+    std::unique_ptr<byte[]> privkBuffer;
     unsigned len;
 };
 
@@ -610,7 +610,7 @@ class MEGA_API CommandSetAttr : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char* = NULL);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, int tag, const char*);
 };
 
 class MEGA_API CommandSetShare : public Command
@@ -622,12 +622,16 @@ class MEGA_API CommandSetShare : public Command
     string personal_representation;
     bool mWritable = false;
 
+
+    std::function<void(Error, bool writable)> completion;
+
     bool procuserresult(MegaClient*);
 
 public:
     bool procresult(Result) override;
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, bool writable, const char* = NULL);
+    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, bool writable, const char*,
+	    int tag, std::function<void(Error, bool writable)> f);
 };
 
 class MEGA_API CommandGetUserData : public Command
@@ -727,18 +731,20 @@ class MEGA_API CommandSetPH : public Command
     handle h;
     m_time_t ets;
     bool mWritable = false;
+    std::function<void(Error, handle, handle)> completion;
 
 public:
     bool procresult(Result) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable = false);
+    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable,
+	    int ctag, std::function<void(Error, handle, handle)> f);
 };
 
 class MEGA_API CommandGetPH : public Command
 {
     handle ph;
     byte key[FILENODEKEYLENGTH];
-    int op;
+    int op; //  (op=0 -> download, op=1 fetch data, op=2 import welcomePDF)
     bool havekey;
 
 public:
@@ -1327,6 +1333,7 @@ public:
     {
         // if left as UNDEF, you are registering a new Sync/Backup
         handle backupId = UNDEF;
+        handle driveId = UNDEF;
 
         // if registering a new Sync/Backup, these must be set
         // otherwise, leave as is to not send an update for that field.

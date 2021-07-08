@@ -22,9 +22,11 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
+#include <atomic>
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"
+#include "filefingerprint.h"
 
 namespace mega {
 
@@ -108,6 +110,11 @@ class MEGA_API LocalPath
     friend int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
     friend int compareUtf(const LocalPath&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
 
+#ifdef _WIN32
+    friend bool isPotentiallyInaccessibleName(const FileSystemAccess&, const LocalPath&, nodetype_t);
+    friend bool isPotentiallyInaccessiblePath(const FileSystemAccess&, const LocalPath&, nodetype_t);
+#endif // ! _WIN32
+
 public:
     LocalPath() {}
 
@@ -130,6 +137,7 @@ public:
     void append(const LocalPath& additionalPath);
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways);
     void prependWithSeparator(const LocalPath& additionalPath);
+    LocalPath prependNewWithSeparator(const LocalPath& additionalPath) const;
     void trimNonDriveTrailingSeparator();
     bool findNextSeparator(size_t& separatorBytePos) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
@@ -153,6 +161,7 @@ public:
     // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
     // No escaping or unescaping is done.
     string toPath(const FileSystemAccess& fsaccess) const;
+    string toPath() const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
@@ -178,6 +187,13 @@ public:
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
+};
+
+struct NameConflict {
+    string cloudPath;
+    vector<string> clashingCloudNames;
+    LocalPath localPath;
+    vector<LocalPath> clashingLocalNames;
 };
 
 void AddHiddenFileAttribute(mega::LocalPath& path);
@@ -354,13 +370,6 @@ protected:
     virtual void asyncsyswrite(AsyncIOContext*);
 };
 
-struct MEGA_API InputStreamAccess
-{
-    virtual m_off_t size() = 0;
-    virtual bool read(byte *, unsigned) = 0;
-    virtual ~InputStreamAccess() { }
-};
-
 class MEGA_API FileInputStream : public InputStreamAccess
 {
     FileAccess *fileAccess;
@@ -519,7 +528,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     static const char *getPathSeparator();
 
     //Normalize UTF-8 string
-    void normalize(string *) const;
+    static void normalize(string *);
 
     // generate local temporary file name
     virtual void tmpnamelocal(LocalPath&) const = 0;
@@ -569,7 +578,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     void setdefaultfolderpermissions(int) { }
 
     // convenience function for getting filesystem shortnames
-    std::unique_ptr<LocalPath> fsShortname(LocalPath& localpath);
+    std::unique_ptr<LocalPath> fsShortname(const LocalPath& localpath);
 
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
@@ -600,6 +609,22 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool cwd(LocalPath& path) const = 0;
 };
 
+enum FilenameAnomalyType
+{
+    FILENAME_ANOMALY_NAME_MISMATCH = 0,
+    FILENAME_ANOMALY_NAME_RESERVED = 1,
+    // This should always be last.
+    FILENAME_ANOMALY_NONE
+}; // FilenameAnomalyType
+
+class FilenameAnomalyReporter
+{
+public:
+    virtual ~FilenameAnomalyReporter() { };
+
+    virtual void anomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath) = 0;
+}; // FilenameAnomalyReporter
+
 bool isCaseInsensitive(const FileSystemType type);
 
 int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
@@ -612,6 +637,33 @@ int platformCompareUtf(const string&, bool unescape1, const string&, bool unesca
 int platformCompareUtf(const string&, bool unescape1, const LocalPath&, bool unescape2);
 int platformCompareUtf(const LocalPath&, bool unescape1, const string&, bool unescape2);
 int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool unescape2);
+
+// Returns true if name is a reserved file name.
+//
+// On Windows, a reserved file name is:
+//   - AUX, COM[0-9], CON, LPT[0-9], NUL or PRN.
+bool isReservedName(const string& name, nodetype_t type = FILENODE);
+
+// Checks if there is a filename anomaly.
+//
+// @param localPath
+// The local path of the file in question.
+//
+// @param node
+// The remote node representing the file in question.
+//
+// @return
+// FILENAME_ANOMALY_NAME_MISMATCH
+// - If the local and remote file name differs.
+// FILENAME_ANOMALY_NAME_RESERVED
+// - If the remote file name is reserved.
+// FILENAME_ANOMALY_NONE
+// - If no anomalies were detected.
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type = FILENODE);
+FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node);
+#ifdef ENABLE_SYNC
+FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
+#endif
 
 } // namespace
 

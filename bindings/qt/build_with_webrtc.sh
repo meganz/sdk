@@ -7,7 +7,7 @@ set -e
 ARCH=`uname -m`
 CURRENTPATH=`pwd`/3rdparty
 CURL_VERSION="7.58.0"
-LIBWEBSOCKETS_BRANCH="v2.4-stable"
+LIBWEBSOCKETS_BRANCH="v4.2-stable"
 OPENSSL_PREFIX="${CURRENTPATH}"
 QTPATH="$CURRENTPATH/../../../../.."
 
@@ -43,14 +43,17 @@ if [ "$1" == "clean" ]; then
     exit 0
 fi
 
+mkdir -p ${CURRENTPATH}
+
+echo "* Setting up WebRTC"
 pushd "${WEBRTC_SRC}" > /dev/null
-if [ "9863f3d246e2da7a2e1f42bbc5757f6af5ec5682" != "`git rev-parse HEAD`" ]; then
+if [ "41bfcf4a63611409220fcd458a03deaa2cd23619" != "`git rev-parse HEAD`" ]; then
   echo ""
   echo "* WARNING!!"
-  echo "* You are not using our recommended commit of WebRTC: 9863f3d246e2da7a2e1f42bbc5757f6af5ec5682 (branch-heads/m76)"
+  echo "* You are not using our recommended commit of WebRTC: 41bfcf4a63611409220fcd458a03deaa2cd23619 (branch-heads/4405)"
   echo "* Please consider to switch to that commit this way (in the src folder of WebRTC):"
   echo ""
-  echo "  git checkout 9863f3d246e2da7a2e1f42bbc5757f6af5ec5682"
+  echo "  git checkout 41bfcf4a63611409220fcd458a03deaa2cd23619"
   echo "  gclient sync"
   echo ""
   read -p "* Do you want to continue anyway? (y|N) " -n 1 c
@@ -58,13 +61,23 @@ if [ "9863f3d246e2da7a2e1f42bbc5757f6af5ec5682" != "`git rev-parse HEAD`" ]; the
   if [ "$c" != "y" ]; then
     exit 0
   fi
+else
+  var=$(grep 'Patch applied MEGA' video/buffered_frame_decryptor.cc | wc -l)
+  if [ "$var" -lt  1 ] ; then
+    rm -rf ${CURRENTPATH}/lib/libssl.a
+    rm -rf ${CURRENTPATH}/lib/libcrypto.a
+    rm -rf ${CURRENTPATH}/lib/libwebrtc.a
+    rm -rf "${CURRENTPATH}/webrtc"
+    rm -rf "${WEBRTC_SRC}/out/Release-${ARCH}"
+    git apply ${CURRENTPATH}/../../../patches/webRtcPatch.patch
+    echo "Patch Applied"
+ else
+  echo "Patch already APPLIED"
+ fi
 fi
 popd > /dev/null
 
-mkdir -p ${CURRENTPATH}
-
-echo "* Setting up WebRTC"
-if [ ! -d "${CURRENTPATH}/webrtc" ]; then
+if [ ! -d "${CURRENTPATH}/webrtc" ] ; then
 
   if [ ! -e "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ]; then
     pushd ${WEBRTC_SRC}
@@ -80,6 +93,7 @@ if [ ! -d "${CURRENTPATH}/webrtc" ]; then
   rm -rf ${CURRENTPATH}/include/openssl
   ln -sf "${WEBRTC_SRC}/third_party/boringssl/src/include/openssl" ${CURRENTPATH}/include/openssl
   mkdir -p ${CURRENTPATH}/lib
+  # use libssl and libcrypto that have been embedded into libwebrtc
   ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libssl.a
   ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libcrypto.a
   ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libwebrtc.a
@@ -139,11 +153,19 @@ if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
   pushd libwebsockets
   git reset --hard && git clean -dfx
 
+  # To build libwebsockets in Debug mode, add -DCMAKE_BUILD_TYPE=DEBUG to the cmake command.
+  #
+  # Note: This will build in debug mode, but apparently without defining _DEBUG (which influences at least
+  # the default log level, see lws-logs.h). If this symbol is required, try adding -D_DEBUG too.
+  #
+  #
+  # It may happen that compilation fails due to warnings that are treated as errors, which is the default. To
+  # disable that, add -DDISABLE_WERROR=ON to cmake command.
   if [[ $(uname) == 'Darwin' ]]; then
-    cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${OPENSSL_PREFIX}/include -DOPENSSL_SSL_LIBRARY=${OPENSSL_PREFIX}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${OPENSSL_PREFIX}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${OPENSSL_PREFIX} -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include/libuv
+    cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include/libuv -DLWS_OPENSSL_INCLUDE_DIRS=${OPENSSL_PREFIX}/include -DLWS_OPENSSL_LIBRARIES="${OPENSSL_PREFIX}/lib/libssl.a;${OPENSSL_PREFIX}/lib/libcrypto.a" -DLWS_WITH_HTTP2=0 -DLWS_WITH_BORINGSSL=ON
     make -j `sysctl -n hw.physicalcpu`
   else
-    cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${OPENSSL_PREFIX}/include -DOPENSSL_SSL_LIBRARY=${OPENSSL_PREFIX}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${OPENSSL_PREFIX}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${OPENSSL_PREFIX} -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON
+    cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON -DLWS_OPENSSL_INCLUDE_DIRS=${OPENSSL_PREFIX}/include -DLWS_OPENSSL_LIBRARIES="${OPENSSL_PREFIX}/lib/libssl.a;${OPENSSL_PREFIX}/lib/libcrypto.a" -DLWS_WITH_HTTP2=0 -DLWS_WITH_BORINGSSL=ON
     make -j `nproc`
   fi
   make install
@@ -153,10 +175,6 @@ if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
 
 else
   echo "* libwebsockets already configured"
-fi
-
-if ! patch -R -p0 -s -f --dry-run ${WEBRTC_SRC}/api/jsep.h < ../../patches/webrtc_jsep_h.patch; then
-  patch -p0 ${WEBRTC_SRC}/api/jsep.h < ../../patches/webrtc_jsep_h.patch
 fi
 
 #link lib/* into libs if libs is not symlink

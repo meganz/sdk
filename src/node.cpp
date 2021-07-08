@@ -60,7 +60,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     size = s;
     owner = u;
 
-    copystring(&fileattrstring, fa);
+    JSON::copystring(&fileattrstring, fa);
 
     ctime = ts;
 
@@ -155,7 +155,7 @@ Node::~Node()
             parent->children.erase(child_it);
         }
 
-        Node* fa = firstancestor();
+        const Node* fa = firstancestor();
         handle ancestor = fa->nodehandle;
         if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
         {
@@ -212,7 +212,7 @@ void Node::detach(const bool recreate)
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
-    Node::copystring(&nodekeydata, k);
+    JSON::copystring(&nodekeydata, k);
     if (keyApplied()) ++client->mAppliedKeyNodeCount;
     assert(client->mAppliedKeyNodeCount >= 0);
 }
@@ -622,28 +622,6 @@ bool Node::serialize(string* d)
     return true;
 }
 
-// copy remainder of quoted string (no unescaping, use for base64 data only)
-void Node::copystring(string* s, const char* p)
-{
-    if (p)
-    {
-        const char* pp;
-
-        if ((pp = strchr(p, '"')))
-        {
-            s->assign(p, pp - p);
-        }
-        else
-        {
-            *s = p;
-        }
-    }
-    else
-    {
-        s->clear();
-    }
-}
-
 // decrypt attrstring and check magic number prefix
 byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrlen)
 {
@@ -1025,7 +1003,7 @@ bool Node::setparent(Node* p)
     NodeCounter nc;
     bool gotnc = false;
 
-    Node *originalancestor = firstancestor();
+    const Node *originalancestor = firstancestor();
     handle oah = originalancestor->nodehandle;
     if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
     {
@@ -1052,7 +1030,7 @@ bool Node::setparent(Node* p)
         child_it = parent->children.insert(parent->children.end(), this);
     }
 
-    Node* newancestor = firstancestor();
+    const Node* newancestor = firstancestor();
     handle nah = newancestor->nodehandle;
     if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
     {
@@ -1095,9 +1073,9 @@ bool Node::setparent(Node* p)
     return true;
 }
 
-Node* Node::firstancestor()
+const Node* Node::firstancestor() const
 {
-    Node* n = this;
+    const Node* n = this;
     while (n->parent != NULL)
     {
         n = n->parent;
@@ -1235,9 +1213,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     string prevname = node->attrs.map['n'];
 
                     // set new name
-                    node->attrs.map['n'] = name;
-                    sync->client->nextreqtag(); //make reqtag advance to use the next one
-                    sync->client->setattr(node, prevname.c_str());
+                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str());
                 }
             }
         }
@@ -1563,11 +1539,11 @@ LocalNode::~LocalNode()
 
         if (type == FOLDERNODE)
         {
-            sync->client->app->syncupdate_local_folder_deletion(sync, this);
+            sync->client->app->syncupdate_local_folder_deletion(sync, getLocalPath());
         }
         else
         {
-            sync->client->app->syncupdate_local_file_deletion(sync, this);
+            sync->client->app->syncupdate_local_file_deletion(sync, getLocalPath());
         }
     }
 
@@ -1734,13 +1710,13 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     // exist or is newer
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
-        h = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
+        h = NodeHandle().set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
     }
     else
     {
         // otherwise, overwrite node if it already exists and complete in its
         // place
-        h = parent->node->nodehandle;
+        h = parent->node->nodeHandle();
     }
 
     File::completed(t, this);
