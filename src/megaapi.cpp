@@ -492,11 +492,6 @@ char *MegaNode::getBase64Key()
     return NULL;
 }
 
-int MegaNode::getTag()
-{
-    return 0;
-}
-
 int64_t MegaNode::getExpirationTime()
 {
     return -1;
@@ -603,11 +598,6 @@ bool MegaNode::isForeign()
 }
 
 string *MegaNode::getNodeKey()
-{
-    return NULL;
-}
-
-string *MegaNode::getAttrString()
 {
     return NULL;
 }

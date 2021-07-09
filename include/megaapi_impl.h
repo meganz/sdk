@@ -433,7 +433,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
-                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring, std::string *fileattrstring,
+                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
                         bool isForeign = false, const char *chatauth = NULL);
@@ -465,9 +465,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getParentHandle() override;
         std::string* getNodeKey() override;
         char *getBase64Key() override;
-        std::string* getAttrString() override;
         char* getFileAttrString() override;
-        int getTag() override;
         int64_t getExpirationTime() override;
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
@@ -531,13 +529,11 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle parenthandle;
         MegaHandle restorehandle;
         std::string nodekey;
-        std::string attrstring;
         std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
         std::string mDeviceId;
         const char *chatAuth;
-        int tag;
         int changed;
         struct {
             bool thumbnailAvailable : 1;
