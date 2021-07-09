@@ -19141,9 +19141,6 @@ void MegaApiImpl::sendPendingRequests()
             e = client->rename(node, newParent, SYNCDEL_NONE, NodeHandle(), name,
                 [request, this](NodeHandle h, Error e)
                 {
-#ifdef ENABLE_SYNC
-                    client->syncdownrequired = true;
-#endif
                     request->setNodeHandle(h.as8byte());
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
