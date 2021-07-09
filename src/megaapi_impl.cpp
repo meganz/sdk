@@ -180,7 +180,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->changed = node->getChanges();
     this->thumbnailAvailable = node->hasThumbnail();
     this->previewAvailable = node->hasPreview();
-    this->tag = node->getTag();
+    this->tag = static_cast<MegaNodePrivate*>(node)->tag; // deprecated; will be removed in future (this syntax just to avoid the warning)
     this->isPublicNode = node->isPublic();
     this->privateAuth = *node->getPrivateAuth();
     this->publicAuth = *node->getPublicAuth();
@@ -1058,8 +1058,7 @@ void MegaBackgroundMediaUploadPrivate::setCoordinates(double lat, double lon, bo
 
 SymmCipher* MegaBackgroundMediaUploadPrivate::nodecipher(MegaClient* client)
 {
-    client->tmpnodecipher.setkey(filekey);
-    return &client->tmpnodecipher;
+    return client->getRecycledTemporaryNodeCipher(filekey);
 }
 
 MegaBackgroundMediaUploadPrivate::~MegaBackgroundMediaUploadPrivate()
@@ -4125,6 +4124,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
         case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
+        case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
     }
     return "UNKNOWN";
 }
@@ -6779,6 +6779,15 @@ void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *l
     waiter->notify();
 }
 
+void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_DOWNLOAD_URLS, listener);
+    request->setFlag(singleUrl);
+    if(node) request->setNodeHandle(node->getHandle());
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 const char *MegaApiImpl::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
 {
     handle ph = MegaApi::base64ToHandle(publicHandle);
@@ -9428,10 +9437,41 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     return result;
 }
 
+void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, listener);
+    req->setNumber(fullFileSize);
+    req->setFlag(forceSSL);
+    requestQueue.push(req);
+    waiter->notify();
+}
+
+void MegaApiImpl::completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+                                  const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener)
+{
+    MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD, listener);
+    req->setPassword(fingerprintoriginal);
+    req->setNewPassword(fingerprint);
+    req->setName(utf8Name);
+    req->setPrivateKey(string64FileKey);
+    if (parent)
+    {
+        req->setParentHandle(parent->getHandle());
+    }
+    if (string64UploadToken)
+    {
+        req->setSessionKey(string64UploadToken);
+    }
+    requestQueue.push(req);
+    waiter->notify();
+}
+
+
 void MegaApiImpl::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, listener);
     req->setNumber(fullFileSize);
+    req->setFlag(true); // always SSL for background uploads
     req->setMegaBackgroundMediaUploadPtr(state);
     requestQueue.push(req);
     waiter->notify();
@@ -9451,7 +9491,7 @@ void MegaApiImpl::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state
     }
     if (string64UploadToken)
     {
-        req->setSessionKey(MegaApi::strdup(string64UploadToken));
+        req->setSessionKey(string64UploadToken);
     }
     requestQueue.push(req);
     waiter->notify();
@@ -12995,21 +13035,6 @@ void MegaApiImpl::getmegaachievements_result(AchievementsDetails *, error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ACHIEVEMENTS)) return;
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::backgrounduploadurl_result(error e, string* url)
-{
-    if (requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL)) return;
-
-    if (e  == API_OK && url)
-    {
-        MegaBackgroundMediaUploadPrivate* mu = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
-        mu->url = *url;
-    }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -19116,6 +19141,9 @@ void MegaApiImpl::sendPendingRequests()
             e = client->rename(node, newParent, SYNCDEL_NONE, NodeHandle(), name,
                 [request, this](NodeHandle h, Error e)
                 {
+#ifdef ENABLE_SYNC
+                    client->syncdownrequired = true;
+#endif
                     request->setNodeHandle(h.as8byte());
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
@@ -19477,13 +19505,60 @@ void MegaApiImpl::sendPendingRequests()
             e = client->parsepubliclink(megaFileLink, ph, key, false);
             if (e == API_OK)
             {
-                client->openfilelink(ph, key, 1);
+                client->openfilelink(ph, key);
             }
             else if (e == API_EINCOMPLETE)  // no key provided, check only the existence of the node
             {
-                client->openfilelink(ph, nullptr, 1);
+                client->openfilelink(ph, nullptr);
                 e = API_OK;
             }
+            break;
+        }
+        case MegaRequest::TYPE_GET_DOWNLOAD_URLS:
+        {
+            Node *node = client->nodebyhandle(request->getNodeHandle());
+            bool singleUrl = request->getFlag();
+            if(!node)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandGetFile(client, (const byte*)node->nodekey().data(), node->nodekey().size(),
+                node->nodehandle, true, nullptr, nullptr, nullptr, singleUrl,
+                [this, request](const Error &e, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/, dstime /*timeleft*/,
+                std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
+                const std::vector<std::string> &urls, const std::vector<std::string> &ips)
+                {
+                    if (e == API_OK && urls.size() && ips.size())
+                    {
+                        string surls, sipsv4, sipsv6;
+
+                        auto delimFields=";";
+                        for (auto &u : urls)
+                        {
+                            if (!surls.empty()) surls.append(delimFields);
+                            surls.append(u);
+                        }
+                        bool ipv4 = true;
+                        for (auto &ip : ips)
+                        {
+                            auto &w = ipv4 ? sipsv4 : sipsv6;
+                            if (!w.empty()) w.append(delimFields);
+                            w.append(ip);
+                            ipv4 = !ipv4;
+                        }
+
+                        request->setName(surls.c_str());
+                        request->setLink(sipsv4.c_str());
+                        request->setText(sipsv6.c_str());
+                    }
+
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    return true;
+                })
+            );
+
             break;
         }
         case MegaRequest::TYPE_PASSWORD_LINK:
@@ -22674,33 +22749,88 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL:
         {
-            client->reqs.add(new CommandPutFileBackgroundURL(request->getNumber(), client->putmbpscap, request->getTag()));
+            //if not using MegaBackgroundMediaUpload, ask for IPs
+            bool getIp = !request->getMegaBackgroundMediaUploadPtr();
+
+            client->reqs.add(new CommandGetPutUrl(request->getNumber(), client->putmbpscap, request->getFlag() | client->usehttps, getIp,
+                                                  [this, request](Error e, const std::string &url, const std::vector<std::string> &ips)
+            {
+                assert(e != API_OK || !url.empty());
+                if (e == API_OK && !url.empty())
+                {
+                    if (request->getMegaBackgroundMediaUploadPtr())
+                    {
+                        MegaBackgroundMediaUploadPrivate* mu = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
+                        mu->url = url;
+                    }
+                    else
+                    {
+                        request->setName(url.c_str());
+                        if (!ips.empty())
+                        {
+                            request->setLink(ips.at(0).c_str());
+                        }
+                        if (ips.size() > 1)
+                        {
+                            request->setText(ips.at(1).c_str());
+                        }
+                    }
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
             break;
         }
         case MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD:
         {
-            MegaBackgroundMediaUploadPrivate* uploadState = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
+            MegaBackgroundMediaUploadPrivate* bgMediaUpload = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
+            const char * base64fileKey = request->getPrivateKey();
+
+            if (!base64fileKey && !bgMediaUpload)
+            {
+                e = API_EINCOMPLETE;
+                break;
+            }
+
             const char* utf8Name = request->getName();
             auto parentHandle = NodeHandle().set6byte(request->getParentHandle());
             const char *uploadToken = request->getSessionKey();
             const char* fingerprintOriginal = request->getPassword();
             const char* fingerprint = request->getNewPassword();
 
-            if (!fingerprint || !uploadState || !utf8Name || !uploadToken || parentHandle.isUndef())
+            if (!fingerprint || !utf8Name || !uploadToken || parentHandle.isUndef())
             {
                 e = API_EINCOMPLETE;
                 break;
             }
-            unsigned char* binTok;
-            size_t binTokSize;
-            MegaApi::base64ToBinary(uploadToken, &binTok, &binTokSize);
-            std::string binaryUploadToken((char*)binTok, binTokSize);
-            delete[] binTok;
-            if (binaryUploadToken.size() != 36)
+
+            byte binTok[36];
+            auto binTokSize = Base64::atob(uploadToken, binTok, 36);
+            if (binTokSize != 36)
             {
-                LOG_err << "Invalid upload token";
+                LOG_err << "Invalid upload token: " << uploadToken;
                 e = API_EARGS;
                 break;
+            }
+            std::string binaryUploadToken((char *)binTok, binTokSize);
+
+            byte *theFileKey;
+            std::unique_ptr<byte> filekey;
+            if (bgMediaUpload) //using MegaBackgroundMediaUploadPrivate key
+            {
+                theFileKey = bgMediaUpload->filekey;
+            }
+            else //app driven upload (key provided as parameter)
+            {
+                theFileKey = new byte[FILENODEKEYLENGTH];
+                auto binFileKeySize = Base64::atob(base64fileKey, theFileKey, FILENODEKEYLENGTH);
+                filekey.reset(theFileKey);
+
+                if (binFileKeySize != FILENODEKEYLENGTH)
+                {
+                    LOG_err << "Invalid file key";
+                    e = API_EARGS;
+                    break;
+                }
             }
 
             Node *parentNode = client->nodeByHandle(parentHandle);
@@ -22719,60 +22849,54 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            std::function<error(string *)> addFileAttrsFunc;
+            std::function<error(AttrMap& attrs)> addNodeAttrsFunc;
+
+            if (bgMediaUpload)
+            {
+                addFileAttrsFunc = [bgMediaUpload](string *fileattributes)
+                {
+                    appendFileAttribute(*fileattributes, GfxProc::THUMBNAIL, bgMediaUpload->thumbnailFA);
+                    appendFileAttribute(*fileattributes, GfxProc::PREVIEW, bgMediaUpload->previewFA);
+
+    #ifdef USE_MEDIAINFO
+                    if (bgMediaUpload->mediaproperties.isPopulated())
+                    {
+                        if (!fileattributes->empty())
+                        {
+                            fileattributes->append("/");
+                        }
+                        fileattributes->append(MediaProperties::encodeMediaPropertiesAttributes(bgMediaUpload->mediaproperties,
+                                                                (uint32_t*)(bgMediaUpload->filekey + FILENODEKEYLENGTH / 2)));
+                    }
+    #endif
+                    return API_OK;
+                };
+
+                addNodeAttrsFunc = [this, bgMediaUpload](AttrMap& attrs)
+                {
+                    error e = API_OK;
+                    int lat, lon;
+                    encodeCoordinates(bgMediaUpload->latitude, bgMediaUpload->longitude, lat, lon);
+                    attr_map updates;
+                    if (API_OK != (e = updateAttributesMapWithCoordinates(updates, lat, lon, bgMediaUpload->unshareableGPS, client)))
+                    {
+                        return e;
+                    }
+                    attrs.applyUpdates(updates);
+                    return e;
+                };
+            }
+
             vector<NewNode> newnodes(1);
             NewNode* newnode = &newnodes[0];
-            newnode->source = NEW_UPLOAD;
-            newnode->type = FILENODE;
-            memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
-            newnode->parenthandle = UNDEF;
-            newnode->uploadhandle = client->getuploadhandle();
-            newnode->attrstring.reset(new string);
-            newnode->fileattributes.reset(new string);
-
-            appendFileAttribute(*newnode->fileattributes, GfxProc::THUMBNAIL, uploadState->thumbnailFA);
-            appendFileAttribute(*newnode->fileattributes, GfxProc::PREVIEW, uploadState->previewFA);
-
-#ifdef USE_MEDIAINFO
-            if (uploadState->mediaproperties.isPopulated())
-            {
-                if (!newnode->fileattributes->empty())
-                {
-                    newnode->fileattributes->append("/");
-                }
-                newnode->fileattributes->append(MediaProperties::encodeMediaPropertiesAttributes(uploadState->mediaproperties,
-                                                        (uint32_t*)(uploadState->filekey + FILENODEKEYLENGTH / 2)));
-            }
-#endif
-            AttrMap attrs;
-            Node *previousNode = client->childnodebyname(parentNode, utf8Name, true);
-            client->honorPreviousVersionAttrs(previousNode, attrs);
-            attrs.map['n'] = utf8Name;
-            attrs.map['c'] = megafingerprint.get();
-            if (fingerprintOriginal)
-            {
-                attrs.map[MAKENAMEID2('c', '0')] = fingerprintOriginal;
-            }
-            int lat, lon;
-            encodeCoordinates(uploadState->latitude, uploadState->longitude, lat, lon);
-            attr_map updates;
-            if (API_OK != (e = updateAttributesMapWithCoordinates(updates, lat, lon, uploadState->unshareableGPS, client)))
+            e = client->putnodes_prepareOneFile(newnode, parentNode, utf8Name, binaryUploadToken,
+                                                theFileKey, megafingerprint.get(), fingerprintOriginal,
+                                                std::move(addNodeAttrsFunc),
+                                                std::move(addFileAttrsFunc));
+            if (e != API_OK)
             {
                 break;
-            }
-            attrs.applyUpdates(updates);
-
-            string tattrstring;
-            attrs.getjson(&tattrstring);
-            SymmCipher cipher;
-            cipher.setkey(uploadState->filekey);
-            client->makeattr(&cipher, newnode->attrstring, tattrstring.c_str());
-            newnode->nodekey.assign((char*)uploadState->filekey, FILENODEKEYLENGTH);
-            SymmCipher::xorblock((const byte*)newnode->nodekey.data() + SymmCipher::KEYLENGTH, (byte*)newnode->nodekey.data());
-
-            if (!client->versions_disabled)
-            {
-                string name(utf8Name);
-                newnode->ovhandle = client->getovhandle(parentNode, &name);
             }
 
             client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, move(newnodes), request->getTag(), PUTNODES_APP));

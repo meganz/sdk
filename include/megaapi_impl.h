@@ -467,7 +467,9 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         char *getBase64Key() override;
         std::string* getAttrString() override;
         char* getFileAttrString() override;
+
         int getTag() override;
+
         int64_t getExpirationTime() override;
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
@@ -1853,7 +1855,6 @@ public:
     bool analyseMediaInfo(const char* inputFilepath) override;
     char *encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath,
                      bool adjustsizeonly) override;
-
     char *getUploadURL() override;
 
     bool serialize(string* s);
@@ -2606,6 +2607,12 @@ class MegaApiImpl : public MegaApp
         bool createPreview(const char* imagePath, const char *dstPath);
         bool createAvatar(const char* imagePath, const char *dstPath);
 
+        // these two: MEGA proxy use only
+        void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+        void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+                                               const char *string64UploadToken, const char *string64FileKey, MegaRequestListener *listener);
+
+
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
             const char *string64UploadToken, MegaRequestListener *listener);
@@ -3093,7 +3100,6 @@ protected:
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
         void getmegaachievements_result(AchievementsDetails*, error) override;
-        void backgrounduploadurl_result(error, string*) override;
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;
         void getmiscflags_result(error) override;

@@ -1813,6 +1813,18 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                 {
                     stream << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
                 }
+
+                if (showattrs && n->attrs.map.size())
+                {
+                    stream << ", has attrs";
+                    for (auto& a : n->attrs.map)
+                    {
+                        char namebuf[100]{};
+                        AttrMap::nameid2string(a.first, namebuf);
+                        stream << " " << namebuf << "=" << a.second;
+                    }
+                }
+
                 break;
 
             default:
@@ -6114,7 +6126,7 @@ void exec_import(autocomplete::ACState& s)
     if (e == API_OK)
     {
         cout << "Opening link..." << endl;
-        client->openfilelink(ph, key, 1);
+        client->openfilelink(ph, key);
     }
     else
     {

@@ -2427,6 +2427,11 @@ void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *liste
     pImpl->getPublicNode(megaFileLink, listener);
 }
 
+void MegaApi::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener)
+{
+    pImpl->getDownloadUrl(node, singleUrl, listener);
+}
+
 const char *MegaApi::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
 {
     return pImpl->buildPublicLink(publicHandle, key, isFolder);
@@ -5452,6 +5457,18 @@ bool MegaApi::createAvatar(const char *imagePath, const char *dstPath)
 void MegaApi::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener)
 {
     return pImpl->backgroundMediaUploadRequestUploadURL(fullFileSize, state, listener);
+}
+
+void MegaApi::completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+                                  const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener)
+{
+    return pImpl->completeUpload(utf8Name, parent, fingerprint, fingerprintoriginal, string64UploadToken, string64FileKey, listener);
+}
+
+
+void MegaApi::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+{
+    return pImpl->getUploadURL(fullFileSize, forceSSL, listener);
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,

@@ -380,8 +380,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
 SymmCipher *Transfer::transfercipher()
 {
-    client->tmptransfercipher.setkey(transferkey.data());
-    return &client->tmptransfercipher;
+    return client->getRecycledTemporaryTransferCipher(transferkey.data());
 }
 
 void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter* committer)

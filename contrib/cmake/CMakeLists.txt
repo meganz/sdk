@@ -12,6 +12,7 @@
 
 # check the ./build3rdParty.cmd script in this folder for how to (relatively) easily build the dependencies, typically in a 3rdParty folder outside of the SDK repo.
 
+
 if (WIN32)
 cmake_minimum_required(VERSION 3.15)
 cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
@@ -23,7 +24,7 @@ project(MegaSDK)
 
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
-if (CMAKE_HOST_APPLE)
+if (CMAKE_HOST_APPLE AND NOT IOS)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
     set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
@@ -68,18 +69,22 @@ option(USE_THIRDPARTY_FROM_VCPKG
 ${WIN32})
 
 message(STATUS " Using 3rd party from vcpkg = ${USE_THIRDPARTY_FROM_VCPKG}")
+message(STATUS " CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
+
+if(WIN32 OR IOS)
+    set(NO_READLINE 1 CACHE STRING "")
+else()
+    set(NO_READLINE 0 CACHE STRING "")
+endif()
 
 if (WIN32)
-    set (NO_READLINE 1 CACHE STRING "")
     set (UNCHECKED_ITERATORS 0 CACHE STRING "")
     IF (USE_WEBRTC)
         IF ("${WebRtcDir}" STREQUAL "")
             SET (WebRtcDir "${Mega3rdPartyDir}/libwebrtc/build32debug")
         ENDIF()
     ENDIF()
-else(WIN32)
-    set(NO_READLINE 0 CACHE STRING "")
-endif(WIN32)
+endif()
 
 if (USE_WEBRTC)
     if ("${WebRtcDir}" STREQUAL "")
@@ -118,7 +123,6 @@ endif()
 if(APPLE)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" )
 endif()
 
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")
@@ -188,28 +192,35 @@ endif(USE_QT)
 if (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
 
     #determine VCPKG triplet
-    IF(WIN32)
-        if (UNCHECKED_ITERATORS)
-            if(build_64_bit)
-                set(VCPKG_TRIPLET "x64-windows-mega-uncheckediterators" CACHE STRING "")
-            else(build_64_bit)
-                set(VCPKG_TRIPLET "x86-windows-mega-uncheckediterators" CACHE STRING "")
-            endif(build_64_bit)
-        else()
-            if(build_64_bit)
-                set(VCPKG_TRIPLET "x64-windows-mega" CACHE STRING "")
-            else(build_64_bit)
-                set(VCPKG_TRIPLET "x86-windows-mega" CACHE STRING "")
-            endif(build_64_bit)
-        endif()
+    if(NOT VCPKG_TRIPLET)
+        IF(WIN32)
+            if (UNCHECKED_ITERATORS)
+                if(build_64_bit)
+                    set(VCPKG_TRIPLET "x64-windows-mega-uncheckediterators" CACHE STRING "")
+                else(build_64_bit)
+                    set(VCPKG_TRIPLET "x86-windows-mega-uncheckediterators" CACHE STRING "")
+                endif(build_64_bit)
+            else()
+                if(build_64_bit)
+                    set(VCPKG_TRIPLET "x64-windows-mega" CACHE STRING "")
+                else(build_64_bit)
+                    set(VCPKG_TRIPLET "x86-windows-mega" CACHE STRING "")
+                endif(build_64_bit)
+            endif()
 
-    ELSE(WIN32)
-         IF(CMAKE_HOST_APPLE)
-            set(VCPKG_TRIPLET "x64-osx-mega" CACHE STRING "")
-        ELSE(CMAKE_HOST_APPLE)
-            set(VCPKG_TRIPLET "x64-linux" CACHE STRING "")
-        endif(CMAKE_HOST_APPLE)
-    ENDIF(WIN32)
+        ELSE(WIN32)
+             IF(CMAKE_HOST_APPLE)
+                if(NOT IOS)
+                    set(VCPKG_TRIPLET "x64-osx-mega" CACHE STRING "")
+                else()
+                    set(VCPKG_TRIPLET "arm64-ios" CACHE STRING "")
+                endif()
+            ELSE(CMAKE_HOST_APPLE)
+                set(VCPKG_TRIPLET "x64-linux" CACHE STRING "")
+            endif(CMAKE_HOST_APPLE)
+        ENDIF(WIN32)
+    endif()
+
 
     set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/${VCPKG_TRIPLET}")
 endif()
@@ -459,7 +470,6 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_half        half-2_5_d       half-2_5       libHalf-2_5_d       libHalf-2_5        )
             ImportStdVcpkgLibrary(freeimage_lzma        lzmad            lzma           liblzmad            liblzma            )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
-            ImportStdVcpkgLibrary(freeimage_tiffxx      tiffxxd          tiffxx         libtiffxxd          libtiffxx          )
             ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
             ImportStdVcpkgLibrary(freeimage_webpdecoder webpdecoderd     webpdecoder    libwebpdecoderd     libwebpdecoder     )
             ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
@@ -475,7 +485,6 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                                             libraw
                                             liblcms
                                             freeimage_tiff
-                                            freeimage_tiffxx
                                             freeimage_webp
                                             freeimage_webpdecoder
                                             freeimage_webpdemux
@@ -488,6 +497,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                                             libturbojpeg
                                             freeimage_jxrglue
                                             freeimage_jpegxr)
+            if(NOT IOS)
+                ImportStdVcpkgLibrary(freeimage_tiffxx        tiffxxd            tiffxx           libtiffxxd            libtiffxx            )
+                target_link_libraries(freeimage INTERFACE freeimage_tiffxx)
+            endif()
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
@@ -611,7 +624,20 @@ ELSE(WIN32)
 
     SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap)
     IF(APPLE)
-        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa -framework SystemConfiguration -framework Security")
+       SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework SystemConfiguration -framework Security")
+       if (NOT IOS)
+           set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa")
+       else()
+               set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                   "-framework Foundation"
+                   "-framework AVFoundation"
+                   "-framework ImageIO"
+                   "-framework CoreGraphics"
+                   "-framework CoreMedia"
+                   "-framework MobileCoreServices"
+                   "-framework UIKit"
+                   resolv)
+       endif()
     ELSE()
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
     ENDIF()
@@ -773,6 +799,7 @@ add_library(Mega STATIC
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp>
             $<${USE_ROTATIVEPERFORMANCELOGGER}:${MegaDir}/src/rotativeperformancelogger.cpp >
             $<${USE_DRIVE_NOTIFICATIONS}:${MegaDir}/src/drivenotify.cpp>
+            $<$<PLATFORM_ID:iOS>:${MegaDir}/src/gfx/GfxProcCG.mm>
             )
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
@@ -810,6 +837,7 @@ target_link_libraries(Mega PUBLIC
                         ${Mega_PlatformSpecificLibs})
 
 target_compile_definitions(Mega PUBLIC
+                $<$<PLATFORM_ID:iOS>:USE_IOS>
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO>
                 $<${USE_SQLITE}:USE_SQLITE>
                 $<${USE_CRYPTOPP}:USE_CRYPTOPP>
@@ -868,12 +896,57 @@ endif (ENABLE_CODECOVERAGE )
 if(IOS)
     # build with some of these settings as required
     # -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_Swift_COMPILER_TARGET=arm64-apple-ios7.0.0 -DCMAKE_OSX_SYSROOT=iphoneos -DVCPKG_TRIPLET=arm64-ios-mega
-    add_definitions( -DUSE_IOS )
-    include_directories( ${MegaDir}/bindings/ios/ ${MegaDir}/bindings/ios/Private )
-    add_executable(simple_ios_build_test ${MegaDir}/bindings/ios/MEGASdk.mm )
+    add_executable(simple_ios_build_test
+        ${MegaDir}/bindings/ios/main.mm # stub main to make the executable link
+        ${MegaDir}/bindings/ios/MEGAAccountDetails.mm
+        ${MegaDir}/bindings/ios/MEGAAchievementsDetails.mm
+        ${MegaDir}/bindings/ios/MEGABackgroundMediaUpload.mm
+        ${MegaDir}/bindings/ios/MEGABanner.mm
+        ${MegaDir}/bindings/ios/MEGABannerList.mm
+        ${MegaDir}/bindings/ios/MEGACancelToken.mm
+        ${MegaDir}/bindings/ios/MEGAChildrenLists.mm
+        ${MegaDir}/bindings/ios/MEGAContactRequest.mm
+        ${MegaDir}/bindings/ios/MEGAContactRequestList.mm
+        ${MegaDir}/bindings/ios/MEGAError.mm
+        ${MegaDir}/bindings/ios/MEGAEvent.mm
+        ${MegaDir}/bindings/ios/MEGAFolderInfo.mm
+        ${MegaDir}/bindings/ios/MEGAHandleList.mm
+        ${MegaDir}/bindings/ios/MEGANode.mm
+        ${MegaDir}/bindings/ios/MEGANodeList.mm
+        ${MegaDir}/bindings/ios/MEGAPricing.mm
+        ${MegaDir}/bindings/ios/MEGAPushNotificationSettings.mm
+        ${MegaDir}/bindings/ios/MEGARecentActionBucket.mm
+        ${MegaDir}/bindings/ios/MEGARequest.mm
+        ${MegaDir}/bindings/ios/MEGASdk.mm
+        ${MegaDir}/bindings/ios/MEGAShare.mm
+        ${MegaDir}/bindings/ios/MEGAShareList.mm
+        ${MegaDir}/bindings/ios/MEGAStringList.mm
+        ${MegaDir}/bindings/ios/MEGATimeZoneDetails.mm
+        ${MegaDir}/bindings/ios/MEGATransfer.mm
+        ${MegaDir}/bindings/ios/MEGATransferList.mm
+        ${MegaDir}/bindings/ios/MEGAUser.mm
+        ${MegaDir}/bindings/ios/MEGAUserAlert.mm
+        ${MegaDir}/bindings/ios/MEGAUserAlertList.mm
+        ${MegaDir}/bindings/ios/MEGAUserList.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGAGlobalListener.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGAListener.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGALoggerListener.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGARequestListener.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGATransferListener.mm
+        ${MegaDir}/bindings/ios/Private/DelegateMEGATreeProcessorListener.mm
+        ${MegaDir}/bindings/ios/Private/ListenerDispatch.mm
+        ${MegaDir}/bindings/ios/Private/MEGADataInputStream.mm
+        ${MegaDir}/bindings/ios/Private/MEGAFileInputStream.mm
+    )
     target_link_libraries(simple_ios_build_test Mega )
+    target_include_directories(simple_ios_build_test
+        PUBLIC
+            ${MegaDir}/bindings/ios/
+            ${MegaDir}/bindings/ios/Private
+    )
 endif()
 
+if (NOT IOS)
 #test apps
 add_executable(test_unit
     ${MegaDir}/tests/unit/AttrMap_test.cpp
@@ -979,6 +1052,7 @@ endif (NOT NO_READLINE)
 
 add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)
 target_link_libraries(megasimplesync Mega )
+endif()
 
 if(WIN32)
 add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")

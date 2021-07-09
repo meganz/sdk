@@ -582,7 +582,7 @@ public:
     void cancel() override;
     bool procresult(Result) override;
 
-    CommandGetFile(MegaClient *client, const byte* key, unsigned keySize,
+    CommandGetFile(MegaClient *client, const byte* key, size_t keySize,
                        handle h, bool p, const char *privateauth = nullptr,
                        const char *publicauth = nullptr, const char *chatauth = nullptr,
                        bool singleUrl = false, Cb &&completion = nullptr);
@@ -599,14 +599,17 @@ public:
     CommandPutFile(MegaClient *client, TransferSlot*, int);
 };
 
-class MEGA_API CommandPutFileBackgroundURL : public Command
+class MEGA_API CommandGetPutUrl : public Command
 {
+    using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
+    Cb mCompletion;
+
     string* result;
 
 public:
     bool procresult(Result) override;
 
-    CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag);
+    CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, bool getIP, Cb completion);
 };
 
 
