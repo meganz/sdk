@@ -425,11 +425,11 @@ bool CommandPutFile::procresult(Result r)
 }
 
 // request upload target URL
-CommandGetPutUrl::CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbpscap, bool forceSSL, bool getIP, CommandGetPutUrl::Cb completion)
+CommandGetPutUrl::CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, bool getIP, CommandGetPutUrl::Cb completion)
     : mCompletion(completion)
 {
     cmd("u");
-    if (forceSSL || client->usehttps)
+    if (forceSSL)
     {
         arg("ssl", 2);
     }
@@ -1314,7 +1314,7 @@ bool CommandMoveNode::procresult(Result r)
                                     client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
                                         if ((*it)->type == FOLDERNODE)
                                         {
-                                            LOG_debug << "Sync - remote folder deletion detected " << n->displayname(); 
+                                            LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
                                         }
                                         else
                                         {

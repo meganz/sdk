@@ -4810,23 +4810,18 @@ TEST_F(SdkTest, SdkMediaUploadTest)
     std::unique_ptr<char[]> suffix(req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), false));
     ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
 
+    std::unique_ptr<char[]> fingreprint(megaApi[0]->getFingerprint(DOWNFILE.c_str()));
+    std::unique_ptr<char[]> fingreprintOrig(megaApi[0]->getFingerprint(UPFILE.c_str()));
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+
 #ifdef __linux__
     string command = "curl -s --data-binary @";
     command.append(DOWNFILE.c_str()).append(" ").append(url.get());
     if (suffix) command.append(suffix.get());
     auto uploadToken = exec(command.c_str());
-
-    auto fingreprint = megaApi[0]->getFingerprint(DOWNFILE.c_str());
-    auto fingreprintOrig = megaApi[0]->getFingerprint(UPFILE.c_str());
-    char *base64UploadToken = megaApi[0]->binaryToBase64(uploadToken.c_str(), uploadToken.length());
-
-    MegaNode *rootnode = megaApi[0]->getRootNode();
+    std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(uploadToken.c_str(), uploadToken.length()));
 
     err = synchronousMediaUploadComplete(apiIndex, req.get(), "newfile.txt", rootnode, fingreprint, fingreprintOrig, base64UploadToken, nullptr);
-    delete fingreprint;
-    delete fingreprintOrig;
-    delete base64UploadToken;
-    delete rootnode;
 
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
 #endif

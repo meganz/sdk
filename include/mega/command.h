@@ -574,7 +574,7 @@ class MEGA_API CommandGetPutUrl : public Command
 public:
     bool procresult(Result) override;
 
-    CommandGetPutUrl(MegaClient *client, m_off_t size, int putmbpscap, bool forceSSL, bool getIP, Cb completion);
+    CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, bool getIP, Cb completion);
 };
 
 

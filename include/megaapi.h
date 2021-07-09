@@ -16851,6 +16851,8 @@ class MegaApi
         /**
          * @brief Create the node after completing the upload of the file by the app.
          *
+		 * Note: added for the use of MEGA Proxy and not otherwise supported
+		 *
          * Call this function after completing the upload of all the file data
          * The node representing the file will be created in the cloud, with all the suitable
          * attributes and file attributes attached.
@@ -16885,6 +16887,8 @@ class MegaApi
         /**
          * @brief Request the URL suitable for uploading a file.
          *
+		 * Note: added for the use of MEGA Proxy and not otherwise supported
+		 *
          * This function requests the base URL needed for uploading the file.
          * The URL will need the urlSuffix resulting from encryption.
          *

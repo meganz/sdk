@@ -22706,7 +22706,7 @@ void MegaApiImpl::sendPendingRequests()
             //if not using MegaBackgroundMediaUpload, ask for IPs
             bool getIp = !request->getMegaBackgroundMediaUploadPtr();
 
-            client->reqs.add(new CommandGetPutUrl(client, request->getNumber(), client->putmbpscap, request->getFlag(), getIp,
+            client->reqs.add(new CommandGetPutUrl(request->getNumber(), client->putmbpscap, request->getFlag() | client->usehttps, getIp,
                                                   [this, request](Error e, const std::string &url, const std::vector<std::string> &ips)
             {
                 assert(e != API_OK || !url.empty());
