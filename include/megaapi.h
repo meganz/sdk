@@ -3312,6 +3312,7 @@ class MegaRequest
          * - MegaApi::getPaymentId - Returns the payment identifier
          * - MegaApi::getUrlChat - Returns the user-specific URL for the chat
          * - MegaApi::getChatPresenceURL - Returns the user-specific URL for the chat presence server
+         * - MegaApi::getUploadURL - Returns the upload IPv4
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv4 of the server in the URL(s)
          *
          * The SDK retains the ownership of the returned value. It will be valid until
@@ -3371,6 +3372,7 @@ class MegaRequest
          * - MegaApi::copySyncDataToCache - Returns the name for the sync
          * - MegaApi::setBackup - Returns the device id hash of the backup source device
          * - MegaApi::updateBackup - Returns the device id hash of the backup source device
+         * - MegaApi::getUploadURL - Returns the upload URL
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3585,6 +3587,7 @@ class MegaRequest
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
          * - MegaApi::setBackup - Returns the cron like time string to define period
+         * - MegaApi::getUploadURL - Returns the upload IPv6
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv6 of the server in the URL(s)
          *
          * This value is valid for these request in onRequestFinish when the
@@ -16846,6 +16849,67 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
+
+        /**
+         * @brief Create the node after completing the upload of the file by the app.
+         *
+		 * Note: added for the use of MEGA Proxy and not otherwise supported
+		 *
+         * Call this function after completing the upload of all the file data
+         * The node representing the file will be created in the cloud, with all the suitable
+         * attributes and file attributes attached.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getPassword - Returns the original fingerprint
+         * - MegaRequest::getNewPassword - Returns the fingerprint
+         * - MegaRequest::getName - Returns the name
+         * - MegaRequest::getParentHandle - Returns the parent nodehandle
+         * - MegaRequest::getSessionKey - Returns the upload token converted to B64url encoding
+         * - MegaRequest::getPrivateKey - Returns the file key provided in B64url encoding
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Returns the handle of the uploaded node
+         * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
+         *
+         * @param utf8Name The leaf name of the file, utf-8 encoded
+         * @param parent The folder node under which this new file should appear
+         * @param fingerprint The fingerprint for the uploaded file (use MegaApi::getFingerprint to generate this)
+         * @param fingerprintoriginal If the file uploaded is modified from the original,
+         *        pass the fingerprint of the original file here, otherwise NULL.
+         * @param string64UploadToken The token returned from the upload of the last portion of the file,
+         *        which is exactly 36 binary bytes, converted to a base 64 string with MegaApi::binaryToString64.
+         * @param string64FileKey file encryption key converted to a base 64 string with MegaApi::binaryToString64.
+         * @param listener MegaRequestListener to track this request
+         */
+        void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+                                          const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener);
+
+        /**
+         * @brief Request the URL suitable for uploading a file.
+         *
+		 * Note: added for the use of MEGA Proxy and not otherwise supported
+		 *
+         * This function requests the base URL needed for uploading the file.
+         * The URL will need the urlSuffix resulting from encryption.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - The URL to use
+         * - MegaRequest::getLink - The IPv4 of the upload server
+         * - MegaRequest::getText - The IPv6 of the upload server
+         *
+         * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
+         * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
+         * A new URL could specify a different upload server for example.
+         *
+         * @param fullFileSize The size of the file
+         * @param forceSSL Enforce using getting a https URL
+         * @param listener MegaRequestListener to track this request
+         */
+         void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
 
         /**
          * @brief Create the node after completing the background upload of the file.

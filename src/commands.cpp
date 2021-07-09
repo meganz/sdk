@@ -424,28 +424,39 @@ bool CommandPutFile::procresult(Result r)
     }
 }
 
-// request upload target URL for application to upload photo to using eg. iOS background upload feature
-CommandPutFileBackgroundURL::CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag)
+// request upload target URL
+CommandGetPutUrl::CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, bool getIP, CommandGetPutUrl::Cb completion)
+    : mCompletion(completion)
 {
     cmd("u");
-    arg("ssl", 2);   // always SSL for background uploads
-    arg("v", 2);
+    if (forceSSL)
+    {
+        arg("ssl", 2);
+    }
+    if (getIP)
+    {
+        arg("v", 3);
+    }
+    else
+    {
+        arg("v", 2);
+    }
     arg("s", size);
     arg("ms", putmbpscap);
-
-    tag = ctag;
 }
 
+
 // set up file transfer with returned target URL
-bool CommandPutFileBackgroundURL::procresult(Result r)
+bool CommandGetPutUrl::procresult(Result r)
 {
     string url;
+    std::vector<string> ips;
 
     if (r.wasErrorOrOK())
     {
         if (!canceled)
         {
-            client->app->backgrounduploadurl_result(r.errorOrOK(), NULL);
+            mCompletion(r.errorOrOK(), url, ips);
         }
         return true;
     }
@@ -455,13 +466,26 @@ bool CommandPutFileBackgroundURL::procresult(Result r)
         switch (client->json.getnameid())
         {
             case 'p':
-                client->json.storeobject(canceled ? NULL : &url);
+                client->json.storeobject(canceled ? nullptr : &url);
                 break;
-
+            case MAKENAMEID2('i', 'p'):
+                if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+                {
+                    for (;;)
+                    {
+                        std::string ti;
+                        if (!client->json.storeobject(&ti))
+                        {
+                            break;
+                        }
+                        ips.push_back(ti);
+                    }
+                    client->json.leavearray();
+                }
+                break;
             case EOO:
                 if (canceled) return true;
-
-                client->app->backgrounduploadurl_result(API_OK, &url);
+                mCompletion(API_OK, url, ips);
                 return true;
 
             default:
@@ -469,7 +493,7 @@ bool CommandPutFileBackgroundURL::procresult(Result r)
                 {
                     if (!canceled)
                     {
-                        client->app->backgrounduploadurl_result(API_EINTERNAL, NULL);
+                        mCompletion(API_EINTERNAL, string(), {});
                     }
                     return false;
                 }

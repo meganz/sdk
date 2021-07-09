@@ -569,14 +569,17 @@ public:
     CommandPutFile(MegaClient *client, TransferSlot*, int);
 };
 
-class MEGA_API CommandPutFileBackgroundURL : public Command
+class MEGA_API CommandGetPutUrl : public Command
 {
+    using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
+    Cb mCompletion;
+
     string* result;
 
 public:
     bool procresult(Result) override;
 
-    CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag);
+    CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, bool getIP, Cb completion);
 };
 
 
