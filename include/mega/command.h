@@ -652,8 +652,8 @@ class MEGA_API CommandSetShare : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, bool writable, const char*,
-	    int tag, std::function<void(Error, bool writable)> f);
+    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, bool, const char*, bool writable, const char*,
+        int tag, std::function<void(Error, bool writable)> f);
 };
 
 class MEGA_API CommandGetUserData : public Command
@@ -758,8 +758,8 @@ class MEGA_API CommandSetPH : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable,
-	    int ctag, std::function<void(Error, handle, handle)> f);
+    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable, const std::string &shareKey,
+        int ctag, std::function<void(Error, handle, handle)> f);
 };
 
 class MEGA_API CommandGetPH : public Command

@@ -1869,7 +1869,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
+CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
@@ -4817,7 +4817,8 @@ bool CommandGetUserSessions::procresult(Result r)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable,
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets,
+                           bool writable, const string &shareKey,
     int ctag, std::function<void(Error, handle, handle)> f)
 {
     h = n->nodehandle;
@@ -4845,6 +4846,10 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
         arg("w", "1");
     }
 
+    if (!shareKey.empty())
+    {
+        arg("sk", (byte*)shareKey.data(), static_cast<int>(shareKey.size()));
+    }
 }
 
 bool CommandSetPH::procresult(Result r)

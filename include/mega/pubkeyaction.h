@@ -46,13 +46,14 @@ class MEGA_API PubKeyActionCreateShare : public PubKeyAction
     accesslevel_t a;    // desired access level
     string selfemail;  // optional personal representation when sharing to a non-contact
     bool mWritable = false;
+    string mNewShareKey;
 
     std::function<void(Error, bool writable)> completion;
 
 public:
     void proc(MegaClient*, User*);
 
-    PubKeyActionCreateShare(handle, accesslevel_t, int, bool writable, const char*,
+    PubKeyActionCreateShare(handle, accesslevel_t, int, bool writable, const string &newShareKey, const char*,
 	    std::function<void(Error, bool writable)> completion);
 };
 
