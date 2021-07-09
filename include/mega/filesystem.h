@@ -73,6 +73,8 @@ public:
     ~ScopedLengthRestore();
 };
 
+extern CodeCounter::ScopeStats g_compareUtfTimings;
+
 class MEGA_API LocalPath
 {
 #if defined(_WIN32)

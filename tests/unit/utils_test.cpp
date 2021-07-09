@@ -63,6 +63,57 @@ TEST(utils, hashCombine_integer)
 //    ASSERT_EQ(name, "%00%07%00%07%%31");
 //}
 
+
+TEST(UtfCompare, SortTenThousandSpeed)
+{
+    using namespace std;
+    using namespace mega;
+    bool caseInsensitive = true;
+
+    auto fsCompareLess = [=](const string& lhs, const string& rhs) -> bool {
+        return compareUtf(
+            lhs, true,
+            rhs, true, caseInsensitive) < 0;
+    };
+
+    auto lnCompareLess = [=](const LocalPath& lhs, const LocalPath& rhs) -> bool {
+        return compareUtf(
+            lhs, true,
+            rhs, true, caseInsensitive) < 0;
+    };
+
+    auto fslnCompareSpaceship = [=](const string& lhs, const LocalPath& rhs) -> int {
+        return compareUtf(
+            lhs, true,
+            rhs, true, caseInsensitive);
+    };
+
+    std::vector<string> fsNodes;
+    std::vector<LocalPath> lnNodes;
+    FSACCESS_CLASS fsAccess;
+
+    for (unsigned i = 10000; i--; )
+    {
+        fsNodes.push_back("somelongstring_" + to_string(i));
+        lnNodes.push_back(LocalPath::fromPath("somelongstring_" + to_string(i), fsAccess));
+    }
+
+    using namespace std::chrono;
+    auto t0 = high_resolution_clock::now();
+    std::sort(fsNodes.begin(), fsNodes.end(), fsCompareLess);
+    auto t1 = high_resolution_clock::now();
+    std::sort(lnNodes.begin(), lnNodes.end(), lnCompareLess);
+    auto t2 = high_resolution_clock::now();
+
+    unsigned t10 = unsigned(duration_cast<milliseconds>(t1 - t0).count());
+    unsigned t21 = unsigned(duration_cast<milliseconds>(t2 - t1).count());
+    cout << t10 << " " << t21 << endl;
+    ASSERT_LE(t10, 2000u);
+    ASSERT_LE(t21, 2000u);
+}
+
+
+
 TEST(Filesystem, DISABLED_ControlCharactersRemainEscapedOnlyWhenNecessary)
 {
     using namespace mega;

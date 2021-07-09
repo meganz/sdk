@@ -31,46 +31,31 @@
 
 namespace mega {
 
+CodeCounter::ScopeStats g_compareUtfTimings("compareUtfTimings");
+
 namespace detail {
 
-template<typename CharT>
-bool isEscape(UnicodeCodepointIterator<CharT> it);
+const int escapeChar = '%';
 
 template<typename CharT>
 int decodeEscape(UnicodeCodepointIterator<CharT>& it)
 {
-    assert(isEscape(it));
-
-    // Skip the leading %.
-    (void)it.get();
-
-    return hexval(it.get()) << 4 | hexval(it.get());
+    // only call when we already consumed an escapeChar.
+    auto tmpit = it;
+    auto c1 = tmpit.get();
+    auto c2 = tmpit.get();
+    if (islchex(c1) && islchex(c2))
+    {
+        it = tmpit;
+        return hexval(c1) << 4 | hexval(c2);
+    }
+    else
+        return escapeChar;
 }
 
 int identity(const int c)
 {
     return c;
-}
-
-template<typename CharT>
-bool isControlEscape(UnicodeCodepointIterator<CharT> it)
-{
-    if (isEscape(it))
-    {
-        const int32_t c = decodeEscape(it);
-
-        return c < 0x20 || c == 0x7f;
-    }
-
-    return false;
-}
-
-template<typename CharT>
-bool isEscape(UnicodeCodepointIterator<CharT> it)
-{
-    return it.get() == '%'
-           && islchex(it.get())
-           && islchex(it.get());
 }
 
 #ifdef _WIN32
@@ -116,11 +101,15 @@ UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>
 
 #endif // _WIN32
 
+CodeCounter::ScopeStats g_compareUtfTimings("compareUtfTimings");
+
 template<typename CharT, typename CharU, typename UnaryOperation>
 int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
                UnicodeCodepointIterator<CharU> first2, bool unescaping2,
                UnaryOperation transform)
 {
+    CodeCounter::ScopeTimer rst(g_compareUtfTimings);
+
 #ifdef _WIN32
     first1 = skipPrefix(first1);
     first2 = skipPrefix(first2);
@@ -128,25 +117,16 @@ int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
 
     while (!(first1.end() || first2.end()))
     {
-        int c1;
-        int c2;
-
-        if (unescaping1 && isEscape(first1))
+        int c1 = first1.get();
+        if (unescaping1 && c1 == escapeChar)
         {
             c1 = decodeEscape(first1);
         }
-        else
-        {
-            c1 = first1.get();
-        }
 
-        if (unescaping2 && isEscape(first2))
+        int c2 = first2.get();
+        if (unescaping2 && c2 == escapeChar)
         {
             c2 = decodeEscape(first2);
-        }
-        else
-        {
-            c2 = first2.get();
         }
 
         c1 = transform(c1);

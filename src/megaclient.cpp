@@ -16589,6 +16589,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << ScanService::syncScanTime.report(reset) << "\n"
 #endif
         << inferSyncTripletsTime.report(reset) << "\n"
+        << g_compareUtfTimings.report(reset) << "\n"
         << syncItemTime1.report(reset) << "\n"
         << syncItemTime2.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
