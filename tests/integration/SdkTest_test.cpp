@@ -4825,7 +4825,7 @@ TEST_F(SdkTest, SdkMediaUploadTest)
     auto uploadToken = exec(command.c_str());
     std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(uploadToken.c_str(), uploadToken.length()));
 
-    err = synchronousMediaUploadComplete(apiIndex, req.get(), "newfile.txt", rootnode, fingreprint, fingreprintOrig, base64UploadToken, nullptr);
+    err = synchronousMediaUploadComplete(apiIndex, req.get(), "newfile.txt", rootnode.get(), fingreprint.get(), fingreprintOrig.get(), base64UploadToken.get(), nullptr);
 
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
 #endif
