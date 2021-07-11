@@ -80,12 +80,6 @@ struct MEGA_API MegaApp
     // sessionid is undef if all sessions except the current were killed
     virtual void sessions_killed(handle /*sessionid*/, error) { }
 
-    // node attribute update failed (not invoked unless error != API_OK)
-    virtual void setattr_result(handle, Error) { }
-
-    // move node failed (not invoked unless error != API_OK)
-    virtual void rename_result(handle, error) { }
-
     // node deletion failed (not invoked unless error != API_OK)
     virtual void unlink_result(handle, error) { }
 
@@ -178,9 +172,6 @@ struct MEGA_API MegaApp
     // exported link access result
     virtual void openfilelink_result(const Error&) { }
     virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) { }
-
-    // URL suitable for iOS (or other system) background upload feature
-    virtual void backgrounduploadurl_result(error, string*) { }
 
     // pread result
     virtual dstime pread_failure(const Error&, int, void*, dstime) { return ~(dstime)0; }

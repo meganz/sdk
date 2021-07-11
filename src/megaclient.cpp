@@ -7701,7 +7701,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr)
+error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr, CommandSetAttr::Completion&& c)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -7727,9 +7727,73 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
     n->tag = tag;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, tag, prevattr));
+    reqs.add(new CommandSetAttr(this, n, cipher, prevattr, move(c)));
 
     return API_OK;
+}
+
+error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const string &binaryUploadToken,
+                                          byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                          std::function<error(AttrMap&)> addNodeAttrsFunc, std::function<error(std::string *)> addFileAttrsFunc)
+{
+    error e = API_OK;
+
+    // set up new node as file node
+    newnode->source = NEW_UPLOAD;
+    newnode->type = FILENODE;
+    memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
+    newnode->parenthandle = UNDEF;
+    newnode->uploadhandle = getuploadhandle();
+    newnode->attrstring.reset(new string);
+    newnode->fileattributes.reset(new string);
+
+    // add custom file attributes
+    if (addFileAttrsFunc)
+    {
+        e = addFileAttrsFunc(newnode->fileattributes.get());
+        if (e != API_OK)
+        {
+            return e;
+        }
+    }
+
+    // fill node attributes (honoring those in previous version)
+    AttrMap attrs;
+    Node *previousNode = childnodebyname(parentNode, utf8Name, true);
+    honorPreviousVersionAttrs(previousNode, attrs);
+    attrs.map['n'] = utf8Name;
+    attrs.map['c'] = megafingerprint;
+    if (fingerprintOriginal)
+    {
+        attrs.map[MAKENAMEID2('c', '0')] = fingerprintOriginal;
+    }
+
+    // add custom node attributes
+    if (addNodeAttrsFunc)
+    {
+        e = addNodeAttrsFunc(attrs);
+        if (e != API_OK)
+        {
+            return e;
+        }
+    }
+
+    // JSON-encode object and encrypt attribute string and node key itself too
+    string tattrstring;
+    attrs.getjson(&tattrstring);
+    SymmCipher cipher;
+    cipher.setkey(theFileKey);
+    makeattr(&cipher, newnode->attrstring, tattrstring.c_str());
+    newnode->nodekey.assign((char*)theFileKey, FILENODEKEYLENGTH);
+    SymmCipher::xorblock((const byte*)newnode->nodekey.data() + SymmCipher::KEYLENGTH, (byte*)newnode->nodekey.data());
+
+    // adjust previous version node
+    if (!versions_disabled)
+    {
+        string name(utf8Name);
+        newnode->ovhandle = getovhandle(parentNode, &name);
+    }
+    return e;
 }
 
 void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
@@ -7899,7 +7963,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent, const char *newName)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c)
 {
     error e;
 
@@ -7915,9 +7979,9 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     }
 
     Node *prevParent = NULL;
-    if (!ISUNDEF(prevparent))
+    if (!prevparent.isUndef())
     {
-        prevParent = nodebyhandle(prevparent);
+        prevParent = nodeByHandle(prevparent);
     }
     else
     {
@@ -7935,8 +7999,8 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
             handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
             nameid rrname = AttrMap::string2nameid("rr");
 
-            if (prevRoot->nodehandle != rubbishHandle
-                    && p->nodehandle == rubbishHandle)
+            if (prevRoot->nodehandle != rubbishHandle &&
+                newRoot->nodehandle == rubbishHandle)
             {
                 // deleted node
                 char base64Handle[12];
@@ -7974,11 +8038,11 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c)));
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
-            setattr(n, std::move(attrUpdates), reqtag, nullptr);
+            setattr(n, std::move(attrUpdates), reqtag, nullptr, nullptr);
         }
     }
 
@@ -15391,7 +15455,7 @@ void MegaClient::execmovetosyncdebris()
                     int creqtag = reqtag;
                     reqtag = n->tag;
                     LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                    rename(n, tn, target, n->parent ? n->parent->nodehandle : UNDEF);
+                    rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, nullptr);
                     reqtag = creqtag;
                     it++;
                 }
