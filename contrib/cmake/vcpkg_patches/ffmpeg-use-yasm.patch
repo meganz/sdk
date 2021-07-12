@@ -1,0 +1,13 @@
+diff --git a/portfile.cmake b/portfile.cmake
+index 9b70694c2..f1e271978 100644
+--- a/portfile.cmake
++++ b/portfile.cmake
+@@ -158,7 +158,7 @@ if (SOURCE_PATH MATCHES " ")
+ endif()
+ 
+ 
+-if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x86")
++if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x86" OR VCPKG_TARGET_IS_OSX)
+     # ffmpeg nasm build gives link error on x86, so fall back to yasm
+     vcpkg_find_acquire_program(YASM)
+     get_filename_component(YASM_EXE_PATH ${YASM} DIRECTORY)

@@ -1,0 +1,17 @@
+diff --git a/portfile.cmake b/portfile.cmake
+index 386982cd6..3802ebaae 100644
+--- a/portfile.cmake
++++ b/portfile.cmake
+@@ -46,6 +46,12 @@ if(VCPKG_TARGET_IS_WINDOWS)
+     endif()
+ endif()
+ 
++if(VCPKG_TARGET_IS_OSX)
++    if(VCPKG_TARGET_ARCHITECTURE STREQUAL "arm64")
++        set(BUILD_TRIPLET --host=aarch64-apple-darwin)
++    endif()
++endif()
++
+ vcpkg_configure_make(
+     SOURCE_PATH ${SOURCE_PATH}
+     PROJECT_SUBPATH source
