@@ -88,28 +88,41 @@ TEST(UtfCompare, SortTenThousandSpeed)
             rhs, true, caseInsensitive);
     };
 
-    std::vector<string> fsNodes;
-    std::vector<LocalPath> lnNodes;
+    std::vector<string> fsNodes, fsNodes2;
+    std::vector<LocalPath> lnNodes, lnNodes2;
+    std::vector<std::pair<string, LocalPath>> crossCompare;
     FSACCESS_CLASS fsAccess;
 
     for (unsigned i = 10000; i--; )
     {
-        fsNodes.push_back("somelongstring_" + to_string(i));
-        lnNodes.push_back(LocalPath::fromPath("somelongstring_" + to_string(i), fsAccess));
+        string str = to_string(i);
+        string rev = str;
+        std::reverse(rev.begin(), rev.end()); // for more sort activity
+
+        fsNodes.push_back("somelongstring_" + rev);
+        lnNodes.push_back(LocalPath::fromPath("somelongstring_" + rev, fsAccess));
+        crossCompare.emplace_back("somelongstring_" + rev, LocalPath::fromPath("somelongstring_" + rev, fsAccess)); 
     }
 
     using namespace std::chrono;
     auto t0 = high_resolution_clock::now();
-    std::sort(fsNodes.begin(), fsNodes.end(), fsCompareLess);
+    std::sort(crossCompare.begin(), crossCompare.end(),
+        [fslnCompareSpaceship](const std::pair<string, LocalPath>& a, const std::pair<string, LocalPath>& b) {
+            return fslnCompareSpaceship(a.first, b.second) < 0;
+        });
     auto t1 = high_resolution_clock::now();
     std::sort(lnNodes.begin(), lnNodes.end(), lnCompareLess);
     auto t2 = high_resolution_clock::now();
+    std::sort(fsNodes.begin(), fsNodes.end(), fsCompareLess);
+    auto t3 = high_resolution_clock::now();
 
     unsigned t10 = unsigned(duration_cast<milliseconds>(t1 - t0).count());
     unsigned t21 = unsigned(duration_cast<milliseconds>(t2 - t1).count());
-    cout << t10 << " " << t21 << endl;
-    ASSERT_LE(t10, 2000u);
-    ASSERT_LE(t21, 2000u);
+    unsigned t32 = unsigned(duration_cast<milliseconds>(t3 - t2).count());
+    cout << t10 << " " << t21 << " " << t32 << endl;
+    ASSERT_LE(t10, 1000u);
+    ASSERT_LE(t21, 1000u);
+    ASSERT_LE(t32, 1000u);
 }
 
 

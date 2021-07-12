@@ -1766,6 +1766,8 @@ void PosixFileSystemAccess::statsid(string *id) const
 #endif
 }
 
+#if defined(ENABLE_SYNC)
+
 PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalPath& rootPath)
   : DirNotify(rootPath)
   , fsaccess(&fsAccess)
@@ -1779,7 +1781,7 @@ PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalPath& rootP
 #endif
 }
 
-#if defined(ENABLE_SYNC) && defined(USE_INOTIFY)
+#if defined(USE_INOTIFY)
 
 pair<WatchMapIterator, bool> PosixDirNotify::addWatch(LocalNode& node, const LocalPath& path, handle fsid)
 {
@@ -1834,10 +1836,7 @@ void PosixDirNotify::removeWatch(WatchMapIterator entry)
     inotify_rm_watch(fsaccess->notifyfd, handle);
 }
 
-#endif // ENABLE_SYNC && USE_INOTIFY
-
-
-#ifdef ENABLE_SYNC
+#endif // USE_INOTIFY
 
 fsfp_t PosixDirNotify::fsfingerprint() const
 {

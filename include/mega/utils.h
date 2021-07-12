@@ -798,6 +798,17 @@ public:
         return true;
     }
 
+    bool exactBinaryMatch(const UnicodeCodepointIterator& a, const UnicodeCodepointIterator b)
+    {
+        // optimization for comparing the initial portion of strings that are exactly the same up to a point
+
+        auto len = b.mCurrent - a.mCurrent;
+        if (mCurrent + len > mEnd) return false;
+        if (0 != memcmp(a.mCurrent, mCurrent, len)) return false;
+        mCurrent += len;
+        return true;
+    }
+
     int32_t peek() const
     {
         int32_t result = 0;

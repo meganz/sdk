@@ -103,6 +103,65 @@ UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>
 
 CodeCounter::ScopeStats g_compareUtfTimings("compareUtfTimings");
 
+// the case when the strings are over the same character type (and we can use exactBinaryMatch)
+template<typename CharT, typename UnaryOperation>
+int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
+    UnicodeCodepointIterator<CharT> first2, bool unescaping2,
+    UnaryOperation transform)
+{
+    CodeCounter::ScopeTimer rst(g_compareUtfTimings);
+
+#ifdef _WIN32
+    first1 = skipPrefix(first1);
+    first2 = skipPrefix(first2);
+#endif // _WIN32
+
+    while (!(first1.end() || first2.end()))
+    {
+        auto charStart1 = first1;
+        int c1 = first1.get();
+        if (unescaping1 && c1 == escapeChar)
+        {
+            c1 = decodeEscape(first1);
+        }
+
+        if (first2.exactBinaryMatch(charStart1, first1))
+        {
+            continue;
+        }
+
+        int c2 = first2.get();
+        if (unescaping2 && c2 == escapeChar)
+        {
+            c2 = decodeEscape(first2);
+        }
+
+        if (c1 != c2)
+        {
+            c1 = transform(c1);
+            c2 = transform(c2);
+
+            if (c1 != c2)
+            {
+                return c1 - c2;
+            }
+        }
+    }
+
+    if (first1.end() && first2.end())
+    {
+        return 0;
+    }
+
+    if (first1.end())
+    {
+        return -1;
+    }
+
+    return 1;
+}
+
+// the case when the strings are over diffent character types (just uses match())
 template<typename CharT, typename CharU, typename UnaryOperation>
 int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
                UnicodeCodepointIterator<CharU> first2, bool unescaping2,
@@ -117,10 +176,16 @@ int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
 
     while (!(first1.end() || first2.end()))
     {
+        auto charStart1 = first1;
         int c1 = first1.get();
         if (unescaping1 && c1 == escapeChar)
         {
             c1 = decodeEscape(first1);
+        }
+
+        if (first2.match(c1))
+        {
+            continue;
         }
 
         int c2 = first2.get();
@@ -129,12 +194,15 @@ int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
             c2 = decodeEscape(first2);
         }
 
-        c1 = transform(c1);
-        c2 = transform(c2);
-
         if (c1 != c2)
         {
-            return c1 - c2;
+            c1 = transform(c1);
+            c2 = transform(c2);
+
+            if (c1 != c2)
+            {
+                return c1 - c2;
+            }
         }
     }
 
