@@ -1726,7 +1726,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                 if (targetSyncNode && targetSyncNode->parent)
                                 {
                                     auto lp = targetSyncNode->parent->getLocalPath();
-                                    sourceSyncNode->moveContentTo(targetSyncNode->parent, lp, true);
+                                    sourceSyncNode->moveContentTo(targetSyncNode, lp, true);
                                     targetSyncNode->setScanAgain(true, true, true, 0);
                                 }
                                 // Mark the source node as moved from, it can be removed when visited
