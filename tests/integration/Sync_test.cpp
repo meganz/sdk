@@ -2330,6 +2330,29 @@ struct StandardClient : public MegaApp
         return result.get();
     }
 
+    template<typename ResultType, typename Callable>
+    ResultType withWait(Callable&& callable)
+    {
+        using std::future_status;
+        using std::shared_ptr;
+
+        using PromiseType = promise<ResultType>;
+        using PointerType = shared_ptr<PromiseType>;
+
+        auto promise = PointerType(new PromiseType());
+        auto future = promise->get_future();
+
+        callable(std::move(promise));
+
+        auto status = future.wait_for(DEFAULTWAIT);
+
+        if (status == future_status::ready)
+        {
+            return future.get();
+        }
+
+        return ResultType();
+    }
 
     void deleteremote(string path, PromiseBoolSP pb)
     {
@@ -2348,13 +2371,21 @@ struct StandardClient : public MegaApp
 
     bool deleteremote(string path)
     {
-        auto result =
-          thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb)
-                    {
-                        sc.deleteremote(path, pb);
-                    });
+        return withWait<bool>([&](PromiseBoolSP result) {
+            deleteremote(path, std::move(result));
+        });
+    }
 
-        return result.get();
+    bool deleteremote(Node* node)
+    {
+        return withWait<bool>([=](PromiseBoolSP result) {
+            deleteremote(node, std::move(result));
+        });
+    }
+
+    void deleteremote(Node* node, PromiseBoolSP result)
+    {
+        deleteremotenodes({node}, std::move(result));
     }
 
     void deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
@@ -8221,6 +8252,145 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
 
     // Were the changes propagated?
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST_F(SyncTest, RemoteReplaceDirectory)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = chrono::seconds(4);
+
+    // Sync client.
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Add and start sync.
+    auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Populate local filesystem.
+    Model m;
+
+    m.addfile("x/d/f");
+    m.addfile("x/d/g");
+    m.addfile("d/f");
+    m.addfile("d/g");
+    //m.addfile("d/h");
+    m.generate(c.syncSet(id).localpath);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure everything made it to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
+
+    // Replace d/f with f.
+    {
+        StandardClient cr(TESTROOT, "cr");
+
+        // Log callbacks.
+        cr.logcb = true;
+
+        // Log client in.
+        ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+        // Get our hands on x/d's node.
+        auto* node = cr.drillchildnodebyname(cr.gettestbasenode(), "s/x/d");
+        ASSERT_NE(node, nullptr);
+
+        {
+            // Make sure this change is atomic wrt c.
+            std::lock_guard<std::recursive_mutex> guard(c.clientMutex);
+
+            // Move d to x/d.
+            ASSERT_TRUE(cr.movenode("s/d", "s/x"));
+
+            // Remove the original x/d.
+            ASSERT_TRUE(cr.deleteremote(node));
+        }
+
+        // Update model.
+        m.movetosynctrash("x/d", "");
+        m.movenode("d", "x");
+    }
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Did the sync complete successfully?
+    ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
+}
+
+TEST_F(SyncTest, RemoteReplaceFile)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = chrono::seconds(4);
+
+    // Sync client.
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Add and start sync.
+    auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Populate local filesystem.
+    Model m;
+
+    m.addfile("d/f");
+    m.addfile("f");
+    m.generate(c.syncSet(id).localpath);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure everything made it to the cloud.
+    ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
+
+    // Replace d/f with f.
+    {
+        StandardClient cr(TESTROOT, "cr");
+
+        // Log callbacks.
+        cr.logcb = true;
+
+        // Log client in.
+        ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+        // Get our hands on d/f's node.
+        auto* node = cr.drillchildnodebyname(cr.gettestbasenode(), "s/d/f");
+        ASSERT_NE(node, nullptr);
+
+        {
+            // Make sure cr's change is atomic with respect to c.
+            std::lock_guard<std::recursive_mutex> guard(c.clientMutex);
+
+            // Move /f to /d/f.
+            ASSERT_TRUE(cr.movenode("s/f", "s/d"));
+
+            // Remove the original /d/f.
+            ASSERT_TRUE(cr.deleteremote(node));
+        }
+
+        // Update model.
+        m.movetosynctrash("d/f", "");
+        m.movenode("f", "d");
+    }
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Did the sync complete successfully?
+    ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
 }
 
 #endif

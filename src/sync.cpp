@@ -1960,6 +1960,9 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                client->nodeByHandle(sourceSyncNode->parent->syncedCloudNodeHandle) :
                                nullptr;
 
+        // True if the move-target exists and we're free to "overwrite" it.
+        auto overwrite = false;
+
         // is there already something else at the target location though?
         if (row.fsNode)
         {
@@ -1968,10 +1971,21 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 << " old parent: " << (oldCloudParent ? oldCloudParent->displaypath() : "?")
                 << logTriplet(row, fullPath);
 
-            row.syncNode->setCheckMovesAgain(false, true, false);
-            monitor.waitingCloud(row.cloudNode->displaypath(), sourceSyncNode->getCloudPath(), fullPath.localPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
-            rowResult = false;
-            return true;
+            if (row.syncNode)
+            {
+                overwrite |= row.syncNode->type == row.fsNode->type;
+                overwrite &= row.syncNode->fsid_lastSynced == row.fsNode->fsid;
+            }
+
+            if (!overwrite)
+            {
+                row.syncNode->setCheckMovesAgain(false, true, false);
+                monitor.waitingCloud(row.cloudNode->displaypath(), sourceSyncNode->getCloudPath(), fullPath.localPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
+                rowResult = false;
+                return true;
+            }
+
+            SYNC_verbose << syncname << "Move is a legit overwrite of a synced file, so we overwrite that locally too." << logTriplet(row, fullPath);
         }
 
         if (!sourceSyncNode->moveApplyingToLocal && !belowRemovedFsNode)
@@ -2034,14 +2048,46 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         }
 
         // check filesystem is not changing fsids as a result of rename
-        assert(sourceSyncNode->fsid_lastSynced == debug_getfsid(sourcePath, client->fsaccess));
+        assert(overwrite || sourceSyncNode->fsid_lastSynced == debug_getfsid(sourcePath, client->fsaccess));
+
+        if (overwrite)
+        {
+            auto path = fullPath.localPath.toPath(*client->fsaccess);
+
+            SYNC_verbose << "Move-target exists and must be moved to local debris: " << path;
+
+            if (!movetolocaldebris(fullPath.localPath))
+            {
+                // Couldn't move the target to local debris.
+                LOG_err << "Couldn't move move-target to local debris: " << path;
+
+                // Sanity: Must exist for overwrite to be true.
+                assert(row.syncNode);
+
+                // Mark subtree as blocked.
+                row.syncNode->setUseBlocked();
+
+                // Don't recurse as the subtree's fubar.
+                row.suppressRecursion = true;
+
+                // Move hasn't completed.
+                sourceSyncNode->moveAppliedToLocal = false;
+
+                // Row hasn't been synced.
+                rowResult = false;
+
+                return true;
+            }
+
+            LOG_debug << "Move-target moved to local debris: " << path;
+        }
 
         if (client->fsaccess->renamelocal(sourcePath, fullPath.localPath))
         {
             // todo: move anything at this path to sync debris first?  Old algo didn't though
 
             // check filesystem is not changing fsids as a result of rename
-            assert(sourceSyncNode->fsid_lastSynced == debug_getfsid(fullPath.localPath, client->fsaccess));
+            assert(overwrite || sourceSyncNode->fsid_lastSynced == debug_getfsid(fullPath.localPath, client->fsaccess));
 
             LOG_debug << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath(*client->fsaccess) << " -> " << fullPath.localPath.toPath(*client->fsaccess);
 
@@ -2056,7 +2102,11 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             sourceSyncNode->setSyncedFsid(UNDEF, client->localnodeBySyncedFsid, sourceSyncNode->localname);
             sourceSyncNode->setSyncedNodeHandle(NodeHandle(), sourceSyncNode->name);
 
-            sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
+            if (sourceSyncNode->type == FILENODE || !overwrite)
+            {
+                sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
+            }
+
             sourceSyncNode->moveAppliedToLocal = true;
 
             sourceSyncNode->setScanAgain(true, false, false, 0);
