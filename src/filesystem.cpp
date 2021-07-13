@@ -176,7 +176,6 @@ int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
 
     while (!(first1.end() || first2.end()))
     {
-        auto charStart1 = first1;
         int c1 = first1.get();
         if (unescaping1 && c1 == escapeChar)
         {
