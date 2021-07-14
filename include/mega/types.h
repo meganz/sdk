@@ -720,6 +720,11 @@ enum SmsVerificationState {
     SMS_STATE_FULL = 2            // Opt-in and unblock SMS allowed
 };
 
+typedef enum
+{
+    END_CALL_REASON_REJECTED    = 0x02,    /// 1on1 call was rejected while ringing
+} endCall_t;
+
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
 
