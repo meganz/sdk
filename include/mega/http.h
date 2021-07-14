@@ -34,7 +34,12 @@
 #include <netdb.h>
 #else
 #include <winsock2.h>
+#pragma warning(push)
+#pragma warning( disable : 4459 )
+// um\ws2tcpip.h(738,14): warning C4459: declaration of 'Error' hides global declaration
+// winrt\AsyncInfo.h(77,52): message : see declaration of 'Error'
 #include <ws2tcpip.h>
+#pragma warning(pop)
 #endif
 
 #ifdef __FreeBSD__
