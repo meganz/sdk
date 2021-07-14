@@ -187,42 +187,21 @@ BackupInfoSync::BackupInfoSync(const UnifiedSync &us)
     localFolder = us.mConfig.getLocalPath();
     state = BackupInfoSync::getSyncState(us);
     subState = us.mConfig.getError();
-    deviceId = us.mClient.getDeviceidHash();
+    deviceId = us.syncs.mClient.getDeviceidHash();
     driveId = BackupInfoSync::getDriveId(us);
     assert(!(us.mConfig.isBackup() && us.mConfig.isExternal())  // not an external backup...
            || !ISUNDEF(driveId));  // ... or it must have a valid drive-id
 }
-
-int BackupInfoSync::calculatePauseActiveState(MegaClient *client)
-{
-    auto pauseDown = client->xferpaused[GET];
-    auto pauseUp = client->xferpaused[PUT];
-    if (pauseDown && pauseUp)
-    {
-        return State::PAUSE_FULL;
-    }
-    else if (pauseDown)
-    {
-        return State::PAUSE_DOWN;
-    }
-    else if (pauseUp)
-    {
-        return State::PAUSE_UP;
-    }
-
-    return State::ACTIVE;
-}
-
 
 int BackupInfoSync::getSyncState(const UnifiedSync& us)
 {
     SyncError error = us.mConfig.getError();
     syncstate_t state = us.mSync ? us.mSync->state : SYNC_FAILED;
 
-    return getSyncState(error, state, &us.mClient);
+    return getSyncState(error, state);
 }
 
-int BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient *client)
+int BackupInfoSync::getSyncState(SyncError error, syncstate_t state)
 {
     if (state == SYNC_DISABLED && error != NO_SYNC_ERROR)
     {
@@ -230,7 +209,7 @@ int BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient 
     }
     else if (state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED)
     {
-        return calculatePauseActiveState(client);
+        return State::ACTIVE;
     }
     else if (!(state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_SYNC_ERROR)))
     {
@@ -242,14 +221,14 @@ int BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient 
     }
 }
 
-int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
+int BackupInfoSync::getSyncState(const SyncConfig& config)
 {
     auto error = config.getError();
     if (!error)
     {
         if (config.getEnabled())
         {
-            return calculatePauseActiveState(client);
+            return State::ACTIVE;
         }
         else
         {
@@ -272,10 +251,10 @@ int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
 handle BackupInfoSync::getDriveId(const UnifiedSync &us)
 {
     const LocalPath& drivePath = us.mConfig.mExternalDrivePath;
-    const auto& fsAccess = *us.mClient.fsaccess;
+    const auto& fsAccess = *us.syncs.fsaccess;
     const string& drivePathUtf8 = drivePath.toPath(fsAccess);
     handle driveId;
-    us.mClient.readDriveId(drivePathUtf8.c_str(), driveId); // It shouldn't happen very often
+    us.syncs.mClient.readDriveId(drivePathUtf8.c_str(), driveId); // It shouldn't happen very often
 
     return driveId;
 }

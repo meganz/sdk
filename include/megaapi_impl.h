@@ -1895,10 +1895,10 @@ protected:
 
 struct MegaFileGet : public MegaFile
 {
-    void prepare() override;
+    void prepare(FileSystemAccess&) override;
     void updatelocalname() override;
     void progress() override;
-    void completed(Transfer*, LocalNode*) override;
+    void completed(Transfer*, putsource_t source) override;
     void terminated() override;
     MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType);
     MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath);
@@ -1913,7 +1913,7 @@ private:
 
 struct MegaFilePut : public MegaFile
 {
-    void completed(Transfer* t, LocalNode*) override;
+    void completed(Transfer* t, putsource_t source) override;
     void terminated() override;
     MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}

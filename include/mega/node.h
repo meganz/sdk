@@ -58,6 +58,24 @@ struct MEGA_API NodeCore
     std::unique_ptr<string> attrstring;
 };
 
+struct SyncUpload_inClient : File, std::enable_shared_from_this<SyncUpload_inClient>
+{
+    // This class is part of the client's Transfer system (ie, works in the client's thread)
+    // The sync system keeps a shared_ptr to it.  Whichever system finishes with it last actually deletes it
+    SyncUpload_inClient(FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath);
+    ~SyncUpload_inClient();
+    void prepare(FileSystemAccess&) override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated() override;
+
+    bool wasTerminated = false;
+    bool wasCompleted = false;
+    bool wasPutnodesCompleted = false;
+    bool wasRequesterAbandoned = false;
+    shared_ptr<SyncUpload_inClient> selfKeepAlive;
+};
+
+
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
 {
@@ -72,9 +90,10 @@ struct MEGA_API NewNode : public NodeCore
     handle uploadhandle = UNDEF;
     byte uploadtoken[UPLOADTOKENLEN]{};
 
-    handle syncid = UNDEF;
+    //handle syncid = UNDEF;
 #ifdef ENABLE_SYNC
-    crossref_ptr<LocalNode, NewNode> localnode; // non-owning
+//    crossref_ptr<LocalNode, NewNode> localnode; // non-owning
+    weak_ptr<SyncUpload_inClient> syncUpload;
 #endif
     std::unique_ptr<string> fileattributes;
 
@@ -437,7 +456,7 @@ struct MEGA_API LocalNode : public Cacheable
     nodehandle_localnode_map::iterator syncedCloudNodeHandle_it;
 
     // related pending node creation or NULL
-    crossref_ptr<NewNode, LocalNode> newnode;
+    //crossref_ptr<NewNode, LocalNode> newnode;
 
     // FILENODE or FOLDERNODE
     nodetype_t type = TYPE_UNKNOWN;
@@ -454,7 +473,7 @@ struct MEGA_API LocalNode : public Cacheable
     //int notseen = 0;
 
     // global sync reference
-    handle syncid = mega::UNDEF;
+    //handle syncid = mega::UNDEF;
 
     struct
     {
@@ -600,17 +619,32 @@ public:
     FSNode getLastSyncedFSDetails();
     FSNode getScannedFSDetails();
 
-    struct Upload : File
+    struct UploadProxy
     {
-        Upload(LocalNode& ln, FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath);
-        LocalNode& localNode;
-        void prepare() override;
-        void completed(Transfer*, LocalNode*) override;
-        void terminated() override;
+        // This class is the LocalNodes' refrence to the SyncUpload_inClient.
+        // Deleting this class will just mark the SyncUpload_inClient as to be deleted by the Client's systems
+        void reset(shared_ptr<SyncUpload_inClient> p)
+        {
+            if (actualUpload) actualUpload->wasRequesterAbandoned = true;
+            if (p) p->selfKeepAlive = p;
+            actualUpload = move(p);
+        }
+
+        void checkCompleted()
+        {
+            if (actualUpload &&
+                (actualUpload->wasTerminated ||
+                (actualUpload->wasCompleted && actualUpload->wasPutnodesCompleted)))
+            {
+                reset(nullptr);
+            }
+        }
+
+        shared_ptr<SyncUpload_inClient> actualUpload;
     };
 
-    unique_ptr<Upload> upload;
-    unique_ptr<SyncFileGet> download;
+    UploadProxy upload;
+    shared_ptr<SyncFileGet> download;
 
 //    void setnotseen(int);
 
@@ -692,8 +726,8 @@ private:
 #endif // USE_INOTIFY
 };
 
-template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
-template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode.ptr; }
+//template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
+//template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode.ptr; }
 
 #endif
 

@@ -30,7 +30,7 @@ namespace mega {
 struct MEGA_API File: public FileFingerprint
 {
     // set localfilename in attached transfer
-    virtual void prepare();
+    virtual void prepare(FileSystemAccess&);
 
     // file transfer dispatched, expect updates/completion/failure
     virtual void start();
@@ -39,13 +39,13 @@ struct MEGA_API File: public FileFingerprint
     virtual void progress();
 
     // transfer completion
-    virtual void completed(Transfer*, LocalNode*);
+    virtual void completed(Transfer*, putsource_t source);
 
     // transfer terminated before completion (cancelled, failed too many times)
     virtual void terminated();
 
     // transfer failed
-    virtual bool failed(error);
+    virtual bool failed(error, MegaClient*);
 
     // update localname
     virtual void updatelocalname() { }
@@ -58,6 +58,7 @@ struct MEGA_API File: public FileFingerprint
     string name;
 
     // local filename (must be set upon injection for uploads, can be set in start() for downloads)
+    // todo: needs to be thread safe
     LocalPath localname;
 
     // source/target node handle
@@ -79,6 +80,9 @@ struct MEGA_API File: public FileFingerprint
 
         // is the source file temporary?
         bool temporaryfile : 1;
+
+        // remember if the sync is from an inshare
+        bool fromInsycShare : 1;
     };
 
     // private auth to access the node
@@ -117,15 +121,15 @@ struct MEGA_API SyncFileGet: public File
     //Node* n;
 
     // set sync-specific temp filename, update treestate
-    void prepare();
-    bool failed(error);
+    void prepare(FileSystemAccess&);
+    bool failed(error, MegaClient*);
     void progress();
 
     // update localname (may have changed due to renames/moves of the synced files)
     void updatelocalname();
 
     // self-destruct after completion
-    void completed(Transfer*, LocalNode*);
+    void completed(Transfer*, putsource_t);
 
     void terminated();
 

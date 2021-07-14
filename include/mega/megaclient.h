@@ -521,32 +521,8 @@ public:
     bool xferpaused[2];
 
 #ifdef ENABLE_SYNC
-
     // one unified structure for SyncConfigs, the Syncs that are running, and heartbeat data
     Syncs syncs;
-
-    unique_ptr<SyncFlags> mSyncFlags;
-
-    // used to asynchronously perform scans.
-    unique_ptr<ScanService> mScanService;
-
-    // retrieves information about any detected name conflicts.
-    bool conflictsDetected(list<NameConflict>& conflicts) const;
-
-    // true if any name conflicts have been detected.
-    bool conflictsDetected() const;
-
-    bool syncStallDetected(SyncFlags::CloudStallInfoMap& stalledNodePaths, SyncFlags::LocalStallInfoMap& stalledLocalPaths) const;
-
-    // manage syncdown flags inside the syncs
-    void setAllSyncsNeedFullSync();
-
-    bool isAnySyncSyncing(bool includePausedSyncs);
-    bool isAnySyncScanning(bool includePausedSyncs);
-    bool mightAnySyncsHaveMoves(bool includePausedSyncs);
-
-    bool nodeIsInActiveSync(Node* n, bool includePausedSyncs);
-
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -1533,27 +1509,9 @@ public:
     // minute of the last created folder in SyncDebris
     m_time_t syncdebrisminute;
 
-    // activity flag
-    bool syncactivity;
-
-    // syncops indicates that a sync-relevant tree update may be pending
-    //bool syncops;
-
-    // app scanstate flag
-    bool syncscanstate = false;
-
-    // whether any sync has any work to do
-    bool syncBusyState = false;
-
-    // app stall tate flag
-    bool syncStallState = false;
-
-    // app conflict tate flag
-    bool syncConflictState;
-
     // sync PUT Nagle timer
-    bool syncnagleretry;
-    BackoffTimer syncnaglebt;
+    //bool syncnagleretry;
+    //BackoffTimer syncnaglebt;
 
     //dstime filesystemNotificationsQuietTime = 0;
 
@@ -1578,39 +1536,23 @@ public:
     // The timer is used to force another call to syncdown(...) so that we
     // can give the sync a chance to transition into the monitor state,
     // regardless of whether the local disk has changed.
-    bool mSyncMonitorRetry;
-    BackoffTimer mSyncMonitorTimer;
+    //bool mSyncMonitorRetry;
+    //BackoffTimer mSyncMonitorTimer;
 
     //// vanished from a local synced folder
     //localnode_set localsyncnotseen;
 
-    // maps local fsid to corresponding LocalNode* (s)
-    fsid_localnode_map localnodeBySyncedFsid;
-    fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
-    LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
-
-    void setSyncedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
-    void setScannedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
-
-    // maps nodehanlde to corresponding LocalNode* (s)
-    nodehandle_localnode_map localnodeByNodeHandle;
-    LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
 
     // local nodes that need to be added remotely
 //    localnode_vector synccreate;
 
     // number of sync-initiated putnodes() in progress
-    int syncadding;
+    //int syncadding;
 
-    bool mDetailedSyncLogging = false;
-
-    // total number of LocalNode objects
-    long long totalLocalNodes;
 
     // sync id dispatch
-    handle nextsyncid();
-    handle currsyncid;
+    //handle nextsyncid();
+    //handle currsyncid;
 
     // SyncDebris folder addition result
     void putnodes_syncdebris_result(error, vector<NewNode>&);
@@ -1636,16 +1578,13 @@ public:
     // commit all queueud deletions
     void execsyncdeletions();
 
-    // process localnode subtree
-    void proclocaltree(LocalNode*, LocalTreeProc*);
-
     // unlink the LocalNode from the corresponding node
     // if the associated local file or folder still exists
     void unlinkifexists(LocalNode*, FileAccess*, LocalPath& reuseBuffer);
 #endif
 
     // recursively cancel transfers in a subtree
-    void stopSyncXfers(LocalNode*, DBTableTransactionCommitter& committer);
+    //void stopSyncXfers(LocalNode*, DBTableTransactionCommitter& committer);
 
     // update paths of all PUT transfers
     void updateputs();

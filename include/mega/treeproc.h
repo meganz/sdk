@@ -100,7 +100,7 @@ public:
 class MEGA_API LocalTreeProc
 {
 public:
-    virtual void proc(MegaClient*, LocalNode*) = 0;
+    virtual void proc(FileSystemAccess&, LocalNode*) = 0;
 
     virtual ~LocalTreeProc() { }
 };
@@ -112,14 +112,14 @@ class MEGA_API LocalTreeProcMove : public LocalTreeProc
 
 public:
     LocalTreeProcMove(Sync*, bool);
-    void proc(MegaClient*, LocalNode*);
+    void proc(FileSystemAccess&, LocalNode*);
     int nc;
 };
 
 class MEGA_API LocalTreeProcUpdateTransfers : public LocalTreeProc
 {
 public:
-    void proc(MegaClient*, LocalNode*);
+    void proc(FileSystemAccess&, LocalNode*);
 };
 
 //class MEGA_API LocalTreeProcUnlinkNodes : public LocalTreeProc

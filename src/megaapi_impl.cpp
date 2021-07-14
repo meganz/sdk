@@ -475,7 +475,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = (node->syncdeleted != SYNCDEL_NONE);
-    if (LocalNode* ln = node->client->findLocalNodeByNodeHandle(node->nodeHandle()))
+    if (LocalNode* ln = node->client->syncs.findLocalNodeByNodeHandle(node->nodeHandle()))
     {
         localPath = ln->getLocalPath().platformEncoded();
         localPath.append("", 1);
@@ -1375,7 +1375,7 @@ int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
 
 bool MegaApiImpl::isIndexing()
 {
-    if(client->syncscanstate)
+    if(client->syncs.syncscanstate)
     {
         return true;
     }
@@ -1492,7 +1492,7 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
 
     // Get the list of conflicts from the client.
     list<NameConflict> conflicts;
-    client->conflictsDetected(conflicts);
+    client->syncs.conflictsDetected(conflicts);
 
     // Translate the information into a form useful to the caller.
     // For now, just supply the first conflict.  TODO: maybe the caller would like everything?
@@ -1651,7 +1651,7 @@ bool MegaApiImpl::conflictsDetected()
 {
     SdkMutexGuard guard(sdkMutex);
 
-    return client->conflictsDetected();
+    return client->syncs.conflictsDetected();
 }
 
 #endif
@@ -5174,7 +5174,7 @@ MegaFileGet *MegaFileGet::unserialize(string *d)
     return megaFile;
 }
 
-void MegaFileGet::prepare()
+void MegaFileGet::prepare(FileSystemAccess&)
 {
     if (transfer->localfilename.empty())
     {
@@ -5206,7 +5206,7 @@ void MegaFileGet::progress()
 #endif
 }
 
-void MegaFileGet::completed(Transfer*, LocalNode*)
+void MegaFileGet::completed(Transfer*, putsource_t)
 {
     delete this;
 }
@@ -5297,12 +5297,12 @@ MegaFilePut *MegaFilePut::unserialize(string *d)
     return megaFile;
 }
 
-void MegaFilePut::completed(Transfer* t, LocalNode*)
+void MegaFilePut::completed(Transfer* t, putsource_t source)
 {
     if(customMtime >= 0)
         t->mtime = customMtime;
 
-    File::completed(t,NULL);
+    File::completed(t, PUTNODES_APP);
     delete this;
 }
 
@@ -9057,7 +9057,7 @@ bool MegaApiImpl::isSynced(MegaNode *n)
     SdkMutexGuard g(sdkMutex);
     if (Node *node = client->nodebyhandle(n->getHandle()))
     {
-        if (node->client->findLocalNodeByNodeHandle(node->nodeHandle()))
+        if (node->client->syncs.findLocalNodeByNodeHandle(node->nodeHandle()))
         {
             return true;
         }
@@ -9144,7 +9144,7 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
 
     if (Node *node = client->nodebyhandle(n->getHandle()))
     {
-        if (LocalNode* ln = node->client->findLocalNodeByNodeHandle(node->nodeHandle()))
+        if (LocalNode* ln = node->client->syncs.findLocalNodeByNodeHandle(node->nodeHandle()))
         {
             string result = ln->getLocalPath().platformEncoded();
             result.append("", 1);
@@ -9157,7 +9157,7 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
 
 long long MegaApiImpl::getNumLocalNodes()
 {
-    return client->totalLocalNodes;
+    return client->syncs.totalLocalNodes;
 }
 
 bool MegaApiImpl::isSyncable(const char *path, long long size)
@@ -23164,15 +23164,13 @@ void MegaApiImpl::update()
 
     LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
     LOG_debug << "PendingFA? " << client->activefa.size() << " active, " << client->queuedfa.size() << " queued";
-    LOG_debug << "FLAGS: " << client->syncactivity
-              << " " << client->isAnySyncSyncing(false)
-              << " " << client->syncnagleretry
+    LOG_debug << "FLAGS:"
               << " " << client->faputcompletion.size()
               << " " << client->fetchingnodes << " " << client->pendingfa.size()
               << " " << client->xferpaused[0] << " " << client->xferpaused[1]
               << " " << client->transfers[0].size() << " " << client->transfers[1].size()
               << " " << client->statecurrent
-              << " " << client->syncadding << " " << client->syncdebrisadding
+              << " " << client->syncdebrisadding
               << " " << client->umindex.size() << " " << client->uhindex.size();
     LOG_debug << "UL speed: " << httpio->uploadSpeed << "  DL speed: " << httpio->downloadSpeed;
 

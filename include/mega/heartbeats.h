@@ -143,15 +143,13 @@ public:
 
     static BackupType getSyncType(const SyncConfig& config);
     static int getSyncState (const UnifiedSync &);
-    static int getSyncState(SyncError error, syncstate_t state, MegaClient *client);
-    static int getSyncState(const SyncConfig& config, MegaClient *client);
+    static int getSyncState(SyncError error, syncstate_t state);
+    static int getSyncState(const SyncConfig& config);
     static handle getDriveId(const UnifiedSync&);
 
     bool operator==(const BackupInfoSync& o) const;
     bool operator!=(const BackupInfoSync& o) const;
 
-private:
-    static int calculatePauseActiveState(MegaClient *client);
 };
 #endif
 

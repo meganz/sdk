@@ -55,7 +55,7 @@ struct AppFileGet : public AppFile
 {
     void start() override;
     void update();
-    void completed(Transfer*, LocalNode*) override;
+    void completed(Transfer*, putsource_t) override;
     void terminated() override;
 
     AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
@@ -66,7 +66,7 @@ struct AppFilePut : public AppFile
 {
     void start() override;
     void update();
-    void completed(Transfer*, LocalNode*) override;
+    void completed(Transfer*, putsource_t) override;
     void terminated() override;
 
     void displayname(string*);

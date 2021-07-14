@@ -251,7 +251,7 @@ void AppFileGet::start()
 }
 
 // transfer completion
-void AppFileGet::completed(Transfer*, LocalNode*)
+void AppFileGet::completed(Transfer*, putsource_t source)
 {
     // (at this time, the file has already been placed in the final location)
     delete this;
@@ -263,10 +263,10 @@ void AppFileGet::terminated()
     delete this;
 }
 
-void AppFilePut::completed(Transfer* t, LocalNode*)
+void AppFilePut::completed(Transfer* t, putsource_t source)
 {
     // perform standard completion (place node in user filesystem etc.)
-    File::completed(t, NULL);
+    File::completed(t, PUTNODES_APP);
 
     delete this;
 }
@@ -3069,7 +3069,7 @@ void exec_syncoutput(autocomplete::ACState& s)
     }
     else if (s.words[2].s == "detail_log")
     {
-        client->mDetailedSyncLogging = onOff;
+        client->syncs.mDetailedSyncLogging = onOff;
     }
     else if (s.words[2].s == "all")
     {
@@ -3077,7 +3077,7 @@ void exec_syncoutput(autocomplete::ACState& s)
         syncout_remote_change_detection = onOff;
         syncout_transfer_activity = onOff;
         syncout_transfer_activity = onOff;
-        client->mDetailedSyncLogging = onOff;
+        client->syncs.mDetailedSyncLogging = onOff;
     }
 }
 #endif
@@ -9162,7 +9162,7 @@ void exec_synclist(autocomplete::ACState& s)
 
     SyncFlags::CloudStallInfoMap stalledNodePaths;
     SyncFlags::LocalStallInfoMap stalledLocalPaths;
-    if (client->syncStallDetected(stalledNodePaths, stalledLocalPaths))
+    if (client->syncs.syncStallDetected(stalledNodePaths, stalledLocalPaths))
     {
         cout << "Stalled (mutually unresolvable) changes detected!" << endl;
         for (auto& p : stalledNodePaths)

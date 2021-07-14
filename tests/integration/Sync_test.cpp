@@ -790,7 +790,7 @@ struct StandardClient : public MegaApp
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
-        client.mDetailedSyncLogging = true;
+        client.syncs.mDetailedSyncLogging = true;
 #ifdef GFX_CLASS
         gfx.startProcessingThread();
 #endif
@@ -1092,9 +1092,9 @@ struct StandardClient : public MegaApp
 
     // Necessary to make sure we release the file once we're done with it.
     struct FileGet : public File {
-        void completed(Transfer* t, LocalNode* n) override
+        void completed(Transfer* t, putsource_t source) override
         {
-            File::completed(t, n);
+            File::completed(t, source);
             result->set_value(true);
             delete this;
         }
@@ -1136,9 +1136,9 @@ struct StandardClient : public MegaApp
     }
 
     struct FilePut : public File {
-        void completed(Transfer* t, LocalNode* n) override
+        void completed(Transfer* t, putsource_t source) override
         {
-            File::completed(t, n);
+            File::completed(t, source);
             delete this;
         }
 
@@ -2272,7 +2272,7 @@ struct StandardClient : public MegaApp
                               ++next_request_tag,
                               [=]()
                               {
-                                  client.setattr(node, attr_map(updates), 
+                                  client.setattr(node, attr_map(updates),
                                       [result](NodeHandle, error e) { result->set_value(!e); });
                               }, nullptr);
     }
@@ -2528,7 +2528,7 @@ struct StandardClient : public MegaApp
           thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
                     {
                         pb->set_value(
-                          client.client.conflictsDetected(conflicts));
+                          client.client.syncs.conflictsDetected(conflicts));
                     });
 
         return result.get();
@@ -2539,7 +2539,7 @@ struct StandardClient : public MegaApp
         auto result =
           thread_do<bool>([](StandardClient& client, PromiseBoolSP pb)
                     {
-                        pb->set_value(client.client.conflictsDetected());
+                        pb->set_value(client.client.syncs.conflictsDetected());
                     });
 
         return result.get();
@@ -2753,7 +2753,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
         {
             v[i]->thread_do<bool>([&](StandardClient& mc, PromiseBoolSP pb)
                 {
-                    result[i].syncStalled = mc.client.syncStallDetected(result[i].stalledNodePaths, result[i].stalledLocalPaths);
+                    result[i].syncStalled = mc.client.syncs.syncStallDetected(result[i].stalledNodePaths, result[i].stalledLocalPaths);
 
                     if (!result[i].syncStalled)
                     {
@@ -2770,7 +2770,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                         {
                             any_activity = true;
                         }
-                        if (mc.client.isAnySyncSyncing(false))
+                        if (mc.client.syncs.isAnySyncSyncing(false))
                         {
                             any_still_syncing = true;
                         }
@@ -3491,7 +3491,7 @@ TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
             //    remaining += s->dirnotify->fsDelayedNetworkEventq.size();
             //  });
 
-            remaining += sc.client.isAnySyncScanning(false) ? 1 : 0;
+            remaining += sc.client.syncs.isAnySyncScanning(false) ? 1 : 0;
 
             p->set_value(true);
         });

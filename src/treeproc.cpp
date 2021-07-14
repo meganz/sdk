@@ -114,7 +114,7 @@ LocalTreeProcMove::LocalTreeProcMove(Sync* sync, bool recreate)
     nc = 0;
 }
 
-void LocalTreeProcMove::proc(MegaClient*, LocalNode* localnode)
+void LocalTreeProcMove::proc(FileSystemAccess&, LocalNode* localnode)
 {
     if (newsync != localnode->sync)
     {
@@ -132,14 +132,15 @@ void LocalTreeProcMove::proc(MegaClient*, LocalNode* localnode)
     nc++;
 }
 
-void LocalTreeProcUpdateTransfers::proc(MegaClient *, LocalNode *localnode)
+void LocalTreeProcUpdateTransfers::proc(FileSystemAccess& fsa, LocalNode *localnode)
 {
-    if (localnode->upload &&
-        localnode->upload->transfer &&
-        !localnode->upload->transfer->localfilename.empty())
+    if (localnode->upload.actualUpload &&
+        localnode->upload.actualUpload->transfer &&   // todo: thread safety
+        !localnode->upload.actualUpload->transfer->localfilename.empty())
     {
         LOG_debug << "Updating transfer path";
-        localnode->upload->prepare();
+        localnode->upload.actualUpload->localname = localnode->getLocalPath();
+        localnode->upload.actualUpload->prepare(fsa);
     }
 }
 
