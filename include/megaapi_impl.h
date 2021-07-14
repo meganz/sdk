@@ -467,7 +467,9 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         char *getBase64Key() override;
         std::string* getAttrString() override;
         char* getFileAttrString() override;
+
         int getTag() override;
+
         int64_t getExpirationTime() override;
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
@@ -1020,35 +1022,6 @@ protected:
 };
 
 #ifdef ENABLE_SYNC
-
-class MegaSyncEventPrivate: public MegaSyncEvent
-{
-public:
-    explicit MegaSyncEventPrivate(int type);
-
-    MegaSyncEvent *copy() override;
-
-    int getType() const override;
-    const char *getPath() const override;
-    MegaHandle getNodeHandle() const override;
-    const char *getNewPath() const override;
-    const char* getPrevName() const override;
-    MegaHandle getPrevParent() const override;
-
-    void setPath(const char* path);
-    void setNodeHandle(MegaHandle nodeHandle);
-    void setNewPath(const char* newPath);
-    void setPrevName(const char* prevName);
-    void setPrevParent(MegaHandle prevParent);
-
-protected:
-    int type;
-    std::unique_ptr<char[]> path;
-    std::unique_ptr<char[]> newPath;
-    std::unique_ptr<char[]> prevName;
-    MegaHandle nodeHandle = INVALID_HANDLE;
-    MegaHandle prevParent = INVALID_HANDLE;
-};
 
 class MegaSyncPrivate : public MegaSync
 {
@@ -1718,6 +1691,9 @@ class MegaNodeListPrivate : public MegaNodeList
 
         void addNode(MegaNode* node) override;
 
+        //This ones takes the ownership of the given node
+        void addNode(std::unique_ptr<MegaNode> node);
+
 	protected:
 		MegaNode** list;
 		int s;
@@ -1881,7 +1857,6 @@ public:
     bool analyseMediaInfo(const char* inputFilepath) override;
     char *encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath,
                      bool adjustsizeonly) override;
-
     char *getUploadURL() override;
 
     bool serialize(string* s);
@@ -2260,6 +2235,7 @@ class MegaApiImpl : public MegaApp
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
         void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
+        void getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
@@ -2627,6 +2603,12 @@ class MegaApiImpl : public MegaApp
         bool createPreview(const char* imagePath, const char *dstPath);
         bool createAvatar(const char* imagePath, const char *dstPath);
 
+        // these two: MEGA proxy use only
+        void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+        void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+                                               const char *string64UploadToken, const char *string64FileKey, MegaRequestListener *listener);
+
+
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
             const char *string64UploadToken, MegaRequestListener *listener);
@@ -2842,7 +2824,6 @@ protected:
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
-        void fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event);
         void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
         void fireOnSyncDisabled(MegaSyncPrivate *sync);
         void fireOnSyncEnabled(MegaSyncPrivate *sync);
@@ -3009,8 +2990,6 @@ protected:
         void account_details(AccountDetails*, error) override;
         void querytransferquota_result(int) override;
 
-        void setattr_result(handle, Error) override;
-        void rename_result(handle, error) override;
         void unlink_result(handle, error) override;
         void unlinkversions_result(error) override;
         void nodes_updated(Node**, int) override;
@@ -3064,9 +3043,6 @@ protected:
         void userfeedbackstore_result(error) override;
         void sendevent_result(error) override;
         void supportticket_result(error) override;
-
-        void checkfile_result(handle h, const Error& e) override;
-        void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring) override;
 
         // user invites/attributes
         void removecontact_result(error) override;
@@ -3123,7 +3099,6 @@ protected:
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
         void getmegaachievements_result(AchievementsDetails*, error) override;
-        void backgrounduploadurl_result(error, string*) override;
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;
         void getmiscflags_result(error) override;
@@ -3180,21 +3155,6 @@ protected:
         void sync_removed(handle backupId) override;
 
         void syncupdate_scanning(bool scanning) override;
-        void syncupdate_local_folder_addition(Sync* sync, const LocalPath& path) override;
-        void syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path) override;
-        void syncupdate_local_file_addition(Sync* sync, const LocalPath& path) override;
-        void syncupdate_local_file_deletion(Sync* sync, const LocalPath& path) override;
-        void syncupdate_local_file_change(Sync* sync, const LocalPath& path) override;
-        void syncupdate_local_move(Sync* sync, const LocalPath& oldPath, const LocalPath& newPath) override;
-        void syncupdate_get(Sync* sync, Node *node, const char* path) override;
-        void syncupdate_put(Sync* sync, const char*) override;
-        void syncupdate_remote_file_addition(Sync *sync, Node* n) override;
-        void syncupdate_remote_file_deletion(Sync *sync, Node* n) override;
-        void syncupdate_remote_folder_addition(Sync *sync, Node* n) override;
-        void syncupdate_remote_folder_deletion(Sync* sync, Node* n) override;
-        void syncupdate_remote_copy(Sync*, const char*) override;
-        void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent) override;
-        void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname) override;
         void syncupdate_treestate(LocalNode*) override;
         bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
         bool sync_syncable(Sync *, const char*, LocalPath&) override;

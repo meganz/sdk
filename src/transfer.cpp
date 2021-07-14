@@ -366,8 +366,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
 SymmCipher *Transfer::transfercipher()
 {
-    client->tmptransfercipher.setkey(transferkey.data());
-    return &client->tmptransfercipher;
+    return client->getRecycledTemporaryTransferCipher(transferkey.data());
 }
 
 void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter* committer)
@@ -726,7 +725,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                             attr_map attrUpdate;
                             n->serializefingerprint(&attrUpdate['c']);
-                            client->setattr(n, std::move(attrUpdate), client->reqtag, nullptr);
+                            client->setattr(n, std::move(attrUpdate), client->reqtag, nullptr, nullptr);
                         }
                     }
                 }

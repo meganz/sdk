@@ -250,22 +250,10 @@ void SdkTest::TearDown()
     out() << "Test done, teardown starts";
     // do some cleanup
 
-    for (size_t i = 0; i < megaApi.size(); ++i)
-    {
-        if (gResumeSessions && megaApi[i] && (gSessionIDs[i].empty() || gSessionIDs[i] == "invalid"))
-        {
-            if (auto p = unique_ptr<char[]>(megaApi[i]->dumpSession()))
-            {
-                gSessionIDs[i] = p.get();
-            }
-        }
-    }
-
     gTestingInvalidArgs = false;
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
 
-    out() << "Cleaning up account";
     Cleanup();
 
     releaseMegaApi(1);
@@ -279,6 +267,8 @@ void SdkTest::TearDown()
 
 void SdkTest::Cleanup()
 {
+    out() << "Cleaning up accounts";
+
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
     deleteFile(PUBLICFILE);
@@ -317,14 +307,26 @@ void SdkTest::Cleanup()
         {
             removeContact(ul->get(i)->getEmail());
         }
+    }
 
+    for (auto nApi = unsigned(megaApi.size()); nApi--; ) if (megaApi[nApi])
+    {
         // Remove pending contact requests
-        std::unique_ptr<MegaContactRequestList> crl{megaApi[0]->getOutgoingContactRequests()};
+
+        std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
         for (int i = 0; i < crl->size(); i++)
         {
             MegaContactRequest *cr = crl->get(i);
-            megaApi[0]->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
+            synchronousInviteContact(nApi, cr->getTargetEmail(), "Test cleanup removing outgoing contact request", MegaContactRequest::INVITE_ACTION_DELETE);
         }
+
+        crl.reset(megaApi[nApi]->getIncomingContactRequests());
+        for (int i = 0; i < crl->size(); i++)
+        {
+            MegaContactRequest *cr = crl->get(i);
+            synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
+        }
+
     }
 }
 
@@ -357,10 +359,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     switch(type)
     {
-    case MegaRequest::TYPE_CREATE_FOLDER:
-        mApi[apiIndex].h = request->getNodeHandle();
-        break;
-
     case MegaRequest::TYPE_RENAME:
         mApi[apiIndex].h = request->getNodeHandle();
         break;
@@ -720,7 +718,12 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT] = false;
+#ifdef ENABLE_SYNC
     mApi[apiIndex].megaApi->logout(keepSyncConfigs, this);
+#else
+    mApi[apiIndex].megaApi->logout(this);
+#endif
+    gSessionIDs[apiIndex] = "invalid";
 
     EXPECT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT], timeout) )
             << "Logout failed after " << timeout  << " seconds";
@@ -898,6 +901,9 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         mApi[index].megaApi = megaApi[index].get();
 
+        // helps with restoring logging after tests that fiddle with log level
+        mApi[index].megaApi->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+
         megaApi[index]->setLoggingName(to_string(index).c_str());
         megaApi[index]->addListener(this);    // TODO: really should be per api
 
@@ -920,6 +926,16 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         auto loginResult = trackers[index]->waitForResult();
         EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for account " << index;
         if (loginResult != API_OK) anyLoginFailed = true;
+        else {
+            gSessionIDs[index] = "invalid"; // default
+            if (gResumeSessions && megaApi[index]->isLoggedIn() == FULLACCOUNT)
+            {
+                if (auto p = unique_ptr<char[]>(megaApi[index]->dumpSession()))
+                {
+                    gSessionIDs[index] = p.get();
+                }
+            }
+        }
     }
     ASSERT_FALSE(anyLoginFailed);
 
@@ -941,7 +957,6 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     ASSERT_FALSE(anyFetchnodesFailed);
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << "Cleaning up account 0";
     Cleanup();
     out() << "Test setup done, test starts";
 }
@@ -1082,14 +1097,15 @@ void SdkTest::getContactRequest(unsigned int apiIndex, bool outgoing, int expect
     delete crl;
 }
 
-void SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNode *n, int timeout)
+MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int timeout)
 {
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_CREATE_FOLDER] = false;
-    mApi[apiIndex].megaApi->createFolder(name, n);
+    RequestTracker tracker(megaApi[apiIndex].get());
 
-    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_CREATE_FOLDER], timeout) )
-            << "Folder creation failed after " << timeout  << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Cannot create a folder (error: " << mApi[apiIndex].lastError << ")";
+    megaApi[apiIndex]->createFolder(name, parent, &tracker);
+
+    if (tracker.waitForResult() != API_OK) return UNDEF;
+
+    return tracker.request->getNodeHandle();
 }
 
 void SdkTest::getRegisteredContacts(const std::map<std::string, std::string>& contacts)
@@ -1232,6 +1248,8 @@ TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
     ASSERT_NO_FATAL_FAILURE(locallogout());
     synchronousResumeCreateAccountEphemeralPlusPlus(0, sid.c_str());
     ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Account creation failed after resume (error: " << mApi[0].lastError << ")";
+
+    gSessionIDs[0] = "invalid";
 }
 
 bool veryclose(double a, double b)
@@ -1319,6 +1337,7 @@ TEST_F(SdkTest, SdkTestKillSession)
 
     // Log out the primary account.
     logout(0, false, maxTimeout);
+    gSessionIDs[0] = "invalid";
 }
 
 /**
@@ -1702,12 +1721,12 @@ TEST_F(SdkTest, SdkTestNodeOperations)
     MegaNode *rootnode = megaApi[0]->getRootNode();
     char name1[64] = "New folder";
 
-    ASSERT_NO_FATAL_FAILURE( createFolder(0, name1, rootnode) );
-
+    auto nh = createFolder(0, name1, rootnode);
+    ASSERT_NE(nh, UNDEF);
 
     // --- Rename a node ---
 
-    MegaNode *n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
+    MegaNode *n1 = megaApi[0]->getNodeByHandle(nh);
     strcpy(name1, "Folder renamed");
 
     ASSERT_EQ(MegaError::API_OK, doRenameNode(0, n1, name1));
@@ -2392,19 +2411,15 @@ TEST_F(SdkTest, SdkTestShares)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     char foldername1[64] = "Shared-folder";
-    MegaHandle hfolder1;
+    MegaHandle hfolder1 = createFolder(0, foldername1, rootnode.get());
+    ASSERT_NE(hfolder1, UNDEF);
 
-    ASSERT_NO_FATAL_FAILURE( createFolder(0, foldername1, rootnode.get()) );
-
-    hfolder1 = mApi[0].h;     // 'h' is set in 'onRequestFinish()'
     n1 = megaApi[0]->getNodeByHandle(hfolder1);
+    ASSERT_NE(n1, nullptr);
 
     char foldername2[64] = "subfolder";
-    MegaHandle hfolder2;
-
-    ASSERT_NO_FATAL_FAILURE( createFolder(0, foldername2, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get()) );
-
-    hfolder2 = mApi[0].h;
+    MegaHandle hfolder2 = createFolder(0, foldername2, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get());
+    ASSERT_NE(hfolder2, UNDEF);
 
     MegaHandle hfile1;
     createFile(PUBLICFILE.data(), false);   // not a large file since don't need to test transfers here
@@ -2503,8 +2518,9 @@ TEST_F(SdkTest, SdkTestShares)
     // add a folder under the share
     char foldernameA[64] = "dummyname1";
     char foldernameB[64] = "dummyname2";
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameA, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get()));
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameB, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get()));
+
+    ASSERT_NE(createFolder(0, foldernameA, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get()), UNDEF);
+    ASSERT_NE(createFolder(0, foldernameB, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get()), UNDEF);
 
     // check the corresponding user alert
     ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2));
@@ -2692,12 +2708,14 @@ TEST_F(SdkTest, SdkTestShareKeys)
 
     ASSERT_TRUE(rootnodeA &&rootnodeB &&rootnodeC);
 
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "share-folder-A", rootnodeA.get()));
-    unique_ptr<MegaNode> shareFolderA(megaApi[0]->getNodeByHandle(mApi[0].h));
+    auto nh = createFolder(0, "share-folder-A", rootnodeA.get());
+    ASSERT_NE(nh, UNDEF);
+    unique_ptr<MegaNode> shareFolderA(megaApi[0]->getNodeByHandle(nh));
     ASSERT_TRUE(!!shareFolderA);
 
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "sub-folder-A", shareFolderA.get()));
-    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(mApi[0].h));
+    nh = createFolder(0, "sub-folder-A", shareFolderA.get());
+    ASSERT_NE(nh, UNDEF);
+    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(nh));
     ASSERT_TRUE(!!subFolderA);
 
     // Initialize a test scenario: create a new contact to share to
@@ -2731,8 +2749,8 @@ TEST_F(SdkTest, SdkTestShareKeys)
     MegaNode* receivedShareNodeB = nl1->get(0);
     MegaNode* receivedShareNodeC = nl2->get(0);
 
-    ASSERT_NO_FATAL_FAILURE(createFolder(2, "folderByC1", receivedShareNodeC));
-    ASSERT_NO_FATAL_FAILURE(createFolder(2, "folderByC2", receivedShareNodeC));
+    ASSERT_NE(createFolder(2, "folderByC1", receivedShareNodeC), UNDEF);
+    ASSERT_NE(createFolder(2, "folderByC2", receivedShareNodeC), UNDEF);
 
     ASSERT_TRUE(WaitFor([this, &subFolderA]() { unique_ptr<MegaNodeList> aView(megaApi[0]->getChildren(subFolderA.get()));
                                    return aView->size() == 2; }, 60000));
@@ -3405,28 +3423,36 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
     // mega dir setup
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "test_autocomplete_megafs", rootnode));
-    MegaNode *n0 = megaApi[0]->getNodeByHandle(mApi[0].h);
+    auto nh = createFolder(0, "test_autocomplete_megafs", rootnode);
+    ASSERT_NE(nh, UNDEF);
+    MegaNode *n0 = megaApi[0]->getNodeByHandle(nh);
 
-    megaCurDir = NodeHandle().set6byte(mApi[0].h);
+    megaCurDir = NodeHandle().set6byte(nh);
 
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "dir1", n0));
-    MegaNode *n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "sub11", n1));
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "sub12", n1));
+    nh = createFolder(0, "dir1", n0);
+    ASSERT_NE(nh, UNDEF);
+    MegaNode *n1 = megaApi[0]->getNodeByHandle(nh);
+    ASSERT_NE(createFolder(0, "sub11", n1), UNDEF);
+    ASSERT_NE(createFolder(0, "sub12", n1), UNDEF);
 
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "dir2", n0));
-    MegaNode *n2 = megaApi[0]->getNodeByHandle(mApi[0].h);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "sub21", n2));
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "sub22", n2));
+    nh = createFolder(0, "dir2", n0);
+    ASSERT_NE(nh, UNDEF);
+    MegaNode *n2 = megaApi[0]->getNodeByHandle(nh);
+    ASSERT_NE(createFolder(0, "sub21", n2), UNDEF);
+    ASSERT_NE(createFolder(0, "sub22", n2), UNDEF);
 
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "dir2a", n0));
-    MegaNode *n3 = megaApi[0]->getNodeByHandle(mApi[0].h);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "dir space", n3));
-    MegaNode *n31 = megaApi[0]->getNodeByHandle(mApi[0].h);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "dir space2", n3));
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "nospace", n3));
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "next", n31));
+    nh = createFolder(0, "dir2a", n0);
+    ASSERT_NE(nh, UNDEF);
+    MegaNode *n3 = megaApi[0]->getNodeByHandle(nh);
+
+    nh = createFolder(0, "dir space", n3);
+    ASSERT_NE(nh, UNDEF);
+
+    MegaNode *n31 = megaApi[0]->getNodeByHandle(nh);
+
+    ASSERT_NE(createFolder(0, "dir space2", n3), UNDEF);
+    ASSERT_NE(createFolder(0, "nospace", n3), UNDEF);
+    ASSERT_NE(createFolder(0, "next", n31), UNDEF);
 
 
     // dos style mega FS completions
@@ -4742,7 +4768,24 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
 }
 
-TEST_F(SdkTest, SdkMediaUploadRequestURL)
+
+#ifdef __linux__
+std::string exec(const char* cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe)
+    {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
+}
+#endif
+
+TEST_F(SdkTest, SdkMediaUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -4752,14 +4795,41 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
     std::unique_ptr<MegaBackgroundMediaUpload> req(MegaBackgroundMediaUpload::createInstance(megaApi[apiIndex].get()));
 
     // Request a media upload URL
-    int64_t dummyFileSize = 123456;
-    auto err = synchronousMediaUploadRequestURL(apiIndex, dummyFileSize, req.get(), nullptr);
+    int64_t fileSize = 10000;
+    auto err = synchronousMediaUploadRequestURL(apiIndex, fileSize, req.get(), nullptr);
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
 
     // Get the generated media upload URL
     std::unique_ptr<char[]> url(req->getUploadURL());
     ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
     ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
+
+    string filename1 = UPFILE;
+    createFile(filename1, false);
+
+    string filename2 = DOWNFILE;
+
+    // encrypt file contents and get URL suffix
+    req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), true);
+    std::unique_ptr<char[]> suffix(req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), false));
+    ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
+
+    std::unique_ptr<char[]> fingreprint(megaApi[0]->getFingerprint(DOWNFILE.c_str()));
+    std::unique_ptr<char[]> fingreprintOrig(megaApi[0]->getFingerprint(UPFILE.c_str()));
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+
+#ifdef __linux__
+    string command = "curl -s --data-binary @";
+    command.append(DOWNFILE.c_str()).append(" ").append(url.get());
+    if (suffix) command.append(suffix.get());
+    auto uploadToken = exec(command.c_str());
+    std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(uploadToken.c_str(), uploadToken.length()));
+
+    err = synchronousMediaUploadComplete(apiIndex, req.get(), "newfile.txt", rootnode.get(), fingreprint.get(), fingreprintOrig.get(), base64UploadToken.get(), nullptr);
+
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
+#endif
+
 }
 
 TEST_F(SdkTest, SdkGetBanners)
@@ -4778,7 +4848,6 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // create My Backups folder
     syncTestMyBackupsRemoteFolder(0);
-    MegaHandle mh = mApi[0].h;
 
     // look for Device Name attr
     string deviceName;
@@ -4802,6 +4871,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
 #ifdef ENABLE_SYNC
+    MegaHandle mh = mApi[0].h;
+
     // Create a test root directory
     fs::path localBasePath = makeNewTestRoot();
 
@@ -4916,6 +4987,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
     // getMiscFlags() -- not logged in
     logout(0, false, maxTimeout);
+    gSessionIDs[0] = "invalid";
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 }
@@ -4942,8 +5014,9 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     // create remote folders for each backup
     for (size_t i = 0; i < numBackups; i++)
     {
-        ASSERT_NO_FATAL_FAILURE(createFolder(0, folderNames[i].c_str(), rootnode.get()));
-        targetNodes.push_back(mApi[0].h);
+        auto h = createFolder(0, folderNames[i].c_str(), rootnode.get());
+        ASSERT_NE(h, UNDEF);
+        targetNodes.push_back(h);
     }
 
     // set all backups, only wait for completion of the third one
@@ -5033,12 +5106,14 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 
     ASSERT_TRUE(rootnodeA);
 
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "folder-A", rootnodeA.get()));
-    unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(mApi[0].h));
+    auto nh = createFolder(0, "folder-A", rootnodeA.get());
+    ASSERT_NE(nh, UNDEF);
+    unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(nh));
     ASSERT_TRUE(!!folderA);
 
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "sub-folder-A", folderA.get()));
-    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(mApi[0].h));
+    nh = createFolder(0, "sub-folder-A", folderA.get());
+    ASSERT_NE(nh, UNDEF);
+    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(nh));
     ASSERT_TRUE(!!subFolderA);
 
     string filename1 = UPFILE;
@@ -5076,6 +5151,7 @@ TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 }
 
 
+#ifdef ENABLE_SYNC
 TEST_F(SdkTest, SdkExternalDriveFolder)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -5138,6 +5214,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     err = synchronousGetDriveName(0, pathToDriveStr.c_str());
     ASSERT_EQ(MegaError::API_ENOENT, err) << "getDriveName not failed as it should (error: " << err << ")";
 }
+#endif
 
 void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 {
@@ -5153,11 +5230,10 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
         // create My Backups folder (default name, just for testing)
         unique_ptr<MegaNode> rootnode{ megaApi[apiIdx]->getRootNode() };
         const char* folderName = "My Backups";
-        mApi[apiIdx].h = 0; // reset this to test its value later
-        ASSERT_NO_FATAL_FAILURE(createFolder(apiIdx, folderName, rootnode.get()));
+        mh = createFolder(apiIdx, folderName, rootnode.get());
+        ASSERT_NE(mh, UNDEF);
 
         // set My Backups handle attr
-        mh = mApi[apiIdx].h;
         int err = synchronousSetMyBackupsFolder(apiIdx, mh);
         ASSERT_TRUE(err == MegaError::API_OK) << "Setting handle for My Backup folder failed (error: " << err << ")";
         // read the attribute to make sure it was set
@@ -5472,7 +5548,13 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     // logout while the upload (which consists of many transfers) is ongoing
     gSessionIDs[0].clear();
+#ifdef ENABLE_SYNC
     ASSERT_EQ(API_OK, doRequestLogout(0, false));
+#else
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+#endif
+    gSessionIDs[0] = "invalid";
+
     int result = uploadListener->waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
@@ -5512,7 +5594,12 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 
     // logout while the download (which consists of many transfers) is ongoing
 
+#ifdef ENABLE_SYNC
     ASSERT_EQ(API_OK, doRequestLogout(0, false));
+#else
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+#endif
+    gSessionIDs[0] = "invalid";
 
     int result = downloadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
@@ -5627,16 +5714,19 @@ TEST_F(SdkTest, SyncBasicOperations)
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
     // Sync 1
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, syncFolder1.c_str(), remoteRootNode.get())) << "Error creating remote folders";
-    std::unique_ptr<MegaNode> remoteBaseNode1(megaApi[0]->getNodeByHandle(mApi[0].h));
+    auto nh = createFolder(0, syncFolder1.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode1(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode1.get(), nullptr);
     // Sync 2
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, syncFolder2.c_str(), remoteRootNode.get())) << "Error creating remote folders";
-    std::unique_ptr<MegaNode> remoteBaseNode2(megaApi[0]->getNodeByHandle(mApi[0].h));
+    nh = createFolder(0, syncFolder2.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode2(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode2.get(), nullptr);
     // Sync 3
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, syncFolder3.c_str(), remoteRootNode.get())) << "Error creating remote folders";
-    std::unique_ptr<MegaNode> remoteBaseNode3(megaApi[0]->getNodeByHandle(mApi[0].h));
+    nh = createFolder(0, syncFolder3.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode3(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode3.get(), nullptr);
 
     LOG_verbose << "SyncRemoveRemoteNode :  Add syncs";
@@ -5790,11 +5880,6 @@ struct SyncListener : MegaListener
     {
         // probably too frequent to output
         //out() << "onSyncFileStateChanged " << sync << newState;
-    }
-
-    void onSyncEvent(MegaApi* api, MegaSync* sync, MegaSyncEvent* event) override
-    {
-        out() << "onSyncEvent " << toHandle(sync->getBackupId());
     }
 
     void onSyncAdded(MegaApi* api, MegaSync* sync, int additionState) override
@@ -6125,8 +6210,9 @@ TEST_F(SdkTest, SyncRemoteNode)
     LOG_verbose << "SyncRemoteNode :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    auto nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync";
@@ -6164,8 +6250,9 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     LOG_verbose << "SyncRemoteNode :  Creating secondary folder";
     std::string movedBasePath = basePath.u8string() + "Moved";
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, movedBasePath.c_str(), remoteRootNode.get())) << "Error creating remote movedBasePath";
-    std::unique_ptr<MegaNode> remoteMoveNodeParent(megaApi[0]->getNodeByHandle(mApi[0].h));
+    nh = createFolder(0, movedBasePath.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote movedBasePath";
+    std::unique_ptr<MegaNode> remoteMoveNodeParent(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteMoveNodeParent.get(), nullptr);
 
     {
@@ -6233,8 +6320,9 @@ TEST_F(SdkTest, SyncRemoteNode)
         ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Recreating remote folder.";
-        ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
-        remoteBaseNode.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
+        nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+        ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+        remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_NODE_NOT_FOUND);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6314,8 +6402,9 @@ TEST_F(SdkTest, SyncPersistence)
     LOG_verbose << "SyncPersistence :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    auto nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     LOG_verbose << "SyncPersistence :  Enabling sync";
@@ -6337,6 +6426,7 @@ TEST_F(SdkTest, SyncPersistence)
 
     // Check if a logout with keepSyncsAfterLogout keeps the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, true, maxTimeout));
+    gSessionIDs[0] = "invalid";
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
@@ -6346,6 +6436,7 @@ TEST_F(SdkTest, SyncPersistence)
 
     // Check if a logout without keepSyncsAfterLogout doesn't keep the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, false, maxTimeout));
+    gSessionIDs[0] = "invalid";
     trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
@@ -6396,8 +6487,9 @@ TEST_F(SdkTest, SyncPaths)
     LOG_verbose << "SyncPaths :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    auto nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     LOG_verbose << "SyncPersistence :  Creating sync";
@@ -6405,7 +6497,7 @@ TEST_F(SdkTest, SyncPaths)
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
 
-    LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced.";
+    LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced: " << filePath.u8string();
     createFile(filePath.u8string(), false);
     std::unique_ptr<MegaNode> remoteNode;
     WaitFor([this, &remoteNode, &remoteBaseNode, fileNameStr]() -> bool
@@ -6427,8 +6519,9 @@ TEST_F(SdkTest, SyncPaths)
         TestingWithLogErrorAllowanceGuard g;
 
         LOG_verbose << "SyncPersistence :  Check that symlinks are considered when creating a sync.";
-        ASSERT_NO_FATAL_FAILURE(createFolder(0, "symlink_1A", remoteRootNode.get())) << "Error creating remote basePath";
-        remoteNodeSym.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
+        nh = createFolder(0, "symlink_1A", remoteRootNode.get());
+        ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+        remoteNodeSym.reset(megaApi[0]->getNodeByHandle(nh));
         ASSERT_NE(remoteNodeSym.get(), nullptr);
         ASSERT_EQ(MegaError::API_EARGS, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr)) << "API Error adding a new sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
@@ -6501,11 +6594,13 @@ TEST_F(SdkTest, SyncOQTransitions)
     LOG_verbose << "SyncOQTransitions :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    auto nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, fillPath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote fillPath";
-    std::unique_ptr<MegaNode> remoteFillNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    nh = createFolder(0, fillPath.u8string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote fillPath";
+    std::unique_ptr<MegaNode> remoteFillNode(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteFillNode.get(), nullptr);
 
     LOG_verbose << "SyncOQTransitions :  Creating sync";
@@ -6625,16 +6720,18 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     LOG_verbose << "StressTestSDKInstancesOverWritableFolders :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, baseFolder.c_str(), remoteRootNode.get())) << "Error creating remote basePath";
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    auto nh = createFolder(0, baseFolder.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     // create subfolders ...
     for (int index = 0 ; index < numFolders; index++ )
     {
         string subFolderPath = string("subfolder_").append(SSTR(index));
-        ASSERT_NO_FATAL_FAILURE(createFolder(0, subFolderPath.c_str(), remoteBaseNode.get())) << "Error creating remote subfolder";
-        std::unique_ptr<MegaNode> remoteSubFolderNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+        nh = createFolder(0, subFolderPath.c_str(), remoteBaseNode.get());
+        ASSERT_NE(nh, UNDEF) << "Error creating remote subfolder";
+        std::unique_ptr<MegaNode> remoteSubFolderNode(megaApi[0]->getNodeByHandle(nh));
         ASSERT_NE(remoteSubFolderNode.get(), nullptr);
 
         // ... with a file in it
@@ -6725,7 +6822,6 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << "Cleaning up account 0";
     Cleanup();
 }
 
@@ -6753,16 +6849,18 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     LOG_verbose << "WritableFolderSessionResumption :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, baseFolder.c_str(), remoteRootNode.get())) << "Error creating remote basePath";
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    auto nh = createFolder(0, baseFolder.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     // create subfolders ...
     for (unsigned index = 0 ; index < numFolders; index++ )
     {
         string subFolderPath = string("subfolder_").append(SSTR(index));
-        ASSERT_NO_FATAL_FAILURE(createFolder(0, subFolderPath.c_str(), remoteBaseNode.get())) << "Error creating remote subfolder";
-        std::unique_ptr<MegaNode> remoteSubFolderNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+        nh = createFolder(0, subFolderPath.c_str(), remoteBaseNode.get());
+        ASSERT_NE(nh, UNDEF) << "Error creating remote subfolder";
+        std::unique_ptr<MegaNode> remoteSubFolderNode(megaApi[0]->getNodeByHandle(nh));
         ASSERT_NE(remoteSubFolderNode.get(), nullptr);
 
         // ... with a file in it
@@ -6818,6 +6916,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     }
 
     ASSERT_NO_FATAL_FAILURE( logout(0, false, maxTimeout) );
+    gSessionIDs[0] = "invalid";
 
     // create apis to exported folders
     for (unsigned index = 0 ; index < howMany; index++ )
@@ -6910,7 +7009,6 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     }
 
     // In case the last test exited without cleaning up (eg, debugging etc)
-    out() << logTime() << "Cleaning up account 0";
     Cleanup();
 }
 
