@@ -1586,6 +1586,15 @@ void LocalNode::setScanBlocked()
 {
     scanBlocked = std::max<unsigned>(scanBlocked, TREE_ACTION_HERE);
 
+    if (!rare().scanBlockedTimer)
+    {
+        rare().scanBlockedTimer.reset(new BackoffTimer(sync->client->rng));
+    }
+    if (rare().scanBlockedTimer->armed())
+    {
+        rare().scanBlockedTimer->backoff(Sync::SCANNING_DELAY_DS);
+    }
+
     for (auto p = parent; p != NULL; p = p->parent)
     {
         p->scanBlocked = std::max<unsigned>(p->scanBlocked, TREE_DESCENDANT_FLAGGED);
@@ -1628,8 +1637,6 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         // Consider it a blocked file, and we'll rescan the folder from time to time.
         LOG_verbose << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath(*sync->client->fsaccess);
         setScanBlocked();
-        rare().scanBlockedTimer.reset(new BackoffTimer(sync->client->rng));
-        rare().scanBlockedTimer->backoff(Sync::SCANNING_DELAY_DS);
         return true;
     }
 
