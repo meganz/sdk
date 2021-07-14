@@ -7908,6 +7908,7 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
             if (!client.match(id, model.findnode("f")))
             {
                 out() << "Cloud/model misatch: " << testcase.name();
+                break;
             }
         }
 
