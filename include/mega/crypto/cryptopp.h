@@ -273,7 +273,7 @@ public:
      * @param taglen Length of expected authentication tag
      * @param result Encrypted data, including the additional data, and the authentication tag.
      */
-    bool gcm_encrypt_aad(const std::string *data, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
+    bool gcm_encrypt_aad(const unsigned char *data, size_t datasize, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.

@@ -259,10 +259,10 @@ bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     return true;
 }
 
-bool SymmCipher::gcm_encrypt_aad(const string *data, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+bool SymmCipher::gcm_encrypt_aad(const unsigned char *data, size_t datasize, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     std::string err;
-    if (!data || !data->size())                 {err = "Invalid plain text";}
+    if (!data || !datasize)                     {err = "Invalid plain text";}
     if (!additionalData || !additionalDatalen)  {err = "Invalid additional data";}
     if (!iv || !ivlen)                          {err = "Invalid IV";}
 
@@ -284,7 +284,7 @@ bool SymmCipher::gcm_encrypt_aad(const string *data, const byte *additionalData,
         ef.ChannelMessageEnd(AAD_CHANNEL);
 
         // add plain text to DEFAULT_CHANNEL in order to be encrypted
-        ef.ChannelPut(DEFAULT_CHANNEL, reinterpret_cast<const byte*>(data->data()), data->size(), true);
+        ef.ChannelPut(DEFAULT_CHANNEL, reinterpret_cast<const byte*>(data), datasize, true);
         ef.ChannelMessageEnd(DEFAULT_CHANNEL);
     }
     catch (CryptoPP::Exception &e)
