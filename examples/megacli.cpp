@@ -9295,12 +9295,15 @@ void exec_syncxable(autocomplete::ACState& s)
     else    // command == "disable"
     {
         client->syncs.disableSelectedSyncs(
-          [&backupId](SyncConfig& config, Sync*)
+          [backupId](SyncConfig& config, Sync*)
           {
               return config.getBackupId() == backupId;
           },
           static_cast<SyncError>(error),
-          false);
+          false,
+          [](size_t nDisabled){
+            cout << "disablement complete: " << nDisabled << endl;
+          });
     }
 }
 

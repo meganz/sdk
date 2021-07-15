@@ -21752,22 +21752,15 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            bool found = false;
-
-            client->syncs.disableSelectedSyncs([&](SyncConfig& c, Sync* s) {
-
-                bool matched = (c.getBackupId() == backupId) ||
-                               (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
-                found = found || matched;  // no need to test s, auto tests check disable of disabled returns MegaError::API_OK
-                return matched;
-            }, NO_SYNC_ERROR, false);
-
-            if (found)
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-                break;
-            }
-            e = API_ENOENT;
+            client->syncs.disableSelectedSyncs([&](SyncConfig& c, Sync* s)
+                {
+                    bool matched = (c.getBackupId() == backupId) ||
+                                   (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
+                    return matched;
+                }, NO_SYNC_ERROR, false,
+                [this, request](size_t nDisabled){
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(nDisabled ? API_OK : API_ENOENT));
+                });
 
             break;
         }

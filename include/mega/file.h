@@ -116,28 +116,6 @@ struct MEGA_API File: public FileFingerprint
     int tag;
 };
 
-struct MEGA_API SyncFileGet: public File
-{
-    //Node* n;
-
-    // set sync-specific temp filename, update treestate
-    void prepare(FileSystemAccess&);
-    bool failed(error, MegaClient*);
-    void progress();
-
-    // update localname (may have changed due to renames/moves of the synced files)
-    void updatelocalname();
-
-    // self-destruct after completion
-    void completed(Transfer*, putsource_t);
-
-    void terminated();
-
-    LocalNode& localNode;
-
-    SyncFileGet(LocalNode& ln, Node& n, const LocalPath&);
-};
-
 } // namespace
 
 #endif

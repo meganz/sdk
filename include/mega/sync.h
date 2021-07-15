@@ -354,17 +354,17 @@ public:
         vector<FSNode>& fsNodes,
         vector<syncRow>& inferredRows) const;
 
-    bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
-    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode);
-    bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
+    bool recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
+    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
+    bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
-    bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool alreadyExists);
+    bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists);
     bool resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
@@ -387,9 +387,6 @@ public:
     string debris;
     LocalPath localdebris;
     LocalPath localdebrisname;
-
-    // permanent lock on the debris/tmp folder
-    unique_ptr<FileAccess> tmpfa;
 
     // state cache table
     unique_ptr<DbTable> statecachetable;
@@ -461,6 +458,14 @@ protected :
 
 private:
     LocalPath mLocalPath;
+
+    // permanent lock on the debris/tmp folder
+    void createDebrisTmpLockOnce();
+
+    // permanent lock on the debris/tmp folder
+    unique_ptr<FileAccess> tmpfa;
+    LocalPath tmpfaPath;
+
 };
 
 class SyncConfigIOContext;
@@ -698,8 +703,8 @@ struct Syncs
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
 
-    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag);
+    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted.  Async as request is forwarded to thread
+    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -862,10 +867,12 @@ struct Syncs
     unique_ptr<ScanService> mScanService;
 
 
-    ThreadSafeDeque<std::function<void(MegaClient&, DBTableTransactionCommitter&)>> syncCloudActions;
+    ThreadSafeDeque<std::function<void(MegaClient&, DBTableTransactionCommitter&)>> clientThreadActions;
 
     ThreadSafeDeque<std::function<void()>> syncThreadActions;
 
+    // functions to call from client thread
+    void removeCaches(bool keepSyncsConfigFile);
 
 private:
     // Most of these private fields should only be used on the Sync's own thread
@@ -918,10 +925,18 @@ private:
         Node* remotenode, bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error)> completion);
 
+    // cache files are retained, as is the config, but the Sync is deleted
+    void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
+
+    // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
+    void purgeSyncs_inThread();
+
     std::mutex syncMutex;
     std::thread syncThread;
     bool exitSyncLoop = false;
     void syncLoop();
+
+    bool onSyncThread() const { return std::this_thread::get_id() == syncThread.get_id(); }
 };
 
 } // namespace

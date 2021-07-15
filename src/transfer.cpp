@@ -617,6 +617,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
     if (type == GET)
     {
+
         LOG_debug << client->clientname << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "");
 
         bool transient_error = false;
@@ -770,41 +771,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     {
                         // the destination path already exists
         #ifdef ENABLE_SYNC
-                        if((*it)->syncxfer)
-                        {
-                            bool foundOne = false;
-                            client->syncs.forEachRunningSync(true, [&](Sync* sync){
-
-                                LocalNode *localNode = sync->localnodebypath(NULL, localname);
-                                if (localNode && !foundOne)
-                                {
-                                    LOG_debug << "Overwriting a local synced file. Moving the previous one to debris";
-
-                                    // try to move to local debris
-                                    if(!sync->movetolocaldebris(localname))
-                                    {
-                                        transient_error = client->fsaccess->transient_error;
-                                    }
-
-                                    foundOne = true;
-                                }
-                            });
-
-                            if (!foundOne)
-                            {
-                                LOG_err << "LocalNode for destination file not found";
-
-                                if(client->syncs.hasRunningSyncs())
-                                {
-                                    // try to move to debris in the first sync
-                                    if(!client->syncs.firstRunningSync()->movetolocaldebris(localname))
-                                    {
-                                        transient_error = client->fsaccess->transient_error;
-                                    }
-                                }
-                            }
-                        }
-                        else
+                        if(!(*it)->syncxfer)
         #endif
                         {
                             LOG_debug << "The destination file exist (not synced). Saving with a different name";

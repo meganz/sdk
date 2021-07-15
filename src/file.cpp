@@ -452,76 +452,42 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(LocalNode& ln, Node& n, const LocalPath& clocalname)
-    : localNode(ln)
+SyncDownload_inClient::SyncDownload_inClient(Node& n, const LocalPath& clocalname, bool fromInshare)
 {
     h = n.nodeHandle();
     *(FileFingerprint*)this = n;
     localname = clocalname;
 
     syncxfer = true;
-    fromInsycShare = ln.sync->inshare;
+    fromInsycShare = fromInshare;
 
-    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
+    // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
 }
 
-// create sync-specific temp download directory and set unique filename
-void SyncFileGet::prepare(FileSystemAccess& fsaccess)
+SyncDownload_inClient::~SyncDownload_inClient()
 {
-    if (transfer->localfilename.empty())
+    if (!wasTerminated && !wasCompleted)
     {
-        auto sync = localNode.sync;
-        LocalPath tmpname = LocalPath::fromName("tmp", fsaccess, localNode.sync->mFilesystemType);
-
-        if (!sync->tmpfa)
-        {
-            sync->tmpfa = fsaccess.newfileaccess();
-
-            int i = 3;
-            while (i--)
-            {
-                LOG_verbose << "Creating tmp folder";
-                transfer->localfilename = sync->localdebris;
-                fsaccess.mkdirlocal(transfer->localfilename, true);
-
-                transfer->localfilename.appendWithSeparator(tmpname, true);
-                fsaccess.mkdirlocal(transfer->localfilename);
-
-                // lock it
-                LocalPath lockname = LocalPath::fromName("lock", fsaccess, sync->mFilesystemType);
-                transfer->localfilename.appendWithSeparator(lockname, true);
-
-                if (sync->tmpfa->fopen(transfer->localfilename, false, true))
-                {
-                    break;
-                }
-            }
-
-            // if we failed to create the tmp dir three times in a row, fall
-            // back to the sync's root
-            if (i < 0)
-            {
-                sync->tmpfa.reset();
-            }
-        }
-
-        if (sync->tmpfa)
-        {
-            transfer->localfilename = sync->localdebris;
-            transfer->localfilename.appendWithSeparator(tmpname, true);
-        }
-        else
-        {
-            transfer->localfilename = sync->localroot->localname;
-        }
-
-        LocalPath tmpfilename;
-        fsaccess.tmpnamelocal(tmpfilename);
-        transfer->localfilename.appendWithSeparator(tmpfilename, true);
+        assert(wasRequesterAbandoned);
+        transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
     }
 }
 
-bool SyncFileGet::failed(error e, MegaClient* mc)
+
+// set unique filename in sync-specific temp download directory
+void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
+{
+    if (transfer->localfilename.empty())
+    {
+        LocalPath tmpfilename;
+        fsaccess.tmpnamelocal(tmpfilename);
+        localname.appendWithSeparator(tmpfilename, true);
+
+        transfer->localfilename = localname;
+    }
+}
+
+bool SyncDownload_inClient::failed(error e, MegaClient* mc)
 {
     bool retry = File::failed(e, mc);
 
@@ -540,14 +506,14 @@ bool SyncFileGet::failed(error e, MegaClient* mc)
     return retry;
 }
 
-void SyncFileGet::progress()
+void SyncDownload_inClient::progress()
 {
     File::progress();
-    localNode.treestate(TREESTATE_SYNCING);
+    //todo: localNode.treestate(TREESTATE_SYNCING);
 }
 
 // update localname (parent's localnode)
-void SyncFileGet::updatelocalname()
+void SyncDownload_inClient::updatelocalname()
 {
 // todo:
     //auto sync = localNode.sync;
@@ -571,21 +537,25 @@ void SyncFileGet::updatelocalname()
 }
 
 // add corresponding LocalNode (by path), then self-destruct
-void SyncFileGet::completed(Transfer*, putsource_t)
+void SyncDownload_inClient::completed(Transfer*, putsource_t)
 {
-    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
+    // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
 
-    localNode.setScanAgain(true, false, false, 0);
-    LOG_debug << "clearing downlaod for " << &localNode << " on completed";
-    localNode.download.reset(); // deletes this;
+    // todo: localNode.setScanAgain(true, false, false, 0);
+
+    //LOG_debug << "clearing downlaod for " << &localNode << " on completed";
+    //localNode.download.reset(); // deletes this;
+    wasCompleted = true;
 }
 
-void SyncFileGet::terminated()
+void SyncDownload_inClient::terminated()
 {
-    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
+    // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
 
-    LOG_debug << "clearing download for " << &localNode << " on terminated";
-    localNode.download.reset(); // deletes this;
+    //LOG_debug << "clearing download for " << &localNode << " on terminated";
+    //localNode.download.reset(); // deletes this;
+
+    wasTerminated = true;
 }
 #endif
 } // namespace

@@ -21,6 +21,7 @@
 #include <cctype>
 #include <type_traits>
 #include <unordered_set>
+#include <future>
 
 #include "mega.h"
 
@@ -757,7 +758,6 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     localnodes[FOLDERNODE] = 0;
 
     state = SYNC_INITIALSCAN;
-    statecachetable = NULL;
 
     //fullscan = true;
     //scanseqno = 0;
@@ -1287,6 +1287,44 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     return l;
 }
 
+void Sync::createDebrisTmpLockOnce()
+{
+    if (!tmpfa)
+    {
+        tmpfa = syncs.fsaccess->newfileaccess();
+
+        int i = 3;
+        while (i--)
+        {
+            LOG_verbose << "Creating sync tmp folder";
+            LocalPath localfilename = localdebris;
+            syncs.fsaccess->mkdirlocal(localfilename, true);
+
+            LocalPath tmpname = LocalPath::fromName("tmp", *syncs.fsaccess, mFilesystemType);
+            localfilename.appendWithSeparator(tmpname, true);
+            syncs.fsaccess->mkdirlocal(localfilename);
+
+            tmpfaPath = localfilename;
+
+            // lock it
+            LocalPath lockname = LocalPath::fromName("lock", *syncs.fsaccess, mFilesystemType);
+            localfilename.appendWithSeparator(lockname, true);
+
+            if (tmpfa->fopen(localfilename, false, true))
+            {
+                break;
+            }
+        }
+
+        // if we failed to create the tmp dir three times in a row, fall
+        // back to the sync's root
+        if (i < 0)
+        {
+            tmpfa.reset();
+            tmpfaPath = getConfig().mLocalPath;
+        }
+    }
+}
 
 
 /// todo:   things to figure out where to put them in new system:
@@ -1659,7 +1697,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                         //todo: detach nodes?
                         auto deletePtr = row.cloudNode;
-                        syncs.syncCloudActions.pushBack([deletePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.clientThreadActions.pushBack([deletePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                             {
                                 mc.movetosyncdebris(deletePtr, false); // todo:  should we have inshare logic for the flag?
                                 mc.execsyncdeletions();
@@ -1713,7 +1751,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                             {
                                 auto local  = fullPath.localPath_utf8();
                                 auto remote =  targetCloudNode->displaypath() + "/" + newName;
-                                syncs.syncCloudActions.pushBack([anomalyType, local, remote](MegaClient& mc, DBTableTransactionCommitter& committer)
+                                syncs.clientThreadActions.pushBack([anomalyType, local, remote](MegaClient& mc, DBTableTransactionCommitter& committer)
                                     {
                                         mc.filenameAnomalyDetected(anomalyType, local, remote);
                                     });
@@ -1731,7 +1769,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << "Renaming node: " << sourceCloudNode->displaypath()
                                   << " to " << newName  << logTriplet(row, fullPath);
 
-                        syncs.syncCloudActions.pushBack([sourceCloudNode, targetCloudNode, newName](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.clientThreadActions.pushBack([sourceCloudNode, targetCloudNode, newName](MegaClient& mc, DBTableTransactionCommitter& committer)
                             {
 
                                 mc.setattr(sourceCloudNode, attr_map('n', newName), nullptr);
@@ -1753,7 +1791,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " to " << targetCloudNode->displaypath()
                                   << (newName.empty() ? "" : (" as " + newName).c_str()) << logTriplet(row, fullPath);
 
-                        syncs.syncCloudActions.pushBack([sourceCloudNode, targetCloudNode, newName](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.clientThreadActions.pushBack([sourceCloudNode, targetCloudNode, newName](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
 
                             auto err = mc.rename(sourceCloudNode, targetCloudNode,
@@ -1992,7 +2030,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             {
                 auto remotePath = row.cloudNode->displaypath();
                 auto localPath = fullPath.localPath_utf8();
-                syncs.syncCloudActions.pushBack([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
+                syncs.clientThreadActions.pushBack([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         mc.filenameAnomalyDetected(type, localPath, remotePath);
                     });
@@ -2400,12 +2438,13 @@ m_off_t Sync::getInflightProgress()
                     progressSum += tslot->progressreported;
                 }
             }
-            else if (auto sfg = dynamic_cast<SyncFileGet*>(file))
+            else if (auto sfg = dynamic_cast<SyncDownload_inClient*>(file))
             {
-                if (sfg->localNode.sync == this)
-                {
-                    progressSum += tslot->progressreported;
-                }
+            //todo:
+                //if (sfg->localNode.sync == this)
+                //{
+                //    progressSum += tslot->progressreported;
+                //}
             }
         }
     }
@@ -2456,7 +2495,7 @@ void Syncs::enableSync(UnifiedSync& us, bool resetFingerprint, bool notifyApp, s
     auto clientCompletion = [this, notifyApp, &us, completion](error e){
         us.changedConfigState(notifyApp);
         if (!e) mHeartBeatMonitor->updateOrRegisterSync(us);
-        completion(e);
+        if (completion) completion(e);
     };
 
     syncThreadActions.pushBack([this, &us, debris, localdebris, remotenode, inshare, isnetwork, rootpath, clientCompletion]()
@@ -2534,7 +2573,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         e = API_OK;
     }
 
-    syncCloudActions.pushBack([e, clientCompletion](MegaClient& mc, DBTableTransactionCommitter& committer)
+    clientThreadActions.pushBack([e, clientCompletion](MegaClient& mc, DBTableTransactionCommitter& committer)
         {
             clientCompletion(e);
         });
@@ -2848,7 +2887,7 @@ bool Syncs::syncConfigStoreFlush()
              << " drive(s).";
 
     // Disable syncs present on drives that we couldn't write.
-    size_t disabled = 0;
+    size_t nFailed = failed.size();
 
     disableSelectedSyncs(
       [&](SyncConfig& config, Sync*)
@@ -2858,19 +2897,17 @@ bool Syncs::syncConfigStoreFlush()
 
           auto matched = failed.count(config.mExternalDrivePath);
 
-          disabled += matched;
-
           return matched > 0;
       },
       SYNC_CONFIG_WRITE_FAILURE,
-      false);
+      false, [=](size_t disabled){
 
-    LOG_warn << "Disabled "
-             << disabled
-             << " sync(s) on "
-             << failed.size()
-             << " drive(s).";
-
+        LOG_warn << "Disabled "
+                 << disabled
+                 << " sync(s) on "
+                 << nFailed
+                 << " drive(s).";
+      });
     return false;
 }
 
@@ -3623,26 +3660,29 @@ void Syncs::purgeRunningSyncs()
 
 void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
 {
-    bool anySyncDisabled = false;
-    disableSelectedSyncs([&](SyncConfig& config, Sync*){
-
-        if (config.getEnabled())
+    disableSelectedSyncs([&](SyncConfig& config, Sync*)
         {
-            anySyncDisabled = true;
-            return true;
-        }
-        return false;
-    }, syncError, newEnabledFlag);
-
-    if (anySyncDisabled)
-    {
-        LOG_info << "Disabled syncs. error = " << syncError;
-        mClient.app->syncs_disabled(syncError);
-    }
+            return config.getEnabled();
+        },
+        syncError,
+        newEnabledFlag,
+        [=](size_t nDisabled) {
+            LOG_info << "Disabled " << nDisabled << " syncs. error = " << syncError;
+            mClient.app->syncs_disabled(syncError);
+        });
 }
 
-void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag)
+void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion)
 {
+    syncThreadActions.pushBack([this, selector, syncError, newEnabledFlag, completion]()
+        {
+            disableSelectedSyncs_inThread(selector, syncError, newEnabledFlag, completion);
+        });
+}
+
+void Syncs::disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion)
+{
+    size_t nDisabled = 0;
     for (auto i = mSyncVec.size(); i--; )
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
@@ -3675,10 +3715,12 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
                 mSyncVec[i]->mConfig.setEnabled(enabled);
                 mSyncVec[i]->changedConfigState(true);
             }
+            nDisabled += 1;
 
             mHeartBeatMonitor->updateOrRegisterSync(*mSyncVec[i]);
         }
     }
+    if (completion) completion(nDisabled);
 }
 
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
@@ -3705,6 +3747,22 @@ void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
 
 void Syncs::purgeSyncs()
 {
+    assert(!onSyncThread());
+
+    std::promise<bool> synchronous;
+    syncThreadActions.pushBack([&]()
+        {
+            purgeSyncs();
+            synchronous.set_value(true);
+        });
+
+    synchronous.get_future().get();
+}
+
+
+void Syncs::purgeSyncs_inThread()
+{
+    assert(onSyncThread());
     if (!mSyncConfigStore) return;
 
     // Remove all syncs.
@@ -4353,7 +4411,7 @@ bool Sync::inferAlreadySyncedTriplets(Node* cloudParent, const LocalNode& syncPa
     return true;
 }
 
-bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth)
+bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth)
 {
     // in case of sync failing while we recurse
     if (state < 0) return false;
@@ -4543,7 +4601,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
                     // attached to the wrong node, resulting in node versions
                     if (syncHere || belowRemovedCloudNode || belowRemovedFsNode)
                     {
-                        if (!syncItem_checkMoves(childRow, row, fullPath, committer, belowRemovedCloudNode, belowRemovedFsNode))
+                        if (!syncItem_checkMoves(childRow, row, fullPath, belowRemovedCloudNode, belowRemovedFsNode))
                         {
                             if (childRow.itemProcessed)
                             {
@@ -4579,7 +4637,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
                     else if (syncHere && !childRow.itemProcessed)
                     {
                         // normal case: consider all the combinations
-                        if (!syncItem(childRow, row, fullPath, committer))
+                        if (!syncItem(childRow, row, fullPath))
                         {
                             folderSynced = false;
                             row.syncNode->setSyncAgain(false, true, false);
@@ -4610,7 +4668,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCom
                             childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
                         }
 
-                        if (!recursiveSync(childRow, fullPath, committer, belowRemovedCloudNode || childRow.recurseBelowRemovedCloudNode, belowRemovedFsNode || childRow.recurseBelowRemovedFsNode, depth+1))
+                        if (!recursiveSync(childRow, fullPath, belowRemovedCloudNode || childRow.recurseBelowRemovedCloudNode, belowRemovedFsNode || childRow.recurseBelowRemovedFsNode, depth+1))
                         {
                             subfoldersSynced = false;
                         }
@@ -4674,7 +4732,6 @@ string Sync::logTriplet(syncRow& row, SyncPath& fullPath)
 }
 
 bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath,
-        DBTableTransactionCommitter& committer,
         bool belowRemovedCloudNode, bool belowRemovedFsNode)
 {
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemTime1);
@@ -4800,7 +4857,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
 }
 
 
-bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer)
+bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemTime2);
     bool rowSynced = false;
@@ -4875,12 +4932,12 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTabl
                 else if (cloudEqual || isBackupAndMirroring())
                 {
                     // filesystem changed, put the change
-                    rowSynced = resolve_upsync(row, parentRow, fullPath, committer);
+                    rowSynced = resolve_upsync(row, parentRow, fullPath);
                 }
                 else if (fsEqual)
                 {
                     // cloud has changed, get the change
-                    rowSynced = resolve_downsync(row, parentRow, fullPath, committer, true);
+                    rowSynced = resolve_downsync(row, parentRow, fullPath, true);
                 }
                 else
                 {
@@ -4894,7 +4951,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTabl
                 if (row.syncNode->syncedCloudNodeHandle.isUndef() || isBackupAndMirroring())
                 {
                     // cloud item did not exist before; upsync
-                    rowSynced = resolve_upsync(row, parentRow, fullPath, committer);
+                    rowSynced = resolve_upsync(row, parentRow, fullPath);
                 }
                 else
                 {
@@ -4916,7 +4973,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTabl
                 else
                 {
                     // fs item did not exist before; downsync
-                    rowSynced = resolve_downsync(row, parentRow, fullPath, committer, false);
+                    rowSynced = resolve_downsync(row, parentRow, fullPath, false);
                 }
             }
             else
@@ -5124,7 +5181,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     return false;
 }
 
-bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer)
+bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
     ProgressingMonitor monitor(syncs);
 
@@ -5155,7 +5212,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, 
                 row.syncNode->upload.reset(std::make_shared<SyncUpload_inClient>(*row.fsNode, parentRow.cloudNode->nodeHandle(), fullPath.localPath));
 
                 auto uploadPtr = row.syncNode->upload.actualUpload;
-                syncs.syncCloudActions.pushBack([uploadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                syncs.clientThreadActions.pushBack([uploadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         mc.nextreqtag();
                         mc.startxfer(PUT, uploadPtr.get(), committer);
@@ -5219,7 +5276,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, 
                     auto lp = fullPath.localPath_utf8();
                     auto rp = remotePath.str();
 
-                    syncs.syncCloudActions.pushBack([type, lp, rp](MegaClient& mc, DBTableTransactionCommitter& committer)
+                    syncs.clientThreadActions.pushBack([type, lp, rp](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
                             mc.filenameAnomalyDetected(type, lp, rp);
                         });
@@ -5230,7 +5287,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, 
             // while the operation is in progress sync() will skip over the parent folder
             string foldername = row.syncNode->name;
             NodeHandle targethandle = parentRow.cloudNode->nodeHandle();
-            syncs.syncCloudActions.pushBack([foldername, targethandle](MegaClient& mc, DBTableTransactionCommitter& committer)
+            syncs.clientThreadActions.pushBack([foldername, targethandle](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     vector<NewNode> nn(1);
                     mc.putnodes_prepareOneFolder(&nn[0], foldername);
@@ -5250,7 +5307,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, 
     return false;
 }
 
-bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool alreadyExists)
+bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists)
 {
     ProgressingMonitor monitor(syncs);
 
@@ -5266,16 +5323,16 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
         // download the file if we're not already downloading
         // if (alreadyExists), we will move the target to the trash when/if download completes //todo: check
 
-        if (row.syncNode->download &&
-            !(row.syncNode->download->fingerprint() == row.cloudNode->fingerprint()))
+        if (row.syncNode->download.actualDownload &&
+            !(row.syncNode->download.actualDownload->fingerprint() == row.cloudNode->fingerprint()))
         {
             LOG_debug << syncname << "An older version of this file was already downloading, cancelling." << fullPath.cloudPath << logTriplet(row, fullPath);
-            row.syncNode->download.reset();
+            row.syncNode->download.reset(nullptr);
         }
 
         if (parentRow.fsNode)
         {
-            if (!row.syncNode->download)
+            if (!row.syncNode->download.actualDownload)
             {
                 LOG_debug << "Sync - remote file addition detected: " << row.cloudNode->displaypath();
 
@@ -5284,10 +5341,13 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 LOG_debug << syncname << "Start sync download: " << row.syncNode << logTriplet(row, fullPath);
                 LOG_debug << "Sync - requesting file " << fullPath.localPath_utf8();
 
-                row.syncNode->download.reset(new SyncFileGet(*row.syncNode, *row.cloudNode, fullPath.localPath));
+                createDebrisTmpLockOnce();
 
-                auto downloadPtr = row.syncNode->download;
-                syncs.syncCloudActions.pushBack([downloadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                // download to tmpfaPath (folder debris/tmp). We will rename/mv it to correct location (updated if necessary) after that completes
+                row.syncNode->download.reset(std::make_shared<SyncDownload_inClient>(*row.cloudNode, tmpfaPath, inshare));
+
+                auto downloadPtr = row.syncNode->download.actualDownload;
+                syncs.clientThreadActions.pushBack([downloadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         mc.nextreqtag();
                         mc.startxfer(GET, downloadPtr.get(), committer);
@@ -5295,6 +5355,29 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                 if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
                 else if (parentRow.syncNode) parentRow.syncNode->treestate(TREESTATE_SYNCING);
+            }
+            else if (row.syncNode->download.actualDownload->wasTerminated)
+            {
+                SYNC_verbose << syncname << "Download was terminated " << logTriplet(row, fullPath);
+                row.syncNode->download.reset(nullptr);
+            }
+            else if (row.syncNode->download.actualDownload->wasCompleted)
+            {
+// todo: check if there is something at the target path already.  Also, if this folder has moved but we didn't notice yet, should we wait to catch up ?
+                if (syncs.fsaccess->renamelocal(row.syncNode->download.actualDownload->localname, fullPath.localPath))
+                {
+                    SYNC_verbose << syncname << "Download complete, moved file to final destination" << logTriplet(row, fullPath);
+                    row.syncNode->download.reset(nullptr);
+                }
+                else if (syncs.fsaccess->transient_error)
+                {
+                    SYNC_verbose << syncname << "Download complete, but move transient error" << logTriplet(row, fullPath);
+                }
+                else
+                {
+                    SYNC_verbose << syncname << "Download complete, but move failed" << logTriplet(row, fullPath);
+                    row.syncNode->download.reset(nullptr);
+                }
             }
             else
             {
@@ -5329,7 +5412,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 {
                     auto remotePath = row.cloudNode->displaypath();
                     auto localPath = fullPath.localPath_utf8();
-                    syncs.syncCloudActions.pushBack([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
+                    syncs.clientThreadActions.pushBack([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
                             mc.filenameAnomalyDetected(type, localPath, remotePath);
                         });
@@ -5772,7 +5855,7 @@ bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
         }
         else
         {
-            syncs.syncCloudActions.pushBack([](MegaClient& mc, DBTableTransactionCommitter& committer)
+            syncs.clientThreadActions.pushBack([](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     mc.sendevent(99438, "Timeout waiting for file update", 0);
                 });
@@ -5838,7 +5921,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
             LOG_debug << syncname << "Moving cloud item to cloud sync debris: " << row.cloudNode->displaypath() << logTriplet(row, fullPath);
             bool fromInshare = inshare;
             auto debrisNode = row.cloudNode;
-            syncs.syncCloudActions.pushBack([debrisNode, fromInshare](MegaClient& mc, DBTableTransactionCommitter& committer)
+            syncs.clientThreadActions.pushBack([debrisNode, fromInshare](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     mc.movetosyncdebris(debrisNode, fromInshare);
                 });
@@ -7217,12 +7300,11 @@ void Syncs::syncLoop()
                         // pathBuffer will have leafnames appended as we recurse
                         SyncPath pathBuffer(*this, sync->localroot->localname, sync->cloudRoot()->displaypath());
 
-                        DBTableTransactionCommitter committer(mClient.tctable);
                         FSNode rootFsNode(sync->localroot->getLastSyncedFSDetails());
                         syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
 
                         //bool allNodesSynced =
-                        sync->recursiveSync(row, pathBuffer, committer, false, false, 0);
+                        sync->recursiveSync(row, pathBuffer, false, false, 0);
 
                         //{
                         //    // a local filesystem item was locked - schedule periodic retry
@@ -7297,21 +7379,25 @@ void Syncs::syncLoop()
             //execsyncdeletions();
         }
 
+        bool anySyncScanning = isAnySyncScanning(false);
+        if (anySyncScanning != syncscanstate)
+        {
+            clientThreadActions.pushBack([anySyncScanning](MegaClient& mc, DBTableTransactionCommitter& committer)
+                {
+                    mc.app->syncupdate_scanning(anySyncScanning);
+                });
+            syncscanstate = anySyncScanning;
+        }
 
-// todo: report these
-        //bool anySyncScanning = isAnySyncScanning(false);
-        //if (anySyncScanning != syncscanstate)
-        //{
-        //    app->syncupdate_scanning(anySyncScanning);
-        //    syncscanstate = anySyncScanning;
-        //}
-
-        //bool anySyncBusy = isAnySyncSyncing(false);
-        //if (anySyncBusy != syncBusyState)
-        //{
-        //    app->syncupdate_syncing(anySyncBusy);
-        //    syncBusyState = anySyncBusy;
-        //}
+        bool anySyncBusy = isAnySyncSyncing(false);
+        if (anySyncBusy != syncBusyState)
+        {
+            clientThreadActions.pushBack([anySyncBusy](MegaClient& mc, DBTableTransactionCommitter& committer)
+                {
+                    mc.app->syncupdate_syncing(anySyncBusy);
+                });
+            syncBusyState = anySyncBusy;
+        }
 
 // todo: moved from notifypurge()
 // #ifdef ENABLE_SYNC
@@ -7422,6 +7508,7 @@ bool Syncs::isAnySyncSyncing(bool includePausedSyncs)
 
 bool Syncs::isAnySyncScanning(bool includePausedSyncs)
 {
+    assert(onSyncThread());
     bool found = false;
     forEachRunningSync(includePausedSyncs, [&](Sync* sync) {
 
@@ -7437,6 +7524,7 @@ bool Syncs::isAnySyncScanning(bool includePausedSyncs)
 
 bool Syncs::mightAnySyncsHaveMoves(bool includePausedSyncs)
 {
+    assert(onSyncThread());
     bool found = false;
     forEachRunningSync(includePausedSyncs, [&](Sync* sync) {
 
@@ -7489,6 +7577,7 @@ bool Syncs::syncStallDetected(SyncFlags::CloudStallInfoMap& snp, SyncFlags::Loca
 
 void Syncs::setAllSyncsNeedFullSync()
 {
+    assert(onSyncThread());
     forEachRunningSync(true, [&](Sync* sync) {
         sync->localroot->syncAgain = TREE_ACTION_SUBTREE;
         });
@@ -7496,6 +7585,8 @@ void Syncs::setAllSyncsNeedFullSync()
 
 void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 {
+    assert(onSyncThread());
+
     if (n->type != FILENODE)
     {
         for (localnode_map::iterator it = n->children.begin(); it != n->children.end(); )
@@ -7509,6 +7600,42 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     tp->proc(*n->sync->syncs.fsaccess, n);
 }
 
+void Syncs::removeCaches(bool keepSyncsConfigFile)
+{
+    assert(!onSyncThread());
+
+    std::promise<bool> synchronous;
+    syncThreadActions.pushBack([&]()
+        {
+            assert(onSyncThread());
+
+            // remove the LocalNode cache databases first, otherwise disable would cause this to be skipped
+            forEachRunningSync(true, [](Sync* sync)
+                {
+                    if (sync->statecachetable)
+                    {
+                        sync->statecachetable->remove();
+                        sync->statecachetable.reset();
+                    }
+                });
+
+            if (keepSyncsConfigFile)
+            {
+                // Special case backward compatibility for MEGAsync
+                // The syncs will be disabled, if the user logs back in they can then manually re-enable.
+                disableSelectedSyncs_inThread(
+                    [&](SyncConfig& config, Sync*){return config.getEnabled();},
+                    LOGGED_OUT, false, nullptr);
+            }
+            else
+            {
+                purgeSyncs();
+            }
+            synchronous.set_value(true);
+        });
+
+    synchronous.get_future().get();
+}
 
 
 } // namespace

@@ -75,6 +75,30 @@ struct SyncUpload_inClient : File, std::enable_shared_from_this<SyncUpload_inCli
     shared_ptr<SyncUpload_inClient> selfKeepAlive;
 };
 
+struct MEGA_API SyncDownload_inClient: public File
+{
+    // set sync-specific temp filename, update treestate
+    void prepare(FileSystemAccess&);
+    bool failed(error, MegaClient*);
+    void progress();
+
+    // update localname (may have changed due to renames/moves of the synced files)
+    void updatelocalname();
+
+    // self-destruct after completion
+    void completed(Transfer*, putsource_t);
+    void terminated();
+
+    bool wasTerminated = false;
+    bool wasCompleted = false;
+    bool wasRequesterAbandoned = false;
+    shared_ptr<SyncDownload_inClient> selfKeepAlive;
+
+    SyncDownload_inClient(Node& n, const LocalPath&, bool fromInshare);
+    ~SyncDownload_inClient();
+};
+
+
 
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
@@ -643,10 +667,32 @@ public:
         shared_ptr<SyncUpload_inClient> actualUpload;
     };
 
-    UploadProxy upload;
-    shared_ptr<SyncFileGet> download;
+    struct DownloadProxy
+    {
+        // This class is the LocalNodes' refrence to the SyncDownload_inClient.
+        // Deleting this class will just mark the SyncUpload_inClient as to be deleted by the Client's systems
+        void reset(shared_ptr<SyncDownload_inClient> p)
+        {
+            if (actualDownload) actualDownload->wasRequesterAbandoned = true;
+            if (p) p->selfKeepAlive = p;
+            actualDownload = move(p);
+        }
 
-//    void setnotseen(int);
+        void checkCompleted()
+        {
+            if (actualDownload &&
+                (actualDownload->wasTerminated ||
+                 actualDownload->wasCompleted))
+            {
+                reset(nullptr);
+            }
+        }
+
+        shared_ptr<SyncDownload_inClient> actualDownload;
+    };
+
+    UploadProxy upload;
+    DownloadProxy download;
 
     void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
     void setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);

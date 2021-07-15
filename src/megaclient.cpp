@@ -2415,13 +2415,20 @@ void MegaClient::exec()
 // todo: any sync related checks can go here
         execsyncdeletions();
 
+        dstime ctr_start = waiter->ds;
+        size_t ctr_N = 0;
         DBTableTransactionCommitter committer(tctable);
         std::function<void(MegaClient&, DBTableTransactionCommitter&)> f;
-        while (syncs.syncCloudActions.popFront(f))
+        while (ctr_start + 1 >= waiter->ds && syncs.clientThreadActions.popFront(f))
         {
             f(*this, committer);
+            ++ctr_N;
+            waiter->bumpds();
         }
-
+        if (auto n = syncs.clientThreadActions.size())
+        {
+            LOG_debug << "Processed " << ctr_N << " sync requests, " << n << " outstanding";
+        }
 #endif
 
         notifypurge();
@@ -2554,9 +2561,10 @@ int MegaClient::preparewait()
         nds = NEVER;
 
 #ifdef ENABLE_SYNC
-        if (syncs.isAnySyncSyncing(false))
+        if (!syncs.clientThreadActions.empty())
         {
-            nds = Waiter::ds + 1;
+            nds = Waiter::ds;
+            return Waiter::NEEDEXEC;
         }
 #endif
 
@@ -3799,27 +3807,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     }
 
 #ifdef ENABLE_SYNC
-
-    // remove the LocalNode cache databases first, otherwise disable would cause this to be skipped
-    syncs.forEachRunningSync(true, [&](Sync* sync){
-
-        if (sync->statecachetable)
-        {
-            sync->statecachetable->remove();
-            sync->statecachetable.reset();
-        }
-    });
-
-    if (keepSyncsConfigFile)
-    {
-        // Special case backward compatibility for MEGAsync
-        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-        syncs.disableSyncs(LOGGED_OUT, false);
-    }
-    else
-    {
-        syncs.purgeSyncs();
-    }
+    syncs.removeCaches(keepSyncsConfigFile);
 #endif
 
     disabletransferresumption();
@@ -14850,7 +14838,7 @@ void MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError sy
     {
         syncs.disableSelectedSyncs([&](SyncConfig&, Sync* s) {
             return s == sync;
-        }, syncError, newEnabledFlag);
+        }, syncError, newEnabledFlag, nullptr);
     }
 }
 
