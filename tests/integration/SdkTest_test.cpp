@@ -151,16 +151,22 @@ void WaitMillisec(unsigned n)
 #endif
 }
 
-bool WaitFor(std::function<bool()>&& f, unsigned millisec)
+template<typename Predicate>
+bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
 {
-    unsigned waited = 0;
-    for (;;)
+    unsigned sleepMs = 100;
+    unsigned totalMs = 0;
+
+    do
     {
-        if (f()) return true;
-        if (waited >= millisec) return false;
-        WaitMillisec(100);
-        waited += 100;
+        if (predicate()) return true;
+
+        WaitMillisec(sleepMs);
+        totalMs += sleepMs;
     }
+    while (totalMs < timeoutMs);
+
+    return false;
 }
 
 MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
@@ -1077,24 +1083,35 @@ void SdkTest::removePublicLink(unsigned apiIndex, MegaNode *n, int timeout)
 
 void SdkTest::getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize)
 {
-    MegaContactRequestList *crl;
+    unique_ptr<MegaContactRequestList> crl;
+    unsigned timeoutMs = 8000;
 
     if (outgoing)
     {
-        crl = mApi[apiIndex].megaApi->getOutgoingContactRequests();
-        ASSERT_EQ(expectedSize, crl->size()) << "Too many outgoing contact requests in account " << apiIndex;
-        if (expectedSize)
-            mApi[apiIndex].cr.reset(crl->get(0)->copy());
+        auto predicate = [&]() {
+            crl.reset(mApi[apiIndex].megaApi->getOutgoingContactRequests());
+            return crl->size() == expectedSize;
+        };
+
+        ASSERT_TRUE(WaitFor(predicate, timeoutMs))
+          << "Too many outgoing contact requests in account: "
+          << apiIndex;
     }
     else
     {
-        crl = mApi[apiIndex].megaApi->getIncomingContactRequests();
-        ASSERT_EQ(expectedSize, crl->size()) << "Too many incoming contact requests in account " << apiIndex;
-        if (expectedSize)
-            mApi[apiIndex].cr.reset(crl->get(0)->copy());
+        auto predicate = [&]() {
+            crl.reset(mApi[apiIndex].megaApi->getIncomingContactRequests());
+            return crl->size() == expectedSize;
+        };
+
+        ASSERT_TRUE(WaitFor(predicate, timeoutMs))
+          << "Too many incoming contact requests in account: "
+          << apiIndex;
     }
 
-    delete crl;
+    if (!expectedSize) return;
+
+    mApi[apiIndex].cr.reset(crl->get(0)->copy());
 }
 
 MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int timeout)
@@ -4771,17 +4788,40 @@ TEST_F(SdkTest, SdkRecentsTest)
 
 #ifdef __linux__
 std::string exec(const char* cmd) {
-    std::array<char, 128> buffer;
-    std::string result;
+    // Open pipe for reading.
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-    if (!pipe)
+
+    // Make sure the pipe was actually created.
+    if (!pipe) throw std::runtime_error("popen() failed!");
+
+    std::string result;
+
+    // Read from the pipe until we hit EOF or encounter an error.
+    for (std::array<char, 128> buffer; ; )
     {
-        throw std::runtime_error("popen() failed!");
+        // Read from the pipe.
+        auto nRead = fread(buffer.data(), 1, buffer.size(), pipe.get());
+
+        // Were we able to extract any data?
+        if (nRead > 0)
+        {
+            // If so, add it to our result buffer.
+            result.append(buffer.data(), nRead);
+        }
+
+        // Have we extracted as much as we can?
+        if (nRead < buffer.size()) break;
     }
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        result += buffer.data();
+
+    // Were we able to extract all of the data?
+    if (feof(pipe.get()))
+    {
+        // Then return the result.
+        return result;
     }
-    return result;
+
+    // Otherwise, let the caller know we couldn't read the pipe.
+    throw std::runtime_error("couldn't read all data from the pipe!");
 }
 #endif
 

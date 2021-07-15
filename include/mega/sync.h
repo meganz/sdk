@@ -109,6 +109,7 @@ public:
 
     // Whether this sync is backed by an external device.
     bool isExternal() const;
+    bool isInternal() const;
 
     // check if we need to notify the App about error/enable flag changes
     bool errorOrEnabledChanged();
@@ -162,6 +163,8 @@ public:
     static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
     static bool synctypefromname(const string& name, Type& type);
+
+    SyncError knownError() const;
 
 private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
