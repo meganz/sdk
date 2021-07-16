@@ -581,14 +581,15 @@ struct MEGA_API LocalNode : public Cacheable
 
         struct MoveInProgress
         {
-            ~MoveInProgress() {
-                int breakpointhere = 0;
-                breakpointhere = 1;
-            }
+        };
+
+        struct CreateFolderInProgress
+        {
         };
 
         weak_ptr<MoveInProgress> moveFromHere;
         weak_ptr<MoveInProgress> moveToHere;
+        weak_ptr<CreateFolderInProgress> createFolderHere;
     };
 
 private:

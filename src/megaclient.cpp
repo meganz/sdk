@@ -7325,9 +7325,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag)
+void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion completion)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth));
+    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, completion));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
@@ -7342,7 +7342,7 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag)
 		return;
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag, nullptr));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -14801,7 +14801,7 @@ void MegaClient::execmovetosyncdebris()
 
         reqs.add(new CommandPutNodes(this, tn->nodeHandle(), NULL, move(nnVec),
                                         -reqtag,
-                                        PUTNODES_SYNCDEBRIS));
+                                        PUTNODES_SYNCDEBRIS, nullptr, nullptr));
     }
 }
 

@@ -373,10 +373,10 @@ void File::completed(Transfer* t, putsource_t source)
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,
-                                                                  th, NULL,
-                                                                  move(newnodes),
-                                                                  tag,
-                                                                  source));
+                                                    th, NULL,
+                                                    move(newnodes),
+                                                    tag,
+                                                    source, nullptr, nullptr));
         }
     }
 }

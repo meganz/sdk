@@ -976,7 +976,7 @@ bool CommandSetAttr::procresult(Result r)
 // (the result is not processed directly - we rely on the server-client
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
-                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth)
+                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth, Completion c)
 {
     byte key[FILENODEKEYLENGTH];
 
@@ -984,6 +984,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
+    completion = c;
 
     mSeqtagArray = true;
     cmd("p");
@@ -1158,7 +1159,8 @@ void CommandPutNodes::performAppCallback(Error e, bool targetOverride)
 //    }
 //#endif
 
-    client->app->putnodes_result(e, type, nn, targetOverride);
+    if (completion) completion(e, type, nn, targetOverride);
+	else client->app->putnodes_result(e, type, nn, targetOverride);
 }
 
 bool CommandPutNodes::procresult(Result r)

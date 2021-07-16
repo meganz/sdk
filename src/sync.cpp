@@ -2626,7 +2626,8 @@ Syncs::Syncs(MegaClient& mc)
 
 Syncs::~Syncs()
 {
-    exitSyncLoop = true;
+    // null function is the signal to end the thread
+    syncThreadActions.pushBack(nullptr);
     if (syncThread.joinable()) syncThread.join();
 }
 
@@ -3769,7 +3770,7 @@ void Syncs::purgeSyncs()
     std::promise<bool> synchronous;
     syncThreadActions.pushBack([&]()
         {
-            purgeSyncs();
+            purgeSyncs_inThread();
             synchronous.set_value(true);
         });
 
@@ -5286,44 +5287,56 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             SYNC_verbose << syncname << "Upload already in progress" << logTriplet(row, fullPath);
         }
     }
-    else
+    else // FOLDERNODE
     {
-        if (parentRow.cloudNode)
+        if (row.syncNode->hasRare() && !row.syncNode->rare().createFolderHere.expired())
         {
-            // Check for filename anomalies.
-            {
-                auto type = isFilenameAnomaly(*row.syncNode);
-
-                if (type != FILENAME_ANOMALY_NONE)
-                {
-                    auto lp = fullPath.localPath_utf8();
-                    auto rp = fullPath.cloudPath;
-
-                    syncs.clientThreadActions.pushBack([type, lp, rp](MegaClient& mc, DBTableTransactionCommitter& committer)
-                        {
-                            mc.filenameAnomalyDetected(type, lp, rp);
-                        });
-                }
-            }
-
-            LOG_verbose << "Creating cloud node for: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
-            // while the operation is in progress sync() will skip over the parent folder
-            string foldername = row.syncNode->name;
-            NodeHandle targethandle = parentRow.cloudNode->handle;
-            syncs.clientThreadActions.pushBack([foldername, targethandle](MegaClient& mc, DBTableTransactionCommitter& committer)
-                {
-                    vector<NewNode> nn(1);
-                    mc.putnodes_prepareOneFolder(&nn[0], foldername);
-                    mc.putnodes(targethandle, move(nn), nullptr, 0);
-                });
+            SYNC_verbose << syncname << "Create folder already in progress" << logTriplet(row, fullPath);
         }
         else
         {
-            SYNC_verbose << "Delay creating cloud node until parent cloud node exists: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
-            row.syncNode->setSyncAgain(true, false, false);
-            monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::UpsyncNeedsTargetFolder);
-        }
+            if (parentRow.cloudNode)
+            {
+                // Check for filename anomalies.
+                {
+                    auto type = isFilenameAnomaly(*row.syncNode);
 
+                    if (type != FILENAME_ANOMALY_NONE)
+                    {
+                        auto lp = fullPath.localPath_utf8();
+                        auto rp = fullPath.cloudPath;
+
+                        syncs.clientThreadActions.pushBack([type, lp, rp](MegaClient& mc, DBTableTransactionCommitter& committer)
+                            {
+                                mc.filenameAnomalyDetected(type, lp, rp);
+                            });
+                    }
+                }
+
+                LOG_verbose << "Creating cloud node for: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
+                // while the operation is in progress sync() will skip over the parent folder
+                string foldername = row.syncNode->name;
+                NodeHandle targethandle = parentRow.cloudNode->handle;
+                auto createFolderPtr = std::make_shared<LocalNode::RareFields::CreateFolderInProgress>();
+                row.syncNode->rare().createFolderHere = createFolderPtr;
+                syncs.clientThreadActions.pushBack([foldername, targethandle, createFolderPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                    {
+                        vector<NewNode> nn(1);
+                        mc.putnodes_prepareOneFolder(&nn[0], foldername);
+                        mc.putnodes(targethandle, move(nn), nullptr, 0,
+                            [createFolderPtr](const Error&, targettype_t, vector<NewNode>&, bool targetOverride){
+                                //createFolderPtr.reset();  // lives until this point
+                            });
+
+                    });
+            }
+            else
+            {
+                SYNC_verbose << "Delay creating cloud node until parent cloud node exists: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
+                row.syncNode->setSyncAgain(true, false, false);
+                monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::UpsyncNeedsTargetFolder);
+            }
+        }
         // we may not see some moves/renames until the entire folder structure is created.
         row.syncNode->setCheckMovesAgain(true, false, false);     // todo: double check - might not be needed for the wait case? might cause a stall?
     }
@@ -6902,17 +6915,15 @@ void Syncs::syncLoop()
         std::function<void()> f;
         while (syncThreadActions.popFront(f))
         {
+            if (!f)
+            {
+                // null function is the signal to end the thread
+                // Be sure to flush changes made to internal configs.
+                syncConfigStoreFlush();
+                return;
+            }
+
             f();
-        }
-
-        // now run one recursiveSync loop for all the syncs.
-        // mutex avoids syncs appearing/disappearing etc as we loop
-        lock_guard<mutex> g(syncMutex);
-
-        if (exitSyncLoop)
-        {
-            // Flush changes made to internal configs.
-            syncConfigStoreFlush();
         }
 
         // verify filesystem fingerprints, disable deviating syncs
@@ -7305,7 +7316,7 @@ void Syncs::syncLoop()
 
             // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
             auto scanningCompletePreviously = mSyncFlags->scanningWasComplete && !mSyncFlags->isInitialPass;
-            mSyncFlags->scanningWasComplete = !isAnySyncScanning(false);   // paused syncs do not participate in move detection
+            mSyncFlags->scanningWasComplete = !isAnySyncScanning_inThread(false);   // paused syncs do not participate in move detection
             mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass && !mSyncFlags->isInitialPass;
             mSyncFlags->reachableNodesAllScannedThisPass = true;
             mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves(false); // paused syncs do not participate in move detection
@@ -7429,7 +7440,7 @@ void Syncs::syncLoop()
             //execsyncdeletions();
         }
 
-        bool anySyncScanning = isAnySyncScanning(false);
+        bool anySyncScanning = isAnySyncScanning_inThread(false);
         if (anySyncScanning != syncscanstate)
         {
             clientThreadActions.pushBack([anySyncScanning](MegaClient& mc, DBTableTransactionCommitter& committer)
@@ -7558,6 +7569,20 @@ bool Syncs::isAnySyncSyncing(bool includePausedSyncs)
 
 bool Syncs::isAnySyncScanning(bool includePausedSyncs)
 {
+    assert(!onSyncThread());
+
+    std::promise<bool> synchronous;
+    syncThreadActions.pushBack([&]()
+        {
+            bool result = isAnySyncScanning_inThread(includePausedSyncs);
+            synchronous.set_value(result);
+        });
+
+    return synchronous.get_future().get();
+}
+
+bool Syncs::isAnySyncScanning_inThread(bool includePausedSyncs)
+{
     assert(onSyncThread());
     bool found = false;
     forEachRunningSync(includePausedSyncs, [&](Sync* sync) {
@@ -7570,7 +7595,6 @@ bool Syncs::isAnySyncScanning(bool includePausedSyncs)
         });
     return found;
 }
-
 
 bool Syncs::mightAnySyncsHaveMoves(bool includePausedSyncs)
 {

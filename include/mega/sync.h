@@ -901,7 +901,7 @@ private:
     // Separate key to avoid threading issues
     SymmCipher syncKey;
 
-    // When the node tree changes, this structure lets the sync code know which LocalNodes needs to be flagged 
+    // When the node tree changes, this structure lets the sync code know which LocalNodes need to be flagged
     map<NodeHandle, bool> triggerHandles;
     mutex triggerMutex;
     void processTriggerHandles();
@@ -938,16 +938,11 @@ private:
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
         Node* remotenode, bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error)> completion);
-
-    // cache files are retained, as is the config, but the Sync is deleted
     void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
-
-    // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
     void purgeSyncs_inThread();
+    bool isAnySyncScanning_inThread(bool includePausedSyncs);
 
-    std::mutex syncMutex;
     std::thread syncThread;
-    bool exitSyncLoop = false;
     void syncLoop();
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThread.get_id(); }

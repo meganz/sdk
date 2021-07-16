@@ -904,6 +904,10 @@ struct StandardClient : public MegaApp
                 client.exec();
             }
         }
+
+        // shut down on the same thread, otherwise any ongoing async I/O fails to complete (on windows)
+        client.locallogout(false, true);
+
         out() << clientname << " thread exiting naturally";
     }
     catch (std::exception& e)
@@ -1484,8 +1488,8 @@ struct StandardClient : public MegaApp
 
         out() << "looking up BackupId " << toHandle(backupId);
 
-        client.syncs.forEachUnifiedSync([](UnifiedSync& us){
-            out() << " ids are: " << toHandle(us.mConfig.mBackupId) << " with local path '" << us.mConfig.getLocalPath().toPath(*us.mClient.fsaccess);
+        client.syncs.forEachUnifiedSync([this](UnifiedSync& us){
+            out() << " ids are: " << toHandle(us.mConfig.mBackupId) << " with local path '" << us.mConfig.getLocalPath().toPath(*fsaccess);
         });
 
         bool found = syncSet(backupId, result);
@@ -2305,18 +2309,16 @@ struct StandardClient : public MegaApp
 
     void disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result)
     {
-        auto matched = false;
-
         client.syncs.disableSelectedSyncs(
-          [&](SyncConfig& config, Sync*)
+          [id](SyncConfig& config, Sync*)
           {
-              matched |= config.mBackupId == id;
-              return matched;
+              return config.mBackupId == id;
           },
           error,
-          enabled);
-
-        result->set_value(matched);
+          enabled,
+          [result](size_t nDisabled){
+              result->set_value(!!nDisabled);
+          });
     }
 
     bool disableSync(handle id, SyncError error, bool enabled)
@@ -3503,12 +3505,12 @@ TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
     Model model;
     model.root->addkid(model.buildModelSubdirs("initial", 0, 0, 16000));
 
+    WaitFor([&](){ return clientA1.transfersAdded.load() > 0; }, 60000);  // give it a chance to create all the nodes.
+
     // check everything matches (just local since it'll still be uploading files)
     clientA1.localNodesMustHaveNodes = false;
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.root.get(), backupId1, false, StandardClient::CONFIRM_LOCAL));
     //ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
-
-    WaitMillisec(2000);  // give it a chance to rescan the folder.  todo:  why so long tho
 
     ASSERT_GT(clientA1.transfersAdded.load(), 0u);
     clientA1.transfersAdded = 0;

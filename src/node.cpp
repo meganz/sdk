@@ -1485,7 +1485,8 @@ void LocalNode::trimRareFields()
             !rareFields->scanBlockedTimer &&
             !rareFields->scanRequest &&
             rareFields->moveFromHere.expired() &&
-            rareFields->moveToHere.expired())
+            rareFields->moveToHere.expired() &&
+            rareFields->createFolderHere.expired())
         {
             rareFields.reset();
         }
