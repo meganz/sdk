@@ -1130,11 +1130,6 @@ private:
     // close the local transfer cache
     void closetc(bool remove = false);
 
-#ifdef ENABLE_SYNC
-    // mark nodes as needing to be checked for sync actions
-    void triggerSync(NodeHandle, bool recurse = false);
-#endif
-
     // server-client command processing
     bool sc_checkSequenceTag(const string& tag);
     bool sc_checkActionPacket(Node* lastAPDeletedNode);

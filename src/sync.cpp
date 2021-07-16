@@ -6015,49 +6015,64 @@ bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
     return fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
 }
 
-// todo: thread safety
-void MegaClient::triggerSync(NodeHandle h, bool recurse)
+void Syncs::triggerSync(NodeHandle h, bool recurse)
 {
-    if (fetchingnodes) return;  // on start everything needs scan+sync anyway
+    if (mClient.fetchingnodes) return;  // on start everything needs scan+sync anyway
 
-#ifdef DEBUG
-    // this was only needed for the fetchingnodes case anyway?
-    //for (auto* n = nodeByHandle(h); n; n = n->parent)
-    //{
-    //    n->applykey();
-    //}
+    lock_guard<mutex> g(triggerMutex);
+    auto& entry = triggerHandles[h];
+    if (recurse) entry = true;
+}
 
-    //if (Node* n = nodeByHandle(h))
-    //{
-    //    SYNC_verbose << clientname << "Received sync trigger notification for sync trigger of " << n->displaypath();
-    //}
-#endif
-
-// todo: thread safety
-    auto range = syncs.localnodeByNodeHandle.equal_range(h);
-
-    if (range.first == range.second)
+void Syncs::processTriggerHandles()
+{
+    map<NodeHandle, bool> triggers;
     {
-        // corresponding sync node not found.
-        // this could be a move target though, to a syncNode we have not created yet
-        // go back up the (cloud) node tree to find an ancestor we can mark as needing sync checks
-        if (Node* n = nodeByHandle(h, true))
-        {
-            // if the parent is a file, then it's just old versions being mentioned in the actionpackets, ignore
-            if (n->type != FILENODE)
-            {
-                SYNC_verbose << clientname << "Trigger syncNode not fournd for " << n->displaypath() << ", will trigger parent";
-                if (n->parent) triggerSync(n->parent->nodeHandle(), true);
-            }
-        }
+        lock_guard<mutex> g(triggerMutex);
+        triggers.swap(triggerHandles);
     }
-    else
+
+    for (auto& t : triggers)
     {
-        // we are already being called with the handle of the parent of the thing that changed
-        for (auto it = range.first; it != range.second; ++it)
+        NodeHandle h = t.first;
+        bool recurse = t.second;
+
+        for (;;)
         {
-            SYNC_verbose << clientname << "Triggering sync flag for " << it->second->localnodedisplaypath(*fsaccess) << (recurse ? " recursive" : "");
-            it->second->setSyncAgain(false, true, recurse);
+            auto range = localnodeByNodeHandle.equal_range(h);
+
+            if (range.first == range.second)
+            {
+                // corresponding sync node not found.
+                // this could be a move target though, to a syncNode we have not created yet
+                // go back up the (cloud) node tree to find an ancestor we can mark as needing sync checks
+                CloudNode cloudNode;
+                string cloudNodePath;
+                bool found = lookupCloudNode(h, cloudNode, &cloudNodePath);
+                if (found)
+                {
+                    // if the parent is a file, then it's just old versions being mentioned in the actionpackets, ignore
+                    if (cloudNode.parentType != FILENODE && cloudNode.parentType != TYPE_UNKNOWN && !cloudNode.parentHandle.isUndef())
+                    {
+                        auto& syncs = *this;
+                        SYNC_verbose << mClient.clientname << "Trigger syncNode not found for " << cloudNodePath << ", will trigger parent";
+                        recurse = true;
+                        h = cloudNode.parentHandle;
+                        continue;
+                    }
+                }
+            }
+            else
+            {
+                // we are already being called with the handle of the parent of the thing that changed
+                for (auto it = range.first; it != range.second; ++it)
+                {
+                    auto& syncs = *this;
+                    SYNC_verbose << mClient.clientname << "Triggering sync flag for " << it->second->localnodedisplaypath(*fsaccess) << (recurse ? " recursive" : "");
+                    it->second->setSyncAgain(false, true, recurse);
+                }
+            }
+            break;
         }
     }
 }
@@ -7274,6 +7289,8 @@ void Syncs::syncLoop()
             sync->procextraq();
             sync->procscanq();
             });
+
+        processTriggerHandles();
 
 
         //LOG_debug << clientname << " syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;

@@ -880,6 +880,9 @@ struct Syncs
     // functions to call from client thread
     void removeCaches(bool keepSyncsConfigFile);
 
+    // mark nodes as needing to be checked for sync actions
+    void triggerSync(NodeHandle, bool recurse = false);
+
 private:
     // Most of these private fields should only be used on the Sync's own thread
     // LocalNodes are entirely managed on this thread
@@ -897,6 +900,11 @@ private:
 
     // Separate key to avoid threading issues
     SymmCipher syncKey;
+
+    // When the node tree changes, this structure lets the sync code know which LocalNodes needs to be flagged 
+    map<NodeHandle, bool> triggerHandles;
+    mutex triggerMutex;
+    void processTriggerHandles();
 
     void exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const;
 

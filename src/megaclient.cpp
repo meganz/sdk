@@ -5031,7 +5031,7 @@ void MegaClient::sc_updatenode()
                             if (n->parent)
                             {
                                 // possible node name change; sync parent
-                                triggerSync(n->parent->nodeHandle());
+                                syncs.triggerSync(n->parent->nodeHandle());
                             }
 #endif
                         }
@@ -7159,7 +7159,7 @@ Node* MegaClient::sc_deltree()
 #ifdef ENABLE_SYNC
                     if (n->parent)
                     {
-                        triggerSync(n->parent->nodeHandle());
+                        syncs.triggerSync(n->parent->nodeHandle());
                     }
 #endif
                     useralerts.convertNotedSharedNodes(false, originatingUser);
@@ -8114,7 +8114,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 #ifdef ENABLE_SYNC
     for (NodeHandle p : allParents)
     {
-        triggerSync(p);
+        syncs.triggerSync(p);
     }
 #endif
 
