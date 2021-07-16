@@ -15215,7 +15215,8 @@ void MegaClient::syncupdate()
                                                 localNode->parent->node->nodehandle,
                                                 NULL, move(nn),
                                                 nextTag, //assign a new unused reqtag
-                                                PUTNODES_SYNC));
+                                                PUTNODES_SYNC,
+                                                nullptr));
 
                 syncactivity = true;
             }
@@ -15522,7 +15523,8 @@ void MegaClient::execmovetosyncdebris()
 
         reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, move(nnVec),
                                         -reqtag,
-                                        PUTNODES_SYNCDEBRIS));
+                                        PUTNODES_SYNCDEBRIS,
+                                        nullptr));
     }
 }
 
