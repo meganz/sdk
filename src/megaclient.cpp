@@ -7827,9 +7827,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth, int tag)
+void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth));
+    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, std::move(resultFunction)));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
@@ -15216,6 +15216,7 @@ void MegaClient::syncupdate()
                                                 NULL, move(nn),
                                                 nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC,
+                                                nullptr,
                                                 nullptr));
 
                 syncactivity = true;
@@ -15524,6 +15525,7 @@ void MegaClient::execmovetosyncdebris()
         reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, move(nnVec),
                                         -reqtag,
                                         PUTNODES_SYNCDEBRIS,
+                                        nullptr,
                                         nullptr));
     }
 }

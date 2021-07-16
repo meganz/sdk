@@ -376,6 +376,7 @@ void File::completed(Transfer* t, LocalNode* l)
 #else
                                                     PUTNODES_APP,
 #endif
+                                                    nullptr,
                                                     nullptr));
         }
     }

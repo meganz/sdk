@@ -54,7 +54,7 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), move(nn), tag, PUTNODES_APP, nullptr));
+        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), move(nn), tag, PUTNODES_APP, nullptr, nullptr));
     }
     else
     {
