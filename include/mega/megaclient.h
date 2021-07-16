@@ -242,6 +242,9 @@ public:
     // all nodes
     node_map nodes;
 
+    // manage access to the node tree so that sync code can browse the tree outside actionpacket processing
+    mutex nodeTreeMutex;
+
     // keep track of user storage, inshare storage, file/folder counts per root node.
     NodeCounterMap mNodeCounters;
 

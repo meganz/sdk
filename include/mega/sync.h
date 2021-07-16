@@ -184,8 +184,6 @@ struct UnifiedSync
     // ctor/dtor
     UnifiedSync(Syncs&, const SyncConfig&);
 
-    // Update remote location
-    bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 private:
     friend class Sync;
     friend struct Syncs;
@@ -196,9 +194,11 @@ using SyncCompletionFunction =
   std::function<void(UnifiedSync*, const SyncError&, error)>;
 
 
+
+
 struct syncRow
 {
-    syncRow(Node* node, LocalNode* syncNode, FSNode* fsNode)
+    syncRow(CloudNode* node, LocalNode* syncNode, FSNode* fsNode)
         : cloudNode(node)
         , syncNode(syncNode)
         , fsNode(fsNode)
@@ -209,11 +209,11 @@ struct syncRow
     syncRow(syncRow&&) = default;
     syncRow& operator=(syncRow&&) = default;
 
-    Node* cloudNode;
+    CloudNode* cloudNode;
     LocalNode* syncNode;
     FSNode* fsNode;
 
-    vector<Node*> cloudClashingNames;
+    vector<CloudNode*> cloudClashingNames;
     vector<FSNode*> fsClashingNames;
 
     bool suppressRecursion = false;
@@ -232,6 +232,9 @@ struct syncRow
     // Here, we create directory locally and push an FSNode representing it
     // to this list so that we recurse into it immediately.
     list<FSNode> fsPendingSiblings;
+
+    void inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren);
+
 };
 
 struct SyncPath
@@ -287,7 +290,7 @@ public:
 
     // root of local filesystem tree, holding the sync's root folder.  Never null except briefly in the destructor (to ensure efficient db usage)
     unique_ptr<LocalNode> localroot;
-    Node* cloudRoot();
+    Node* cloudRoot();  // todo:  better to avoid Node* ?
 
     FileSystemType mFilesystemType = FS_UNKNOWN;
 
@@ -346,10 +349,12 @@ public:
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = nullptr, LocalPath* outpath = nullptr);
 
-    vector<syncRow> computeSyncTriplets(Node* cloudNode,
+    vector<syncRow> computeSyncTriplets(
+        vector<CloudNode>& cloudNodes,
         const LocalNode& root,
         vector<FSNode>& fsNodes) const;
-    bool inferAlreadySyncedTriplets(Node* cloudNode,
+    bool inferAlreadySyncedTriplets(
+        vector<CloudNode>& cloudNodes,
         const LocalNode& root,
         vector<FSNode>& fsNodes,
         vector<syncRow>& inferredRows) const;
@@ -369,14 +374,14 @@ public:
     bool resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
 
-    bool syncEqual(const Node&, const FSNode&);
-    bool syncEqual(const Node&, const LocalNode&);
+    bool syncEqual(const CloudNode&, const FSNode&);
+    bool syncEqual(const CloudNode&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
     bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
     bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
 
-    void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc);
+    void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
     //// rescan sequence number (incremented when a full rescan or a new
@@ -408,8 +413,6 @@ public:
 
     // true if the local synced folder is a network folder
     bool isnetwork = false;
-
-    bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
@@ -871,6 +874,9 @@ struct Syncs
 
     ThreadSafeDeque<std::function<void()>> syncThreadActions;
 
+    // Update remote location
+    bool updateSyncRemoteLocation(UnifiedSync&, Node* n, bool forceCallback);
+
     // functions to call from client thread
     void removeCaches(bool keepSyncsConfigFile);
 
@@ -937,6 +943,8 @@ private:
     void syncLoop();
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThread.get_id(); }
+    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath);
+    bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 };
 
 } // namespace

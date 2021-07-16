@@ -1642,7 +1642,6 @@ bool LocalNode::scanRequired() const
     return scanAgain != TREE_RESOLVED;
 }
 
-
 void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath)
 {
     if (lastFolderScan &&
@@ -2579,5 +2578,16 @@ unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath
     }
     return result;
 }
+
+
+CloudNode::CloudNode(Node& n)
+    : name(n.displayname())
+    , type(n.type)
+    , handle(n.nodeHandle())
+    , parentHandle(n.parent ? n.parent->nodeHandle() : NodeHandle())
+    , parentType(n.parent ? n.parent->type : TYPE_UNKNOWN)
+    , fingerprint(n.fingerprint())
+{}
+
 
 } // namespace

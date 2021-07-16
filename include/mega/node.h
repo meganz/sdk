@@ -58,21 +58,23 @@ struct MEGA_API NodeCore
     std::unique_ptr<string> attrstring;
 };
 
-struct SyncUpload_inClient : File, std::enable_shared_from_this<SyncUpload_inClient>
+struct CloudNode
 {
-    // This class is part of the client's Transfer system (ie, works in the client's thread)
-    // The sync system keeps a shared_ptr to it.  Whichever system finishes with it last actually deletes it
-    SyncUpload_inClient(FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath);
-    ~SyncUpload_inClient();
-    void prepare(FileSystemAccess&) override;
-    void completed(Transfer*, putsource_t source) override;
-    void terminated() override;
+    // We can't use Node* directly on the sync thread,
+    // as such pointers may be rendered dangling (and changes in them thread-unsafe)
+    // by actionpackets on the MegaClient thread.  So, we take temporary copies of the minimally needed aspects.
+    // We minimize memory use in the same way that FSNode works - if the syncNode has enough info to regenerate
+    // the cloudNodes for all its children, then we can deallocate.
 
-    bool wasTerminated = false;
-    bool wasCompleted = false;
-    bool wasPutnodesCompleted = false;
-    bool wasRequesterAbandoned = false;
-    shared_ptr<SyncUpload_inClient> selfKeepAlive;
+    string name;
+    nodetype_t type = TYPE_UNKNOWN;
+    NodeHandle handle;
+    NodeHandle parentHandle;
+    nodetype_t parentType = TYPE_UNKNOWN;
+    FileFingerprint fingerprint;
+
+    CloudNode() {}
+    CloudNode(Node& n);
 };
 
 struct MEGA_API SyncDownload_inClient: public File
@@ -94,11 +96,26 @@ struct MEGA_API SyncDownload_inClient: public File
     bool wasRequesterAbandoned = false;
     shared_ptr<SyncDownload_inClient> selfKeepAlive;
 
-    SyncDownload_inClient(Node& n, const LocalPath&, bool fromInshare);
+    SyncDownload_inClient(CloudNode& n, const LocalPath&, bool fromInshare);
     ~SyncDownload_inClient();
 };
 
+struct SyncUpload_inClient : File, std::enable_shared_from_this<SyncUpload_inClient>
+{
+    // This class is part of the client's Transfer system (ie, works in the client's thread)
+    // The sync system keeps a shared_ptr to it.  Whichever system finishes with it last actually deletes it
+    SyncUpload_inClient(FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath);
+    ~SyncUpload_inClient();
+    void prepare(FileSystemAccess&) override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated() override;
 
+    bool wasTerminated = false;
+    bool wasCompleted = false;
+    bool wasPutnodesCompleted = false;
+    bool wasRequesterAbandoned = false;
+    shared_ptr<SyncUpload_inClient> selfKeepAlive;
+};
 
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
@@ -514,7 +531,7 @@ struct MEGA_API LocalNode : public Cacheable
         //bool moveTargetApplyingToCloud : 1;
 
         // we saw this node moved/renamed in the cloud, local move expected (or active)
-        bool moveApplyingToLocal : 1;
+        bool moveApplyingToLocal : 1;    // todo: do we need these anymore?
         bool moveAppliedToLocal : 1;
 
         // whether any name conflicts have been detected.

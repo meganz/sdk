@@ -494,10 +494,15 @@ public:
         if (nErased)
         {
             // quite often the elements are at the front, no need to traverse the whole thing
-            // removal from the front of a deque is cheap
-            while (nErased && !mDeque.empty() && mDeque.begin()->isErased())
+            // removal from the front or back of a deque is cheap
+            while (nErased && !mDeque.empty() && mDeque.front().isErased())
             {
                 mDeque.pop_front();
+                --nErased;
+            }
+            while (nErased && !mDeque.empty() && mDeque.back().isErased())
+            {
+                mDeque.pop_back();
                 --nErased;
             }
             if (nErased)

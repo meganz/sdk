@@ -452,10 +452,10 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncDownload_inClient::SyncDownload_inClient(Node& n, const LocalPath& clocalname, bool fromInshare)
+SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare)
 {
-    h = n.nodeHandle();
-    *(FileFingerprint*)this = n;
+    h = n.handle;
+    *(FileFingerprint*)this = n.fingerprint;
     localname = clocalname;
 
     syncxfer = true;

@@ -2415,19 +2415,22 @@ void MegaClient::exec()
 // todo: any sync related checks can go here
         execsyncdeletions();
 
-        dstime ctr_start = waiter->ds;
-        size_t ctr_N = 0;
-        DBTableTransactionCommitter committer(tctable);
-        std::function<void(MegaClient&, DBTableTransactionCommitter&)> f;
-        while (ctr_start + 1 >= waiter->ds && syncs.clientThreadActions.popFront(f))
+        if (!syncs.clientThreadActions.empty())
         {
-            f(*this, committer);
-            ++ctr_N;
-            waiter->bumpds();
-        }
-        if (auto n = syncs.clientThreadActions.size())
-        {
-            LOG_debug << "Processed " << ctr_N << " sync requests, " << n << " outstanding";
+            dstime ctr_start = waiter->ds;
+            size_t ctr_N = 0;
+            DBTableTransactionCommitter committer(tctable);
+            std::function<void(MegaClient&, DBTableTransactionCommitter&)> f;
+            while (ctr_start + 1 >= waiter->ds && syncs.clientThreadActions.popFront(f))
+            {
+                f(*this, committer);
+                ++ctr_N;
+                waiter->bumpds();
+            }
+            if (auto n = syncs.clientThreadActions.size())
+            {
+                LOG_debug << "Processed " << ctr_N << " sync requests, " << n << " outstanding";
+            }
         }
 #endif
 
@@ -3924,6 +3927,9 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 // process server-client request
 bool MegaClient::procsc()
 {
+    // prevent the sync thread from looking things up while we change the tree
+    lock_guard<mutex> nodeTreeIsChanging(nodeTreeMutex);
+
     actionpacketsCurrent = false;
 
     CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
