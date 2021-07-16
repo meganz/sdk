@@ -1072,9 +1072,30 @@ struct StandardClient : public MegaApp
         return future.get();
     }
 
+    class BasicPutNodesCompletion
+    {
+    public:
+        BasicPutNodesCompletion(std::function<void(const Error&)>&& callable)
+            : mCallable(std::move(callable))
+        {
+        }
+
+        void operator()(const Error& e, targettype_t, vector<NewNode>&, bool)
+        {
+            mCallable(e);
+        }
+
+    private:
+        std::function<void(const Error&)> mCallable;
+    }; // BasicPutNodesCompletion
+
     void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb)
     {
-        resultproc.prepresult(PUTNODES, ++next_request_tag,
+        auto completion = BasicPutNodesCompletion([pb](const Error& e) {
+            pb->set_value(!e);
+        });
+
+        resultproc.prepresult(COMPLETION, ++next_request_tag,
             [&](){
                 TreeProcCopy tc;
                 client.proctree(n1, &tc, false, true);
@@ -1091,27 +1112,24 @@ struct StandardClient : public MegaApp
                 attrs.map['n'] = newname;
                 attrs.getjson(&attrstring);
                 client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                client.putnodes(n2->nodehandle, move(tc.nn), nullptr, client.reqtag);
+                client.putnodes(n2->nodehandle, move(tc.nn), nullptr, 0, std::move(completion));
             },
-            [pb](error e) {
-                pb->set_value(!e);
-                return true;
-            });
+            nullptr);
     }
 
     void putnodes(const handle parentHandle, std::vector<NewNode>&& nodes, PromiseBoolSP pb)
     {
-        resultproc.prepresult(PUTNODES,
+        auto completion = BasicPutNodesCompletion([pb](const Error& e) {
+            pb->set_value(!e);
+        });
+
+        resultproc.prepresult(COMPLETION,
                               ++next_request_tag,
                               [&]()
                               {
-                                  client.putnodes(parentHandle, std::move(nodes), nullptr, client.reqtag);
+                                  client.putnodes(parentHandle, std::move(nodes), nullptr, 0, std::move(completion));
                               },
-                              [pb](error e)
-                              {
-                                  pb->set_value(!e);
-                                  return !e;
-                              });
+                              nullptr);
     }
 
     bool putnodes(const handle parentHandle, std::vector<NewNode>&& nodes)
@@ -1144,14 +1162,18 @@ struct StandardClient : public MegaApp
 
     void uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
     {
-        resultproc.prepresult(PUTNODES, ++next_request_tag,
+        auto completion = BasicPutNodesCompletion([pb](const Error& e) {
+            pb->set_value(!e);
+        });
+
+        resultproc.prepresult(COMPLETION, ++next_request_tag,
             [&](){
                 vector<NewNode> newnodes;
                 handle h = 1;
                 uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-                client.putnodes(n2->nodehandle, move(newnodes), nullptr, client.reqtag);
+                client.putnodes(n2->nodehandle, move(newnodes), nullptr, 0, std::move(completion));
             },
-            [pb](error e) { pb->set_value(!e);  return true; });
+            nullptr);
     }
 
     // Necessary to make sure we release the file once we're done with it.
@@ -1245,7 +1267,7 @@ struct StandardClient : public MegaApp
                               [pb](error e)
                               {
                                   pb->set_value(!e);
-                                  return !e;
+                                  return true;
                               });
     }
 
@@ -1441,9 +1463,13 @@ struct StandardClient : public MegaApp
                 vector<NewNode> nn(1);
                 nn[0] = makeSubfolder("mega_test_sync");
 
-                resultproc.prepresult(PUTNODES, ++next_request_tag,
-                    [&](){ client.putnodes(root->nodehandle, move(nn), nullptr, client.reqtag); },
-                    [this, pb](error e) { ensureTestBaseFolder(false, pb); return true; });
+                auto completion = BasicPutNodesCompletion([this, pb](const Error&) {
+                    ensureTestBaseFolder(false, pb);
+                });
+
+                resultproc.prepresult(COMPLETION, ++next_request_tag,
+                    [&](){ client.putnodes(root->nodehandle, move(nn), nullptr, 0, std::move(completion)); },
+                    nullptr);
 
                 return;
             }
@@ -1507,16 +1533,15 @@ struct StandardClient : public MegaApp
                 nodearray[i] = std::move(*n);
             }
 
-            resultproc.prepresult(PUTNODES, ++next_request_tag,
-                [&](){ client.putnodes(atnode->nodehandle, move(nodearray), nullptr, client.reqtag); },
-                [pb](error e) {
-                    pb->set_value(!e);
-                    if (e)
-                    {
-                        out() << "putnodes result: " << e;
-                    }
-                    return true;
-                });
+            auto completion = BasicPutNodesCompletion([pb](const Error& e) {
+                pb->set_value(!e);
+            });
+
+            resultproc.prepresult(COMPLETION, ++next_request_tag,
+                [&]() {
+                    client.putnodes(atnode->nodehandle, move(nodearray), nullptr, 0, std::move(completion));
+                },
+                nullptr);
         }
     }
 
