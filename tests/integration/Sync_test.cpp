@@ -1533,9 +1533,10 @@ struct StandardClient : public MegaApp
                 nodearray[i] = std::move(*n);
             }
 
-            auto completion = BasicPutNodesCompletion([pb](const Error& e) {
+            auto completion = [pb, this](const Error& e, targettype_t, vector<NewNode>& nodes, bool) {
+                lastPutnodesResultFirstHandle = nodes.empty() ? UNDEF : nodes[0].mAddedHandle;
                 pb->set_value(!e);
-            });
+            };
 
             resultproc.prepresult(COMPLETION, ++next_request_tag,
                 [&]() {
@@ -2376,15 +2377,6 @@ struct StandardClient : public MegaApp
 
     void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride) override
     {
-        if (!nn.empty()) //TODO: restore this after sync rework is merged: && nn[0].mError == API_OK)
-        {
-            lastPutnodesResultFirstHandle = nn[0].mAddedHandle;
-        }
-        else
-        {
-            lastPutnodesResultFirstHandle = UNDEF;
-        }
-
         resultproc.processresult(PUTNODES, e, client.restag);
     }
 
