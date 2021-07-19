@@ -60,11 +60,11 @@ std::string SimpleLogger::getTime()
 {
     char ts[50];
     time_t t = std::time(NULL);
+    struct tm tp;
 
-    if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::gmtime(&t))) {
-        ts[0] = '\0';
-    }
-    return ts;
+    if (gmtime_r(&t, &tp) && std::strftime(ts, sizeof(ts), "%H:%M:%S", &tp)) return ts;
+
+    return {};
 }
 
 void SimpleLogger::flush()
