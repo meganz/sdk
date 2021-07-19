@@ -60,9 +60,15 @@ std::string SimpleLogger::getTime()
 {
     char ts[50];
     time_t t = std::time(NULL);
-    struct tm tp;
+    std::tm tm{};
 
-    if (gmtime_r(&t, &tp) && std::strftime(ts, sizeof(ts), "%H:%M:%S", &tp)) return ts;
+#ifdef WIN32
+    gmtime_s(&tm, &t);
+#else
+    gmtime_r(&t, &tm);
+#endif
+
+    if (std::strftime(ts, sizeof(ts), "%H:%M:%S", &tm)) return ts;
 
     return {};
 }
