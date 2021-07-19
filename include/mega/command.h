@@ -603,19 +603,24 @@ public:
 
 class MEGA_API CommandPutNodes : public Command
 {
+public:
+    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool)>;
+
+private:
     friend class MegaClient;
     vector<NewNode> nn;
     targettype_t type;
     putsource_t source;
     bool emptyResponse = false;
     handle targethandle;
+    Completion mResultFunction;
 
     void removePendingDBRecordsAndTempFiles();
 
 public:
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
+    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&);
 };
 
 class MEGA_API CommandSetAttr : public Command

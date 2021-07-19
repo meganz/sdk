@@ -22842,7 +22842,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, move(newnodes), request->getTag(), PUTNODES_APP));
+            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr));
             break;
         }
         case MegaRequest::TYPE_VERIFY_CREDENTIALS:
