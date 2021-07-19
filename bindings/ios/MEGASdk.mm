@@ -655,6 +655,23 @@ using namespace mega;
     return ret;
 }
 
+- (NSString *)accountAuth {
+    if (self.megaApi == nil) return nil;
+    const char *val = self.megaApi->getAccountAuth();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
+- (void)setAccountAuth:(NSString *)accountAuth {
+    if (self.megaApi) {
+        self.megaApi->setAccountAuth(accountAuth.UTF8String);
+    }
+}
+
 - (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey {
     if (self.megaApi) {
         self.megaApi->fastLogin(email.UTF8String, stringHash.UTF8String, base64pwKey.UTF8String);
