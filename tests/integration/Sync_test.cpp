@@ -2796,9 +2796,8 @@ struct StandardClient : public MegaApp
     template<typename Predicate>
     bool waitFor(Predicate predicate, const std::chrono::seconds &timeout)
     {
-        using namespace std::chrono_literals;
-
-        auto total = 0ms;
+        auto total = std::chrono::milliseconds(0);
+        auto sleepIncrement = std::chrono::milliseconds(500);
 
         do
         {
@@ -2811,8 +2810,8 @@ struct StandardClient : public MegaApp
 
             out() << "Waiting for predicate to match...";
 
-            std::this_thread::sleep_for(500ms);
-            total += 500ms;
+            std::this_thread::sleep_for(sleepIncrement);
+            total += sleepIncrement;
         }
         while (total < timeout);
 
@@ -7879,8 +7878,6 @@ void CatchupClients(StandardClient* c1, StandardClient* c2 = nullptr, StandardCl
 
 void PrepareForSync(StandardClient& client)
 {
-    using namespace std::chrono_literals;
-
     auto local = client.fsBasePath / "twoway" / "initial";
 
     fs::create_directories(local);
@@ -7888,10 +7885,12 @@ void PrepareForSync(StandardClient& client)
     ASSERT_TRUE(buildLocalFolders(local, "f", 2, 2, 2));
     ASSERT_TRUE(buildLocalFolders(local, "outside", 2, 1, 1));
 
-    ASSERT_TRUE(createDataFile(local / "f" / "file_older_1", "file_older_1", -3600s));
-    ASSERT_TRUE(createDataFile(local / "f" / "file_older_2", "file_older_2", -3600s));
-    ASSERT_TRUE(createDataFile(local / "f" / "file_newer_1", "file_newer_1", 3600s));
-    ASSERT_TRUE(createDataFile(local / "f" / "file_newer_2", "file_newer_2", 3600s));
+    constexpr auto delta = std::chrono::seconds(3600);
+
+    ASSERT_TRUE(createDataFile(local / "f" / "file_older_1", "file_older_1", -delta));
+    ASSERT_TRUE(createDataFile(local / "f" / "file_older_2", "file_older_2", -delta));
+    ASSERT_TRUE(createDataFile(local / "f" / "file_newer_1", "file_newer_1", delta));
+    ASSERT_TRUE(createDataFile(local / "f" / "file_newer_2", "file_newer_2", delta));
 
     auto* remote = client.drillchildnodebyname(client.gettestbasenode(), "twoway");
     ASSERT_NE(remote, nullptr);
@@ -7903,9 +7902,8 @@ void PrepareForSync(StandardClient& client)
 bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
                         chrono::seconds timeout)
 {
-    using namespace std::chrono_literals;
-
-    auto total = 0ms;
+    auto total = std::chrono::milliseconds(0);
+    constexpr auto sleepIncrement = std::chrono::milliseconds(500);
 
     do
     {
@@ -7937,8 +7935,8 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
 
         out() << "Waiting for cloud/model match...";
 
-        std::this_thread::sleep_for(500ms);
-        total += 500ms;
+        std::this_thread::sleep_for(sleepIncrement);
+        total += sleepIncrement;
     }
     while (total < timeout);
 
