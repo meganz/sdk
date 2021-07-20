@@ -129,7 +129,9 @@ protected:
     static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
+public: // so we can delete it on program end
     static std::recursive_mutex **sslMutexes;
+protected:
     static void locking_function(int mode, int lockNumber, const char *, int);
 
 #if OPENSSL_VERSION_NUMBER >= 0x10000000

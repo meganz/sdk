@@ -449,16 +449,21 @@ public:
 
 class MEGA_API CommandMoveNode : public Command
 {
-    handle h;
-    handle pp;  // previous parent
-    handle np;  // new parent
+public:
+    using Completion = std::function<void(NodeHandle, Error)>;
+
+private:
+    NodeHandle h;
+    NodeHandle pp;  // previous parent
+    NodeHandle np;  // new parent
     bool syncop;
     syncdel_t syncdel;
+    Completion completion;
 
 public:
     bool procresult(Result) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, handle = UNDEF);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -532,16 +537,25 @@ public:
 
 class MEGA_API CommandGetFile : public Command
 {
-    TransferSlot* tslot;
-    handle ph;
-    bool priv;
+    using Cb = std::function<bool(const Error &/*e*/, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/,
+    dstime /*timeleft*/, std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
+    const std::vector<std::string> &/*urls*/, const std::vector<std::string> &/*ips*/)>;
+    Cb mCompletion;
+
+    void callFailedCompletion (const Error& e);
+
     byte filekey[FILENODEKEYLENGTH];
+    int mFileKeyType; // as expected by SymmCipher::setKey
 
 public:
+    // notice: cancelation will entail that mCompletion will not be called
     void cancel() override;
     bool procresult(Result) override;
 
-    CommandGetFile(MegaClient *client, TransferSlot*, const byte*, handle, bool, const char* = NULL, const char* = NULL, const char *chatauth = NULL);
+    CommandGetFile(MegaClient *client, const byte* key, size_t keySize,
+                       handle h, bool p, const char *privateauth = nullptr,
+                       const char *publicauth = nullptr, const char *chatauth = nullptr,
+                       bool singleUrl = false, Cb &&completion = nullptr);
 };
 
 class MEGA_API CommandPutFile : public Command
@@ -555,14 +569,17 @@ public:
     CommandPutFile(MegaClient *client, TransferSlot*, int);
 };
 
-class MEGA_API CommandPutFileBackgroundURL : public Command
+class MEGA_API CommandGetPutUrl : public Command
 {
+    using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
+    Cb mCompletion;
+
     string* result;
 
 public:
     bool procresult(Result) override;
 
-    CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag);
+    CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, bool getIP, Cb completion);
 };
 
 
@@ -586,32 +603,41 @@ public:
 
 class MEGA_API CommandPutNodes : public Command
 {
+public:
+    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool)>;
+
+private:
     friend class MegaClient;
     vector<NewNode> nn;
     targettype_t type;
     putsource_t source;
     bool emptyResponse = false;
     handle targethandle;
-    std::function<void(const Error&, targettype_t , vector<NewNode>&)> mCompletion;
+    Completion mCompletion;
 
     void removePendingDBRecordsAndTempFiles();
 
 public:
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t = PUTNODES_APP, const char *cauth = NULL, std::function<void(const Error&, targettype_t , vector<NewNode>&)> = nullptr);
+    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&& completion);
 };
 
 class MEGA_API CommandSetAttr : public Command
 {
-    handle h;
+public:
+    using Completion = std::function<void(NodeHandle, Error)>;
+
+private:
+    NodeHandle h;
     string pa;
     bool syncop;
 
+    Completion completion;
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, int tag, const char*);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char*, Completion&& c);
 };
 
 class MEGA_API CommandSetShare : public Command

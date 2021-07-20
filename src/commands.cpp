@@ -86,7 +86,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                    client->setattr(n, attr_map('f', me64), 0, nullptr);
+                    client->setattr(n, attr_map('f', me64), 0, nullptr, nullptr);
                 }
             }
 
@@ -424,28 +424,39 @@ bool CommandPutFile::procresult(Result r)
     }
 }
 
-// request upload target URL for application to upload photo to using eg. iOS background upload feature
-CommandPutFileBackgroundURL::CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag)
+// request upload target URL
+CommandGetPutUrl::CommandGetPutUrl(m_off_t size, int putmbpscap, bool forceSSL, bool getIP, CommandGetPutUrl::Cb completion)
+    : mCompletion(completion)
 {
     cmd("u");
-    arg("ssl", 2);   // always SSL for background uploads
-    arg("v", 2);
+    if (forceSSL)
+    {
+        arg("ssl", 2);
+    }
+    if (getIP)
+    {
+        arg("v", 3);
+    }
+    else
+    {
+        arg("v", 2);
+    }
     arg("s", size);
     arg("ms", putmbpscap);
-
-    tag = ctag;
 }
 
+
 // set up file transfer with returned target URL
-bool CommandPutFileBackgroundURL::procresult(Result r)
+bool CommandGetPutUrl::procresult(Result r)
 {
     string url;
+    std::vector<string> ips;
 
     if (r.wasErrorOrOK())
     {
         if (!canceled)
         {
-            client->app->backgrounduploadurl_result(r.errorOrOK(), NULL);
+            mCompletion(r.errorOrOK(), url, ips);
         }
         return true;
     }
@@ -455,13 +466,26 @@ bool CommandPutFileBackgroundURL::procresult(Result r)
         switch (client->json.getnameid())
         {
             case 'p':
-                client->json.storeobject(canceled ? NULL : &url);
+                client->json.storeobject(canceled ? nullptr : &url);
                 break;
-
+            case MAKENAMEID2('i', 'p'):
+                if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+                {
+                    for (;;)
+                    {
+                        std::string ti;
+                        if (!client->json.storeobject(&ti))
+                        {
+                            break;
+                        }
+                        ips.push_back(ti);
+                    }
+                    client->json.leavearray();
+                }
+                break;
             case EOO:
                 if (canceled) return true;
-
-                client->app->backgrounduploadurl_result(API_OK, &url);
+                mCompletion(API_OK, url, ips);
                 return true;
 
             default:
@@ -469,7 +493,7 @@ bool CommandPutFileBackgroundURL::procresult(Result r)
                 {
                     if (!canceled)
                     {
-                        client->app->backgrounduploadurl_result(API_EINTERNAL, NULL);
+                        mCompletion(API_EINTERNAL, string(), {});
                     }
                     return false;
                 }
@@ -484,7 +508,7 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
 
     cmd("g");
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
-    arg("g", 1);
+    arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
     arg("v", 2);  // version 2: server can supply details for cloudraid files
 
     if (drn->privateauth.size())
@@ -621,12 +645,18 @@ bool CommandDirectRead::procresult(Result r)
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, const byte* key, handle h, bool p, const char *privateauth, const char *publicauth, const char *chatauth)
+CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySize,
+                               handle h, bool p, const char *privateauth,
+                               const char *publicauth, const char *chatauth,
+                               bool singleUrl, Cb &&completion)
 {
     cmd("g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
-    arg("g", 1);
-    arg("v", 2);  // version 2: server can supply details for cloudraid files
+    arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
+    if (!singleUrl)
+    {
+        arg("v", 2);  // version 2: server can supply details for cloudraid files
+    }
 
     if (client->usehttps)
     {
@@ -648,52 +678,54 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, const b
         arg("cauth", chatauth);
     }
 
-    tslot = ctslot;
-    priv = p;
-    ph = h;
-
-    if (!tslot)
+    assert(key && "no key provided!");
+    if (key && keySize != SymmCipher::KEYLENGTH)
     {
-        memcpy(filekey, key, FILENODEKEYLENGTH);
+        assert (keySize <= FILENODEKEYLENGTH);
+        memcpy(filekey, key, keySize);
+        mFileKeyType = FILENODE;
     }
+    else if (key && keySize == SymmCipher::KEYLENGTH)
+    {
+        memcpy(filekey, key, SymmCipher::KEYLENGTH);
+        mFileKeyType = 1;
+    }
+
+    mCompletion = std::move(completion);
 }
 
 void CommandGetFile::cancel()
 {
     Command::cancel();
-    tslot = NULL;
+}
+
+
+void CommandGetFile::callFailedCompletion(const Error &e)
+{
+    assert(mCompletion);
+    if (mCompletion)
+    {
+        mCompletion(e, -1, -1, -1, 0, nullptr, nullptr, nullptr, {}, {});
+    }
 }
 
 // process file credentials
 bool CommandGetFile::procresult(Result r)
 {
-    if (tslot)
-    {
-        tslot->pendingcmd = NULL;
-    }
-
     if (r.wasErrorOrOK())
     {
         if (!canceled)
         {
-            if (tslot)
-            {
-                tslot->transfer->failed(r.errorOrOK(), *client->mTctableRequestCommitter);
-            }
-            else
-            {
-                client->app->checkfile_result(ph, r.errorOrOK());
-            }
+            callFailedCompletion(r.errorOrOK());
         }
         return true;
     }
 
-    const char* at = NULL;
+    const char* at = nullptr;
     Error e(API_EINTERNAL);
     m_off_t s = -1;
     dstime tl = 0;
-    int d = 0;
-    byte* buf;
+    std::unique_ptr<byte[]> buf;
     m_time_t ts = 0, tm = 0;
 
     // credentials relevant to a non-TransferSlot scenario (node query)
@@ -752,10 +784,6 @@ bool CommandGetFile::procresult(Result r)
                 s = client->json.getint();
                 break;
 
-            case 'd':
-                d = 1;
-                break;
-
             case MAKENAMEID2('t', 's'):
                 ts = client->json.getint();
                 break;
@@ -769,21 +797,7 @@ bool CommandGetFile::procresult(Result r)
                 break;
 
             case MAKENAMEID2('f', 'a'):
-                if (tslot)
-                {
-                    client->json.storeobject(&tslot->fileattrstring);
-                }
-                else
-                {
-                    client->json.storeobject(&fileattrstring);
-                }
-                break;
-
-            case MAKENAMEID3('p', 'f', 'a'):
-                if (tslot)
-                {
-                    tslot->fileattrsmutable = (int)client->json.getint();
-                }
+                client->json.storeobject(&fileattrstring);
                 break;
 
             case 'e':
@@ -795,30 +809,15 @@ bool CommandGetFile::procresult(Result r)
                 break;
 
             case EOO:
-                if (d || !at)
-                {
-                    e = at ? API_EBLOCKED : API_EINTERNAL;
-
-                    if (!canceled)
-                    {
-                        if (tslot)
-                        {
-                            tslot->transfer->failed(e, *client->mTctableRequestCommitter);
-                        }
-                        else
-                        {
-                            client->app->checkfile_result(ph, e);
-                        }
-                    }
-                    return true;
-                }
-                else
+            {
+                // defer code that steals the ips <move(tempips)> and stores them in the cache
+                // thus we can use them before going out of scope
+                std::shared_ptr<void> deferThis(nullptr, [this, &tempurls, &tempips](...)
                 {
                     // cache resolved URLs if received
                     if (tempurls.size() * 2 == tempips.size())
                     {
                         client->httpio->cacheresolvedurls(tempurls, move(tempips));
-                        tempips.clear(); // should never be needed, but can't harm either
                     }
                     else
                     {
@@ -826,166 +825,83 @@ bool CommandGetFile::procresult(Result r)
                         client->sendevent(99556, "Unpaired IPs received for URLs in `g` command");
                         LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
                     }
+                });
 
-                    // decrypt at and set filename
-                    SymmCipher key;
-                    const char* eos = strchr(at, '"');
-
-                    key.setkey(filekey, FILENODE);
-
-                    if ((buf = Node::decryptattr(tslot ? tslot->transfer->transfercipher() : &key,
-                                                 at, eos ? eos - at : strlen(at))))
-                    {
-                        JSON json;
-
-                        json.begin((char*)buf + 5);
-
-                        for (;;)
-                        {
-                            switch (json.getnameid())
-                            {
-                                case 'c':
-                                    if (!json.storeobject(&filefingerprint))
-                                    {
-                                        delete[] buf;
-
-                                        if (tslot)
-                                        {
-                                            tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
-                                            return true;
-                                        }
-
-                                        client->app->checkfile_result(ph, API_EINTERNAL);
-                                        return true;
-                                    }
-                                    break;
-
-                                case 'n':
-                                    if (!json.storeobject(&filenamestring))
-                                    {
-                                        delete[] buf;
-
-                                        if (tslot)
-                                        {
-                                            tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
-                                            return true;
-                                        }
-
-                                        client->app->checkfile_result(ph, API_EINTERNAL);
-                                        return true;
-                                    }
-                                    break;
-
-                                case EOO:
-                                    delete[] buf;
-
-                                    if (tslot)
-                                    {
-                                        if (s >= 0 && s != tslot->transfer->size)
-                                        {
-                                            tslot->transfer->size = s;
-                                            for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
-                                            {
-                                                (*it)->size = s;
-                                            }
-
-                                            if (priv)
-                                            {
-                                                Node *n = client->nodebyhandle(ph);
-                                                if (n)
-                                                {
-                                                    n->size = s;
-                                                    client->notifynode(n);
-                                                }
-                                            }
-
-                                            client->sendevent(99411, "Node size mismatch", 0);
-                                        }
-
-                                        tslot->starttime = tslot->lastdata = client->waiter->ds;
-
-                                        if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
-                                        {
-                                            tslot->transfer->tempurls = tempurls;
-                                            tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
-                                            tslot->progress();
-                                            return true;
-                                        }
-
-                                        if (e == API_EOVERQUOTA && tl <= 0)
-                                        {
-                                            // default retry interval
-                                            tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
-                                        }
-
-                                        tslot->transfer->failed(e, *client->mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
-                                        return true;
-                                    }
-                                    else
-                                    {
-                                        client->app->checkfile_result(ph, e, filekey, s, ts, tm,
-                                                                             &filenamestring,
-                                                                             &filefingerprint,
-                                                                             &fileattrstring);
-                                        return true;
-                                    }
-
-                                default:
-                                    if (!json.storeobject())
-                                    {
-                                        delete[] buf;
-
-                                        if (tslot)
-                                        {
-                                            tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
-                                            return true;
-                                        }
-                                        else
-                                        {
-                                            client->app->checkfile_result(ph, API_EINTERNAL);
-                                            return true;
-                                        }
-                                    }
-                            }
-                        }
-                    }
-
-                    if (canceled)
-                    {
-                        return true;
-                    }
-
-                    if (tslot)
-                    {
-                        tslot->transfer->failed(API_EKEY, *client->mTctableRequestCommitter);
-                        return true;
-                    }
-                    else
-                    {
-                        client->app->checkfile_result(ph, API_EKEY);
-                        return true;
-                    }
+                if (canceled) //do not proceed: SymmCipher may no longer exist
+                {
+                    return true;
                 }
 
+                if (!at)
+                {
+                    callFailedCompletion(API_EINTERNAL);
+                    return true;
+                }
+
+                // decrypt at and set filename
+                SymmCipher * cipherer = client->getRecycledTemporaryTransferCipher(filekey, mFileKeyType);
+                const char* eos = strchr(at, '"');
+                buf.reset(Node::decryptattr(cipherer, at, eos ? eos - at : strlen(at)));
+                if (!buf)
+                {
+                    callFailedCompletion(API_EKEY);
+                    return true;
+                }
+
+                // all good, lets parse the attribute string
+                JSON json;
+                json.begin((char*)buf.get() + 5);
+
+                for (;;)
+                {
+                    switch (json.getnameid())
+                    {
+                        case 'c':
+                            if (!json.storeobject(&filefingerprint))
+                            {
+                                callFailedCompletion(API_EINTERNAL);
+                                return true;
+                            }
+                            break;
+
+                        case 'n':
+                            if (!json.storeobject(&filenamestring))
+                            {
+                                callFailedCompletion(API_EINTERNAL);
+                                return true;
+                            }
+                            break;
+
+                        case EOO:
+                            { //succeded, call completion function!
+                                return mCompletion ? mCompletion(e, s, ts, tm, tl,
+                                            &filenamestring, &filefingerprint, &fileattrstring,
+                                            tempurls, tempips) : false;
+                            }
+
+                        default:
+                            if (!json.storeobject())
+                            {
+                                callFailedCompletion(API_EINTERNAL);
+                                return false;
+                            }
+                    }
+                }
+            }
             default:
                 if (!client->json.storeobject())
                 {
-                    if (tslot)
+                    if (!canceled)
                     {
-                        tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
-                        return false;
+                        callFailedCompletion(API_EINTERNAL);
                     }
-                    else
-                    {
-                        client->app->checkfile_result(ph, API_EINTERNAL);
-                        return false;
-                    }
+                    return false;
                 }
         }
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, int reqtag, const char* prevattr)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr, Completion&& c)
 {
     cmd("a");
     notself(client);
@@ -998,14 +914,16 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
     arg("at", (byte*)at.c_str(), int(at.size()));
 
-    h = n->nodehandle;
-    tag = reqtag;
+    h = n->nodeHandle();
+    tag = 0;
     syncop = prevattr;
 
     if(prevattr)
     {
         pa = prevattr;
     }
+
+    completion = move(c);
 }
 
 bool CommandSetAttr::procresult(Result r)
@@ -1013,17 +931,15 @@ bool CommandSetAttr::procresult(Result r)
 #ifdef ENABLE_SYNC
     if(r.wasError(API_OK) && syncop)
     {
-        Node* node = client->nodebyhandle(h);
+        Node* node = client->nodeByHandle(h);
         if(node)
         {
             // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-            client->syncs.forEachRunningSyncContainingNode(node, [&](Sync* s) {
-                    client->app->syncupdate_remote_rename(s, node, pa.c_str());
-                });
+            LOG_debug << "Sync - remote rename from " << pa << " to " << node->displayname();
         }
     }
 #endif
-    client->app->setattr_result(h, r.errorOrOK());
+    if (completion) completion(h, r.errorOrOK());
     return r.wasErrorOrOK();
 }
 
@@ -1031,7 +947,8 @@ bool CommandSetAttr::procresult(Result r)
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                                  const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
-                                 std::function<void(const Error&, targettype_t , vector<NewNode>&)> completion)
+                                 Completion&& completion)
+  : mCompletion(completion)
 {
     byte key[FILENODEKEYLENGTH];
 
@@ -1227,7 +1144,9 @@ bool CommandPutNodes::procresult(Result r)
             }
 
             vector<NewNode> emptyVec;
-            client->app->putnodes_result(r.errorOrOK(), type, emptyVec);
+
+            if (mCompletion) mCompletion(r.errorOrOK(), type, emptyVec, false);
+            else client->app->putnodes_result(r.errorOrOK(), type, emptyVec);
 
             for (size_t i = 0; i < nn.size(); i++)
             {
@@ -1242,9 +1161,8 @@ bool CommandPutNodes::procresult(Result r)
 #endif
             if (source == PUTNODES_APP)
             {
-                (mCompletion)
-                    ? mCompletion(r.errorOrOK(), type, nn)
-                    : client->app->putnodes_result(r.errorOrOK(), type, nn);
+                if (mCompletion) mCompletion(r.errorOrOK(), type, nn, false);
+                else client->app->putnodes_result(r.errorOrOK(), type, nn);
 
                 return true;
             }
@@ -1314,7 +1232,9 @@ bool CommandPutNodes::procresult(Result r)
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        client->app->putnodes_result(e, type, nn, targetOverride);
+        if (mCompletion) mCompletion(e, type, nn, targetOverride);
+        else client->app->putnodes_result(e, type, nn, targetOverride);
+
         client->putnodes_sync_result(e, nn);
     }
     else
@@ -1334,9 +1254,10 @@ bool CommandPutNodes::procresult(Result r)
             }
         }
 #endif
-        (mCompletion)
-            ? mCompletion((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn)
-            : client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn, targetOverride);
+        auto ec = (!e && empty) ? API_ENOENT : static_cast<error>(e);
+
+        if (mCompletion) mCompletion(ec, type, nn, targetOverride);
+        else client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn, targetOverride);
     }
 #ifdef ENABLE_SYNC
     else
@@ -1347,13 +1268,13 @@ bool CommandPutNodes::procresult(Result r)
     return true;
 }
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent)
+CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c)
 {
-    h = n->nodehandle;
+    h = n->nodeHandle();
     syncdel = csyncdel;
-    np = t->nodehandle;
+    np = t->nodeHandle();
     pp = prevparent;
-    syncop = pp != UNDEF;
+    syncop = !pp.isUndef();
 
     cmd("m");
 
@@ -1370,6 +1291,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     tpsk.get(this);
 
     tag = client->reqtag;
+    completion = move(c);
 }
 
 bool CommandMoveNode::procresult(Result r)
@@ -1384,7 +1306,7 @@ bool CommandMoveNode::procresult(Result r)
 #ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
         {
-            Node* syncn = client->nodebyhandle(h);
+            Node* syncn = client->nodeByHandle(h);
 
             if (syncn)
             {
@@ -1406,11 +1328,11 @@ bool CommandMoveNode::procresult(Result r)
                                     client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
                                         if ((*it)->type == FOLDERNODE)
                                         {
-                                            s->client->app->syncupdate_remote_folder_deletion(s, n);
+                                            LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
                                         }
                                         else
                                         {
-                                            s->client->app->syncupdate_remote_file_deletion(s, n);
+                                            LOG_debug << "Sync - remote file deletion detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
                                         }
                                     });
                                 }
@@ -1437,7 +1359,7 @@ bool CommandMoveNode::procresult(Result r)
                         int creqtag = client->reqtag;
                         client->reqtag = syncn->tag;
                         LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
-                        client->rename(syncn, tn, SYNCDEL_FAILED, pp);
+                        client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, nullptr);
                         client->reqtag = creqtag;
                     }
                 }
@@ -1445,13 +1367,14 @@ bool CommandMoveNode::procresult(Result r)
         }
         else if(syncop)
         {
-            Node *n = client->nodebyhandle(h);
+            Node *n = client->nodeByHandle(h);
             if(n)
             {
                 // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-                client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
-                    client->app->syncupdate_remote_move(s, n, client->nodebyhandle(pp));
-                });
+                Node* prevparent = client->nodeByHandle(pp);
+                LOG_debug << "Sync - remote move detected: " << n->displayname() <<
+                    " from " << (prevparent ? prevparent->displayname() : "?") <<
+                    " to " << (n->parent ? n->parent->displayname() : "?");
             }
         }
 #endif
@@ -1461,7 +1384,7 @@ bool CommandMoveNode::procresult(Result r)
             client->sendevent(99439, "Unexpected move error", 0);
         }
     }
-    client->app->rename_result(h, r.errorOrOK());
+    if (completion) completion(h, r.errorOrOK());
     return r.wasErrorOrOK();
 }
 
@@ -2221,7 +2144,7 @@ bool CommandSetPendingContact::procresult(Result r)
             {
                 if (it->second->targetemail == temail)
                 {
-                    pcr = it->second;
+                    pcr = it->second.get();
                     pcrhandle = pcr->id;
                     break;
                 }
@@ -2303,7 +2226,7 @@ bool CommandSetPendingContact::procresult(Result r)
                 }
 
                 pcr = new PendingContactRequest(p, eValue, m, ts, uts, msg, true);
-                client->mappcr(p, pcr);
+                client->mappcr(p, unique_ptr<PendingContactRequest>(pcr));
 
                 client->notifypcr(pcr);
                 client->app->setpcr_result(p, API_OK, this->action);
@@ -2747,22 +2670,16 @@ bool CommandPutMultipleUAVer::procresult(Result r)
                 TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
                 if (tlvRecords)
                 {
-                    if (tlvRecords->find(EdDSA::TLV_KEY))
+                    string prEd255;
+                    if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                     {
-                        string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
-                        if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
-                        {
-                            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
-                        }
+                        client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
                     }
 
-                    if (tlvRecords->find(ECDH::TLV_KEY))
+                    string prCu255;
+                    if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                     {
-                        string prCu255 = tlvRecords->get(ECDH::TLV_KEY);
-                        if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
-                        {
-                            client->chatkey = new ECDH((unsigned char *) prCu255.data());
-                        }
+                        client->chatkey = new ECDH((unsigned char *) prCu255.data());
                     }
 
                     if (!client->chatkey || !client->chatkey->initializationOK ||
@@ -5071,7 +4988,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->parenthandle = UNDEF;
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
-                        client->putnodes(client->rootnodes[0], move(newnodes), 0, nullptr, nullptr);
+                        client->putnodes(client->rootnodes[0], move(newnodes), nullptr, 0, nullptr);
                     }
                     else if (havekey)
                     {

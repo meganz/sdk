@@ -57,34 +57,45 @@ struct TransferTracker : public ::mega::MegaTransferListener
     std::atomic<bool> finished = { false };
     std::atomic<int> result = { INT_MAX };
     std::promise<int> promiseResult;
+    std::future<int> futureResult;
     MegaApi *mApi;
     std::shared_ptr<TransferTracker> selfDeleteOnFinalCallback;
 
-    TransferTracker(MegaApi *api): mApi(api)
+    TransferTracker(MegaApi *api): mApi(api), futureResult(promiseResult.get_future())
     {
 
     }
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
     {
+        // called back on a different thread
         started = true;
     }
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
     {
+        // called back on a different thread
         result = error->getErrorCode();
         finished = true;
-        promiseResult.set_value(result);
+
+        // this local version still valid even after we self-delete
+        std::promise<int> local_promise = move(promiseResult);
+
         if (selfDeleteOnFinalCallback)
         {
-            // sometimes in tests we need to abandon the listener, because we need to time out (which a normal app would not do)
-            // another case is when we deliberately destroy MegaApi or other objects to exercise shutdown cases
-            // allowing the listener to destroy on final callback simplifies test object lifetime management
-            selfDeleteOnFinalCallback.reset();
+            // this class can be used as a local on the stack, or constructed on the heap.
+            // for the stack case, this object will be destroyed after the wait completes
+            // but for the heap case, that is usually chosen so that deletion can occur on completion
+            // or whenever the last needed reference is deleted.  So for that case,
+            // set the selfDeleteOnFinalCallback to be a shared_ptr to this object.
+            selfDeleteOnFinalCallback.reset();  // self-delete
         }
+
+        // let the test main thread know it can now continue
+        local_promise.set_value(result);
     }
     int waitForResult(int seconds = maxTimeout, bool unregisterListenerOnTimeout = true)
     {
-        auto f = promiseResult.get_future();
-        if (std::future_status::ready != f.wait_for(std::chrono::seconds(seconds)))
+        // running on test's main thread
+        if (std::future_status::ready != futureResult.wait_for(std::chrono::seconds(seconds)))
         {
             assert(mApi);
             if (unregisterListenerOnTimeout)
@@ -93,7 +104,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
             }
             return -999; // local timeout
         }
-        return f.get();
+        return futureResult.get();
     }
 };
 
@@ -258,7 +269,6 @@ protected:
     void onReloadNeeded(MegaApi *api) override {}
 #ifdef ENABLE_SYNC
     void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string* filePath, int newState) override {}
-    void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event) override {}
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override {}
     void onGlobalSyncStateChanged(MegaApi* api) override {}
 #endif
@@ -294,8 +304,6 @@ public:
     template<typename ... Args> int synchronousSendSignupLink(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SEND_SIGNUP_LINK, [this, apiIndex, args...]() { megaApi[apiIndex]->sendSignupLink(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousFastLogin(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_LOGIN, [this, apiIndex, args...]() { megaApi[apiIndex]->fastLogin(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousRemove(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_REMOVE, [this, apiIndex, args...]() { megaApi[apiIndex]->remove(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousInviteContact(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_INVITE_CONTACT, [this, apiIndex, args...]() { megaApi[apiIndex]->inviteContact(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousReplyContactRequest(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_REPLY_CONTACT_REQUEST, [this, apiIndex, args...]() { megaApi[apiIndex]->replyContactRequest(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousRemoveContact(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_REMOVE_CONTACT, [this, apiIndex, args...]() { megaApi[apiIndex]->removeContact(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousShare(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SHARE, [this, apiIndex, args...]() { megaApi[apiIndex]->share(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousExportNode(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_EXPORT, [this, apiIndex, args...]() { megaApi[apiIndex]->exportNode(args...); }); return mApi[apiIndex].lastError; }
@@ -307,6 +315,7 @@ public:
     template<typename ... Args> int synchronousSetNodeCoordinates(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_NODE, [this, apiIndex, args...]() { megaApi[apiIndex]->setNodeCoordinates(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetSpecificAccountDetails(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_ACCOUNT_DETAILS, [this, apiIndex, args...]() { megaApi[apiIndex]->getSpecificAccountDetails(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousMediaUploadRequestURL(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, [this, apiIndex, args...]() { megaApi[apiIndex]->backgroundMediaUploadRequestUploadURL(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousMediaUploadComplete(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD, [this, apiIndex, args...]() { megaApi[apiIndex]->backgroundMediaUploadComplete(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousFetchTimeZone(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FETCH_TIMEZONE, [this, apiIndex, args...]() { megaApi[apiIndex]->fetchTimeZone(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetMiscFlags(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_MISC_FLAGS, [this, apiIndex, args...]() { megaApi[apiIndex]->getMiscFlags(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetUserEmail(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_USER_EMAIL, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserEmail(args...); }); return mApi[apiIndex].lastError; }
@@ -357,6 +366,8 @@ public:
     template<typename ... requestArgs> int doDisableExport(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableExport(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetNodeFavourite(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->setNodeFavourite(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousGetFavourites(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->getFavourites(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousInviteContact(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->inviteContact(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousReplyContactRequest(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->replyContactRequest(args..., &rt); return rt.waitForResult(); }
 
     void createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);
@@ -380,7 +391,7 @@ public:
 
     void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
 
-    void createFolder(unsigned int apiIndex, const char * name, MegaNode *n, int timeout = maxTimeout);
+    MegaHandle createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int timeout = maxTimeout);
 
     void getRegisteredContacts(const std::map<std::string, std::string>& contacts);
 

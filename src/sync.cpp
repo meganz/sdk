@@ -610,6 +610,11 @@ bool SyncConfig::isExternal() const
     return !mExternalDrivePath.empty();
 }
 
+bool SyncConfig::isInternal() const
+{
+    return mExternalDrivePath.empty();
+}
+
 bool SyncConfig::errorOrEnabledChanged()
 {
     bool changed = mError != mKnownError ||
@@ -774,6 +779,11 @@ bool SyncConfig::synctypefromname(const string& name, Type& type)
     return false;
 }
 
+SyncError SyncConfig::knownError() const
+{
+    return mKnownError;
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const char* cdebris,
@@ -802,28 +812,44 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
 
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
+    // If we're a backup sync...
     if (mUnifiedSync.mConfig.isBackup())
     {
-        mUnifiedSync.mConfig.setBackupState(SYNC_BACKUP_MIRROR);
+        auto& config = mUnifiedSync.mConfig;
+
+        auto firstTime = config.mBackupState == SYNC_BACKUP_NONE;
+        auto isExternal = config.isExternal();
+        auto wasDisabled = config.knownError() == BACKUP_MODIFIED;
+
+        if (firstTime || isExternal || wasDisabled)
+        {
+            // Then we must come up in mirroring mode.
+            mUnifiedSync.mConfig.mBackupState = SYNC_BACKUP_MIRROR;
+        }
     }
 
     if (cdebris)
     {
         debris = cdebris;
         localdebris = LocalPath::fromPath(debris, *client->fsaccess);
-
-        dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris, client->waiter));
-
         localdebris.prependWithSeparator(mLocalPath);
     }
     else
     {
         localdebris = *clocaldebris;
-
-        // FIXME: pass last segment of localdebris
-        dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris, client->waiter));
     }
-    dirnotify->sync = this;
+
+    mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
+
+    localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
+    localroot->setnode(remotenode);
+
+    // notifications may be queueing from this moment
+    dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris.leafName(), client->waiter, localroot.get()));
+    assert(dirnotify->sync == this);
+
+    // order issue - localroot->init() couldn't do this until dirnotify is created but that needs
+    dirnotify->addnotify(localroot.get(), mLocalPath);
 
     // set specified fsfp or get from fs if none
     const auto cfsfp = mUnifiedSync.mConfig.getLocalFingerprint();
@@ -839,10 +865,6 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
-
-    localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
-    localroot->setnode(remotenode);
 
 #ifdef __APPLE__
     if (macOSmajorVersion() >= 19) //macOS catalina+
@@ -1165,8 +1187,12 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
 {
     auto& config = getConfig();
 
-    // See explanation in disableSelectedSyncs(...).
-    newEnableFlag &= !(config.isBackup() && newstate < SYNC_INITIALSCAN);
+    // Transitioning to a 'stopped' state...
+    if (newstate < SYNC_INITIALSCAN)
+    {
+        // Should "user-disable" external backups...
+        newEnableFlag &= config.isInternal();
+    }
 
     config.setError(newSyncError);
     config.setEnabled(newEnableFlag);
@@ -1221,6 +1247,12 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         l = localroot.get();
     }
 
+    if (localpath.empty())
+    {
+        if (outpath) outpath->clear();
+        if (parent) *parent = l->parent;
+        return l;
+    }
 
     LocalPath component;
 
@@ -1339,13 +1371,14 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
 // path references a new FOLDERNODE: returns created node
 // path references a existing FILENODE: returns node
 // otherwise, returns NULL
+// empty input_localpath means to process l rather than a named subitem of l (for scan propagation purposes with folderNeedsRescan flag)
 LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* const localname, dstime *backoffds, bool wejustcreatedthisfolder, DirAccess* iteratingDir)
 {
     LocalNode* ll = l;
     bool newnode = false, changed = false;
     bool isroot;
 
-    LocalNode* parent;
+    LocalNode* parent = nullptr;
     string path;           // UTF-8 representation of tmppath
     LocalPath tmppath;     // full path represented by l + localpath
 
@@ -1392,13 +1425,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
         if (newname.findNextSeparator(index))
         {
-            LOG_warn << "Parent not detected yet. Unknown remainder: " << newname.toPath(*client->fsaccess);
-            if (parent)
-            {
-                // Passing immediate == false, so that if we are being called from DIREVENTS,
-                // we will break the loop rather than always being called back for the item we just pushed
-                dirnotify->notify(DirNotify::DIREVENTS, parent, LocalPath(newname), false);
-            }
+            LOG_warn << "Parent not detected yet. Remainder: " << newname.toPath(*client->fsaccess);
+            // when (if) the parent is created, we'll rescan the folder
             return NULL;
         }
 
@@ -1472,6 +1500,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     {
                         localbytes += l->size;
                     }
+
+                    l->needsRescan = false;
 
                     return l;
                 }
@@ -1555,24 +1585,34 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                     {
                                         LOG_debug << "File move/overwrite detected";
 
-                                        // delete existing LocalNode...
-                                        delete l;
+                                        if (parent && !parent->node)
+                                        {
+                                            // we can't handle such a move yet, the target cloud node doesn't exist.
+                                            // when it does, we'll rescan that node's local node (ie, this folder)
+                                            LOG_debug << "File move/overwrite detected BUT can't be processed yet - waiting on parent's cloud node creation:" << parent->getLocalPath().toPath();
+                                            return NULL;
+                                        }
+                                        else
+                                        {
+                                            // delete existing LocalNode...
+                                            delete l;
 
-                                        // ...move remote node out of the way...
-                                        client->execsyncdeletions();
+                                            // ...move remote node out of the way...
+                                            client->execsyncdeletions();
 
-                                        // ...and atomically replace with moved one
-                                        client->app->syncupdate_local_move(this, it->second->getLocalPath(), LocalPath::fromPath(path, *client->fsaccess));
+                                            // ...and atomically replace with moved one
+                                            LOG_debug << "Sync - local rename/move " << it->second->getLocalPath().toPath(*client->fsaccess) << " -> " << path;
 
-                                        // (in case of a move, this synchronously updates l->parent and l->node->parent)
-                                        it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                                            // (in case of a move, this synchronously updates l->parent and l->node->parent)
+                                            it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
 
-                                        // mark as seen / undo possible deletion
-                                        it->second->setnotseen(0);
+                                            // mark as seen / undo possible deletion
+                                            it->second->setnotseen(0);
 
-                                        statecacheadd(it->second);
+                                            statecacheadd(it->second);
 
-                                        return it->second;
+                                            return it->second;
+                                        }
                                     }
                                 }
                                 else
@@ -1597,7 +1637,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                 localbytes -= dsize - l->size;
                             }
 
-                            client->app->syncupdate_local_file_change(this, LocalPath::fromPath(path, *client->fsaccess));
+                            LOG_debug << "Sync - local file change detected: " << path;
 
                             DBTableTransactionCommitter committer(client->tctable);
                             client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
@@ -1776,11 +1816,21 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         }
                     }
 
-                    client->app->syncupdate_local_move(this, it->second->getLocalPath(), LocalPath::fromPath(path, *client->fsaccess));
+                    LOG_debug << "Sync - local rename/move " << it->second->getLocalPath().toPath(*client->fsaccess) << " -> " << path.c_str();
 
-                    // (in case of a move, this synchronously updates l->parent
-                    // and l->node->parent)
-                    it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                    if (parent && !parent->node)
+                    {
+                        // we can't handle such a move yet, the target cloud node doesn't exist.
+                        // when it does, we'll rescan that node's local node (ie, this folder)
+                        LOG_debug << "Move or rename of existing node detected BUT can't be processed yet - waiting on parent's cloud node creation: " << parent->getLocalPath().toPath();
+                        return NULL;
+                    }
+                    else
+                    {
+                        // (in case of a move, this synchronously updates l->parent
+                        // and l->node->parent)
+                        it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                    }
 
                     // Has the move (rename) resulted in a filename anomaly?
                     if (Node* node = it->second->node)
@@ -1804,10 +1854,24 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     // unmark possible deletion
                     it->second->setnotseen(0);
 
-                    // immediately scan folder to detect deviations from cached state
-                    if (fullscan && fa->type == FOLDERNODE)
+                    if (fa->type == FOLDERNODE)
                     {
-                        scan(localpathNew, fa.get());
+                        // mark this and folders below to be rescanned
+                        it->second->setSubtreeNeedsRescan(fullscan);
+
+                        if (fullscan)
+                        {
+                            // immediately scan folder to detect deviations from cached state
+                            scan(localpathNew, fa.get());
+
+                            // consider this folder scanned.
+                            it->second->needsRescan = false;
+                        }
+                        else
+                        {
+                            // queue this one to be scanned, recursion is by notify of subdirs
+                            dirnotify->notify(DirNotify::DIREVENTS, it->second, LocalPath(), true);
+                        }
                     }
                 }
                 else if (fa->mIsSymLink)
@@ -1837,14 +1901,19 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // detect file changes or recurse into new subfolders
             if (l->type == FOLDERNODE)
             {
-                if (newnode)
+                if (newnode || l->needsRescan)
                 {
                     scan(localpathNew, fa.get());
-                    client->app->syncupdate_local_folder_addition(this, LocalPath::fromPath(path, *client->fsaccess));
+                    l->needsRescan = false;
 
-                    if (!isroot)
+                    if (newnode)
                     {
-                        statecacheadd(l);
+                        LOG_debug << "Sync - local folder addition detected: " << path;
+
+                        if (!isroot)
+                        {
+                            statecacheadd(l);
+                        }
                     }
                 }
                 else
@@ -1886,14 +1955,16 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                     if (newnode)
                     {
-                        client->app->syncupdate_local_file_addition(this, LocalPath::fromPath(path, *client->fsaccess));
+                        LOG_debug << "Sync - local file addition detected: " << path;
                     }
                     else if (changed)
                     {
-                        client->app->syncupdate_local_file_change(this, LocalPath::fromPath(path, *client->fsaccess));
+                        LOG_debug << "Sync - local file change detected: " << path;
                         DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                         client->stopxfer(l, &committer);
                     }
+
+                    l->needsRescan = false;
 
                     if (newnode || changed)
                     {
@@ -1995,8 +2066,11 @@ bool Sync::checkValidNotification(int q, Notification& notification)
         auto fa = client->fsaccess->newfileaccess(false);
         bool success = fa->fopen(tmppath, false, false);
         LocalNode *ll = localnodebypath(notification.localnode, notification.path);
-        if ((!ll && !success && !fa->retry) // deleted file
+        auto deleted = !ll && !success && !fa->retry;
+
+        if (deleted
             || (ll && success && ll->node && ll->node->localnode == ll
+                && !ll->needsRescan
                 && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
                 && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
                 && ait->second == ll->name
@@ -2509,7 +2583,7 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
         size_t numRestored = 0;
 
         // Create a unified sync for each backup config.
-        for (const auto& config : configs)
+        for (auto& config : configs)
         {
             // Make sure there aren't any syncs with this backup id.
             if (syncConfigByBackupId(config.mBackupId))
@@ -2841,7 +2915,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                 {
                     syncs.appendNewSync(config, client);
                 }
-                
+
                 LOG_debug << context->mConfigs.size()
                           << " sync(s) imported successfully.";
 
@@ -3237,13 +3311,13 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
     constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
 
     // Verify payload contents.
-    auto authKey = store->get("ak");
-    auto cipherKey = store->get("ck");
-    auto name = store->get("fn");
+    string authKey;
+    string cipherKey;
+    string name;
 
-    if (authKey.size() != KEYLENGTH
-        || cipherKey.size() != KEYLENGTH
-        || name.size() != KEYLENGTH)
+    if (!store->get("ak", authKey) || authKey.size() != KEYLENGTH ||
+        !store->get("ck", cipherKey) || cipherKey.size() != KEYLENGTH ||
+        !store->get("fn", name) || name.size() != KEYLENGTH)
     {
         // Payload is malformed.
         LOG_err << "syncConfigIOContext: JSON config data is incomplete";
@@ -3458,36 +3532,22 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
 {
     for (auto i = mSyncVec.size(); i--; )
     {
-        if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
+        auto& us = *mSyncVec[i];
+        auto& config = us.mConfig;
+        auto* sync = us.mSync.get();
+
+        if (selector(config, sync))
         {
-            if (auto sync = mSyncVec[i]->mSync.get())
+            if (sync)
             {
                 sync->changestate(SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
                 mClient.syncactivity = true;
             }
             else
             {
-                // Backups should not be automatically resumed unless we can be sure
-                // that mirror phase completed, and no cloud changes occurred since.
-                //
-                // If the backup was mirroring, the mirror may be incomplete. In that
-                // case, the cloud may still contain files/folders that should not be
-                // in the backup, and so we would need to restore in mirror phase, but
-                // we must have the user's permission and instruction to do that.
-                //
-                // If the backup was monitoring when it was disabled, it's possible that
-                // the cloud has changed in the meantime. If it was resumed, there may
-                // be cloud changes that cause it to immediately fail.  Again we should
-                // have the user's instruction to start again with mirroring phase.
-                //
-                // For initial implementation we are keeping things simple and reliable,
-                // the user must resume the sync manually, and confirm that starting
-                // with mirroring phase is appropriate.
-                auto enabled = newEnabledFlag & !mSyncVec[i]->mConfig.isBackup();
-
-                mSyncVec[i]->mConfig.setError(syncError);
-                mSyncVec[i]->mConfig.setEnabled(enabled);
-                mSyncVec[i]->changedConfigState(true);
+                config.setError(syncError);
+                config.setEnabled(config.isInternal() && newEnabledFlag);
+                us.changedConfigState(true);
             }
 
             mHeartBeatMonitor->updateOrRegisterSync(*mSyncVec[i]);
@@ -3641,9 +3701,6 @@ void Syncs::enableResumeableSyncs()
                 SyncError syncError = unifiedSync->mConfig.getError();
                 LOG_debug << "Restoring sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
 
-                // We should never try to resume a backup sync.
-                assert(!unifiedSync->mConfig.isBackup());
-
                 anySyncRestored |= unifiedSync->enableSync(false, true) == API_OK;
             }
             else
@@ -3692,19 +3749,6 @@ void Syncs::resumeResumableSyncsOnStartup()
                 {
                     auto newpath = node->displaypath();
                     unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = newpath;//update loaded config
-                }
-            }
-
-            if (unifiedSync->mConfig.getBackupState() == SYNC_BACKUP_MIRROR)
-            {
-                // Should only be possible for a backup sync.
-                assert(unifiedSync->mConfig.isBackup());
-
-                // Disable only if necessary.
-                if (unifiedSync->mConfig.getEnabled())
-                {
-                    unifiedSync->mConfig.setEnabled(false);
-                    saveSyncConfig(unifiedSync->mConfig);
                 }
             }
 

@@ -411,7 +411,7 @@ public:
     error folderaccess(const char*folderlink, const char* authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
-    void openfilelink(handle ph, const byte *key, int op);
+    void openfilelink(handle ph, const byte *key);
 
     // decrypt password-protected public link
     // the caller takes the ownership of the returned value in decryptedLink parameter
@@ -467,7 +467,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c);
 
     // prefix and encrypt attribute json
     static void makeattr(SymmCipher*, string*, const char*, int = -1);
@@ -488,7 +488,7 @@ public:
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
+    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(Node* n, int tag);
@@ -539,12 +539,20 @@ public:
     // generate & return next upload handle
     handle uploadhandle(int);
 
+    // helpfer function for preparing a putnodes call for new node
+    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const std::string &binaryUploadToken,
+                                  byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                  std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
+                                  std::function<error(std::string *)> addFileAttrsFunc = nullptr);
+
     // helper function for preparing a putnodes call for new folders
-    static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher tmpnodecipher, std::function<void (AttrMap&)> addAttrs = nullptr);
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
+    // static version to be used from worker threads, which cannot rely on the MegaClient::tmpnodecipher as SymCipher (not thread-safe))
+    static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher tmpnodecipher, std::function<void(AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, int tag, const char * = NULL, std::function<void(const Error &, targettype_t, vector<NewNode> &)> f = nullptr);
+    void putnodes(handle, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& resultFunction = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag);
@@ -1748,7 +1756,7 @@ public:
     void mapuser(handle, const char*);
     void discarduser(handle, bool = true);
     void discarduser(const char*);
-    void mappcr(handle, PendingContactRequest*);
+    void mappcr(handle, unique_ptr<PendingContactRequest>&&);
     bool discardnotifieduser(User *);
 
     PendingContactRequest* findpcr(handle);
@@ -1793,9 +1801,14 @@ public:
     // hash password
     error pw_key(const char*, byte*) const;
 
-    // Since it's quite expensive to create a SymmCipher, these are provided to use for quick operations - just set the key and use.
-    SymmCipher tmpnodecipher;
-    SymmCipher tmptransfercipher;
+    // returns a pointer to tmptransfercipher setting its key to the one provided
+    // tmptransfercipher key will change: to be used right away: this is not a dedicated SymmCipher for the transfer!
+    SymmCipher *getRecycledTemporaryTransferCipher(const byte *key, int type = 1);
+
+    // returns a pointer to tmpnodecipher setting its key to the one provided
+    // tmpnodecipher key will change: to be used right away: this is not a dedicated SymmCipher for the node!
+    SymmCipher *getRecycledTemporaryNodeCipher(const string *key);
+    SymmCipher *getRecycledTemporaryNodeCipher(const byte *key);
 
     // request a link to recover account
     void getrecoverylink(const char *email, bool hasMasterkey);
@@ -1933,6 +1946,13 @@ public:
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
     unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
+
+private:
+    // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
+    SymmCipher tmpnodecipher;
+
+    // Since it's quite expensive to create a SymmCipher, this is provided to use for quick operation - just set the key and use.
+    SymmCipher tmptransfercipher;
 };
 } // namespace
 

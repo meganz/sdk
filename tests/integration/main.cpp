@@ -107,12 +107,9 @@ public:
             else
             {
 #ifdef _WIN32
-                if (IsDebuggerPresent())
-                {
-                    OutputDebugStringA(os.str().c_str());
-                }
-                else
+                if (!IsDebuggerPresent())
 #endif // _WIN32
+
                 {
                     std::cout << os.str() << std::flush;
                 }
@@ -125,6 +122,12 @@ public:
                     }
                 }
             }
+
+#ifdef _WIN32
+            // Always show the logging in the output window in VS, very useful to see what's going on as the tests run
+            // (with the high level --CI output visible in the app's own console window)
+            OutputDebugStringA(os.str().c_str());
+#endif // _WIN32
         }
     }
 
@@ -228,7 +231,12 @@ int main (int argc, char *argv[])
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
             std::lock_guard<std::mutex> g(g_APIURL_default_mutex);
-            g_APIURL_default = std::string(*it).substr(9);
+            string s = std::string(*it).substr(9);
+            if (!s.empty())
+            {
+                if (s.back() != '/') s += "/";
+                g_APIURL_default = s;
+            }
             argc -= 1;
         }
         else if (std::string(*it) == "--RESUMESESSIONS")
