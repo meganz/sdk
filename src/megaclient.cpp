@@ -7826,7 +7826,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, addAttrs);
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher tmpnodecipher, std::function<void(AttrMap&)> addAttrs)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
