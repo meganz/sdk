@@ -3823,11 +3823,6 @@ void MegaApi::queryDNS(const char *hostname, MegaRequestListener *listener)
     pImpl->queryDNS(hostname, listener);
 }
 
-void MegaApi::queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener)
-{
-    pImpl->queryGeLB(service, timeoutds, maxretries, listener);
-}
-
 void MegaApi::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
 {
     pImpl->downloadFile(url, dstpath, listener);

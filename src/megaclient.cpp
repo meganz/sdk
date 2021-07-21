@@ -46,10 +46,6 @@ bool g_disablepkp_default = false;
 std::mutex g_APIURL_default_mutex;
 string g_APIURL_default = "https://g.api.mega.co.nz/";
 
-// root URL for GeLB requests
-// MegaClient statics must be const or we get threading problems
-const string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
-
 // root URL for chat stats
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
@@ -4483,23 +4479,6 @@ void MegaClient::dnsrequest(const char *hostname)
     pendinghttp[reqtag] = req;
     req->posturl = (usehttps ? string("https://") : string("http://")) + hostname;
     req->dns(this);
-}
-
-void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
-{
-    GenericHttpReq *req = new GenericHttpReq(rng);
-    req->tag = reqtag;
-    req->maxretries = retries;
-    if (timeoutds > 0)
-    {
-        req->maxbt.backoff(timeoutds);
-    }
-    pendinghttp[reqtag] = req;
-    req->posturl = GELBURL;
-    req->posturl.append("?service=");
-    req->posturl.append(service);
-    req->protect = true;
-    req->get(this);
 }
 
 void MegaClient::sendchatstats(const char *json, int port)

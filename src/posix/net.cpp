@@ -1549,9 +1549,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                     : (!memcmp(req->posturl.data(), MegaClient::SFUSTATSURL.data(), MegaClient::SFUSTATSURL.size()))
                            ? "sha256//2ZAltznnzY3Iee3NIZPOgqIQVNXVjvDEjWTmAreYVFU=;"  // STATSSFU  1
                              "sha256//7jLrvaEtfqTCHew0iibvEm2k61iatru+rwhFD7g3nxA="   // STATSSFU  2
-                           : (!memcmp(req->posturl.data(), MegaClient::GELBURL.data(), MegaClient::GELBURL.size()))
-                                                     ? "sha256//a1vEOQRTsb7jMsyAhr4X/6YSF774gWlht8JQZ58DHlQ="  //CHAT
-                                                     : nullptr) ==  CURLE_OK)
+                                 : nullptr) ==  CURLE_OK)
             {
                 curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
                 if (httpio->pkpErrors)
@@ -2869,12 +2867,12 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         {
             BN_bn2bin(RSA_get0_n(EVP_PKEY_get0_RSA(evp)), buf);
 
+            // check the public key matches for the URL of the connection (API or SFU-stats)
             if ((!memcmp(request->posturl.data(), httpio->APIURL.data(), httpio->APIURL.size())
                     && (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
                 ||(!memcmp(request->posturl.data(), MegaClient::SFUSTATSURL.data(), MegaClient::SFUSTATSURL.size())
-                                        && (!memcmp(buf, SFUSTATSSSLMODULUS, sizeof SFUSTATSSSLMODULUS - 1) || !memcmp(buf, SFUSTATSSSLMODULUS2, sizeof SFUSTATSSSLMODULUS2 - 1)))
-                || ((!memcmp(request->posturl.data(), MegaClient::GELBURL.data(), MegaClient::GELBURL.size()))
-                    && !memcmp(buf, CHATSSLMODULUS, sizeof CHATSSLMODULUS - 1)))
+                    && (!memcmp(buf, SFUSTATSSSLMODULUS, sizeof SFUSTATSSSLMODULUS - 1) || !memcmp(buf, SFUSTATSSSLMODULUS2, sizeof SFUSTATSSSLMODULUS2 - 1)))
+                )
             {
                 BN_bn2bin(RSA_get0_e(EVP_PKEY_get0_RSA(evp)), buf);
 
