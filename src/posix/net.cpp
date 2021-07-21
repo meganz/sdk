@@ -1546,10 +1546,12 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                   !memcmp(req->posturl.data(), httpio->APIURL.data(), httpio->APIURL.size())
                     ? "sha256//0W38e765pAfPqS3DqSVOrPsC4MEOvRBaXQ7nY1AJ47E=;" //API 1
                       "sha256//gSRHRu1asldal0HP95oXM/5RzBfP1OIrPjYsta8og80="  //API 2
-                    : (!memcmp(req->posturl.data(), MegaClient::CHATSTATSURL.data(), MegaClient::CHATSTATSURL.size())
-                       || !memcmp(req->posturl.data(), MegaClient::GELBURL.data(), MegaClient::GELBURL.size()))
-                                 ? "sha256//a1vEOQRTsb7jMsyAhr4X/6YSF774gWlht8JQZ58DHlQ="  //CHAT
-                                 : nullptr) ==  CURLE_OK)
+                    : (!memcmp(req->posturl.data(), MegaClient::CHATSTATSURL.data(), MegaClient::CHATSTATSURL.size()))
+                           ? "sha256//2ZAltznnzY3Iee3NIZPOgqIQVNXVjvDEjWTmAreYVFU="  // STATSSFU  1
+                             "sha256//7jLrvaEtfqTCHew0iibvEm2k61iatru+rwhFD7g3nxA="  // STATSSFU  2
+                           : (!memcmp(req->posturl.data(), MegaClient::GELBURL.data(), MegaClient::GELBURL.size()))
+                                                     ? "sha256//a1vEOQRTsb7jMsyAhr4X/6YSF774gWlht8JQZ58DHlQ="  //CHAT
+                                                     : nullptr) ==  CURLE_OK)
             {
                 curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
                 if (httpio->pkpErrors)
