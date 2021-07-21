@@ -46,13 +46,9 @@ bool g_disablepkp_default = false;
 std::mutex g_APIURL_default_mutex;
 string g_APIURL_default = "https://g.api.mega.co.nz/";
 
-// root URL for GeLB requests
-// MegaClient statics must be const or we get threading problems
-const string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
-
 // root URL for chat stats
 // MegaClient statics must be const or we get threading problems
-const string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
+const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
 
 // root URL for Website
 // MegaClient statics must be const or we get threading problems
@@ -4484,30 +4480,13 @@ void MegaClient::dnsrequest(const char *hostname)
     req->dns(this);
 }
 
-void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
-{
-    GenericHttpReq *req = new GenericHttpReq(rng);
-    req->tag = reqtag;
-    req->maxretries = retries;
-    if (timeoutds > 0)
-    {
-        req->maxbt.backoff(timeoutds);
-    }
-    pendinghttp[reqtag] = req;
-    req->posturl = GELBURL;
-    req->posturl.append("?service=");
-    req->posturl.append(service);
-    req->protect = true;
-    req->get(this);
-}
-
 void MegaClient::sendchatstats(const char *json, int port)
 {
     GenericHttpReq *req = new GenericHttpReq(rng);
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = CHATSTATSURL;
+    req->posturl = SFUSTATSURL;
     if (port > 0)
     {
         req->posturl.append(":");
@@ -4527,7 +4506,7 @@ void MegaClient::sendchatlogs(const char *json, const char *aid, int port)
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = CHATSTATSURL;
+    req->posturl = SFUSTATSURL;
     if (port > 0)
     {
         req->posturl.append(":");
@@ -6720,6 +6699,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     m_time_t ts = -1;
     bool publicchat = false;
     string unifiedkey;
+    bool meeting = false;
 
     bool done = false;
     while (!done)
@@ -6768,6 +6748,11 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 jsonsc.storeobject(&unifiedkey);
                 break;
 
+            case MAKENAMEID2('m', 'r'):
+                assert(readingPublicChat);
+                meeting = jsonsc.getbool();
+                break;
+
             case EOO:
                 done = true;
 
@@ -6809,6 +6794,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                     {
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
                     }
+                    chat->meeting = meeting;
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -10918,6 +10904,7 @@ void MegaClient::procmcf(JSON *j)
                         string unifiedKey;
                         m_time_t ts = -1;
                         bool publicchat = false;
+                        bool meeting = false;
 
                         bool readingChat = true;
                         while(readingChat) // read the chat information
@@ -10962,6 +10949,11 @@ void MegaClient::procmcf(JSON *j)
                                 publicchat = j->getint();
                                 break;
 
+                           case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
+                               assert(readingPublicChats);
+                               meeting = j->getbool();
+                               break;
+
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
@@ -10977,6 +10969,7 @@ void MegaClient::procmcf(JSON *j)
                                     chat->group = group;
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
+                                    chat->meeting = meeting;
 
                                     if (readingPublicChats)
                                     {
@@ -16428,9 +16421,9 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title)
+void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title, bool meetingRoom)
 {
-    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title));
+    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)
