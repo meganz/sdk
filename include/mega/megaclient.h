@@ -964,9 +964,6 @@ public:
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
 
-    // root URL for GeLB requests
-    static const string GELBURL;
-
     // root URL for chat stats
     static const string SFUSTATSURL;
 

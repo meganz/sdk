@@ -3134,7 +3134,7 @@ class MegaRequest
             TYPE_GET_LOCAL_SSL_CERT                                         = 82,
             TYPE_SEND_SIGNUP_LINK                                           = 83,
             TYPE_QUERY_DNS                                                  = 84,
-            TYPE_QUERY_GELB                                                 = 85,
+            TYPE_QUERY_GELB                                                 = 85,   // (obsolete)
             TYPE_CHAT_STATS                                                 = 86,
             TYPE_DOWNLOAD_FILE                                              = 87,
             TYPE_QUERY_TRANSFER_QUOTA                                       = 88,
@@ -16459,25 +16459,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief queryGeLB Query the GeLB server for a given service
-         *
-         * The associated request type with this request is MegaRequest::TYPE_QUERY_GELB
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Return the HTTP status code from the GeLB server
-         * - MegaRequest::getText - Returns the JSON response from the GeLB server
-         * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
-         *
-         * @param service Service to check
-         * @param timeoutds Timeout for the request, including all possible retries (in deciseconds)
-         * A value <= 0 means no (or infinite) timeout.
-         * @param maxretries Maximum number of retries for the request
-         * @param listener MegaRequestListener to track this request
-         */
-        void queryGeLB(const char *service, int timeoutds = 40, int maxretries = 4, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Download a file using a HTTP GET request

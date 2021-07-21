@@ -4012,7 +4012,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_LOCAL_SSL_CERT: return "GET_LOCAL_SSL_CERT";
         case TYPE_SEND_SIGNUP_LINK: return "SEND_SIGNUP_LINK";
         case TYPE_QUERY_DNS: return "QUERY_DNS";
-        case TYPE_QUERY_GELB: return "QUERY_GELB";
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
@@ -11504,16 +11503,6 @@ void MegaApiImpl::queryDNS(const char *hostname, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GELB, listener);
-    request->setName(service);
-    request->setNumber(timeoutds);
-    request->setNumRetry(maxretries);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DOWNLOAD_FILE, listener);
@@ -14373,7 +14362,6 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
 
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_QUERY_DNS
-                    && request->getType() != MegaRequest::TYPE_QUERY_GELB
                     && request->getType() != MegaRequest::TYPE_CHAT_STATS
                     && request->getType() != MegaRequest::TYPE_DOWNLOAD_FILE))
     {
@@ -14382,8 +14370,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
 
     request->setNumber(httpCode);
     request->setTotalBytes(size);
-    if (request->getType() == MegaRequest::TYPE_QUERY_GELB
-            || request->getType() == MegaRequest::TYPE_CHAT_STATS
+    if (request->getType() == MegaRequest::TYPE_CHAT_STATS
             || request->getType() == MegaRequest::TYPE_QUERY_DNS)
     {
         string result;
@@ -22111,20 +22098,6 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->dnsrequest(hostname);
-            break;
-        }
-        case MegaRequest::TYPE_QUERY_GELB:
-        {
-            const char *service = request->getName();
-            int timeoutds = int(request->getNumber());
-            int maxretries = request->getNumRetry();
-            if (!service)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            client->gelbrequest(service, timeoutds, maxretries);
             break;
         }
         case MegaRequest::TYPE_DOWNLOAD_FILE:
