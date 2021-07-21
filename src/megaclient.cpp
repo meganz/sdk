@@ -52,7 +52,7 @@ const string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 
 // root URL for chat stats
 // MegaClient statics must be const or we get threading problems
-const string MegaClient::CHATSTATSURL = "https://stats.sfu.mega.co.nz";
+const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
 
 // root URL for Website
 // MegaClient statics must be const or we get threading problems
@@ -4508,7 +4508,7 @@ void MegaClient::sendchatstats(const char *json, int port)
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = CHATSTATSURL;
+    req->posturl = SFUSTATSURL;
     if (port > 0)
     {
         req->posturl.append(":");
@@ -4528,7 +4528,7 @@ void MegaClient::sendchatlogs(const char *json, const char *aid, int port)
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = CHATSTATSURL;
+    req->posturl = SFUSTATSURL;
     if (port > 0)
     {
         req->posturl.append(":");

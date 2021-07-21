@@ -968,7 +968,7 @@ public:
     static const string GELBURL;
 
     // root URL for chat stats
-    static const string CHATSTATSURL;
+    static const string SFUSTATSURL;
 
     // root URL for Website
     static const string MEGAURL;
