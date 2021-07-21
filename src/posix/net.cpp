@@ -2860,12 +2860,6 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         LOG_warn << "Public key pinning disabled.";
         return 1;
     }
-    // Ensure that all modulus have the same length and all exponents are the same
-    // Todo re-write this method in order to improve readability
-    std::vector<size_t> vmod {sizeof(APISSLMODULUS1), sizeof(APISSLMODULUS2), sizeof(CHATSSLMODULUS2), sizeof(SFUSSLMODULUS), sizeof(SFUSSLMODULUS2),sizeof(SFUSTATSSSLMODULUS), sizeof(SFUSTATSSSLMODULUS2)};
-    std::vector<string> vexp {APISSLEXPONENT, CHATSSLEXPONENT,SFUSSLEXPONENT, SFUSTATSSSLEXPONENT};
-    assert(std::adjacent_find(vmod.begin(), vmod.end(), std::not_equal_to<>()) == vmod.end()
-           && std::adjacent_find(vexp.begin(), vexp.end(), std::not_equal_to<>()) == vexp.end());
 
     if (EVP_PKEY_id(evp) == EVP_PKEY_RSA
             && (evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(X509_STORE_CTX_get0_cert(ctx)))))
