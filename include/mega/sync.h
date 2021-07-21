@@ -231,7 +231,7 @@ struct syncRow
     // An example would be when we download a directory from the cloud.
     // Here, we create directory locally and push an FSNode representing it
     // to this list so that we recurse into it immediately.
-    list<FSNode> fsPendingSiblings;
+    list<FSNode> fsAddedSiblings;
 
     void inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren);
 
@@ -681,7 +681,6 @@ struct Syncs
 {
     UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
 
-    bool hasRunningSyncs();
     size_t numRunningSyncs();
     unsigned numSyncs();    // includes non-running syncs, but configured
     Sync* firstRunningSync();
@@ -697,11 +696,11 @@ struct Syncs
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     //void enableResumeableSyncs();
-    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&);
+    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&, const string& logname);
 
 
     // Try to create and start the Sync (called on client thread)
-    void enableSync(UnifiedSync& us, bool resetFingerprint, bool notifyApp, std::function<void(error)> completion);
+    void enableSync(UnifiedSync& us, bool resetFingerprint, bool notifyApp, std::function<void(error)> completion, const string& logname);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
@@ -937,7 +936,7 @@ private:
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
         Node* remotenode, bool inshare, bool isNetwork, const LocalPath& rootpath,
-        std::function<void(error)> completion);
+        std::function<void(error)> completion, const string& logname);
     void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
     void purgeSyncs_inThread();
     bool isAnySyncScanning_inThread(bool includePausedSyncs);
@@ -946,7 +945,7 @@ private:
     void syncLoop();
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThread.get_id(); }
-    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath);
+    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool& isInTrash);
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 };
 

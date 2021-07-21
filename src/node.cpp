@@ -1495,7 +1495,7 @@ void LocalNode::trimRareFields()
 
 void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds)
 {
-    if (doHere)
+    if (doHere && scanInProgress)
     {
         scanObsolete = true;
     }
@@ -1503,7 +1503,14 @@ void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime de
     unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
     if (state >= TREE_ACTION_HERE && delayds > 0)
     {
-        scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
+        if (scanDelayUntil > Waiter::ds + delayds + 10)
+        {
+            scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
+        }
+        else
+        {
+            scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
+        }
     }
 
     scanAgain = std::max<unsigned>(scanAgain, state);
@@ -1984,8 +1991,6 @@ LocalNode::~LocalNode()
         sync->statecachedel(this);
     }
 
-//    setnotseen(0);
-
     //newnode.reset();
 
     if (sync->dirnotify.get())
@@ -2180,7 +2185,7 @@ FSNode LocalNode::getLastSyncedFSDetails()
 
     FSNode n;
     n.localname = localname;
-    n.name = name;
+    //n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_lastSynced;
@@ -2194,7 +2199,7 @@ FSNode LocalNode::getScannedFSDetails()
 {
     FSNode n;
     n.localname = localname;
-    n.name = name;
+    //n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_asScanned;
@@ -2206,13 +2211,13 @@ FSNode LocalNode::getScannedFSDetails()
 }
 
 
-SyncUpload_inClient::SyncUpload_inClient(FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath)
+SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath, const string& nodeName, const FileFingerprint& ff)
 {
-    *static_cast<FileFingerprint*>(this) = details.fingerprint;
+    *static_cast<FileFingerprint*>(this) = ff;
 
     // normalized name (UTF-8 with unescaped special chars)
     // todo: we did unescape them though?
-    name = details.name;
+    name = nodeName;
 
     // setting the full path means it works like a normal non-sync transfer
     localname = fullPath;

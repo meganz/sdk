@@ -13337,7 +13337,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunction completion)
+error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunction completion, const string& logname)
 {
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
@@ -13413,7 +13413,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config));
 
     reqs.add( new CommandBackupPut(this, info,
-                                   [this, config, completion, notifyApp](Error e, handle backupId) mutable {
+                                   [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
         if (ISUNDEF(backupId) && !e)
         {
             e = API_EFAILED;
@@ -13433,7 +13433,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
 
             syncs.enableSync(*us, false, notifyApp, [us, completion](error e){
                     completion(us, us->mConfig.getError(), e);
-                });
+                }, logname);
         }
     }));
 

@@ -96,7 +96,7 @@ struct MEGA_API SyncDownload_inClient: public File
     bool wasRequesterAbandoned = false;
     shared_ptr<SyncDownload_inClient> selfKeepAlive;
 
-    SyncDownload_inClient(CloudNode& n, const LocalPath&, bool fromInshare);
+    SyncDownload_inClient(CloudNode& n, const LocalPath&, bool fromInshare, FileSystemAccess& fsaccess);
     ~SyncDownload_inClient();
 };
 
@@ -104,7 +104,7 @@ struct SyncUpload_inClient : File, std::enable_shared_from_this<SyncUpload_inCli
 {
     // This class is part of the client's Transfer system (ie, works in the client's thread)
     // The sync system keeps a shared_ptr to it.  Whichever system finishes with it last actually deletes it
-    SyncUpload_inClient(FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath);
+    SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath, const string& nodeName, const FileFingerprint& ff);
     ~SyncUpload_inClient();
     void prepare(FileSystemAccess&) override;
     void completed(Transfer*, putsource_t source) override;
@@ -504,6 +504,7 @@ struct MEGA_API LocalNode : public Cacheable
 
     // using a per-Localnode scan delay prevents self-notifications delaying the whole sync
     dstime scanDelayUntil = 0;
+    unsigned expectedSelfNotificationCount = 0;
     //dstime lastScanTime = 0;
 
 

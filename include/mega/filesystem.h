@@ -418,13 +418,16 @@ struct Notification
     bool fromDebris(const Sync& sync) const;
     bool invalidated() const;
 
+    enum ScanRequirement { NEEDS_SCAN_UNKNOWN, NEEDS_PARENT_SCAN, FOLDER_NEEDS_SELF_SCAN };
+
     dstime timestamp;
+    ScanRequirement scanRequirement = NEEDS_SCAN_UNKNOWN;
     LocalPath path;
     LocalNode* localnode = nullptr;
 
     Notification() {}
-    Notification(dstime ts, const LocalPath& p, LocalNode* ln)
-        : timestamp(ts), path(p), localnode(ln)
+    Notification(dstime ts, ScanRequirement sr, const LocalPath& p, LocalNode* ln)
+        : timestamp(ts), scanRequirement(sr), path(p), localnode(ln)
         {}
 };
 
@@ -472,7 +475,7 @@ public:
     // base path
     LocalPath localbasepath;
 
-    void notify(NotificationDeque&, LocalNode *, LocalPath&&, bool = false);
+    void notify(NotificationDeque&, LocalNode *, Notification::ScanRequirement, LocalPath&&, bool = false);
 
     // filesystem fingerprint
     virtual fsfp_t fsfingerprint() const;
@@ -594,6 +597,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // convenience function for getting filesystem shortnames
     std::unique_ptr<LocalPath> fsShortname(const LocalPath& localpath);
 
+    // convenience function for testing file existence at a path
+    bool fileExistsAt(const LocalPath&);
+
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
 
@@ -686,7 +692,7 @@ struct MEGA_API FSNode
 {
     // A structure convenient for containing just the attributes of one item from the filesystem
     LocalPath localname;
-    string name;
+    //string name;
     unique_ptr<LocalPath> shortname;
     nodetype_t type = TYPE_UNKNOWN;
     mega::handle fsid = mega::UNDEF;
@@ -696,7 +702,7 @@ struct MEGA_API FSNode
 
     bool equivalentTo(const FSNode& n) {
         return localname == n.localname &&
-            name == n.name &&
+            //name == n.name &&
             (!shortname && (!n.shortname || localname == *n.shortname) ||
                 (shortname && n.shortname && *shortname == *n.shortname)) &&
             type == n.type &&

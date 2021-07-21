@@ -452,7 +452,7 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare)
+SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare, FileSystemAccess& fsaccess)
 {
     h = n.handle;
     *(FileFingerprint*)this = n.fingerprint;
@@ -460,6 +460,11 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& cloc
 
     syncxfer = true;
     fromInsycShare = fromInshare;
+
+    LocalPath tmpfilename;
+    fsaccess.tmpnamelocal(tmpfilename);
+    localname.appendWithSeparator(tmpfilename, true);
+
 
     // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
 }
@@ -479,11 +484,8 @@ void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
 {
     if (transfer->localfilename.empty())
     {
-        LocalPath tmpfilename;
-        fsaccess.tmpnamelocal(tmpfilename);
-        localname.appendWithSeparator(tmpfilename, true);
-
         transfer->localfilename = localname;
+        transfer->localfilename.append(LocalPath::fromPlatformEncoded(".tmp"));
     }
 }
 

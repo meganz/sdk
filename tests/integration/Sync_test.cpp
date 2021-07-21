@@ -1550,7 +1550,8 @@ struct StandardClient : public MegaApp
     bool backupAdd_inthread(const string& drivePath,
                             string sourcePath,
                             const string& targetPath,
-                            SyncCompletionFunction completion)
+                            SyncCompletionFunction completion,
+                            const string& logname)
     {
         auto* rootNode = client.nodebyhandle(basefolderhandle);
 
@@ -1596,12 +1597,13 @@ struct StandardClient : public MegaApp
                      SyncConfig::TYPE_BACKUP);
 
         // Try and add the backup.
-        return client.addsync(config, true, completion) == API_OK;
+        return client.addsync(config, true, completion, logname) == API_OK;
     }
 
     handle backupAdd_mainthread(const string& drivePath,
                                 const string& sourcePath,
-                                const string& targetPath)
+                                const string& targetPath,
+                                const string& logname)
     {
         const fs::path dp = fsBasePath / fs::u8path(drivePath);
         const fs::path sp = fsBasePath / fs::u8path(sourcePath);
@@ -1623,14 +1625,15 @@ struct StandardClient : public MegaApp
                   client.backupAdd_inthread(dp.u8string(),
                                             sp.u8string(),
                                             targetPath,
-                                            std::move(completion));
+                                            std::move(completion),
+                                            logname);
             });
 
         return result.get();
     }
 
     bool setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
-                            SyncCompletionFunction addSyncCompletion)
+                            SyncCompletionFunction addSyncCompletion, const string& logname)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
         {
@@ -1648,7 +1651,7 @@ struct StandardClient : public MegaApp
                                true,
                                isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
-                error e = client.addsync(syncConfig, true, addSyncCompletion);
+                error e = client.addsync(syncConfig, true, addSyncCompletion, logname);
                 return !e;
             }
         }
@@ -2067,18 +2070,18 @@ struct StandardClient : public MegaApp
     }
 
 
-    void enableSyncByBackupId(handle id, PromiseBoolSP result)
+    void enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
     {
         UnifiedSync* sync;
-        result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync));
+        result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync, logname));
     }
 
-    bool enableSyncByBackupId(handle id)
+    bool enableSyncByBackupId(handle id, const string& logname)
     {
         auto result =
           thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                           {
-                              client.enableSyncByBackupId(id, result);
+                              client.enableSyncByBackupId(id, result, logname);
                           });
 
         return result.get();
@@ -2686,7 +2689,7 @@ struct StandardClient : public MegaApp
                     [pb](UnifiedSync* us, const SyncError& se, error e)
                     {
                         pb->set_value(us != nullptr && !e && !se ? us->mConfig.getBackupId() : UNDEF);
-                    });
+                    }, localsyncrootfolder + " ");
             });
         return fb.get();
     }
@@ -3924,13 +3927,13 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     model2.movetosynctrash("f/f_2", "f");
 
     out() << "*********************  get sync2 activity out of the way";
-    waitonsyncs(DEFAULTWAIT, &clientA2);
+    waitonsyncs(std::chrono::seconds(4), &clientA2);
 
     out() << "*********************  resume A1 session (with sync), see if A2 nodes and localnodes get in sync again";
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
-    waitonsyncs(DEFAULTWAIT, pclientA1.get(), &clientA2);
+    waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
 
     out() << "*********************  check everything matches (model has expected state of remote and local)";
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model1.findnode("f"), backupId1));
@@ -4810,7 +4813,6 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     // Check that all files from the cloud were downloaded.
     model.ensureLocalDebrisTmpLock("");
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id0));
-    model.removenode(DEBRISFOLDER);
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
 }
 
@@ -6072,9 +6074,9 @@ TEST_F(SyncTest, BasicSyncExportImport)
     ASSERT_FALSE(cx->confirmModel_mainthread(model2.root.get(), id2));
 
     // Enable the imported syncs.
-    ASSERT_TRUE(cx->enableSyncByBackupId(id0));
-    ASSERT_TRUE(cx->enableSyncByBackupId(id1));
-    ASSERT_TRUE(cx->enableSyncByBackupId(id2));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id0, "sync0 "));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id1, "sync1 "));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id2, "sync2 "));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, cx.get());
@@ -7243,9 +7245,9 @@ struct TwoWaySyncSymmetryCase
         return nullptr;
     }
 
-    handle BackupAdd(const string& drivePath, const string& sourcePath, const string& targetPath)
+    handle BackupAdd(const string& drivePath, const string& sourcePath, const string& targetPath, const string& logname)
     {
-        return client1().backupAdd_mainthread(drivePath, sourcePath, targetPath);
+        return client1().backupAdd_mainthread(drivePath, sourcePath, targetPath, logname);
     }
 
     handle SetupSync(const string& sourcePath, const string& targetPath)
@@ -7267,7 +7269,7 @@ struct TwoWaySyncSymmetryCase
 
         if (isExternalBackup())
         {
-            backupId = BackupAdd(drivePath, sourcePath, targetPath);
+            backupId = BackupAdd(drivePath, sourcePath, targetPath, "");
         }
         else
         {

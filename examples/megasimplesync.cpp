@@ -442,7 +442,7 @@ void SyncApp::fetchnodes_result(const Error &e)
                     {
                         LOG_info << "Sync started !";
                     }
-                });
+                }, "");
 #endif
             }
         }

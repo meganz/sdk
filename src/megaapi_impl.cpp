@@ -13953,7 +13953,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-            });
+            }, "");
             return;
         }
 #endif // ENABLE_SYNC
@@ -21495,7 +21495,7 @@ void MegaApiImpl::sendPendingRequests()
                     fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-            });
+            }, "");
             break;
         }
         case MegaRequest::TYPE_ENABLE_SYNC:
@@ -21503,7 +21503,7 @@ void MegaApiImpl::sendPendingRequests()
             auto backupId = request->getParentHandle();
             UnifiedSync* us = nullptr;
 
-            e = client->syncs.enableSyncByBackupId(backupId, true, us);
+            e = client->syncs.enableSyncByBackupId(backupId, true, us, "");
 
             request->setNumDetails(us ? us->mConfig.getError() : UNKNOWN_ERROR);
 

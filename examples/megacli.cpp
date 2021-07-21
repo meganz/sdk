@@ -8915,7 +8915,7 @@ void exec_syncadd(autocomplete::ACState& s)
 
     // Try and add the new sync.
 	// All validation is performed in this function.
-    client->addsync(config, false, sync_completion);
+    client->addsync(config, false, sync_completion, "");
 }
 
 void exec_syncclosedrive(autocomplete::ACState& s)
@@ -9250,7 +9250,7 @@ void exec_syncxable(autocomplete::ACState& s)
         // sync enable id
         UnifiedSync* unifiedSync;
         error result =
-          client->syncs.enableSyncByBackupId(backupId, false, unifiedSync);
+          client->syncs.enableSyncByBackupId(backupId, false, unifiedSync, toHandle(backupId));
 
         if (result)
         {

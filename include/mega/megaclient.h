@@ -644,7 +644,7 @@ public:
      * @param completion Completion function
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion);
+    error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion, const string& logname);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
