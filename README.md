@@ -36,12 +36,45 @@ In the `examples` folder you can find example apps using:
 Building
 --------
 
-For platforms with Autotools, the generic way to build and install it is:
+There are two methods - the one we are using now for most platforms is with vcpkg and cmake, and the prior system based on autotools still works for POSIX based systems.
 
-    sh autogen.sh
-    ./configure
-    make
-    sudo make install
+### Platform Dependencies
+
+Some dependencies are different for each platform because the SDK uses generic interfaces to get some features and they have different implementations.
+- Network (cURL with OpenSSL/c-ares or WinHTTP)
+- Filesystem access (Posix or Win32)
+- Graphics management (FreeImage or iOS frameworks)
+- Threads/mutexes (pthread threads, or C++11)
+- Drive Notifications (udev for Posix, WMI/WBEM for Win32, or Apple frameworks)
+
+### Building with vcpkg and cmake 
+
+This is the method that works for Windows - it also works for other platforms (and for those, autotools is also an option).
+We use vcpkg, cmake, and provide scripts to build the 3rd party libraries and set up the project.
+
+#### Build the SDK and 3rdParty Dependencies with vcpkg + cmake
+* The steps to do so are already prepared in the build_from_scratch.cmake script.  It contains instructions too.
+* To get started with it, eg for windows, follow these steps:
+	* mkdir mybuild
+	* cd mybuild
+	* git clone https://github.com/meganz/sdk.git
+	* cd sdk\contrib\cmake
+	* <edit preferred-ports-sdk.txt and comment out the two lines for pdfium>
+	* <on Win, choose VS version by editing vcpkg_extra_triplets\xNN-windows-mega.cmake>
+	* cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
+* Visual Studio solution is generated at mybuild\sdk\build-x64-windows-mega
+* That folder contains Debug and Release subfolders which contain build products
+* Later, if you want to include pdfium (which is used to generate thumbnails and previews for .pdf files), see 3rdparty_deps.txt.
+* Similar steps work for other platforms too (Linux with triplet x64-linux (including WSL), Mac with triplet x64-osx-mega).
+
+### Building with POSIX Autotools  (Linux/Darwin/BSD/OSX ...)
+
+For platforms with Autotools, first set up needed libraries and then the generic way to build and install it is:
+
+	sh autogen.sh
+	./configure
+	make
+	sudo make install
 
 Notice that you would need Autotools installed in your system (in Linux this normally entails having `autoconf` and `libtool` packages installed).
 
@@ -56,31 +89,7 @@ of the `examples` folder.
 All these folders contains a README.md file with information about how to get the project up and running,
 including the installation of all required dependencies.
 
-Usage
------
-
-The low level SDK doesn't have inline documentation yet. If you want to use it,
-please check one of our example apps (`examples/megacli`, `examples/megasimplesync`).
-
-The new intermediate layer has been documented using Doxygen. The only public header that you need
-to include to use is `include/megaapi.h`. You can read the documentation in that header file,
-or download the same documentation in HTML format from this link:
-
-https://mega.nz/#!7glwEQBT!Fy9cwPpCmuaVdEkW19qwBLaiMeyufB1kseqisOAxfi8
-
-Additional info
----------------
-
-### Platform Dependencies
-
-Dependencies are different for each platform because the SDK uses generic interfaces to get some features and they have different implentations:
-- Network (cURL with OpenSSL/c-ares or WinHTTP)
-- Filesystem access (Posix or Win32)
-- Graphics management (FreeImage, QT or iOS frameworks)
-- Database (SQLite or Berkeley DB)
-- Threads/mutexes (Win32, pthread, QT threads, or C++11)
-
-#### POSIX (Linux/Darwin/BSD/OSX ...)
+#### Dependencies for POSIX Autotools:
 
 Install the following development packages, if available, or download
 and compile their respective sources (package names are for
@@ -99,64 +108,34 @@ Optional dependency:
 * Libraw (`libraw-dev`, `libraw-devel`)
 * Sodium (`libsodium-dev`, `libsodium-devel`), configure `--with-sodium`
 * MediaInfoLib (optional, see third_party/README_MediaInfo.txt)
+* libudev (`libudev-dev`, `libudev-devel`)
 
 Filesystem event monitoring: The provided filesystem layer implements
 the Linux `inotify` and the MacOS `fsevents` interfaces.
 
 To build the reference `megacli` example, you may also need to install:
-
 * GNU Readline (`libreadline-dev`, `readline-devel`)
+on Mac, you will probably need to download the source and build it yourself, and adjust the project to refer to that version.
 
 For Android, we provide an additional implementation of the graphics subsystem using Android libraries.
 
 For iOS, we provide an additional implementation of the graphics subsystem using Objective C frameworks.
 
-#### Windows
 
-To build the client access engine under Windows, you'll need the following:
+Usage
+-----
 
-* A Windows-native C++ development environment (e.g. MinGW or Visual Studio)
-* Crypto++
-* zlib (until WinHTTP learns how to deal with Content-Encoding: gzip)
-* SQLite or configure `--without-sqlite`
-* FreeImage or configure `--without-freeimage`
-* pthreads (MinGW)
+The low level SDK doesn't have inline documentation yet. If you want to use it,
+please check one of our example apps (`examples/megacli`, `examples/megasimplesync`).
 
-Optional dependency:
-* Sodium, configure `--with-sodium`
+The new intermediate layer has been documented using Doxygen. The only public header that you need
+to include to use is `include/megaapi.h`. You can read the documentation in that header file,
+or download the same documentation in HTML format from this link:
 
-### Build Dependencies
-* Consult contrib\cmake\3rdparty_deps.txt to enable/disable a particular package.
-* Your 3rdParty library builds should be outside the SDK repo. You can use the same 3rdParty folder for other mega components, e.g., megasync, etc..
-* We are moving to use vcpkg to build most of them. You can start like this:
-	mkdir 3rdParty
-	cd 3rdParty
-	git clone https://github.com/Microsoft/vcpkg.git
-	cd vcpkg
-	.\bootstrap-vcpkg.bat -disableMetrics
-* Edit triplet configuration as required in contrib\cmake\vcpkg_extra_triplets\<x64-windows-mega-staticdev.cmake/x64-windows-mega.cmake/x86-windows-mega.cmake>
-* Fix compiler and toolset selection. Just comment them if you only have one VS installed.
-* Run the batch file contrib\cmake\build3rdparty.cmd from vcpkg folder
-* Provide the parameters as desired, e.g., C:\work\mega\3rdParty\vcpkg>..\..\sdk\contrib\cmake\build3rdparty.cmd -o x64-windows-mega
+https://mega.nz/#!7glwEQBT!Fy9cwPpCmuaVdEkW19qwBLaiMeyufB1kseqisOAxfi8
 
-This should build 3rdParty dependencies.
-
-### Building SDK
-Once the 3rdParty dependencies are built, you can start building your SDK as follows:
-* cd contrib\cmake
-* mkdir cmake-build-x64 (folder names matching pattern cmake-build-* in contrib/cmake are ignored by git)
-* Download and install CMake from https://cmake.org/download/. Mininimum required version is 3.15
-* cd cmake-build-x64
-* Run CMake-gui from this folder
-	* Set your options. Choose the same compiler and confugurations used to generate 3rdParty.
-	* Set your flags, e.g., USE_FREEIMAGE == 0
-	* Generate Projects
-* It should generate all the prjects inside cmake-build-x64 folder.
-* Open the sln file in your Visual Studio and build Debug/Release target as desired.
-	
-To build the reference `megacli.exe` example, you will also need to procure 
-development packages (at least headers and `.lib`/`.a` libraries) of:
-* GNU Readline/Termcap
+Additional info
+---------------
 
 ### Folder syncing
 

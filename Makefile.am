@@ -53,6 +53,8 @@ DISTCLEANFILES=
 BUILT_SOURCES=
 noinst_PROGRAMS=
 
+bin_PROGRAMS=
+
 include src/include.am
 include examples/include.am
 include tests/include.am

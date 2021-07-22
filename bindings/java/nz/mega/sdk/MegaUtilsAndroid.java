@@ -1,6 +1,7 @@
 package nz.mega.sdk;
 
 import java.io.File;
+import java.util.ArrayList;
 
 import android.graphics.Bitmap;
 import android.graphics.Rect;
@@ -122,5 +123,23 @@ public class MegaUtilsAndroid {
 
         Bitmap bitmap = AndroidGfxProcessor.getBitmap(path, rect, orientation, w, h);
         return AndroidGfxProcessor.saveBitmap(bitmap, preview);
+    }
+
+    /**
+     * Convert MegaBannerList to Java ArrayList of MegaBanner objects
+     * @param megaBannerList the MegaBannerList object
+     * @return the Java ArrayList of MegaBanner objects
+     */
+    public static ArrayList<MegaBanner> bannersToArray(MegaBannerList megaBannerList) {
+        if (megaBannerList == null) {
+            return null;
+        }
+
+        ArrayList<MegaBanner> result = new ArrayList<>(megaBannerList.size());
+        for (int i = 0; i< megaBannerList.size(); i++) {
+            result.add(megaBannerList.get(i).copy());
+        }
+
+        return result;
     }
 }

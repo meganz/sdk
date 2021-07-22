@@ -113,7 +113,7 @@ public:
 
         for (const FsNode *p = mParent; p; p = p->mParent)
         {
-            path.prependWithSeparator(p->mName, fsa.localseparator);
+            path.prependWithSeparator(p->mName);
         }
 
         return path;

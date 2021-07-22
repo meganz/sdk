@@ -32,6 +32,7 @@
 #include <sys/mount.h>
 #else
 #include <sys/vfs.h>
+#include <dirent.h>
 #endif
 
 #ifdef HAVE_AIO_RT
@@ -87,16 +88,19 @@ public:
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
+#ifdef ENABLE_SYNC
+    DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
+#endif
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
+    bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning);
 
     void tmpnamelocal(LocalPath&) const override;
 
     void local2path(const string*, string*) const override;
     void path2local(const string*, string*) const override;
 
-    bool getsname(LocalPath&, LocalPath&) const override;
+    bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(LocalPath&, LocalPath&, bool) override;
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
@@ -106,8 +110,7 @@ public:
     bool mkdirlocal(LocalPath&, bool) override;
     bool setmtimelocal(LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
-    size_t lastpartlocal(const string*) const override;
-    bool getextension(const LocalPath&, char*, size_t) const override;
+    bool getextension(const LocalPath&, std::string&) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
@@ -125,6 +128,8 @@ public:
 
     PosixFileSystemAccess(int = -1);
     ~PosixFileSystemAccess();
+
+    bool cwd(LocalPath& path) const override;
 };
 
 #ifdef HAVE_AIO_RT
@@ -154,9 +159,11 @@ public:
 
     bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
 
-    void updatelocalname(LocalPath&) override;
+    void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t) override;
+
+    bool ftruncate() override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
     bool sysstat(m_time_t*, m_off_t*) override;
@@ -184,19 +191,21 @@ private:
 
 };
 
+#ifdef ENABLE_SYNC
 class MEGA_API PosixDirNotify : public DirNotify
 {
 public:
     PosixFileSystemAccess* fsaccess;
 
-    void addnotify(LocalNode*, string*) override;
+    void addnotify(LocalNode*, const LocalPath&) override;
     void delnotify(LocalNode*) override;
 
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
 
-    PosixDirNotify(LocalPath&, const LocalPath&);
+    PosixDirNotify(const LocalPath&, const LocalPath&, Sync* s);
 };
+#endif
 
 } // namespace
 

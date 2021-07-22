@@ -51,15 +51,18 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         const char *key = it.first.c_str();
         string newValue = it.second;
         string currentValue;
-        if (tlv.find(key))  // the key may not exist in the current user attribute
+        string buffer;
+        if (tlv.get(key, buffer) && !buffer.empty())  // the key may not exist in the current user attribute
         {
-            Base64::btoa(tlv.get(key), currentValue);
+            Base64::btoa(buffer, currentValue);
         }
         if (newValue != currentValue)
         {
-            if (type == ATTR_ALIAS && newValue[0] == '\0')
+            if ((type == ATTR_ALIAS
+                 || type == ATTR_DRIVE_NAMES
+                 || type == ATTR_DEVICE_NAMES) && newValue[0] == '\0')
             {
-                // alias being removed
+                // alias/deviceName/driveName being removed
                 tlv.reset(key);
             }
             else
@@ -293,9 +296,10 @@ User* User::unserialize(MegaClient* client, string* d)
         TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
         if (tlvRecords)
         {
-            if (tlvRecords->find(EdDSA::TLV_KEY))
+            string edDsaValue;
+            if (tlvRecords->get(EdDSA::TLV_KEY, edDsaValue) && !edDsaValue.empty())
             {
-                client->signkey = new EdDSA(client->rng, (unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
+                client->signkey = new EdDSA(client->rng, (unsigned char *) edDsaValue.data());
                 if (!client->signkey->initializationOK)
                 {
                     delete client->signkey;
@@ -308,9 +312,10 @@ User* User::unserialize(MegaClient* client, string* d)
                 }
             }
 
-            if (tlvRecords->find(ECDH::TLV_KEY))
+            string ecdhValue;
+            if (tlvRecords->get(ECDH::TLV_KEY, ecdhValue) && !ecdhValue.empty())
             {
-                client->chatkey = new ECDH((unsigned char *) tlvRecords->get(ECDH::TLV_KEY).data());
+                client->chatkey = new ECDH((unsigned char *) ecdhValue.data());
                 if (!client->chatkey->initializationOK)
                 {
                     delete client->chatkey;
@@ -546,6 +551,22 @@ string User::attr2string(attr_t type)
             attrname =  "*!dn";
             break;
 
+        case ATTR_MY_BACKUPS_FOLDER:
+            attrname = "*!bak";
+            break;
+
+        case ATTR_COOKIE_SETTINGS:
+            attrname = "^!csp";
+            break;
+
+        case ATTR_JSON_SYNC_CONFIG_DATA:
+            attrname = "*~jscd";
+            break;
+
+        case ATTR_DRIVE_NAMES:
+            attrname =  "*!drn";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -686,6 +707,22 @@ string User::attr2longname(attr_t type)
     case ATTR_DEVICE_NAMES:
         longname = "DEVICE_NAMES";
         break;
+
+    case ATTR_MY_BACKUPS_FOLDER:
+        longname = "ATTR_MY_BACKUPS_FOLDER";
+        break;
+
+    case ATTR_COOKIE_SETTINGS:
+        longname = "ATTR_COOKIE_SETTINGS";
+        break;
+
+    case ATTR_JSON_SYNC_CONFIG_DATA:
+        longname = "JSON_SYNC_CONFIG_DATA";
+        break;
+
+        case ATTR_DRIVE_NAMES:
+            longname = "DRIVE_NAMES";
+            break;
     }
 
     return longname;
@@ -818,6 +855,22 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_DEVICE_NAMES;
     }
+    else if (!strcmp(name, "*!bak"))
+    {
+        return ATTR_MY_BACKUPS_FOLDER;
+    }
+    else if (!strcmp(name, "^!csp"))
+    {
+        return ATTR_COOKIE_SETTINGS;
+    }
+    else if (!strcmp(name, "*~jscd"))
+    {
+        return ATTR_JSON_SYNC_CONFIG_DATA;
+    }
+    else if (!strcmp(name, "*!drn"))
+    {
+        return ATTR_DRIVE_NAMES;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -844,6 +897,8 @@ int User::needversioning(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
+        case ATTR_COOKIE_SETTINGS:
+        case ATTR_MY_BACKUPS_FOLDER:
             return 0;
 
         case ATTR_LAST_INT:
@@ -860,9 +915,12 @@ int User::needversioning(attr_t at)
         case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_DEVICE_NAMES:
+        case ATTR_JSON_SYNC_CONFIG_DATA:
+        case ATTR_DRIVE_NAMES:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
+            assert(false);
         default:
             return -1;
     }
@@ -884,6 +942,9 @@ char User::scope(attr_t at)
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_ALIAS:
         case ATTR_DEVICE_NAMES:
+        case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_JSON_SYNC_CONFIG_DATA:
+        case ATTR_DRIVE_NAMES:
             return '*';
 
         case ATTR_AVATAR:
@@ -901,6 +962,7 @@ char User::scope(attr_t at)
         case ATTR_RUBBISH_TIME:
         case ATTR_STORAGE_STATE:
         case ATTR_PUSH_SETTINGS:
+        case ATTR_COOKIE_SETTINGS:
             return '^';
 
         default:
@@ -1314,6 +1376,22 @@ bool User::setChanged(attr_t at)
             changed.devicenames = true;
             break;
 
+        case ATTR_MY_BACKUPS_FOLDER:
+            changed.myBackupsFolder = true;
+            break;
+
+        case ATTR_COOKIE_SETTINGS:
+            changed.cookieSettings = true;
+            break;
+
+        case ATTR_JSON_SYNC_CONFIG_DATA:
+            changed.jsonSyncConfigData = true;
+            break;
+
+        case ATTR_DRIVE_NAMES:
+            changed.drivenames = true;
+            break;
+
         default:
             return false;
     }
@@ -1351,10 +1429,8 @@ AuthRing::AuthRing(attr_t type, const TLVstore &authring)
 {
     string authType = "";
     string authValue;
-    if (authring.find(authType))  // key is an empty string, but may not be there if authring was reset
+    if (authring.get(authType, authValue) && !authValue.empty())  // key is an empty string, but may not be there if authring was reset
     {
-        authValue = authring.get(authType);
-
         handle userhandle;
         byte authFingerprint[20];
         signed char authMethod = AUTH_METHOD_UNKNOWN;

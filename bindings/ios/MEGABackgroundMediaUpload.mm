@@ -42,7 +42,12 @@
 }
 
 - (instancetype)initWithMEGASdk:(MEGASdk *)sdk {
-    return [self initWithBackgroundMediaUpload:mega::MegaBackgroundMediaUpload::createInstance(sdk.getCPtr)];
+    mega::MegaApi *api = sdk.getCPtr;
+    if (api) {
+        return [self initWithBackgroundMediaUpload:mega::MegaBackgroundMediaUpload::createInstance(api)];
+    } else {
+        return nil;
+    }
 }
 
 - (void)dealloc {
@@ -58,13 +63,21 @@
 }
 
 - (NSString *)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(int64_t *)length outputFilePath:(NSString *)outputFilePath adjustsSizeOnly:(BOOL)adjustsSizeOnly {
-    const char *suffix = self.mediaUpload->encryptFile(inputFilePath.UTF8String, start, length, outputFilePath.UTF8String, adjustsSizeOnly);
-    return suffix == NULL ? nil : @(suffix);
+    const char *val = self.mediaUpload->encryptFile(inputFilePath.UTF8String, start, length, outputFilePath.UTF8String, adjustsSizeOnly);
+    NSString *suffix = val == NULL ? nil : @(val);
+    
+    delete [] val;
+    
+    return suffix;
 }
 
 - (NSString *)uploadURLString {
-    const char *urlString = self.mediaUpload->getUploadURL();
-    return urlString == NULL ? nil : @(urlString);
+    const char *val = self.mediaUpload->getUploadURL();
+    NSString *urlString = val == NULL ? nil : @(val);
+    
+    delete [] val;
+    
+    return urlString;
 }
 
 - (void)setCoordinatesWithLatitude:(double)latitude longitude:(double)longitude isUnshareable:(BOOL)unshareable {
@@ -73,12 +86,21 @@
 
 - (NSData *)serialize {
     const char *binary = self.mediaUpload->serialize();
-    return binary == NULL ? nil : [NSData dataWithBytes:binary length:strlen(binary)];
+    NSData *data = binary == NULL ? nil : [NSData dataWithBytes:binary length:strlen(binary)];
+    
+    delete [] binary;
+    
+    return data;
 }
 
 + (instancetype)unserializByData:(NSData *)data MEGASdk:(MEGASdk *)sdk {
-    mega::MegaBackgroundMediaUpload *mediaUpload = mega::MegaBackgroundMediaUpload::unserialize((const char *)data.bytes, sdk.getCPtr);
-    return [[self alloc] initWithBackgroundMediaUpload:mediaUpload];
+    mega::MegaApi *api = sdk.getCPtr;
+    if (api) {
+        mega::MegaBackgroundMediaUpload *mediaUpload = mega::MegaBackgroundMediaUpload::unserialize((const char *)data.bytes, api);
+        return [[self alloc] initWithBackgroundMediaUpload:mediaUpload];
+    } else {
+        return nil;
+    }
 }
 
 @end

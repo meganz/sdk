@@ -60,7 +60,7 @@ void QTMegaGlobalListener::onEvent(MegaApi *api, MegaEvent *e)
 void QTMegaGlobalListener::customEvent(QEvent *e)
 {
     QTMegaEvent *event = (QTMegaEvent *)e;
-    switch(event->type())
+    switch(QTMegaEvent::MegaType(event->type()))
     {
         case QTMegaEvent::OnUsersUpdate:
             if(listener) listener->onUsersUpdate(event->getMegaApi(), event->getUsers());

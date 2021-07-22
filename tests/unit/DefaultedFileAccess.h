@@ -35,11 +35,15 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    void updatelocalname(mega::LocalPath&) override
+    void updatelocalname(const mega::LocalPath&, bool force) override
     {
         throw NotImplemented{__func__};
     }
     bool fwrite(const mega::byte *, unsigned, m_off_t) override
+    {
+        throw NotImplemented{__func__};
+    }
+    bool ftruncate() override
     {
         throw NotImplemented{__func__};
     }

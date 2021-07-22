@@ -33,7 +33,7 @@ struct MEGA_API WinDirAccess : public DirAccess
     bool ffdvalid;
     WIN32_FIND_DATAW ffd;
     HANDLE hFind;
-    string globbase;
+    LocalPath globbase;
 
     WIN32_FIND_DATAW currentItemAttributes;
     friend class WinFileAccess;
@@ -53,22 +53,25 @@ public:
     using FileSystemAccess::getlocalfstype;
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
-    
+
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
 
     DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
+#ifdef ENABLE_SYNC
+    DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
+#endif
 
-    bool issyncsupported(LocalPath&, bool* = NULL, SyncError* = nullptr) override;
+    bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
 
     void tmpnamelocal(LocalPath&) const override;
 
-    void path2local(const string*, string*) const override;
-    void local2path(const string*, string*) const override;
+    void path2local(const std::string*, std::string*) const override;
+    void local2path(const std::string*, std::string*) const override;
 
-    static int sanitizedriveletter(LocalPath&);
+    void local2path(const std::wstring*, std::string*) const override;
+    void path2local(const std::string*, std::wstring*) const override;
 
-    bool getsname(LocalPath&, LocalPath&) const override;
+    bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(LocalPath&, LocalPath&, bool) override;
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
@@ -77,8 +80,7 @@ public:
     bool mkdirlocal(LocalPath&, bool) override;
     bool setmtimelocal(LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
-    size_t lastpartlocal(const string*) const override;
-    bool getextension(const LocalPath&, char*, size_t) const override;
+    bool getextension(const LocalPath&, string&) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
@@ -94,9 +96,14 @@ public:
     WinFileSystemAccess();
     ~WinFileSystemAccess();
 
+    bool cwd(LocalPath& path) const override;
+
+#ifdef ENABLE_SYNC
     std::set<WinDirNotify*> dirnotifys;
+#endif
 };
 
+#ifdef ENABLE_SYNC
 struct MEGA_API WinDirNotify : public DirNotify
 {
 private:
@@ -131,14 +138,15 @@ private:
 
 public:
 
-    void addnotify(LocalNode*, string*) override;
+    void addnotify(LocalNode*, const LocalPath&) override;
 
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
-    
-    WinDirNotify(LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter);
+
+    WinDirNotify(const LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot);
     ~WinDirNotify();
 };
+#endif
 
 #ifndef WINDOWS_PHONE
 struct MEGA_API WinAsyncIOContext : public AsyncIOContext
@@ -161,9 +169,11 @@ public:
 
     bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes) override;
     bool fopen_impl(LocalPath&, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes);
-    void updatelocalname(LocalPath&) override;
+    void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
+
+    bool ftruncate() override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
     bool sysstat(m_time_t*, m_off_t*) override;

@@ -40,7 +40,7 @@ void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
                            exp.transferkey.data() + mega::SymmCipher::KEYLENGTH,
                            act.transferkey.data()));
     ASSERT_EQ(exp.lastaccesstime, act.lastaccesstime);
-    ASSERT_TRUE(std::equal(exp.ultoken, exp.ultoken + mega::NewNode::UPLOADTOKENLEN, act.ultoken));
+    ASSERT_TRUE(std::equal(exp.ultoken.get(), exp.ultoken.get() + mega::NewNode::UPLOADTOKENLEN, act.ultoken.get()));
     ASSERT_EQ(exp.tempurls, act.tempurls);
     ASSERT_EQ(exp.state, act.state);
     ASSERT_EQ(exp.priority, act.priority);
@@ -64,8 +64,8 @@ TEST(Transfer, serialize_unserialize)
               tf.transferkey.data() + mega::SymmCipher::KEYLENGTH,
               'Y');
     tf.lastaccesstime = 3;
-    tf.ultoken = new mega::byte[mega::NewNode::UPLOADTOKENLEN];
-    std::fill(tf.ultoken, tf.ultoken + mega::NewNode::UPLOADTOKENLEN, 'Z');
+    tf.ultoken.reset(new mega::byte[mega::NewNode::UPLOADTOKENLEN]);
+    std::fill(tf.ultoken.get(), tf.ultoken.get() + mega::NewNode::UPLOADTOKENLEN, 'Z');
     tf.tempurls = {
         "http://bar1.com",
         "http://bar2.com",
@@ -102,8 +102,8 @@ TEST(Transfer, unserialize_32bit)
               tf.transferkey.data() + mega::SymmCipher::KEYLENGTH,
               'Y');
     tf.lastaccesstime = 3;
-    tf.ultoken = new mega::byte[mega::NewNode::UPLOADTOKENLEN];
-    std::fill(tf.ultoken, tf.ultoken + mega::NewNode::UPLOADTOKENLEN, 'Z');
+    tf.ultoken.reset(new mega::byte[mega::NewNode::UPLOADTOKENLEN]);
+    std::fill(tf.ultoken.get(), tf.ultoken.get() + mega::NewNode::UPLOADTOKENLEN, 'Z');
     tf.tempurls = {
         "http://bar1.com",
         "http://bar2.com",

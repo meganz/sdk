@@ -31,8 +31,13 @@
 #define HAVE_FILESYSTEM
 
 #if (__cplusplus >= 201700L)
-    #include <filesystem>
-    namespace fs = std::filesystem;
+    #if __has_include(<filesystem>)
+        #include <filesystem>
+        namespace fs = std::filesystem;
+    #else
+        #include <experimental/filesystem>
+        namespace fs = std::experimental::filesystem;
+    #endif
 #else
 #ifdef WIN32
     #include <filesystem>
@@ -674,7 +679,7 @@ std::ostream& LocalFS::describe(std::ostream& s) const
     return s << descPref << (descPref.size() < 10 ? (reportFiles ? (reportFolders ? "localpath" : "localfile") : "localfolder") : "");
 }
 
-MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::handle* curDirHandle, const std::string descriptionPrefix)
+MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::NodeHandle* curDirHandle, const std::string descriptionPrefix)
     : client(c)
     , cwd(curDirHandle)
     , reportFiles(files)
@@ -762,7 +767,7 @@ bool MegaFS::addCompletions(ACState& s)
 
                 if (!n && *cwd != UNDEF)
                 {
-                    n = client->nodebyhandle(*cwd);
+                    n = client->nodeByHandle(*cwd);
                     pathprefix.clear();
                 }
             }
@@ -1345,17 +1350,17 @@ ACN localFSFolder(const std::string descriptionPrefix)
     return ACN(new LocalFS(false, true, descriptionPrefix));
 }
 
-ACN remoteFSPath(MegaClient* client, ::mega::handle* cwd, const std::string descriptionPrefix)
+ACN remoteFSPath(MegaClient* client, ::mega::NodeHandle* cwd, const std::string descriptionPrefix)
 {
     return ACN(new MegaFS(true, true, client, cwd, descriptionPrefix));
 }
 
-ACN remoteFSFile(MegaClient* client, ::mega::handle* cwd, const std::string descriptionPrefix)
+ACN remoteFSFile(MegaClient* client, ::mega::NodeHandle* cwd, const std::string descriptionPrefix)
 {
     return ACN(new MegaFS(true, false, client, cwd, descriptionPrefix));
 }
 
-ACN remoteFSFolder(MegaClient* client, ::mega::handle* cwd, const std::string descriptionPrefix)
+ACN remoteFSFolder(MegaClient* client, ::mega::NodeHandle* cwd, const std::string descriptionPrefix)
 {
     return ACN(new MegaFS(false, true, client, cwd, descriptionPrefix));
 }

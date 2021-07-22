@@ -30,7 +30,7 @@ FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)
 , mMTime{nextRandomInt()}
 , mParent{parent}
 , mType{type}
-, mName{LocalPath::fromLocalname(std::move(name))}
+, mName{LocalPath::fromPlatformEncoded(std::move(name))}
 {
     assert(mType == mega::FILENODE || mType == mega::FOLDERNODE);
 

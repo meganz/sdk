@@ -45,12 +45,69 @@ string toNodeHandle(handle nodeHandle)
     return string(base64Handle);
 }
 
+string toNodeHandle(NodeHandle nodeHandle)
+{
+    return toNodeHandle(nodeHandle.as8byte());
+}
+
 string toHandle(handle h)
 {
     char base64Handle[14];
     Base64::btoa((byte*)&(h), sizeof h, base64Handle);
     return string(base64Handle);
 }
+
+std::ostream& operator<<(std::ostream& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
+}
+
+string backupTypeToStr(BackupType type)
+{
+    switch (type)
+    {
+    case BackupType::INVALID:
+            return "INVALID";
+    case BackupType::TWO_WAY:
+            return "TWO_WAY";
+    case BackupType::UP_SYNC:
+            return "UP_SYNC";
+    case BackupType::DOWN_SYNC:
+            return "DOWN_SYNC";
+    case BackupType::CAMERA_UPLOAD:
+            return "CAMERA_UPLOAD";
+    case BackupType::MEDIA_UPLOAD:
+            return "MEDIA_UPLOAD";
+    case BackupType::BACKUP_UPLOAD:
+            return "BACKUP_UPLOAD";
+    }
+
+    return "UNKNOWN";
+}
+
+void AddHiddenFileAttribute(mega::LocalPath& path)
+{
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExW(path.localpath.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW(path.localpath.data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
+#endif
+}
+
+void RemoveHiddenFileAttribute(mega::LocalPath& path)
+{
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExW(path.localpath.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW(path.localpath.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+#endif
+}
+
 
 CacheableWriter::CacheableWriter(string& d)
     : dest(d)
@@ -336,6 +393,29 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     {
         assert(it->first == ChunkedHash::chunkfloor(it->first));
         // LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
+        SymmCipher::xorblock(it->second.mac, mac);
+        cipher->ecb_encrypt(mac);
+    }
+
+    uint32_t* m = (uint32_t*)mac;
+
+    m[0] ^= m[1];
+    m[1] = m[2] ^ m[3];
+
+    // LOG_debug << "macsmac final: " << Base64Str<sizeof int64_t>(mac);
+    return MemAccess::get<int64_t>((const char*)mac);
+}
+
+int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, size_t g3, size_t g4)
+{
+    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+
+    int n = 0;
+    for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
+    {
+        if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
+
+        assert(it->first == ChunkedHash::chunkfloor(it->first));
         SymmCipher::xorblock(it->second.mac, mac);
         cipher->ecb_encrypt(mac);
     }
@@ -1303,9 +1383,14 @@ string* TLVstore::tlvRecordsToContainer()
     return result;
 }
 
-std::string TLVstore::get(string type) const
+bool TLVstore::get(string type, string& value) const
 {
-    return tlv.at(type);
+    auto it = tlv.find(type);
+    if (it == tlv.cend())
+        return false;
+
+    value = it->second;
+    return true;
 }
 
 const TLV_map * TLVstore::getMap() const
@@ -1321,11 +1406,6 @@ vector<string> *TLVstore::getKeys() const
         keys->push_back(it->first);
     }
     return keys;
-}
-
-bool TLVstore::find(string type) const
-{
-    return (tlv.find(type) != tlv.end());
 }
 
 void TLVstore::set(string type, string value)
@@ -1648,6 +1728,62 @@ std::string Utils::hexToString(const std::string &input)
         output.push_back(static_cast<char>(((p - lut) << 4) | (q - lut)));
     }
     return output;
+}
+
+int Utils::icasecmp(const std::string& lhs,
+                    const std::string& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return _strnicmp(lhs.c_str(), rhs.c_str(), length);
+#else // _WIN32
+    return strncasecmp(lhs.c_str(), rhs.c_str(), length);
+#endif // ! _WIN32
+}
+
+int Utils::icasecmp(const std::wstring& lhs,
+                    const std::wstring& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return _wcsnicmp(lhs.c_str(), rhs.c_str(), length);
+#else // _WIN32
+    return wcsncasecmp(lhs.c_str(), rhs.c_str(), length);
+#endif // ! _WIN32
+}
+
+int Utils::pcasecmp(const std::string& lhs,
+                    const std::string& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return icasecmp(lhs, rhs, length);
+#else // _WIN32
+    return lhs.compare(0, length, rhs, 0, length);
+#endif // ! _WIN32
+}
+
+int Utils::pcasecmp(const std::wstring& lhs,
+                    const std::wstring& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return icasecmp(lhs, rhs, length);
+#else // _WIN32
+    return lhs.compare(0, length, rhs, 0, length);
+#endif // ! _WIN32
 }
 
 long long abs(long long n)
@@ -2137,8 +2273,9 @@ void NodeCounter::operator -= (const NodeCounter& o)
 }
 
 
-CacheableStatus::CacheableStatus(int64_t type, int64_t value)
-    : mType{type}, mValue{value}
+CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
+    : mType(type)
+    , mValue(value)
 { }
 
 
@@ -2149,25 +2286,24 @@ bool CacheableStatus::serialize(std::string* data)
     return const_cast<const CacheableStatus*>(this)->serialize(*data);
 }
 
-std::shared_ptr<CacheableStatus> CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
+CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
 {
-    int64_t type;
+    int64_t typeBuf;
     int64_t value;
 
-    CacheableReader reader{data};
-    if (!reader.unserializei64(type))
+    CacheableReader reader(data);
+    if (!reader.unserializei64(typeBuf))
     {
-        return {};
+        return nullptr;
     }
     if (!reader.unserializei64(value))
     {
-        return {};
+        return nullptr;
     }
 
-    auto cacheableStatus = std::make_shared<CacheableStatus>(type, value);
-
-    client->loadCacheableStatus(cacheableStatus);
-    return cacheableStatus;
+    CacheableStatus::Type type = static_cast<CacheableStatus::Type>(typeBuf);
+    client->mCachedStatus.loadCachedStatus(type, value);
+    return client->mCachedStatus.getPtr(type);
 }
 
 bool CacheableStatus::serialize(std::string& data) const
@@ -2183,7 +2319,7 @@ int64_t CacheableStatus::value() const
     return mValue;
 }
 
-int64_t CacheableStatus::type() const
+CacheableStatus::Type CacheableStatus::type() const
 {
     return mType;
 }
@@ -2193,279 +2329,28 @@ void CacheableStatus::setValue(const int64_t value)
     mValue = value;
 }
 
-SyncConfig::SyncConfig(int tag,
-                       std::string localPath,
-                       std::string name,
-                       const handle remoteNode,
-                       const std::string &remotePath,
-                       const fsfp_t localFingerprint,
-                       std::vector<std::string> regExps,
-                       const bool enabled,
-                       const Type syncType,
-                       const bool syncDeletions,
-                       const bool forceOverwrite,
-                       const SyncError error)
-    : mTag{tag}
-    , mEnabled{enabled}
-    , mLocalPath{std::move(localPath)}
-    , mName{std::move(name)}
-    , mRemoteNode{remoteNode}
-    , mRemotePath{remotePath}
-    , mLocalFingerprint{localFingerprint}
-    , mRegExps{std::move(regExps)}
-    , mSyncType{syncType}
-    , mSyncDeletions{syncDeletions}
-    , mForceOverwrite{forceOverwrite}
-    , mError{error}
-{}
-
-
-int SyncConfig::getTag() const
+std::string CacheableStatus::typeToStr()
 {
-    return mTag;
+    return CacheableStatus::typeToStr(mType);
 }
 
-void SyncConfig::setTag(int tag)
+std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
 {
-    mTag = tag;
-}
-
-bool SyncConfig::getEnabled() const
-{
-    return mEnabled;
-}
-
-void SyncConfig::setEnabled(bool enabled)
-{
-    mEnabled = enabled;
-}
-
-bool SyncConfig::isEnabled(syncstate_t state, SyncError syncError)
-{
-    return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR);
-}
-
-bool SyncConfig::isResumable() const
-{
-    return mEnabled && !isSyncErrorPermanent(mError);
-}
-
-bool SyncConfig::isResumableAtStartup() const
-{
-    return mEnabled && (!isAnError(mError)
-                        || mError == LOGGED_OUT
-                        || mError == UNKNOWN_TEMPORARY_ERROR
-                        || mError == FOREIGN_TARGET_OVERSTORAGE); //temporary errors that don't have an asociated restore functionality
-}
-
-bool SyncConfig::hasError() const
-{
-    return isAnError(mError);
-}
-
-const std::string& SyncConfig::getLocalPath() const
-{
-    return mLocalPath;
-}
-
-const std::string& SyncConfig::getName() const
-{
-    return mName;
-}
-
-handle SyncConfig::getRemoteNode() const
-{
-    return mRemoteNode;
-}
-
-void SyncConfig::setRemoteNode(const handle &remoteNode)
-{
-    mRemoteNode = remoteNode;
-}
-
-const std::string& SyncConfig::getRemotePath() const
-{
-    return mRemotePath;
-}
-
-void SyncConfig::setRemotePath(const std::string &remotePath)
-{
-    mRemotePath = remotePath;
-}
-
-handle SyncConfig::getLocalFingerprint() const
-{
-    return mLocalFingerprint;
-}
-
-void SyncConfig::setLocalFingerprint(fsfp_t fingerprint)
-{
-    mLocalFingerprint = fingerprint;
-}
-
-const std::vector<std::string>& SyncConfig::getRegExps() const
-{
-    return mRegExps;
-}
-
-SyncConfig::Type SyncConfig::getType() const
-{
-    return mSyncType;
-}
-
-bool SyncConfig::isUpSync() const
-{
-    return mSyncType & TYPE_UP;
-}
-
-bool SyncConfig::isDownSync() const
-{
-    return mSyncType & TYPE_DOWN;
-}
-
-bool SyncConfig::syncDeletions() const
-{
-    switch (mSyncType)
+    switch (type)
     {
-        case TYPE_UP: return mSyncDeletions;
-        case TYPE_DOWN: return mSyncDeletions;
-        case TYPE_TWOWAY: return true;
+    case STATUS_UNKNOWN:
+        return "unknown";
+    case STATUS_STORAGE:
+        return "storage";
+    case STATUS_BUSINESS:
+        return "business";
+    case STATUS_BLOCKED:
+        return "blocked";
+    case STATUS_PRO_LEVEL:
+        return "pro-level";
+    default:
+        return "undefined";
     }
-    assert(false);
-    return true;
-}
-
-bool SyncConfig::forceOverwrite() const
-{
-    switch (mSyncType)
-    {
-        case TYPE_UP: return mForceOverwrite;
-        case TYPE_DOWN: return mForceOverwrite;
-        case TYPE_TWOWAY: return false;
-    }
-    assert(false);
-    return false;
-}
-
-SyncError SyncConfig::getError() const
-{
-    return mError;
-}
-
-void SyncConfig::setError(SyncError value)
-{
-    mError = value;
-}
-
-// This should be a const-method but can't be due to the broken Cacheable interface.
-// Do not mutate members in this function! Hence, we forward to a private const-method.
-bool SyncConfig::serialize(std::string* data)
-{
-    return const_cast<const SyncConfig*>(this)->serialize(*data);
-}
-
-std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
-{
-    int64_t tag;
-    bool enabled;
-    std::string localPath;
-    std::string name;
-    handle remoteNode;
-    std::string remotePath;
-    fsfp_t fingerprint;
-    uint32_t regExpCount;
-    std::vector<std::string> regExps;
-    uint32_t syncType;
-    bool syncDeletions;
-    bool forceOverwrite;
-    uint32_t error;
-
-    CacheableReader reader{data};
-    if (!reader.unserializei64(tag))
-    {
-        return {};
-    }
-    if (!reader.unserializebool(enabled))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(localPath))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(name))
-    {
-        return {};
-    }
-    if (!reader.unserializehandle(remoteNode))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(remotePath))
-    {
-        return {};
-    }
-    if (!reader.unserializefsfp(fingerprint))
-    {
-        return {};
-    }
-    if (!reader.unserializeu32(regExpCount))
-    {
-        return {};
-    }
-    for (uint32_t i = 0; i < regExpCount; ++i)
-    {
-        std::string regExp;
-        if (!reader.unserializestring(regExp))
-        {
-            return {};
-        }
-        regExps.push_back(std::move(regExp));
-    }
-    if (!reader.unserializeu32(syncType))
-    {
-        return {};
-    }
-    if (!reader.unserializebool(syncDeletions))
-    {
-        return {};
-    }
-    if (!reader.unserializebool(forceOverwrite))
-    {
-        return {};
-    }
-    if (!reader.unserializeu32(error))
-    {
-        return {};
-    }
-    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
-                    remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
-                    static_cast<Type>(syncType), syncDeletions,
-                    forceOverwrite, static_cast<SyncError>(error)}};
-    return syncConfig;
-}
-
-bool SyncConfig::serialize(std::string& data) const
-{
-    CacheableWriter writer{data};
-    writer.serializei64(mTag);
-    writer.serializebool(mEnabled);
-    writer.serializestring(mLocalPath);
-    writer.serializestring(mName);
-    writer.serializehandle(mRemoteNode);
-    writer.serializestring(mRemotePath);
-    writer.serializefsfp(mLocalFingerprint);
-    writer.serializeu32(static_cast<uint32_t>(mRegExps.size()));
-    for (const auto& regExp : mRegExps)
-    {
-        writer.serializestring(regExp);
-    }
-    writer.serializeu32(static_cast<uint32_t>(mSyncType));
-    writer.serializebool(mSyncDeletions);
-    writer.serializebool(mForceOverwrite);
-    writer.serializeu32(static_cast<int>(mError));
-    writer.serializeexpansionflags();
-    return true;
 }
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
@@ -2587,6 +2472,39 @@ void MegaClientAsyncQueue::asyncThreadLoop()
         f(cipher);
         mWaiter.notify();
     }
+}
+
+bool islchex(const int c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+}
+
+std::string getSafeUrl(const std::string &posturl)
+{
+    string safeurl = posturl;
+    size_t sid = safeurl.find("sid=");
+    if (sid != string::npos)
+    {
+        sid += 4;
+        size_t end = safeurl.find("&", sid);
+        if (end == string::npos)
+        {
+            end = safeurl.size();
+        }
+        memset((char *)safeurl.data() + sid, 'X', end - sid);
+    }
+    size_t authKey = safeurl.find("n=");
+    if (authKey != string::npos)
+    {
+        authKey += 2/*n=*/ + 8/*public handle*/;
+        size_t end = safeurl.find("&", authKey);
+        if (end == string::npos)
+        {
+            end = safeurl.size();
+        }
+        memset((char *)safeurl.data() + authKey, 'X', end - authKey);
+    }
+    return safeurl;
 }
 
 } // namespace

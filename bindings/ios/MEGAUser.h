@@ -53,7 +53,11 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypeCameraUploadsFolder     = 0x200000,
     MEGAUserChangeTypeMyChatFilesFolder       = 0x400000,
     MEGAUserChangeTypePushSettings            = 0x800000,
-    MEGAUserChangeTypeUserAlias               = 0x1000000
+    MEGAUserChangeTypeUserAlias               = 0x1000000,
+    MEGAUserChangeTypeUnshareableKey          = 0x2000000,
+    MEGAUserChangeTypeDeviceNames             = 0x4000000,
+    MEGAUserChangeTypeBackupNames             = 0x8000000,
+    MEGAUserChangeTypeCookieSetting           = 0x10000000,
 };
 
 /**

@@ -25,7 +25,7 @@
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'. */
 #cmakedefine HAVE_DIRENT_H
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
 /* Define to 1 if you have the `fdopendir' function. */
 #define HAVE_FDOPENDIR 1
 #endif
@@ -207,7 +207,7 @@
 #define USE_DB 0
 
 /* Use inotify API */
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(_WIN32)
 #define USE_INOTIFY 1
 #endif
 

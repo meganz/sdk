@@ -27,7 +27,6 @@ namespace mega {
 Command::Command()
 {
     persistent = false;
-    level = -1;
     canceled = false;
     result = API_OK;
     client = NULL;
@@ -36,15 +35,19 @@ Command::Command()
     suppressSID = false;
 }
 
+Command::~Command()
+{
+}
+
 void Command::cancel()
 {
     canceled = true;
 }
 
 // returns completed command JSON string
-const char* Command::getstring() const
+const char* Command::getstring()
 {
-    return json.c_str();
+    return jsonWriter.getstring().c_str();
 }
 
 //return true when the response is an error, false otherwise (in that case it doesn't consume JSON chars)
@@ -106,7 +109,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 #ifdef ENABLE_SYNC
     if (errorDetected && errorDetails == API_EBUSINESSPASTDUE)
     {
-        client->disableSyncs(BUSINESS_EXPIRED);
+        client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
     }
 #endif
     return errorDetected;
@@ -115,193 +118,124 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 // add opcode
 void Command::cmd(const char* cmd)
 {
-    json.append("\"a\":\"");
-    json.append(cmd);
-    json.append("\"");
+    jsonWriter.cmd(cmd);
 }
 
 void Command::notself(MegaClient *client)
 {
-    json.append(",\"i\":\"");
-    json.append(client->sessionid, sizeof client->sessionid);
-    json.append("\"");
+    jsonWriter.notself(client);
 }
 
 // add comma separator unless first element
 void Command::addcomma()
 {
-    if (json.size() && !strchr("[{", json[json.size() - 1]))
-    {
-        json.append(",");
-    }
+    jsonWriter.addcomma();
 }
 
 // add command argument name:value pair (FIXME: add proper JSON escaping)
 void Command::arg(const char* name, const char* value, int quotes)
 {
-    addcomma();
-    json.append("\"");
-    json.append(name);
-    json.append(quotes ? "\":\"" : "\":");
-    json.append(value);
-    if (quotes)
-    {
-        json.append("\"");
-    }
+    jsonWriter.arg(name, value, quotes);
 }
 
 // binary data
 void Command::arg(const char* name, const byte* value, int len)
 {
-    char* buf = new char[len * 4 / 3 + 4];
+    jsonWriter.arg(name, value, len);
+}
 
-    Base64::btoa(value, len, buf);
-
-    arg(name, buf);
-
-    delete[] buf;
+void Command::arg(const char* name, NodeHandle h)
+{
+    jsonWriter.arg(name, h);
 }
 
 // 64-bit signed integer
 void Command::arg(const char* name, m_off_t n)
 {
-    char buf[32];
-
-    sprintf(buf, "%" PRId64, n);
-
-    arg(name, buf, 0);
+    jsonWriter.arg(name, n);
 }
 
 // raw JSON data
 void Command::appendraw(const char* s)
 {
-    json.append(s);
+    jsonWriter.appendraw(s);
 }
 
 // raw JSON data with length specifier
 void Command::appendraw(const char* s, int len)
 {
-    json.append(s, len);
+    jsonWriter.appendraw(s, len);
 }
 
 // begin array
 void Command::beginarray()
 {
-    addcomma();
-    json.append("[");
-    openobject();
+    jsonWriter.beginarray();
 }
 
 // begin array member
 void Command::beginarray(const char* name)
 {
-    addcomma();
-    json.append("\"");
-    json.append(name);
-    json.append("\":[");
-    openobject();
+    jsonWriter.beginarray(name);
 }
 
 // close array
 void Command::endarray()
 {
-    json.append("]");
-    closeobject();
+    jsonWriter.endarray();
 }
 
 // begin JSON object
 void Command::beginobject()
 {
-    addcomma();
-    json.append("{");
+    jsonWriter.beginobject();
 }
 
 void Command::beginobject(const char *name)
 {
-    addcomma();
-    json.append("\"");
-    json.append(name);
-    json.append("\":{");
+    jsonWriter.beginobject(name);
 }
 
 // end JSON object
 void Command::endobject()
 {
-    json.append("}");
+    jsonWriter.endobject();
 }
 
 // add integer
 void Command::element(int n)
 {
-    char buf[24];
-
-    sprintf(buf, "%d", n);
-
-    if (elements())
-    {
-        json.append(",");
-    }
-    json.append(buf);
+    jsonWriter.element(n);
 }
 
 // add handle (with size specifier)
 void Command::element(handle h, int len)
 {
-    char buf[16];
-
-    Base64::btoa((const byte*)&h, len, buf);
-
-    json.append(elements() ? ",\"" : "\"");
-    json.append(buf);
-    json.append("\"");
+    jsonWriter.element(h, len);
 }
 
 // add binary data
 void Command::element(const byte* data, int len)
 {
-    char* buf = new char[len * 4 / 3 + 4];
-
-    len = Base64::btoa(data, len, buf);
-
-    json.append(elements() ? ",\"" : "\"");
-    json.append(buf, len);
-
-    delete[] buf;
-
-    json.append("\"");
+    jsonWriter.element(data, len);
 }
 
 void Command::element(const char *buf)
 {
-    json.append(elements() ? ",\"" : "\"");
-    json.append(buf, strlen(buf));
-    json.append("\"");
+    jsonWriter.element(buf);
 }
 
 // open object
 void Command::openobject()
 {
-    levels[(int) ++level] = 0;
+    jsonWriter.openobject();
 }
 
 // close object
 void Command::closeobject()
 {
-    level--;
+    jsonWriter.closeobject();
 }
-
-// number of elements present in this level
-int Command::elements()
-{
-    if (!levels[(int)level])
-    {
-        levels[(int)level] = 1;
-        return 0;
-    }
-
-    return 1;
-}
-
-
 
 } // namespace
+

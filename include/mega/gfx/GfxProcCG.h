@@ -36,16 +36,15 @@ class MEGA_API GfxProcCG : public mega::GfxProc
     int maxSizeForThumbnail(const int rw, const int rh);
 private: // mega::GfxProc implementations
     const char* supportedformats();
-    bool readbitmap(mega::FileAccess*, mega::string*, int);
+    bool readbitmap(mega::FileAccess*, const mega::LocalPath&, int);
     bool resizebitmap(int, int, mega::string*);
     void freebitmap();
 public:
     GfxProcCG();
     ~GfxProcCG();
 };
+#endif
 
 void ios_statsid(std::string *statsid);
 void ios_appbasepath(std::string *appbasepath);
-
-#endif
 #endif
