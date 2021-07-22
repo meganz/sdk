@@ -679,7 +679,7 @@ struct SyncFlags
 
 struct Syncs
 {
-    void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
 
     shared_ptr<UnifiedSync> lookupUnifiedSync(handle backupId);
 

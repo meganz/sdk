@@ -3179,7 +3179,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                 for (const auto& config : context->mConfigs)
                 {
                     std::promise<bool> synchronous;
-                    syncs.appendNewSync(config, false, false, [&](error, SyncError, handle){ synchronous.set_value(true); }, "");
+                    syncs.appendNewSync(config, false, false, [&](error, SyncError, handle){ synchronous.set_value(true); }, false, "");
                     synchronous.get_future().get();
                 }
 
@@ -3654,7 +3654,7 @@ shared_ptr<UnifiedSync> Syncs::lookupUnifiedSync(handle backupId)
     return nullptr;
 }
 
-void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
     assert(c.mBackupId != UNDEF);
@@ -3669,7 +3669,7 @@ void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, s
 
     syncThreadActions.pushBack([=]()
         {
-            appendNewSync_inThread(c, startSync, notifyApp, clientCompletion, logname);
+            appendNewSync_inThread(c, startSync, notifyApp, completionInClient ? clientCompletion : completion, logname);
         });
 }
 

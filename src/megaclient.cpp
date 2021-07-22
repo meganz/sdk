@@ -13394,7 +13394,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
             // if we got this far, the syncConfig is kept (in db and in memory)
             config.setBackupId(backupId);
 
-            syncs.appendNewSync(config, true, notifyApp, completion, logname);
+            syncs.appendNewSync(config, true, notifyApp, completion, true, logname);
         }
     }));
 
