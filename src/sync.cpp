@@ -739,7 +739,7 @@ bool SyncConfig::synctypefromname(const string& name, Type& type)
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const string& cdebris,
-           const LocalPath& clocaldebris, Node* remotenode, bool cinshare, const string& logname)
+           const LocalPath& clocaldebris, NodeHandle rootNodeHandle, const string& rootNodeName, bool cinshare, const string& logname)
 : syncs(us.syncs)
 , localroot(new LocalNode)
 , mUnifiedSync(us)
@@ -772,7 +772,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
 
     localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
-    localroot->setSyncedNodeHandle(remotenode->nodeHandle(), remotenode->displayname());
+    localroot->setSyncedNodeHandle(rootNodeHandle, rootNodeName);
     localroot->setScanAgain(false, true, true, 0);
     localroot->setCheckMovesAgain(false, true, true);
     localroot->setSyncAgain(false, true, true);
@@ -863,7 +863,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
         if (fas->fopen(mLocalPath, true, false))
         {
             tableid[0] = fas->fsid;
-            tableid[1] = remotenode->nodehandle;
+            tableid[1] = rootNodeHandle.as8byte();
             tableid[2] = syncs.mClient.me;
 
             dbname.resize(sizeof tableid * 4 / 3 + 3);
@@ -889,6 +889,8 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
 Sync::~Sync()
 {
+    assert(syncs.onSyncThread());
+
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     mDestructorRunning = true;
 
@@ -1473,7 +1475,7 @@ struct ProgressingMonitor
             sf.reachableNodesAllScannedThisPass &&
             sf.noProgressCount > 10)
         {
-            for (auto i = sf.stalledNodePaths.begin(); i != sf.stalledNodePaths.end(); )
+            for (auto i = sf.stall.cloud.begin(); i != sf.stall.cloud.end(); )
             {
                 if (IsContainingCloudPathOf(i->first, cloudPath))
                 {
@@ -1483,13 +1485,13 @@ struct ProgressingMonitor
                 else if (IsContainingCloudPathOf(cloudPath, i->first))
                 {
                     // this new path is the parent or ancestor
-                    i = sf.stalledNodePaths.erase(i);
+                    i = sf.stall.cloud.erase(i);
                 }
                 else ++i;
             }
-            sf.stalledNodePaths[cloudPath].reason = r;
-            sf.stalledNodePaths[cloudPath].involvedCloudPath = cloudPath2;
-            sf.stalledNodePaths[cloudPath].involvedLocalPath = localpath;
+            sf.stall.cloud[cloudPath].reason = r;
+            sf.stall.cloud[cloudPath].involvedCloudPath = cloudPath2;
+            sf.stall.cloud[cloudPath].involvedLocalPath = localpath;
         }
     }
 
@@ -1503,7 +1505,7 @@ struct ProgressingMonitor
             sf.reachableNodesAllScannedThisPass &&
             sf.noProgressCount > 10)
         {
-            for (auto i = sf.stalledLocalPaths.begin(); i != sf.stalledLocalPaths.end(); )
+            for (auto i = sf.stall.local.begin(); i != sf.stall.local.end(); )
             {
                 if (i->first.isContainingPathOf(localPath))
                 {
@@ -1513,13 +1515,13 @@ struct ProgressingMonitor
                 else if (localPath.isContainingPathOf(i->first))
                 {
                     // this new path is the parent or ancestor
-                    i = sf.stalledLocalPaths.erase(i);
+                    i = sf.stall.local.erase(i);
                 }
                 else ++i;
             }
-            sf.stalledLocalPaths[localPath].reason = r;
-            sf.stalledLocalPaths[localPath].involvedLocalPath = localPath2;
-            sf.stalledLocalPaths[localPath].involvedCloudPath = cloudPath;
+            sf.stall.local[localPath].reason = r;
+            sf.stall.local[localPath].involvedLocalPath = localPath2;
+            sf.stall.local[localPath].involvedCloudPath = cloudPath;
         }
     }
 
@@ -1708,7 +1710,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                         bool inshareFlag = inshare;
                         auto deleteHandle = row.cloudNode->handle;
-                        syncs.clientThreadActions.pushBack([deleteHandle, inshareFlag](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([deleteHandle, inshareFlag](MegaClient& mc, DBTableTransactionCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(deleteHandle))
                                 {
@@ -1765,7 +1767,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                             {
                                 auto local  = fullPath.localPath_utf8();
                                 auto remote =  targetCloudNodePath + "/" + newName;
-                                syncs.clientThreadActions.pushBack([anomalyType, local, remote](MegaClient& mc, DBTableTransactionCommitter& committer)
+                                syncs.queueClient([anomalyType, local, remote](MegaClient& mc, DBTableTransactionCommitter& committer)
                                     {
                                         mc.filenameAnomalyDetected(anomalyType, local, remote);
                                     });
@@ -1784,7 +1786,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " to " << newName  << logTriplet(row, fullPath);
 
                         auto renameHandle = sourceCloudNode.handle;
-                        syncs.clientThreadActions.pushBack([renameHandle, newName, movePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([renameHandle, newName, movePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(renameHandle))
                                 {
@@ -1810,7 +1812,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " into " << targetCloudNodePath
                                   << (newName.empty() ? "" : (" as " + newName).c_str()) << logTriplet(row, fullPath);
 
-                        syncs.clientThreadActions.pushBack([sourceCloudNode, targetCloudNode, newName, movePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
                             auto fromNode = mc.nodeByHandle(sourceCloudNode.handle);
                             auto toNode = mc.nodeByHandle(targetCloudNode.handle);
@@ -2062,7 +2064,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             {
                 auto remotePath = fullPath.cloudPath;
                 auto localPath = fullPath.localPath_utf8();
-                syncs.clientThreadActions.pushBack([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
+                syncs.queueClient([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         mc.filenameAnomalyDetected(type, localPath, remotePath);
                     });
@@ -2518,11 +2520,52 @@ UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
 }
 
 
-void Syncs::enableSync(UnifiedSync& us, bool resetFingerprint, bool notifyApp, std::function<void(error)> completion, const string& logname)
+void Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error)> completion, const string& logname)
 {
     assert(!onSyncThread());
 
-    assert(!us.mSync);
+    auto clientCompletion = [=](error e, SyncError, handle)
+        {
+            queueClient([completion, e](MC& mc, DBTC& committer)
+                {
+                    if (completion) completion(e);
+                });
+        };
+
+    queueSync([=]()
+        {
+            enableSyncByBackupId_inThread(backupId, resetFingerprint, notifyApp, clientCompletion, logname);
+        });
+}
+
+
+void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+{
+    assert(onSyncThread());
+
+    UnifiedSync* usPtr = nullptr;
+
+    for (auto& s : mSyncVec)
+    {
+        if (s->mConfig.getBackupId() == backupId)
+        {
+            usPtr = s.get();
+        }
+    }
+
+    if (!usPtr)
+    {
+        if (completion) completion(API_ENOENT, NO_SYNC_ERROR, backupId);
+        return;
+    }
+    else if (usPtr->mSync)
+    {
+        if (completion) completion(API_EEXIST, NO_SYNC_ERROR, backupId);
+        return;
+    }
+
+    UnifiedSync& us = *usPtr;
+
     us.mConfig.mError = NO_SYNC_ERROR;
 
     if (resetFingerprint)
@@ -2532,16 +2575,22 @@ void Syncs::enableSync(UnifiedSync& us, bool resetFingerprint, bool notifyApp, s
 
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
-    Node* remotenode;
+    NodeHandle rootNodeHandle;
+    string rootNodeName;
     bool inshare, isnetwork;
 
-    error e = mClient.checkSyncConfig(us.mConfig, rootpath, openedLocalFolder, remotenode, inshare, isnetwork);
+    error e;
+    {
+        // todo: even better thead safety
+        lock_guard<mutex> g(mClient.nodeTreeMutex);
+        e = mClient.checkSyncConfig(us.mConfig, rootpath, openedLocalFolder, rootNodeName, inshare, isnetwork);
+    }
 
     if (e)
     {
         // error and enable flag were already changed
         us.changedConfigState(notifyApp);
-        completion(e);
+        if (completion) completion(e, us.mConfig.mError, backupId);
         return;
     }
 
@@ -2551,34 +2600,24 @@ void Syncs::enableSync(UnifiedSync& us, bool resetFingerprint, bool notifyApp, s
     string debris = DEBRISFOLDER;
     auto localdebris = LocalPath();
 
-    auto clientCompletion = [this, notifyApp, &us, completion](error e){
-        us.changedConfigState(notifyApp);
-        if (!e) mHeartBeatMonitor->updateOrRegisterSync(us);
-        if (completion) completion(e);
-    };
+    us.changedConfigState(notifyApp);
+    mHeartBeatMonitor->updateOrRegisterSync(us);
 
-    syncThreadActions.pushBack([this, &us, debris, localdebris, remotenode, inshare, isnetwork, rootpath, clientCompletion, logname]()
-        {
-            startSync_inThread(us, debris, localdebris, remotenode, inshare, isnetwork, rootpath, clientCompletion, logname);
-        });
+    startSync_inThread(us, debris, localdebris, us.mConfig.mRemoteNode, rootNodeName, inshare, isnetwork, rootpath, completion, logname);
 }
 
-bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, Node* n, bool forceCallback)
+bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, bool exists, string cloudPath)
 {
     bool changed = false;
-    if (n)
+    bool pathChanged = false;
+    if (exists)
     {
-        auto newpath = n->displaypath();
-        if (newpath != us.mConfig.mOriginalPathOfRemoteRootNode)
+        if (cloudPath != us.mConfig.mOriginalPathOfRemoteRootNode)
         {
-            us.mConfig.mOriginalPathOfRemoteRootNode = newpath;
+            LOG_debug << "Sync root path changed!  Was: " << us.mConfig.mOriginalPathOfRemoteRootNode << " now: " << cloudPath;
+            us.mConfig.mOriginalPathOfRemoteRootNode = cloudPath;
             changed = true;
-        }
-
-        if (us.mConfig.getRemoteNode() != n->nodehandle)
-        {
-            us.mConfig.setRemoteNode(NodeHandle().set6byte(n->nodehandle));
-            changed = true;
+            pathChanged = true;
         }
     }
     else //unset remote node: failed!
@@ -2590,26 +2629,24 @@ bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, Node* n, bool forceCallbac
         }
     }
 
-    if (changed || forceCallback)
+    if (changed)
     {
         mClient.app->syncupdate_remote_root_changed(us.mConfig);
+        saveSyncConfig(us.mConfig);
     }
 
-    //persist
-    saveSyncConfig(us.mConfig);
-
-    return changed;
+    return pathChanged;
 }
 
 void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
-    Node* remotenode, bool inshare, bool isNetwork, const LocalPath& rootpath,
-    std::function<void(error)> clientCompletion, const string& logname)
+    NodeHandle rootNodeHandle, const string& rootNodeName, bool inshare, bool isNetwork, const LocalPath& rootpath,
+    std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
 
     auto prevFingerprint = us.mConfig.getLocalFingerprint();
 
     assert(!us.mSync);
-    us.mSync.reset(new Sync(us, debris, localdebris, remotenode, inshare, logname));
+    us.mSync.reset(new Sync(us, debris, localdebris, rootNodeHandle, rootNodeName, inshare, logname));
     us.mConfig.setLocalFingerprint(us.mSync->fsfp);
 
     error e;
@@ -2632,10 +2669,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         e = API_OK;
     }
 
-    clientThreadActions.pushBack([e, clientCompletion](MegaClient& mc, DBTableTransactionCommitter& committer)
-        {
-            clientCompletion(e);
-        });
+    if (completion) completion(e, us.mConfig.mError, us.mConfig.mBackupId);
 }
 
 void UnifiedSync::changedConfigState(bool notifyApp)
@@ -2660,9 +2694,6 @@ Syncs::Syncs(MegaClient& mc)
   , mScanService(new ScanService(waiter))
 {
     mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
-
-    syncKey.setkey(mc.key.key);
-
     syncThread = std::thread([this]() { syncLoop(); });
 }
 
@@ -2670,11 +2701,16 @@ Syncs::~Syncs()
 {
     // null function is the signal to end the thread
     syncThreadActions.pushBack(nullptr);
+    waiter.notify();
     if (syncThread.joinable()) syncThread.join();
 }
 
 SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 {
+    assert(onSyncThread() || !onSyncThread());
+
+    lock_guard<mutex> g(mSyncVecMutex);
+
     SyncConfigVector v;
     for (auto& s : mSyncVec)
     {
@@ -2688,6 +2724,8 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 
 SyncConfigVector Syncs::allConfigs() const
 {
+    assert(onSyncThread());
+
     SyncConfigVector v;
     for (auto& s : mSyncVec)
     {
@@ -2698,6 +2736,8 @@ SyncConfigVector Syncs::allConfigs() const
 
 error Syncs::backupCloseDrive(LocalPath drivePath)
 {
+    assert(!onSyncThread());
+
     // Is the path valid?
     if (drivePath.empty())
     {
@@ -2736,6 +2776,8 @@ error Syncs::backupCloseDrive(LocalPath drivePath)
 
 error Syncs::backupOpenDrive(LocalPath drivePath)
 {
+    assert(onSyncThread());
+
     // Is the drive path valid?
     if (drivePath.empty())
     {
@@ -2829,6 +2871,8 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
 
 SyncConfigStore* Syncs::syncConfigStore()
 {
+    assert(onSyncThread());
+
     // Have we already created the database?
     if (mSyncConfigStore)
     {
@@ -2862,6 +2906,15 @@ SyncConfigStore* Syncs::syncConfigStore()
 
 error Syncs::syncConfigStoreAdd(const SyncConfig& config)
 {
+    error result = API_OK;
+    syncRun([&](){ syncConfigStoreAdd_inThread(config, [&](error e){ result = e; }); });
+    return result;
+}
+
+void Syncs::syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion)
+{
+    assert(onSyncThread());
+
     // Convenience.
     static auto equal =
       [](const LocalPath& lhs, const LocalPath& rhs)
@@ -2875,7 +2928,8 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
     if (!store)
     {
         // Nope and we can't proceed without it.
-        return API_EINTERNAL;
+        completion(API_EINTERNAL);
+        return;
     }
 
     SyncConfigVector configs;
@@ -2922,16 +2976,20 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
         store->removeDrive(LocalPath());
     }
 
-    return result;
+    completion(result);
+    return;
 }
 
 bool Syncs::syncConfigStoreDirty()
 {
+    assert(onSyncThread());
     return mSyncConfigStore && mSyncConfigStore->dirty();
 }
 
 bool Syncs::syncConfigStoreFlush()
 {
+    assert(onSyncThread());
+
     // No need to flush if the store's not dirty.
     if (!syncConfigStoreDirty()) return true;
 
@@ -2973,6 +3031,8 @@ bool Syncs::syncConfigStoreFlush()
 
 error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
 {
+    assert(onSyncThread());
+
     LOG_debug << "Attempting to load internal sync configs from disk.";
 
     auto result = API_EAGAIN;
@@ -3001,6 +3061,7 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
 
 string Syncs::exportSyncConfigs(const SyncConfigVector configs) const
 {
+    assert(!onSyncThread());
     JSONWriter writer;
 
     writer.beginobject();
@@ -3019,6 +3080,7 @@ string Syncs::exportSyncConfigs(const SyncConfigVector configs) const
 
 string Syncs::exportSyncConfigs() const
 {
+    assert(!onSyncThread());
     return exportSyncConfigs(configsForDrive(LocalPath()));
 }
 
@@ -3116,7 +3178,9 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                 // Yep, add them to the sync.
                 for (const auto& config : context->mConfigs)
                 {
-                    syncs.appendNewSync(config, client);
+                    std::promise<bool> synchronous;
+                    syncs.appendNewSync(config, false, false, [&](error, SyncError, handle){ synchronous.set_value(true); }, "");
+                    synchronous.get_future().get();
                 }
 
                 LOG_debug << context->mConfigs.size()
@@ -3539,14 +3603,24 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
     return mSyncConfigIOContext.get();
 }
 
-void Syncs::clear()
+void Syncs::clear_inThread()
 {
-    syncConfigStoreFlush();
+    assert(onSyncThread());
+
+    assert(!mSyncConfigStore);
 
     mSyncConfigStore.reset();
     mSyncConfigIOContext.reset();
     mSyncVec.clear();
     isEmpty = true;
+    syncKey.setkey((byte*)"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+    stall = SyncStallInfo();
+    triggerHandles.clear();
+    localnodeByScannedFsid.clear();
+    localnodeBySyncedFsid.clear();
+    mSyncFlags.reset(new SyncFlags);
+    mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
+    mFileChangingCheckState.clear();
 
     if (syncscanstate)
     {
@@ -3566,20 +3640,91 @@ void Syncs::clear()
     totalLocalNodes = 0;
 }
 
-void Syncs::resetSyncConfigStore()
+shared_ptr<UnifiedSync> Syncs::lookupUnifiedSync(handle backupId)
 {
-    mSyncConfigStore.reset();
-    static_cast<void>(syncConfigStore());
+    lock_guard<mutex> g(mSyncVecMutex);
+
+    for (auto& s : mSyncVec)
+    {
+        if (s->mConfig.getBackupId() == backupId)
+        {
+            return s;
+        }
+    }
+    return nullptr;
 }
 
-auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
+void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
+    assert(!onSyncThread());
+    assert(c.mBackupId != UNDEF);
+
+    auto clientCompletion = [this, completion](error e, SyncError se, handle backupId)
+    {
+        queueClient([e, se, backupId, completion](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                if (completion) completion(e, se, backupId);
+            });
+    };
+
+    syncThreadActions.pushBack([=]()
+        {
+            appendNewSync_inThread(c, startSync, notifyApp, clientCompletion, logname);
+        });
+}
+
+void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+{
+    assert(onSyncThread());
+
     isEmpty = false;
     mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
 
+    if (c.isExternal())
+    {
+        auto* store = syncConfigStore();
+
+        // Can we get our hands on the config store?
+        if (!store)
+        {
+            LOG_err << "Unable to add backup "
+                << c.mLocalPath.toPath(*fsaccess)
+                << " on "
+                << c.mExternalDrivePath.toPath(*fsaccess)
+                << " as there is no config store.";
+
+            if (completion) completion(API_EINTERNAL, c.mError, c.mBackupId);
+        }
+
+        // Do we already know about this drive?
+        if (!store->driveKnown(c.mExternalDrivePath))
+        {
+            // Restore the drive's backups, if any.
+            auto result = backupOpenDrive(c.mExternalDrivePath);
+
+            if (result != API_OK && result != API_ENOENT)
+            {
+                // Couldn't read an existing database.
+                LOG_err << "Unable to add backup "
+                    << c.mLocalPath.toPath(*fsaccess)
+                    << " on "
+                    << c.mExternalDrivePath.toPath(*fsaccess)
+                    << " as we could not read its config database.";
+
+                if (completion) completion(API_EFAILED, c.mError, c.mBackupId);
+            }
+        }
+    }
+
     saveSyncConfig(c);
 
-    return mSyncVec.back().get();
+    if (!startSync)
+    {
+        if (completion) completion(API_OK, c.mError, c.mBackupId);
+        return;
+    }
+
+    enableSyncByBackupId_inThread(c.mBackupId, false, notifyApp, completion, logname);
 }
 
 Sync* Syncs::runningSyncByBackupId(handle backupId) const
@@ -3682,6 +3827,8 @@ Sync* Syncs::firstRunningSync()
 
 void Syncs::stopCancelledFailedDisabled()
 {
+    assert(onSyncThread());
+
     for (auto& unifiedSync : mSyncVec)
     {
         if (unifiedSync->mSync && (
@@ -3696,6 +3843,14 @@ void Syncs::stopCancelledFailedDisabled()
 
 void Syncs::purgeRunningSyncs()
 {
+    assert(!onSyncThread());
+    syncRun([&](){ purgeRunningSyncs_inThread(); });
+}
+
+void Syncs::purgeRunningSyncs_inThread()
+{
+    assert(onSyncThread());
+
     // Called from locallogout (which always happens on ~MegaClient as well as on request)
     // Any syncs that are running should be resumed on next start.
     // We stop the syncs here, but don't call the client to say they are stopped.
@@ -3776,8 +3931,29 @@ void Syncs::disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)
     if (completion) completion(nDisabled);
 }
 
+void Syncs::syncRun(std::function<void()> f)
+{
+    assert(!onSyncThread());
+    std::promise<bool> synchronous;
+    syncThreadActions.pushBack([&]()
+        {
+            f();
+            synchronous.set_value(true);
+        });
+
+    synchronous.get_future().get();
+}
+
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
 {
+    assert(!onSyncThread());
+    syncRun([&](){ removeSelectedSyncs_inThread(selector); });
+}
+
+void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector)
+{
+    assert(onSyncThread());
+
     for (auto i = mSyncVec.size(); i--; )
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
@@ -3798,42 +3974,62 @@ void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
-void Syncs::purgeSyncs()
+void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
     assert(!onSyncThread());
-
-    std::promise<bool> synchronous;
-    syncThreadActions.pushBack([&]()
-        {
-            purgeSyncs_inThread();
-            synchronous.set_value(true);
-        });
-
-    synchronous.get_future().get();
+    syncRun([&](){ locallogout_inThread(removecaches, keepSyncsConfigFile); });
 }
 
-
-void Syncs::purgeSyncs_inThread()
+void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
 {
     assert(onSyncThread());
-    if (!mSyncConfigStore) return;
 
-    // Remove all syncs.
-    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
-
-    // Truncate internal sync config database.
-    mSyncConfigStore->write(LocalPath(), SyncConfigVector());
-
-    // Remove all drives.
-    for (auto& drive : mSyncConfigStore->knownDrives())
-    {
-        // Never remove internal drive.
-        if (!drive.empty())
+    // NULL the statecachetable databases for Syncs first, then Sync destruction won't remove LocalNodes from them
+    // If we are deleting syncs then just remove() the database direct
+    forEachRunningSync(true, [removecaches](Sync* sync)
         {
-            // This does not flush.
-            mSyncConfigStore->removeDrive(drive);
+            if (sync->statecachetable)
+            {
+                if (removecaches) sync->statecachetable->remove();
+                sync->statecachetable.reset();
+            }
+        });
+
+    if (!removecaches)
+    {
+        syncConfigStoreFlush();
+    }
+    else if (keepSyncsConfigFile)
+    {
+        // Special case backward compatibility for MEGAsync
+        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
+        disableSelectedSyncs_inThread(
+            [&](SyncConfig& config, Sync*){return config.getEnabled();},
+            LOGGED_OUT, false, nullptr);
+
+        syncConfigStoreFlush();
+    }
+    else if (mSyncConfigStore)
+    {
+        mSyncConfigStore->write(LocalPath(), SyncConfigVector());
+
+        // Remove all drives.
+        for (auto& drive : mSyncConfigStore->knownDrives())
+        {
+            // Never remove internal drive.
+            if (!drive.empty())
+            {
+                // This does not flush.
+                mSyncConfigStore->removeDrive(drive);
+            }
         }
     }
+    mSyncConfigStore.reset();
+
+    // Remove all syncs.
+    removeSelectedSyncs_inThread([](SyncConfig&, Sync*) { return true; });
+
+    clear_inThread();
 }
 
 void Syncs::removeSyncByIndex(size_t index)
@@ -3852,7 +4048,7 @@ void Syncs::removeSyncByIndex(size_t index)
             syncPtr.reset(); // deletes sync
         }
 
-        mSyncConfigStore->markDriveDirty(mSyncVec[index]->mConfig.mExternalDrivePath);
+        if (mSyncConfigStore) mSyncConfigStore->markDriveDirty(mSyncVec[index]->mConfig.mExternalDrivePath);
 
         // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
         auto backupId = mSyncVec[index]->mConfig.getBackupId();
@@ -3893,24 +4089,6 @@ void Syncs::unloadSyncByIndex(size_t index)
         mSyncVec.erase(mSyncVec.begin() + index);
         isEmpty = mSyncVec.empty();
     }
-}
-
-error Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*& syncPtrRef, const string& logname)
-{
-    for (auto& s : mSyncVec)
-    {
-        if (s->mConfig.getBackupId() == backupId)
-        {
-            syncPtrRef = s.get();
-            if (!s->mSync)
-            {
-                enableSync(*s, resetFingerprint, true, nullptr, logname);
-                return API_OK;
-            }
-            return API_EEXIST;
-        }
-    }
-    return API_ENOENT;
 }
 
 void Syncs::saveSyncConfig(const SyncConfig& config)
@@ -3954,9 +4132,31 @@ void Syncs::saveSyncConfig(const SyncConfig& config)
 //    }
 //}
 
-void Syncs::resumeResumableSyncsOnStartup()
+void Syncs::resumeResumableSyncsOnStartup(bool resetSyncConfigStore, std::function<void(error)>&& completion)
 {
-    if (mClient.loggedin() != FULLACCOUNT) return;
+    assert(!onSyncThread());
+
+    if (mClient.loggedin() != FULLACCOUNT)
+    {
+        if (completion) completion(API_EACCESS);
+        return;
+    }
+
+    syncThreadActions.pushBack([this, resetSyncConfigStore, completion]()
+        {
+            resumeResumableSyncsOnStartup_inThread(resetSyncConfigStore, completion);
+        });
+}
+
+void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, std::function<void(error)> clientCompletion)
+{
+    assert(onSyncThread());
+
+    if (resetSyncConfigStore)
+    {
+        mSyncConfigStore.reset();
+        static_cast<void>(syncConfigStore());
+    }
 
     SyncConfigVector configs;
 
@@ -4020,9 +4220,9 @@ void Syncs::resumeResumableSyncsOnStartup()
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
                 auto& us = *unifiedSync;
-                enableSync(us, false, false, [this, &us, hadAnError](error e)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [this, &us, hadAnError](error e, SyncError se, handle backupId)
                     {
-                        LOG_debug << "Sync autoresumed: " << toHandle(us.mConfig.getBackupId()) << " " << us.mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << us.mConfig.getLocalFingerprint() << " error = " << us.mConfig.getError();
+                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << us.mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << us.mConfig.getLocalFingerprint() << " error = " << se;
                         mClient.app->sync_auto_resume_result(us, true, hadAnError);
                     }, "");
             }
@@ -5297,7 +5497,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 row.syncNode->upload.reset(std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle, fullPath.localPath, nodeName, row.fsNode->fingerprint));
 
                 auto uploadPtr = row.syncNode->upload.actualUpload;
-                syncs.clientThreadActions.pushBack([uploadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                syncs.queueClient([uploadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         mc.nextreqtag();
                         mc.startxfer(PUT, uploadPtr.get(), committer);
@@ -5360,7 +5560,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                         auto lp = fullPath.localPath_utf8();
                         auto rp = fullPath.cloudPath;
 
-                        syncs.clientThreadActions.pushBack([type, lp, rp](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([type, lp, rp](MegaClient& mc, DBTableTransactionCommitter& committer)
                             {
                                 mc.filenameAnomalyDetected(type, lp, rp);
                             });
@@ -5373,7 +5573,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 NodeHandle targethandle = parentRow.cloudNode->handle;
                 auto createFolderPtr = std::make_shared<LocalNode::RareFields::CreateFolderInProgress>();
                 row.syncNode->rare().createFolderHere = createFolderPtr;
-                syncs.clientThreadActions.pushBack([foldername, targethandle, createFolderPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                syncs.queueClient([foldername, targethandle, createFolderPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         vector<NewNode> nn(1);
                         mc.putnodes_prepareOneFolder(&nn[0], foldername);
@@ -5437,7 +5637,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 row.syncNode->download.reset(std::make_shared<SyncDownload_inClient>(*row.cloudNode, tmpfaPath, inshare, *syncs.fsaccess));
 
                 auto downloadPtr = row.syncNode->download.actualDownload;
-                syncs.clientThreadActions.pushBack([downloadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                syncs.queueClient([downloadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         mc.nextreqtag();
                         mc.startxfer(GET, downloadPtr.get(), committer);
@@ -5502,7 +5702,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 {
                     auto remotePath = fullPath.cloudPath;
                     auto localPath = fullPath.localPath_utf8();
-                    syncs.clientThreadActions.pushBack([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
+                    syncs.queueClient([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
                             mc.filenameAnomalyDetected(type, localPath, remotePath);
                         });
@@ -5951,7 +6151,7 @@ bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
         }
         else
         {
-            syncs.clientThreadActions.pushBack([](MegaClient& mc, DBTableTransactionCommitter& committer)
+            syncs.queueClient([](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     mc.sendevent(99438, "Timeout waiting for file update", 0);
                 });
@@ -6017,7 +6217,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
             LOG_debug << syncname << "Moving cloud item to cloud sync debris: " << fullPath.cloudPath << logTriplet(row, fullPath);
             bool fromInshare = inshare;
             auto debrisNodeHandle = row.cloudNode->handle;
-            syncs.clientThreadActions.pushBack([debrisNodeHandle, fromInshare](MegaClient& mc, DBTableTransactionCommitter& committer)
+            syncs.queueClient([debrisNodeHandle, fromInshare](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     if (auto n = mc.nodeByHandle(debrisNodeHandle))
                     {
@@ -6981,6 +7181,9 @@ void Syncs::syncLoop()
         waiter.init(2);
         waiter.wait();
 
+        // make sure we are using the client key (todo: shall we set it just when the client sets its key? easy to miss one though)
+        syncKey.setkey(mClient.key.key);
+
         // execute any requests from the MegaClient
         waiter.bumpds();
         std::function<void()> f;
@@ -7365,6 +7568,37 @@ void Syncs::syncLoop()
         //    setAllSyncsNeedFullSyncdown();
         //}
 
+        // this loop adapted from the old notifypurge()
+        for (auto& us : mSyncVec)
+        {
+            CloudNode cloudNode;
+            string cloudNodePath;
+            bool inTrash = false;
+            bool foundCloudNode = lookupCloudNode(us->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, inTrash);
+
+            // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
+            bool pathChanged = updateSyncRemoteLocation(*us, foundCloudNode, cloudNodePath);
+
+            if (Sync* sync = us->mSync.get())
+            {
+                if (inTrash)
+                {
+                    LOG_debug << "Detected sync root node is now in trash";
+                    sync->changestate(SYNC_FAILED, REMOTE_NODE_MOVED_TO_RUBBISH, false, true);
+                }
+                else if (pathChanged)
+                {
+                    LOG_debug << "Detected sync root node is now at a different path.";
+                    sync->changestate(SYNC_FAILED, REMOTE_PATH_HAS_CHANGED, false, true);
+                }
+                else if (!foundCloudNode)
+                {
+                    LOG_debug << "Detected sync root node no longer exists";
+                    sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
+                }
+            }
+        };
+
         stopCancelledFailedDisabled();
 
         waiter.bumpds();
@@ -7395,8 +7629,8 @@ void Syncs::syncLoop()
             mSyncFlags->reachableNodesAllScannedThisPass = true;
             mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves(false); // paused syncs do not participate in move detection
             mSyncFlags->noProgress = true;
-            mSyncFlags->stalledNodePaths.clear();
-            mSyncFlags->stalledLocalPaths.clear();
+            mSyncFlags->stall.cloud.clear();
+            mSyncFlags->stall.local.clear();
 
             forEachRunningSync(true, [&](Sync* sync) {
 
@@ -7438,9 +7672,14 @@ void Syncs::syncLoop()
                         CloudNode rootCloudNode(*sync->cloudRoot());
                         syncRow row{&rootCloudNode, sync->localroot.get(), &rootFsNode};
 
-                        //bool allNodesSynced =
-                        sync->recursiveSync(row, pathBuffer, false, false, 0);
+                        {
+                            // later we can make this lock much finer-grained
+                            std::lock_guard<std::timed_mutex> g(mLocalNodeChangeMutex);
 
+                            //bool allNodesSynced =
+                            sync->recursiveSync(row, pathBuffer, false, false, 0);
+
+                        }
                         //{
                         //    // a local filesystem item was locked - schedule periodic retry
                         //    // and force a full rescan afterwards as the local item may
@@ -7494,13 +7733,13 @@ void Syncs::syncLoop()
                 LOG_info << mClient.clientname << "Sync conflicting paths state app notified: " << conflictsNow;
             }
 
-            bool stalled = !mSyncFlags->stalledNodePaths.empty() ||
-                !mSyncFlags->stalledLocalPaths.empty();
+            bool stalled = !mSyncFlags->stall.cloud.empty() ||
+                !mSyncFlags->stall.local.empty();
             if (stalled)
             {
                 LOG_warn << mClient.clientname << "Stall detected!";
-                for (auto& p : mSyncFlags->stalledNodePaths) LOG_warn << "stalled node path: " << p.first;
-                for (auto& p : mSyncFlags->stalledLocalPaths) LOG_warn << "stalled local path: " << p.first.toPath(*mClient.fsaccess);
+                for (auto& p : mSyncFlags->stall.cloud) LOG_warn << "stalled node path: " << p.first;
+                for (auto& p : mSyncFlags->stall.local) LOG_warn << "stalled local path: " << p.first.toPath(*mClient.fsaccess);
             }
 
             if (stalled != syncStallState)
@@ -7517,7 +7756,7 @@ void Syncs::syncLoop()
         bool anySyncScanning = isAnySyncScanning_inThread(false);
         if (anySyncScanning != syncscanstate)
         {
-            clientThreadActions.pushBack([anySyncScanning](MegaClient& mc, DBTableTransactionCommitter& committer)
+            queueClient([anySyncScanning](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     mc.app->syncupdate_scanning(anySyncScanning);
                 });
@@ -7527,11 +7766,17 @@ void Syncs::syncLoop()
         bool anySyncBusy = isAnySyncSyncing(false);
         if (anySyncBusy != syncBusyState)
         {
-            clientThreadActions.pushBack([anySyncBusy](MegaClient& mc, DBTableTransactionCommitter& committer)
+            queueClient([anySyncBusy](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     mc.app->syncupdate_syncing(anySyncBusy);
                 });
             syncBusyState = anySyncBusy;
+        }
+
+        {
+            lock_guard<mutex> g(stallMutex);
+            stall.cloud.swap(mSyncFlags->stall.cloud);
+            stall.local.swap(mSyncFlags->stall.local);
         }
 
 // todo: moved from notifypurge()
@@ -7709,15 +7954,17 @@ bool Syncs::conflictsDetected() const
     return found;
 }
 
-bool Syncs::syncStallDetected(SyncFlags::CloudStallInfoMap& snp, SyncFlags::LocalStallInfoMap& slp) const
+bool Syncs::syncStallDetected(SyncStallInfo& si) const
 {
-    bool stalled = !mSyncFlags->stalledNodePaths.empty() ||
-        !mSyncFlags->stalledLocalPaths.empty();
+    lock_guard<mutex> g(stallMutex);
+
+    bool stalled =
+        !stall.cloud.empty() ||
+        !stall.local.empty();
 
     if (stalled)
     {
-        snp = mSyncFlags->stalledNodePaths;
-        slp = mSyncFlags->stalledLocalPaths;
+        si = stall;
         return true;
     }
     return false;
@@ -7746,43 +7993,6 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     }
 
     tp->proc(*n->sync->syncs.fsaccess, n);
-}
-
-void Syncs::removeCaches(bool keepSyncsConfigFile)
-{
-    assert(!onSyncThread());
-
-    std::promise<bool> synchronous;
-    syncThreadActions.pushBack([&]()
-        {
-            assert(onSyncThread());
-
-            // remove the LocalNode cache databases first, otherwise disable would cause this to be skipped
-            forEachRunningSync(true, [](Sync* sync)
-                {
-                    if (sync->statecachetable)
-                    {
-                        sync->statecachetable->remove();
-                        sync->statecachetable.reset();
-                    }
-                });
-
-            if (keepSyncsConfigFile)
-            {
-                // Special case backward compatibility for MEGAsync
-                // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-                disableSelectedSyncs_inThread(
-                    [&](SyncConfig& config, Sync*){return config.getEnabled();},
-                    LOGGED_OUT, false, nullptr);
-            }
-            else
-            {
-                purgeSyncs_inThread();
-            }
-            synchronous.set_value(true);
-        });
-
-    synchronous.get_future().get();
 }
 
 bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool& isInTrash)
@@ -7818,6 +8028,21 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     return false;
 }
 
+
+void Syncs::queueSync(std::function<void()>&& f)
+{
+    assert(!onSyncThread());
+    syncThreadActions.pushBack(move(f));
+    waiter.notify();
+}
+
+
+void Syncs::queueClient(std::function<void(MC&, DBTC&)>&& f)
+{
+    assert(onSyncThread());
+    clientThreadActions.pushBack(move(f));
+    mClient.waiter->notify();
+}
 
 
 } // namespace

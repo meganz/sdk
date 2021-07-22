@@ -190,12 +190,6 @@ private:
     void changedConfigState(bool notifyApp);
 };
 
-using SyncCompletionFunction =
-  std::function<void(UnifiedSync*, const SyncError&, error)>;
-
-
-
-
 struct syncRow
 {
     syncRow(CloudNode* node, LocalNode* syncNode, FSNode* fsNode)
@@ -416,7 +410,7 @@ public:
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
-    Sync(UnifiedSync&, const string&, const LocalPath&, Node*, bool, const string& logname);
+    Sync(UnifiedSync&, const string&, const LocalPath&, NodeHandle rootNodeHandle, const string& rootNodeName, bool, const string& logname);
     ~Sync();
 
     // Should we synchronize this sync?
@@ -637,6 +631,26 @@ private:
     HMACSHA256 mSigner;
 }; // SyncConfigIOContext
 
+struct SyncStallInfo
+{
+    struct CloudStallInfo
+    {
+        SyncWaitReason reason = SyncWaitReason::NoReason;
+        string involvedCloudPath;
+        LocalPath involvedLocalPath;
+    };
+    struct LocalStallInfo {
+        SyncWaitReason reason = SyncWaitReason::NoReason;
+        LocalPath involvedLocalPath;
+        string involvedCloudPath;
+    };
+    typedef map<string, CloudStallInfo> CloudStallInfoMap;
+    typedef map<LocalPath, LocalStallInfo> LocalStallInfoMap;
+
+    CloudStallInfoMap cloud;
+    LocalStallInfoMap local;
+};
+
 struct SyncFlags
 {
     // we can only perform moves after scanning is complete
@@ -659,27 +673,15 @@ struct SyncFlags
     // to help with slowing down retries in stall state
     dstime recursiveSyncLastCompletedDs = 0;
 
-    struct CloudStallInfo
-    {
-        SyncWaitReason reason = SyncWaitReason::NoReason;
-        string involvedCloudPath;
-        LocalPath involvedLocalPath;
-    };
-    struct LocalStallInfo {
-        SyncWaitReason reason = SyncWaitReason::NoReason;
-        LocalPath involvedLocalPath;
-        string involvedCloudPath;
-    };
-    typedef map<string, CloudStallInfo> CloudStallInfoMap;
-    typedef map<LocalPath, LocalStallInfo> LocalStallInfoMap;
-    CloudStallInfoMap stalledNodePaths;
-    LocalStallInfoMap stalledLocalPaths;
+    SyncStallInfo stall;
 };
 
 
 struct Syncs
 {
-    UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
+    void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+
+    shared_ptr<UnifiedSync> lookupUnifiedSync(handle backupId);
 
     size_t numRunningSyncs();
     unsigned numSyncs();    // includes non-running syncs, but configured
@@ -693,14 +695,9 @@ struct Syncs
     void forEachRunningSyncContainingNode(Node* node, bool includePaused, std::function<void(Sync* s)> f);
 
     void purgeRunningSyncs();
-    void stopCancelledFailedDisabled();
-    void resumeResumableSyncsOnStartup();
-    //void enableResumeableSyncs();
-    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&, const string& logname);
+    void resumeResumableSyncsOnStartup(bool resetSyncConfigStore, std::function<void(error)>&& completion);
 
-
-    // Try to create and start the Sync (called on client thread)
-    void enableSync(UnifiedSync& us, bool resetFingerprint, bool notifyApp, std::function<void(error)> completion, const string& logname);
+    void enableSyncByBackupId(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error)> completion, const string& logname);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
@@ -714,11 +711,7 @@ struct Syncs
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
 
-    // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
-    void purgeSyncs();
-
-    void resetSyncConfigStore();
-    void clear();
+    void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
     SyncConfigVector configsForDrive(const LocalPath& drive) const;
     SyncConfigVector allConfigs() const;
@@ -792,14 +785,17 @@ struct Syncs
      */
     error backupOpenDrive(LocalPath drivePath);
 
-    // Returns a reference to this user's internal configuration database.
-    SyncConfigStore* syncConfigStore();
 
     // Add a config directly to the internal sync config DB.
     //
     // Note that configs added in this way bypass the usual sync mechanism.
     // That is, they are added directly to the JSON DB on disk.
     error syncConfigStoreAdd(const SyncConfig& config);
+
+private:  // anything to do with loading/saving/storing configs etc is done on the sync thread
+
+    // Returns a reference to this user's internal configuration database.
+    SyncConfigStore* syncConfigStore();
 
     // Whether the internal database has changes that need to be written to disk.
     bool syncConfigStoreDirty();
@@ -809,6 +805,8 @@ struct Syncs
 
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
+
+public:
 
     string exportSyncConfigs(const SyncConfigVector configs) const;
     string exportSyncConfigs() const;
@@ -827,7 +825,7 @@ struct Syncs
     bool syncStallState = false;
 
     // app conflict tate flag
-    bool syncConflictState;
+    bool syncConflictState = false;
 
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
@@ -860,7 +858,7 @@ struct Syncs
     // true if any name conflicts have been detected.
     bool conflictsDetected() const;
 
-    bool syncStallDetected(SyncFlags::CloudStallInfoMap& stalledNodePaths, SyncFlags::LocalStallInfoMap& stalledLocalPaths) const;
+    bool syncStallDetected(SyncStallInfo& si) const;
 
     // waiter for sync loop on thread
     WAIT_CLASS waiter;
@@ -868,21 +866,30 @@ struct Syncs
     // used to asynchronously perform scans.
     unique_ptr<ScanService> mScanService;
 
+    typedef MegaClient MC;
+    typedef DBTableTransactionCommitter DBTC;
 
-    ThreadSafeDeque<std::function<void(MegaClient&, DBTableTransactionCommitter&)>> clientThreadActions;
-
+    ThreadSafeDeque<std::function<void(MC&, DBTC&)>> clientThreadActions;
     ThreadSafeDeque<std::function<void()>> syncThreadActions;
 
-    // Update remote location
-    bool updateSyncRemoteLocation(UnifiedSync&, Node* n, bool forceCallback);
+    void queueSync(std::function<void()>&&);
+    void queueClient(std::function<void(MC&, DBTC&)>&&);
 
-    // functions to call from client thread
-    void removeCaches(bool keepSyncsConfigFile);
+    // Update remote location
+    bool updateSyncRemoteLocation(UnifiedSync&, bool exists, string cloudPath);
 
     // mark nodes as needing to be checked for sync actions
     void triggerSync(NodeHandle, bool recurse = false);
 
+    // todo: move relevant code to this class later
+    // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem browser for icon indicators
+    std::timed_mutex mLocalNodeChangeMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
+
 private:
+
+    // functions for internal use on-thread only
+    void stopCancelledFailedDisabled();
+
     // Most of these private fields should only be used on the Sync's own thread
     // LocalNodes are entirely managed on this thread
     friend struct LocalNode;
@@ -899,6 +906,10 @@ private:
 
     // Separate key to avoid threading issues
     SymmCipher syncKey;
+
+    // data structure with mutex to interchange stall info
+    SyncStallInfo stall;
+    mutable mutex stallMutex;
 
     // When the node tree changes, this structure lets the sync code know which LocalNodes need to be flagged
     map<NodeHandle, bool> triggerHandles;
@@ -919,7 +930,10 @@ private:
     // Responsible for securely writing config databases to disk.
     unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
 
-    vector<unique_ptr<UnifiedSync>> mSyncVec;
+    // Stopgap solution - mutex to protect mSyncVec, and return shared_ptrs.
+    // Gradually we will tighten up the interface so UnifiedSync is only managed within the sync thread.
+    mutable mutex mSyncVecMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
+    vector<shared_ptr<UnifiedSync>> mSyncVec;
 
     // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
     void removeSyncByIndex(size_t index);
@@ -935,11 +949,20 @@ private:
 
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
-        Node* remotenode, bool inshare, bool isNetwork, const LocalPath& rootpath,
-        std::function<void(error)> completion, const string& logname);
+        NodeHandle rootNodeHandle, const string& rootNodeName, bool inshare, bool isNetwork, const LocalPath& rootpath,
+        std::function<void(error, SyncError, handle)> completion, const string& logname);
     void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
-    void purgeSyncs_inThread();
+    void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
     bool isAnySyncScanning_inThread(bool includePausedSyncs);
+    void resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, std::function<void(error)>);
+    void enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
+    void clear_inThread();
+    void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector);
+    void purgeRunningSyncs_inThread();
+
+    void syncRun(std::function<void()>);
 
     std::thread syncThread;
     void syncLoop();

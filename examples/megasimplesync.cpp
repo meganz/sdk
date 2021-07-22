@@ -432,7 +432,7 @@ void SyncApp::fetchnodes_result(const Error &e)
 #ifdef ENABLE_SYNC
                 SyncConfig syncConfig(LocalPath::fromPath(local_folder, *client->fsaccess), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
                 client->addsync(syncConfig, false,
-                                [](mega::UnifiedSync*, const SyncError& serr, error err) {
+                                [](error err, const SyncError& serr, handle backupId) {
                     if (err)
                     {
                         LOG_err << "Sync could not be added! " << err << " syncError = " << serr;

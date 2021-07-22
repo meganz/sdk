@@ -8824,18 +8824,18 @@ void exec_banner(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
-void sync_completion(UnifiedSync* us, const SyncError&, error result)
+void sync_completion(error result, const SyncError& se, handle backupId)
 {
-    if (!us)
+    if (backupId == UNDEF)
     {
         cerr << "Sync could not be added: "
              << errorstring(result)
              << endl;
     }
-    else if (us->mSync)
+    else if (result == API_OK && se == NO_SYNC_ERROR)
     {
         cerr << "Sync added and running: "
-             << toHandle(us->mConfig.mBackupId)
+             << toHandle(backupId)
              << endl;
     }
     else
@@ -9160,12 +9160,11 @@ void exec_synclist(autocomplete::ACState& s)
             cout << std::endl;
       });
 
-    SyncFlags::CloudStallInfoMap stalledNodePaths;
-    SyncFlags::LocalStallInfoMap stalledLocalPaths;
-    if (client->syncs.syncStallDetected(stalledNodePaths, stalledLocalPaths))
+    SyncStallInfo stall;
+    if (client->syncs.syncStallDetected(stall))
     {
         cout << "Stalled (mutually unresolvable) changes detected!" << endl;
-        for (auto& p : stalledNodePaths)
+        for (auto& p : stall.cloud)
         {
             cout << "stalled node path: " << p.first << " " << syncWaitReasonString(p.second.reason);
             if (!p.second.involvedCloudPath.empty())
@@ -9178,7 +9177,7 @@ void exec_synclist(autocomplete::ACState& s)
             }
             cout << endl;
         }
-        for (auto& p : stalledLocalPaths)
+        for (auto& p : stall.local)
         {
             cout << "stalled local path: " << p.first.toPath(*client->fsaccess) << " " << syncWaitReasonString(p.second.reason);
             if (!p.second.involvedLocalPath.empty())
@@ -9248,16 +9247,19 @@ void exec_syncxable(autocomplete::ACState& s)
     if (command == "enable")
     {
         // sync enable id
-        UnifiedSync* unifiedSync;
-        error result =
-          client->syncs.enableSyncByBackupId(backupId, false, unifiedSync, toHandle(backupId));
-
-        if (result)
-        {
-            cerr << "Unable to enable sync: "
-                 << errorstring(result)
-                 << endl;
-        }
+        client->syncs.enableSyncByBackupId(backupId, false, true, [](error err)
+            {
+                if (err)
+                {
+                    cerr << "Unable to enable sync: "
+                        << errorstring(err)
+                        << endl;
+                }
+                else
+                {
+                    cout << "sync enabled" << endl;
+                }
+            }, "");
 
         return;
     }

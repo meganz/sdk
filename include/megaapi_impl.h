@@ -1026,7 +1026,7 @@ protected:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const SyncConfig& config, Sync*, MegaClient* client);
+    MegaSyncPrivate(const SyncConfig& config, bool active, MegaClient* client);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();

@@ -1413,10 +1413,10 @@ MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
     SdkMutexGuard g(sdkMutex);
 
     unique_ptr<MegaSync> ret;
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& s){
-        if (s.mConfig.getBackupId() == backupId)
+    client->syncs.forEachUnifiedSync([&](UnifiedSync& us){
+        if (us.mConfig.getBackupId() == backupId)
         {
-            ret.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get(), client));
+            ret.reset(new MegaSyncPrivate(us.mConfig, us.mSync && us.mSync->state >= 0, client));
         }
     });
 
@@ -1437,7 +1437,7 @@ MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
     client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
         if (us.mConfig.getRemoteNode() == nodeHandle)
         {
-            ret.reset(new MegaSyncPrivate(us.mConfig, us.mSync.get(), client));
+            ret.reset(new MegaSyncPrivate(us.mConfig, us.mSync && us.mSync->state >= 0, client));
         }
     });
 
@@ -1457,7 +1457,7 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
     client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
         if (us.mConfig.getLocalPath().toPath(*client->fsaccess) == localPath)
         {
-            ret.reset(new MegaSyncPrivate(us.mConfig, us.mSync.get(), client));
+            ret.reset(new MegaSyncPrivate(us.mConfig, us.mSync && us.mSync->state >= 0, client));
         }
     });
 
@@ -8760,7 +8760,7 @@ int MegaApiImpl::syncPathState(string* path)
 
     // Avoid blocking on the mutex for a long time, as we may be blocking windows explorer (or another platform's equivalent) from opening or displaying a window, unrelated to sync folders
     // We try to lock the SDK mutex.  If we can't get it in 10ms then we return a simple default, and subsequent requests try to lock the mutex but don't wait.
-    SdkMutexGuard g(sdkMutex, std::defer_lock);
+    std::unique_lock<std::timed_mutex> g(client->syncs.mLocalNodeChangeMutex, std::defer_lock);
     if ((!syncPathStateLockTimeout && !g.try_lock_for(std::chrono::milliseconds(10))) ||
         (syncPathStateLockTimeout && !g.try_lock()))
     {
@@ -9028,7 +9028,7 @@ MegaSyncList *MegaApiImpl::getSyncs()
     vector<MegaSyncPrivate*> vMegaSyncs;
 
     client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
-        vMegaSyncs.push_back(new MegaSyncPrivate(s.mConfig, s.mSync.get(), client));
+        vMegaSyncs.push_back(new MegaSyncPrivate(s.mConfig, s.mSync && s.mSync->state >= 0, client));
     });
 
     MegaSyncList *syncList = new MegaSyncListPrivate(vMegaSyncs.data(), int(vMegaSyncs.size()));
@@ -13361,7 +13361,7 @@ MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(handle backupId)
     client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
         if (s.mConfig.getBackupId() == backupId)
         {
-            mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get(), client));
+            mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(s.mConfig, s.mSync && s.mSync->state >= 0, client));
         }
     });
 
@@ -13930,9 +13930,11 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                                     0, drivePath, true, SyncConfig::TYPE_BACKUP );
 
             client->addsync(syncConfig, false,
-                                [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
+                                [this, request](error e, SyncError se, handle backupId)
             {
-                request->setNumDetails(syncError);
+                auto unifiedSync = client->syncs.lookupUnifiedSync(backupId);
+
+                request->setNumDetails(se);
 
                 if (!e && !unifiedSync)
                 {
@@ -13948,7 +13950,9 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     }
                     request->setParentHandle(unifiedSync->mConfig.getBackupId());
 
-                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig, unifiedSync->mSync.get(), client);
+                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig,
+                        unifiedSync->mSync && unifiedSync->mSync->state >= 0,
+                        client);
 
                     fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
                 }
@@ -21472,9 +21476,11 @@ void MegaApiImpl::sendPendingRequests()
                                   0, drivePath);
 
             client->addsync(syncConfig, false,
-                                [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
+                                [this, request](error e, SyncError se, handle backupId)
             {
-                request->setNumDetails(syncError);
+                auto unifiedSync = client->syncs.lookupUnifiedSync(backupId);
+
+                request->setNumDetails(se);
 
                 if (!e && !unifiedSync)
                 {
@@ -21490,7 +21496,8 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     request->setParentHandle(unifiedSync->mConfig.getBackupId());
 
-                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig, unifiedSync->mSync.get(), client);
+                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig,
+                            unifiedSync->mSync && unifiedSync->mSync->state >= 0, client);
 
                     fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
                 }
@@ -21501,17 +21508,14 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
             auto backupId = request->getParentHandle();
-            UnifiedSync* us = nullptr;
 
-            e = client->syncs.enableSyncByBackupId(backupId, true, us, "");
+            client->syncs.enableSyncByBackupId(backupId, true, true, [=](error e)
+                {
+                    auto us = client->syncs.lookupUnifiedSync(backupId);
+                    request->setNumDetails(us ? us->mConfig.getError() : UNKNOWN_ERROR);
 
-            request->setNumDetails(us ? us->mConfig.getError() : UNKNOWN_ERROR);
-
-            if (!e) //sync added (enabled) fine
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-                break;
-            }
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }, "");
 
             break;
         }
@@ -21752,12 +21756,12 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->syncs.disableSelectedSyncs([&](SyncConfig& c, Sync* s)
+            client->syncs.disableSelectedSyncs([=](SyncConfig& c, Sync* s)
                 {
-                    bool matched = (c.getBackupId() == backupId) ||
-                                   (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
-                    return matched;
-                }, NO_SYNC_ERROR, false,
+                    return (c.getBackupId() == backupId) ||
+                           (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
+                },
+                NO_SYNC_ERROR, false,
                 [this, request](size_t nDisabled){
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(nDisabled ? API_OK : API_ENOENT));
                 });
@@ -23101,10 +23105,6 @@ void MegaApiImpl::sendPendingRequests()
             LOG_err << "Error starting request: " << e;
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
-
-#ifdef ENABLE_SYNC
-        client->syncs.syncConfigStoreFlush();
-#endif
     }
 }
 
@@ -24383,9 +24383,9 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 }
 
 #ifdef ENABLE_SYNC
-MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr /* can be null */, MegaClient* client /* never null */)
+MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, bool active, MegaClient* client /* never null */)
     : mType(static_cast<SyncType>(config.getType()))
-    , mActive(syncPtr && syncPtr->state >= 0)
+    , mActive(active)
     , mEnabled(config.getEnabled())
 {
     this->megaHandle = config.getRemoteNode().as8byte();

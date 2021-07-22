@@ -1148,8 +1148,6 @@ void MegaClient::init()
 #ifdef ENABLE_SYNC
     syncdebrisadding = false;
     syncdebrisminute = 0;
-
-    syncs.clear();
 #endif
 
     for (int i = sizeof rootnodes / sizeof *rootnodes; i--; )
@@ -3625,7 +3623,7 @@ void MegaClient::logout(bool keepSyncConfigsFile)
     // if logging out and syncs won't be kept...
     if (!keepSyncConfigsFile)
     {
-        syncs.purgeSyncs();    // unregister from API and clean up backup-names
+        syncs.locallogout(true, keepSyncConfigsFile);  // unregister from API and clean up backup-names
     }
 #endif
 
@@ -3636,9 +3634,11 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
     mAsyncQueue.clearDiscardable();
 
+    syncs.locallogout(removecaches, keepSyncsConfigFile);
+
     if (removecaches)
     {
-        removeCaches(keepSyncsConfigFile);
+        removeCaches();
     }
 
     sctable.reset();
@@ -3794,7 +3794,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     fetchingkeys = false;
 }
 
-void MegaClient::removeCaches(bool keepSyncsConfigFile)
+void MegaClient::removeCaches()
 {
     if (sctable)
     {
@@ -3808,10 +3808,6 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
         statusTable->remove();
         statusTable.reset();
     }
-
-#ifdef ENABLE_SYNC
-    syncs.removeCaches(keepSyncsConfigFile);
-#endif
 
     disabletransferresumption();
 }
@@ -3928,7 +3924,7 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 bool MegaClient::procsc()
 {
     // prevent the sync thread from looking things up while we change the tree
-    lock_guard<mutex> nodeTreeIsChanging(nodeTreeMutex);
+    std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
 
     actionpacketsCurrent = false;
 
@@ -4009,7 +4005,8 @@ bool MegaClient::procsc()
 
                             enabletransferresumption();
 #ifdef ENABLE_SYNC
-                            syncs.resumeResumableSyncsOnStartup();
+                            nodeTreeIsChanging.unlock();
+                            syncs.resumeResumableSyncsOnStartup(false, nullptr);   // todo: should we make this synchronous?
 #endif
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
@@ -4108,6 +4105,10 @@ bool MegaClient::procsc()
                     {
                         LOG_debug << "Postponing DB commit until cs requests finish (spoonfeeding)";
                     }
+
+#ifdef ENABLE_SYNC
+                    syncs.waiter.notify();
+#endif
 
                     return true;
 
@@ -11783,11 +11784,15 @@ void MegaClient::fetchnodes(bool nocache)
         sctable->truncate();
     }
 
+    std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
+
     // only initial load from local cache
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
             !nodes.size() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable.get()))
     {
+        nodeTreeIsChanging.unlock(); // nodes loaded from db
+
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
@@ -11832,8 +11837,7 @@ void MegaClient::fetchnodes(bool nocache)
             enabletransferresumption();
 
 #ifdef ENABLE_SYNC
-            syncs.resetSyncConfigStore();
-            syncs.resumeResumableSyncsOnStartup();
+            syncs.resumeResumableSyncsOnStartup(true, nullptr);  // todo: should we make this synchronous?
 #endif
             app->fetchnodes_result(API_OK);
 
@@ -13063,7 +13067,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork)
+error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork)
 {
 #ifdef ENABLE_SYNC
 
@@ -13074,7 +13078,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
-    remotenode = nodeByHandle(syncConfig.getRemoteNode());
+    Node* remotenode = nodeByHandle(syncConfig.getRemoteNode());
     inshare = false;
     if (!remotenode)
     {
@@ -13087,6 +13091,8 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         syncConfig.mEnabled = false;
         return API_ENOENT;
     }
+
+    rootNodeName = remotenode->displayname();
 
     if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
@@ -13132,8 +13138,6 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     {
         if (openedLocalFolder->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath().toPath(*fsaccess) << " vs " << remotenode->displaypath();
-
             // Note localpath is stored as utf8 in syncconfig as passed from the apps!
             // Note: we might want to have it expansed to store the full canonical path.
             // so that the app does not need to carry that burden.
@@ -13337,17 +13341,17 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunction completion, const string& logname)
+error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
-    Node* remotenode;
+    string remotenodename;
     bool inshare, isnetwork;
-    error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenode, inshare, isnetwork);
+    error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
 
     if (e)
     {
-        completion(nullptr, config.getError(), e);
+        if (completion) completion(e, config.mError, UNDEF);
         return e;
     }
 
@@ -13357,44 +13361,6 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     {
         auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
         auto sourcePath = NormalizeAbsolute(config.mLocalPath);
-        auto* store = syncs.syncConfigStore();
-
-        // Can we get our hands on the config store?
-        if (!store)
-        {
-            LOG_err << "Unable to add backup "
-                    << sourcePath.toPath(*fsaccess)
-                    << " on "
-                    << drivePath.toPath(*fsaccess)
-                    << " as there is no config store.";
-
-            assert(completion);
-            completion(nullptr, NO_SYNC_ERROR, API_EINTERNAL);
-
-            return API_EINTERNAL;
-        }
-
-        // Do we already know about this drive?
-        if (!store->driveKnown(drivePath))
-        {
-            // Restore the drive's backups, if any.
-            auto result = syncs.backupOpenDrive(drivePath);
-
-            if (result != API_OK && result != API_ENOENT)
-            {
-                // Couldn't read an existing database.
-                LOG_err << "Unable to add backup "
-                        << sourcePath.toPath(*fsaccess)
-                        << " on "
-                        << drivePath.toPath(*fsaccess)
-                        << " as we could not read its config database.";
-
-                assert(completion);
-                completion(nullptr, NO_SYNC_ERROR, API_EFAILED);
-
-                return API_EFAILED;
-            }
-        }
 
         config.mExternalDrivePath = std::move(drivePath);
         config.mLocalPath = std::move(sourcePath);
@@ -13403,7 +13369,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
         e = readDriveId(p.c_str(), driveId);
         if (e != API_OK)
         {
-            completion(nullptr, NO_SYNC_ERROR, e);
+            if (completion) completion(e, config.mError, UNDEF);
             return e;
         }
     }
@@ -13421,19 +13387,14 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
 
         if (e)
         {
-            completion(nullptr, config.getError(), e);
+            if (completion) completion(e, config.mError, backupId);
         }
         else
         {
-
             // if we got this far, the syncConfig is kept (in db and in memory)
             config.setBackupId(backupId);
 
-            UnifiedSync* us = syncs.appendNewSync(config, *this);
-
-            syncs.enableSync(*us, false, notifyApp, [us, completion](error e){
-                    completion(us, us->mConfig.getError(), e);
-                }, logname);
+            syncs.appendNewSync(config, true, notifyApp, completion, logname);
         }
     }));
 

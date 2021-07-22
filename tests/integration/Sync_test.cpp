@@ -1550,7 +1550,7 @@ struct StandardClient : public MegaApp
     bool backupAdd_inthread(const string& drivePath,
                             string sourcePath,
                             const string& targetPath,
-                            SyncCompletionFunction completion,
+                            std::function<void(error, SyncError, handle)> completion,
                             const string& logname)
     {
         auto* rootNode = client.nodebyhandle(basefolderhandle);
@@ -1581,7 +1581,7 @@ struct StandardClient : public MegaApp
 
         if (result != API_OK)
         {
-            completion(nullptr, NO_SYNC_ERROR, result);
+            completion(result, NO_SYNC_ERROR, UNDEF);
             return false;
         }
 
@@ -1616,10 +1616,9 @@ struct StandardClient : public MegaApp
             [&](StandardClient& client, PromiseHandleSP result)
             {
                 auto completion =
-                  [=](UnifiedSync* us, const SyncError& se, error e)
+                  [=](error e, SyncError, handle backupId)
                   {
-                    auto success = !!us && !se && !e;
-                    result->set_value(success ? us->mConfig.mBackupId : UNDEF);
+                    result->set_value(backupId);
                   };
 
                   client.backupAdd_inthread(dp.u8string(),
@@ -1633,7 +1632,7 @@ struct StandardClient : public MegaApp
     }
 
     bool setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
-                            SyncCompletionFunction addSyncCompletion, const string& logname)
+        std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
         {
@@ -1644,7 +1643,7 @@ struct StandardClient : public MegaApp
                     SyncConfig(LocalPath::fromPath(localpath.u8string(), *client.fsaccess),
                                localpath.u8string(),
                                NodeHandle().set6byte(m->nodehandle),
-                               subfoldername,
+                               m->displaypath(),
                                0,
                                LocalPath(),
                                //string_vector(),
@@ -2072,8 +2071,8 @@ struct StandardClient : public MegaApp
 
     void enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
     {
-        UnifiedSync* sync;
-        result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync, logname));
+        client.syncs.enableSyncByBackupId(id, false, false,
+            [result](error e){ result->set_value(!e); }, logname);
     }
 
     bool enableSyncByBackupId(handle id, const string& logname)
@@ -2686,9 +2685,9 @@ struct StandardClient : public MegaApp
         auto fb = thread_do<handle>([=](StandardClient& mc, PromiseHandleSP pb)
             {
                 mc.setupSync_inthread(remotesyncrootfolder, syncdir, isBackup,
-                    [pb](UnifiedSync* us, const SyncError& se, error e)
+                    [pb](error e, SyncError, handle backupId)
                     {
-                        pb->set_value(us != nullptr && !e && !se ? us->mConfig.getBackupId() : UNDEF);
+                        pb->set_value(backupId);
                     }, localsyncrootfolder + " ");
             });
         return fb.get();
@@ -2733,8 +2732,7 @@ struct StandardClient : public MegaApp
 struct SyncWaitResult
 {
     bool syncStalled = false;
-    SyncFlags::CloudStallInfoMap stalledNodePaths;
-    SyncFlags::LocalStallInfoMap stalledLocalPaths;
+    SyncStallInfo stall;
 };
 
 vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity, int64_t millisecNoSyncing)> endCondition, StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
@@ -2758,7 +2756,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
         {
             v[i]->thread_do<bool>([&](StandardClient& mc, PromiseBoolSP pb)
                 {
-                    result[i].syncStalled = mc.client.syncs.syncStallDetected(result[i].stalledNodePaths, result[i].stalledLocalPaths);
+                    result[i].syncStalled = mc.client.syncs.syncStallDetected(result[i].stall);
 
                     if (!result[i].syncStalled)
                     {
@@ -4066,12 +4064,12 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
     vector<SyncWaitResult> waitResult = waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
 
     ASSERT_EQ(waitResult[0].syncStalled, true);
-    ASSERT_EQ(2, waitResult[0].stalledNodePaths.size());  // for now at least, reporting source and destination nodes for each move
-    ASSERT_EQ(2, waitResult[0].stalledLocalPaths.size());
-    ASSERT_EQ(waitResult[0].stalledNodePaths.begin()->first, "/mega_test_sync/f/f_0");
-    ASSERT_EQ(waitResult[0].stalledNodePaths.rbegin()->first, "/mega_test_sync/f/f_1/f_0");
-    ASSERT_EQ(waitResult[0].stalledLocalPaths.begin()->first.toPath(), (client1LocalSyncRoot / "f_0" / "f_1").u8string() );
-    ASSERT_EQ(waitResult[0].stalledLocalPaths.rbegin()->first.toPath(), (client1LocalSyncRoot / "f_1").u8string() );
+    ASSERT_EQ(2, waitResult[0].stall.cloud.size());  // for now at least, reporting source and destination nodes for each move
+    ASSERT_EQ(2, waitResult[0].stall.local.size());
+    ASSERT_EQ(waitResult[0].stall.cloud.begin()->first, "/mega_test_sync/f/f_0");
+    ASSERT_EQ(waitResult[0].stall.cloud.rbegin()->first, "/mega_test_sync/f/f_1/f_0");
+    ASSERT_EQ(waitResult[0].stall.local.begin()->first.toPath(), (client1LocalSyncRoot / "f_0" / "f_1").u8string() );
+    ASSERT_EQ(waitResult[0].stall.local.rbegin()->first.toPath(), (client1LocalSyncRoot / "f_1").u8string() );
 }
 
 
