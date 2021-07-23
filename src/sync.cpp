@@ -947,8 +947,6 @@ void Sync::setBackupMonitoring()
 
 bool Sync::active() const
 {
-    assert(syncs.onSyncThread());
-
     switch (state)
     {
     case SYNC_ACTIVE:
