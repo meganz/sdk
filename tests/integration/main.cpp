@@ -66,6 +66,7 @@ namespace {
 
 class MegaLogger : public Logger
 {
+    mutex logMutex;
 public:
     void log(const char* time, int loglevel, const char* source, const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
@@ -93,6 +94,8 @@ public:
             os << " (" << source << ")";
         }
         os << std::endl;
+
+        lock_guard g(logMutex);
 
         if (loglevel <= SimpleLogger::logCurrentLevel)
         {

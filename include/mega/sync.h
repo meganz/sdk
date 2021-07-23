@@ -845,12 +845,8 @@ public:
     // total number of LocalNode objects
     long long totalLocalNodes = 0;
 
-    bool nodeIsInActiveSync(Node* n, bool includePausedSyncs);
-
     // manage syncdown flags inside the syncs
     void setAllSyncsNeedFullSync();
-    bool isAnySyncSyncing(bool includePausedSyncs);
-    bool isAnySyncScanning(bool includePausedSyncs);
 
     // retrieves information about any detected name conflicts.
     bool conflictsDetected(list<NameConflict>& conflicts) const;
@@ -946,6 +942,8 @@ private:
     MegaClient& mClient;
 
     bool mightAnySyncsHaveMoves(bool includePausedSyncs);
+    bool isAnySyncSyncing(bool includePausedSyncs);
+    bool isAnySyncScanning(bool includePausedSyncs);
 
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
@@ -953,7 +951,6 @@ private:
         std::function<void(error, SyncError, handle)> completion, const string& logname);
     void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
-    bool isAnySyncScanning_inThread(bool includePausedSyncs);
     void resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, std::function<void(error)>);
     void enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
@@ -968,7 +965,7 @@ private:
     void syncLoop();
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThread.get_id(); }
-    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool& isInTrash);
+    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool& isInTrash, bool* nodeIsInActiveSync);
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 };
 

@@ -2773,7 +2773,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                         {
                             any_activity = true;
                         }
-                        if (mc.client.syncs.isAnySyncSyncing(false))
+                        if (mc.client.syncs.syncBusyState)
                         {
                             any_still_syncing = true;
                         }
@@ -3494,7 +3494,7 @@ TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
             //    remaining += s->dirnotify->fsDelayedNetworkEventq.size();
             //  });
 
-            remaining += sc.client.syncs.isAnySyncScanning(false) ? 1 : 0;
+            remaining += sc.client.syncs.syncscanstate ? 1 : 0;
 
             p->set_value(true);
         });

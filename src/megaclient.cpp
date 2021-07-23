@@ -11565,25 +11565,6 @@ void MegaClient::purgeOrphanTransfers(bool remove)
 {
     bool purgeOrphanTransfers = statecurrent;
 
-#ifdef ENABLE_SYNC
-    if (purgeOrphanTransfers && !remove)
-    {
-        if (!statecurrent || syncs.isAnySyncSyncing(true))
-        {
-            purgeOrphanTransfers = false;
-        }
-        else
-        {
-            syncs.forEachRunningSync(true, [&](Sync* sync) {
-                if (sync->state != SYNC_ACTIVE)
-                {
-                    purgeOrphanTransfers = false;
-                }
-            });
-        }
-    }
-#endif
-
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
         DBTableTransactionCommitter committer(tctable);

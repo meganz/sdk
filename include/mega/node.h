@@ -60,11 +60,11 @@ struct MEGA_API NodeCore
 
 struct CloudNode
 {
-    // We can't use Node* directly on the sync thread,
-    // as such pointers may be rendered dangling (and changes in them thread-unsafe)
-    // by actionpackets on the MegaClient thread.  So, we take temporary copies of the minimally needed aspects.
-    // We minimize memory use in the same way that FSNode works - if the syncNode has enough info to regenerate
-    // the cloudNodes for all its children, then we can deallocate.
+    // We can't use Node* directly on the sync thread,as such pointers
+    // may be rendered dangling (and changes in Nodes thread-unsafe)
+    // by actionpackets on the MegaClient thread.
+    // So, we take temporary copies of the minimally needed aspects.
+    // These are only used while recursing the LocalNode tree.
 
     string name;
     nodetype_t type = TYPE_UNKNOWN;
