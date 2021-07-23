@@ -3054,7 +3054,7 @@ bool Syncs::syncConfigStoreFlush()
     // Disable syncs present on drives that we couldn't write.
     size_t nFailed = failed.size();
 
-    disableSelectedSyncs(
+    disableSelectedSyncs_inThread(
       [&](SyncConfig& config, Sync*)
       {
           // But only if they're not already disabled.
@@ -3064,7 +3064,7 @@ bool Syncs::syncConfigStoreFlush()
 
           return matched > 0;
       },
-      SYNC_CONFIG_WRITE_FAILURE,
+      false, SYNC_CONFIG_WRITE_FAILURE,
       false, [=](size_t disabled){
 
         LOG_warn << "Disabled "
@@ -3712,6 +3712,25 @@ shared_ptr<UnifiedSync> Syncs::lookupUnifiedSync(handle backupId)
     return nullptr;
 }
 
+
+vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
+{
+    assert(!onSyncThread());
+
+    lock_guard<mutex> g(mSyncVecMutex);
+
+    vector<NodeHandle> v;
+    for (auto& s : mSyncVec)
+    {
+        if (mustBeActive && (!s->mSync || !s->mSync->active()))
+        {
+            continue;
+        }
+        v.emplace_back(s->mConfig.mRemoteNode);
+    }
+    return v;
+}
+
 void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
@@ -3725,10 +3744,10 @@ void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, s
             });
     };
 
-    syncThreadActions.pushBack([=]()
-        {
-            appendNewSync_inThread(c, startSync, notifyApp, completionInClient ? clientCompletion : completion, logname);
-        });
+    queueSync([=]()
+    {
+        appendNewSync_inThread(c, startSync, notifyApp, completionInClient ? clientCompletion : completion, logname);
+    });
 }
 
 void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
@@ -3926,10 +3945,13 @@ void Syncs::purgeRunningSyncs_inThread()
 
 void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
 {
+    assert(!onSyncThread());
+
     disableSelectedSyncs([&](SyncConfig& config, Sync*)
         {
             return config.getEnabled();
         },
+        false,
         syncError,
         newEnabledFlag,
         [=](size_t nDisabled) {
@@ -3938,16 +3960,19 @@ void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
         });
 }
 
-void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion)
+void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion)
 {
-    syncThreadActions.pushBack([this, selector, syncError, newEnabledFlag, completion]()
-        {
-            disableSelectedSyncs_inThread(selector, syncError, newEnabledFlag, completion);
-        });
+    assert(!onSyncThread());
+    queueSync([this, selector, disableIsFail, syncError, newEnabledFlag, completion]()
+    {
+        disableSelectedSyncs_inThread(selector, disableIsFail, syncError, newEnabledFlag, completion);
+    });
 }
 
-void Syncs::disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion)
+void Syncs::disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion)
 {
+    assert(onSyncThread());
+
     size_t nDisabled = 0;
     for (auto i = mSyncVec.size(); i--; )
     {
@@ -3955,7 +3980,7 @@ void Syncs::disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)
         {
             if (auto sync = mSyncVec[i]->mSync.get())
             {
-                sync->changestate(SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+                sync->changestate(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
             }
             else
             {
@@ -4063,7 +4088,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
         // The syncs will be disabled, if the user logs back in they can then manually re-enable.
         disableSelectedSyncs_inThread(
             [&](SyncConfig& config, Sync*){return config.getEnabled();},
-            LOGGED_OUT, false, nullptr);
+            false, LOGGED_OUT, false, nullptr);
 
         syncConfigStoreFlush();
     }

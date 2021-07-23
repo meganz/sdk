@@ -694,6 +694,8 @@ struct Syncs
     bool forEachRunningSync_shortcircuit(bool includePaused, std::function<bool(Sync* s)>);
     void forEachRunningSyncContainingNode(Node* node, bool includePaused, std::function<void(Sync* s)> f);
 
+    vector<NodeHandle> getSyncRootHandles(bool mustBeActive);
+
     void purgeRunningSyncs();
     void resumeResumableSyncsOnStartup(bool resetSyncConfigStore, std::function<void(error)>&& completion);
 
@@ -703,7 +705,7 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
 
     // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted.  Async as request is forwarded to thread
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
+    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -949,7 +951,7 @@ private:
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
         NodeHandle rootNodeHandle, const string& rootNodeName, bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error, SyncError, handle)> completion, const string& logname);
-    void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
+    void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
     void resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, std::function<void(error)>);
     void enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);

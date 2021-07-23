@@ -2316,6 +2316,7 @@ struct StandardClient : public MegaApp
           {
               return config.mBackupId == id;
           },
+          false,
           error,
           enabled,
           [result](size_t nDisabled){

@@ -9210,11 +9210,19 @@ bool MegaApiImpl::isInsideSync(MegaNode *node)
         return false;
     }
 
+    auto activeSyncRootHandles = client->syncs.getSyncRootHandles(true);
+
     SdkMutexGuard g(sdkMutex);
 
     if (Node *n = client->nodebyhandle(node->getHandle()))
     {
-        return client->getSyncContainingNodeHandle(n->nodehandle);
+        for (NodeHandle rootHandle : activeSyncRootHandles)
+        {
+            if (n->isbelow(rootHandle))
+            {
+                return true;
+            }
+        }
     }
     return false;
 }
@@ -21761,7 +21769,7 @@ void MegaApiImpl::sendPendingRequests()
                     return (c.getBackupId() == backupId) ||
                            (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
                 },
-                NO_SYNC_ERROR, false,
+                false, NO_SYNC_ERROR, false,
                 [this, request](size_t nDisabled){
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(nDisabled ? API_OK : API_ENOENT));
                 });

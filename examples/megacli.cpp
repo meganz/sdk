@@ -9301,6 +9301,7 @@ void exec_syncxable(autocomplete::ACState& s)
           {
               return config.getBackupId() == backupId;
           },
+          false,
           static_cast<SyncError>(error),
           false,
           [](size_t nDisabled){

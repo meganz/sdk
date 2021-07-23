@@ -1275,7 +1275,7 @@ bool CommandPutNodes::procresult(Result r)
             {
                 if (source == PUTNODES_SYNC)
                 {
-                    client->disableSyncContainingNode(targethandle.as8byte(), FOREIGN_TARGET_OVERSTORAGE, false);
+                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, false);
                 }
             }
 #endif
