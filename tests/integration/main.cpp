@@ -95,7 +95,7 @@ public:
         }
         os << std::endl;
 
-        lock_guard g(logMutex);
+        lock_guard<mutex> g(logMutex);
 
         if (loglevel <= SimpleLogger::logCurrentLevel)
         {

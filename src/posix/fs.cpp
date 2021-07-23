@@ -872,7 +872,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                           << name;
 
                 auto localName = LocalPath::fromPlatformEncoded(name);
-                notifier.notify(notifier.fsEventq, &node, move(localName));
+                notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
                 r |= Waiter::NEEDEXEC;
             }
         };
