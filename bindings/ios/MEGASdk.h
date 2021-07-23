@@ -1499,6 +1499,60 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 #pragma mark - Create account and confirm account Requests
 
 /**
+ * @brief Resume a registration process for an Ephemeral++ account
+ *
+ * When a user begins the account registration process by calling
+ * MegaApi::createEphemeralAccountPlusPlus an ephemeral++ account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+ * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+ * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
+ * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
+ * session (the session will be still valid).
+ *
+ * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getSessionKey - Returns the session id to resume the process
+ * - MegaRequest::getParamType - Returns the value 4
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MegaError::API_EARGS.
+ *
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ */
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname;
+
+/**
+ * @brief Resume a registration process for an Ephemeral++ account
+ *
+ * When a user begins the account registration process by calling
+ * MegaApi::createEphemeralAccountPlusPlus an ephemeral++ account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
+ * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
+ * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
+ * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
+ * session (the session will be still valid).
+ *
+ * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getSessionKey - Returns the session id to resume the process
+ * - MegaRequest::getParamType - Returns the value 4
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MegaError::API_EARGS.
+ *
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ * @param delegate Delegate to track this request.
+ */
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate;
+/**
  * @brief Initialize the creation of a new MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeCreateAccount.
