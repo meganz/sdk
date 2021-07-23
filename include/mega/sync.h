@@ -737,8 +737,6 @@ struct Syncs
     };
     std::map<LocalPath, FileChangingState> mFileChangingCheckState;
 
-    unique_ptr<BackupMonitor> mHeartBeatMonitor;
-
     /**
      * @brief
      * Removes previously opened backup databases from that drive from memory.
@@ -885,6 +883,10 @@ public:
 
 private:
 
+    // for heartbeats
+    BackoffTimer btheartbeat;
+    unique_ptr<BackupMonitor> mHeartBeatMonitor;
+
     // functions for internal use on-thread only
     void stopCancelledFailedDisabled();
 
@@ -895,6 +897,7 @@ private:
     friend struct SyncPath;
     friend struct UnifiedSync;
     friend class BackupInfoSync;
+    friend class BackupMonitor;
 
     // Syncs should have a separate fsaccess for use on its thread
     unique_ptr<FileSystemAccess> fsaccess;

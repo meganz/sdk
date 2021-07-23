@@ -41,6 +41,9 @@ const int Sync::FILE_UPDATE_DELAY_DS = 30;
 const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
 const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
+// hearbeat frequency
+static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
+
 #define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
 
 std::atomic<size_t> ScanService::mNumServices(0);
@@ -2735,8 +2738,9 @@ Syncs::Syncs(MegaClient& mc)
   , fsaccess(new FSACCESS_CLASS)
   , mSyncFlags(new SyncFlags)
   , mScanService(new ScanService(waiter))
+  , btheartbeat(rng)
 {
-    mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
+    mHeartBeatMonitor.reset(new BackupMonitor(*this));
     syncThread = std::thread([this]() { syncLoop(); });
 }
 
@@ -3675,8 +3679,9 @@ void Syncs::clear_inThread()
     localnodeByScannedFsid.clear();
     localnodeBySyncedFsid.clear();
     mSyncFlags.reset(new SyncFlags);
-    mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
+    mHeartBeatMonitor.reset(new BackupMonitor(*this));
     mFileChangingCheckState.clear();
+    btheartbeat.reset();
 
     if (syncscanstate)
     {
@@ -7938,6 +7943,13 @@ void Syncs::syncLoop()
 
         // Flush changes made to internal configs.
         syncConfigStoreFlush();
+
+
+        if (btheartbeat.armed())
+        {
+            mHeartBeatMonitor->beat();
+            btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
+        }
 
     }
 }

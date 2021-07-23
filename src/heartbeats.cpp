@@ -280,8 +280,8 @@ BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
 #endif
 
 ////////////// MegaBackupMonitor ////////////////
-BackupMonitor::BackupMonitor(MegaClient *client)
-    : mClient(client)
+BackupMonitor::BackupMonitor(Syncs& s)
+    : syncs(s)
 {
 }
 
@@ -289,17 +289,24 @@ BackupMonitor::BackupMonitor(MegaClient *client)
 
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
+    assert(syncs.onSyncThread());
+
 #ifdef DEBUG
     handle backupId = us.mConfig.getBackupId();
     assert(!ISUNDEF(backupId)); // syncs are registered before adding them
 #endif
 
-    auto currentInfo = ::mega::make_unique<BackupInfoSync>(us);
-    if (us.mBackupInfo && *currentInfo != *us.mBackupInfo)
+    auto currentInfo = BackupInfoSync(us);
+    if (us.mBackupInfo && currentInfo != *us.mBackupInfo)
     {
-        mClient->reqs.add(new CommandBackupPut(mClient, *currentInfo, nullptr));
+        syncs.queueClient([currentInfo](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                mc.reqs.add(new CommandBackupPut(&mc, currentInfo, nullptr));
+            });
+
+
     }
-    us.mBackupInfo = move(currentInfo);
+    us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(currentInfo);
 }
 
 bool BackupInfoSync::operator==(const BackupInfoSync& o) const
@@ -320,15 +327,10 @@ bool BackupInfoSync::operator!=(const BackupInfoSync &o) const
     return !(*this == o);
 }
 
-void BackupMonitor::onSyncConfigChanged()
-{
-    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
-        updateOrRegisterSync(us);
-    });
-}
-
 void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 {
+    assert(syncs.onSyncThread());
+
     // send registration or update in case we missed it
     updateOrRegisterSync(us);
 
@@ -355,12 +357,25 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         int8_t progress = (hbs->progress(inflightProgress) < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress(inflightProgress)*100.0));
 
         hbs->mSending = true;
-        auto newCommand = new CommandBackupPutHeartBeat(mClient, us.mConfig.getBackupId(),  static_cast<uint8_t>(hbs->status()),
-                          progress, hbs->mPendingUps, hbs->mPendingDowns,
-                          hbs->lastAction(), hbs->lastItemUpdated(),
-                          [hbs](Error){
-                               hbs->mSending = false;
-                          });
+
+        auto backupId = us.mConfig.getBackupId();
+        auto status = static_cast<uint8_t>(hbs->status());
+        auto pendingUps = hbs->mPendingUps;
+        auto pendingDowns = hbs->mPendingDowns;
+        auto lastAction = hbs->lastAction();
+        auto lastItemUpdated = hbs->lastItemUpdated();
+
+        syncs.queueClient([=](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                mc.reqs.add(
+                    new CommandBackupPutHeartBeat(&mc, backupId, status,
+                        progress, pendingUps, pendingDowns,
+                        lastAction, lastItemUpdated,
+                        [hbs](Error){
+                            hbs->mSending = false;
+                        }));
+            });
+
 
 #ifdef ENABLE_SYNC
         if (hbs->status() == HeartBeatSyncInfo::Status::UPTODATE && progress >= 100)
@@ -369,8 +384,6 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
             // note: new transfer updates will modify the progress and make it valid again
         }
 #endif
-
-        mClient->reqs.add(newCommand);
     }
 }
 
@@ -379,8 +392,10 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 void BackupMonitor::beat()
 {
 #ifdef ENABLE_SYNC
+    assert(syncs.onSyncThread());
+
     // Only send heartbeats for enabled active syncs.
-    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
+    syncs.forEachUnifiedSync([&](UnifiedSync& us){
         if (us.mSync && us.mConfig.getEnabled())
         {
             beatBackupInfo(us);

@@ -30,6 +30,7 @@ namespace mega
 {
 
 struct UnifiedSync;
+struct Syncs;
 
 /**
  * @brief The HeartBeatBackupInfo class
@@ -156,17 +157,16 @@ public:
 class BackupMonitor
 {
 public:
-    explicit BackupMonitor(MegaClient * client);
+    explicit BackupMonitor(Syncs&);
 
     void beat(); // produce heartbeats!
 
-    void onSyncConfigChanged();
     void updateOrRegisterSync(UnifiedSync&);
 
 private:
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
-    mega::MegaClient *mClient = nullptr;
+    Syncs& syncs;
 
 #ifdef ENABLE_SYNC
     void beatBackupInfo(UnifiedSync& us);

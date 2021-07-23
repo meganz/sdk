@@ -71,9 +71,6 @@ const int MegaClient::MAXQUEUEDFA = 30;
 const int MegaClient::MAXPUTFA = 10;
 
 #ifdef ENABLE_SYNC
-// hearbeat frequency
-static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
-
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
 #endif
@@ -1176,8 +1173,6 @@ void MegaClient::init()
     btpfa.reset();
     btbadhost.reset();
 
-    btheartbeat.reset();
-
     abortlockrequest();
     transferHttpCounter = 0;
     nextDispatchTransfersDs = 0;
@@ -1195,7 +1190,7 @@ void MegaClient::init()
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
-    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng), btheartbeat(rng)
+    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
     , mAsyncQueue(*w, workerThreadCount)
 #ifdef ENABLE_SYNC
     , syncs(*this)
@@ -2478,14 +2473,6 @@ void MegaClient::exec()
                 disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
             }
         }
-
-#ifdef ENABLE_SYNC
-        if (btheartbeat.armed())
-        {
-            syncs.mHeartBeatMonitor->beat();
-            btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
-        }
-#endif
 
         for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
         {
@@ -15065,7 +15052,6 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 // pause/unpause transfers
 void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransactionCommitter& committer)
 {
-    bool changed{xferpaused[d] != pause};
     xferpaused[d] = pause;
 
     if (!pause || hard)
@@ -15094,13 +15080,6 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransac
                 it++;
             }
         }
-    }
-
-    if (changed)
-    {
-#ifdef ENABLE_SYNC
-        syncs.mHeartBeatMonitor->onSyncConfigChanged();
-#endif
     }
 }
 
