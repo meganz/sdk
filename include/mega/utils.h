@@ -804,7 +804,7 @@ public:
 
         auto len = b.mCurrent - a.mCurrent;
         if (len < 2 || mCurrent + len > mEnd) return false;
-        if (0 != memcmp(a.mCurrent, mCurrent, len)) return false;
+        if (0 != memcmp(a.mCurrent, mCurrent, len * sizeof(CharT))) return false;
         mCurrent += len;
         return true;
     }
