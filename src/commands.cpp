@@ -2276,7 +2276,7 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
     arg("nf", 1);
-    arg("b", 1);
+    arg("b", 2);
     tag = client->reqtag;
 }
 
