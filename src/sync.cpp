@@ -7292,7 +7292,10 @@ void Syncs::syncLoop()
         // always wait a little bit, keep CPU down and let MegaClient lock if it needs to
         //cv.wait_for(dummy_lock, std::chrono::milliseconds(50), [this]() { return false; });
         waiter.init(2);
+        waiter.wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
         waiter.wait();
+
+        fsaccess->checkevents(&waiter);
 
         // make sure we are using the client key (todo: shall we set it just when the client sets its key? easy to miss one though)
         syncKey.setkey(mClient.key.key);
