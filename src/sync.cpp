@@ -5969,34 +5969,54 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
             }
             else if (row.syncNode->download.actualDownload->wasCompleted)
             {
-// todo: check if there is something at the target path already.  Also, if this folder has moved but we didn't notice yet, should we wait to catch up ?
-                if (syncs.fsaccess->renamelocal(row.syncNode->download.actualDownload->localname, fullPath.localPath))
+                // Convenience.
+                auto& fsAccess = *syncs.fsaccess;
+
+                // Clarity.
+                auto& cloudPath  = fullPath.cloudPath;
+                auto& sourcePath = row.syncNode->download.actualDownload->localname;
+                auto& targetPath = fullPath.localPath;
+
+                // Let the monitor know what we're up to.
+                monitor.waitingLocal(sourcePath, targetPath, cloudPath, SyncWaitReason::MovingDownloadToTarget);
+
+                // Try and move the downloaded file into its new home.
+                if (fsAccess.renamelocal(sourcePath, targetPath, false))
                 {
+                    // No existing file at the target location and the move was successful.
                     SYNC_verbose << syncname << "Download complete, moved file to final destination" << logTriplet(row, fullPath);
-
-                    // Check for filename anomalies.
-                    {
-                        auto type = isFilenameAnomaly(fullPath.localPath, row.cloudNode->name);
-
-                        if (type != FILENAME_ANOMALY_NONE)
-                        {
-                            auto remotePath = fullPath.cloudPath;
-                            auto localPath = fullPath.localPath_utf8();
-                            syncs.queueClient([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
-                                {
-                                    mc.filenameAnomalyDetected(type, localPath, remotePath);
-                                });
-                        }
-                    }
 
                     row.syncNode->download.reset(nullptr);
                 }
-                else if (syncs.fsaccess->transient_error)
+                else if (fsAccess.target_exists)
                 {
+                    // Something already exists at the move location.
+                    monitor.waitingLocal(sourcePath, targetPath, cloudPath, SyncWaitReason::MovingExistingDownloadTargetToDebris);
+
+                    SYNC_verbose << syncname << "Existing file detected at download target: " << targetPath.toPath();
+
+                    // Try and move it to the local debris.
+                    if (movetolocaldebris(targetPath))
+                    {
+                        SYNC_verbose << syncname << "Moved existing file to local debris: " << targetPath.toPath();
+                    }
+                    else if (fsAccess.transient_error)
+                    {
+                        SYNC_verbose << syncname << "Transient error moving existing file to local debris: " << targetPath.toPath();
+                    }
+                    else
+                    {
+                        SYNC_verbose << syncname << "Failed to move existing file to local debris: " << targetPath.toPath();
+                    }
+                }
+                else if (fsAccess.transient_error)
+                {
+                    // Nothing was there but we encountered a transient error while moving.
                     SYNC_verbose << syncname << "Download complete, but move transient error" << logTriplet(row, fullPath);
                 }
                 else
                 {
+                    // Nothing was there but we encountered a hard error while moving.
                     SYNC_verbose << syncname << "Download complete, but move failed" << logTriplet(row, fullPath);
                     row.syncNode->download.reset(nullptr);
                 }
