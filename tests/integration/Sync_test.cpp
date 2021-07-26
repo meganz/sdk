@@ -1462,19 +1462,21 @@ struct StandardClient : public MegaApp
 
     SyncConfig syncConfigByBackupID(handle backupID) const
     {
-        auto* config = client.syncs.syncConfigByBackupId(backupID);
+        SyncConfig config;
+        bool found = client.syncs.syncConfigByBackupId(backupID, config);
 
-        assert(config);
+        assert(found);
 
-        return *config;
+        return config;
     }
 
     bool syncSet(handle backupId, SyncInfo& info) const
     {
-        if (auto* config = client.syncs.syncConfigByBackupId(backupId))
+        SyncConfig config;
+        if (client.syncs.syncConfigByBackupId(backupId, config))
         {
-            info.h = config->getRemoteNode();
-            info.localpath = config->getLocalPath().toPath(*client.fsaccess);
+            info.h = config.getRemoteNode();
+            info.localpath = config.getLocalPath().toPath(*client.fsaccess);
 
             return true;
         }
@@ -2048,7 +2050,7 @@ struct StandardClient : public MegaApp
 
     Sync* syncByBackupId(handle backupId)
     {
-        return client.syncs.runningSyncByBackupId(backupId);
+        return client.syncs.runningSyncByBackupIdForTests(backupId);
     }
 
     bool setSyncPausedByBackupId(handle id, bool pause)
@@ -2465,14 +2467,12 @@ struct StandardClient : public MegaApp
         for (;;)
         {
             bool any_add_del = false;;
-            vector<int> syncstates;
 
-            thread_do<bool>([&syncstates, &any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
+            thread_do<bool>([&any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
             {
                 mc.client.syncs.forEachRunningSync(false,
                   [&](Sync* s)
                   {
-                      syncstates.push_back(s->state);
                       any_add_del |= !s->deleteq.empty();
                       any_add_del |= !s->insertq.empty();
                   });
@@ -2487,28 +2487,16 @@ struct StandardClient : public MegaApp
                 }
                 pb->set_value(true);
             }).get();
-            bool allactive = true;
-            {
-                lock_guard<mutex> g(StandardClient::om);
-                //std::out() << "sync state: ";
-                //for (auto n : syncstates)
-                //{
-                //    out() << n;
-                //    if (n != SYNC_ACTIVE) allactive = false;
-                //}
-                //out();
-            }
 
             if (any_add_del || debugging)
             {
                 start = chrono::steady_clock::now();
             }
 
-            if (allactive && ((chrono::steady_clock::now() - start) > d) && ((chrono::steady_clock::now() - lastcb) > d))
+            if (((chrono::steady_clock::now() - start) > d) && ((chrono::steady_clock::now() - lastcb) > d))
             {
                break;
             }
-//out() << "waiting 500";
             WaitMillisec(500);
         }
 
@@ -2751,7 +2739,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                         mc.client.syncs.forEachRunningSync(false,
                           [&](Sync* s)
                           {
-                              syncstates.push_back(s->state);
+                              syncstates.push_back(s->getConfig().mRunningState);
                               if (s->deleteq.size() || s->insertq.size())
                                   any_activity = true;
                           });
@@ -7842,7 +7830,7 @@ struct TwoWaySyncSymmetryCase
         else
         {
             EXPECT_NE(sync, (Sync*)nullptr);
-            EXPECT_TRUE(sync && sync->state == SYNC_ACTIVE);
+            EXPECT_TRUE(sync && sync->getConfig().mRunningState == SYNC_ACTIVE);
 
             bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
             bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
@@ -7851,7 +7839,7 @@ struct TwoWaySyncSymmetryCase
             EXPECT_EQ(localnode, remote);
             EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
 
-            finalResult = localfs && localnode && remote && sync && sync->state == SYNC_ACTIVE;
+            finalResult = localfs && localnode && remote && sync && sync->getConfig().mRunningState == SYNC_ACTIVE;
         }
 
     }

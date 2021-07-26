@@ -297,10 +297,10 @@ struct MEGA_API MegaApp
     virtual void syncs_disabled(SyncError) { }
 
     // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted, bool hadAnError) { }
+    virtual void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) { }
 
     // after a sync has been removed
-    virtual void sync_removed(handle backupId) { }
+    virtual void sync_removed(const SyncConfig& config) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }

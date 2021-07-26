@@ -151,6 +151,9 @@ public:
     // Whether this backup is monitoring or mirroring.
     SyncBackupState mBackupState;
 
+    // Current running state.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
+    syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no assoicated mSync
+
     // enum to string conversion
     static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
@@ -290,13 +293,11 @@ public:
 
     FileSystemType mFilesystemType = FS_UNKNOWN;
 
-    // Path used to normalize sync locaroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
+    // Path used to normalize sync localroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
     // are served with such prefix from macOS catalina +
 #ifdef __APPLE__
     string mFsEventsPath;
 #endif
-    // current state
-    syncstate_t state = SYNC_INITIALSCAN;
 
     //// are we conducting a full tree scan? (during initialization and if event notification failed)
     //bool fullscan = true;
@@ -685,18 +686,24 @@ struct Syncs
 
     shared_ptr<UnifiedSync> lookupUnifiedSync(handle backupId);
 
-    size_t numRunningSyncs();
-    unsigned numSyncs();    // includes non-running syncs, but configured
-    Sync* firstRunningSync();
-    Sync* runningSyncByBackupId(handle backupId) const;
-    SyncConfig* syncConfigByBackupId(handle backupId) const;
+    // Snaphot of the count of syncs.  thread safe
+    size_t numSyncs(bool onlyRunning);
 
+    // only for use in tests; not really thread safe
+    Sync* runningSyncByBackupIdForTests(handle backupId) const;
+
+    // Pause/unpause a sync. Returns a future for async operation.
     std::future<bool> setSyncPausedByBackupId(handle id, bool pause);
+
+    // returns a copy of the config, for thread safety
+    bool syncConfigByBackupId(handle backupId, SyncConfig&) const;
+
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(bool includePaused, std::function<void(Sync* s)>) const;
+
+    // Temporary; Only to be used from MegaApiImpl::syncPathState.
     bool forEachRunningSync_shortcircuit(bool includePaused, std::function<bool(Sync* s)>);
-    void forEachRunningSyncContainingNode(Node* node, bool includePaused, std::function<void(Sync* s)> f);
 
     vector<NodeHandle> getSyncRootHandles(bool mustBeActive);
 
@@ -859,6 +866,9 @@ public:
     bool conflictsDetected() const;
 
     bool syncStallDetected(SyncStallInfo& si) const;
+
+    // Get name conficts - pass UNDEF to collect for all syncs.
+    void collectSyncNameConflicts(handle backupId, std::function<void(list<NameConflict>&& nc)>, bool completionInClient);
 
     // waiter for sync loop on thread
     WAIT_CLASS waiter;

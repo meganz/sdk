@@ -12899,15 +12899,22 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     }
 
     // any active syncs below?
-    bool anyBelow = false;
-    syncs.forEachRunningSyncContainingNode(remotenode, true, [&](Sync* sync) {
-        anyBelow = true;
-    });
-
-    if (anyBelow)
+    auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
+    for (NodeHandle rootHandle : activeSyncRootHandles)
     {
-        if (syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
-        return API_EEXIST;
+        if (Node* syncRoot = nodeByHandle(rootHandle))
+        {
+            if (remotenode->isbelow(syncRoot))
+            {
+                if (syncError) *syncError = ACTIVE_SYNC_ABOVE_PATH;
+                return API_EEXIST;
+            }
+            else if (syncRoot->isbelow(remotenode))
+            {
+                if (syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
+                return API_EEXIST;
+            }
+        }
     }
 
     // any active syncs above? or node within //bin or inside non full access inshare
@@ -12917,23 +12924,6 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
 
     do {
-        bool anyAbove = false;
-        syncs.forEachRunningSync(true,[&](Sync* sync) {
-
-            if (sync->active() && n == sync->cloudRoot())
-            {
-                anyAbove = true;
-            }
-        });
-
-        if (anyAbove)
-        {
-            if (syncError)
-            {
-                *syncError = ACTIVE_SYNC_ABOVE_PATH;
-            }
-            return API_EEXIST;
-        }
 
         if (n->inshare && !inshare)
         {
@@ -13017,15 +13007,16 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
     fsaccess->expanselocalpath(newLocallyEncodedPath, newLocallyEncodedAbsolutePath);
 
     error e = API_OK;
-    syncs.forEachUnifiedSync([&](UnifiedSync& us){
+    for (auto& config : syncs.allConfigs())
+    {
         // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
-        if (us.mConfig.getBackupId() != excludeBackupId)
+        if (config.getBackupId() != excludeBackupId)
         {
-            LocalPath otherLocallyEncodedPath = us.mConfig.getLocalPath();
+            LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
-            if (us.mConfig.getEnabled() && !us.mConfig.getError() &&
+            if (config.getEnabled() && !config.getError() &&
                     ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
@@ -13037,7 +13028,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
                 e = API_EARGS;
             }
         }
-    });
+    }
 
     return e;
 }

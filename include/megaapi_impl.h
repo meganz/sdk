@@ -3141,7 +3141,7 @@ protected:
         void syncupdate_active(handle backupId, bool active) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const UnifiedSync& us, bool attempted, bool hadAnError) override;
+        void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
@@ -3153,7 +3153,7 @@ protected:
         virtual void syncs_disabled(SyncError syncError) override;
 
         // removes the sync from syncMap and fires onSyncDeleted callback
-        void sync_removed(handle backupId) override;
+        void sync_removed(const SyncConfig& config) override;
 
         void syncupdate_syncing(bool syncing) override;
         void syncupdate_scanning(bool scanning) override;
