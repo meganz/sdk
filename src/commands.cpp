@@ -2365,8 +2365,13 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                     finished = true;
                     break;
                 default:
-                    client->app->enumeratequotaitems_result(API_EINTERNAL);
-                    return false;
+                    if (!client->json.storeobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    break;
             }
         }
 
