@@ -803,7 +803,7 @@ public:
         // optimization for comparing the initial portion of strings that are exactly the same up to a point
 
         auto len = b.mCurrent - a.mCurrent;
-        if (mCurrent + len > mEnd) return false;
+        if (len < 2 || mCurrent + len > mEnd) return false;
         if (0 != memcmp(a.mCurrent, mCurrent, len)) return false;
         mCurrent += len;
         return true;
