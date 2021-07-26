@@ -4964,6 +4964,11 @@ bool MegaClient::procsc()
                                 // business account update
                                 sc_ub();
                                 break;
+
+                            case MAKENAMEID4('s', 'q', 'a', 'c'):
+                                // storage quota allowance changed
+                                sc_sqac();
+                                break;
                         }
                     }
                 }
@@ -7039,6 +7044,36 @@ void MegaClient::sc_uac()
                 if (!jsonsc.storeobject())
                 {
                     LOG_warn << "Failed to parse `uac` action packet";
+                    return;
+                }
+        }
+    }
+}
+
+void MegaClient::sc_sqac()
+{
+    m_off_t gb = -1;
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case MAKENAMEID2('g','b'):
+                gb = jsonsc.getint(); // should there be a notification about this?
+                break;
+
+            case EOO:
+                if (gb == -1)
+                {
+                    LOG_warn << "Missing GB allowance in `sqac` action packet";
+                }
+
+                getuserdata(reqtag);
+                return;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    LOG_warn << "Failed to parse `sqac` action packet";
                     return;
                 }
         }
