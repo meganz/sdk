@@ -2344,12 +2344,77 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                 case MAKENAMEID3('m', 'b', 'p'):
                     amountMonthStr = client->json.getvalue();
                     break;
+                case MAKENAMEID2('b', 'd'):
+                {
+                    if (!client->json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, `bd` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    bool readingBd = true;
+                    while (readingBd)
+                    {
+                        // parse info and get `gbstorage` and `gbtransfer` from the inner object
+                        switch (client->json.getnameid())
+                        {
+                            case MAKENAMEID2('b', 'a'): // base (-1 means unlimited storage or transfer)
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `ba` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingBa = true;
+                                while (readingBa)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 's':
+                                            gbstorage = static_cast<int>(client->json.getint());
+                                            break;
+                                        case 't':
+                                            gbtransfer = static_cast<int>(client->json.getint());
+                                            break;
+                                        case EOO:
+                                            readingBa = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `ba` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case EOO:
+                                readingBd = false;
+                                break;
+                            default:
+                                if (!client->json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `bd` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+                    client->json.leaveobject();
+                    break;
+                }
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
                             || (prolevel < 0)
-                            || (!type && gbstorage < 0)
-                            || (!type && gbtransfer < 0)
                             || (months < 0)
                             || !amountStr
                             || !curr
