@@ -2292,6 +2292,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
     {
         handle product = UNDEF;
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
+        bool bizQuota = false;
         unsigned amount = 0, amountMonth = 0;
         const char* amountStr = nullptr;
         const char* amountMonthStr = nullptr;
@@ -2318,11 +2319,17 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                     prolevel = static_cast<int>(client->json.getint());
                     break;
                 case 's':
-                    gbstorage = static_cast<int>(client->json.getint());
+                {
+                    int buf = static_cast<int>(client->json.getint());
+                    if (!bizQuota) gbstorage = buf;
                     break;
+                }
                 case 't':
-                    gbtransfer = static_cast<int>(client->json.getint());
+                {
+                    int buf = static_cast<int>(client->json.getint());
+                    if (!bizQuota) gbtransfer = buf;
                     break;
+                }
                 case 'm':
                     months = static_cast<int>(client->json.getint());
                     break;
@@ -2381,6 +2388,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                                             break;
                                         case EOO:
                                             readingBa = false;
+                                            bizQuota = true;    // avoid to override quota in the outter object, if parsed later
                                             break;
                                         default:
                                             if (!client->json.storeobject())
