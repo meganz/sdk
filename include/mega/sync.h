@@ -22,6 +22,8 @@
 #ifndef MEGA_SYNC_H
 #define MEGA_SYNC_H 1
 
+#include <future>
+
 #include "db.h"
 #include "megawaiter.h"
 
@@ -688,6 +690,8 @@ struct Syncs
     Sync* firstRunningSync();
     Sync* runningSyncByBackupId(handle backupId) const;
     SyncConfig* syncConfigByBackupId(handle backupId) const;
+
+    std::future<bool> setSyncPausedByBackupId(handle id, bool pause);
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(bool includePaused, std::function<void(Sync* s)>) const;
