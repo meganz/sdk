@@ -2882,7 +2882,7 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
         for (const auto& config : configs)
         {
             // Create the unified sync.
-            lock_guard g(mSyncVecMutex);
+            lock_guard<mutex> g(mSyncVecMutex);
 
             bool skip = false;
             for (auto& us : mSyncVec)
@@ -3681,7 +3681,7 @@ void Syncs::clear_inThread()
     mSyncConfigStore.reset();
     mSyncConfigIOContext.reset();
     {
-        lock_guard g(mSyncVecMutex);
+        lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.clear();
     }
     isEmpty = true;
@@ -3773,7 +3773,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
 
     isEmpty = false;
     {
-        lock_guard g(mSyncVecMutex);
+        lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
     }
 
@@ -3829,7 +3829,7 @@ Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
     assert(!onSyncThread());
     // todo: returning a Sync* is not really thread safe but the tests are using these directly currently.  So long as they only browse the Sync while nothing changes, it should be ok
 
-    lock_guard g(mSyncVecMutex);
+    lock_guard<mutex> g(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mSync && s->mConfig.getBackupId() == backupId)
@@ -3845,7 +3845,7 @@ bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
     // returns a copy for thread safety
     assert(!onSyncThread());
 
-    lock_guard g(mSyncVecMutex);
+    lock_guard<mutex> g(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mConfig.getBackupId() == backupId)
@@ -3871,7 +3871,7 @@ std::future<bool> Syncs::setSyncPausedByBackupId(handle id, bool pause)
     queueSync([this, id, pause, promise]() {
 
         assert(onSyncThread());
-        lock_guard g(mSyncVecMutex);
+        lock_guard<mutex> g(mSyncVecMutex);
 
         bool found = false;
         for (auto& us : mSyncVec)
@@ -3929,7 +3929,7 @@ bool Syncs::forEachRunningSync_shortcircuit(bool includePaused, std::function<bo
 
 size_t Syncs::numSyncs(bool onlyRunning)
 {
-    lock_guard g(mSyncVecMutex);
+    lock_guard<mutex> g(mSyncVecMutex);
 
     if (onlyRunning)
     {

@@ -776,7 +776,7 @@ void WinFileSystemAccess::tmpnamelocal(LocalPath& localname) const
     static unsigned tmpindex;
     char buf[128];
 
-    lock_guard g(staticMutex);
+    lock_guard<mutex> g(staticMutex);
     sprintf(buf, ".getxfer.%lu.%u.mega", GetCurrentProcessId(), tmpindex++);
     localname = LocalPath::fromName(buf, *this, FS_UNKNOWN);
 }

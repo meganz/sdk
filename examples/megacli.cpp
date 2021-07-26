@@ -404,7 +404,7 @@ void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, 
     else
     {
         cout << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess) << " enabled: "
-            << s.mConfig.getEnabled() << " syncError: " << config.getError()
+            << config.getEnabled() << " syncError: " << config.getError()
             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
 }
