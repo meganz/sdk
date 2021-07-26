@@ -2051,23 +2051,10 @@ struct StandardClient : public MegaApp
         return client.syncs.runningSyncByBackupId(backupId);
     }
 
-    bool setSyncPausedByBackupId(handle id, bool pauseState)
+    bool setSyncPausedByBackupId(handle id, bool pause)
     {
-        auto result =
-            thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
-                {
-                    bool v = false;
-                    if (auto s = client.client.syncs.runningSyncByBackupId(id))
-                    {
-                        s->setSyncPaused(pauseState);
-                        v = true;
-                    }
-                    result->set_value(v);
-                });
-
-        return result.get();
+        return client.syncs.setSyncPausedByBackupId(id, pause).get();
     }
-
 
     void enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
     {

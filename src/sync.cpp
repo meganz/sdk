@@ -3834,6 +3834,25 @@ SyncConfig* Syncs::syncConfigByBackupId(handle backupId) const
     return nullptr;
 }
 
+std::future<bool> Syncs::setSyncPausedByBackupId(handle id, bool pause)
+{
+    assert(!onSyncThread());
+
+    using PromiseType = std::promise<bool>;
+    using PromisePtr  = std::shared_ptr<PromiseType>;
+
+    auto promise = PromisePtr(new PromiseType());
+    auto future = promise->get_future();
+
+    queueSync([this, id, pause, promise]() {
+        auto* sync = runningSyncByBackupId(id);
+        if (sync) sync->setSyncPaused(pause);
+        promise->set_value(sync != nullptr);
+    });
+
+    return future;
+}
+
 void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
 {
     for (auto& s : mSyncVec)
