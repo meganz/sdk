@@ -1786,6 +1786,24 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         newName.clear();
                     }
 
+                    // If renaming (or move-renaming), check for filename anomalies.
+                    // Only report if we really do succeed with the rename
+                    std::function<void(MegaClient&)> anomalyReport = nullptr;
+                    if (!newName.empty() && newName != nameOverwritten)
+                    {
+                        auto anomalyType = isFilenameAnomaly(fullPath.localPath.leafName(), newName, sourceCloudNode.type);
+                        if (anomalyType != FILENAME_ANOMALY_NONE)
+                        {
+                            auto local  = fullPath.localPath_utf8();
+                            auto remote =  targetCloudNodePath + "/" + newName;
+
+                            anomalyReport = [=](MegaClient& mc){
+                                assert(!mc.syncs.onSyncThread());
+                                mc.filenameAnomalyDetected(anomalyType, local, remote);
+                            };
+                        }
+                    }
+
                     if (sourceCloudNode.parentHandle == targetCloudNode.handle && !newName.empty())
                     {
                         // send the command to change the node name
@@ -1794,16 +1812,18 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " to " << newName  << logTriplet(row, fullPath);
 
                         auto renameHandle = sourceCloudNode.handle;
-                        syncs.queueClient([renameHandle, newName, movePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([renameHandle, newName, movePtr, anomalyReport](MegaClient& mc, DBTableTransactionCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(renameHandle))
                                 {
-                                    mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName](NodeHandle, Error err){
+                                    mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName, anomalyReport](NodeHandle, Error err){
 
                                         movePtr->succeeded = !error(err);
                                         movePtr->failed = !!error(err);
 
                                         LOG_debug << mc.clientname << "SYNC Rename completed: " << newName << " err:" << err;
+
+                                        if (!err && anomalyReport) anomalyReport(mc);
                                     });
                                 }
                             });
@@ -1824,7 +1844,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " into " << targetCloudNodePath
                                   << (newName.empty() ? "" : (" as " + newName).c_str()) << logTriplet(row, fullPath);
 
-                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
                             auto fromNode = mc.nodeByHandle(sourceCloudNode.handle);
                             auto toNode = mc.nodeByHandle(targetCloudNode.handle);
@@ -1835,12 +1855,14 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                             SYNCDEL_NONE,
                                             sourceCloudNode.parentHandle,
                                             newName.empty() ? nullptr : newName.c_str(),
-                                            [&mc, movePtr](NodeHandle, Error err){
+                                            [&mc, movePtr, anomalyReport](NodeHandle, Error err){
 
                                                 movePtr->succeeded = !error(err);
                                                 movePtr->failed = !!error(err);
 
                                                 LOG_debug << mc.clientname << "SYNC Move completed. err:" << err;
+
+                                                if (!err && anomalyReport) anomalyReport(mc);
                                             });
 
                                 if (err)
@@ -5458,22 +5480,6 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                 sourceSyncNode->trimRareFields();
                 row.syncNode->rare().moveToHere.reset();
                 row.syncNode->trimRareFields();
-
-
-                //// Check for filename anomalies.  Only report if we really do succeed with the rename
-                //if (!newName.empty() && newName != nameOverwritten)
-                //{
-                //    auto anomalyType = isFilenameAnomaly(fullPath.localPath.leafName(), newName, sourceCloudNode.type);
-                //    if (anomalyType != FILENAME_ANOMALY_NONE)
-                //    {
-                //        auto local  = fullPath.localPath_utf8();
-                //        auto remote =  targetCloudNodePath + "/" + newName;
-                //        syncs.queueClient([anomalyType, local, remote](MegaClient& mc, DBTableTransactionCommitter& committer)
-                //            {
-                //                mc.filenameAnomalyDetected(anomalyType, local, remote);
-                //            });
-                //    }
-                //}
             }
         }
 
