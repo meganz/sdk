@@ -374,7 +374,7 @@ ScopedSyncPathRestore::~ScopedSyncPathRestore()
     path.cloudPath.resize(length3);
 };
 
-string SyncPath::localPath_utf8()
+string SyncPath::localPath_utf8() const
 {
     return localPath.toPath(*syncs.fsaccess);
 }
@@ -5917,6 +5917,24 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
+    // Consider making this a class-wide function.
+    auto checkForFilenameAnomaly = [this](const SyncPath& path, const string& name) {
+        // Have we encountered an anomalous filename?
+        auto type = isFilenameAnomaly(path.localPath, name);
+
+        // Nope so we can bail early.
+        if (type == FILENAME_ANOMALY_NONE) return;
+
+        // Get our hands on the relevant paths.
+        auto localPath = path.localPath_utf8();
+        auto remotePath = path.cloudPath;
+
+        // Report the anomaly.
+        syncs.queueClient([=](MegaClient& client, DBTableTransactionCommitter&) {
+            client.filenameAnomalyDetected(type, localPath, remotePath);
+        });
+    };
+
     if (row.cloudNode->type == FILENODE)
     {
         if (isBackup())
@@ -5986,6 +6004,9 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     // No existing file at the target location and the move was successful.
                     SYNC_verbose << syncname << "Download complete, moved file to final destination" << logTriplet(row, fullPath);
 
+                    // Check for anomalous file names.
+                    checkForFilenameAnomaly(fullPath, row.cloudNode->name);
+
                     row.syncNode->download.reset(nullptr);
                 }
                 else if (fsAccess.target_exists)
@@ -6046,20 +6067,8 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 return false;
             }
 
-            // Check for filename anomalies.
-            {
-                auto type = isFilenameAnomaly(fullPath.localPath, row.cloudNode->name);
-
-                if (type != FILENAME_ANOMALY_NONE)
-                {
-                    auto remotePath = fullPath.cloudPath;
-                    auto localPath = fullPath.localPath_utf8();
-                    syncs.queueClient([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
-                        {
-                            mc.filenameAnomalyDetected(type, localPath, remotePath);
-                        });
-                }
-            }
+            // Check for and report filename anomalies.
+            checkForFilenameAnomaly(fullPath, row.cloudNode->name);
 
             LOG_verbose << syncname << "Creating local folder at: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
 
