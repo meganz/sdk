@@ -266,26 +266,29 @@ struct MEGA_API MegaApp
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 
+    // ----- sync callbacks below, which occur on the syncs thread
+    // ----- (other callbacks occur on the client thread)
+
     // sync status updates and events
-    virtual void syncupdate_stateconfig(handle) { }
-    virtual void syncupdate_active(handle, bool) { }
+    virtual void syncupdate_stateconfig(const SyncConfig& config) { }
+    virtual void syncupdate_active(const SyncConfig& config, bool) { }
     virtual void syncupdate_syncing(bool) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_stalled(bool) { }
     virtual void syncupdate_conflicts(bool) { }
     virtual void syncupdate_local_lockretry(bool) { }
-    virtual void syncupdate_treestate(LocalNode*) { }
+    virtual void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) { }
 
-    // sync filename filter
-    virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)
-    {
-        return true;
-    }
+    //// sync filename filter
+    //virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)
+    //{
+    //    return true;
+    //}
 
-    virtual bool sync_syncable(Sync*, const char*, LocalPath&)
-    {
-        return true;
-    }
+    //virtual bool sync_syncable(Sync*, const char*, LocalPath&)
+    //{
+    //    return true;
+    //}
 
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
@@ -301,6 +304,9 @@ struct MEGA_API MegaApp
 
     // after a sync has been removed
     virtual void sync_removed(const SyncConfig& config) { }
+
+    // ----- that's the end of the sync callbacks, which occur on the syncs thread
+    // ----- (other callbacks occur on the client thread)
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }

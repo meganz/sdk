@@ -1230,7 +1230,8 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
             bool nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
-                mUnifiedSync.syncs.mClient.app->syncupdate_active(config.getBackupId(), nowActive);
+                assert(syncs.onSyncThread());
+                mUnifiedSync.syncs.mClient.app->syncupdate_active(config, nowActive);
             }
         }
     }
@@ -2670,6 +2671,7 @@ bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, bool exists, string cloudP
 
     if (changed)
     {
+        assert(onSyncThread());
         mClient.app->syncupdate_remote_root_changed(us.mConfig);
         saveSyncConfig(us.mConfig);
     }
@@ -2723,7 +2725,8 @@ void UnifiedSync::changedConfigState(bool notifyApp)
         syncs.saveSyncConfig(mConfig);
         if (notifyApp)
         {
-            syncs.mClient.app->syncupdate_stateconfig(mConfig.getBackupId());
+            assert(syncs.onSyncThread());
+            syncs.mClient.app->syncupdate_stateconfig(mConfig);
         }
 
         syncs.queueClient([](MegaClient& mc, DBTableTransactionCommitter& committer)
@@ -3697,12 +3700,14 @@ void Syncs::clear_inThread()
 
     if (syncscanstate)
     {
+        assert(onSyncThread());
         mClient.app->syncupdate_scanning(false);
         syncscanstate = false;
     }
 
     if (syncBusyState)
     {
+        assert(onSyncThread());
         mClient.app->syncupdate_syncing(false);
         syncBusyState = false;
     }
@@ -4000,6 +4005,7 @@ void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
         newEnabledFlag,
         [=](size_t nDisabled) {
             LOG_info << "Disabled " << nDisabled << " syncs. error = " << syncError;
+            assert(onSyncThread());
             mClient.app->syncs_disabled(syncError);
         });
 }
@@ -4161,6 +4167,8 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
 
 void Syncs::removeSyncByIndex(size_t index)
 {
+    assert(onSyncThread());
+
     if (index < mSyncVec.size())
     {
         if (auto& syncPtr = mSyncVec[index]->mSync)
@@ -4178,13 +4186,15 @@ void Syncs::removeSyncByIndex(size_t index)
         if (mSyncConfigStore) mSyncConfigStore->markDriveDirty(mSyncVec[index]->mConfig.mExternalDrivePath);
 
         // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
-        SyncConfig threadSafeCopy = mSyncVec[index]->mConfig;
+        SyncConfig configCopy = mSyncVec[index]->mConfig;
+
+        assert(onSyncThread());
+        mClient.app->sync_removed(configCopy);
 
         // unregister this sync/backup from API (backup center)
-        queueClient([threadSafeCopy](MegaClient& mc, DBTableTransactionCommitter& committer)
+        queueClient([configCopy](MegaClient& mc, DBTableTransactionCommitter& committer)
             {
-                mc.app->sync_removed(threadSafeCopy);
-                mc.reqs.add(new CommandBackupRemove(&mc, threadSafeCopy.getBackupId()));
+                mc.reqs.add(new CommandBackupRemove(&mc, configCopy.getBackupId()));
             });
 
         mSyncVec.erase(mSyncVec.begin() + index);
@@ -4353,18 +4363,15 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
                 enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [this, configCopy, hadAnError](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << configCopy.getLocalPath().toPath(*fsaccess) << " fsfp= " << configCopy.getLocalFingerprint() << " error = " << se;
-                        queueClient([=](MegaClient& mc, DBTableTransactionCommitter& committer) {
-                            mc.app->sync_auto_resume_result(configCopy, true, hadAnError);
-                        });
+                        assert(onSyncThread());
+                        mClient.app->sync_auto_resume_result(configCopy, true, hadAnError);
                     }, "");
             }
             else
             {
                 LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
-                auto configCopy = unifiedSync->mConfig;
-                queueClient([=](MegaClient& mc, DBTableTransactionCommitter& committer) {
-                    mc.app->sync_auto_resume_result(configCopy, true, hadAnError);
-                    });
+                assert(onSyncThread());
+                mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
             }
         }
     }
@@ -7876,6 +7883,7 @@ void Syncs::syncLoop()
             bool conflictsNow = conflictsDetected();
             if (conflictsNow != syncConflictState)
             {
+                assert(onSyncThread());
                 mClient.app->syncupdate_conflicts(conflictsNow);
                 syncConflictState = conflictsNow;
                 LOG_info << mClient.clientname << "Sync conflicting paths state app notified: " << conflictsNow;
@@ -7892,6 +7900,7 @@ void Syncs::syncLoop()
 
             if (stalled != syncStallState)
             {
+                assert(onSyncThread());
                 mClient.app->syncupdate_stalled(stalled);
                 syncStallState = stalled;
                 LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
@@ -7904,20 +7913,16 @@ void Syncs::syncLoop()
         bool anySyncScanning = isAnySyncScanning(false);
         if (anySyncScanning != syncscanstate)
         {
-            queueClient([anySyncScanning](MegaClient& mc, DBTableTransactionCommitter& committer)
-                {
-                    mc.app->syncupdate_scanning(anySyncScanning);
-                });
+            assert(onSyncThread());
+            mClient.app->syncupdate_scanning(anySyncScanning);
             syncscanstate = anySyncScanning;
         }
 
         bool anySyncBusy = isAnySyncSyncing(false);
         if (anySyncBusy != syncBusyState)
         {
-            queueClient([anySyncBusy](MegaClient& mc, DBTableTransactionCommitter& committer)
-                {
-                    mc.app->syncupdate_syncing(anySyncBusy);
-                });
+            assert(onSyncThread());
+            mClient.app->syncupdate_syncing(anySyncBusy);
             syncBusyState = anySyncBusy;
         }
 

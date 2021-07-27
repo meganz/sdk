@@ -1858,7 +1858,8 @@ void LocalNode::treestate(treestate_t newts)
 
     if (ts != dts)
     {
-        sync->syncs.mClient.app->syncupdate_treestate(this);
+		assert(sync->syncs.onSyncThread());
+        sync->syncs.mClient.app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
     }
 
     if (parent && ((newts == TREESTATE_NONE && ts != TREESTATE_NONE)

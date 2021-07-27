@@ -381,13 +381,13 @@ void DemoApp::transfer_prepare(Transfer* t)
 
 #ifdef ENABLE_SYNC
 
-void DemoApp::syncupdate_stateconfig(handle backupId)
+void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 {
-    cout << "Sync config updated: " << toHandle(backupId) << endl;
+    cout << "Sync config updated: " << toHandle(config.mBackupId) << endl;
 }
 
 
-void DemoApp::syncupdate_active(handle backupId, bool active)
+void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
 {
     cout << "Sync is now active: " << active << endl;
 }
@@ -498,35 +498,35 @@ static const char* treestatename(treestate_t ts)
     return "UNKNOWN";
 }
 
-void DemoApp::syncupdate_treestate(LocalNode* l)
+void DemoApp::syncupdate_treestate(const SyncConfig &, const LocalPath& lp, treestate_t ts, nodetype_t type)
 {
     if (syncout_folder_sync_state)
     {
-        if (l->type != FILENODE)
+        if (type != FILENODE)
         {
-            cout << "Sync - state change of folder " << l->getLocalPath().toPath() << " to " << treestatename(l->ts) << endl;
+            cout << "Sync - state change of folder " << lp.toPath() << " to " << treestatename(ts) << endl;
         }
     }
 }
 
 // generic name filter
 // FIXME: configurable regexps
-static bool is_syncable(const char* name)
-{
-    return *name != '.' && *name != '~' && strcmp(name, "Thumbs.db") && strcmp(name, "desktop.ini");
-}
+//static bool is_syncable(const char* name)
+//{
+//    return *name != '.' && *name != '~' && strcmp(name, "Thumbs.db") && strcmp(name, "desktop.ini");
+//}
 
-// determines whether remote node should be synced
-bool DemoApp::sync_syncable(Sync *, const char *, LocalPath&, Node *n)
-{
-    return is_syncable(n->displayname());
-}
-
-// determines whether local file should be synced
-bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
-{
-    return is_syncable(name);
-}
+//// determines whether remote node should be synced
+//bool DemoApp::sync_syncable(Sync *, const char *, LocalPath&, Node *n)
+//{
+//    return is_syncable(n->displayname());
+//}
+//
+//// determines whether local file should be synced
+//bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
+//{
+//    return is_syncable(name);
+//}
 #endif
 
 AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,

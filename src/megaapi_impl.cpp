@@ -13351,39 +13351,32 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 
 #ifdef ENABLE_SYNC
 
-MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(handle backupId)
+MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(const SyncConfig& config)
 {
-    if (mCachedMegaSyncPrivate && backupId == mCachedMegaSyncPrivate->getBackupId())
+    if (mCachedMegaSyncPrivate && config.mBackupId == mCachedMegaSyncPrivate->getBackupId())
     {
         return mCachedMegaSyncPrivate.get();
     }
-    mCachedMegaSyncPrivate.reset();
 
-    // syncs has its own thread safety
-    SyncConfig config;
-    if (client->syncs.syncConfigByBackupId(backupId, config))
-    {
-        mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(config, config.mRunningState >= 0, client));
-    }
-
+    mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(config, config.mRunningState >= 0, client));
     return mCachedMegaSyncPrivate.get();
 }
 
-void MegaApiImpl::syncupdate_stateconfig(handle backupId)
+void MegaApiImpl::syncupdate_stateconfig(const SyncConfig& config)
 {
     mCachedMegaSyncPrivate.reset();
 
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(backupId))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(config))
     {
         fireOnSyncStateChanged(megaSync);
     }
 }
 
-void MegaApiImpl::syncupdate_active(handle backupId, bool active)
+void MegaApiImpl::syncupdate_active(const SyncConfig& config, bool active)
 {
     mCachedMegaSyncPrivate.reset();
 
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(backupId))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(config))
     {
         if (!active)
         {
@@ -13416,49 +13409,52 @@ void MegaApiImpl::syncupdate_conflicts(bool conflicts)
     fireOnGlobalSyncStateChanged();
 }
 
-void MegaApiImpl::syncupdate_treestate(LocalNode *l)
+void MegaApiImpl::syncupdate_treestate(const SyncConfig &config, const LocalPath& lp, treestate_t ts, nodetype_t)
 {
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(l->sync->getConfig().getBackupId()))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(config))
     {
-        string s = l->getLocalPath().platformEncoded();
+        string s = lp.platformEncoded();
 
-        fireOnFileSyncStateChanged(megaSync, &s, (int)l->ts);
+        fireOnFileSyncStateChanged(megaSync, &s, (int)ts);
     }
 }
 
-bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpath, Node *node)
-{
-    if (!sync || (node->type == FILENODE && !is_syncable(node->size)))
-    {
-        return false;
-    }
+// todo: sync_syncable to be converted to the .megaignore system, or maybe provide a std::function,
+// but it must be self-contained and be owned by and run on the sync thread.
 
-    sdkMutex.unlock();
-    bool result = is_syncable(sync, name, localpath);
-    sdkMutex.lock();
-    return result;
-}
-
-bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpath)
-{
-    {
-        std::lock_guard<std::mutex> g(mSyncable_fa_mutex);
-        if (!mSyncable_fa)
-        {
-            mSyncable_fa = fsAccess->newfileaccess();
-        }
-        if (!sync || ((syncLowerSizeLimit || syncUpperSizeLimit)
-                && mSyncable_fa->fopen(localpath) && !is_syncable(mSyncable_fa->size)))
-        {
-            return false;
-        }
-    }
-
-    sdkMutex.unlock();
-    bool result = is_syncable(sync, name, localpath);
-    sdkMutex.lock();
-    return result;
-}
+//bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpath, Node *node)
+//{
+//    if (!sync || (node->type == FILENODE && !is_syncable(node->size)))
+//    {
+//        return false;
+//    }
+//
+//    sdkMutex.unlock();
+//    bool result = is_syncable(sync, name, localpath);
+//    sdkMutex.lock();
+//    return result;
+//}
+//
+//bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpath)
+//{
+//    {
+//        std::lock_guard<std::mutex> g(mSyncable_fa_mutex);
+//        if (!mSyncable_fa)
+//        {
+//            mSyncable_fa = fsAccess->newfileaccess();
+//        }
+//        if (!sync || ((syncLowerSizeLimit || syncUpperSizeLimit)
+//                && mSyncable_fa->fopen(localpath) && !is_syncable(mSyncable_fa->size)))
+//        {
+//            return false;
+//        }
+//    }
+//
+//    sdkMutex.unlock();
+//    bool result = is_syncable(sync, name, localpath);
+//    sdkMutex.lock();
+//    return result;
+//}
 
 void MegaApiImpl::sync_removed(const SyncConfig& config)
 {
@@ -13470,7 +13466,7 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig& config, bool attempt
 {
     mCachedMegaSyncPrivate.reset();
 
-    auto megaSync = cachedMegaSyncPrivateByBackupId(config.getBackupId());
+    auto megaSync = cachedMegaSyncPrivateByBackupId(config);
 
     int additionState = MegaSync::FROM_CACHE;
     if (attempted) // tried to auto-resume
@@ -13506,7 +13502,7 @@ void MegaApiImpl::syncupdate_remote_root_changed(const SyncConfig &config)
 {
     mCachedMegaSyncPrivate.reset();
 
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(config.getBackupId()))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(config))
     {
         fireOnSyncStateChanged(megaSync);
     }

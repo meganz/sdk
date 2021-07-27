@@ -12904,14 +12904,14 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     {
         if (Node* syncRoot = nodeByHandle(rootHandle))
         {
-            if (remotenode->isbelow(syncRoot))
-            {
-                if (syncError) *syncError = ACTIVE_SYNC_ABOVE_PATH;
-                return API_EEXIST;
-            }
-            else if (syncRoot->isbelow(remotenode))
+            if (syncRoot->isbelow(remotenode))
             {
                 if (syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
+                return API_EEXIST;
+            }
+            else if (remotenode->isbelow(syncRoot))
+            {
+                if (syncError) *syncError = ACTIVE_SYNC_ABOVE_PATH;
                 return API_EEXIST;
             }
         }
