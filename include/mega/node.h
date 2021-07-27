@@ -583,14 +583,22 @@ struct MEGA_API LocalNode : public Cacheable
 
         struct MoveInProgress
         {
+            bool succeeded = false;
+            bool failed = false;
+            bool syncCodeProcessedResult = false;
+
+            handle sourceFsid = UNDEF;
+            nodetype_t sourceType = FILENODE;
+            FileFingerprint sourceFingerprint;
+            LocalNode* sourcePtr = nullptr;
         };
 
         struct CreateFolderInProgress
         {
         };
 
-        weak_ptr<MoveInProgress> moveFromHere;
-        weak_ptr<MoveInProgress> moveToHere;
+        shared_ptr<MoveInProgress> moveFromHere;
+        shared_ptr<MoveInProgress> moveToHere;
         weak_ptr<CreateFolderInProgress> createFolderHere;
     };
 

@@ -361,6 +361,7 @@ public:
     bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
+    bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
