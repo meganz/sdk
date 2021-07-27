@@ -932,7 +932,8 @@ bool Sync::isBackupAndMirroring() const
 
 bool Sync::isBackupMonitoring() const
 {
-    assert(syncs.onSyncThread());
+    // only called from tests
+    assert(!syncs.onSyncThread());
     return getConfig().getBackupState() == SYNC_BACKUP_MONITOR;
 }
 
@@ -1821,8 +1822,10 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                             {
                                 if (auto n = mc.nodeByHandle(renameHandle))
                                 {
-                                    mc.setattr(n, attr_map('n', newName), [movePtr](NodeHandle, Error){
+                                    mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName](NodeHandle, Error err){
                                         // movePtr.reset();  // kept alive until completion - then the sync code knows it's finished
+
+                                        LOG_warn << mc.clientname << "SYNC Rename failed due to err " << err << ": " << newName;
                                     });
                                 }
                             });
