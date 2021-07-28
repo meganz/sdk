@@ -274,8 +274,6 @@ public:
     SyncConfig& getConfig();
     const SyncConfig& getConfig() const;
 
-    //MegaClient* client = nullptr;
-
     Syncs& syncs;
 
     // for logging
@@ -289,7 +287,10 @@ public:
 
     // root of local filesystem tree, holding the sync's root folder.  Never null except briefly in the destructor (to ensure efficient db usage)
     unique_ptr<LocalNode> localroot;
-    Node* cloudRoot();  // todo:  better to avoid Node* ?
+
+    // Cloud node to sync to
+    CloudNode cloudRoot;
+    string cloudRootPath;
 
     FileSystemType mFilesystemType = FS_UNKNOWN;
 
@@ -719,7 +720,7 @@ struct Syncs
     // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted.  Async as request is forwarded to thread
     void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
-    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
+    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
 
     // removes the sync from RAM; the config will be flushed to disk
@@ -732,6 +733,9 @@ struct Syncs
 
     // updates in state & error
     void saveSyncConfig(const SyncConfig& config);
+
+    // synchronous for now as that's a constraint from the intermediate layer
+    NodeHandle getSyncedNodeForLocalPath(const LocalPath&);
 
     Syncs(MegaClient& mc);
     ~Syncs();
@@ -985,7 +989,7 @@ private:
     void syncLoop();
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThread.get_id(); }
-    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool& isInTrash, bool* nodeIsInActiveSync);
+    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveSync);
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 };
 

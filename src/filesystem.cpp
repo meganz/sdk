@@ -1417,11 +1417,6 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
 }
 
 #ifdef ENABLE_SYNC
-FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
-{
-    return isFilenameAnomaly(node.localname, node.name, node.type);
-}
-
 bool Notification::fromDebris(const Sync& sync) const
 {
     // Must have an associated local node.

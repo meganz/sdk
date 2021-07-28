@@ -1375,7 +1375,7 @@ void WinDirNotify::process(DWORD dwBytes)
     {
 #ifdef ENABLE_SYNC
         int errCount = ++mErrorCount;
-        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
+        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->localname.toPath().c_str() : "NULL")
                 << " errors: " << errCount;
         readchanges();
         notify(fsEventq, localrootnode, Notification::NEEDS_SCAN_UNKNOWN, LocalPath());

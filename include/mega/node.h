@@ -474,11 +474,10 @@ struct MEGA_API LocalNode : public Cacheable
     // If we can regenerate the filsystem data at this node, no need to store it, save some RAM
     void clearRegeneratableFolderScan(SyncPath& fullPath);
 
-    // The name of the node that we are (or will be) synced with
-    // It may not be an exact match due to escaping considerations?  // todo: check this
-    string name;
-
-    // The name of the file we are synced with
+    // The exact name of the file we are synced with, if synced
+    // If not synced then it's the to-local (escaped) version of the CloudNode's name
+    // This is also the key in the parent LocalNode's children map
+    // (if this is the sync root node, it is an absolute path - otherwise just a leaf name)
     LocalPath localname;  //fsLeafName;
 
     // The fingerprint of the node and/or file we are synced with
@@ -507,16 +506,6 @@ struct MEGA_API LocalNode : public Cacheable
     dstime scanDelayUntil = 0;
     unsigned expectedSelfNotificationCount = 0;
     //dstime lastScanTime = 0;
-
-
-    //// detection of deleted filesystem records
-    //int scanseqno = 0;
-
-    //// number of iterations since last seen
-    //int notseen = 0;
-
-    // global sync reference
-    //handle syncid = mega::UNDEF;
 
     struct
     {
@@ -654,9 +643,6 @@ public:
     dstime nagleds = 0;
     void bumpnagleds();
 
-    // if delage > 0, own iterator inside MegaClient::localsyncnotseen
-    localnode_set::iterator notseen_it{};
-
     // build full local path to this node
     void getlocalpath(LocalPath&) const;
     LocalPath getLocalPath() const;
@@ -725,7 +711,7 @@ public:
     void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
     void setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
 
-    void setSyncedNodeHandle(NodeHandle h, const string& cloudName);
+    void setSyncedNodeHandle(NodeHandle h);
 
     void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>, bool applyToCloud);
     void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain);

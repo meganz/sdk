@@ -1807,16 +1807,16 @@ struct StandardClient : public MegaApp
 
         if (depth)
         {
-            if (0 != compareUtf(mn->cloudName(), false, n->name, false, false))
+            if (0 != compareUtf(mn->cloudName(), false, n->localname, true, false))
             {
-                out() << "LocalNode name mismatch: " << mn->path() << " " << n->name;
+                out() << "LocalNode name mismatch: " << mn->path() << " " << n->localname.toPath();
                 return false;
             }
         }
 
         if (!mn->typematchesnodetype(n->type))
         {
-            out() << "LocalNode type mismatch: " << mn->path() << ":" << mn->type << " " << n->name << ":" << n->type;
+            out() << "LocalNode type mismatch: " << mn->path() << ":" << mn->type << " " << n->localname.toPath() << ":" << n->type;
             return false;
         }
 
@@ -1824,7 +1824,7 @@ struct StandardClient : public MegaApp
         string n_localname = n->localname.toName(*client.fsaccess);
         if (n_localname.size() && n->parent)  // the sync root node's localname contains an absolute path, not just the leaf name.  Also the filesystem sync root folder and cloud sync root folder don't have to have the same name.
         {
-            EXPECT_EQ(n->name, n_localname);
+            //EXPECT_EQ(n->name, n_localname);
         }
         if (localNodesMustHaveNodes)
         {
@@ -1840,7 +1840,7 @@ struct StandardClient : public MegaApp
         Node* syncedNode = client.nodeByHandle(n->syncedCloudNodeHandle);
         if (depth && syncedNode)
         {
-            EXPECT_TRUE(0 == compareUtf(syncedNode->displayname(), false, n->name, false, false)) << "Localnode's associated Node vs model node name mismatch: '" << syncedNode->displayname() << "', '" << n->name << "'";
+            EXPECT_TRUE(0 == compareUtf(syncedNode->displayname(), false, n->localname, true, false)) << "Localnode's associated Node vs model node name mismatch: '" << syncedNode->displayname() << "', '" << n->localname.toPath() << "'";
         }
         if (depth && mn->parent)
         {
@@ -1867,7 +1867,7 @@ struct StandardClient : public MegaApp
         }
         for (auto& n2 : n->children)
         {
-            ns.emplace(n2.second->name, n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
+            ns.emplace(n2.second->localname.toPath(), n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
         }
 
         int matched = 0;
@@ -5194,7 +5194,6 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 }
 
-// TODO: re-enable after sync rework is merged
 TEST_F(SyncTest, RemotesWithEscapesSynchronizeCorrectly)
 {
     const auto TESTROOT = makeNewTestRoot();

@@ -8825,25 +8825,11 @@ int MegaApiImpl::syncPathState(string* path)
 
 MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
 {
+    // syncs has its own thread safety
+    NodeHandle h = client->syncs.getSyncedNodeForLocalPath(path);
+
     SdkMutexGuard g(sdkMutex);
-
-    MegaNode *node = NULL;
-    client->syncs.forEachRunningSync(true, [&](Sync* sync) {
-
-        if (!node)
-        {
-            if (path == sync->localroot->localname)
-            {
-                node = MegaNodePrivate::fromNode(sync->cloudRoot());
-            }
-            else
-            {
-                LocalNode * localNode = sync->localnodebypath(NULL, path);
-                if(localNode) node = MegaNodePrivate::fromNode(client->nodeByHandle(localNode->syncedCloudNodeHandle));
-            }
-        }
-    });
-    return node;
+    return MegaNodePrivate::fromNode(client->nodeByHandle(h));
 }
 
 void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal, MegaRequestListener *listener)
@@ -21718,7 +21704,7 @@ void MegaApiImpl::sendPendingRequests()
                 if (matched && sync)
                 {
                     string path = sync->localroot->localname.toPath(*fsAccess);
-                    if (!request->getFile() || sync->cloudRoot())
+                    if (!request->getFile())
                     {
                         request->setFile(path.c_str());
                     }

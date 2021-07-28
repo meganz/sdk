@@ -1187,7 +1187,6 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
         {
             // set new name
             localname = newlocalpath->subpathFrom(p);
-            name = localname.toName(*sync->syncs.fsaccess);
 
             //if (node && applyToCloud)
             //{
@@ -1412,7 +1411,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
-        name = localname.toName(*sync->syncs.fsaccess);
     }
 
 //#ifdef DEBUG
@@ -1935,8 +1933,8 @@ void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, con
         fsid_lastSynced_it = fsidnodes.insert(std::make_pair(fsid_lastSynced, this));
     }
 
-    assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
-        0 == compareUtf(localname, true, name, false, true));
+//    assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
+//        0 == compareUtf(localname, true, name, false, true));
 }
 
 void LocalNode::setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName)
@@ -1961,11 +1959,11 @@ void LocalNode::setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, co
     assert(fsid_asScanned == UNDEF || 0 == compareUtf(localname, true, fsName, true, true));
 }
 
-void LocalNode::setSyncedNodeHandle(NodeHandle h, const string& cloudName)
+void LocalNode::setSyncedNodeHandle(NodeHandle h)
 {
     if (syncedCloudNodeHandle_it != sync->syncs.localnodeByNodeHandle.end())
     {
-        if (h == syncedCloudNodeHandle && name == cloudName)
+        if (h == syncedCloudNodeHandle)
         {
             return;
         }
@@ -1979,9 +1977,6 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h, const string& cloudName)
 
     syncedCloudNodeHandle = h;
 
-    // if synced to cloud, name should match exactly (no differences in case/escaping etc)
-    name = cloudName;
-
     if (syncedCloudNodeHandle == UNDEF)
     {
         syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
@@ -1993,8 +1988,8 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h, const string& cloudName)
         syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.insert(std::make_pair(syncedCloudNodeHandle, this));
     }
 
-    assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
-        0 == compareUtf(localname, true, name, false, true));
+//    assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
+//        0 == compareUtf(localname, true, name, false, true));
 }
 
 LocalNode::~LocalNode()
@@ -2176,13 +2171,23 @@ string LocalNode::getCloudPath() const
 {
     string path;
 
-    if (auto cr = sync->cloudRoot())
+    for (const LocalNode* l = this; l != nullptr; l = l->parent)
     {
-        for (const LocalNode* l = this; l != nullptr; l = l->parent)
+        string name;
+
+        CloudNode cn;
+        string fullpath;
+        if (sync->syncs.lookupCloudNode(l->syncedCloudNodeHandle, cn, l->parent ? nullptr : &fullpath, nullptr, nullptr))
         {
-            assert(!l->parent || l->parent->sync == sync);
-            path = (l->parent ? l->name : cr->displaypath()) + "/" + path;
+            name = cn.name;
         }
+        else
+        {
+            name = localname.toName(*sync->syncs.fsaccess);
+        }
+
+        assert(!l->parent || l->parent->sync == sync);
+        path = (l->parent ? name : fullpath) + "/" + path;
     }
     return path;
 }
@@ -2431,7 +2436,6 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->localname = LocalPath::fromPlatformEncoded(localname);
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncoded(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
-    l->name = l->localname.toName(*sync->syncs.fsaccess);
 
     memcpy(l->syncedFingerprint.crc.data(), crc, sizeof crc);
     l->syncedFingerprint.mtime = mtime;

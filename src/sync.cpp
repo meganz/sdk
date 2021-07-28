@@ -392,6 +392,7 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     }
     else if (row.cloudNode)
     {
+        // this is the local name used when downsyncing a cloud name, if previously unmatched
         localPath.appendWithSeparator(LocalPath::fromName(row.cloudNode->name, *syncs.fsaccess, filesystemType), true);
     }
     else if (!row.cloudClashingNames.empty() || !row.fsClashingNames.empty())
@@ -407,13 +408,18 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
 
     // add to cloudPath
     cloudPath += "/";
+    CloudNode cn;
     if (row.cloudNode)
     {
         cloudPath += row.cloudNode->name;
     }
+    else if (row.syncNode && syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, cn, nullptr, nullptr, nullptr))
+    {
+        cloudPath += cn.name;
+    }
     else if (row.syncNode)
     {
-        cloudPath += row.syncNode->name;
+        cloudPath += row.syncNode->localname.toName(*syncs.fsaccess);
     }
     else if (row.fsNode)
     {
@@ -438,7 +444,7 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     }
     else if (row.syncNode)
     {
-        syncPath += row.syncNode->name;
+        syncPath += row.syncNode->localname.toName(*syncs.fsaccess);
     }
     else if (row.fsNode)
     {
@@ -752,6 +758,8 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     assert(cdebris.empty() || clocaldebris.empty());
     assert(!cdebris.empty() || !clocaldebris.empty());
 
+    syncs.lookupCloudNode(rootNodeHandle, cloudRoot, &cloudRootPath, nullptr, nullptr);
+
     isnetwork = false;
     inshare = cinshare;
     tmpfa = NULL;
@@ -776,7 +784,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
 
     localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
-    localroot->setSyncedNodeHandle(rootNodeHandle, rootNodeName);
+    localroot->setSyncedNodeHandle(rootNodeHandle);
     localroot->setScanAgain(false, true, true, 0);
     localroot->setCheckMovesAgain(false, true, true);
     localroot->setSyncAgain(false, true, true);
@@ -977,12 +985,6 @@ bool Sync::isSyncPaused() {
     return syncPaused;
 }
 
-Node* Sync::cloudRoot()
-{
-// todo: fix this
-    return syncs.mClient.nodeByHandle(localroot->syncedCloudNodeHandle);
-}
-
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
 {
     assert(syncs.onSyncThread());
@@ -1041,7 +1043,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         l->parent_dbid = parent_dbid;
         l->syncedFingerprint.size = size;
         l->setSyncedFsid(fsid, syncs.localnodeBySyncedFsid, l->localname);
-        l->setSyncedNodeHandle(l->syncedCloudNodeHandle, l->name);
+        l->setSyncedNodeHandle(l->syncedCloudNodeHandle);
 
         if (!l->slocalname_in_db)
         {
@@ -1057,8 +1059,8 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             addstatecachechildren(l->dbid, tmap, localpath, l, maxdepth - 1);
         }
 
-        assert(l->localname.empty() || l->name.empty() || parent_dbid == UNDEF ||
-            0 == compareUtf(l->localname, true, l->name, false, true));
+//        assert(l->localname.empty() || l->name.empty() || parent_dbid == UNDEF ||
+//            0 == compareUtf(l->localname, true, l->name, false, true));
     }
 }
 
@@ -1718,9 +1720,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             CloudNode sourceCloudNode, targetCloudNode;
             string sourceCloudNodePath, targetCloudNodePath;
-            bool sourceInTrash = false, targetInTrash = false;
-            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, sourceInTrash, nullptr);
-            bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, targetInTrash, nullptr);
+            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr);
+            bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr);
 
 //todo:
             //if (sourceCloudNode && !sourceCloudNode->mPendingChanges.empty())
@@ -2031,6 +2032,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().moveToHere)
     {
         SYNC_verbose << "Node was a cloud move so skip possible matching local move. " << logTriplet(row, fullPath);
+        rowResult = false;
+        return false;  // we need to progress to resolve_rowMatched at this node
     }
 
     SYNC_verbose << syncname << "checking localnodes for synced handle " << row.cloudNode->handle;
@@ -2173,7 +2176,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // remove fsid (and handle) from source node, so we don't detect
             // that as a move source anymore
             sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname);
-            sourceSyncNode->setSyncedNodeHandle(NodeHandle(), sourceSyncNode->name);
+            sourceSyncNode->setSyncedNodeHandle(NodeHandle());
 
             sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
             sourceSyncNode->moveAppliedToLocal = true;
@@ -2989,6 +2992,32 @@ SyncConfigStore* Syncs::syncConfigStore()
       new SyncConfigStore(dbPath, *mSyncConfigIOContext));
 
     return mSyncConfigStore.get();
+}
+
+NodeHandle Syncs::getSyncedNodeForLocalPath(const LocalPath& lp)
+{
+    assert(!onSyncThread());
+
+    // synchronous for now but we could make async one day (intermediate layer would need its function made async first)
+    NodeHandle result;
+    syncRun([&](){
+
+        lock_guard<mutex> g(mSyncVecMutex);
+        for (auto& us : mSyncVec)
+        {
+            if (us->mSync)
+            {
+                LocalNode* match = us->mSync->localnodebypath(NULL, lp);
+                if (match)
+                {
+                    result = match->syncedCloudNodeHandle;
+                    break;
+                }
+            }
+        }
+
+    });
+    return result;
 }
 
 error Syncs::syncConfigStoreAdd(const SyncConfig& config)
@@ -4349,8 +4378,7 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 
                 CloudNode cloudNode;
                 string cloudNodePath;
-                bool inTrash = false;
-                bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, inTrash, nullptr);
+                bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, nullptr, nullptr);
 
                 updateSyncRemoteLocation(*unifiedSync, foundCloudNode, cloudNodePath); //updates cache & notice app of this change
             }
@@ -4406,9 +4434,8 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
 {
     FSNode rootFsNode(localroot->getLastSyncedFSDetails());
-    CloudNode rootCloudNode(*cloudRoot());
-    syncRow row{ &rootCloudNode, localroot.get(), &rootFsNode };
-    SyncPath pathBuffer(syncs, localroot->localname, cloudRoot()->displaypath()); // todo: cloudRoot
+    syncRow row{ &cloudRoot, localroot.get(), &rootFsNode };
+    SyncPath pathBuffer(syncs, localroot->localname, cloudRootPath);
     recursiveCollectNameConflicts(row, conflicts, pathBuffer);
     return !conflicts.empty();
 }
@@ -4994,8 +5021,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 }
                 childRow.rowSiblings = &childRows;
 
-                assert(!row.syncNode || row.syncNode->localname.empty() || row.syncNode->name.empty() || !row.syncNode->parent ||
-                       0 == compareUtf(row.syncNode->localname, true, row.syncNode->name, false, true));
+                //assert(!row.syncNode || row.syncNode->localname.empty() || row.syncNode->name.empty() || !row.syncNode->parent ||
+                //       0 == compareUtf(row.syncNode->localname, true, row.syncNode->name, false, true));
 
                 if (childRow.fsNode && childRow.syncNode &&
                     childRow.syncNode->fsid_asScanned != childRow.fsNode->fsid)
@@ -5463,8 +5490,8 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
     // these comparisons may need to be adjusted for UTF, escapes
     assert(row.syncNode->fsid_lastSynced != row.fsNode->fsid || row.syncNode->localname == row.fsNode->localname);
     assert(row.syncNode->fsid_lastSynced == row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
-    assert(row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle || row.syncNode->name == row.cloudNode->name);
-    assert(row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle || 0 == compareUtf(row.syncNode->name, true, row.cloudNode->name, true, isCaseInsensitive(mFilesystemType)));
+    //assert(row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle || row.syncNode->name == row.cloudNode->name);
+    //assert(row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle || 0 == compareUtf(row.syncNode->name, true, row.cloudNode->name, true, isCaseInsensitive(mFilesystemType)));
 
     assert((!!row.syncNode->slocalname == !!row.fsNode->shortname) &&
             (!row.syncNode->slocalname ||
@@ -5472,11 +5499,9 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
     if (row.syncNode->fsid_lastSynced != row.fsNode->fsid ||
         row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle ||
-        row.syncNode->localname != row.fsNode->localname ||
-        row.syncNode->name != row.cloudNode->name)
+        row.syncNode->localname != row.fsNode->localname)
+        //row.syncNode->name != row.cloudNode->name)
     {
-
-
         if (row.syncNode->hasRare() && row.syncNode->rare().moveToHere)
         {
             // Confirm that the move details are the same as recorded (LocalNodes may have changed or been deleted by now, etc.
@@ -5494,7 +5519,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                 // remove fsid (and handle) from source node, so we don't detect
                 // that as a move source anymore
                 sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname);
-                sourceSyncNode->setSyncedNodeHandle(NodeHandle(), sourceSyncNode->name);
+                sourceSyncNode->setSyncedNodeHandle(NodeHandle());
 
                 // Move all the LocalNodes under the source node to the new location
                 // We can't move the source node itself as the recursive callers may be using it
@@ -5520,7 +5545,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         }
 
         row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname);
-        row.syncNode->setSyncedNodeHandle(row.cloudNode->handle, row.cloudNode->name);
+        row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
 
         row.syncNode->treestate(TREESTATE_SYNCED);
 
@@ -5597,7 +5622,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
     row.syncNode->init(this, row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
     if (considerSynced)
     {
-        row.syncNode->setSyncedNodeHandle(row.cloudNode->handle, row.cloudNode->name);
+        row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
         row.syncNode->treestate(TREESTATE_SYNCED);
     }
     else
@@ -5792,9 +5817,12 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         {
             if (parentRow.cloudNode)
             {
+                // there can't be a matching cloud node in this row (for folders), so just toName() is correct
+                string foldername = row.syncNode->localname.toName(*syncs.fsaccess);
+
                 // Check for filename anomalies.
                 {
-                    auto type = isFilenameAnomaly(*row.syncNode);
+                    auto type = isFilenameAnomaly(row.syncNode->localname, foldername);
 
                     if (type != FILENAME_ANOMALY_NONE)
                     {
@@ -5810,7 +5838,8 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
                 LOG_verbose << "Creating cloud node for: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
                 // while the operation is in progress sync() will skip over the parent folder
-                string foldername = row.syncNode->name;
+
+
                 NodeHandle targethandle = parentRow.cloudNode->handle;
                 auto createFolderPtr = std::make_shared<LocalNode::RareFields::CreateFolderInProgress>();
                 row.syncNode->rare().createFolderHere = createFolderPtr;
@@ -5974,7 +6003,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     row.syncNode->slocalname = fsnode->cloneShortname();
 
 					// setting synced variables here means we can skip a scan of the parent folder, if just the one expected notification arrives for it
-                    row.syncNode->setSyncedNodeHandle(row.cloudNode->handle, row.cloudNode->name);
+                    row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
                     row.syncNode->setSyncedFsid(fsnode->fsid, syncs.localnodeBySyncedFsid, fsnode->localname);
 					row.syncNode->setScannedFsid(fsnode->fsid, syncs.localnodeByScannedFsid, fsnode->localname);
                     statecacheadd(row.syncNode);
@@ -6054,9 +6083,8 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 
     CloudNode prevSyncedNode;
     string prevSyncedNodePath;
-    bool prevSyncedNodeInTrash = false;
     bool prevSyncedNodeInActiveUnpausedSync = false;
-    bool foundPrevSyncedNode = syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, prevSyncedNode, &prevSyncedNodePath, prevSyncedNodeInTrash, &prevSyncedNodeInActiveUnpausedSync);
+    bool foundPrevSyncedNode = syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, prevSyncedNode, &prevSyncedNodePath, nullptr, &prevSyncedNodeInActiveUnpausedSync);
 
     if (foundPrevSyncedNode && prevSyncedNodeInActiveUnpausedSync)
     {
@@ -6574,7 +6602,7 @@ void Syncs::processTriggerHandles()
                 CloudNode cloudNode;
                 string cloudNodePath;
                 bool isInTrash = false;
-                bool found = lookupCloudNode(h, cloudNode, &cloudNodePath, isInTrash, nullptr);
+                bool found = lookupCloudNode(h, cloudNode, &cloudNodePath, &isInTrash, nullptr);
                 if (found && !isInTrash)
                 {
                     // if the parent is a file, then it's just old versions being mentioned in the actionpackets, ignore
@@ -7466,7 +7494,9 @@ void Syncs::syncLoop()
                     }
                 }
 
-                if (sync->getConfig().mRunningState != SYNC_FAILED && !sync->cloudRoot())
+                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle, sync->cloudRoot, &sync->cloudRootPath, nullptr, nullptr);
+
+                if (!foundRootNode && sync->getConfig().mRunningState != SYNC_FAILED)
                 {
                     LOG_err << "The remote root node doesn't exist";
                     sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
@@ -7827,7 +7857,7 @@ void Syncs::syncLoop()
             CloudNode cloudNode;
             string cloudNodePath;
             bool inTrash = false;
-            bool foundCloudNode = lookupCloudNode(us->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, inTrash, nullptr);
+            bool foundCloudNode = lookupCloudNode(us->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, &inTrash, nullptr);
 
             // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
             bool pathChanged = updateSyncRemoteLocation(*us, foundCloudNode, cloudNodePath);
@@ -7922,11 +7952,10 @@ void Syncs::syncLoop()
                         }
 
                         // pathBuffer will have leafnames appended as we recurse
-                        SyncPath pathBuffer(*this, sync->localroot->localname, sync->cloudRoot()->displaypath());
+                        SyncPath pathBuffer(*this, sync->localroot->localname, sync->cloudRootPath);
 
                         FSNode rootFsNode(sync->localroot->getLastSyncedFSDetails());
-                        CloudNode rootCloudNode(*sync->cloudRoot());
-                        syncRow row{&rootCloudNode, sync->localroot.get(), &rootFsNode};
+                        syncRow row{&sync->cloudRoot, sync->localroot.get(), &rootFsNode};
 
                         {
                             // later we can make this lock much finer-grained
@@ -8258,11 +8287,13 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     tp->proc(*n->sync->syncs.fsaccess, n);
 }
 
-bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool& isInTrash, bool* nodeIsInActiveUnpausedSyncQuery)
+bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveUnpausedSyncQuery)
 {
     // we have to avoid doing these lookups when the client thread might be changing the Node tree
     // so we use the mutex to prevent access during that time - which is only actionpacket processing.
     assert(onSyncThread());
+
+    if (h.isUndef()) return false;
 
     std::vector<NodeHandle> activeSyncHandles;
     std::vector<Node*> activeSyncRoots;
@@ -8295,7 +8326,11 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
     if (Node* n = mClient.nodeByHandle(h))
     {
-        isInTrash = n->firstancestor()->nodehandle == mClient.rootnodes[RUBBISHNODE - ROOTNODE];
+        if (isInTrash)
+        {
+            *isInTrash = n->firstancestor()->nodehandle == mClient.rootnodes[RUBBISHNODE - ROOTNODE];
+        }
+
         if (cloudPath) *cloudPath = n->displaypath();
         cn = CloudNode(*n);
 
