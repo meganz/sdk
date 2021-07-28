@@ -2027,6 +2027,14 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 {
     assert(syncs.onSyncThread());
 
+    // if this cloud move was a sync decision, don't look to make it locally too
+    if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().moveToHere)
+    {
+        SYNC_verbose << "Node was a cloud move so skip possible matching local move. " << logTriplet(row, fullPath);
+    }
+
+    SYNC_verbose << syncname << "checking localnodes for synced handle " << row.cloudNode->handle;
+
     if (row.syncNode && row.syncNode->type != row.cloudNode->type)
     {
         LOG_debug << syncname << "checked node does not have the same type, blocked: " << fullPath.cloudPath;
@@ -2068,6 +2076,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         // is there already something else at the target location though?
         if (row.fsNode)
         {
+            // todo: should we check if the node that is already here is in fact a match?  in which case we should allow progressing to resolve_rowMatched
+
             SYNC_verbose << syncname << "Move detected by nodehandle, but something else with that name is already here locally. Type: " << row.fsNode->type
                 << " moved node: " << fullPath.cloudPath
                 << " old parent: " << (oldCloudParent ? oldCloudParent->displaypath() : "?")
@@ -5255,8 +5265,6 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
     if (row.cloudNode && (!row.syncNode || row.syncNode->syncedCloudNodeHandle.isUndef() ||
         row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle))
     {
-        LOG_verbose << syncname << "checking localnodes for synced handle " << row.cloudNode->handle;
-
         bool rowResult;
         if (checkCloudPathForMovesRenames(row, parentRow, fullPath, rowResult, belowRemovedFsNode))
         {
@@ -5301,6 +5309,26 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemTime2);
     bool rowSynced = false;
+
+    // check for cases in progress that we shouldn't be re-evaluating yet
+    if (row.syncNode &&
+        row.syncNode->hasRare())
+    {
+        if (auto& p = row.syncNode->rare().moveFromHere)
+        {
+            if (p->syncCodeProcessedResult ||
+                p->failed)
+            {
+                p.reset();
+                row.syncNode->trimRareFields();
+            }
+            else
+            {
+                // move still in progress or awaiting sync code recognition
+                return false;
+            }
+        }
+    }
 
     // each of the 8 possible cases of present/absent for this row
     if (row.syncNode)
@@ -5475,7 +5503,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                 row.syncNode->setScanAgain(false, true, true, 0);
                 sourceSyncNode->setScanAgain(true, false, false, 0);
 
-
+                sourceSyncNode->rare().moveFromHere->syncCodeProcessedResult = true;
                 sourceSyncNode->rare().moveFromHere.reset();
                 sourceSyncNode->trimRareFields();
                 row.syncNode->rare().moveToHere.reset();
