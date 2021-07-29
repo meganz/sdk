@@ -1800,6 +1800,19 @@ struct StandardClient : public MegaApp
 
     bool localNodesMustHaveNodes = true;
 
+    auto equal_range_utf8EscapingCompare(multimap<string, LocalNode*>& ns, const string& cmpValue, bool unescapeValue, bool unescapeMap, bool caseInsensitive) -> std::pair<multimap<string, LocalNode*>::iterator, multimap<string, LocalNode*>::iterator>
+    {
+        // first iter not less than cmpValue
+        auto iter1 = ns.begin();
+        while (iter1 != ns.end() && compareUtf(iter1->first, unescapeMap, cmpValue, unescapeValue, caseInsensitive) < 0) ++iter1;
+
+        // second iter greater then cmpValue
+        auto iter2 = iter1;
+        while (iter2 != ns.end() && compareUtf(iter1->first, unescapeMap, cmpValue, unescapeValue, caseInsensitive) <= 0) ++iter2;
+
+        return {iter1, iter2};
+    }
+
     bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported)
     {
         // top level names can differ so we don't check those
@@ -1863,7 +1876,7 @@ struct StandardClient : public MegaApp
         multimap<string, LocalNode*> ns;
         for (auto& m : mn->kids)
         {
-            ms.emplace(m->cloudName(), m.get());
+            ms.emplace(m->fsName(), m.get());
         }
         for (auto& n2 : n->children)
         {
@@ -1880,6 +1893,7 @@ struct StandardClient : public MegaApp
                 continue;
             }
 
+            //auto er = equal_range_utf8EscapingCompare(ns, m_iter->first, false, true, true);
             auto er = ns.equal_range(m_iter->first);
             auto next_m = m_iter;
             ++next_m;
@@ -5158,9 +5172,9 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     // Populate and confirm model.
     Model model;
 
-    model.addfolder("x/d\7");
+    model.addfolder("x/d\7")->mFsName = "d%07";
     model.addfolder("x/d");
-    model.addfile("x/f\7", "f");
+    model.addfile("x/f\7", "f")->mFsName = "f%07";
     model.addfile("x/f", "f");
 
     // Needed because we've downloaded files.
@@ -5200,8 +5214,8 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     waitonsyncs(TIMEOUT, &cd);
 
     // Update and confirm models.
-    model.addfolder("x/dd\7");
-    model.addfile("x/ff\7", "ff");
+    model.addfolder("x/dd\7")->fsName("dd%07");
+    model.addfile("x/ff\7", "ff")->fsName("ff%07");
 
     ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 }
