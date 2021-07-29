@@ -1091,6 +1091,31 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
     return found;
 }
 
+// returns a matching child node by UTF-8 name (does not resolve name clashes)
+// folder nodes take precedence over file nodes
+Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t mustBeType)
+{
+    string nname = name;
+
+    if (!p || p->type == FILENODE)
+    {
+        return NULL;
+    }
+
+    fsaccess->normalize(&nname);
+
+    for (auto it : p->children)
+    {
+        if (it->type == mustBeType &&
+            !strcmp(nname.c_str(), it->displayname()))
+        {
+            return it;
+        }
+    }
+
+    return nullptr;
+}
+
 // returns a matching child node that has the given attribute with the given value
 Node* MegaClient::childnodebyattribute(Node* p, nameid attrId, const char* attrValue)
 {
@@ -2415,8 +2440,11 @@ void MegaClient::exec()
         }
 
 #ifdef ENABLE_SYNC
-// todo: any sync related checks can go here
-        execsyncdeletions();
+        if (!pendingDebris.empty())
+        {
+            // in case we need to retry after a prior failure
+            getOrCreateSyncdebrisFolder();
+        }
 
         if (!syncs.clientThreadActions.empty())
         {
@@ -7568,7 +7596,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(handle, error)> resultFunction)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)> resultFunction)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
@@ -7589,7 +7617,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodehandle, kv, tag, resultFunction));
+    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, resultFunction));
 
     return API_OK;
 }
@@ -12633,8 +12661,7 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     mOptimizePurgeNodes = false;
 
 #ifdef ENABLE_SYNC
-    todebris.clear();
-    tounlink.clear();
+    pendingDebris.clear();
     mFingerprints.clear();
 #endif
 
@@ -14485,49 +14512,15 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
 // dupes)
-void MegaClient::movetosyncdebris(Node* dn, bool unlink)
+void MegaClient::movetosyncdebris(Node* dn, bool unlink, std::function<void(NodeHandle, Error)>&& completion)
 {
-    dn->syncdeleted = SYNCDEL_DELETED;
-
-    // todo: should we set the node tag from the reworked sync code
-
-    //// detach node from LocalNode
-    //if (dn->localnode)
-    //{
-    //    dn->tag = dn->localnode->sync->tag;
-    //    dn->localnode->node = NULL;
-    //    dn->localnode = NULL;
-    //}
-
-    Node* n = dn;
-
-    // at least one parent node already on the way to SyncDebris?
-    while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
-
-    // no: enqueue this one
-    if (!n)
+    if (unlink)
     {
-        if (unlink)
-        {
-            dn->tounlink_it = tounlink.insert(dn).first;
-        }
-        else
-        {
-            dn->todebris_it = todebris.insert(dn).first;
-        }
+        execsyncunlink(dn, move(completion));
     }
-}
-
-void MegaClient::execsyncdeletions()
-{
-    if (todebris.size())
+    else
     {
-        execmovetosyncdebris();
-    }
-
-    if (tounlink.size())
-    {
-        execsyncunlink();
+        execmovetosyncdebris(dn, move(completion));
     }
 }
 
@@ -14569,170 +14562,120 @@ void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, LocalPath& reuseBu
 #endif
 }
 
-void MegaClient::execsyncunlink()
+void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion)
 {
-    Node* n;
-    Node* tn;
-
-    // delete tounlink nodes
-    do {
-        n = tn = *tounlink.begin();
-
-        while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
-
-        if (!n)
-        {
-            unlink(tn, false, tn->tag);
-        }
-
-        tn->tounlink_it = tounlink.end();
-        tounlink.erase(tounlink.begin());
-    } while (tounlink.size());
+    error err = unlink(n, false, 0, completion);
+    if (err)
+    {
+        completion(n->nodeHandle(), err);
+    }
 }
 
-// immediately moves pending todebris items to //bin
-// also deletes tounlink items directly
-void MegaClient::execmovetosyncdebris()
+void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion)
 {
-    Node* n;
-    Node* tn;
-    node_set::iterator it;
-
-    m_time_t ts;
-    struct tm tms;
-    char buf[32];
-    syncdel_t target;
-
-    // attempt to move the nodes in node_set todebris to the following
-    // locations (in falling order):
-    // - //bin/SyncDebris/yyyy-mm-dd
-    // - //bin/SyncDebris
-    // - //bin
-
-    // (if no rubbish bin is found, we should probably reload...)
-    if (!(tn = nodebyhandle(rootnodes[RUBBISHNODE - ROOTNODE])))
+    if (requestedNode)
     {
-        return;
+        pendingDebris.emplace_back(requestedNode->nodeHandle(), completion);
     }
 
-    target = SYNCDEL_BIN;
-
-    ts = m_time();
-    struct tm* ptm = m_localtime(ts, &tms);
-    sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
-    m_time_t currentminute = ts / 60;
-
-    // locate //bin/SyncDebris
-    if ((n = childnodebyname(tn, SYNCDEBRISFOLDERNAME)) && n->type == FOLDERNODE)
+    if (Node* debrisTarget = getOrCreateSyncdebrisFolder())
     {
-        tn = n;
-        target = SYNCDEL_DEBRIS;
-
-        // locate //bin/SyncDebris/yyyy-mm-dd
-        if ((n = childnodebyname(tn, buf)) && n->type == FOLDERNODE)
+        for (auto& rec : pendingDebris)
         {
-            tn = n;
-            target = SYNCDEL_DEBRISDAY;
-        }
-    }
-
-    // in order to reduce the API load, we move
-    // - SYNCDEL_DELETED nodes to any available target
-    // - SYNCDEL_BIN/SYNCDEL_DEBRIS nodes to SYNCDEL_DEBRISDAY
-    // (move top-level nodes only)
-    for (it = todebris.begin(); it != todebris.end(); )
-    {
-        n = *it;
-
-        if (n->syncdeleted == SYNCDEL_DELETED
-         || n->syncdeleted == SYNCDEL_BIN
-         || n->syncdeleted == SYNCDEL_DEBRIS)
-        {
-            while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
-
-            if (!n)
+            if (Node* n = nodeByHandle(rec.nodeHandle))
             {
-                n = *it;
-
-                if (n->syncdeleted == SYNCDEL_DELETED
-                 || ((n->syncdeleted == SYNCDEL_BIN
-                   || n->syncdeleted == SYNCDEL_DEBRIS)
-                      && target == SYNCDEL_DEBRISDAY))
-                {
-                    n->syncdeleted = SYNCDEL_INFLIGHT;
-                    int creqtag = reqtag;
-                    reqtag = n->tag;
-                    LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                    rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, nullptr);
-                    reqtag = creqtag;
-                    it++;
-                }
-                else
-                {
-                    LOG_debug << "SyncDebris daily folder not created. Final target: " << n->syncdeleted;
-                    n->syncdeleted = SYNCDEL_NONE;
-                    n->todebris_it = todebris.end();
-                    todebris.erase(it++);
-                }
+                LOG_debug << "Moving to Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
+                rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, move(rec.completion));
             }
             else
             {
-                it++;
+                if (rec.completion) rec.completion(rec.nodeHandle, API_EEXIST);
             }
         }
-        else if (n->syncdeleted == SYNCDEL_DEBRISDAY
-                 || n->syncdeleted == SYNCDEL_FAILED)
-        {
-            LOG_debug << "Move to SyncDebris finished, to target: " << n->syncdeleted;
-            n->syncdeleted = SYNCDEL_NONE;
-            n->todebris_it = todebris.end();
-            todebris.erase(it++);
-        }
-        else
-        {
-            it++;
-        }
+        pendingDebris.clear();
     }
+}
 
-    if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding
-            && (target == SYNCDEL_BIN || syncdebrisminute != currentminute))
+
+Node* MegaClient::getOrCreateSyncdebrisFolder()
+{
+    m_time_t ts = m_time();
+    m_time_t currentminute = ts / 60;
+    if (syncdebrisadding || syncdebrisminute == currentminute)
     {
-        syncdebrisadding = true;
-        syncdebrisminute = currentminute;
-        LOG_debug << "Creating daily SyncDebris folder: " << buf << " Target: " << target;
-
-        // create missing component(s) of the sync debris folder of the day
-        vector<NewNode> nnVec;
-        SymmCipher tkey;
-        string tattrstring;
-        AttrMap tattrs;
-
-        nnVec.resize((target == SYNCDEL_DEBRIS) ? 1 : 2);
-
-        for (size_t i = nnVec.size(); i--; )
-        {
-            auto nn = &nnVec[i];
-
-            nn->source = NEW_NODE;
-            nn->type = FOLDERNODE;
-            nn->nodehandle = i;
-            nn->parenthandle = i ? 0 : UNDEF;
-
-            nn->nodekey.resize(FOLDERNODEKEYLENGTH);
-            rng.genblock((byte*)nn->nodekey.data(), FOLDERNODEKEYLENGTH);
-
-            // set new name, encrypt and attach attributes
-            tattrs.map['n'] = (i || target == SYNCDEL_DEBRIS) ? buf : SYNCDEBRISFOLDERNAME;
-            tattrs.getjson(&tattrstring);
-            tkey.setkey((const byte*)nn->nodekey.data(), FOLDERNODE);
-            nn->attrstring.reset(new string);
-            makeattr(&tkey, nn->attrstring, tattrstring.c_str());
-        }
-
-        reqs.add(new CommandPutNodes(this, tn->nodeHandle(), NULL, move(nnVec),
-                                        -reqtag,
-                                        PUTNODES_SYNCDEBRIS, nullptr, nullptr));
+        return nullptr;
     }
+
+    Node* binNode = nodebyhandle(rootnodes[RUBBISHNODE - ROOTNODE]);
+    if (!binNode)
+    {
+        return nullptr;
+    }
+
+    bool foundDebris = false;
+
+    struct tm tms;
+    char buf[32];
+    struct tm* ptm = m_localtime(ts, &tms);
+    sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+
+    // locate //bin/SyncDebris
+    Node* n;
+    if ((n = childnodebynametype(binNode, SYNCDEBRISFOLDERNAME, FOLDERNODE)))
+    {
+        binNode = n;
+        foundDebris = true;
+
+        // locate //bin/SyncDebris/yyyy-mm-dd
+        if ((n = childnodebyname(binNode, buf)) && n->type == FOLDERNODE)
+        {
+            binNode = n;
+            return binNode; // all set to send node to this one
+        }
+    }
+
+    // not found, so create whatever is missing
+
+    syncdebrisadding = true;
+    syncdebrisminute = currentminute;
+    LOG_debug << "Creating daily SyncDebris folder";
+
+    // create missing component(s) of the sync debris folder of the day
+    vector<NewNode> nnVec;
+    SymmCipher tkey;
+    string tattrstring;
+    AttrMap tattrs;
+
+    nnVec.resize((foundDebris) ? 1 : 2);
+
+    for (size_t i = nnVec.size(); i--; )
+    {
+        auto nn = &nnVec[i];
+
+        nn->source = NEW_NODE;
+        nn->type = FOLDERNODE;
+        nn->nodehandle = i;
+        nn->parenthandle = i ? 0 : UNDEF;
+
+        nn->nodekey.resize(FOLDERNODEKEYLENGTH);
+        rng.genblock((byte*)nn->nodekey.data(), FOLDERNODEKEYLENGTH);
+
+        // set new name, encrypt and attach attributes
+        tattrs.map['n'] = (i || foundDebris) ? buf : SYNCDEBRISFOLDERNAME;
+        tattrs.getjson(&tattrstring);
+        tkey.setkey((const byte*)nn->nodekey.data(), FOLDERNODE);
+        nn->attrstring.reset(new string);
+        makeattr(&tkey, nn->attrstring, tattrstring.c_str());
+    }
+
+    reqs.add(new CommandPutNodes(this, binNode->nodeHandle(), NULL, move(nnVec),
+                                    0, PUTNODES_SYNCDEBRIS, nullptr,
+                                    [this](const Error&, targettype_t, vector<NewNode>&, bool targetOverride){
+                                    // on completion, send the queued nodes
+                                    execmovetosyncdebris(nullptr, nullptr);
+                                    syncdebrisadding = false;
+                                    }));
+    return nullptr;
 }
 
 #endif
@@ -14790,11 +14733,6 @@ void MegaClient::failSyncs(SyncError syncError)
     syncs.forEachRunningSync(true, [&](Sync* sync) {
         sync->changestate(SYNC_FAILED, syncError, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
     });
-}
-
-void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
-{
-    syncdebrisadding = false;
 }
 #endif
 

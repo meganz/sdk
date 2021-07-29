@@ -285,6 +285,9 @@ public:
     // sync-wide directory notification provider
     std::unique_ptr<DirNotify> dirnotify;
 
+    // track how recent the last received fs noticiation was
+    dstime lastFSNotificationTime = 0;
+
     // root of local filesystem tree, holding the sync's root folder.  Never null except briefly in the destructor (to ensure efficient db usage)
     unique_ptr<LocalNode> localroot;
 
@@ -887,6 +890,7 @@ public:
     ThreadSafeDeque<std::function<void(MC&, DBTC&)>> clientThreadActions;
     ThreadSafeDeque<std::function<void()>> syncThreadActions;
 
+    void syncRun(std::function<void()>);
     void queueSync(std::function<void()>&&);
     void queueClient(std::function<void(MC&, DBTC&)>&&);
 
@@ -982,8 +986,6 @@ private:
     void clear_inThread();
     void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector);
     void purgeRunningSyncs_inThread();
-
-    void syncRun(std::function<void()>);
 
     std::thread syncThread;
     void syncLoop();

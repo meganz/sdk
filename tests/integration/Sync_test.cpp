@@ -2329,7 +2329,7 @@ struct StandardClient : public MegaApp
     {
         if (Node* n = drillchildnodebyname(gettestbasenode(), path))
         {
-            auto f = [pb](handle h, error e){ pb->set_value(!e); }; // todo: probably need better lifetime management for the promise, so multiple things can be tracked at once
+            auto f = [pb](NodeHandle h, Error e){ pb->set_value(!e); }; // todo: probably need better lifetime management for the promise, so multiple things can be tracked at once
             resultproc.prepresult(UNLINK, ++next_request_tag,
                 [&](){ client.unlink(n, false, 0, f); },
                 [pb](error e) { pb->set_value(!e); return true; });
@@ -2475,12 +2475,16 @@ struct StandardClient : public MegaApp
                   {
                       any_add_del |= !s->deleteq.empty();
                       any_add_del |= !s->insertq.empty();
+
+                      if (s->active() &&
+                          (s->localroot->scanRequired()
+                              || s->localroot->mightHaveMoves()
+                              || s->localroot->syncRequired()))
+                      {
+                          any_add_del = true;
+                      }
                   });
 
-                if (!(client.todebris.empty() && client.tounlink.empty() /*&& client.synccreate.empty()*/))
-                {
-                    any_add_del = true;
-                }
                 if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
                 {
                     any_add_del = true;
@@ -2742,10 +2746,18 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                               syncstates.push_back(s->getConfig().mRunningState);
                               if (s->deleteq.size() || s->insertq.size())
                                   any_activity = true;
+
+                              if (s->active() &&
+                                  (s->localroot->scanRequired()
+                                      || s->localroot->mightHaveMoves()
+                                      || s->localroot->syncRequired()))
+                              {
+                                  any_activity = true;
+                              }
+
                           });
 
-                        if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() //&& mc.client.synccreate.empty()
-                            && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
+                        if (!(mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
                         {
                             any_activity = true;
                         }

@@ -501,7 +501,7 @@ bool SyncDownload_inClient::failed(error e, MegaClient* mc)
             {
                 mc->sendevent(99433, "Undecryptable file", 0);
             }
-            mc->movetosyncdebris(n, fromInsycShare);
+            mc->movetosyncdebris(n, fromInsycShare, nullptr);
         }
     }
 

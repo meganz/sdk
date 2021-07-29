@@ -486,7 +486,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(handle, error)> resultFunction = nullptr);
+    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)> resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
@@ -1499,7 +1499,7 @@ public:
     // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
     bool syncdebrisadding;
 
-    // minute of the last created folder in SyncDebris
+    // minute of the last created folder in SyncDebris (don't attempt creation more frequently than once per minute)
     m_time_t syncdebrisminute;
 
     // sync PUT Nagle timer
@@ -1547,9 +1547,6 @@ public:
     //handle nextsyncid();
     //handle currsyncid;
 
-    // SyncDebris folder addition result
-    void putnodes_syncdebris_result(error, vector<NewNode>&);
-
     // if no sync putnodes operation is in progress, apply the updates stored
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
     void syncupdate();
@@ -1558,18 +1555,21 @@ public:
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
-    void movetosyncdebris(Node*, bool);
+    void movetosyncdebris(Node*, bool unlink, std::function<void(NodeHandle, Error)>&& completion);
 
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
-    void execmovetosyncdebris();
-    node_set todebris;
+    void execmovetosyncdebris(Node* n, std::function<void(NodeHandle, Error)>&& completion);
+
+    Node* getOrCreateSyncdebrisFolder();
+    struct pendingDebrisRecord {
+        NodeHandle nodeHandle;
+        std::function<void(NodeHandle, Error)> completion;
+        pendingDebrisRecord(NodeHandle h, std::function<void(NodeHandle, Error)> c) : nodeHandle(h), completion(c) {}
+    };
+    list<pendingDebrisRecord> pendingDebris;
 
     // unlink queued nodes directly (for inbound share syncing)
-    void execsyncunlink();
-    node_set tounlink;
-
-    // commit all queueud deletions
-    void execsyncdeletions();
+    void execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion);
 
     // unlink the LocalNode from the corresponding node
     // if the associated local file or folder still exists
@@ -1646,6 +1646,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
     Node* childnodebyattribute(Node*, nameid, const char*);
     void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);

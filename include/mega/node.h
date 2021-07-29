@@ -345,19 +345,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // own position in fingerprint set (only valid for file nodes)
     Fingerprints::iterator fingerprint_it;
 
-#ifdef ENABLE_SYNC
-
-    // state of removal to //bin / SyncDebris
-    syncdel_t syncdeleted = SYNCDEL_NONE;
-
-    // location in the todebris node_set
-    node_set::iterator todebris_it;
-
-    // location in the tounlink node_set
-    // FIXME: merge todebris / tounlink
-    node_set::iterator tounlink_it;
-#endif
-
     // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
     int tag = 0;
 
@@ -513,13 +500,7 @@ struct MEGA_API LocalNode : public Cacheable
         bool unstableFsidAssigned : 1;
 
         // disappeared from local FS; we are moving the cloud node to the trash.
-        bool deletingCloud : 1;
         bool deletedFS : 1;
-
-        // we saw this node moved/renamed locally, cloud move is underway or complete
-        //bool moveSourceApplyingToCloud : 1;
-        //bool moveSourceAppliedToCloud : 1;
-        //bool moveTargetApplyingToCloud : 1;
 
         // we saw this node moved/renamed in the cloud, local move expected (or active)
         bool moveApplyingToLocal : 1;    // todo: do we need these anymore?
@@ -586,9 +567,15 @@ struct MEGA_API LocalNode : public Cacheable
         {
         };
 
+        struct DeleteToDebrisInProgress
+        {
+            // (actually if it's an inshare, we unlink() as there's no debris
+        };
+
         shared_ptr<MoveInProgress> moveFromHere;
         shared_ptr<MoveInProgress> moveToHere;
         weak_ptr<CreateFolderInProgress> createFolderHere;
+        weak_ptr<DeleteToDebrisInProgress> removeNodeHere;
     };
 
 private:
@@ -597,6 +584,9 @@ public:
     bool hasRare() { return !!rareFields; }
     RareFields& rare();
     void trimRareFields();
+
+    // use this one to skip the hasRare check, if it doesn't exist a reference to a blank one is returned
+    const RareFields& rareRO();
 
     // set the syncupTargetedAction for this, and parents
     void setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds);

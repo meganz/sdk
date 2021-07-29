@@ -671,18 +671,6 @@ MegaNode *MegaNode::unserialize(const char *d)
     return MegaNodePrivate::unserialize(&data);
 }
 
-#ifdef ENABLE_SYNC
-bool MegaNode::isSyncDeleted()
-{
-    return false;
-}
-
-string MegaNode::getLocalPath()
-{
-    return string();
-}
-#endif
-
 MegaUser::~MegaUser() { }
 
 MegaUser *MegaUser::copy()

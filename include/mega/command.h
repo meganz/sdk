@@ -501,14 +501,14 @@ public:
 
 class MEGA_API CommandDelNode : public Command
 {
-    handle h;
-    handle parent;
-    std::function<void(handle, error)> mResultFunction;
+    NodeHandle h;
+    NodeHandle parent;
+    std::function<void(NodeHandle, Error)> mResultFunction;
 
 public:
     bool procresult(Result) override;
 
-    CommandDelNode(MegaClient*, handle, bool keepversions, int tag, std::function<void(handle, error)>);
+    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>);
 };
 
 class MEGA_API CommandDelVersions : public Command

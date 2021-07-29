@@ -122,10 +122,6 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     }
 
     this->chatAuth = chatauth ? MegaApi::strdup(chatauth) : NULL;
-
-#ifdef ENABLE_SYNC
-    this->syncdeleted = false;
-#endif
 }
 
 MegaNodePrivate::MegaNodePrivate(MegaNode *node)
@@ -226,11 +222,6 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         }
         delete names;
     }
-
-#ifdef ENABLE_SYNC
-    this->syncdeleted = node->isSyncDeleted();
-    this->localPath = node->getLocalPath();
-#endif
 }
 
 MegaNodePrivate::MegaNodePrivate(Node *node)
@@ -471,16 +462,6 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_NEW;
     }
-
-
-#ifdef ENABLE_SYNC
-    this->syncdeleted = (node->syncdeleted != SYNCDEL_NONE);
-    if (LocalNode* ln = node->client->syncs.findLocalNodeByNodeHandle(node->nodeHandle()))
-    {
-        localPath = ln->getLocalPath().platformEncoded();
-        localPath.append("", 1);
-    }
-#endif
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
     this->previewAvailable = (node->hasfileattribute(1) != 0);
@@ -1190,16 +1171,6 @@ byte *EncryptFilePieceByChunks::nextbuffer(unsigned bufsize)
 }
 
 #ifdef ENABLE_SYNC
-bool MegaNodePrivate::isSyncDeleted()
-{
-    return syncdeleted;
-}
-
-string MegaNodePrivate::getLocalPath()
-{
-    return localPath;
-}
-
 
 bool WildcardMatch(const char *pszString, const char *pszMatch)
 //  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
@@ -9118,20 +9089,18 @@ void MegaApiImpl::setExclusionUpperSizeLimit(long long limit)
 
 string MegaApiImpl::getLocalPath(MegaNode *n)
 {
-    if(!n) return string();
-    SdkMutexGuard g(sdkMutex);
+    string result;
+    if(!n) return result;
 
-    if (Node *node = client->nodebyhandle(n->getHandle()))
-    {
-        if (LocalNode* ln = node->client->syncs.findLocalNodeByNodeHandle(node->nodeHandle()))
+    client->syncs.syncRun([&](){
+        if (LocalNode* ln = client->syncs.findLocalNodeByNodeHandle(NodeHandle().set6byte(n->getHandle())))
         {
-            string result = ln->getLocalPath().platformEncoded();
+            result = ln->getLocalPath().platformEncoded();
             result.append("", 1);
-            return result;
         }
-    }
+    });
 
-    return string();
+    return result;
 }
 
 long long MegaApiImpl::getNumLocalNodes()

@@ -1760,8 +1760,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                             {
                                 if (auto n = mc.nodeByHandle(deleteHandle))
                                 {
-                                    mc.movetosyncdebris(n, inshareFlag);
-                                    mc.execsyncdeletions();
+                                    mc.movetosyncdebris(n, inshareFlag, nullptr);
                                 }
                             });
                     }
@@ -2357,6 +2356,8 @@ dstime Sync::procscanq()
 
     while (queue.popFront(notification))
     {
+        lastFSNotificationTime = syncs.waiter.ds;
+
         // Skip invalidated notifications.
         if (notification.invalidated())
         {
@@ -5121,7 +5122,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             //!childRow.syncNode->moveSourceApplyingToCloud &&  // we may not have visited syncItem if !syncHere, but skip these if we determine they are being moved from or deleted already
                             //!childRow.syncNode->moveTargetApplyingToCloud &&
                             //!childRow.syncNode->deletedFS &&   we should not check this one, or we won't remove the LocalNode
-                            !childRow.syncNode->deletingCloud)))
+                            childRow.syncNode->rareRO().removeNodeHere.expired() &&
+                            !childRow.syncNode->rareRO().moveToHere))) // don't create new LocalNodes under a moving-to folder, we'll move the already existing LocalNodes when the move completes
                     {
                         // Add watches as necessary.
                         if (childRow.fsNode)
@@ -5660,12 +5662,6 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     //    row.syncNode->scanAgain = TREESTATE_NONE;
     //}
 
-    //if (client->mSyncFlags->movesWereComplete ||
-    //    row.syncNode->moveSourceAppliedToCloud ||
-    //    row.syncNode->moveAppliedToLocal ||
-    //    row.syncNode->deletedFS ||
-    //    row.syncNode->deletingCloud) // once the cloud delete finishes, the fs node is gone and so we visit here on the next run
-    //{
 
         // local and cloud disappeared; remove sync item also
         //if (row.syncNode->moveSourceAppliedToCloud)
@@ -5684,17 +5680,13 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         {
             SYNC_verbose << syncname << "Deleting Localnode (deletedFS)" << logTriplet(row, fullPath);
         }
-        else if (row.syncNode->deletingCloud)
-        {
-            SYNC_verbose << syncname << "Deleting Localnode (deletingCloud)" << logTriplet(row, fullPath);
-        }
         else if (syncs.mSyncFlags->movesWereComplete)
         {
             SYNC_verbose << syncname << "Deleting Localnode (movesWereComplete)" << logTriplet(row, fullPath);
         }
         else
         {
-            SYNC_verbose << syncname << "Deleting Localnode (not due to this sync's actions)" << logTriplet(row, fullPath);
+            SYNC_verbose << syncname << "Deleting Localnode" << logTriplet(row, fullPath);
         }
 
         if (row.syncNode->deletedFS)
@@ -6312,6 +6304,7 @@ void Syncs::setScannedFsidReused(mega::handle fsid, const LocalNode* exclude)
 
 LocalNode* Syncs::findLocalNodeByNodeHandle(NodeHandle h)
 {
+    assert(onSyncThread());
     if (h.isUndef()) return nullptr;
 
     auto range = localnodeByNodeHandle.equal_range(h);
@@ -6486,19 +6479,37 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
     }
     else if (syncs.mSyncFlags->movesWereComplete)
     {
-        if (!row.syncNode->deletingCloud)
+        if (row.syncNode->rareRO().removeNodeHere.expired())
         {
-            LOG_debug << syncname << "Moving cloud item to cloud sync debris: " << fullPath.cloudPath << logTriplet(row, fullPath);
-            bool fromInshare = inshare;
-            auto debrisNodeHandle = row.cloudNode->handle;
-            syncs.queueClient([debrisNodeHandle, fromInshare](MegaClient& mc, DBTableTransactionCommitter& committer)
-                {
-                    if (auto n = mc.nodeByHandle(debrisNodeHandle))
+            // We need to be sure before sending to sync trash.  If we have received
+            // a lot of delete notifications, but not yet the corrsponding add that makes it a move
+            // then it would be a mistake.  Give the filesystem 2 seconds to deliver that one.
+            // On windows at least, under some circumstance, it may first deliver many deletes for the subfolder in a reverse depth first order
+            bool timeToBeSure = syncs.waiter.ds - lastFSNotificationTime > 20;
+
+            if (timeToBeSure)
+            {
+                LOG_debug << syncname << "Moving cloud item to cloud sync debris: " << fullPath.cloudPath << logTriplet(row, fullPath);
+                bool fromInshare = inshare;
+                auto debrisNodeHandle = row.cloudNode->handle;
+
+                auto deletePtr = std::make_shared<LocalNode::RareFields::DeleteToDebrisInProgress>();
+
+                syncs.queueClient([debrisNodeHandle, fromInshare, deletePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
-                        mc.movetosyncdebris(n, fromInshare);
-                    }
-                });
-            row.syncNode->deletingCloud = true;   // todo: use lifetime-tracked shared_ptr instead
+                        if (auto n = mc.nodeByHandle(debrisNodeHandle))
+                        {
+                            mc.movetosyncdebris(n, fromInshare, [deletePtr](NodeHandle, Error){
+                                // deletePtr lives until this moment
+                            });
+                        }
+                    });
+                row.syncNode->rare().removeNodeHere = deletePtr;
+            }
+            else
+            {
+                SYNC_verbose << syncname << "Waiting to be sure before moving to cloud sync debris: " << fullPath.cloudPath << logTriplet(row, fullPath);
+            }
         }
         else
         {
@@ -6520,15 +6531,6 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
     row.suppressRecursion = true;
     row.recurseBelowRemovedFsNode = true;
     row.syncNode->setSyncAgain(true, false, false); // make sure we revisit
-
-    //bool inProgress = row.syncNode->deletingCloud || row.syncNode->moveApplyingToLocal || row.syncNode->moveSourceApplyingToCloud;
-
-    //if (inProgress)
-    //{
-    //    if (row.syncNode->deletingCloud)        SYNC_verbose << syncname << "Waiting for cloud delete to complete " << logTriplet(row, fullPath);
-    //    if (row.syncNode->moveApplyingToLocal)  SYNC_verbose << syncname << "Waiting for corresponding local move to complete " << logTriplet(row, fullPath);
-    //    if (row.syncNode->moveSourceApplyingToCloud)  SYNC_verbose << syncname << "Waiting for cloud move to complete " << logTriplet(row, fullPath);
-    //}
 
     return false;
 }

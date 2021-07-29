@@ -48,12 +48,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     parent = NULL;
 
-#ifdef ENABLE_SYNC
-    syncdeleted = SYNCDEL_NONE;
-    todebris_it = client->todebris.end();
-    tounlink_it = client->tounlink.end();
-#endif
-
     type = t;
 
     size = s;
@@ -110,20 +104,6 @@ Node::~Node()
     {
         client->mFingerprints.remove(this);
     }
-
-#ifdef ENABLE_SYNC
-    // remove from todebris node_set
-    if (todebris_it != client->todebris.end())
-    {
-        client->todebris.erase(todebris_it);
-    }
-
-    // remove from tounlink node_set
-    if (tounlink_it != client->tounlink.end())
-    {
-        client->tounlink.erase(tounlink_it);
-    }
-#endif
 
     if (outshares)
     {
@@ -1340,11 +1320,7 @@ void LocalNode::bumpnagleds()
 
 LocalNode::LocalNode()
 : unstableFsidAssigned(false)
-, deletingCloud{false}
 , deletedFS{false}
-//, moveSourceAppliedToCloud(false)
-//, moveSourceApplyingToCloud(false)
-//, moveTargetApplyingToCloud(false)
 , moveAppliedToLocal(false)
 , moveApplyingToLocal(false)
 , conflicts(TREE_RESOLVED)
@@ -1370,11 +1346,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     parent = NULL;
 //    notseen = 0;
     unstableFsidAssigned = false;
-    deletingCloud = false;
     deletedFS = false;
-    //moveSourceAppliedToCloud = false;
-    //moveSourceApplyingToCloud = false;
-    //moveTargetApplyingToCloud = false;
     moveAppliedToLocal = false;
     moveApplyingToLocal = false;
     conflicts = TREE_RESOLVED;
@@ -1487,6 +1459,16 @@ auto LocalNode::rare() -> RareFields&
     if (!rareFields)
     {
         rareFields.reset(new RareFields);
+    }
+    return *rareFields;
+}
+
+auto LocalNode::rareRO() -> const RareFields&
+{
+    if (!rareFields)
+    {
+        static RareFields blankFields;
+        return blankFields;
     }
     return *rareFields;
 }
