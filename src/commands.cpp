@@ -2292,7 +2292,6 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
     {
         handle product = UNDEF;
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
-        bool bizQuota = false;
         unsigned amount = 0, amountMonth = 0;
         const char* amountStr = nullptr;
         const char* amountMonthStr = nullptr;
@@ -2304,6 +2303,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
         string description;
         string ios_id;
         string android_id;
+
+        unique_ptr<BusinessPlan> bizPlan;
+        unique_ptr<LocaleData> localeData;
+
         bool finished = false;
         while (!finished)
         {
@@ -2319,17 +2322,11 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                     prolevel = static_cast<int>(client->json.getint());
                     break;
                 case 's':
-                {
-                    int buf = static_cast<int>(client->json.getint());
-                    if (!bizQuota) gbstorage = buf;
+                    gbstorage = static_cast<int>(client->json.getint());
                     break;
-                }
                 case 't':
-                {
-                    int buf = static_cast<int>(client->json.getint());
-                    if (!bizQuota) gbtransfer = buf;
+                    gbtransfer = static_cast<int>(client->json.getint());
                     break;
-                }
                 case 'm':
                     months = static_cast<int>(client->json.getint());
                     break;
@@ -2351,7 +2348,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                 case MAKENAMEID3('m', 'b', 'p'):
                     amountMonthStr = client->json.getvalue();
                     break;
-                case MAKENAMEID2('b', 'd'):
+                case MAKENAMEID2('b', 'd'): // BusinessPlan
                 {
                     if (!client->json.enterobject())
                     {
@@ -2360,10 +2357,11 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                         return false;
                     }
 
+                    bizPlan = mega::make_unique<BusinessPlan>();
+
                     bool readingBd = true;
                     while (readingBd)
                     {
-                        // parse info and get `gbstorage` and `gbtransfer` from the inner object
                         switch (client->json.getnameid())
                         {
                             case MAKENAMEID2('b', 'a'): // base (-1 means unlimited storage or transfer)
@@ -2381,14 +2379,13 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                                     switch (client->json.getnameid())
                                     {
                                         case 's':
-                                            gbstorage = static_cast<int>(client->json.getint());
+                                            bizPlan->gbStoragePerUser = static_cast<int>(client->json.getint());
                                             break;
                                         case 't':
-                                            gbtransfer = static_cast<int>(client->json.getint());
+                                            bizPlan->gbTransferPerUser = static_cast<int>(client->json.getint());
                                             break;
                                         case EOO:
                                             readingBa = false;
-                                            bizQuota = true;    // avoid to override quota in the outter object, if parsed later
                                             break;
                                         default:
                                             if (!client->json.storeobject())
@@ -2403,6 +2400,123 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                                 client->json.leaveobject();
                                 break;
                             }
+                            case MAKENAMEID2('u', 's'):   // price per user
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `us` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingUs = true;
+                                while (readingUs)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 'p':
+                                            bizPlan->pricePerUser = static_cast<int>(client->json.getfloat()*100);
+                                            break;
+                                        case MAKENAMEID2('l', 'p'):
+                                            bizPlan->localPricePerUser = static_cast<int>(client->json.getfloat()*100);
+                                            break;
+                                        case EOO:
+                                            readingUs = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `us` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID3('s', 't', 'o'):   // storage block
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `sto` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingSto = true;
+                                while (readingSto)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 's':
+                                            bizPlan->gbPerStorage = static_cast<int>(client->json.getint());
+                                            break;
+                                        case 'p':
+                                            bizPlan->pricePerStorage = static_cast<int>(client->json.getfloat()*100);
+                                            break;
+                                        case MAKENAMEID2('l', 'p'):
+                                            bizPlan->localPricePerStorage = static_cast<int>(client->json.getfloat()*100);
+                                            break;
+                                        case EOO:
+                                            readingSto = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `sto` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID4('t', 'r', 'n', 's'):   // transfer block
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `trns` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingTrns = true;
+                                while (readingTrns)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 't':
+                                            bizPlan->gbPerTransfer = static_cast<int>(client->json.getint());
+                                            break;
+                                        case 'p':
+                                            bizPlan->pricePerTransfer = static_cast<int>(client->json.getfloat()*100);
+                                            break;
+                                        case MAKENAMEID2('l', 'p'):
+                                            bizPlan->localPricePerTransfer = static_cast<int>(client->json.getfloat()*100);
+                                            break;
+                                        case EOO:
+                                            readingTrns = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `sto` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID4('m', 'i', 'n', 'u'):   // minimum number of user required to purchase
+                                bizPlan->minUsers = static_cast<int>(client->json.getint());
+                                break;
                             case EOO:
                                 readingBd = false;
                                 break;
@@ -2419,17 +2533,81 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                     client->json.leaveobject();
                     break;
                 }
+                case 'l':   // LocaleData
+                {
+                    if (!client->json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, `l` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    localeData = mega::make_unique<LocaleData>();
+
+                    bool readingL = true;
+                    while (readingL)
+                    {
+                        // parse info and get `gbstorage` and `gbtransfer` from the inner object
+                        switch (client->json.getnameid())
+                        {
+                            case MAKENAMEID2('c', 's'): // currency symbol
+                            {
+                                localeData->currencySymbol = client->json.getvalue();
+                                break;
+                            }
+                            case 'n':
+                                localeData->currencyName = client->json.getvalue();
+                                break;
+                            case MAKENAMEID2('s', 'p'):   // separators
+                            {
+                                if (!client->json.enterarray())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `sp` array";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                localeData->decimalSeparator = client->json.getvalue();
+                                localeData->thousandsSeparator = client->json.getvalue();
+
+                                client->json.leavearray();
+                                break;
+                            }
+                            case MAKENAMEID2('p', 'l'):   // 1=currency symbol before number, 0=after
+                            {
+                                localeData->currencySymbolBeforeNumber = static_cast<bool>(client->json.getint());
+                                break;
+                            }
+                            case EOO:
+                                readingL = false;
+                                break;
+                            default:
+                                if (!client->json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `l` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+                    client->json.leaveobject();
+                    break;
+                }
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
                             || (prolevel < 0)
+                            || (!type && gbstorage < 0)
+                            || (!type && gbtransfer < 0)
                             || (months < 0)
                             || !amountStr
                             || !curr
                             || !desc
                             || !amountMonthStr
                             || (!type && !ios)
-                            || (!type && !android))
+                            || (!type && !android)
+                            || (type == 1 && !bizPlan))
                     {
                         client->app->enumeratequotaitems_result(API_EINTERNAL);
                         return true;
@@ -2487,7 +2665,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
         client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
                                                 gbtransfer, months, amount, amountMonth,
                                                 currency.c_str(), description.c_str(),
-                                                ios_id.c_str(), android_id.c_str());
+                                                ios_id.c_str(), android_id.c_str(), move(bizPlan), move(localeData));
     }
 
     client->app->enumeratequotaitems_result(API_OK);

@@ -153,6 +153,35 @@ struct MEGA_API AchievementsDetails
     vector<Award> awards;
     vector<Reward> rewards;
 };
+
+struct MEGA_API BusinessPlan
+{
+    int gbStoragePerUser = 0;   // -1 means unlimited
+    int gbTransferPerUser = 0;   // -1 means unlimited
+
+    unsigned int minUsers = 0;
+
+    unsigned int pricePerUser = 0;
+    unsigned int localPricePerUser = 0;
+
+    unsigned int pricePerStorage = 0;
+    unsigned int localPricePerStorage = 0;
+    int gbPerStorage = 0;
+
+    unsigned int pricePerTransfer = 0;
+    unsigned int localPricePerTransfer = 0;
+    int gbPerTransfer = 0;
+};
+
+struct MEGA_API LocaleData
+{
+    std::string currencySymbol;
+    std::string currencyName;
+    std::string decimalSeparator;
+    std::string thousandsSeparator;
+    bool currencySymbolBeforeNumber = false;
+};
+
 } // namespace
 
 #endif
