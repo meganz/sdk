@@ -1136,7 +1136,8 @@ class MegaRequestPrivate : public MegaRequest
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
         void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
-                        int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid);
+                        int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid,
+                        std::unique_ptr<BusinessPlan>, std::unique_ptr<LocaleData>);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
         void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
@@ -1408,24 +1409,41 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 class MegaPricingPrivate : public MegaPricing
 {
 public:
-    virtual ~MegaPricingPrivate();
-    virtual int getNumProducts();
-    virtual MegaHandle getHandle(int productIndex);
-    virtual int getProLevel(int productIndex);
-    virtual int getGBStorage(int productIndex);
-    virtual int getGBTransfer(int productIndex);
-    virtual int getMonths(int productIndex);
-    virtual int getAmount(int productIndex);
-    virtual const char* getCurrency(int productIndex);
-    virtual const char* getDescription(int productIndex);
-    virtual const char* getIosID(int productIndex);
-    virtual const char* getAndroidID(int productIndex);
-    virtual bool isBusinessType(int productIndex);
-    virtual int getAmountMonth(int productIndex);
-    virtual MegaPricing *copy();
+    ~MegaPricingPrivate() override;
+    int getNumProducts() override;
+    MegaHandle getHandle(int productIndex) override;
+    int getProLevel(int productIndex) override;
+    int getGBStorage(int productIndex) override;
+    int getGBTransfer(int productIndex) override;
+    int getMonths(int productIndex) override;
+    int getAmount(int productIndex) override;
+    const char* getCurrency(int productIndex) override;
+    const char* getDescription(int productIndex) override;
+    const char* getIosID(int productIndex) override;
+    const char* getAndroidID(int productIndex) override;
+    bool isBusinessType(int productIndex) override;
+    int getAmountMonth(int productIndex) override;
+    MegaPricing *copy() override;
+    int getGBStoragePerUser(int productIndex) override;
+    int getGBTransferPerUser(int productIndex) override;
+    unsigned int getMinUsers(int productIndex) override;
+    unsigned int getPricePerUser(int productIndex) override;
+    unsigned int getLocalPricePerUser(int productIndex) override;
+    unsigned int getPricePerStorage(int productIndex) override;
+    unsigned int getLocalPricePerStorage(int productIndex) override;
+    int getGBPerStorage(int productIndex) override;
+    unsigned int getPricePerTransfer(int productIndex) override;
+    unsigned int getLocalPricePerTransfer(int productIndex) override;
+    int getGBPerTransfer(int productIndex) override;
+    const char *getCurrencySymbol(int productIndex) override;
+    const char *getCurrencyName(int productIndex) override;
+    const char *getDecimalSeparator(int productIndex) override;
+    const char *getThousandsSeparator(int productIndex) override;
+    bool isCurrencySymbolBeforeNumber(int productIndex) override;
 
     void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
-                    int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid);
+                    int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid,
+                    std::unique_ptr<BusinessPlan>, std::unique_ptr<LocaleData>);
 private:
     vector<unsigned int> type;
     vector<handle> handles;
@@ -1439,6 +1457,8 @@ private:
     vector<const char *> description;
     vector<const char *> iosId;
     vector<const char *> androidId;
+    std::vector<std::unique_ptr<BusinessPlan>> mBizPlan;
+    std::vector<std::unique_ptr<LocaleData>> mLocaleData;
 };
 
 class MegaAchievementsDetailsPrivate : public MegaAchievementsDetails
@@ -3024,7 +3044,9 @@ protected:
 
         // purchase transactions
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,
-                                                unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid) override;
+                                        unsigned months, unsigned amount, unsigned amountMonth, const char* currency,
+                                        const char* description, const char* iosid, const char* androidid,
+                                        std::unique_ptr<BusinessPlan>, std::unique_ptr<LocaleData>) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;
         void checkout_result(const char*, error) override;

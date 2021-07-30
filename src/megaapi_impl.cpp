@@ -3858,11 +3858,11 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth, const char *currency, const char* description, const char* iosid, const char* androidid)
+void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth, const char *currency, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan, std::unique_ptr<LocaleData> localeData)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer, months, amount, amountMonth, currency, description, iosid, androidid);
+        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer, months, amount, amountMonth, currency, description, iosid, androidid, move(bizPlan), move(localeData));
     }
 }
 
@@ -14052,7 +14052,7 @@ void MegaApiImpl::putfa_result(handle h, fatype, error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid)
+void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan, std::unique_ptr<LocaleData> localeData)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -14063,7 +14063,7 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
         return;
     }
 
-    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, currency, description, iosid, androidid);
+    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, currency, description, iosid, androidid, move(bizPlan), move(localeData));
 }
 
 void MegaApiImpl::enumeratequotaitems_result(error e)
@@ -24308,15 +24308,20 @@ MegaPricing *MegaPricingPrivate::copy()
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
     for(unsigned i=0; i<handles.size(); i++)
     {
+        std::unique_ptr<BusinessPlan> bizPlan(mBizPlan[i] ? new BusinessPlan(*mBizPlan[i]) : nullptr);
+        std::unique_ptr<LocaleData> localeData(mLocaleData[i] ? new LocaleData(*mLocaleData[i]) : nullptr);
+
         megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], amountMonth[i], currency[i], description[i], iosId[i], androidId[i]);
+                                months[i], amount[i], amountMonth[i], currency[i], description[i], iosId[i], androidId[i],
+                                move(bizPlan), move(localeData));
     }
 
     return megaPricing;
 }
 
 void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
-                                    const char *currency, const char* description, const char* iosid, const char* androidid)
+                                    const char *currency, const char* description, const char* iosid, const char* androidid,
+                                    std::unique_ptr<BusinessPlan> bizPlan, std::unique_ptr<LocaleData> localeData)
 {
     this->type.push_back(type);
     this->handles.push_back(product);
@@ -24330,6 +24335,169 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
     this->description.push_back(MegaApi::strdup(description));
     this->iosId.push_back(MegaApi::strdup(iosid));
     this->androidId.push_back(MegaApi::strdup(androidid));
+    mBizPlan.push_back(move(bizPlan));
+    mLocaleData.push_back(move(localeData));
+}
+
+
+int MegaPricingPrivate::getGBStoragePerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbStoragePerUser;
+    }
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBTransferPerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbTransferPerUser;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getMinUsers(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->minUsers;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getPricePerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->pricePerUser;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getLocalPricePerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->localPricePerUser;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getPricePerStorage(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->pricePerStorage;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getLocalPricePerStorage(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->localPricePerStorage;
+    }
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBPerStorage(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbPerStorage;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getPricePerTransfer(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->pricePerTransfer;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getLocalPricePerTransfer(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->localPricePerTransfer;
+    }
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBPerTransfer(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbPerTransfer;
+    }
+
+    return 0;
+}
+
+const char *MegaPricingPrivate::getCurrencySymbol(int productIndex)
+{
+    if ((unsigned)productIndex < mLocaleData.size() && mLocaleData.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mLocaleData[productIndex]->currencySymbol.c_str();
+    }
+
+    return nullptr;
+}
+
+const char *MegaPricingPrivate::getCurrencyName(int productIndex)
+{
+    if ((unsigned)productIndex < mLocaleData.size() && mLocaleData.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mLocaleData[productIndex]->currencyName.c_str();
+    }
+
+    return nullptr;
+}
+
+const char *MegaPricingPrivate::getDecimalSeparator(int productIndex)
+{
+    if ((unsigned)productIndex < mLocaleData.size() && mLocaleData.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mLocaleData[productIndex]->decimalSeparator.c_str();
+    }
+
+    return nullptr;
+}
+
+const char *MegaPricingPrivate::getThousandsSeparator(int productIndex)
+{
+    if ((unsigned)productIndex < mLocaleData.size() && mLocaleData.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mLocaleData[productIndex]->thousandsSeparator.c_str();
+    }
+
+    return nullptr;
+}
+
+bool MegaPricingPrivate::isCurrencySymbolBeforeNumber(int productIndex)
+{
+    if ((unsigned)productIndex < mLocaleData.size() && mLocaleData.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mLocaleData[productIndex]->currencySymbolBeforeNumber;
+    }
+
+    return false;
 }
 
 #ifdef ENABLE_SYNC

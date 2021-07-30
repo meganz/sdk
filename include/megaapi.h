@@ -19597,6 +19597,146 @@ public:
      * @return Copy of the MegaPricing object
      */
     virtual MegaPricing *copy();
+
+    /**
+     * @brief Get the number of GB of storage associated with the product, per user
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return number of GB of storage associated with the product, per user
+     */
+    virtual int getGBStoragePerUser(int productIndex);
+
+    /**
+     * @brief Get the number of GB of transfer associated with the product, per user
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return number of GB of transfer associated with the product, per user
+     */
+    virtual int getGBTransferPerUser(int productIndex);
+
+    /**
+     * @brief Get the minimum number of users to purchase the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return minimum number of users to purchase the product
+     */
+    virtual unsigned int getMinUsers(int productIndex);
+
+    /**
+     * @brief Get the monthly price of the product, per user (in cents)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return monthly price of the product, per user (in cents)
+     */
+    virtual unsigned int getPricePerUser(int productIndex);
+
+    /**
+     * @brief Get the monthly local price of the product, per user (in cents)
+     *
+     * Local prices are only available if the account will be charged in a different
+     * currency than local.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return monthly local price of the product, per user (in cents)
+     */
+    virtual unsigned int getLocalPricePerUser(int productIndex);
+
+    /**
+     * @brief Get the price per storage block
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return price per storage block
+     */
+    virtual unsigned int getPricePerStorage(int productIndex);
+
+    /**
+     * @brief Get the local price per storage block
+     *
+     * Local prices are only available if the account will be charged in a different
+     * currency than local.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return local price per storage block
+     */
+    virtual unsigned int getLocalPricePerStorage(int productIndex);
+
+    /**
+     * @brief Get the number of GB of storage, per block
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return number of GB of storage, per block
+     */
+    virtual int getGBPerStorage(int productIndex);
+
+    /**
+     * @brief Get the price per transfer block
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return price per transfer block
+     */
+    virtual unsigned int getPricePerTransfer(int productIndex);
+
+    /**
+     * @brief Get the local price per transfertransfertransfer block
+     *
+     * Local prices are only available if the account will be charged in a different
+     * currency than local.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return local price per storage block
+     */
+    virtual unsigned int getLocalPricePerTransfer(int productIndex);
+
+    /**
+     * @brief Get the price per transfer block
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return price per storage block
+     */
+    virtual int getGBPerTransfer(int productIndex);
+
+    /**
+     * @brief Get the currency symbol of local price
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return currency symbol of local price
+     */
+    virtual const char* getCurrencySymbol(int productIndex);
+
+    /**
+     * @brief Get the currency name of local price
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return currency name of local price
+     */
+    virtual const char* getCurrencyName(int productIndex);
+
+    /**
+     * @brief Get the decimal separator used locally
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return decimal separator used locally
+     */
+    virtual const char* getDecimalSeparator(int productIndex);
+
+    /**
+     * @brief Get the thousands separator used locally
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return thousands separator used locally
+     */
+    virtual const char* getThousandsSeparator(int productIndex);
+
+    /**
+     * @brief True if currency symbol goes before number, false if after number
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return True if currency symbol goes before number, false if after number
+     */
+    virtual bool isCurrencySymbolBeforeNumber(int productIndex);
 };
 
 /**

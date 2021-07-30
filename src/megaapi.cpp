@@ -5835,6 +5835,86 @@ MegaPricing *MegaPricing::copy()
     return NULL;
 }
 
+int MegaPricing::getGBStoragePerUser(int)
+{
+    return 0;
+}
+
+int MegaPricing::getGBTransferPerUser(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getMinUsers(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getPricePerUser(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getLocalPricePerUser(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getPricePerStorage(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getLocalPricePerStorage(int)
+{
+    return 0;
+}
+
+int MegaPricing::getGBPerStorage(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getPricePerTransfer(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getLocalPricePerTransfer(int)
+{
+    return 0;
+}
+
+int MegaPricing::getGBPerTransfer(int)
+{
+    return 0;
+}
+
+const char *MegaPricing::getCurrencySymbol(int)
+{
+    return nullptr;
+}
+
+const char *MegaPricing::getCurrencyName(int)
+{
+    return nullptr;
+}
+
+const char *MegaPricing::getDecimalSeparator(int)
+{
+    return nullptr;
+}
+
+const char *MegaPricing::getThousandsSeparator(int)
+{
+    return nullptr;
+}
+
+bool MegaPricing::isCurrencySymbolBeforeNumber(int)
+{
+    return false;
+}
+
 #ifdef ENABLE_SYNC
 MegaSync::~MegaSync() { }
 
