@@ -1502,23 +1502,23 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @brief Resume a registration process for an Ephemeral++ account
  *
  * When a user begins the account registration process by calling
- * MegaApi::createEphemeralAccountPlusPlus an ephemeral++ account is created.
+ * [MEGASdk createEphemeralAccountPlusPlus] an ephemeral++ account is created.
  *
  * Until the user successfully confirms the signup link sent to the provided email address,
  * you can resume the ephemeral session in order to change the email address, resend the
- * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
- * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
- * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
- * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
+ * signup link (@see [MEGASdk sendSignupLink] and also to receive notifications in case the
+ * user confirms the account using another client ([MegaGlobalListener onAccountUpdate] or
+ * [MEGADelegate onAccountUpdate]. It is also possible to cancel the registration process by
+ * [MEGASdk cancelCreateAccount], which invalidates the signup link associated to the ephemeral
  * session (the session will be still valid).
  *
- * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
  * Valid data in the MegaRequest object received on callbacks:
- * - MegaRequest::getSessionKey - Returns the session id to resume the process
- * - MegaRequest::getParamType - Returns the value 4
+ * - [MegaRequest getSessionKey] - Returns the session id to resume the process
+ * - [MegaRequest getParamType] - Returns the value 4
  *
  * In case the account is already confirmed, the associated request will fail with
- * error MegaError::API_EARGS.
+ * error MEGAErrorTypeApiEArgs.
  *
  * @param firstname Firstname of the user
  * @param lastname Lastname of the user
@@ -1529,23 +1529,23 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @brief Resume a registration process for an Ephemeral++ account
  *
  * When a user begins the account registration process by calling
- * MegaApi::createEphemeralAccountPlusPlus an ephemeral++ account is created.
+ * [MEGASdk createEphemeralAccountPlusPlus] an ephemeral++ account is created.
  *
  * Until the user successfully confirms the signup link sent to the provided email address,
  * you can resume the ephemeral session in order to change the email address, resend the
- * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
- * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
- * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
- * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
+ * signup link (@see [MEGASdk sendSignupLink] and also to receive notifications in case the
+ * user confirms the account using another client ([MegaGlobalListener onAccountUpdate] or
+ * [MEGADelegate onAccountUpdate]. It is also possible to cancel the registration process by
+ * [MEGASdk cancelCreateAccount], which invalidates the signup link associated to the ephemeral
  * session (the session will be still valid).
  *
- * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
  * Valid data in the MegaRequest object received on callbacks:
- * - MegaRequest::getSessionKey - Returns the session id to resume the process
- * - MegaRequest::getParamType - Returns the value 4
+ * - [MegaRequest getSessionKey] - Returns the session id to resume the process
+ * - [MegaRequest getParamType] - Returns the value 4
  *
  * In case the account is already confirmed, the associated request will fail with
- * error MegaError::API_EARGS.
+ * error MEGAErrorTypeApiEArgs
  *
  * @param firstname Firstname of the user
  * @param lastname Lastname of the user
