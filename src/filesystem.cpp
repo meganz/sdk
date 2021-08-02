@@ -145,22 +145,35 @@ int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
             }
 
             // so we have preferred to consume the escape if it's a match (even if there is a match before considering escapes)
-            if (c1e != -1 && c2e != -1 && transform(c1e) == transform(c2e))
+            if (c1e != -1 && c2e != -1)
             {
-                first1 = first1e;
-                first2 = first2e;
-                c1 = c1e;
-                c2 = c2e;
+                if (transform(c1e) == transform(c2e))
+                {
+                    first1 = first1e;
+                    first2 = first2e;
+                    c1 = c1e;
+                    c2 = c2e;
+                }
             }
-            else if (c1e != -1 && transform(c1e) == transform(c2))
+            else if (c1e != -1)
             {
-                first1 = first1e;
-                c1 = c1e;
+                if (transform(c1e) == transform(c2) ||
+                    transform(c1) != transform(c2))
+                {
+                    // even if it's not a match, still consume the escape if the other is not a match, for sorting purposes
+                    first1 = first1e;
+                    c1 = c1e;
+                }
             }
-            else if (c2e != -1 && transform(c2e) == transform(c1))
+            else if (c2e != -1)
             {
-                first2 = first2e;
-                c2 = c2e;
+                if (transform(c2e) == transform(c1) ||
+                    transform(c2) != transform(c1))
+                {
+                    // even if it's not a match, still consume the escape if the other is not a match, for sorting purposes
+                    first2 = first2e;
+                    c2 = c2e;
+                }
             }
         }
 
