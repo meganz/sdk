@@ -6153,6 +6153,71 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData;
 
 /**
+ * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
+ * This method includes a mechanism to cancel a folder download process by calling
+ * [MEGACancelToken cancelWithNewValue] through parameter cancelToken. This mechanish will be
+ * available just between the following stages: MEGATransferStageScan and
+ * MEGATransferStageProcessTransferQueue both included.
+ *
+ * In case we are trying to download a file, mechanism to cancel upload process by calling
+ * [MEGACancelToken cancelWithNewValue] will have no effect.
+ * For more information about MEGATransfer stages please refer to onTransferUpdate documentation.
+ *
+ * @param node MEGANode that identifies the file.
+ * @param localPath Destination path for the file.
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ * @param cancelToken MEGACancelToken to be able to cancel a folder download process.
+ * @param delegate Delegate to track this transfer.
+ */
+- (void)startDownloadNode:(MEGANode *)node
+                localPath:(NSString *)localPath
+                  appData:(nullable NSString*)appData
+              cancelToken:(MEGACancelToken *)cancelToken
+                 delegate:(id<MEGATransferDelegate>)delegate;
+
+
+/**
+ * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
+ * This method includes a mechanism to cancel a folder download process by calling
+ * [MEGACancelToken cancelWithNewValue] through parameter cancelToken. This mechanish will be
+ * available just between the following stages: MEGATransferStageScan and
+ * MEGATransferStageProcessTransferQueue both included.
+ *
+ * In case we are trying to download a file, mechanism to cancel upload process by calling
+ * [MEGACancelToken cancelWithNewValue] will have no effect.
+ * For more information about MEGATransfer stages please refer to onTransferUpdate documentation.
+ *
+ * @param node MEGANode that identifies the file.
+ * @param localPath Destination path for the file.
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ * @param cancelToken MEGACancelToken to be able to cancel a folder download process.
+ */
+- (void)startDownloadNode:(MEGANode *)node
+                localPath:(NSString *)localPath
+                  appData:(nullable NSString*)appData
+              cancelToken:(MEGACancelToken *)cancelToken;
+
+/**
  * @brief Start an streaming download for a file in MEGA
  *
  * Streaming downloads don't save the downloaded data into a local file. It is provided 
@@ -6796,6 +6861,18 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @return The MEGANode that has the selected parent and name.
  */
 - (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name;
+
+/**
+ * @brief Get the child node with the provided name.
+ *
+ * If the node doesn't exist, this function returns nil.
+ *
+ * @param parent Parent node.
+ * @param name Name of the node.
+ * @param type Type of the node.
+ * @return The MEGANode that has the selected parent, name and type.
+ */
+- (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(NSInteger)type;
 
 /**
  * @brief Get all versions of a file

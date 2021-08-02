@@ -2326,6 +2326,18 @@ using namespace mega;
     }
 }
 
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData cancelToken:(MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->startDownloadWithDataAndCancellation(node.getCPtr, localPath.UTF8String, appData.UTF8String, cancelToken.getCPtr, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData cancelToken:(MEGACancelToken *)cancelToken {
+    if (self.megaApi) {
+        self.megaApi->startDownloadWithDataAndCancellation(node.getCPtr, localPath.UTF8String, appData.UTF8String, cancelToken.getCPtr);
+    }
+}
+
 - (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->startStreaming(node.getCPtr, (startPos != nil) ? [startPos longLongValue] : 0, (size != nil) ? [size longLongValue] : 0, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
@@ -2584,6 +2596,14 @@ using namespace mega;
     if (parent == nil || name == nil || self.megaApi == nil) return nil;
     
     MegaNode *node = self.megaApi->getChildNode([parent getCPtr], [name UTF8String]);
+    
+    return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
+}
+
+- (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(NSInteger)type {
+    if (parent == nil || name == nil || self.megaApi == nil) return nil;
+    
+    MegaNode *node = self.megaApi->getChildNodeOfType(parent.getCPtr, name.UTF8String, (int)type);
     
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }

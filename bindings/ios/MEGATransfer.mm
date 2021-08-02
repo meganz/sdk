@@ -173,8 +173,17 @@ using namespace mega;
     return (MEGATransferState) (self.megaTransfer ? self.megaTransfer->getState() : 0);
 }
 
+- (MEGATransferStage)stage {
+    return (MEGATransferStage) (self.megaTransfer ? self.megaTransfer->getStage() : 0);
+}
+
 - (unsigned long long)priority {
     return self.megaTransfer ? self.megaTransfer->getPriority() : 0;
+}
+
++ (NSString *)stringForTransferStage:(MEGATransferStage)stage {
+    const char *stageString = MegaTransfer::stageToString((unsigned) stage);
+    return stageString ? [NSString stringWithUTF8String:stageString] : nil;
 }
 
 @end

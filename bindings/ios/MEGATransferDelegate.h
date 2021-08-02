@@ -67,10 +67,22 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief This function is called to inform about the progress of a transfer.
  *
+ * In case this transfer represents a recursive operation (folder upload/download) SDK will
+ * notify apps about the stages transition.
+ *
+ * Current recursive operation stage can be retrieved with method MegaTransfer::getStage.
+ * This method returns the following values:
+ *  - MEGATransferStageScan                      = 1
+ *  - MEGATransferStageCreateTreee               = 2
+ *  - MEGATransferStageGenTransfers              = 3
+ *  - MEGATransferStageProcessTransferQueue      = 4
+ *  - MEGATransferStageTransferringFiles         = 5
+ * For more information about stages refer to [MEGATransfer stage]
+ *
  * @param api MEGASdk object that started the transfer.
  * @param transfer Information about the transfer.
  *
- * @see [MEGATransfer transferredBytes], [MEGATransfer speed].
+ * @see [MEGATransfer transferredBytes], [MEGATransfer speed], [MEGATransfer stage].
  */
 - (void)onTransferUpdate:(MEGASdk *)api transfer:(MEGATransfer *)transfer;
 
