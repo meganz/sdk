@@ -413,7 +413,7 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     {
         cloudPath += row.cloudNode->name;
     }
-    else if (row.syncNode && syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, cn, nullptr, nullptr, nullptr))
+    else if (row.syncNode && syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, cn, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
     {
         cloudPath += cn.name;
     }
@@ -758,7 +758,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     assert(cdebris.empty() || clocaldebris.empty());
     assert(!cdebris.empty() || !clocaldebris.empty());
 
-    syncs.lookupCloudNode(rootNodeHandle, cloudRoot, &cloudRootPath, nullptr, nullptr);
+    syncs.lookupCloudNode(rootNodeHandle, cloudRoot, &cloudRootPath, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
     isnetwork = false;
     inshare = cinshare;
@@ -1720,8 +1720,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             CloudNode sourceCloudNode, targetCloudNode;
             string sourceCloudNodePath, targetCloudNodePath;
-            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr);
-            bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr);
+            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, Syncs::LATEST_VERSION);
+            bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
 //todo:
             //if (sourceCloudNode && !sourceCloudNode->mPendingChanges.empty())
@@ -4379,7 +4379,7 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 
                 CloudNode cloudNode;
                 string cloudNodePath;
-                bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, nullptr, nullptr);
+                bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
                 updateSyncRemoteLocation(*unifiedSync, foundCloudNode, cloudNodePath); //updates cache & notice app of this change
             }
@@ -4563,286 +4563,250 @@ const LocalPath& syncRow::comparisonLocalname() const
 }
 
 
-auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& syncParent, vector<FSNode>& fsNodes) const -> vector<syncRow>
+void Sync::combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::iterator b) const
 {
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.computeSyncTripletsTime);
-    //Comparator comparator(*this);
-    vector<LocalNode*> localNodes;
-    vector<Node*> remoteNodes;
-    vector<syncRow> triplets;
-
-    localNodes.reserve(syncParent.children.size());
-
-    for (auto& child : syncParent.children)
-    {
-        localNodes.emplace_back(child.second);
-    }
-
-    bool caseInsensitive = false; // comparing to go to the cloud, differing case really is a different name
-
-    auto fsCompareLess = [=](const FSNode& lhs, const FSNode& rhs) -> bool {
-        return compareUtf(
-            lhs.localname, true,
-            rhs.localname, true, caseInsensitive) < 0;
-    };
-
-    auto lnCompareLess = [=](const LocalNode* lhs, const LocalNode* rhs) -> bool {
-        return compareUtf(
-            lhs->localname, true,
-            rhs->localname, true, caseInsensitive) < 0;
-    };
-
-    auto fslnCompareSpaceship = [=](const FSNode& lhs, const LocalNode& rhs) -> int {
-        return compareUtf(
-            lhs.localname, true,
-            rhs.localname, true, caseInsensitive);
-    };
-
-    std::sort(fsNodes.begin(), fsNodes.end(), fsCompareLess);
-    std::sort(localNodes.begin(), localNodes.end(), lnCompareLess);
 
 //#ifdef DEBUG
-//    string fss, lns;
-//    for (auto& i : fsNodes) fss += i.localname.toPath(*client->fsaccess) + " ";
-//    for (auto i : localNodes) lns += i->localname.toPath(*client->fsaccess) + " ";
-//    LOG_debug << "fs names sorted: " << fss;
-//    LOG_debug << "ln names sorted: " << lns;
+//    // log before case
+//    LOG_debug << " combineTripletSet BEFORE " << std::distance(a, b);
+//    for (auto i = a; i != b; ++i)
+//    {
+//        LOG_debug
+//            << (i->cloudNode ? i->cloudNode->name : "<null>") << " "
+//            << (i->syncNode ? i->syncNode->localname.toPath() : "<null>") << " "
+//            << (i->fsNode ? i->fsNode->localname.toPath() : "<null>") << " ";
+//    }
 //#endif
 
-    // Pair filesystem nodes with local nodes.
+    // match up elements that are still present and were alrady synced
+    vector<syncRow>::iterator lastFullySynced = b;
+    vector<syncRow>::iterator lastNotFullySynced = b;
+    unsigned syncNode_nfs_count = 0;
+
+    for (auto i = a; i != b; ++i)
     {
-        auto fCurr = fsNodes.begin();
-        auto fEnd  = fsNodes.end();
-        auto lCurr = localNodes.begin();
-        auto lEnd  = localNodes.end();
-
-        for ( ; ; )
+        if (auto sn = i->syncNode)
         {
-            // Determine the next filesystem node.
-            auto fNext = std::upper_bound(fCurr, fEnd, *fCurr, fsCompareLess);
-
-            // Determine the next local node.
-            auto lNext = lCurr;
-
-            if (lNext != lEnd)
+            if (!sn->syncedCloudNodeHandle.isUndef())
             {
-                // turned out not to be needed this time - keep commented for future consideration
-                //if ((*lNext)->name.empty() && (*lNext)->localname.empty())
-                //{
-                //    // node we have detached from after a move, and it shouldn't match anything
-                //    // also, there may be multiple in a single folder
-                //    ++lNext;
-                //}
-                //else
+                for (auto j = a; j != b; ++j)
                 {
-                    lNext = std::upper_bound(lCurr, lEnd, *lCurr, lnCompareLess);
-                }
-            }
-
-            // By design, we should never have any conflicting local nodes.
-            if (!(std::distance(lCurr, lNext) < 2))
-            {
-                assert(std::distance(lCurr, lNext) < 2);
-            }
-
-            auto *fsNode = fCurr != fEnd ? &*fCurr : nullptr;
-            auto *localNode = lCurr != lEnd ? *lCurr : nullptr;
-
-            // Bail, there's nothing left to pair.
-            if (!(fsNode || localNode)) break;
-
-            if (fsNode && localNode)
-            {
-                const auto relationship =
-                    fslnCompareSpaceship(*fsNode, *localNode);
-
-                // Non-null entries are considered equivalent.
-                if (relationship < 0)
-                {
-                    // Process the filesystem node first.
-                    localNode = nullptr;
-                }
-                else if (relationship > 0)
-                {
-                    // Process the local node first.
-                    fsNode = nullptr;
-                }
-            }
-
-            // Add the pair.
-            triplets.emplace_back(nullptr, localNode, fsNode);
-
-            // Mark conflicts.
-            if (fsNode && std::distance(fCurr, fNext) > 1)
-            {
-                triplets.back().fsNode = nullptr;
-
-                for (auto i = fCurr; i != fNext; ++i)
-                {
-                    LOG_debug << syncname << "Conflicting filesystem name: "
-                        << i->localname.toPath(*syncs.fsaccess);
-
-                    triplets.back().fsClashingNames.push_back(&*i);
-
-                    if (localNode && i->fsid != UNDEF && i->fsid == localNode->fsid_lastSynced)
+                    if (j->cloudNode && j->cloudNode->handle == sn->syncedCloudNodeHandle)
                     {
-                        // In case of a name clash, it might be new.
-                        // Do sync the subtree we were already syncing.
-                        // But also complain about the clash
-                        triplets.back().fsNode = &*i;
+                        std::swap(j->cloudNode, i->cloudNode);
+                        break;
+                    }
+                }
+            }
+            if (sn->fsid_lastSynced != UNDEF)
+            {
+                for (auto j = a; j != b; ++j)
+                {
+                    if (j->fsNode && j->fsNode->fsid == sn->fsid_lastSynced)
+                    {
+                        std::swap(j->fsNode, i->fsNode);
+                        break;
                     }
                 }
             }
 
-            fCurr = fsNode ? fNext : fCurr;
-            lCurr = localNode ? lNext : lCurr;
-        }
-    }
-
-    // node names going to the local FS, might clash if they only differ by case
-    caseInsensitive = isCaseInsensitive(mFilesystemType);
-
-    auto cloudCompareLess = [this, caseInsensitive](const CloudNode& lhs, const CloudNode& rhs) -> bool {
-        return compareUtf(
-            lhs.name, false,
-            rhs.name, false, caseInsensitive) < 0;
-    };
-
-    auto rowCompareLess = [=](const syncRow& lhs, const syncRow& rhs) -> bool {
-        return compareUtf(
-            lhs.comparisonLocalname(), true,
-            rhs.comparisonLocalname(), true, caseInsensitive) < 0;
-    };
-
-    auto cloudrowCompareSpaceship = [=](const CloudNode& lhs, const syncRow& rhs) -> int {
-        // todo:  add an escape-as-we-compare option?
-        // consider: local d%  upload to cloud as d%, now we need to match those up for a single syncrow.
-        // consider: alternamtely d% in the cloud and local d%25 should also be considered a match.
-        //auto a = LocalPath::fromName(lhs->displayname(), *client->fsaccess, mFilesystemType);
-
-        return compareUtf(
-            lhs.name, false,
-            rhs.comparisonLocalname(), true, caseInsensitive);
-    };
-
-    std::sort(cloudNodes.begin(), cloudNodes.end(), cloudCompareLess);
-    std::sort(triplets.begin(), triplets.end(), rowCompareLess);
-
-//#ifdef DEBUG
-//    string rns, trs;
-//    for (auto i : remoteNodes) rns += i->displayname() + string(" ");
-//    for (auto i : triplets) trs += i.comparisonLocalname().toPath(*client->fsaccess) + " ";
-//    LOG_debug << "remote names sorted: " << rns;
-//    LOG_debug << "row names sorted: " << trs;
-//#endif
-
-    // Link cloud nodes with triplets.
-    {
-        auto rCurr = cloudNodes.begin();
-        auto rEnd = cloudNodes.end();
-        size_t tCurr = 0;
-        size_t tEnd = triplets.size();
-
-        for ( ; ; )
-        {
-            auto rNext = rCurr;
-
-            if (rNext != rEnd)
+            // is this row fully synced alrady? if so, put it aside in case there are more syncNodes
+            if (i->cloudNode && i->fsNode)
             {
-                rNext = std::upper_bound(rCurr, rEnd, *rCurr, cloudCompareLess);
-            }
-
-            auto tNext = tCurr;
-
-            // Compute upper bound manually.
-            for ( ; tNext != tEnd; ++tNext)
-            {
-                // turned out not to be needed this time - keep commented for future consideration
-                //if (triplets[tNext].syncNode && triplets[tNext].syncNode->name.empty() && triplets[tNext].syncNode->localname.empty())
-                //{
-                //    // node we have detached from after a move, and it shouldn't match anything
-                //    // also, there may be multiple in a single folder
-                //    ++tNext;
-                //    break;
-                //}
-
-                if (rowCompareLess(triplets[tCurr], triplets[tNext]))
-                {
-                    break;
-                }
-            }
-
-            // There should never be any conflicting triplets.
-            if (tNext - tCurr >= 2)
-            {
-                assert(tNext - tCurr < 2);
-            }
-
-            auto* remoteNode = rCurr != rEnd ? &*rCurr : nullptr;
-            auto* triplet = tCurr != tEnd ? &triplets[tCurr] : nullptr;
-
-//#ifdef DEBUG
-//            auto rn = remoteNode ? remoteNode->displayname() : "";
-//#endif
-
-            // Bail as there's nothing to pair.
-            if (!(remoteNode || triplet)) break;
-
-            if (remoteNode && triplet)
-            {
-                const auto relationship =
-                    cloudrowCompareSpaceship(*remoteNode, *triplet);
-
-                // Non-null entries are considered equivalent.
-                if (relationship < 0)
-                {
-                    // Process remote node first.
-                    triplet = nullptr;
-                }
-                else if (relationship > 0)
-                {
-                    // Process triplet first.
-                    remoteNode = nullptr;
-                }
-            }
-
-            // Have we detected a remote name conflict?
-            if (remoteNode && std::distance(rCurr, rNext) > 1)
-            {
-                for (auto i = rCurr; i != rNext; ++i)
-                {
-                    LOG_debug << syncname << "Conflicting cloud name: "
-                        << i->name;
-
-                    if (triplet)
-                    {
-                        triplet->cloudClashingNames.push_back(&*i);
-
-                        if (!i->handle.isUndef() &&
-                            triplet->syncNode &&
-                            triplet->syncNode->syncedCloudNodeHandle == i->handle)
-                        {
-                            // In case of a name clash, it might be new.
-                            // Do sync the subtree we were already syncing.
-                            // But also complain about the clash
-                            triplet->cloudNode = &*i;
-                        }
-                    }
-                }
-            }
-            else if (triplet)
-            {
-                triplet->cloudNode = remoteNode;
+                std::swap(*a, *i);
+                lastFullySynced = a;
+                ++a;
             }
             else
             {
-                triplets.emplace_back(remoteNode, nullptr, nullptr);
+                lastNotFullySynced = i;
+                ++syncNode_nfs_count;
             }
-
-            if (triplet)    tCurr = tNext;
-            if (remoteNode) rCurr = rNext;
         }
     }
+
+    // if this fails, please figure out how we got into that state
+    assert(syncNode_nfs_count < 2);
+
+    // gather up the remaining into a single row, there may be clashes.
+
+    auto targetrow = lastNotFullySynced != b ? lastNotFullySynced :
+                     (lastFullySynced != b ? lastFullySynced : a);
+
+    // check for duplicate names as we go. All but one row will be left as all nullptr
+    for (auto i = a; i != b; ++i)
+    if (i != targetrow)
+    {
+        if (i->fsNode)
+        {
+            if (targetrow->fsNode &&
+                !(targetrow->syncNode &&
+                targetrow->syncNode->fsid_lastSynced
+                == targetrow->fsNode->fsid))
+            {
+                LOG_debug << syncname << "Conflicting filesystem name: "
+                    << targetrow->fsNode->localname.toPath(*syncs.fsaccess);
+                targetrow->fsClashingNames.push_back(targetrow->fsNode);
+                targetrow->fsNode = nullptr;
+            }
+            if (targetrow->fsNode ||
+                !targetrow->fsClashingNames.empty())
+            {
+                LOG_debug << syncname << "Conflicting filesystem name: "
+                    << i->fsNode->localname.toPath(*syncs.fsaccess);
+                targetrow->fsClashingNames.push_back(i->fsNode);
+                i->fsNode = nullptr;
+            }
+            if (!targetrow->fsNode &&
+                targetrow->fsClashingNames.empty())
+            {
+                std::swap(targetrow->fsNode, i->fsNode);
+            }
+        }
+        if (i->cloudNode)
+        {
+            if (targetrow->cloudNode &&
+                !(targetrow->syncNode &&
+                targetrow->syncNode->syncedCloudNodeHandle
+                == targetrow->cloudNode->handle))
+            {
+                LOG_debug << syncname << "Conflicting filesystem name: "
+                    << targetrow->cloudNode->name;
+                targetrow->cloudClashingNames.push_back(targetrow->cloudNode);
+                targetrow->cloudNode = nullptr;
+            }
+            if (targetrow->cloudNode ||
+                !targetrow->cloudClashingNames.empty())
+            {
+                LOG_debug << syncname << "Conflicting filesystem name: "
+                    << i->cloudNode->name;
+                targetrow->cloudClashingNames.push_back(i->cloudNode);
+                i->cloudNode = nullptr;
+            }
+            if (!targetrow->cloudNode &&
+                targetrow->cloudClashingNames.empty())
+            {
+                std::swap(targetrow->cloudNode, i->cloudNode);
+            }
+        }
+    }
+
+//#ifdef DEBUG
+//    // log after case
+//    LOG_debug << " combineTripletSet AFTER " << std::distance(a, b);
+//    for (auto i = a; i != b; ++i)
+//    {
+//        LOG_debug
+//            << (i->cloudNode ? i->cloudNode->name : "<null>") << " "
+//            << (i->syncNode ? i->syncNode->localname.toPath() : "<null>") << " "
+//            << (i->fsNode ? i->fsNode->localname.toPath() : "<null>") << " ";
+//        for (auto j : i->cloudClashingNames)
+//        {
+//            LOG_debug << "with clashing cloud name: " << j->name;
+//        }
+//        for (auto j : i->fsClashingNames)
+//        {
+//            LOG_debug << "with clashing fs name: " << j->localname.toPath();
+//        }
+//    }
+//#endif
+
+
+#ifdef DEBUG
+    // confirm all are empty except target
+    for (auto i = a; i != b; ++i)
+    {
+        assert(i == targetrow || i->empty());
+    }
+#endif
+}
+
+auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& syncParent, vector<FSNode>& fsNodes) const -> vector<syncRow>
+{
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.computeSyncTripletsTime);
+
+    vector<syncRow> triplets;
+    triplets.reserve(cloudNodes.size() + syncParent.children.size() + fsNodes.size());
+
+    for (auto& cn : cloudNodes)          triplets.emplace_back(&cn, nullptr, nullptr);
+    for (auto& sn : syncParent.children) triplets.emplace_back(nullptr, sn.second, nullptr);
+    for (auto& fsn : fsNodes)            triplets.emplace_back(nullptr, nullptr, &fsn);
+
+    bool caseInsensitive = isCaseInsensitive(mFilesystemType);
+
+    auto tripletCompare = [=](const syncRow& lhs, const syncRow& rhs) -> int {
+
+        if (lhs.cloudNode)
+        {
+            if (rhs.cloudNode)
+            {
+                return compareUtf(lhs.cloudNode->name, false, rhs.cloudNode->name, false, caseInsensitive);
+            }
+            else if (rhs.syncNode)
+            {
+                return compareUtf(lhs.cloudNode->name, false, rhs.syncNode->localname, true, caseInsensitive);
+            }
+            else // rhs.fsNode
+            {
+                return compareUtf(lhs.cloudNode->name, false, rhs.fsNode->localname, true, caseInsensitive);
+            }
+        }
+        else if (lhs.syncNode)
+        {
+            if (rhs.cloudNode)
+            {
+                return compareUtf(lhs.syncNode->localname, true, rhs.cloudNode->name, false, caseInsensitive);
+            }
+            else if (rhs.syncNode)
+            {
+                return compareUtf(lhs.syncNode->localname, true, rhs.syncNode->localname, true, caseInsensitive);
+            }
+            else // rhs.fsNode
+            {
+                return compareUtf(lhs.syncNode->localname, true, rhs.fsNode->localname, true, caseInsensitive);
+            }
+        }
+        else // lhs.fsNode
+        {
+            if (rhs.cloudNode)
+            {
+                return compareUtf(lhs.fsNode->localname, true, rhs.cloudNode->name, false, caseInsensitive);
+            }
+            else if (rhs.syncNode)
+            {
+                return compareUtf(lhs.fsNode->localname, true, rhs.syncNode->localname, true, caseInsensitive);
+            }
+            else // rhs.fsNode
+            {
+                return compareUtf(lhs.fsNode->localname, true, rhs.fsNode->localname, true, caseInsensitive);
+            }
+        }
+    };
+
+    std::sort(triplets.begin(), triplets.end(),
+           [=](const syncRow& lhs, const syncRow& rhs)
+           { return tripletCompare(lhs, rhs) < 0; });
+
+    auto currSet = triplets.begin();
+    auto end  = triplets.end();
+
+    while (currSet != end)
+    {
+        // Determine the next set that are all comparator-equal
+        auto nextSet = currSet;
+        ++nextSet;
+        while (nextSet != end && 0 == tripletCompare(*currSet, *nextSet))
+        {
+            ++nextSet;
+        }
+
+        combineTripletSet(currSet, nextSet);
+
+        currSet = nextSet;
+    }
+
+    auto newEnd = std::remove_if(triplets.begin(), triplets.end(), [](syncRow& row){ return row.empty(); });
+    triplets.erase(newEnd, triplets.end());
 
     return triplets;
 }
@@ -5828,9 +5792,8 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     }
                 }
 
-                LOG_verbose << "Creating cloud node for: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
+                LOG_verbose << "Creating cloud node for: " << fullPath.localPath_utf8() << " as " << foldername << logTriplet(row, fullPath);
                 // while the operation is in progress sync() will skip over the parent folder
-
 
                 NodeHandle targethandle = parentRow.cloudNode->handle;
                 auto createFolderPtr = std::make_shared<LocalNode::RareFields::CreateFolderInProgress>();
@@ -6076,7 +6039,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
     CloudNode prevSyncedNode;
     string prevSyncedNodePath;
     bool prevSyncedNodeInActiveUnpausedSync = false;
-    bool foundPrevSyncedNode = syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, prevSyncedNode, &prevSyncedNodePath, nullptr, &prevSyncedNodeInActiveUnpausedSync);
+    bool foundPrevSyncedNode = syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, prevSyncedNode, &prevSyncedNodePath, nullptr, &prevSyncedNodeInActiveUnpausedSync, Syncs::LATEST_VERSION);
 
     if (foundPrevSyncedNode && prevSyncedNodeInActiveUnpausedSync)
     {
@@ -6604,7 +6567,7 @@ void Syncs::processTriggerHandles()
                 CloudNode cloudNode;
                 string cloudNodePath;
                 bool isInTrash = false;
-                bool found = lookupCloudNode(h, cloudNode, &cloudNodePath, &isInTrash, nullptr);
+                bool found = lookupCloudNode(h, cloudNode, &cloudNodePath, &isInTrash, nullptr, Syncs::EXACT_VERSION);
                 if (found && !isInTrash)
                 {
                     // if the parent is a file, then it's just old versions being mentioned in the actionpackets, ignore
@@ -7496,7 +7459,7 @@ void Syncs::syncLoop()
                     }
                 }
 
-                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle, sync->cloudRoot, &sync->cloudRootPath, nullptr, nullptr);
+                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle, sync->cloudRoot, &sync->cloudRootPath, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
                 if (!foundRootNode && sync->getConfig().mRunningState != SYNC_FAILED)
                 {
@@ -7859,7 +7822,7 @@ void Syncs::syncLoop()
             CloudNode cloudNode;
             string cloudNodePath;
             bool inTrash = false;
-            bool foundCloudNode = lookupCloudNode(us->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, &inTrash, nullptr);
+            bool foundCloudNode = lookupCloudNode(us->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, &inTrash, nullptr, Syncs::FOLDER_ONLY);
 
             // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
             bool pathChanged = updateSyncRemoteLocation(*us, foundCloudNode, cloudNodePath);
@@ -8289,7 +8252,7 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     tp->proc(*n->sync->syncs.fsaccess, n);
 }
 
-bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveUnpausedSyncQuery)
+bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveUnpausedSyncQuery, WhichCloudVersion whichVersion)
 {
     // we have to avoid doing these lookups when the client thread might be changing the Node tree
     // so we use the mutex to prevent access during that time - which is only actionpacket processing.
@@ -8319,15 +8282,37 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     {
         for (auto & rh : activeSyncHandles)
         {
-            if (Node* rn = mClient.nodeByHandle(rh))
+            if (Node* rn = mClient.nodeByHandle(rh, true))
             {
                 activeSyncRoots.push_back(rn);
             }
         }
     }
 
-    if (Node* n = mClient.nodeByHandle(h))
+    if (const Node* n = mClient.nodeByHandle(h, true))
     {
+        switch (whichVersion)
+        {
+            case EXACT_VERSION:
+                break;
+
+            case LATEST_VERSION:
+                {
+                    const Node* m = n->latestFileVersion();
+                    if (m != n)
+                    {
+                        auto& syncs = *this;
+                        SYNC_verbose << "Looking up Node " << n->nodeHandle() << " chose latest version " << m->nodeHandle();
+                        n = m;
+                    }
+                }
+                break;
+
+            case FOLDER_ONLY:
+                assert(n->type != FILENODE);
+                break;
+        }
+
         if (isInTrash)
         {
             *isInTrash = n->firstancestor()->nodehandle == mClient.rootnodes[RUBBISHNODE - ROOTNODE];

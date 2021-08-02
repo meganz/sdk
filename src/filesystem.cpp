@@ -50,7 +50,7 @@ int decodeEscape(UnicodeCodepointIterator<CharT>& it)
         return hexval(c1) << 4 | hexval(c2);
     }
     else
-        return escapeChar;
+        return -1;
 }
 
 int identity(const int c)
@@ -103,64 +103,6 @@ UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>
 
 CodeCounter::ScopeStats g_compareUtfTimings("compareUtfTimings");
 
-// the case when the strings are over the same character type (and we can use exactBinaryMatch)
-template<typename CharT, typename UnaryOperation>
-int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
-    UnicodeCodepointIterator<CharT> first2, bool unescaping2,
-    UnaryOperation transform)
-{
-    CodeCounter::ScopeTimer rst(g_compareUtfTimings);
-
-#ifdef _WIN32
-    first1 = skipPrefix(first1);
-    first2 = skipPrefix(first2);
-#endif // _WIN32
-
-    while (!(first1.end() || first2.end()))
-    {
-        auto charStart1 = first1;
-        int c1 = first1.get();
-        if (unescaping1 && c1 == escapeChar)
-        {
-            c1 = decodeEscape(first1);
-        }
-
-        if (first2.exactBinaryMatch(charStart1, first1))
-        {
-            continue;
-        }
-
-        int c2 = first2.get();
-        if (unescaping2 && c2 == escapeChar)
-        {
-            c2 = decodeEscape(first2);
-        }
-
-        if (c1 != c2)
-        {
-            c1 = transform(c1);
-            c2 = transform(c2);
-
-            if (c1 != c2)
-            {
-                return c1 - c2;
-            }
-        }
-    }
-
-    if (first1.end() && first2.end())
-    {
-        return 0;
-    }
-
-    if (first1.end())
-    {
-        return -1;
-    }
-
-    return 1;
-}
-
 // the case when the strings are over diffent character types (just uses match())
 template<typename CharT, typename CharU, typename UnaryOperation>
 int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
@@ -178,20 +120,48 @@ int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
     {
         auto charStart1 = first1;
         int c1 = first1.get();
-        if (unescaping1 && c1 == escapeChar)
-        {
-            c1 = decodeEscape(first1);
-        }
 
-        if (first2.match(c1))
+        if (c1 != escapeChar && first2.match(c1))
         {
             continue;
         }
 
         int c2 = first2.get();
-        if (unescaping2 && c2 == escapeChar)
+
+        if (unescaping1 || unescaping2)
         {
-            c2 = decodeEscape(first2);
+            int c1e = -1;
+            int c2e = -1;
+            auto first1e = first1;
+            auto first2e = first2;
+
+            if (unescaping1 && c1 == escapeChar)
+            {
+                c1e = decodeEscape(first1e);
+            }
+            if (unescaping2 && c2 == escapeChar)
+            {
+                c2e = decodeEscape(first2e);
+            }
+
+            // so we have preferred to consume the escape if it's a match (even if there is a match before considering escapes)
+            if (c1e != -1 && c2e != -1 && transform(c1e) == transform(c2e))
+            {
+                first1 = first1e;
+                first2 = first2e;
+                c1 = c1e;
+                c2 = c2e;
+            }
+            else if (c1e != -1 && transform(c1e) == transform(c2))
+            {
+                first1 = first1e;
+                c1 = c1e;
+            }
+            else if (c2e != -1 && transform(c2e) == transform(c1))
+            {
+                first2 = first2e;
+                c2 = c2e;
+            }
         }
 
         if (c1 != c2)

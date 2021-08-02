@@ -74,7 +74,7 @@ struct CloudNode
     FileFingerprint fingerprint;
 
     CloudNode() {}
-    CloudNode(Node& n);
+    CloudNode(const Node& n);
 };
 
 struct MEGA_API SyncDownload_inClient: public File
@@ -241,6 +241,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // follow the parent links all the way to the top
     const Node* firstancestor() const;
+
+    // If this is a file, and has a file for a parent, it's not the latest version
+    const Node* latestFileVersion() const;
 
     // try to resolve node key string
     bool applykey();

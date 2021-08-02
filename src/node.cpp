@@ -1034,6 +1034,19 @@ const Node* Node::firstancestor() const
     return n;
 }
 
+const Node* Node::latestFileVersion() const
+{
+    const Node* n = this;
+    if (type == FILENODE)
+    {
+        while (n->parent && n->parent->type == FILENODE)
+        {
+            n = n->parent;
+        }
+    }
+    return n;
+}
+
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
 {
@@ -2159,7 +2172,7 @@ string LocalNode::getCloudPath() const
 
         CloudNode cn;
         string fullpath;
-        if (sync->syncs.lookupCloudNode(l->syncedCloudNodeHandle, cn, l->parent ? nullptr : &fullpath, nullptr, nullptr))
+        if (sync->syncs.lookupCloudNode(l->syncedCloudNodeHandle, cn, l->parent ? nullptr : &fullpath, nullptr, nullptr, Syncs::LATEST_VERSION))
         {
             name = cn.name;
         }
@@ -2593,7 +2606,7 @@ unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath
 }
 
 
-CloudNode::CloudNode(Node& n)
+CloudNode::CloudNode(const Node& n)
     : name(n.displayname())
     , type(n.type)
     , handle(n.nodeHandle())

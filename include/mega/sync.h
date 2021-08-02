@@ -234,6 +234,7 @@ struct syncRow
 
     void inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren);
 
+    bool empty() { return !cloudNode && !syncNode && !fsNode && cloudClashingNames.empty() && fsClashingNames.empty(); }
 };
 
 struct SyncPath
@@ -349,6 +350,8 @@ public:
 
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = nullptr, LocalPath* outpath = nullptr);
+
+    void combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::iterator b) const;
 
     vector<syncRow> computeSyncTriplets(
         vector<CloudNode>& cloudNodes,
@@ -991,7 +994,10 @@ private:
     void syncLoop();
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThread.get_id(); }
-    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveSync);
+
+    enum WhichCloudVersion { EXACT_VERSION, LATEST_VERSION, FOLDER_ONLY };
+    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveSync, WhichCloudVersion);
+
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 };
 

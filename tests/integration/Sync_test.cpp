@@ -237,6 +237,14 @@ struct Model
             return s;
         }
 
+        string fsPath()
+        {
+            string s;
+            for (auto p = this; p; p = p->parent)
+                s = "/" + p->fsName() + s;
+            return s;
+        }
+
         ModelNode* addkid()
         {
             return addkid(::mega::make_unique<ModelNode>());
@@ -1820,16 +1828,16 @@ struct StandardClient : public MegaApp
 
         if (depth)
         {
-            if (0 != compareUtf(mn->cloudName(), false, n->localname, true, false))
+            if (0 != compareUtf(mn->fsName(), true, n->localname, true, false))
             {
-                out() << "LocalNode name mismatch: " << mn->path() << " " << n->localname.toPath();
+                out() << "LocalNode name mismatch: " << mn->fsPath() << " " << n->localname.toPath();
                 return false;
             }
         }
 
         if (!mn->typematchesnodetype(n->type))
         {
-            out() << "LocalNode type mismatch: " << mn->path() << ":" << mn->type << " " << n->localname.toPath() << ":" << n->type;
+            out() << "LocalNode type mismatch: " << mn->fsPath() << ":" << mn->type << " " << n->localname.toPath() << ":" << n->type;
             return false;
         }
 
