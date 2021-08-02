@@ -550,7 +550,7 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, const char *, int tag);
+    void putnodes(handle, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& resultFunction = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag);

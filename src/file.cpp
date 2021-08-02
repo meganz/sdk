@@ -368,14 +368,16 @@ void File::completed(Transfer* t, LocalNode* l)
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,
-                                                                  th, NULL,
-                                                                  move(newnodes),
-                                                                  tag,
+                                                    th, NULL,
+                                                    move(newnodes),
+                                                    tag,
 #ifdef ENABLE_SYNC
-                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
+                                                    l ? PUTNODES_SYNC : PUTNODES_APP,
 #else
-                                                                  PUTNODES_APP));
+                                                    PUTNODES_APP,
 #endif
+                                                    nullptr,
+                                                    nullptr));
         }
     }
 }

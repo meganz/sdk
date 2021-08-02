@@ -946,7 +946,9 @@ bool CommandSetAttr::procresult(Result r)
 // (the result is not processed directly - we rely on the server-client
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
-                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth)
+                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
+                                 Completion&& resultFunction)
+  : mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
 
@@ -1142,7 +1144,9 @@ bool CommandPutNodes::procresult(Result r)
             }
 
             vector<NewNode> emptyVec;
-            client->app->putnodes_result(r.errorOrOK(), type, emptyVec);
+
+            if (mResultFunction) mResultFunction(r.errorOrOK(), type, emptyVec, false);
+            else client->app->putnodes_result(r.errorOrOK(), type, emptyVec);
 
             for (size_t i = 0; i < nn.size(); i++)
             {
@@ -1157,7 +1161,9 @@ bool CommandPutNodes::procresult(Result r)
 #endif
             if (source == PUTNODES_APP)
             {
-                client->app->putnodes_result(r.errorOrOK(), type, nn);
+                if (mResultFunction) mResultFunction(r.errorOrOK(), type, nn, false);
+                else client->app->putnodes_result(r.errorOrOK(), type, nn);
+
                 return true;
             }
 #ifdef ENABLE_SYNC
@@ -1226,7 +1232,9 @@ bool CommandPutNodes::procresult(Result r)
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        client->app->putnodes_result(e, type, nn, targetOverride);
+        if (mResultFunction) mResultFunction(e, type, nn, targetOverride);
+        else client->app->putnodes_result(e, type, nn, targetOverride);
+
         client->putnodes_sync_result(e, nn);
     }
     else
@@ -1246,7 +1254,10 @@ bool CommandPutNodes::procresult(Result r)
             }
         }
 #endif
-        client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn, targetOverride);
+        auto ec = (!e && empty) ? API_ENOENT : static_cast<error>(e);
+
+        if (mResultFunction) mResultFunction(ec, type, nn, targetOverride);
+        else client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn, targetOverride);
     }
 #ifdef ENABLE_SYNC
     else
