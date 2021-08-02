@@ -14920,7 +14920,7 @@ class MegaApi
          * @param parent Parent node
          * @param name Name of the node
          * @param type Type of the node.
-         * @return The MegaNode that has the selected parent and name
+         * @return The MegaNode that has the selected parent, name and type
          */
         MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type);
 
