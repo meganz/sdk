@@ -8015,7 +8015,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
                                 testcase.file = file;
                                 testcase.isExternal = isExternal;
                                 testcase.pauseDuringAction = pauseDuringAction;
-                                testcase.printTreesBeforeAndAfter = true;//!tests.empty();
+                                testcase.printTreesBeforeAndAfter = !tests.empty();
 
                                 if (tests.empty() || tests.count(testcase.name()) > 0)
                                 {
