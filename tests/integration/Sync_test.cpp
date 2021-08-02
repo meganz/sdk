@@ -1901,8 +1901,8 @@ struct StandardClient : public MegaApp
                 continue;
             }
 
-            //auto er = equal_range_utf8EscapingCompare(ns, m_iter->first, false, true, true);
-            auto er = ns.equal_range(m_iter->first);
+            auto er = equal_range_utf8EscapingCompare(ns, m_iter->first, true, true, isCaseInsensitive(n->sync->mFilesystemType));
+            //auto er = ns.equal_range(m_iter->first);
             auto next_m = m_iter;
             ++next_m;
             bool any_equal_matched = false;
