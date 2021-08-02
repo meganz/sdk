@@ -485,7 +485,7 @@ void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
     if (transfer->localfilename.empty())
     {
         transfer->localfilename = localname;
-        transfer->localfilename.append(LocalPath::fromPlatformEncoded(".tmp"));
+        transfer->localfilename.append(LocalPath::fromPath(".tmp", fsaccess));
     }
 }
 

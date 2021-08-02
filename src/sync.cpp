@@ -5882,6 +5882,22 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 if (syncs.fsaccess->renamelocal(row.syncNode->download.actualDownload->localname, fullPath.localPath))
                 {
                     SYNC_verbose << syncname << "Download complete, moved file to final destination" << logTriplet(row, fullPath);
+
+                    // Check for filename anomalies.
+                    {
+                        auto type = isFilenameAnomaly(fullPath.localPath, row.cloudNode->name);
+
+                        if (type != FILENAME_ANOMALY_NONE)
+                        {
+                            auto remotePath = fullPath.cloudPath;
+                            auto localPath = fullPath.localPath_utf8();
+                            syncs.queueClient([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
+                                {
+                                    mc.filenameAnomalyDetected(type, localPath, remotePath);
+                                });
+                        }
+                    }
+
                     row.syncNode->download.reset(nullptr);
                 }
                 else if (syncs.fsaccess->transient_error)

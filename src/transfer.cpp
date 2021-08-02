@@ -812,6 +812,21 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         {
                             tmplocalname = localname;
                             success = true;
+
+                            if (!(*it)->syncxfer)
+                            {
+                                // sync downloads are to tmp\.getxfer.*.mega
+                                if (auto node = client->nodeByHandle((*it)->h))
+                                {
+                                    auto type = isFilenameAnomaly(localname, node);
+
+                                    if (type != FILENAME_ANOMALY_NONE)
+                                    {
+                                        client->filenameAnomalyDetected(type, localname.toPath(), node->displaypath());
+                                    }
+                                }
+                            }
+
                         }
                         else if (client->fsaccess->transient_error)
                         {
@@ -836,6 +851,21 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                                    localname, mtime))
                     {
                         success = true;
+
+                        if (!(*it)->syncxfer)
+                        {
+                            // sync downloads are to tmp\.getxfer.*.mega
+                            if (auto node = client->nodeByHandle((*it)->h))
+                            {
+                                auto type = isFilenameAnomaly(localname, node);
+
+                                if (type != FILENAME_ANOMALY_NONE)
+                                {
+                                    client->filenameAnomalyDetected(type, localname.toPath(), node->displaypath());
+                                }
+                            }
+                        }
+
                     }
                     else if (client->fsaccess->transient_error)
                     {
@@ -875,17 +905,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
-                    if (auto node = client->nodeByHandle((*it)->h))
-                    {
-                        auto path = (*it)->localname;
-                        auto type = isFilenameAnomaly(path, node);
-
-                        if (type != FILENAME_ANOMALY_NONE)
-                        {
-                            client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
-                        }
-                    }
-
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
