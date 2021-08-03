@@ -4301,7 +4301,7 @@ void Syncs::removeSyncByIndex(size_t index)
                 mc.reqs.add(new CommandBackupRemove(&mc, configCopy.getBackupId()));
             });
 
-        lock_guard g(mSyncVecMutex);
+        lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.erase(mSyncVec.begin() + index);
 
         isEmpty = mSyncVec.empty();
@@ -4333,7 +4333,7 @@ void Syncs::unloadSyncByIndex(size_t index)
         // we don't call sync_removed back since the sync is not deleted
         // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
 
-        lock_guard g(mSyncVecMutex);
+        lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.erase(mSyncVec.begin() + index);
         isEmpty = mSyncVec.empty();
     }
@@ -4387,7 +4387,7 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 
     for (auto& config : configs)
     {
-        lock_guard g(mSyncVecMutex);
+        lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
         isEmpty = false;
     }
