@@ -857,7 +857,7 @@ struct StandardClient : public MegaApp
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
-    void syncupdate_stateconfig(handle backupId) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << backupId; } }
+    void syncupdate_stateconfig(const SyncConfig& config) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << config.mBackupId; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
     //void syncupdate_treestate(LocalNode* ln) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);   out() << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln); }}
@@ -2569,7 +2569,7 @@ struct StandardClient : public MegaApp
                 mc.client.syncs.forEachRunningSync(
                   [&](Sync* s)
                   {
-                      syncstates.push_back(s->state);
+                      syncstates.push_back(s->state());
                       any_add_del |= !s->deleteq.empty();
                       any_add_del |= !s->insertq.empty();
                   });
@@ -7846,7 +7846,7 @@ struct TwoWaySyncSymmetryCase
         else
         {
             EXPECT_NE(sync, (Sync*)nullptr);
-            EXPECT_TRUE(sync && sync->state == SYNC_ACTIVE);
+            EXPECT_TRUE(sync && sync->state() == SYNC_ACTIVE);
 
             bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
             bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
@@ -7855,7 +7855,7 @@ struct TwoWaySyncSymmetryCase
             EXPECT_EQ(localnode, remote);
             EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
 
-            finalResult = localfs && localnode && remote && sync && sync->state == SYNC_ACTIVE;
+            finalResult = localfs && localnode && remote && sync && sync->state() == SYNC_ACTIVE;
         }
 
     }
@@ -8628,7 +8628,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
             // Get our hands on the local node.
             auto* node = dynamic_cast<LocalNode*>(&file);
             if (!node) return;
-            
+
             // Make sure we're mirroring.
             ASSERT_TRUE(node->sync->isBackupAndMirroring());
 
