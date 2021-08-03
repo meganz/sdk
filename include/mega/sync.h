@@ -389,10 +389,6 @@ public:
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
-    //// rescan sequence number (incremented when a full rescan or a new
-    //// notification batch starts)
-    //int scanseqno = 0;
-
     // debris path component relative to the base path
     string debris;
     LocalPath localdebris;
@@ -694,9 +690,6 @@ struct Syncs
 
     shared_ptr<UnifiedSync> lookupUnifiedSync(handle backupId);
 
-    // Snaphot of the count of syncs.  thread safe
-    size_t numSyncs(bool onlyRunning);
-
     // only for use in tests; not really thread safe
     Sync* runningSyncByBackupIdForTests(handle backupId) const;
 
@@ -706,8 +699,10 @@ struct Syncs
     // returns a copy of the config, for thread safety
     bool syncConfigByBackupId(handle backupId, SyncConfig&) const;
 
-
+    // This function is deprecated; very few still using it, eventually we should remove it
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
+
+    // This function is deprecated; very few still using it, eventually we should remove it
     void forEachRunningSync(bool includePaused, std::function<void(Sync* s)>) const;
 
     // Temporary; Only to be used from MegaApiImpl::syncPathState.
@@ -868,13 +863,10 @@ public:
     long long totalLocalNodes = 0;
 
     // manage syncdown flags inside the syncs
-    void setAllSyncsNeedFullSync();
+    void setSyncsNeedFullSync(bool andFullScan, handle backupId = UNDEF);
 
     // retrieves information about any detected name conflicts.
     bool conflictsDetected(list<NameConflict>& conflicts) const;
-
-    // true if any name conflicts have been detected.
-    bool conflictsDetected() const;
 
     bool syncStallDetected(SyncStallInfo& si) const;
 
@@ -975,6 +967,9 @@ private:
     bool mightAnySyncsHaveMoves(bool includePausedSyncs);
     bool isAnySyncSyncing(bool includePausedSyncs);
     bool isAnySyncScanning(bool includePausedSyncs);
+
+    bool conflictsFlagged() const;
+
 
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,

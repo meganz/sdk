@@ -544,7 +544,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
                 && e != API_EOVERQUOTA
                 && e != API_EPAYWALL)
             {
-                client->syncs.setAllSyncsNeedFullSync();
+                client->syncs.setSyncsNeedFullSync(false, UNDEF);
             }
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
@@ -812,21 +812,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         {
                             tmplocalname = localname;
                             success = true;
-
-                            if (!(*it)->syncxfer)
-                            {
-                                // sync downloads are to tmp\.getxfer.*.mega
-                                if (auto node = client->nodeByHandle((*it)->h))
-                                {
-                                    auto type = isFilenameAnomaly(localname, node);
-
-                                    if (type != FILENAME_ANOMALY_NONE)
-                                    {
-                                        client->filenameAnomalyDetected(type, localname.toPath(), node->displaypath());
-                                    }
-                                }
-                            }
-
                         }
                         else if (client->fsaccess->transient_error)
                         {
@@ -851,21 +836,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                                    localname, mtime))
                     {
                         success = true;
-
-                        if (!(*it)->syncxfer)
-                        {
-                            // sync downloads are to tmp\.getxfer.*.mega
-                            if (auto node = client->nodeByHandle((*it)->h))
-                            {
-                                auto type = isFilenameAnomaly(localname, node);
-
-                                if (type != FILENAME_ANOMALY_NONE)
-                                {
-                                    client->filenameAnomalyDetected(type, localname.toPath(), node->displaypath());
-                                }
-                            }
-                        }
-
                     }
                     else if (client->fsaccess->transient_error)
                     {
@@ -905,6 +875,21 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
+
+                    if (!(*it)->syncxfer)
+                    {
+                        if (auto node = client->nodeByHandle((*it)->h))
+                        {
+                            auto path = (*it)->localname;
+                            auto type = isFilenameAnomaly(path, node);
+
+                            if (type != FILENAME_ANOMALY_NONE)
+                            {
+                                client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
+                            }
+                        }
+                    }
+
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
@@ -925,7 +910,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #ifdef ENABLE_SYNC
                             if (f->syncxfer)
                             {
-                                client->syncs.setAllSyncsNeedFullSync();
+                                client->syncs.setSyncsNeedFullSync(false, UNDEF);
                             }
 #endif
                             client->app->file_removed(f, API_EWRITE);

@@ -1364,18 +1364,7 @@ bool MegaApiImpl::isIndexing()
 
 bool MegaApiImpl::isSyncing()
 {
-    SdkMutexGuard g(sdkMutex);
-    bool syncing = false;
-    client->syncs.forEachRunningSync(false, [&](Sync* sync) {
-
-        if (sync->localroot->conflictsDetected()
-            || sync->localroot->ts == TREESTATE_PENDING
-            || sync->localroot->ts == TREESTATE_SYNCING)
-        {
-            syncing = true;
-        }
-    });
-    return syncing;
+    return client->syncs.syncBusyState;
 }
 
 MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
@@ -1451,11 +1440,14 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
     assert(outNames);
     assert(outRemote);
 
-    SdkMutexGuard guard(sdkMutex);
-
+    // todo: make this properly async
     // Get the list of conflicts from the client.
     list<NameConflict> conflicts;
-    client->syncs.conflictsDetected(conflicts);
+    client->syncs.syncRun([&](){
+        client->syncs.conflictsDetected(conflicts);
+    });
+
+    SdkMutexGuard guard(sdkMutex);
 
     // Translate the information into a form useful to the caller.
     // For now, just supply the first conflict.  TODO: maybe the caller would like everything?
@@ -1608,13 +1600,6 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     client->putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(), move(newnodes), nullptr, client->reqtag);  // followup in putnodes_result()
 
     return API_OK;
-}
-
-bool MegaApiImpl::conflictsDetected()
-{
-    SdkMutexGuard guard(sdkMutex);
-
-    return client->syncs.conflictsDetected();
 }
 
 #endif
@@ -8666,43 +8651,6 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
 
 #ifdef ENABLE_SYNC
 
-//Move local files inside synced folders to the "Rubbish" folder.
-bool MegaApiImpl::moveToLocalDebris(const char *path)
-{
-    if (!path)
-    {
-        return false;
-    }
-
-    SdkMutexGuard g(sdkMutex);
-
-    string utf8path = path;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if(!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
-            utf8path.insert(0, "\\\\?\\");
-#endif
-
-    auto localpath = LocalPath::fromPath(utf8path, *fsAccess);
-
-    Sync *sync = NULL;
-    client->syncs.forEachRunningSync(true, [&](Sync* s) {
-
-        if (s->localroot->localname.isContainingPathOf(localpath))
-        {
-            sync = s;
-        }
-    });
-
-    if(!sync)
-    {
-        return false;
-    }
-
-    bool result = sync->movetolocaldebris(localpath);
-
-    return result;
-}
-
 int MegaApiImpl::syncPathState(string* path)
 {
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
@@ -8988,12 +8936,6 @@ MegaSyncList *MegaApiImpl::getSyncs()
     return syncList;
 }
 
-int MegaApiImpl::getNumActiveSyncs()
-{
-    // client->syncs has its own mutexes for thread safety
-    return int(client->syncs.numSyncs(true));
-}
-
 void MegaApiImpl::stopSyncs(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNCS, listener);
@@ -9136,6 +9078,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
         }
     }
 
+    // todo: thread safety.  Need to sort out is_syncable first though
     client->syncs.forEachRunningSync(true, [&](Sync* sync) {
 
         if (sync->localnodebypath(NULL, localpath, &parent) || parent)

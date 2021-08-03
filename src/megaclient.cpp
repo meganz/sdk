@@ -2194,7 +2194,16 @@ void MegaClient::exec()
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
 #ifdef ENABLE_SYNC
-                        failSyncs(TOO_MANY_ACTION_PACKETS);
+                        // Fail all syncs.
+                        // Setting flag for fail rather than disable
+                        std::promise<bool> pb;
+                        syncs.disableSelectedSyncs([](SyncConfig&, Sync* s){ return !!s; },
+                                true,
+                                TOO_MANY_ACTION_PACKETS,
+                                false,
+                                [&pb](size_t){ pb.set_value(true); });
+                        // wait for operation to complete
+                        pb.get_future().get();
 #endif
                         int creqtag = reqtag;
                         reqtag = fetchnodestag; // associate with ongoing request, if any
@@ -2692,39 +2701,6 @@ int MegaClient::preparewait()
         {
             btugexpiration.update(&nds);
         }
-
-#ifdef ENABLE_SYNC
-        // sync rescan
-        syncs.forEachRunningSync(false, [&](Sync* sync) {
-
-            sync->syncscanbt.update(&nds);
-        });
-
-        // sync monitor timer.
-        //if (mSyncMonitorRetry)
-        //{
-        //    mSyncMonitorTimer.update(&nds);
-        //}
-
-        //// retrying of transient failed read ops
-        //if (syncfslockretry && !syncdownretry && !syncadding
-        //        && statecurrent && !anySyncNeedsTargetedSyncdown() && !syncfsopsfailed)
-        //{
-        //    LOG_debug << "Waiting for a temporary error checking filesystem notification";
-        //    syncfslockretrybt.update(&nds);
-        //}
-
-        // triggering of Nagle-delayed sync PUTs
-        //if (syncnagleretry)
-        //{
-        //    syncnaglebt.update(&nds);
-        //}
-
-        //if (syncextraretry)
-        //{
-        //    syncextrabt.update(&nds);
-        //}
-#endif
 
         // detect stuck network
         if (EVER(httpio->lastdata) && !pendingcs)
@@ -3956,9 +3932,6 @@ bool MegaClient::procsc()
     CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
     nameid name;
 
-#ifdef ENABLE_SYNC
-    bool newnodes = false;
-#endif
     Node* lastAPDeletedNode = nullptr;
 
     for (;;)
@@ -4181,27 +4154,6 @@ bool MegaClient::procsc()
 
                     name = jsonsc.getnameid();
 
-                    if (lastAPDeletedNode)
-                    {
-                        // The last actionpacket was a delete that may be part of a move.
-                        // If it's not a move, we break out of this loop to process syncdown
-                        // If it's a move (because the next actionpacket is newnodes with a root of that deleted node)
-                        // then exit this loop to process syncdown after the newnodes are processed.
-
-                        //if (name != 't')
-                        //{
-                        //    // run syncdown() to process the deletion before continuing
-                        //    applykeys();
-
-                        //    // remote changes require immediate attention of syncdown()
-                        //    setAllSyncsNeedFullSync();
-                        //    syncactivity = true;
-
-                        //    jsonsc.pos = actionpacketStart;
-                        //    return false;
-                        //}
-                    }
-
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
                     // "a" element if present)
@@ -4218,37 +4170,10 @@ bool MegaClient::procsc()
                             case 'u':
                                 // node update
                                 sc_updatenode();
-#ifdef ENABLE_SYNC
-                                //if (!fetchingnodes)
-                                //{
-                                //    // run syncdown() before continuing
-                                //    applykeys();
-
-                                //    // remote changes require immediate attention of syncdown()
-                                //    setAllSyncsNeedFullSync();
-                                //    syncactivity = true;
-
-                                //    return false;
-                                //}
-#endif
                                 break;
 
                             case 't':
                             {
-#ifdef ENABLE_SYNC
-                                bool stop = false;
-                                if (!fetchingnodes)
-                                {
-                                    for (int i=4; jsonsc.pos[i] && jsonsc.pos[i] != ']'; i++)
-                                    {
-                                        if (!memcmp(&jsonsc.pos[i-4], "\"t\":1", 5))
-                                        {
-                                            stop = true;
-                                            break;
-                                        }
-                                    }
-                                }
-#endif
                                 bool isMoveOperation = false;
                                 // node addition
                                 {
@@ -4257,31 +4182,6 @@ bool MegaClient::procsc()
                                     mergenewshares(1);
                                     useralerts.convertNotedSharedNodes(true, originatingUser);
                                 }
-#ifdef ENABLE_SYNC
-                                if (!fetchingnodes)
-                                {
-                                    if (lastAPDeletedNode && isMoveOperation)
-                                    {
-                                        stop = true;
-                                    }
-
-                                    //if (stop)
-                                    //{
-                                    //    // run syncdown() before continuing
-                                    //    applykeys();
-
-                                    //    // remote changes require immediate attention of syncdown()
-                                    //    setAllSyncsNeedFullSync();
-                                    //    syncactivity = true;
-
-                                    //    return false;
-                                    //}
-                                    //else
-                                    {
-                                        newnodes = true;
-                                    }
-                                }
-#endif
                                 lastAPDeletedNode = nullptr;
                             }
                             break;
@@ -4413,19 +4313,6 @@ bool MegaClient::procsc()
             {
                 jsonsc.leavearray();
                 insca = false;
-
-//#ifdef ENABLE_SYNC
-//                if (!fetchingnodes && newnodes)
-//                {
-//                    applykeys();
-//
-//                    // remote changes require immediate attention of syncdown()
-//                    setAllSyncsNeedFullSync();
-//                    syncactivity = true;
-//
-//                    return false;
-//                }
-//#endif
             }
         }
     }
@@ -6796,12 +6683,6 @@ void MegaClient::notifypurge(void)
                 // make this just a warning to avoid auto test failure
                 // this can happen if another client adds a folder in our share and the key for us is not available yet
                 LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
-//#ifdef ENABLE_SYNC
-//                if (n->localnode)
-//                {
-//                    LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
-//                }
-//#endif
             }
 
             if (n->changed.removed)
@@ -10077,74 +9958,6 @@ void MegaClient::notifynode(Node* n)
 
             delete [] buf;
         }
-
-
-// todo: make sure the sync rework calls all the same notifications
-
-//#ifdef ENABLE_SYNC
-//        // is this a synced node that was moved to a non-synced location? queue for
-//        // deletion from LocalNodes.
-//        if (n->localnode && n->localnode->parent && n->parent && !n->parent->localnode)
-//        {
-//            if (n->changed.removed || n->changed.parent)
-//            {
-//                if (n->type == FOLDERNODE)
-//                {
-//                    app->syncupdate_remote_folder_deletion(n->localnode->sync, n);
-//                }
-//                else
-//                {
-//                    app->syncupdate_remote_file_deletion(n->localnode->sync, n);
-//                }
-//            }
-//
-//            n->localnode->deleted = true;
-//            n->localnode->node = NULL;
-//            n->localnode = NULL;
-//        }
-//        else
-//        {
-//            // is this a synced node that is not a sync root, or a new node in a
-//            // synced folder?
-//            // FIXME: aggregate subtrees!
-//            if (n->localnode && n->localnode->parent)
-//            {
-//                n->localnode->deleted = n->changed.removed;
-//            }
-//
-//            if (n->parent && n->parent->localnode && (!n->localnode || (n->localnode->parent != n->parent->localnode)))
-//            {
-//                if (n->localnode)
-//                {
-//                    n->localnode->deleted = n->changed.removed;
-//                }
-//
-//                if (!n->changed.removed && (n->changed.newnode || n->changed.parent))
-//                {
-//                    if (!n->localnode)
-//                    {
-//                        if (n->type == FOLDERNODE)
-//                        {
-//                            app->syncupdate_remote_folder_addition(n->parent->localnode->sync, n);
-//                        }
-//                        else
-//                        {
-//                            app->syncupdate_remote_file_addition(n->parent->localnode->sync, n);
-//                        }
-//                    }
-//                    else
-//                    {
-//                        app->syncupdate_remote_move(n->localnode->sync, n,
-//                            n->localnode->parent ? n->localnode->parent->node : NULL);
-//                    }
-//                }
-//            }
-//            else if (!n->changed.removed && n->changed.attrs && n->localnode && n->localnode->name.compare(n->displayname()))
-//            {
-//                app->syncupdate_remote_rename(n->localnode->sync, n, n->localnode->name.c_str());
-//            }
-//        }
-//#endif
     }
 
     if (!n->notified)
@@ -14703,13 +14516,6 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
 
 #ifdef ENABLE_SYNC
 
-void MegaClient::failSync(Sync* sync, SyncError syncerror)
-{
-    LOG_err << "Failing sync: " << sync->getConfig().getLocalPath().toPath(*fsaccess) << " error = " << syncerror;
-
-    sync->changestate(SYNC_FAILED, syncerror, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
-}
-
 void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag)
 {
     if (Node* n = nodeByHandle(nodeHandle))
@@ -14728,12 +14534,6 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
     }
 }
 
-void MegaClient::failSyncs(SyncError syncError)
-{
-    syncs.forEachRunningSync(true, [&](Sync* sync) {
-        sync->changestate(SYNC_FAILED, syncError, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
-    });
-}
 #endif
 
 // inject file into transfer subsystem

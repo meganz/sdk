@@ -4629,33 +4629,10 @@ void exec_open(autocomplete::ACState& s)
 
 void exec_syncrescan(autocomplete::ACState& s)
 {
-    bool matched = false;
-    auto backupId = s.words[2].s;
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
+    handle backupId = 0;
+    Base64::atob(s.words[2].s.c_str(), (byte*)&backupId, int(sizeof(backupId)));
 
-        if (toHandle(us.mConfig.getBackupId()) == backupId)
-        {
-            matched = true;
-
-            if (!us.mSync)
-            {
-                cout << "Can't rescan sync " << backupId << " as it's not running." << endl;
-            }
-            else
-            {
-                us.mSync->localroot->setScanAgain(false, true, true, 5);
-                cout << "Full scan flagged for sync " << backupId << endl;
-            }
-        }
-    });
-
-    // Have we been passed a valid sync id?
-    if (!matched)
-    {
-        cout << "Invalid sync id: " << backupId << endl;
-        return;
-    }
-
+    client->syncs.setSyncsNeedFullSync(true, backupId);
 }
 
 

@@ -2378,14 +2378,12 @@ class MegaApiImpl : public MegaApp
         void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         MegaSyncList *getSyncs();
 
-        int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
         void setExcludedPaths(vector<string> *excludedPaths);
         void setExclusionLowerSizeLimit(long long limit);
         void setExclusionUpperSizeLimit(long long limit);
-        bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
         bool isSyncable(const char *path, long long size);
@@ -2405,7 +2403,7 @@ class MegaApiImpl : public MegaApp
                                const char** parentPath,
                                MegaStringList** names,
                                bool* remote);
-        bool conflictsDetected();
+
 #endif
 
         MegaBackup *getBackupByTag(int tag);

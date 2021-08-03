@@ -14023,15 +14023,6 @@ class MegaApi
         MegaSyncList* getSyncs();
 
         /**
-         * @brief Get the number of active synced folders
-         * @return The number of active synced folders
-         *
-         * @deprecated New functions to manage synchronizations are being implemented. This funtion will
-         * be removed in future updates.
-         */
-        int getNumActiveSyncs();
-
-        /**
          * @brief Check if the synchronization engine is scanning files
          * @return true if it is scanning, otherwise false
          */
@@ -14100,29 +14091,12 @@ class MegaApi
         void setExclusionUpperSizeLimit(long long limit);
 
         /**
-         * @brief Move a local file to the local "Debris" folder
-         *
-         * The file have to be inside a local synced folder
-         *
-         * @param path Path of the local file
-         * @return true on success, false on failure
-         */
-        bool moveToLocalDebris(const char *path);
-
-        /**
          * @brief Check if a path is syncable based on the excluded names and paths and sizes
          * @param name Path to check
          * @param size Size of the file or -1 to ignore the size
          * @return true if the path is syncable, otherwise false
          */
         bool isSyncable(const char *path, long long size);
-
-        /**
-         * @brief Check if a node is inside a synced folder
-         * @param node Node to check
-         * @return true if the node is inside a synced folder, otherwise false
-         */
-        bool isInsideSync(MegaNode *node);
 
         /**
          * @brief Check if it's possible to start synchronizing a folder node.
@@ -14222,14 +14196,6 @@ class MegaApi
                                MegaStringList** names,
                                bool* remote);
 
-        /**
-         * @brief
-         * Query whether any name conflicts have been detected.
-         *
-         * @return
-         * True if any name conflicts have been detected.
-         */
-        bool conflictsDetected();
 #endif
 
         /**

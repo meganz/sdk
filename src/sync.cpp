@@ -2553,6 +2553,8 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
 // todo: move this to client-side?
 m_off_t Sync::getInflightProgress()
 {
+    assert(syncs.onSyncThread());
+
     m_off_t progressSum = 0;
 
     for (auto tslot : syncs.mClient.tslots)
@@ -3951,6 +3953,10 @@ std::future<bool> Syncs::setSyncPausedByBackupId(handle id, bool pause)
 
 void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
 {
+    // This function is deprecated; very few still using it, eventually we should remove it
+
+    assert(!onSyncThread());
+
     for (auto& s : mSyncVec)
     {
         f(*s);
@@ -3959,6 +3965,11 @@ void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
 
 void Syncs::forEachRunningSync(bool includePaused, std::function<void(Sync* s)> f) const
 {
+    // This function is deprecated; very few still using it, eventually we should remove it
+
+    assert(!onSyncThread());
+
+    lock_guard<mutex> g(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mSync && (includePaused || !s->mSync->syncPaused))
@@ -3971,10 +3982,10 @@ void Syncs::forEachRunningSync(bool includePaused, std::function<void(Sync* s)> 
 bool Syncs::forEachRunningSync_shortcircuit(bool includePaused, std::function<bool(Sync* s)> f)
 {
     // only used in MegaApiImpl::syncPathState.
-    // mutex is already locked.
     // We'll move that functionality into Syncs once we can do so without too much difference from develop branch
     assert(!onSyncThread());
 
+    lock_guard<mutex> g(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mSync && (includePaused || !s->mSync->syncPaused))
@@ -3986,25 +3997,6 @@ bool Syncs::forEachRunningSync_shortcircuit(bool includePaused, std::function<bo
         }
     }
     return true;
-}
-
-size_t Syncs::numSyncs(bool onlyRunning)
-{
-    lock_guard<mutex> g(mSyncVecMutex);
-
-    if (onlyRunning)
-    {
-        size_t n = 0;
-        for (auto& s : mSyncVec)
-        {
-            if (s->mSync) ++n;
-        }
-        return n;
-    }
-    else
-    {
-        return mSyncVec.size();
-    }
 }
 
 void Syncs::stopCancelledFailedDisabled()
@@ -4154,6 +4146,8 @@ void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)>
 
 void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
 {
+    assert(onSyncThread());
+
     for (auto i = mSyncVec.size(); i--; )
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
@@ -4175,14 +4169,18 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
 
     // NULL the statecachetable databases for Syncs first, then Sync destruction won't remove LocalNodes from them
     // If we are deleting syncs then just remove() the database direct
-    forEachRunningSync(true, [removecaches](Sync* sync)
+
+    for (auto i = mSyncVec.size(); i--; )
+    {
+        if (Sync* sync = mSyncVec[i]->mSync.get())
         {
             if (sync->statecachetable)
             {
                 if (removecaches) sync->statecachetable->remove();
                 sync->statecachetable.reset();
             }
-        });
+        }
+    }
 
     if (!removecaches)
     {
@@ -4253,6 +4251,7 @@ void Syncs::removeSyncByIndex(size_t index)
                 mc.reqs.add(new CommandBackupRemove(&mc, configCopy.getBackupId()));
             });
 
+        lock_guard g(mSyncVecMutex);
         mSyncVec.erase(mSyncVec.begin() + index);
 
         isEmpty = mSyncVec.empty();
@@ -4261,6 +4260,8 @@ void Syncs::removeSyncByIndex(size_t index)
 
 void Syncs::unloadSyncByIndex(size_t index)
 {
+    assert(onSyncThread());
+
     if (index < mSyncVec.size())
     {
         if (auto& syncPtr = mSyncVec[index]->mSync)
@@ -4282,6 +4283,7 @@ void Syncs::unloadSyncByIndex(size_t index)
         // we don't call sync_removed back since the sync is not deleted
         // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
 
+        lock_guard g(mSyncVecMutex);
         mSyncVec.erase(mSyncVec.begin() + index);
         isEmpty = mSyncVec.empty();
     }
@@ -4289,44 +4291,13 @@ void Syncs::unloadSyncByIndex(size_t index)
 
 void Syncs::saveSyncConfig(const SyncConfig& config)
 {
+    assert(onSyncThread());
+
     if (auto* store = syncConfigStore())
     {
         store->markDriveDirty(config.mExternalDrivePath);
     }
 }
-
-//// restore all configured syncs that were in a temporary error state (not manually disabled)
-//void Syncs::enableResumeableSyncs()
-//{
-//    bool anySyncRestored = false;
-//
-//    for (auto& unifiedSync : mSyncVec)
-//    {
-//        if (!unifiedSync->mSync)
-//        {
-//            if (unifiedSync->mConfig.getEnabled())
-//            {
-//                SyncError syncError = unifiedSync->mConfig.getError();
-//                LOG_debug << "Restoring sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
-//
-//                // We should never try to resume a backup sync.
-//                assert(!unifiedSync->mConfig.isBackup());
-//
-//                anySyncRestored |= unifiedSync->enableSync(false, true) == API_OK;
-//            }
-//            else
-//            {
-//                LOG_verbose << "Skipping restoring sync: " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess)
-//                    << " enabled=" << unifiedSync->mConfig.getEnabled() << " error=" << unifiedSync->mConfig.getError();
-//            }
-//        }
-//    }
-//
-//    if (anySyncRestored)
-//    {
-//        mClient.app->syncs_restored();
-//    }
-//}
 
 void Syncs::resumeResumableSyncsOnStartup(bool resetSyncConfigStore, std::function<void(error)>&& completion)
 {
@@ -4366,6 +4337,7 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 
     for (auto& config : configs)
     {
+        lock_guard g(mSyncVecMutex);
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
         isEmpty = false;
     }
@@ -4434,6 +4406,8 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 
 bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
 {
+    assert(syncs.onSyncThread());
+
     FSNode rootFsNode(localroot->getLastSyncedFSDetails());
     syncRow row{ &cloudRoot, localroot.get(), &rootFsNode };
     SyncPath pathBuffer(syncs, localroot->localname, cloudRootPath);
@@ -4475,6 +4449,8 @@ void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& chi
 
 void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
+
     assert(row.syncNode);
     if (!row.syncNode->conflictsDetected())
     {
@@ -4565,6 +4541,7 @@ const LocalPath& syncRow::comparisonLocalname() const
 
 void Sync::combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::iterator b) const
 {
+    assert(syncs.onSyncThread());
 
 //#ifdef DEBUG
 //    // log before case
@@ -4723,6 +4700,8 @@ void Sync::combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::itera
 
 auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& syncParent, vector<FSNode>& fsNodes) const -> vector<syncRow>
 {
+    assert(syncs.onSyncThread());
+
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.computeSyncTripletsTime);
 
     vector<syncRow> triplets;
@@ -4813,6 +4792,8 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
 
 bool Sync::inferAlreadySyncedTriplets(vector<CloudNode>& cloudChildren, const LocalNode& syncParent, vector<FSNode>& inferredFsNodes, vector<syncRow>& inferredRows) const
 {
+    assert(syncs.onSyncThread());
+
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.inferSyncTripletsTime);
 
     if (cloudChildren.size() != syncParent.children.size()) return false;
@@ -4858,6 +4839,8 @@ bool Sync::inferAlreadySyncedTriplets(vector<CloudNode>& cloudChildren, const Lo
 
 bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth)
 {
+    assert(syncs.onSyncThread());
+
     // in case of sync failing while we recurse
     if (getConfig().mRunningState < 0) return false;
     (void)depth;  // just useful for setting conditional breakpoints when debugging
@@ -5177,6 +5160,7 @@ string Sync::logTriplet(syncRow& row, SyncPath& fullPath)
 bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath,
         bool belowRemovedCloudNode, bool belowRemovedFsNode)
 {
+    assert(syncs.onSyncThread());
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemTime1);
 
     // Since we are visiting this node this time, reset its flags-for-parent
@@ -5300,6 +5284,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
 
 bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemTime2);
     bool rowSynced = false;
 
@@ -5453,6 +5438,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
 bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
     // these comparisons may need to be adjusted for UTF, escapes
     assert(row.syncNode->fsid_lastSynced != row.fsNode->fsid || row.syncNode->localname == row.fsNode->localname);
     assert(row.syncNode->fsid_lastSynced == row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
@@ -5533,6 +5519,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
 bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced)
 {
+    assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
     // this really is a new node: add
@@ -5574,6 +5561,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
 
 bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced)
 {
+    assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
     LOG_debug << syncname << "Creating LocalNode from Cloud at: " << fullPath.cloudPath << logTriplet(row, fullPath);
 
@@ -5607,6 +5595,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
 
 bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
     if (row.syncNode->hasRare() &&
@@ -5687,6 +5676,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
 
 bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
     if (row.fsNode->type == FILENODE)
@@ -5824,6 +5814,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
 bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists)
 {
+    assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
     if (row.cloudNode->type == FILENODE)
@@ -6026,6 +6017,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
 bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
     LOG_debug << syncname << "write me" << logTriplet(row, fullPath);
     assert(false);
@@ -6034,6 +6026,7 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& 
 
 bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
     const FileFingerprint& cloud = row.cloudNode->fingerprint;
@@ -6050,6 +6043,7 @@ bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
 bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
     CloudNode prevSyncedNode;
@@ -6132,6 +6126,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 
 LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck)
 {
+    assert(onSyncThread());
     if (fsid == UNDEF) return nullptr;
 
     auto range = localnodeBySyncedFsid.equal_range(fsid);
@@ -6195,6 +6190,7 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, 
 
 LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint* fingerprint, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck)
 {
+    assert(onSyncThread());
     if (fsid == UNDEF) return nullptr;
 
     auto range = localnodeByScannedFsid.equal_range(fsid);
@@ -6261,6 +6257,7 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type,
 
 void Syncs::setSyncedFsidReused(mega::handle fsid, const LocalNode* exclude)
 {
+    assert(onSyncThread());
     for (auto range = localnodeBySyncedFsid.equal_range(fsid);
         range.first != range.second;
         ++range.first)
@@ -6272,6 +6269,7 @@ void Syncs::setSyncedFsidReused(mega::handle fsid, const LocalNode* exclude)
 
 void Syncs::setScannedFsidReused(mega::handle fsid, const LocalNode* exclude)
 {
+    assert(onSyncThread());
     for (auto range = localnodeByScannedFsid.equal_range(fsid);
         range.first != range.second;
         ++range.first)
@@ -6305,6 +6303,7 @@ LocalNode* Syncs::findLocalNodeByNodeHandle(NodeHandle h)
 
 bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
 {
+    assert(syncs.onSyncThread());
     // code extracted from the old checkpath()
 
     // logic to prevent moving/uploading files that may still be being updated
@@ -6417,6 +6416,7 @@ bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
 
 bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
+    assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
     LocalNode* movedLocalNode = nullptr;
@@ -7424,6 +7424,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
 
 void Syncs::syncLoop()
 {
+    assert(onSyncThread());
     std::condition_variable cv;
     std::mutex dummy_mutex;
     std::unique_lock<std::mutex> dummy_lock(dummy_mutex);
@@ -7867,10 +7868,14 @@ void Syncs::syncLoop()
 
         waiter.bumpds();
 
-        forEachRunningSync(true, [&](Sync* sync) {
-            sync->procextraq();
-            sync->procscanq();
-            });
+        for (auto& us : mSyncVec)
+        {
+            if (Sync* sync = us->mSync.get())
+            {
+                sync->procextraq();
+                sync->procscanq();
+            }
+        }
 
         processTriggerHandles();
 
@@ -7991,7 +7996,7 @@ void Syncs::syncLoop()
                 ++mSyncFlags->noProgressCount;
             }
 
-            bool conflictsNow = conflictsDetected();
+            bool conflictsNow = conflictsFlagged();
             if (conflictsNow != syncConflictState)
             {
                 assert(onSyncThread());
@@ -8043,74 +8048,6 @@ void Syncs::syncLoop()
             stall.local.swap(mSyncFlags->stall.local);
         }
 
-// todo: moved from notifypurge()
-// #ifdef ENABLE_SYNC
-//        // update LocalNode <-> Node associations
-//        syncs.forEachRunningSync(true, [&](Sync* sync) {
-//            sync->cachenodes();
-//            });
-//#endif
-
-
-
-// todo: moved from notifypurge()
-//#ifdef ENABLE_SYNC
-//
-////update sync root node location and trigger failing cases
-//        handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
-//        // check for renamed/moved sync root folders
-//        syncs.forEachUnifiedSync([&](UnifiedSync& us){
-//
-//            Node* n = nodeByHandle(us.mConfig.getRemoteNode());
-//            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
-//            {
-//                bool removed = n->changed.removed;
-//
-//                // update path in sync configuration
-//                bool pathChanged = us.updateSyncRemoteLocation(removed ? nullptr : n, false);
-//
-//                auto &activeSync = us.mSync;
-//                if (!activeSync) // no active sync (already failed)
-//                {
-//                    return;
-//                }
-//
-//                // fail sync if required
-//                if(n->changed.parent) //moved
-//                {
-//                    assert(pathChanged);
-//                    // check if moved to rubbish
-//                    auto p = n->parent;
-//                    bool alreadyFailed = false;
-//                    while (p)
-//                    {
-//                        if (p->nodehandle == rubbishHandle)
-//                        {
-//                            failSync(activeSync.get(), REMOTE_NODE_MOVED_TO_RUBBISH);
-//                            alreadyFailed = true;
-//                            break;
-//                        }
-//                        p = p->parent;
-//                    }
-//
-//                    if (!alreadyFailed)
-//                    {
-//                        failSync(activeSync.get(), REMOTE_PATH_HAS_CHANGED);
-//                    }
-//                }
-//                else if (removed)
-//                {
-//                    failSync(activeSync.get(), REMOTE_NODE_NOT_FOUND);
-//                }
-//                else if (pathChanged)
-//                {
-//                    failSync(activeSync.get(), REMOTE_PATH_HAS_CHANGED);
-//                }
-//            }
-//            });
-//#endif
-
-
         // Flush changes made to internal configs.
         syncConfigStoreFlush();
 
@@ -8128,76 +8065,102 @@ bool Syncs::isAnySyncSyncing(bool includePausedSyncs)
 {
     assert(onSyncThread());
 
-    bool found = false;
-    forEachRunningSync(includePausedSyncs, [&](Sync* sync) {
-
-        if (sync->active() &&
-            (sync->localroot->scanRequired()
-                || sync->localroot->mightHaveMoves()
-                || sync->localroot->syncRequired()))
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
         {
-            found = true;
+            if (includePausedSyncs || !us->mSync->syncPaused)
+            {
+                if (sync->active() &&
+                    (sync->localroot->scanRequired()
+                        || sync->localroot->mightHaveMoves()
+                        || sync->localroot->syncRequired()))
+                {
+                    return true;
+                }
+            }
         }
-        });
-    return found;
+    }
+    return false;
 }
 
 bool Syncs::isAnySyncScanning(bool includePausedSyncs)
 {
     assert(onSyncThread());
-    bool found = false;
-    forEachRunningSync(includePausedSyncs, [&](Sync* sync) {
 
-        if (sync->active() &&
-            sync->localroot->scanRequired())
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
         {
-            found = true;
+            if (includePausedSyncs || !us->mSync->syncPaused)
+            {
+                if (sync->active() &&
+                    sync->localroot->scanRequired())
+                {
+                    return true;
+                }
+            }
         }
-        });
-    return found;
+    }
+    return false;
 }
 
 bool Syncs::mightAnySyncsHaveMoves(bool includePausedSyncs)
 {
     assert(onSyncThread());
-    bool found = false;
-    forEachRunningSync(includePausedSyncs, [&](Sync* sync) {
 
-        if (sync->active() &&
-            (sync->localroot->mightHaveMoves()
-                || sync->localroot->scanRequired()))
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
         {
-            found = true;
+            if (includePausedSyncs || !us->mSync->syncPaused)
+            {
+                if (sync->active() &&
+                    (sync->localroot->mightHaveMoves()
+                        || sync->localroot->scanRequired()))
+                {
+                    return true;
+                }
+            }
         }
-        });
-    return found;
+    }
+    return false;
 }
 
 bool Syncs::conflictsDetected(list<NameConflict>& conflicts) const
 {
-    forEachRunningSync(true, [&](Sync* sync) {
-        sync->recursiveCollectNameConflicts(conflicts);
-        });
+    assert(onSyncThread());
 
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
+        {
+            sync->recursiveCollectNameConflicts(conflicts);
+        }
+    }
     return !conflicts.empty();
 }
 
-bool Syncs::conflictsDetected() const
+bool Syncs::conflictsFlagged() const
 {
-    bool found = false;
-    forEachRunningSync(true, [&](Sync* sync) {
+    assert(onSyncThread());
 
-        if (sync->localroot->conflictsDetected())
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
         {
-            found = true;
+            if (sync->localroot->conflictsDetected())
+            {
+                return true;
+            }
         }
-        });
-
-    return found;
+    }
+    return false;
 }
 
 bool Syncs::syncStallDetected(SyncStallInfo& si) const
 {
+    assert(!onSyncThread());
     lock_guard<mutex> g(stallMutex);
 
     bool stalled =
@@ -8241,13 +8204,25 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
         });
 }
 
-void Syncs::setAllSyncsNeedFullSync()
+void Syncs::setSyncsNeedFullSync(bool andFullScan, handle backupId)
 {
     assert(!onSyncThread());
     queueSync([=](){
-        forEachRunningSync(true, [&](Sync* sync) {
-            sync->localroot->setSyncAgain(false, true, true);
-            });
+
+        assert(onSyncThread());
+        for (auto & us : mSyncVec)
+        {
+            if ((us->mConfig.mBackupId == backupId
+                || backupId == UNDEF) &&
+                us->mSync)
+            {
+                us->mSync->localroot->setSyncAgain(false, true, true);
+                if (andFullScan)
+                {
+                    us->mSync->localroot->setScanAgain(false, true, true, 0);
+                }
+            }
+        }
     });
 }
 

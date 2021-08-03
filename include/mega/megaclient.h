@@ -686,39 +686,11 @@ private:
 
 public:
 
-    ///**
-    // * @brief
-    // * Ask the client to rescan all syncs.
-    // *
-    // * @return
-    // * API_OK if we could issue the scan.
-    // */
-    //error rescan();
-
-    ///**
-    // * @brief
-    // * Ask the client to rescan the specified sync.
-    // *
-    // * @param sync
-    // * The sync that should be rescanned.
-    // *
-    // * @return
-    // * API_OK if we could issue the scan.
-    // */
-    //error rescan(Sync* sync);
-
-
-    ////// sync config updating & persisting ////
-
-    // transition the cache to failed
-    void failSync(Sync* sync, SyncError syncerror);
 
     // disable synchronization. syncError specifies why we are disabling it.
     // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
     void disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag);
 
-    // fail all active syncs
-    void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
 
 #endif  // ENABLE_SYNC
 

@@ -1498,10 +1498,6 @@ struct StandardClient : public MegaApp
 
         out() << "looking up BackupId " << toHandle(backupId);
 
-        client.syncs.forEachUnifiedSync([this](UnifiedSync& us){
-            out() << " ids are: " << toHandle(us.mConfig.mBackupId) << " with local path '" << us.mConfig.getLocalPath().toPath(*fsaccess);
-        });
-
         bool found = syncSet(backupId, result);
         assert(found);
 
@@ -2530,25 +2526,18 @@ struct StandardClient : public MegaApp
 
     bool conflictsDetected(list<NameConflict>& conflicts)
     {
-        auto result =
-          thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
-                    {
-                        pb->set_value(
-                          client.client.syncs.conflictsDetected(conflicts));
-                    });
+        PromiseBoolSP pb(new promise<bool>());
 
-        return result.get();
-    }
+        bool result = false;
 
-    bool conflictsDetected()
-    {
-        auto result =
-          thread_do<bool>([](StandardClient& client, PromiseBoolSP pb)
-                    {
-                        pb->set_value(client.client.syncs.conflictsDetected());
-                    });
+        client.syncs.syncRun([&](){
+            result = client.syncs.conflictsDetected(conflicts);
+            pb->set_value(true);
+        });
 
-        return result.get();
+        pb->get_future().get();
+
+        return result;
     }
 
     bool login_reset(const string& user, const string& pw, bool noCache = false)
@@ -2752,7 +2741,6 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
     {
         bool any_activity = false;
         bool any_still_syncing = false;
-        vector<int> syncstates;
 
         for (size_t i = v.size(); i--; ) if (v[i])
         {
@@ -2765,7 +2753,6 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                         mc.client.syncs.forEachRunningSync(false,
                           [&](Sync* s)
                           {
-                              syncstates.push_back(s->getConfig().mRunningState);
                               if (s->deleteq.size() || s->insertq.size())
                                   any_activity = true;
 
@@ -3497,13 +3484,6 @@ TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
         size_t remaining = 0;
         auto result0 = clientA1.thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
         {
-            //sc.client.syncs.forEachRunningSync(
-            //  [&](Sync* s)
-            //  {
-            //    remaining += s->dirnotify->fsEventq.size();
-            //    remaining += s->dirnotify->fsDelayedNetworkEventq.size();
-            //  });
-
             remaining += sc.client.syncs.syncscanstate ? 1 : 0;
 
             p->set_value(true);
@@ -4824,7 +4804,7 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
 }
 
-/*
+
 TEST_F(SyncTest, DetectsAndReportsNameClashes)
 {
     const auto TESTFOLDER = makeNewTestRoot();
@@ -4865,8 +4845,6 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     };
 
     // Were any conflicts detected?
-    ASSERT_TRUE(client.conflictsDetected());
-
     // Can we obtain a list of the conflicts?
     list<NameConflict> conflicts;
     ASSERT_TRUE(client.conflictsDetected(conflicts));
@@ -4884,8 +4862,6 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     waitonsyncs(TIMEOUT, &client);
 
     // We should still detect conflicts.
-    ASSERT_TRUE(client.conflictsDetected());
-
     // Has the list of conflicts changed?
     conflicts.clear();
     ASSERT_TRUE(client.conflictsDetected(conflicts));
@@ -4905,8 +4881,6 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     waitonsyncs(TIMEOUT, &client);
 
     // No conflicts should be reported.
-    ASSERT_FALSE(client.conflictsDetected());
-
     // Is the list of conflicts empty?
     conflicts.clear();
     ASSERT_FALSE(client.conflictsDetected(conflicts));
@@ -4944,9 +4918,10 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     ASSERT_EQ(0, conflicts.size());
 
     // Conflicts should be resolved.
-    ASSERT_FALSE(client.conflictsDetected());
+    conflicts.clear();
+    ASSERT_FALSE(client.conflictsDetected(conflicts));
 }
-*/
+
 
 // TODO: re-enable after sync rework is merged
 TEST_F(SyncTest, DoesntDownloadFilesWithClashingNames)

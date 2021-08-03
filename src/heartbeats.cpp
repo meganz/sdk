@@ -395,12 +395,13 @@ void BackupMonitor::beat()
     assert(syncs.onSyncThread());
 
     // Only send heartbeats for enabled active syncs.
-    syncs.forEachUnifiedSync([&](UnifiedSync& us){
-        if (us.mSync && us.mConfig.getEnabled())
+    for (auto& us : syncs.mSyncVec)
+    {
+        if (us->mSync && us->mConfig.getEnabled())
         {
-            beatBackupInfo(us);
+            beatBackupInfo(*us);
         }
-    });
+    };
 #endif
 }
 
