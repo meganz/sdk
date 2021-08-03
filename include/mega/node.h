@@ -58,6 +58,65 @@ struct MEGA_API NodeCore
     std::unique_ptr<string> attrstring;
 };
 
+struct CloudNode
+{
+    // We can't use Node* directly on the sync thread,as such pointers
+    // may be rendered dangling (and changes in Nodes thread-unsafe)
+    // by actionpackets on the MegaClient thread.
+    // So, we take temporary copies of the minimally needed aspects.
+    // These are only used while recursing the LocalNode tree.
+
+    string name;
+    nodetype_t type = TYPE_UNKNOWN;
+    NodeHandle handle;
+    NodeHandle parentHandle;
+    nodetype_t parentType = TYPE_UNKNOWN;
+    FileFingerprint fingerprint;
+
+    CloudNode() {}
+    CloudNode(const Node& n);
+};
+
+struct MEGA_API SyncDownload_inClient: public File
+{
+    // set sync-specific temp filename, update treestate
+    void prepare(FileSystemAccess&);
+    bool failed(error, MegaClient*);
+    void progress();
+
+    // update localname (may have changed due to renames/moves of the synced files)
+    void updatelocalname();
+
+    // self-destruct after completion
+    void completed(Transfer*, putsource_t);
+    void terminated();
+
+    bool wasTerminated = false;
+    bool wasCompleted = false;
+    bool wasRequesterAbandoned = false;
+    shared_ptr<SyncDownload_inClient> selfKeepAlive;
+
+    SyncDownload_inClient(CloudNode& n, const LocalPath&, bool fromInshare, FileSystemAccess& fsaccess);
+    ~SyncDownload_inClient();
+};
+
+struct SyncUpload_inClient : File, std::enable_shared_from_this<SyncUpload_inClient>
+{
+    // This class is part of the client's Transfer system (ie, works in the client's thread)
+    // The sync system keeps a shared_ptr to it.  Whichever system finishes with it last actually deletes it
+    SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath, const string& nodeName, const FileFingerprint& ff);
+    ~SyncUpload_inClient();
+    void prepare(FileSystemAccess&) override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated() override;
+
+    bool wasTerminated = false;
+    bool wasCompleted = false;
+    bool wasPutnodesCompleted = false;
+    bool wasRequesterAbandoned = false;
+    shared_ptr<SyncUpload_inClient> selfKeepAlive;
+};
+
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
 {
@@ -72,9 +131,10 @@ struct MEGA_API NewNode : public NodeCore
     handle uploadhandle = UNDEF;
     byte uploadtoken[UPLOADTOKENLEN]{};
 
-    handle syncid = UNDEF;
+    //handle syncid = UNDEF;
 #ifdef ENABLE_SYNC
-    crossref_ptr<LocalNode, NewNode> localnode; // non-owning
+//    crossref_ptr<LocalNode, NewNode> localnode; // non-owning
+    weak_ptr<SyncUpload_inClient> syncUpload;
 #endif
     std::unique_ptr<string> fileattributes;
 
@@ -182,6 +242,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // follow the parent links all the way to the top
     const Node* firstancestor() const;
 
+    // If this is a file, and has a file for a parent, it's not the latest version
+    const Node* latestFileVersion() const;
+
     // try to resolve node key string
     bool applykey();
 
@@ -285,24 +348,12 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // own position in fingerprint set (only valid for file nodes)
     Fingerprints::iterator fingerprint_it;
 
-#ifdef ENABLE_SYNC
-
-    // state of removal to //bin / SyncDebris
-    syncdel_t syncdeleted = SYNCDEL_NONE;
-
-    // location in the todebris node_set
-    node_set::iterator todebris_it;
-
-    // location in the tounlink node_set
-    // FIXME: merge todebris / tounlink
-    node_set::iterator tounlink_it;
-#endif
-
     // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
     int tag = 0;
 
     // check if node is below this node
     bool isbelow(Node*) const;
+    bool isbelow(NodeHandle) const;
 
     // handle of public link for the node
     PublicLink* plink = nullptr;
@@ -413,11 +464,10 @@ struct MEGA_API LocalNode : public Cacheable
     // If we can regenerate the filsystem data at this node, no need to store it, save some RAM
     void clearRegeneratableFolderScan(SyncPath& fullPath);
 
-    // The name of the node that we are (or will be) synced with
-    // It may not be an exact match due to escaping considerations?  // todo: check this
-    string name;
-
-    // The name of the file we are synced with
+    // The exact name of the file we are synced with, if synced
+    // If not synced then it's the to-local (escaped) version of the CloudNode's name
+    // This is also the key in the parent LocalNode's children map
+    // (if this is the sync root node, it is an absolute path - otherwise just a leaf name)
     LocalPath localname;  //fsLeafName;
 
     // The fingerprint of the node and/or file we are synced with
@@ -437,24 +487,15 @@ struct MEGA_API LocalNode : public Cacheable
     nodehandle_localnode_map::iterator syncedCloudNodeHandle_it;
 
     // related pending node creation or NULL
-    crossref_ptr<NewNode, LocalNode> newnode;
+    //crossref_ptr<NewNode, LocalNode> newnode;
 
     // FILENODE or FOLDERNODE
     nodetype_t type = TYPE_UNKNOWN;
 
     // using a per-Localnode scan delay prevents self-notifications delaying the whole sync
     dstime scanDelayUntil = 0;
+    unsigned expectedSelfNotificationCount = 0;
     //dstime lastScanTime = 0;
-
-
-    //// detection of deleted filesystem records
-    //int scanseqno = 0;
-
-    //// number of iterations since last seen
-    //int notseen = 0;
-
-    // global sync reference
-    handle syncid = mega::UNDEF;
 
     struct
     {
@@ -462,16 +503,10 @@ struct MEGA_API LocalNode : public Cacheable
         bool unstableFsidAssigned : 1;
 
         // disappeared from local FS; we are moving the cloud node to the trash.
-        bool deletingCloud : 1;
         bool deletedFS : 1;
 
-        // we saw this node moved/renamed locally, cloud move is underway or complete
-        //bool moveSourceApplyingToCloud : 1;
-        //bool moveSourceAppliedToCloud : 1;
-        //bool moveTargetApplyingToCloud : 1;
-
         // we saw this node moved/renamed in the cloud, local move expected (or active)
-        bool moveApplyingToLocal : 1;
+        bool moveApplyingToLocal : 1;    // todo: do we need these anymore?
         bool moveAppliedToLocal : 1;
 
         // whether any name conflicts have been detected.
@@ -521,14 +556,29 @@ struct MEGA_API LocalNode : public Cacheable
 
         struct MoveInProgress
         {
-            ~MoveInProgress() {
-                int breakpointhere = 0;
-                breakpointhere = 1;
-            }
+            bool succeeded = false;
+            bool failed = false;
+            bool syncCodeProcessedResult = false;
+
+            handle sourceFsid = UNDEF;
+            nodetype_t sourceType = FILENODE;
+            FileFingerprint sourceFingerprint;
+            LocalNode* sourcePtr = nullptr;
         };
 
-        weak_ptr<MoveInProgress> moveFromHere;
-        weak_ptr<MoveInProgress> moveToHere;
+        struct CreateFolderInProgress
+        {
+        };
+
+        struct DeleteToDebrisInProgress
+        {
+            // (actually if it's an inshare, we unlink() as there's no debris
+        };
+
+        shared_ptr<MoveInProgress> moveFromHere;
+        shared_ptr<MoveInProgress> moveToHere;
+        weak_ptr<CreateFolderInProgress> createFolderHere;
+        weak_ptr<DeleteToDebrisInProgress> removeNodeHere;
     };
 
 private:
@@ -537,6 +587,9 @@ public:
     bool hasRare() { return !!rareFields; }
     RareFields& rare();
     void trimRareFields();
+
+    // use this one to skip the hasRare check, if it doesn't exist a reference to a blank one is returned
+    const RareFields& rareRO();
 
     // set the syncupTargetedAction for this, and parents
     void setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds);
@@ -583,9 +636,6 @@ public:
     dstime nagleds = 0;
     void bumpnagleds();
 
-    // if delage > 0, own iterator inside MegaClient::localsyncnotseen
-    localnode_set::iterator notseen_it{};
-
     // build full local path to this node
     void getlocalpath(LocalPath&) const;
     LocalPath getLocalPath() const;
@@ -600,24 +650,61 @@ public:
     FSNode getLastSyncedFSDetails();
     FSNode getScannedFSDetails();
 
-    struct Upload : File
+    struct UploadProxy
     {
-        Upload(LocalNode& ln, FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath);
-        LocalNode& localNode;
-        void prepare() override;
-        void completed(Transfer*, LocalNode*) override;
-        void terminated() override;
+        // This class is the LocalNodes' refrence to the SyncUpload_inClient.
+        // Deleting this class will just mark the SyncUpload_inClient as to be deleted by the Client's systems
+        void reset(shared_ptr<SyncUpload_inClient> p)
+        {
+            if (actualUpload) actualUpload->wasRequesterAbandoned = true;
+            if (p) p->selfKeepAlive = p;
+            actualUpload = move(p);
+        }
+
+        void checkCompleted()
+        {
+            if (actualUpload &&
+                (actualUpload->wasTerminated ||
+                (actualUpload->wasCompleted && actualUpload->wasPutnodesCompleted)))
+            {
+                reset(nullptr);
+            }
+        }
+
+        shared_ptr<SyncUpload_inClient> actualUpload;
     };
 
-    unique_ptr<Upload> upload;
-    unique_ptr<SyncFileGet> download;
+    struct DownloadProxy
+    {
+        // This class is the LocalNodes' refrence to the SyncDownload_inClient.
+        // Deleting this class will just mark the SyncUpload_inClient as to be deleted by the Client's systems
+        void reset(shared_ptr<SyncDownload_inClient> p)
+        {
+            if (actualDownload) actualDownload->wasRequesterAbandoned = true;
+            if (p) p->selfKeepAlive = p;
+            actualDownload = move(p);
+        }
 
-//    void setnotseen(int);
+        void checkCompleted()
+        {
+            if (actualDownload &&
+                (actualDownload->wasTerminated ||
+                 actualDownload->wasCompleted))
+            {
+                reset(nullptr);
+            }
+        }
+
+        shared_ptr<SyncDownload_inClient> actualDownload;
+    };
+
+    UploadProxy upload;
+    DownloadProxy download;
 
     void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
     void setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
 
-    void setSyncedNodeHandle(NodeHandle h, const string& cloudName);
+    void setSyncedNodeHandle(NodeHandle h);
 
     void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>, bool applyToCloud);
     void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain);
@@ -692,8 +779,8 @@ private:
 #endif // USE_INOTIFY
 };
 
-template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
-template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode.ptr; }
+//template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
+//template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode.ptr; }
 
 #endif
 

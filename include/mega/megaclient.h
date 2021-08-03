@@ -242,6 +242,9 @@ public:
     // all nodes
     node_map nodes;
 
+    // manage access to the node tree so that sync code can browse the tree outside actionpacket processing
+    mutex nodeTreeMutex;
+
     // keep track of user storage, inshare storage, file/folder counts per root node.
     NodeCounterMap mNodeCounters;
 
@@ -483,7 +486,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(handle, error)> resultFunction = nullptr);
+    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)> resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
@@ -521,32 +524,8 @@ public:
     bool xferpaused[2];
 
 #ifdef ENABLE_SYNC
-
     // one unified structure for SyncConfigs, the Syncs that are running, and heartbeat data
     Syncs syncs;
-
-    unique_ptr<SyncFlags> mSyncFlags;
-
-    // used to asynchronously perform scans.
-    unique_ptr<ScanService> mScanService;
-
-    // retrieves information about any detected name conflicts.
-    bool conflictsDetected(list<NameConflict>& conflicts) const;
-
-    // true if any name conflicts have been detected.
-    bool conflictsDetected() const;
-
-    bool syncStallDetected(SyncFlags::CloudStallInfoMap& stalledNodePaths, SyncFlags::LocalStallInfoMap& stalledLocalPaths) const;
-
-    // manage syncdown flags inside the syncs
-    void setAllSyncsNeedFullSync();
-
-    bool isAnySyncSyncing(bool includePausedSyncs);
-    bool isAnySyncScanning(bool includePausedSyncs);
-    bool mightAnySyncsHaveMoves(bool includePausedSyncs);
-
-    bool nodeIsInActiveSync(Node* n, bool includePausedSyncs);
-
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -570,7 +549,7 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(NodeHandle, vector<NewNode>&&, const char *, int tag);
+    void putnodes(NodeHandle, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion completion = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag);
@@ -655,7 +634,7 @@ public:
      * @return And error code if there are problems serious enough with the syncconfig that it should not be added.
      *         Otherwise, API_OK
      */
-    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork);
+    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork);
 
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
@@ -665,7 +644,7 @@ public:
      * @param completion Completion function
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion);
+    error addsync(SyncConfig& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
@@ -707,42 +686,11 @@ private:
 
 public:
 
-    ///**
-    // * @brief
-    // * Ask the client to rescan all syncs.
-    // *
-    // * @return
-    // * API_OK if we could issue the scan.
-    // */
-    //error rescan();
-
-    ///**
-    // * @brief
-    // * Ask the client to rescan the specified sync.
-    // *
-    // * @param sync
-    // * The sync that should be rescanned.
-    // *
-    // * @return
-    // * API_OK if we could issue the scan.
-    // */
-    //error rescan(Sync* sync);
-
-
-    ////// sync config updating & persisting ////
-
-    // transition the cache to failed
-    void failSync(Sync* sync, SyncError syncerror);
 
     // disable synchronization. syncError specifies why we are disabling it.
     // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
-    void disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag);
+    void disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag);
 
-    // fail all active syncs
-    void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
-
-    //void cancelSyncgetsOutsideSync(Node* n);
-    Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
 
 #endif  // ENABLE_SYNC
 
@@ -1056,8 +1004,6 @@ private:
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
 
-    // backoff for heartbeats
-    BackoffTimer btheartbeat;
 
     vector<TimerWithBackoff *> bttimers;
 
@@ -1151,11 +1097,6 @@ private:
     // close the local transfer cache
     void closetc(bool remove = false);
 
-#ifdef ENABLE_SYNC
-    // mark nodes as needing to be checked for sync actions
-    void triggerSync(NodeHandle, bool recurse = false);
-#endif
-
     // server-client command processing
     bool sc_checkSequenceTag(const string& tag);
     bool sc_checkActionPacket(Node* lastAPDeletedNode);
@@ -1187,7 +1128,7 @@ private:
     void init();
 
     // remove caches
-    void removeCaches(bool keepSyncsConfigFile);
+    void removeCaches();
 
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
@@ -1530,30 +1471,12 @@ public:
     // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
     bool syncdebrisadding;
 
-    // minute of the last created folder in SyncDebris
+    // minute of the last created folder in SyncDebris (don't attempt creation more frequently than once per minute)
     m_time_t syncdebrisminute;
 
-    // activity flag
-    bool syncactivity;
-
-    // syncops indicates that a sync-relevant tree update may be pending
-    //bool syncops;
-
-    // app scanstate flag
-    bool syncscanstate = false;
-
-    // whether any sync has any work to do
-    bool syncBusyState = false;
-
-    // app stall tate flag
-    bool syncStallState = false;
-
-    // app conflict tate flag
-    bool syncConflictState;
-
     // sync PUT Nagle timer
-    bool syncnagleretry;
-    BackoffTimer syncnaglebt;
+    //bool syncnagleretry;
+    //BackoffTimer syncnaglebt;
 
     //dstime filesystemNotificationsQuietTime = 0;
 
@@ -1578,42 +1501,23 @@ public:
     // The timer is used to force another call to syncdown(...) so that we
     // can give the sync a chance to transition into the monitor state,
     // regardless of whether the local disk has changed.
-    bool mSyncMonitorRetry;
-    BackoffTimer mSyncMonitorTimer;
+    //bool mSyncMonitorRetry;
+    //BackoffTimer mSyncMonitorTimer;
 
     //// vanished from a local synced folder
     //localnode_set localsyncnotseen;
 
-    // maps local fsid to corresponding LocalNode* (s)
-    fsid_localnode_map localnodeBySyncedFsid;
-    fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
-    LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
-
-    void setSyncedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
-    void setScannedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
-
-    // maps nodehanlde to corresponding LocalNode* (s)
-    nodehandle_localnode_map localnodeByNodeHandle;
-    LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
 
     // local nodes that need to be added remotely
 //    localnode_vector synccreate;
 
     // number of sync-initiated putnodes() in progress
-    int syncadding;
+    //int syncadding;
 
-    bool mDetailedSyncLogging = false;
-
-    // total number of LocalNode objects
-    long long totalLocalNodes;
 
     // sync id dispatch
-    handle nextsyncid();
-    handle currsyncid;
-
-    // SyncDebris folder addition result
-    void putnodes_syncdebris_result(error, vector<NewNode>&);
+    //handle nextsyncid();
+    //handle currsyncid;
 
     // if no sync putnodes operation is in progress, apply the updates stored
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
@@ -1623,21 +1527,21 @@ public:
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
-    void movetosyncdebris(Node*, bool);
+    void movetosyncdebris(Node*, bool unlink, std::function<void(NodeHandle, Error)>&& completion);
 
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
-    void execmovetosyncdebris();
-    node_set todebris;
+    void execmovetosyncdebris(Node* n, std::function<void(NodeHandle, Error)>&& completion);
+
+    Node* getOrCreateSyncdebrisFolder();
+    struct pendingDebrisRecord {
+        NodeHandle nodeHandle;
+        std::function<void(NodeHandle, Error)> completion;
+        pendingDebrisRecord(NodeHandle h, std::function<void(NodeHandle, Error)> c) : nodeHandle(h), completion(c) {}
+    };
+    list<pendingDebrisRecord> pendingDebris;
 
     // unlink queued nodes directly (for inbound share syncing)
-    void execsyncunlink();
-    node_set tounlink;
-
-    // commit all queueud deletions
-    void execsyncdeletions();
-
-    // process localnode subtree
-    void proclocaltree(LocalNode*, LocalTreeProc*);
+    void execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion);
 
     // unlink the LocalNode from the corresponding node
     // if the associated local file or folder still exists
@@ -1645,7 +1549,7 @@ public:
 #endif
 
     // recursively cancel transfers in a subtree
-    void stopSyncXfers(LocalNode*, DBTableTransactionCommitter& committer);
+    //void stopSyncXfers(LocalNode*, DBTableTransactionCommitter& committer);
 
     // update paths of all PUT transfers
     void updateputs();
@@ -1714,6 +1618,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
     Node* childnodebyattribute(Node*, nameid, const char*);
     void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);

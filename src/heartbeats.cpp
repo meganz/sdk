@@ -187,42 +187,21 @@ BackupInfoSync::BackupInfoSync(const UnifiedSync &us)
     localFolder = us.mConfig.getLocalPath();
     state = BackupInfoSync::getSyncState(us);
     subState = us.mConfig.getError();
-    deviceId = us.mClient.getDeviceidHash();
+    deviceId = us.syncs.mClient.getDeviceidHash();
     driveId = BackupInfoSync::getDriveId(us);
     assert(!(us.mConfig.isBackup() && us.mConfig.isExternal())  // not an external backup...
            || !ISUNDEF(driveId));  // ... or it must have a valid drive-id
 }
 
-int BackupInfoSync::calculatePauseActiveState(MegaClient *client)
-{
-    auto pauseDown = client->xferpaused[GET];
-    auto pauseUp = client->xferpaused[PUT];
-    if (pauseDown && pauseUp)
-    {
-        return State::PAUSE_FULL;
-    }
-    else if (pauseDown)
-    {
-        return State::PAUSE_DOWN;
-    }
-    else if (pauseUp)
-    {
-        return State::PAUSE_UP;
-    }
-
-    return State::ACTIVE;
-}
-
-
 int BackupInfoSync::getSyncState(const UnifiedSync& us)
 {
     SyncError error = us.mConfig.getError();
-    syncstate_t state = us.mSync ? us.mSync->state : SYNC_FAILED;
+    syncstate_t state = us.mSync ? us.mConfig.mRunningState : SYNC_FAILED;
 
-    return getSyncState(error, state, &us.mClient);
+    return getSyncState(error, state);
 }
 
-int BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient *client)
+int BackupInfoSync::getSyncState(SyncError error, syncstate_t state)
 {
     if (state == SYNC_DISABLED && error != NO_SYNC_ERROR)
     {
@@ -230,7 +209,7 @@ int BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient 
     }
     else if (state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED)
     {
-        return calculatePauseActiveState(client);
+        return State::ACTIVE;
     }
     else if (!(state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_SYNC_ERROR)))
     {
@@ -242,14 +221,14 @@ int BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient 
     }
 }
 
-int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
+int BackupInfoSync::getSyncState(const SyncConfig& config)
 {
     auto error = config.getError();
     if (!error)
     {
         if (config.getEnabled())
         {
-            return calculatePauseActiveState(client);
+            return State::ACTIVE;
         }
         else
         {
@@ -272,10 +251,10 @@ int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
 handle BackupInfoSync::getDriveId(const UnifiedSync &us)
 {
     const LocalPath& drivePath = us.mConfig.mExternalDrivePath;
-    const auto& fsAccess = *us.mClient.fsaccess;
+    const auto& fsAccess = *us.syncs.fsaccess;
     const string& drivePathUtf8 = drivePath.toPath(fsAccess);
     handle driveId;
-    us.mClient.readDriveId(drivePathUtf8.c_str(), driveId); // It shouldn't happen very often
+    us.syncs.mClient.readDriveId(drivePathUtf8.c_str(), driveId); // It shouldn't happen very often
 
     return driveId;
 }
@@ -301,8 +280,8 @@ BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
 #endif
 
 ////////////// MegaBackupMonitor ////////////////
-BackupMonitor::BackupMonitor(MegaClient *client)
-    : mClient(client)
+BackupMonitor::BackupMonitor(Syncs& s)
+    : syncs(s)
 {
 }
 
@@ -310,17 +289,24 @@ BackupMonitor::BackupMonitor(MegaClient *client)
 
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
+    assert(syncs.onSyncThread());
+
 #ifdef DEBUG
     handle backupId = us.mConfig.getBackupId();
     assert(!ISUNDEF(backupId)); // syncs are registered before adding them
 #endif
 
-    auto currentInfo = ::mega::make_unique<BackupInfoSync>(us);
-    if (us.mBackupInfo && *currentInfo != *us.mBackupInfo)
+    auto currentInfo = BackupInfoSync(us);
+    if (us.mBackupInfo && currentInfo != *us.mBackupInfo)
     {
-        mClient->reqs.add(new CommandBackupPut(mClient, *currentInfo, nullptr));
+        syncs.queueClient([currentInfo](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                mc.reqs.add(new CommandBackupPut(&mc, currentInfo, nullptr));
+            });
+
+
     }
-    us.mBackupInfo = move(currentInfo);
+    us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(currentInfo);
 }
 
 bool BackupInfoSync::operator==(const BackupInfoSync& o) const
@@ -341,15 +327,10 @@ bool BackupInfoSync::operator!=(const BackupInfoSync &o) const
     return !(*this == o);
 }
 
-void BackupMonitor::onSyncConfigChanged()
-{
-    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
-        updateOrRegisterSync(us);
-    });
-}
-
 void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 {
+    assert(syncs.onSyncThread());
+
     // send registration or update in case we missed it
     updateOrRegisterSync(us);
 
@@ -376,12 +357,25 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         int8_t progress = (hbs->progress(inflightProgress) < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress(inflightProgress)*100.0));
 
         hbs->mSending = true;
-        auto newCommand = new CommandBackupPutHeartBeat(mClient, us.mConfig.getBackupId(),  static_cast<uint8_t>(hbs->status()),
-                          progress, hbs->mPendingUps, hbs->mPendingDowns,
-                          hbs->lastAction(), hbs->lastItemUpdated(),
-                          [hbs](Error){
-                               hbs->mSending = false;
-                          });
+
+        auto backupId = us.mConfig.getBackupId();
+        auto status = static_cast<uint8_t>(hbs->status());
+        auto pendingUps = hbs->mPendingUps;
+        auto pendingDowns = hbs->mPendingDowns;
+        auto lastAction = hbs->lastAction();
+        auto lastItemUpdated = hbs->lastItemUpdated();
+
+        syncs.queueClient([=](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                mc.reqs.add(
+                    new CommandBackupPutHeartBeat(&mc, backupId, status,
+                        progress, pendingUps, pendingDowns,
+                        lastAction, lastItemUpdated,
+                        [hbs](Error){
+                            hbs->mSending = false;
+                        }));
+            });
+
 
 #ifdef ENABLE_SYNC
         if (hbs->status() == HeartBeatSyncInfo::Status::UPTODATE && progress >= 100)
@@ -390,8 +384,6 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
             // note: new transfer updates will modify the progress and make it valid again
         }
 #endif
-
-        mClient->reqs.add(newCommand);
     }
 }
 
@@ -400,13 +392,16 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 void BackupMonitor::beat()
 {
 #ifdef ENABLE_SYNC
+    assert(syncs.onSyncThread());
+
     // Only send heartbeats for enabled active syncs.
-    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
-        if (us.mSync && us.mConfig.getEnabled())
+    for (auto& us : syncs.mSyncVec)
+    {
+        if (us->mSync && us->mConfig.getEnabled())
         {
-            beatBackupInfo(us);
+            beatBackupInfo(*us);
         }
-    });
+    };
 #endif
 }
 

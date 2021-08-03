@@ -251,7 +251,7 @@ void AppFileGet::start()
 }
 
 // transfer completion
-void AppFileGet::completed(Transfer*, LocalNode*)
+void AppFileGet::completed(Transfer*, putsource_t source)
 {
     // (at this time, the file has already been placed in the final location)
     delete this;
@@ -263,10 +263,10 @@ void AppFileGet::terminated()
     delete this;
 }
 
-void AppFilePut::completed(Transfer* t, LocalNode*)
+void AppFilePut::completed(Transfer* t, putsource_t source)
 {
     // perform standard completion (place node in user filesystem etc.)
-    File::completed(t, NULL);
+    File::completed(t, PUTNODES_APP);
 
     delete this;
 }
@@ -381,37 +381,37 @@ void DemoApp::transfer_prepare(Transfer* t)
 
 #ifdef ENABLE_SYNC
 
-void DemoApp::syncupdate_stateconfig(handle backupId)
+void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 {
-    cout << "Sync config updated: " << toHandle(backupId) << endl;
+    cout << "Sync config updated: " << toHandle(config.mBackupId) << endl;
 }
 
 
-void DemoApp::syncupdate_active(handle backupId, bool active)
+void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
 {
     cout << "Sync is now active: " << active << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted, bool hadAnError)
+void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
 {
-    handle backupId = s.mConfig.getBackupId();
+    handle backupId = config.getBackupId();
     if (attempted)
     {
-        cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
-             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError()
-             << " hadAnErrorBefore: " << hadAnError << " Running: " << !!s.mSync << endl;
+        cout << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
+             << config.getEnabled()  << " syncError: " << config.getError()
+             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
     else
     {
-        cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess) << " enabled: "
-            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError()
-            << " hadAnErrorBefore: " << hadAnError << " Running: " << !!s.mSync << endl;
+        cout << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess) << " enabled: "
+            << config.getEnabled() << " syncError: " << config.getError()
+            << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
 }
 
-void DemoApp::sync_removed(handle backupId)
+void DemoApp::sync_removed(const SyncConfig& config)
 {
-    cout << "Sync - removed: " << toHandle(backupId) << endl;
+    cout << "Sync - removed: " << toHandle(config.mBackupId) << endl;
 
 }
 
@@ -498,35 +498,35 @@ static const char* treestatename(treestate_t ts)
     return "UNKNOWN";
 }
 
-void DemoApp::syncupdate_treestate(LocalNode* l)
+void DemoApp::syncupdate_treestate(const SyncConfig &, const LocalPath& lp, treestate_t ts, nodetype_t type)
 {
     if (syncout_folder_sync_state)
     {
-        if (l->type != FILENODE)
+        if (type != FILENODE)
         {
-            cout << "Sync - state change of folder " << l->getLocalPath().toPath() << " to " << treestatename(l->ts) << endl;
+            cout << "Sync - state change of folder " << lp.toPath() << " to " << treestatename(ts) << endl;
         }
     }
 }
 
 // generic name filter
 // FIXME: configurable regexps
-static bool is_syncable(const char* name)
-{
-    return *name != '.' && *name != '~' && strcmp(name, "Thumbs.db") && strcmp(name, "desktop.ini");
-}
+//static bool is_syncable(const char* name)
+//{
+//    return *name != '.' && *name != '~' && strcmp(name, "Thumbs.db") && strcmp(name, "desktop.ini");
+//}
 
-// determines whether remote node should be synced
-bool DemoApp::sync_syncable(Sync *, const char *, LocalPath&, Node *n)
-{
-    return is_syncable(n->displayname());
-}
-
-// determines whether local file should be synced
-bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
-{
-    return is_syncable(name);
-}
+//// determines whether remote node should be synced
+//bool DemoApp::sync_syncable(Sync *, const char *, LocalPath&, Node *n)
+//{
+//    return is_syncable(n->displayname());
+//}
+//
+//// determines whether local file should be synced
+//bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
+//{
+//    return is_syncable(name);
+//}
 #endif
 
 AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
@@ -3069,7 +3069,7 @@ void exec_syncoutput(autocomplete::ACState& s)
     }
     else if (s.words[2].s == "detail_log")
     {
-        client->mDetailedSyncLogging = onOff;
+        client->syncs.mDetailedSyncLogging = onOff;
     }
     else if (s.words[2].s == "all")
     {
@@ -3077,7 +3077,7 @@ void exec_syncoutput(autocomplete::ACState& s)
         syncout_remote_change_detection = onOff;
         syncout_transfer_activity = onOff;
         syncout_transfer_activity = onOff;
-        client->mDetailedSyncLogging = onOff;
+        client->syncs.mDetailedSyncLogging = onOff;
     }
 }
 #endif
@@ -4635,102 +4635,35 @@ void exec_open(autocomplete::ACState& s)
 
 void exec_syncrescan(autocomplete::ACState& s)
 {
-    bool matched = false;
-    auto backupId = s.words[2].s;
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
+    handle backupId = 0;
+    Base64::atob(s.words[2].s.c_str(), (byte*)&backupId, int(sizeof(backupId)));
 
-        if (toHandle(us.mConfig.getBackupId()) == backupId)
-        {
-            matched = true;
-
-            if (!us.mSync)
-            {
-                cout << "Can't rescan sync " << backupId << " as it's not running." << endl;
-            }
-            else
-            {
-                us.mSync->localroot->setScanAgain(false, true, true, 5);
-                cout << "Full scan flagged for sync " << backupId << endl;
-            }
-        }
-    });
-
-    // Have we been passed a valid sync id?
-    if (!matched)
-    {
-        cout << "Invalid sync id: " << backupId << endl;
-        return;
-    }
-
+    client->syncs.setSyncsNeedFullSync(true, backupId);
 }
 
 
 void exec_syncpause(autocomplete::ACState& s)
 {
+    auto backupIdStr = s.words[2].s;
 
-    bool matched = false;
-    auto backupId = s.words[2].s;
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
+    handle backupId = 0;
+    Base64::atob(backupIdStr.c_str(), (byte*)&backupId, int(sizeof(backupId)));
 
-        if (toHandle(us.mConfig.getBackupId()) == backupId)
-        {
-            matched = true;
-            if (!us.mSync)
-            {
-                cout << "Sync is not running." << endl;
-            }
-            else if (us.mSync->isSyncPaused())
-            {
-                cout << "Sync " << backupId << " is already paused." << endl;
-            }
-            else
-            {
-                us.mSync->setSyncPaused(true);
-                cout << "Sync " << backupId << " paused." << endl;
-            }
-        }
-    });
-
-    // Have we been passed a valid sync id?
-    if (!matched)
-    {
-        cout << "Invalid sync id: " << backupId << endl;
-        return;
-    }
+    auto future = client->syncs.setSyncPausedByBackupId(backupId, true);
+    bool result = future.get();
+    cout << "Sync " << toHandle(backupId) << " pause success: " << result << endl;
 }
 
 void exec_syncresume(autocomplete::ACState& s)
 {
-    bool matched = false;
-    auto backupId = s.words[2].s;
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
+    auto backupIdStr = s.words[2].s;
 
-        if (toHandle(us.mConfig.getBackupId()) == backupId)
-        {
-            matched = true;
+    handle backupId = 0;
+    Base64::atob(backupIdStr.c_str(), (byte*)&backupId, int(sizeof(backupId)));
 
-            if (!us.mSync)
-            {
-                cout << "Sync is not running." << endl;
-            }
-            else if (!us.mSync->isSyncPaused())
-            {
-                cout << "Sync " << backupId << " is not paused." << endl;
-            }
-            else
-            {
-                us.mSync->setSyncPaused(false);
-                cout << "Sync " << backupId << " resumed." << endl;
-            }
-        }
-    });
-
-    // Have we been passed a valid sync id?
-    if (!matched)
-    {
-        cout << "Invalid sync id: " << backupId << endl;
-        return;
-    }
+    auto future = client->syncs.setSyncPausedByBackupId(backupId, true);
+    bool result = future.get();
+    cout << "Sync " << toHandle(backupId) << " resume success: " << result << endl;
 }
 
 #endif
@@ -8830,18 +8763,18 @@ void exec_banner(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
-void sync_completion(UnifiedSync* us, const SyncError&, error result)
+void sync_completion(error result, const SyncError& se, handle backupId)
 {
-    if (!us)
+    if (backupId == UNDEF)
     {
         cerr << "Sync could not be added: "
              << errorstring(result)
              << endl;
     }
-    else if (us->mSync)
+    else if (result == API_OK && se == NO_SYNC_ERROR)
     {
         cerr << "Sync added and running: "
-             << toHandle(us->mConfig.mBackupId)
+             << toHandle(backupId)
              << endl;
     }
     else
@@ -8921,7 +8854,7 @@ void exec_syncadd(autocomplete::ACState& s)
 
     // Try and add the new sync.
 	// All validation is performed in this function.
-    client->addsync(config, false, sync_completion);
+    client->addsync(config, false, sync_completion, "");
 }
 
 // For debugging.
@@ -9116,128 +9049,126 @@ void exec_synclist(autocomplete::ACState& s)
         return;
     }
 
-    if (client->syncs.numSyncs() == 0)
+    SyncConfigVector configs = client->syncs.allConfigs();
+
+    if (configs.empty())
     {
         cout << "No syncs configured yet" << endl;
         return;
     }
 
-    client->syncs.forEachUnifiedSync(
-      [](UnifiedSync& us)
-      {
-          // Convenience.
-          auto& config = us.mConfig;
-          auto& sync = us.mSync;
+    for (SyncConfig& config : configs)
+    {
 
-          // Display name.
-          cout << "Sync "
-               << toHandle(config.mBackupId)
-               << ": "
-               << config.mName
-               << "\n";
+        // Display name.
+        cout << "Sync "
+            << toHandle(config.mBackupId)
+            << ": "
+            << config.mName
+            << "\n";
 
-          // Display source/target mapping.
-          cout << "  Mapping: "
-               << config.mLocalPath.toPath(*client->fsaccess)
-               << " -> "
-               << config.mOriginalPathOfRemoteRootNode
-               << "\n";
+        // Display source/target mapping.
+        cout << "  Mapping: "
+            << config.mLocalPath.toPath(*client->fsaccess)
+            << " -> "
+            << config.mOriginalPathOfRemoteRootNode
+            << "\n";
 
-          if (sync)
-          {
-              // Display status info.
-              cout << "  State: "
-                  << SyncConfig::syncstatename(sync->state)
-                  << (sync->isSyncPaused() ? " (paused)" : "")
-                  << "\n";
+        //if (sync)
+        //{
+        //    // Display status info.
+        //    cout << "  State: "
+        //        << SyncConfig::syncstatename(sync->state)
+        //        << (sync->isSyncPaused() ? " (paused)" : "")
+        //        << "\n";
 
-              // Display some usage stats.
-              cout << "  Statistics: "
-                   //<< sync->localbytes
-                   //<< " byte(s) across "
-                   << sync->localnodes[FILENODE]
-                   << " file(s) and "
-                   << sync->localnodes[FOLDERNODE]
-                   << " folder(s).\n";
-          }
-          else
-          {
-              // Display what status info we can.
-              auto msg = config.syncErrorToStr();
-              cout << "  Enabled: "
-                   << config.getEnabled()
-                   << "\n"
-                   << "  Last Error: "
-                   << msg
-                   << "\n";
-          }
+        //    // Display some usage stats.
+        //    cout << "  Statistics: "
+        //         //<< sync->localbytes
+        //         //<< " byte(s) across "
+        //         << sync->localnodes[FILENODE]
+        //         << " file(s) and "
+        //         << sync->localnodes[FOLDERNODE]
+        //         << " folder(s).\n";
+        //}
+        //else
+        {
+            // Display what status info we can.
+            auto msg = config.syncErrorToStr();
+            cout << "  Enabled: "
+                << config.getEnabled()
+                << "\n"
+                << "  Last Error: "
+                << msg
+                << "\n";
+        }
 
-          // Display sync type.
-          cout << "  Type: "
-               << (config.isExternal() ? "EX" : "IN")
-               << "TERNAL "
-               << SyncConfig::synctypename(config.getType())
-               << "\n";
+        // Display sync type.
 
-          list<NameConflict> conflicts;
-          if (sync && sync->recursiveCollectNameConflicts(conflicts))
-          {
-              for (auto& c : conflicts)
-              {
-                  if (!c.cloudPath.empty() || !c.clashingCloudNames.empty())
-                  {
-                      cout << "  Cloud Path conflict at " << c.cloudPath << ": ";
-                      for (auto& n : c.clashingCloudNames)
-                      {
-                          cout << n << " ";
-                      }
-                      cout << "\n";
-                  }
-                  if (!c.localPath.empty() || !c.clashingLocalNames.empty())
-                  {
-                      cout << "  Local Path conflict at " << c.localPath.toPath(*client->fsaccess) << ": ";
-                      for (auto& n : c.clashingLocalNames)
-                      {
-                          cout << n.toPath(*client->fsaccess) << " ";
-                      }
-                      cout << "\n";
-                  }
-              }
-          }
+        cout << "  Type: "
+            << (config.isExternal() ? "EX" : "IN")
+            << "TERNAL "
+            << SyncConfig::synctypename(config.getType())
+            << "\n";
 
-          list<LocalPath> blocked;
+        std::promise<bool> synchronous;
+        client->syncs.collectSyncNameConflicts(config.mBackupId, [&synchronous](list<NameConflict>&& conflicts){
+            for (auto& c : conflicts)
+            {
+                if (!c.cloudPath.empty() || !c.clashingCloudNames.empty())
+                {
+                    cout << "  Cloud Path conflict at " << c.cloudPath << ": ";
+                    for (auto& n : c.clashingCloudNames)
+                    {
+                        cout << n << " ";
+                    }
+                    cout << "\n";
+                }
+                if (!c.localPath.empty() || !c.clashingLocalNames.empty())
+                {
+                    cout << "  Local Path conflict at " << c.localPath.toPath(*client->fsaccess) << ": ";
+                    for (auto& n : c.clashingLocalNames)
+                    {
+                        cout << n.toPath(*client->fsaccess) << " ";
+                    }
+                    cout << "\n";
+                }
+            }
+            cout << std::flush;
+            synchronous.set_value(true);
+        }, false);  // false so executes on sync thread - we are blocked here on client thread in single-threaded megacli.
+        synchronous.get_future().get();
 
-          if (sync->collectScanBlocked(blocked))
-          {
-              cout << "  Scan Blocked:\n";
+        std::promise<bool> synchronous2;
+        client->syncs.collectSyncScanUseBlockedPaths(config.mBackupId, [&synchronous2](list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked){
 
-              while (!blocked.empty())
-              {
-                  cout << "    " << blocked.front().toPath() << "\n";
-                  blocked.pop_front();
-              }
-          }
+            cout << "  Scan Blocked:\n";
 
-          if (sync->collectUseBlocked(blocked))
-          {
-              cout << "  Use Blocked:\n";
+            while (!scanBlocked.empty())
+            {
+                cout << "    " << scanBlocked.front().toPath() << "\n";
+                scanBlocked.pop_front();
+            }
 
-              while (!blocked.empty())
-              {
-                  cout << "    " << blocked.front().toPath() << "\n";
-                  blocked.pop_front();
-              }
-          }
+            cout << "  Use Blocked:\n";
 
-          cout << std::endl;
-      });
+            while (!useBlocked.empty())
+            {
+                cout << "    " << useBlocked.front().toPath() << "\n";
+                useBlocked.pop_front();
+            }
 
-    SyncFlags::CloudStallInfoMap stalledNodePaths;
-    SyncFlags::LocalStallInfoMap stalledLocalPaths;
-    if (client->syncStallDetected(stalledNodePaths, stalledLocalPaths))
+            cout << std::endl;
+            synchronous2.set_value(true);
+        }, false);  // false so executes on sync thread - we are blocked here on client thread in single-threaded megacli.
+        synchronous2.get_future().get();
+    }
+
+    SyncStallInfo stall;
+    if (client->syncs.syncStallDetected(stall))
     {
         cout << "Stalled (mutually unresolvable) changes detected!" << endl;
-        for (auto& p : stalledNodePaths)
+        for (auto& p : stall.cloud)
         {
             cout << "stalled node path: " << p.first << " " << syncWaitReasonString(p.second.reason);
             if (!p.second.involvedCloudPath.empty())
@@ -9250,7 +9181,7 @@ void exec_synclist(autocomplete::ACState& s)
             }
             cout << endl;
         }
-        for (auto& p : stalledLocalPaths)
+        for (auto& p : stall.local)
         {
             cout << "stalled local path: " << p.first.toPath(*client->fsaccess) << " " << syncWaitReasonString(p.second.reason);
             if (!p.second.involvedLocalPath.empty())
@@ -9320,16 +9251,19 @@ void exec_syncxable(autocomplete::ACState& s)
     if (command == "enable")
     {
         // sync enable id
-        UnifiedSync* unifiedSync;
-        error result =
-          client->syncs.enableSyncByBackupId(backupId, false, unifiedSync);
-
-        if (result)
-        {
-            cerr << "Unable to enable sync: "
-                 << errorstring(result)
-                 << endl;
-        }
+        client->syncs.enableSyncByBackupId(backupId, false, true, [](error err)
+            {
+                if (err)
+                {
+                    cerr << "Unable to enable sync: "
+                        << errorstring(err)
+                        << endl;
+                }
+                else
+                {
+                    cout << "sync enabled" << endl;
+                }
+            }, "");
 
         return;
     }
@@ -9349,30 +9283,31 @@ void exec_syncxable(autocomplete::ACState& s)
     // Disable or fail?
     if (command == "fail")
     {
-        // Find the specified sync.
-        auto* sync = client->syncs.runningSyncByBackupId(backupId);
-
-        // Have we found the backup sync?
-        if (!sync)
-        {
-            cerr << "No sync found with the id "
-                 << Base64Str<sizeof(handle)>(backupId)
-                 << endl;
-            return;
-        }
-
-        client->failSync(sync, static_cast<SyncError>(error));
-        return;
+        client->syncs.disableSelectedSyncs(
+            [backupId](SyncConfig& config, Sync*)
+            {
+                return config.getBackupId() == backupId;
+            },
+            true, // disable is fail
+            static_cast<SyncError>(error),
+            false,
+            [](size_t nFailed){
+            cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
+        });
     }
     else    // command == "disable"
     {
         client->syncs.disableSelectedSyncs(
-          [&backupId](SyncConfig& config, Sync*)
+          [backupId](SyncConfig& config, Sync*)
           {
               return config.getBackupId() == backupId;
           },
+          false,
           static_cast<SyncError>(error),
-          false);
+          false,
+          [](size_t nDisabled){
+            cout << "disablement complete. Count disabled: " << nDisabled << endl;
+          });
     }
 }
 

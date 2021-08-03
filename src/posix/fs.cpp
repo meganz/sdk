@@ -867,12 +867,12 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 LOG_debug << "Filesystem notification:"
                           << " Root: "
-                          << node.name
+                          << node.localname.toPath()
                           << " Path: "
                           << name;
 
                 auto localName = LocalPath::fromPlatformEncoded(name);
-                notifier.notify(notifier.fsEventq, &node, move(localName));
+                notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
                 r |= Waiter::NEEDEXEC;
             }
         };
@@ -1060,12 +1060,13 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             {
                 if (paths[i])
                 {
-                    LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->name << "   Path: " << paths[i];
+                    LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->localname.toPath() << "   Path: " << paths[i];
 
                     auto& dirnotify = *pathsync[i]->dirnotify;
 
                     dirnotify.notify(dirnotify.fsEventq,
                                      pathsync[i]->localroot.get(),
+                                     Notification::NEEDS_SCAN_UNKNOWN,
                                      LocalPath::fromPlatformEncoded(paths[i]),
                                      strlen(paths[i]));
 

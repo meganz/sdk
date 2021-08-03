@@ -507,11 +507,6 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getOwner() const override;
         const char* getDeviceId() const override;
 
-#ifdef ENABLE_SYNC
-        bool isSyncDeleted() override;
-        std::string getLocalPath() override;
-#endif
-
         static MegaNode *fromNode(Node *node);
         MegaNode *copy() override;
 
@@ -563,11 +558,6 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle owner;
         bool mFavourite;
         nodelabel_t mLabel;
-
-#ifdef ENABLE_SYNC
-        bool syncdeleted;
-        std::string localPath;
-#endif
 };
 
 
@@ -1026,7 +1016,7 @@ protected:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const SyncConfig& config, Sync*, MegaClient* client);
+    MegaSyncPrivate(const SyncConfig& config, bool active, MegaClient* client);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -1895,10 +1885,10 @@ protected:
 
 struct MegaFileGet : public MegaFile
 {
-    void prepare() override;
+    void prepare(FileSystemAccess&) override;
     void updatelocalname() override;
     void progress() override;
-    void completed(Transfer*, LocalNode*) override;
+    void completed(Transfer*, putsource_t source) override;
     void terminated() override;
     MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType);
     MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath);
@@ -1913,7 +1903,7 @@ private:
 
 struct MegaFilePut : public MegaFile
 {
-    void completed(Transfer* t, LocalNode*) override;
+    void completed(Transfer* t, putsource_t source) override;
     void terminated() override;
     MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}
@@ -2388,14 +2378,12 @@ class MegaApiImpl : public MegaApp
         void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         MegaSyncList *getSyncs();
 
-        int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
         void setExcludedPaths(vector<string> *excludedPaths);
         void setExclusionLowerSizeLimit(long long limit);
         void setExclusionUpperSizeLimit(long long limit);
-        bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
         bool isSyncable(const char *path, long long size);
@@ -2415,7 +2403,7 @@ class MegaApiImpl : public MegaApp
                                const char** parentPath,
                                MegaStringList** names,
                                bool* remote);
-        bool conflictsDetected();
+
 #endif
 
         MegaBackup *getBackupByTag(int tag);
@@ -2895,7 +2883,7 @@ protected:
         set<MegaBackupListener *> backupListeners;
 
 #ifdef ENABLE_SYNC
-        MegaSyncPrivate* cachedMegaSyncPrivateByBackupId(handle backupId);
+        MegaSyncPrivate* cachedMegaSyncPrivateByBackupId(const SyncConfig&);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
 #endif
 
@@ -3135,13 +3123,13 @@ protected:
         // sync status updates and events
 
         // calls fireOnSyncStateChanged
-        void syncupdate_stateconfig(handle backupId) override;
+        void syncupdate_stateconfig(const SyncConfig& config) override;
 
         // calls firOnSyncDisabled or fireOnSyncEnabled
-        void syncupdate_active(handle backupId, bool active) override;
+        void syncupdate_active(const SyncConfig& config, bool active) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const UnifiedSync& us, bool attempted, bool hadAnError) override;
+        void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
@@ -3153,15 +3141,15 @@ protected:
         virtual void syncs_disabled(SyncError syncError) override;
 
         // removes the sync from syncMap and fires onSyncDeleted callback
-        void sync_removed(handle backupId) override;
+        void sync_removed(const SyncConfig& config) override;
 
         void syncupdate_syncing(bool syncing) override;
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_stalled(bool stalled) override;
         void syncupdate_conflicts(bool conflicts) override;
-        void syncupdate_treestate(LocalNode*) override;
-        bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
-        bool sync_syncable(Sync *, const char*, LocalPath&) override;
+        void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) override;
+        //bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
+        //bool sync_syncable(Sync *, const char*, LocalPath&) override;
 
         void syncupdate_local_lockretry(bool) override;
 

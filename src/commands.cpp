@@ -976,7 +976,7 @@ bool CommandSetAttr::procresult(Result r)
 // (the result is not processed directly - we rely on the server-client
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
-                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth)
+                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth, Completion c)
 {
     byte key[FILENODEKEYLENGTH];
 
@@ -984,6 +984,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
+    completion = c;
 
     mSeqtagArray = true;
     cmd("p");
@@ -1151,14 +1152,15 @@ void CommandPutNodes::performAppCallback(Error e, bool targetOverride)
     // but the app should not know about them, and if it calls move(nn)
     // then we may not remove newnode references from the LocalNodes in a timely fashion.
 
-#ifdef ENABLE_SYNC
-    for (size_t i = 0; i < nn.size(); i++)
-    {
-        nn[i].localnode.reset();
-    }
-#endif
+//#ifdef ENABLE_SYNC
+//    for (size_t i = 0; i < nn.size(); i++)
+//    {
+//        nn[i].localnode.reset();
+//    }
+//#endif
 
-    client->app->putnodes_result(e, type, nn, targetOverride);
+    if (completion) completion(e, type, nn, targetOverride);
+	else client->app->putnodes_result(e, type, nn, targetOverride);
 }
 
 bool CommandPutNodes::procresult(Result r)
@@ -1241,22 +1243,9 @@ bool CommandPutNodes::procresult(Result r)
 
             // internal procesing first in case app takes nn back
             client->putnodes_sync_result(API_OK, nn);
-
-            // call app back.  It might move from nn.
-            performAppCallback(API_OK, targetOverride);
-        }
-        else
-#endif
-        if (source == PUTNODES_APP)
-        {
-            performAppCallback(emptyResponse ? API_ENOENT : API_OK, targetOverride);
-        }
-#ifdef ENABLE_SYNC
-        else
-        {
-            client->putnodes_syncdebris_result(API_OK, nn);
         }
 #endif
+        performAppCallback(emptyResponse ? API_ENOENT : API_OK, targetOverride);
         return true;
     }
     else
@@ -1273,7 +1262,7 @@ bool CommandPutNodes::procresult(Result r)
             {
                 if (source == PUTNODES_SYNC)
                 {
-                    client->disableSyncContainingNode(targethandle.as8byte(), FOREIGN_TARGET_OVERSTORAGE, false);
+                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, false);
                 }
             }
 #endif
@@ -1287,22 +1276,9 @@ bool CommandPutNodes::procresult(Result r)
             }
 
             client->putnodes_sync_result(r.errorOrOK(), nn);
-            performAppCallback(r.errorOrOK());
-        }
-        else
-        {
-#endif
-            if (source == PUTNODES_APP)
-            {
-                performAppCallback(r.errorOrOK());
-            }
-#ifdef ENABLE_SYNC
-            else
-            {
-                client->putnodes_syncdebris_result(r.errorOrOK(), nn);
-            }
         }
 #endif
+        performAppCallback(r.errorOrOK());
         return r.wasErrorOrOK();
     }
 }
@@ -1351,52 +1327,52 @@ bool CommandMoveNode::procresult(Result r)
         }
 
 #ifdef ENABLE_SYNC
-        if (syncdel != SYNCDEL_NONE)
-        {
-            Node* syncn = client->nodeByHandle(h);
+        //if (syncdel != SYNCDEL_NONE)
+        //{
+        //    Node* syncn = client->nodeByHandle(h);
 
-            if (syncn)
-            {
-                if (r.succeeded())
-                {
-                    Node* n;
+        //    if (syncn)
+        //    {
+        //        if (r.succeeded())
+        //        {
+        //            Node* n;
 
-                    // update all todebris records in the subtree
-                    for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
-                    {
-                        n = *it;
+        //            // update all todebris records in the subtree
+        //            for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
+        //            {
+        //                n = *it;
 
-                        do {
-                            if (n == syncn)
-                            {
-                                (*it)->syncdeleted = syncdel;
-                                break;
-                            }
-                        } while ((n = n->parent));
-                    }
-                }
-                else
-                {
-                    Node *tn = NULL;
-                    if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
-                            || !(tn = client->nodebyhandle(client->rootnodes[RUBBISHNODE - ROOTNODE])))
-                    {
-                        LOG_err << "Error moving node to the Rubbish Bin";
-                        syncn->syncdeleted = SYNCDEL_NONE;
-                        client->todebris.erase(syncn->todebris_it);
-                        syncn->todebris_it = client->todebris.end();
-                    }
-                    else
-                    {
-                        int creqtag = client->reqtag;
-                        client->reqtag = syncn->tag;
-                        LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
-                        client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, nullptr); // if we don't succeed here, just stop rather than cycling forever
-                        client->reqtag = creqtag;
-                    }
-                }
-            }
-        }
+        //                do {
+        //                    if (n == syncn)
+        //                    {
+        //                        (*it)->syncdeleted = syncdel;
+        //                        break;
+        //                    }
+        //                } while ((n = n->parent));
+        //            }
+        //        }
+        //        else
+        //        {
+        //            Node *tn = NULL;
+        //            if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
+        //                    || !(tn = client->nodebyhandle(client->rootnodes[RUBBISHNODE - ROOTNODE])))
+        //            {
+        //                LOG_err << "Error moving node to the Rubbish Bin";
+        //                syncn->syncdeleted = SYNCDEL_NONE;
+        //                client->todebris.erase(syncn->todebris_it);
+        //                syncn->todebris_it = client->todebris.end();
+        //            }
+        //            else
+        //            {
+        //                int creqtag = client->reqtag;
+        //                client->reqtag = syncn->tag;
+        //                LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
+        //                client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, nullptr); // if we don't succeed here, just stop rather than cycling forever
+        //                client->reqtag = creqtag;
+        //            }
+        //        }
+        //    }
+        //}
 #endif
         // Movement of shares and pending shares into Rubbish should remove them
         if (r.wasStrictlyError() && syncdel == SYNCDEL_NONE)
@@ -1414,7 +1390,7 @@ bool CommandMoveNode::procresult(Result r)
     return r.wasErrorOrActionpacket();
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions, int cmdtag, std::function<void(handle, error)> f)
+CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)> f)
     : mResultFunction(f)
 {
     cmd("d");
@@ -1428,8 +1404,8 @@ CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions,
 
     h = th;
     tag = cmdtag;
-    const Node* n = client->nodebyhandle(h);
-    parent = (n && n->parent) ? n->parent->nodehandle : UNDEF;
+    const Node* n = client->nodeByHandle(h);
+    parent = (n && n->parent) ? n->parent->nodeHandle() : NodeHandle();
 }
 
 bool CommandDelNode::procresult(Result r)
@@ -1439,7 +1415,7 @@ bool CommandDelNode::procresult(Result r)
     if (r.wasErrorOrActionpacket())
     {
         if (mResultFunction)    mResultFunction(h, e);
-        else         client->app->unlink_result(h, e);
+        else         client->app->unlink_result(h.as8byte(), e);
         return true;
     }
     else
@@ -1464,7 +1440,7 @@ bool CommandDelNode::procresult(Result r)
 
                 case EOO:
                     if (mResultFunction)    mResultFunction(h, e);
-                    else         client->app->unlink_result(h, e);
+                    else         client->app->unlink_result(h.as8byte(), e);
 
                     return true;
 
@@ -1472,7 +1448,7 @@ bool CommandDelNode::procresult(Result r)
                     if (!client->json.storeobject())
                     {
                         if (mResultFunction)    mResultFunction(h, API_EINTERNAL);
-                        else         client->app->unlink_result(h, API_EINTERNAL);
+                        else         client->app->unlink_result(h.as8byte(), API_EINTERNAL);
                         return false;
                     }
             }

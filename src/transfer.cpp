@@ -387,6 +387,7 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
 {
     Transfer *transfer = f->transfer;
     client->filecachedel(f, committer);
+    assert(*f->file_it == f);
     transfer->files.erase(f->file_it);
     client->app->file_removed(f, e);
     f->transfer = NULL;
@@ -466,7 +467,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, false);
+                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE, false);
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -492,7 +493,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
              continue;
         }
 
-        if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
+        if (((*it)->failed(e, client) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
@@ -543,7 +544,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
                 && e != API_EOVERQUOTA
                 && e != API_EPAYWALL)
             {
-                client->setAllSyncsNeedFullSync();
+                client->syncs.setSyncsNeedFullSync(false, UNDEF);
             }
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
@@ -616,6 +617,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
     if (type == GET)
     {
+
         LOG_debug << client->clientname << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "");
 
         bool transient_error = false;
@@ -769,41 +771,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     {
                         // the destination path already exists
         #ifdef ENABLE_SYNC
-                        if((*it)->syncxfer)
-                        {
-                            bool foundOne = false;
-                            client->syncs.forEachRunningSync(true, [&](Sync* sync){
-
-                                LocalNode *localNode = sync->localnodebypath(NULL, localname);
-                                if (localNode && !foundOne)
-                                {
-                                    LOG_debug << "Overwriting a local synced file. Moving the previous one to debris";
-
-                                    // try to move to local debris
-                                    if(!sync->movetolocaldebris(localname))
-                                    {
-                                        transient_error = client->fsaccess->transient_error;
-                                    }
-
-                                    foundOne = true;
-                                }
-                            });
-
-                            if (!foundOne)
-                            {
-                                LOG_err << "LocalNode for destination file not found";
-
-                                if(client->syncs.hasRunningSyncs())
-                                {
-                                    // try to move to debris in the first sync
-                                    if(!client->syncs.firstRunningSync()->movetolocaldebris(localname))
-                                    {
-                                        transient_error = client->fsaccess->transient_error;
-                                    }
-                                }
-                            }
-                        }
-                        else
+                        if(!(*it)->syncxfer)
         #endif
                         {
                             LOG_debug << "The destination file exist (not synced). Saving with a different name";
@@ -907,14 +875,18 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
-                    if (auto node = client->nodeByHandle((*it)->h))
-                    {
-                        auto path = (*it)->localname;
-                        auto type = isFilenameAnomaly(path, node);
 
-                        if (type != FILENAME_ANOMALY_NONE)
+                    if (!(*it)->syncxfer)
+                    {
+                        if (auto node = client->nodeByHandle((*it)->h))
                         {
-                            client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
+                            auto path = (*it)->localname;
+                            auto type = isFilenameAnomaly(path, node);
+
+                            if (type != FILENAME_ANOMALY_NONE)
+                            {
+                                client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
+                            }
                         }
                     }
 
@@ -924,10 +896,10 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         client->filecachedel(*it, &committer);
                         client->app->file_complete(*it);
                         (*it)->transfer = NULL;
-                        (*it)->completed(this, NULL);
+                        (*it)->completed(this, (*it)->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
                     }
 
-                    if (success || !(*it)->failed(API_EAGAIN))
+                    if (success || !(*it)->failed(API_EAGAIN, client))
                     {
                         File* f = (*it);
                         files.erase(it++);
@@ -938,7 +910,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #ifdef ENABLE_SYNC
                             if (f->syncxfer)
                             {
-                                client->setAllSyncsNeedFullSync();
+                                client->syncs.setSyncsNeedFullSync(false, UNDEF);
                             }
 #endif
                             client->app->file_removed(f, API_EWRITE);
@@ -1062,9 +1034,10 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #ifdef ENABLE_SYNC
                 if (f->syncxfer)
                 {
-                    if (LocalNode::Upload *syncUpload = dynamic_cast<LocalNode::Upload*>(f))
+                    if (SyncUpload_inClient *syncUpload = dynamic_cast<SyncUpload_inClient*>(f))
                     {
-                        syncUpload->localNode.setScanAgain(true, false, false, 0);
+                    //todo:
+                        //syncUpload->localNode.setScanAgain(true, false, false, 0);
                     }
                 }
 #endif
@@ -1116,7 +1089,7 @@ void Transfer::completefiles()
 
         client->app->file_complete(f);
         f->transfer = NULL;
-        f->completed(this, NULL);
+        f->completed(this, f->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
         files.erase(it++);
     }
     ids.push_back(dbid);

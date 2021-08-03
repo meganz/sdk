@@ -55,7 +55,7 @@ struct AppFileGet : public AppFile
 {
     void start() override;
     void update();
-    void completed(Transfer*, LocalNode*) override;
+    void completed(Transfer*, putsource_t) override;
     void terminated() override;
 
     AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
@@ -66,7 +66,7 @@ struct AppFilePut : public AppFile
 {
     void start() override;
     void update();
-    void completed(Transfer*, LocalNode*) override;
+    void completed(Transfer*, putsource_t) override;
     void terminated() override;
 
     void displayname(string*);
@@ -203,20 +203,20 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_stateconfig(handle backupId) override;
-    void syncupdate_active(handle backupId, bool active) override;
-    void sync_auto_resume_result(const UnifiedSync&, bool attempted, bool hadAnError) override;
-    void sync_removed(handle backupId) override;
+    void syncupdate_stateconfig(const SyncConfig& config) override;
+    void syncupdate_active(const SyncConfig& config, bool active) override;
+    void sync_auto_resume_result(const SyncConfig&, bool attempted, bool hadAnError) override;
+    void sync_removed(const SyncConfig& config) override;
 
     void syncupdate_syncing(bool) override;
     void syncupdate_scanning(bool) override;
     void syncupdate_stalled(bool stalled) override;
     void syncupdate_conflicts(bool conflicts) override;
     void syncupdate_local_lockretry(bool) override;
-    void syncupdate_treestate(LocalNode*) override;
+    void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
 
-    bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
-    bool sync_syncable(Sync*, const char*, LocalPath&) override;
+    //bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
+    //bool sync_syncable(Sync*, const char*, LocalPath&) override;
 #endif
 
     void changepw_result(error) override;

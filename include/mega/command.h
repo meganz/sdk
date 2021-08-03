@@ -501,14 +501,14 @@ public:
 
 class MEGA_API CommandDelNode : public Command
 {
-    handle h;
-    handle parent;
-    std::function<void(handle, error)> mResultFunction;
+    NodeHandle h;
+    NodeHandle parent;
+    std::function<void(NodeHandle, Error)> mResultFunction;
 
 public:
     bool procresult(Result) override;
 
-    CommandDelNode(MegaClient*, handle, bool keepversions, int tag, std::function<void(handle, error)>);
+    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>);
 };
 
 class MEGA_API CommandDelVersions : public Command
@@ -633,12 +633,17 @@ public:
 
 class MEGA_API CommandPutNodes : public Command
 {
+public:
+    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>;
+
+private:
     friend class MegaClient;
     vector<NewNode> nn;
     targettype_t type;
     putsource_t source;
     bool emptyResponse = false;
     NodeHandle targethandle;
+    Completion completion;
 
     void removePendingDBRecordsAndTempFiles();
     void performAppCallback(Error e, bool targetOverride = false);
@@ -646,7 +651,7 @@ class MEGA_API CommandPutNodes : public Command
 public:
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, NodeHandle, const char*, vector<NewNode>&&, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
+    CommandPutNodes(MegaClient*, NodeHandle, const char*, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion);
 };
 
 class MEGA_API CommandSetAttr : public Command

@@ -476,7 +476,7 @@ class deque_with_lazy_bulk_erase
     // Any other operation on the deque performs all the gathered erases in a single std::remove_if for efficiency.
     // This makes an enormous difference when cancelling 100k transfers in MEGAsync's transfers window for example.
     deque<E> mDeque;
-    bool mErasing = false;
+    size_t nErased = 0;
 
 public:
 
@@ -486,16 +486,31 @@ public:
     {
         assert(i != mDeque.end());
         i->erase();
-        mErasing = true;
+        ++nErased;
     }
 
     void applyErase()
     {
-        if (mErasing)
+        if (nErased)
         {
-            auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
-            mDeque.erase(newEnd, mDeque.end());
-            mErasing = false;
+            // quite often the elements are at the front, no need to traverse the whole thing
+            // removal from the front or back of a deque is cheap
+            while (nErased && !mDeque.empty() && mDeque.front().isErased())
+            {
+                mDeque.pop_front();
+                --nErased;
+            }
+            while (nErased && !mDeque.empty() && mDeque.back().isErased())
+            {
+                mDeque.pop_back();
+                --nErased;
+            }
+            if (nErased)
+            {
+                auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
+                mDeque.erase(newEnd, mDeque.end());
+                nErased = 0;
+            }
         }
     }
 
@@ -1010,7 +1025,9 @@ enum class SyncWaitReason {
     UpsyncNeedsTargetFolder,
     DownsyncNeedsTargetFolder,
     DeleteWaitingOnMoves,
-    WatiingForFileToStopChanging
+    WatiingForFileToStopChanging,
+    MovingDownloadToTarget,
+    MovingExistingDownloadTargetToDebris
 };
 
 string syncWaitReasonString(SyncWaitReason);

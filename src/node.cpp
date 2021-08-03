@@ -48,12 +48,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     parent = NULL;
 
-#ifdef ENABLE_SYNC
-    syncdeleted = SYNCDEL_NONE;
-    todebris_it = client->todebris.end();
-    tounlink_it = client->tounlink.end();
-#endif
-
     type = t;
 
     size = s;
@@ -110,20 +104,6 @@ Node::~Node()
     {
         client->mFingerprints.remove(this);
     }
-
-#ifdef ENABLE_SYNC
-    // remove from todebris node_set
-    if (todebris_it != client->todebris.end())
-    {
-        client->todebris.erase(todebris_it);
-    }
-
-    // remove from tounlink node_set
-    if (tounlink_it != client->tounlink.end())
-    {
-        client->tounlink.erase(tounlink_it);
-    }
-#endif
 
     if (outshares)
     {
@@ -1054,6 +1034,19 @@ const Node* Node::firstancestor() const
     return n;
 }
 
+const Node* Node::latestFileVersion() const
+{
+    const Node* n = this;
+    if (type == FILENODE)
+    {
+        while (n->parent && n->parent->type == FILENODE)
+        {
+            n = n->parent;
+        }
+    }
+    return n;
+}
+
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
 {
@@ -1067,6 +1060,26 @@ bool Node::isbelow(Node* p) const
         }
 
         if (n == p)
+        {
+            return true;
+        }
+
+        n = n->parent;
+    }
+}
+
+bool Node::isbelow(NodeHandle p) const
+{
+    const Node* n = this;
+
+    for (;;)
+    {
+        if (!n)
+        {
+            return false;
+        }
+
+        if (n->nodeHandle() == p)
         {
             return true;
         }
@@ -1160,14 +1173,13 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     if (newlocalpath)
     {
         // extract name component from localpath, check for rename unless newnode
-        size_t p = newlocalpath->getLeafnameByteIndex(*sync->client->fsaccess);
+        size_t p = newlocalpath->getLeafnameByteIndex(*sync->syncs.fsaccess);
 
         // has the name changed?
         if (!newlocalpath->backEqual(p, localname))
         {
             // set new name
             localname = newlocalpath->subpathFrom(p);
-            name = localname.toName(*sync->client->fsaccess);
 
             //if (node && applyToCloud)
             //{
@@ -1231,7 +1243,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             {
                 // prepare localnodes for a sync change or/and a copy operation
                 LocalTreeProcMove tp(parent->sync, todelete != NULL);
-                sync->client->proclocaltree(this, &tp);
+                sync->syncs.proclocaltree(this, &tp);
                 nc = tp.nc;
             }
         }
@@ -1279,7 +1291,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     if (newlocalpath)
     {
         LocalTreeProcUpdateTransfers tput;
-        sync->client->proclocaltree(this, &tput);
+        sync->syncs.proclocaltree(this, &tput);
     }
 }
 
@@ -1292,7 +1304,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     {
         ScopedLengthRestore restoreLen(fullPath);
         fullPath.appendWithSeparator(c->localname, true);
-        c->setnameparent(ln, &fullPath, sync->client->fsaccess->fsShortname(fullPath), false);
+        c->setnameparent(ln, &fullPath, sync->syncs.fsaccess->fsShortname(fullPath), false);
         if (setScanAgain)
         {
             c->setScanAgain(false, true, true, 0);
@@ -1303,7 +1315,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     ln->download = move(download);
 
     LocalTreeProcUpdateTransfers tput;
-    tput.proc(sync->client, ln);
+    tput.proc(*sync->syncs.fsaccess, ln);
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
@@ -1316,16 +1328,12 @@ void LocalNode::bumpnagleds()
         return;
     }
 
-    nagleds = sync->client->waiter->ds + 11;
+    nagleds = Waiter::ds + 11;
 }
 
 LocalNode::LocalNode()
 : unstableFsidAssigned(false)
-, deletingCloud{false}
 , deletedFS{false}
-//, moveSourceAppliedToCloud(false)
-//, moveSourceApplyingToCloud(false)
-//, moveTargetApplyingToCloud(false)
 , moveAppliedToLocal(false)
 , moveApplyingToLocal(false)
 , conflicts(TREE_RESOLVED)
@@ -1351,11 +1359,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     parent = NULL;
 //    notseen = 0;
     unstableFsidAssigned = false;
-    deletingCloud = false;
     deletedFS = false;
-    //moveSourceAppliedToCloud = false;
-    //moveSourceApplyingToCloud = false;
-    //moveTargetApplyingToCloud = false;
     moveAppliedToLocal = false;
     moveApplyingToLocal = false;
     conflicts = TREE_RESOLVED;
@@ -1372,7 +1376,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     scanObsolete = false;
     useBlocked = TREE_RESOLVED;
     scanBlocked = TREE_RESOLVED;
-    newnode.reset();
+    //newnode.reset();
     parent_dbid = 0;
     slocalname = NULL;
 
@@ -1380,7 +1384,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     dts = TREESTATE_NONE;
 
     type = ctype;
-    syncid = sync->client->nextsyncid();
+    //syncid = sync->client->nextsyncid();
 
     bumpnagleds();
 
@@ -1392,7 +1396,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
-        name = localname.toName(*sync->client->fsaccess);
     }
 
 //#ifdef DEBUG
@@ -1410,13 +1413,13 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 //    scanseqno = sync->scanseqno;
 
     // mark fsid as not valid
-    fsid_lastSynced_it = sync->client->localnodeBySyncedFsid.end();
-    fsid_asScanned_it = sync->client->localnodeByScannedFsid.end();
-    syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
+    fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
+    fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
+    syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
 
-    sync->client->syncactivity = true;
+    //sync->client->syncactivity = true;
 
-    sync->client->totalLocalNodes++;
+    sync->syncs.totalLocalNodes++;
 
     if (type != TYPE_UNKNOWN)
     {
@@ -1454,8 +1457,8 @@ void LocalNode::init(const FSNode& fsNode)
     syncedFingerprint = fsNode.fingerprint;
 
     // Update our FSID.
-    setSyncedFsid(fsNode.fsid, sync->client->localnodeBySyncedFsid, fsNode.localname);
-    setScannedFsid(UNDEF, sync->client->localnodeByScannedFsid, fsNode.localname);
+    setSyncedFsid(fsNode.fsid, sync->syncs.localnodeBySyncedFsid, fsNode.localname);
+    setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode.localname);
 
     // Update our type.
     type = fsNode.type;
@@ -1473,6 +1476,16 @@ auto LocalNode::rare() -> RareFields&
     return *rareFields;
 }
 
+auto LocalNode::rareRO() -> const RareFields&
+{
+    if (!rareFields)
+    {
+        static RareFields blankFields;
+        return blankFields;
+    }
+    return *rareFields;
+}
+
 void LocalNode::trimRareFields()
 {
     if (rareFields)
@@ -1484,8 +1497,9 @@ void LocalNode::trimRareFields()
         if (!rareFields->useBlockedTimer &&
             !rareFields->scanBlockedTimer &&
             !rareFields->scanRequest &&
-            rareFields->moveFromHere.expired() &&
-            rareFields->moveToHere.expired())
+            !rareFields->moveFromHere &&
+            !rareFields->moveToHere &&
+            rareFields->createFolderHere.expired())
         {
             rareFields.reset();
         }
@@ -1494,7 +1508,7 @@ void LocalNode::trimRareFields()
 
 void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds)
 {
-    if (doHere)
+    if (doHere && scanInProgress)
     {
         scanObsolete = true;
     }
@@ -1502,7 +1516,14 @@ void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime de
     unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
     if (state >= TREE_ACTION_HERE && delayds > 0)
     {
-        scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
+        if (scanDelayUntil > Waiter::ds + delayds + 10)
+        {
+            scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
+        }
+        else
+        {
+            scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
+        }
     }
 
     scanAgain = std::max<unsigned>(scanAgain, state);
@@ -1569,7 +1590,7 @@ void LocalNode::setUseBlocked()
 
     if (!rare().useBlockedTimer)
     {
-        rare().useBlockedTimer.reset(new BackoffTimer(sync->client->rng));
+        rare().useBlockedTimer.reset(new BackoffTimer(sync->syncs.rng));
     }
     if (rare().useBlockedTimer->armed())
     {
@@ -1588,7 +1609,7 @@ void LocalNode::setScanBlocked()
 
     if (!rare().scanBlockedTimer)
     {
-        rare().scanBlockedTimer.reset(new BackoffTimer(sync->client->rng));
+        rare().scanBlockedTimer.reset(new BackoffTimer(sync->syncs.rng));
     }
     if (rare().scanBlockedTimer->armed())
     {
@@ -1608,7 +1629,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         // Have we recovered?
         if (type == TYPE_UNKNOWN && fsNode && fsNode->type != TYPE_UNKNOWN)
         {
-            LOG_verbose << "Recovered from being scan blocked: " << localnodedisplaypath(*sync->client->fsaccess);
+            LOG_verbose << "Recovered from being scan blocked: " << localnodedisplaypath(*sync->syncs.fsaccess);
             init(*fsNode);
             scanBlocked = TREE_RESOLVED;
             rare().scanBlockedTimer->reset();
@@ -1618,7 +1639,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         // rescan if the timer is up
         if (rare().scanBlockedTimer->armed())
         {
-            LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan: "  << localnodedisplaypath(*sync->client->fsaccess);;
+            LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan: "  << localnodedisplaypath(*sync->syncs.fsaccess);;
             if (parent) parent->setScanAgain(false, true, false, 0);
             rare().scanBlockedTimer->backoff(); // wait increases exponentially
             return true;
@@ -1635,7 +1656,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
     {
         // We were not able to get details of the filesystem item when scanning the directory.
         // Consider it a blocked file, and we'll rescan the folder from time to time.
-        LOG_verbose << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath(*sync->client->fsaccess);
+        LOG_verbose << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath(*sync->syncs.fsaccess);
         setScanBlocked();
         return true;
     }
@@ -1648,7 +1669,6 @@ bool LocalNode::scanRequired() const
 {
     return scanAgain != TREE_RESOLVED;
 }
-
 
 void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath)
 {
@@ -1755,7 +1775,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                 }
             }
 
-            ourScanRequest = sync->client->mScanService->queueScan(fullPath.localPath, sync->client->followsymlinks, move(priorScanChildren));
+            ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath, sync->syncs.mClient.followsymlinks, move(priorScanChildren));
             rare().scanRequest = ourScanRequest;
             sync->mActiveScanRequest = ourScanRequest;
             syncHere = false;
@@ -1808,13 +1828,13 @@ void LocalNode::reassignUnstableFsidsOnceOnly(const FSNode* fsnode)
 
         if (fsnode && sync->syncEqual(*fsnode, *this))
         {
-            setSyncedFsid(fsnode->fsid, sync->client->localnodeBySyncedFsid, localname);
+            setSyncedFsid(fsnode->fsid, sync->syncs.localnodeBySyncedFsid, localname);
             sync->statecacheadd(this);
         }
         else if (fsid_lastSynced != UNDEF)
         {
             // this node was synced with something, but not the thing that's there now (or not there)
-            setSyncedFsid(UNDEF-1, sync->client->localnodeBySyncedFsid, localname);
+            setSyncedFsid(UNDEF-1, sync->syncs.localnodeBySyncedFsid, localname);
             sync->statecacheadd(this);
         }
         unstableFsidAssigned = true;
@@ -1838,7 +1858,8 @@ void LocalNode::treestate(treestate_t newts)
 
     if (ts != dts)
     {
-        sync->client->app->syncupdate_treestate(this);
+		assert(sync->syncs.onSyncThread());
+        sync->syncs.mClient.app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
     }
 
     if (parent && ((newts == TREESTATE_NONE && ts != TREESTATE_NONE)
@@ -1889,8 +1910,6 @@ treestate_t LocalNode::checkstate()
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
 void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName)
 {
-    assert(sync && sync->client);
-
     if (fsid_lastSynced_it != fsidnodes.end())
     {
         if (newfsid == fsid_lastSynced && localname == fsName)
@@ -1916,14 +1935,12 @@ void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, con
         fsid_lastSynced_it = fsidnodes.insert(std::make_pair(fsid_lastSynced, this));
     }
 
-    assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
-        0 == compareUtf(localname, true, name, false, true));
+//    assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
+//        0 == compareUtf(localname, true, name, false, true));
 }
 
 void LocalNode::setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName)
 {
-    assert(sync && sync->client);
-
     if (fsid_asScanned_it != fsidnodes.end())
     {
         fsidnodes.erase(fsid_asScanned_it);
@@ -1944,42 +1961,37 @@ void LocalNode::setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, co
     assert(fsid_asScanned == UNDEF || 0 == compareUtf(localname, true, fsName, true, true));
 }
 
-void LocalNode::setSyncedNodeHandle(NodeHandle h, const string& cloudName)
+void LocalNode::setSyncedNodeHandle(NodeHandle h)
 {
-    assert(sync && sync->client);
-
-    if (syncedCloudNodeHandle_it != sync->client->localnodeByNodeHandle.end())
+    if (syncedCloudNodeHandle_it != sync->syncs.localnodeByNodeHandle.end())
     {
-        if (h == syncedCloudNodeHandle && name == cloudName)
+        if (h == syncedCloudNodeHandle)
         {
             return;
         }
 
         assert(syncedCloudNodeHandle_it->first == syncedCloudNodeHandle);
 
-        LOG_verbose << sync->client->clientname << "removing syned handle " << syncedCloudNodeHandle << " for " << localnodedisplaypath(*sync->client->fsaccess);
+        LOG_verbose << sync->syncname << "removing syned handle " << syncedCloudNodeHandle << " for " << localnodedisplaypath(*sync->syncs.fsaccess);
 
-        sync->client->localnodeByNodeHandle.erase(syncedCloudNodeHandle_it);
+        sync->syncs.localnodeByNodeHandle.erase(syncedCloudNodeHandle_it);
     }
 
     syncedCloudNodeHandle = h;
 
-    // if synced to cloud, name should match exactly (no differences in case/escaping etc)
-    name = cloudName;
-
     if (syncedCloudNodeHandle == UNDEF)
     {
-        syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
+        syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
     }
     else
     {
-        LOG_verbose << sync->client->clientname << "adding syned handle " << syncedCloudNodeHandle << " for " << localnodedisplaypath(*sync->client->fsaccess);
+        LOG_verbose << sync->syncname << "adding syned handle " << syncedCloudNodeHandle << " for " << localnodedisplaypath(*sync->syncs.fsaccess);
 
-        syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.insert(std::make_pair(syncedCloudNodeHandle, this));
+        syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.insert(std::make_pair(syncedCloudNodeHandle, this));
     }
 
-    assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
-        0 == compareUtf(localname, true, name, false, true));
+//    assert(localname.empty() || name.empty() || (!parent && parent_dbid == UNDEF) || parent_dbid == 0 ||
+//        0 == compareUtf(localname, true, name, false, true));
 }
 
 LocalNode::~LocalNode()
@@ -1992,14 +2004,12 @@ LocalNode::~LocalNode()
     }
 
     if (!sync->mDestructorRunning && (
-        sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
+        sync->getConfig().mRunningState == SYNC_ACTIVE || sync->getConfig().mRunningState == SYNC_INITIALSCAN))
     {
         sync->statecachedel(this);
     }
 
-//    setnotseen(0);
-
-    newnode.reset();
+    //newnode.reset();
 
     if (sync->dirnotify.get())
     {
@@ -2009,20 +2019,20 @@ LocalNode::~LocalNode()
     }
 
     // remove from fsidnode map, if present
-    if (fsid_lastSynced_it != sync->client->localnodeBySyncedFsid.end())
+    if (fsid_lastSynced_it != sync->syncs.localnodeBySyncedFsid.end())
     {
-        sync->client->localnodeBySyncedFsid.erase(fsid_lastSynced_it);
+        sync->syncs.localnodeBySyncedFsid.erase(fsid_lastSynced_it);
     }
-    if (fsid_asScanned_it != sync->client->localnodeByScannedFsid.end())
+    if (fsid_asScanned_it != sync->syncs.localnodeByScannedFsid.end())
     {
-        sync->client->localnodeByScannedFsid.erase(fsid_asScanned_it);
+        sync->syncs.localnodeByScannedFsid.erase(fsid_asScanned_it);
     }
-    if (syncedCloudNodeHandle_it != sync->client->localnodeByNodeHandle.end())
+    if (syncedCloudNodeHandle_it != sync->syncs.localnodeByNodeHandle.end())
     {
-        sync->client->localnodeByNodeHandle.erase(syncedCloudNodeHandle_it);
+        sync->syncs.localnodeByNodeHandle.erase(syncedCloudNodeHandle_it);
     }
 
-    sync->client->totalLocalNodes--;
+    sync->syncs.totalLocalNodes--;
 
     if (type != TYPE_UNKNOWN)
     {
@@ -2163,13 +2173,23 @@ string LocalNode::getCloudPath() const
 {
     string path;
 
-    if (auto cr = sync->cloudRoot())
+    for (const LocalNode* l = this; l != nullptr; l = l->parent)
     {
-        for (const LocalNode* l = this; l != nullptr; l = l->parent)
+        string name;
+
+        CloudNode cn;
+        string fullpath;
+        if (sync->syncs.lookupCloudNode(l->syncedCloudNodeHandle, cn, l->parent ? nullptr : &fullpath, nullptr, nullptr, Syncs::LATEST_VERSION))
         {
-            assert(!l->parent || l->parent->sync == sync);
-            path = (l->parent ? l->name : cr->displaypath()) + "/" + path;
+            name = cn.name;
         }
+        else
+        {
+            name = localname.toName(*sync->syncs.fsaccess);
+        }
+
+        assert(!l->parent || l->parent->sync == sync);
+        path = (l->parent ? name : fullpath) + "/" + path;
     }
     return path;
 }
@@ -2193,7 +2213,7 @@ FSNode LocalNode::getLastSyncedFSDetails()
 
     FSNode n;
     n.localname = localname;
-    n.name = name;
+    //n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_lastSynced;
@@ -2207,7 +2227,7 @@ FSNode LocalNode::getScannedFSDetails()
 {
     FSNode n;
     n.localname = localname;
-    n.name = name;
+    //n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_asScanned;
@@ -2219,14 +2239,13 @@ FSNode LocalNode::getScannedFSDetails()
 }
 
 
-LocalNode::Upload::Upload(LocalNode& ln, FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath)
-    : localNode(ln)
+SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath, const string& nodeName, const FileFingerprint& ff)
 {
-    *static_cast<FileFingerprint*>(this) = details.fingerprint;
+    *static_cast<FileFingerprint*>(this) = ff;
 
     // normalized name (UTF-8 with unescaped special chars)
     // todo: we did unescape them though?
-    name = details.name;
+    name = nodeName;
 
     // setting the full path means it works like a normal non-sync transfer
     localname = fullPath;
@@ -2241,12 +2260,22 @@ LocalNode::Upload::Upload(LocalNode& ln, FSNode& details, NodeHandle targetFolde
     transfer = nullptr;
     tag = 0;
 
-    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, size, 0);
+    //todo: put this somewhere
+    //localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, size, 0);
 }
 
-void LocalNode::Upload::prepare()
+SyncUpload_inClient::~SyncUpload_inClient()
 {
-    localNode.getlocalpath(transfer->localfilename);
+    if (!wasTerminated && !wasCompleted)
+    {
+        assert(wasRequesterAbandoned);
+        transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
+    }
+}
+
+void SyncUpload_inClient::prepare(FileSystemAccess&)
+{
+    transfer->localfilename = localname;
 
     // is this transfer in progress? update file's filename.
     if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
@@ -2254,41 +2283,35 @@ void LocalNode::Upload::prepare()
         transfer->slot->fa->updatelocalname(transfer->localfilename, false);
     }
 
-    localNode.treestate(TREESTATE_SYNCING);
+    //todo: localNode.treestate(TREESTATE_SYNCING);
 }
 
-void LocalNode::Upload::terminated()
+void SyncUpload_inClient::terminated()
 {
-    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
+    //todo: put this somewhere
+    //localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
 
     File::terminated();
+
+    wasTerminated = true;
+    selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
 // complete a sync upload: complete to //bin if a newer node exists (which
 // would have been caused by a race condition)
-void LocalNode::Upload::completed(Transfer* t, LocalNode*)
+void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
 {
-    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
+//todo: put this somewhere
+//localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
 
     // in case this LocalNode was moved around (todo: since we don't actually move, make sure to copy internals such as upload transfers)
 
-    h = NodeHandle();
+    // in case the source LocalNode moved around, our field h (the target folder for upload) has already been adjusted.
+    // but, still make sure it exists
 
-    if (localNode.parent && !localNode.parent->syncedCloudNodeHandle.isUndef())
-    {
-        if (Node* p = localNode.sync->client->nodeByHandle(localNode.parent->syncedCloudNodeHandle))
-        {
-            h = p->nodeHandle();
-        }
-    }
-
-    if (h.isUndef())
-    {
-        h.set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
-    }
-
-    File::completed(t, &localNode);
-    localNode.upload.reset(); // deletes this object!
+    File::completed(t, source);
+    wasCompleted = true;
+    selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
 // serialize/unserialize the following LocalNode properties:
@@ -2304,10 +2327,10 @@ bool LocalNode::serialize(string* d)
     if (fsid_lastSynced != UNDEF)
     {
         LocalPath localpath = getLocalPath();
-        auto fa = sync->client->fsaccess->newfileaccess(false);
+        auto fa = sync->syncs.fsaccess->newfileaccess(false);
         if (fa->fopen(localpath))  // exists, is file
         {
-            auto sn = sync->client->fsaccess->fsShortname(localpath);
+            auto sn = sync->syncs.fsaccess->fsShortname(localpath);
             assert(!localname.empty() &&
                 ((!slocalname && (!sn || localname == *sn)) ||
                     (slocalname && sn && !slocalname->empty() && *slocalname != localname && *slocalname == *sn)));
@@ -2408,21 +2431,20 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->parent_dbid = parent_dbid;
 
     l->fsid_lastSynced = fsid;
-    l->fsid_lastSynced_it = sync->client->localnodeBySyncedFsid.end();
+    l->fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     l->fsid_asScanned = UNDEF;
-    l->fsid_asScanned_it = sync->client->localnodeByScannedFsid.end();
+    l->fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
 
     l->localname = LocalPath::fromPlatformEncoded(localname);
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncoded(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
-    l->name = l->localname.toName(*sync->client->fsaccess);
 
     memcpy(l->syncedFingerprint.crc.data(), crc, sizeof crc);
     l->syncedFingerprint.mtime = mtime;
     l->syncedFingerprint.isvalid = true;
 
     l->syncedCloudNodeHandle.set6byte(h);
-    l->syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
+    l->syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
 
 //    l->node = sync->client->nodebyhandle(h);
     l->parent = nullptr;
@@ -2589,5 +2611,16 @@ unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath
     }
     return result;
 }
+
+
+CloudNode::CloudNode(const Node& n)
+    : name(n.displayname())
+    , type(n.type)
+    , handle(n.nodeHandle())
+    , parentHandle(n.parent ? n.parent->nodeHandle() : NodeHandle())
+    , parentType(n.parent ? n.parent->type : TYPE_UNKNOWN)
+    , fingerprint(n.fingerprint())
+{}
+
 
 } // namespace

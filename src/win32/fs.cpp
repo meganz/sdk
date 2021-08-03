@@ -772,9 +772,11 @@ void WinFileSystemAccess::addevents(Waiter* w, int)
 // generate unique local filename in the same fs as relatedpath
 void WinFileSystemAccess::tmpnamelocal(LocalPath& localname) const
 {
+    static mutex staticMutex;
     static unsigned tmpindex;
     char buf[128];
 
+    lock_guard<mutex> g(staticMutex);
     sprintf(buf, ".getxfer.%lu.%u.mega", GetCurrentProcessId(), tmpindex++);
     localname = LocalPath::fromName(buf, *this, FS_UNKNOWN);
 }
@@ -1373,10 +1375,10 @@ void WinDirNotify::process(DWORD dwBytes)
     {
 #ifdef ENABLE_SYNC
         int errCount = ++mErrorCount;
-        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
+        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->localname.toPath().c_str() : "NULL")
                 << " errors: " << errCount;
         readchanges();
-        notify(fsEventq, localrootnode, LocalPath());
+        notify(fsEventq, localrootnode, Notification::NEEDS_SCAN_UNKNOWN, LocalPath());
 #endif
     }
     else
@@ -1408,7 +1410,14 @@ void WinDirNotify::process(DWORD dwBytes)
             // We skip the old name in case of renames
             if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME)
             {
-                notify(fsEventq, localrootnode, LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
+                // Sometimes it's useful to uncomment this for debugging
+                //LOG_verbose << "FS notification: " << fni->Action << " " << LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))).toPath(gWfsa);
+
+                auto scanRequirement = fni->Action == FILE_ACTION_MODIFIED
+                    ? Notification::FOLDER_NEEDS_SELF_SCAN
+                    : Notification::NEEDS_PARENT_SCAN;
+                notify(fsEventq, localrootnode, scanRequirement,
+                    LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
             }
 #endif
 

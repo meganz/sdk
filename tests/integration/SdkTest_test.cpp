@@ -6297,6 +6297,8 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     fetchnodes(0, maxTimeout); // auto-resumes two active syncs
 
+    WaitMillisec(1000); // give them a chance to start on the sync thread
+
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_FALSE(checkSyncOK(sync2Path));
     ASSERT_TRUE(checkSyncDisabled(sync2Path));
@@ -6323,6 +6325,8 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync4Path));
 
     fetchnodes(0, maxTimeout); // auto-resumes three active syncs
+
+    WaitMillisec(1000); // give them a chance to start on the sync thread
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
@@ -6396,6 +6400,9 @@ TEST_F(SdkTest, SyncRemoteNode)
 
         LOG_verbose << "SyncRemoteNode :  Restoring remote folder name.";
         ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
+
+        WaitMillisec(1000);
+
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6404,6 +6411,9 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
     ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, backupId)) << "API Error enabling the sync";
+
+    WaitMillisec(1000);
+
     sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
@@ -6427,6 +6437,9 @@ TEST_F(SdkTest, SyncRemoteNode)
 
         LOG_verbose << "SyncRemoteNode :  Moving back the remote node.";
         ASSERT_EQ(API_OK, doMoveNode(0, remoteBaseNode.get(), remoteRootNode.get()));
+
+        WaitMillisec(1000);
+
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6436,6 +6449,9 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
     ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, backupId)) << "API Error enabling the sync";
+
+    WaitMillisec(1000);
+
     sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
@@ -6453,6 +6469,9 @@ TEST_F(SdkTest, SyncRemoteNode)
 
         LOG_verbose << "SyncRemoteNode :  Renaming back the remote node.";
         ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
+        
+        WaitMillisec(1000);
+
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6483,6 +6502,9 @@ TEST_F(SdkTest, SyncRemoteNode)
 
         LOG_verbose << "SyncRemoteNode :  Recreating remote folder.";
         nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+
+        WaitMillisec(1000);
+
         ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
         remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
         ASSERT_NE(remoteBaseNode.get(), nullptr);

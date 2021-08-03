@@ -50,7 +50,7 @@ int decodeEscape(UnicodeCodepointIterator<CharT>& it)
         return hexval(c1) << 4 | hexval(c2);
     }
     else
-        return escapeChar;
+        return -1;
 }
 
 int identity(const int c)
@@ -103,64 +103,6 @@ UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>
 
 CodeCounter::ScopeStats g_compareUtfTimings("compareUtfTimings");
 
-// the case when the strings are over the same character type (and we can use exactBinaryMatch)
-template<typename CharT, typename UnaryOperation>
-int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
-    UnicodeCodepointIterator<CharT> first2, bool unescaping2,
-    UnaryOperation transform)
-{
-    CodeCounter::ScopeTimer rst(g_compareUtfTimings);
-
-#ifdef _WIN32
-    first1 = skipPrefix(first1);
-    first2 = skipPrefix(first2);
-#endif // _WIN32
-
-    while (!(first1.end() || first2.end()))
-    {
-        auto charStart1 = first1;
-        int c1 = first1.get();
-        if (unescaping1 && c1 == escapeChar)
-        {
-            c1 = decodeEscape(first1);
-        }
-
-        if (first2.exactBinaryMatch(charStart1, first1))
-        {
-            continue;
-        }
-
-        int c2 = first2.get();
-        if (unescaping2 && c2 == escapeChar)
-        {
-            c2 = decodeEscape(first2);
-        }
-
-        if (c1 != c2)
-        {
-            c1 = transform(c1);
-            c2 = transform(c2);
-
-            if (c1 != c2)
-            {
-                return c1 - c2;
-            }
-        }
-    }
-
-    if (first1.end() && first2.end())
-    {
-        return 0;
-    }
-
-    if (first1.end())
-    {
-        return -1;
-    }
-
-    return 1;
-}
-
 // the case when the strings are over diffent character types (just uses match())
 template<typename CharT, typename CharU, typename UnaryOperation>
 int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
@@ -177,20 +119,61 @@ int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
     while (!(first1.end() || first2.end()))
     {
         int c1 = first1.get();
-        if (unescaping1 && c1 == escapeChar)
-        {
-            c1 = decodeEscape(first1);
-        }
 
-        if (first2.match(c1))
+        if (c1 != escapeChar && first2.match(c1))
         {
             continue;
         }
 
         int c2 = first2.get();
-        if (unescaping2 && c2 == escapeChar)
+
+        if (unescaping1 || unescaping2)
         {
-            c2 = decodeEscape(first2);
+            int c1e = -1;
+            int c2e = -1;
+            auto first1e = first1;
+            auto first2e = first2;
+
+            if (unescaping1 && c1 == escapeChar)
+            {
+                c1e = decodeEscape(first1e);
+            }
+            if (unescaping2 && c2 == escapeChar)
+            {
+                c2e = decodeEscape(first2e);
+            }
+
+            // so we have preferred to consume the escape if it's a match (even if there is a match before considering escapes)
+            if (c1e != -1 && c2e != -1)
+            {
+                if (transform(c1e) == transform(c2e))
+                {
+                    first1 = first1e;
+                    first2 = first2e;
+                    c1 = c1e;
+                    c2 = c2e;
+                }
+            }
+            else if (c1e != -1)
+            {
+                if (transform(c1e) == transform(c2) ||
+                    transform(c1) != transform(c2))
+                {
+                    // even if it's not a match, still consume the escape if the other is not a match, for sorting purposes
+                    first1 = first1e;
+                    c1 = c1e;
+                }
+            }
+            else if (c2e != -1)
+            {
+                if (transform(c2e) == transform(c1) ||
+                    transform(c2) != transform(c1))
+                {
+                    // even if it's not a match, still consume the escape if the other is not a match, for sorting purposes
+                    first2 = first2e;
+                    c2 = c2e;
+                }
+            }
         }
 
         if (c1 != c2)
@@ -629,6 +612,12 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
+bool FileSystemAccess::fileExistsAt(const LocalPath& path)
+{
+    auto fa = newfileaccess(false);
+    return fa->isfile(path);
+}
+
 #ifdef ENABLE_SYNC
 
 // default DirNotify: no notification available
@@ -665,12 +654,12 @@ bool DirNotify::empty()
 }
 
 // notify base LocalNode + relative path/filename
-void DirNotify::notify(NotificationDeque& q, LocalNode* l, LocalPath&& path, bool immediate)
+void DirNotify::notify(NotificationDeque& q, LocalNode* l, Notification::ScanRequirement sr, LocalPath&& path, bool immediate)
 {
     // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
 
-    Notification n(immediate ? 0 : Waiter::ds, std::move(path), l);
+    Notification n(immediate ? 0 : Waiter::ds, sr, std::move(path), l);
     q.pushBack(std::move(n));
 }
 
@@ -1410,11 +1399,6 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
 }
 
 #ifdef ENABLE_SYNC
-FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
-{
-    return isFilenameAnomaly(node.localname, node.name, node.type);
-}
-
 bool Notification::fromDebris(const Sync& sync) const
 {
     // Must have an associated local node.

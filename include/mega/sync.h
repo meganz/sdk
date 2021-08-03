@@ -22,7 +22,10 @@
 #ifndef MEGA_SYNC_H
 #define MEGA_SYNC_H 1
 
+#include <future>
+
 #include "db.h"
+#include "megawaiter.h"
 
 #ifdef ENABLE_SYNC
 
@@ -148,6 +151,9 @@ public:
     // Whether this backup is monitoring or mirroring.
     SyncBackupState mBackupState;
 
+    // Current running state.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
+    syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no assoicated mSync
+
     // enum to string conversion
     static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
@@ -161,11 +167,12 @@ private:
 
 // Convenience.
 using SyncConfigVector = vector<SyncConfig>;
+struct Syncs;
 
 struct UnifiedSync
 {
-    // Reference to client
-    MegaClient& mClient;
+    // Reference to containing Syncs object
+    Syncs& syncs;
 
     // We always have a config
     SyncConfig mConfig;
@@ -180,27 +187,17 @@ struct UnifiedSync
     std::shared_ptr<HeartBeatSyncInfo> mNextHeartbeat;
 
     // ctor/dtor
-    UnifiedSync(MegaClient&, const SyncConfig&);
+    UnifiedSync(Syncs&, const SyncConfig&);
 
-    // Try to create and start the Sync
-    error enableSync(bool resetFingerprint, bool notifyApp);
-
-    // Update remote location
-    bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 private:
     friend class Sync;
     friend struct Syncs;
-    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, bool isNetwork, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
     void changedConfigState(bool notifyApp);
 };
 
-using SyncCompletionFunction =
-  std::function<void(UnifiedSync*, const SyncError&, error)>;
-
-
 struct syncRow
 {
-    syncRow(Node* node, LocalNode* syncNode, FSNode* fsNode)
+    syncRow(CloudNode* node, LocalNode* syncNode, FSNode* fsNode)
         : cloudNode(node)
         , syncNode(syncNode)
         , fsNode(fsNode)
@@ -211,11 +208,11 @@ struct syncRow
     syncRow(syncRow&&) = default;
     syncRow& operator=(syncRow&&) = default;
 
-    Node* cloudNode;
+    CloudNode* cloudNode;
     LocalNode* syncNode;
     FSNode* fsNode;
 
-    vector<Node*> cloudClashingNames;
+    vector<CloudNode*> cloudClashingNames;
     vector<FSNode*> fsClashingNames;
 
     bool suppressRecursion = false;
@@ -233,7 +230,11 @@ struct syncRow
     // An example would be when we download a directory from the cloud.
     // Here, we create directory locally and push an FSNode representing it
     // to this list so that we recurse into it immediately.
-    list<FSNode> fsPendingSiblings;
+    list<FSNode> fsAddedSiblings;
+
+    void inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren);
+
+    bool empty() { return !cloudNode && !syncNode && !fsNode && cloudClashingNames.empty() && fsClashingNames.empty(); }
 };
 
 struct SyncPath
@@ -246,13 +247,13 @@ struct SyncPath
     string syncPath;
 
     // convenience, performs the conversion
-    string localPath_utf8();
+    string localPath_utf8() const;
 
     bool appendRowNames(const syncRow& row, FileSystemType filesystemType);
 
-    SyncPath(MegaClient* c, const LocalPath& fs, const string& cloud) : client(c), localPath(fs), cloudPath(cloud) {}
+    SyncPath(Syncs& s, const LocalPath& fs, const string& cloud) : syncs(s), localPath(fs), cloudPath(cloud) {}
 private:
-    MegaClient* client;
+    Syncs& syncs;
 };
 
 
@@ -274,7 +275,7 @@ public:
     SyncConfig& getConfig();
     const SyncConfig& getConfig() const;
 
-    MegaClient* client = nullptr;
+    Syncs& syncs;
 
     // for logging
     string syncname;
@@ -285,19 +286,23 @@ public:
     // sync-wide directory notification provider
     std::unique_ptr<DirNotify> dirnotify;
 
+    // track how recent the last received fs noticiation was
+    dstime lastFSNotificationTime = 0;
+
     // root of local filesystem tree, holding the sync's root folder.  Never null except briefly in the destructor (to ensure efficient db usage)
     unique_ptr<LocalNode> localroot;
-    Node* cloudRoot();
+
+    // Cloud node to sync to
+    CloudNode cloudRoot;
+    string cloudRootPath;
 
     FileSystemType mFilesystemType = FS_UNKNOWN;
 
-    // Path used to normalize sync locaroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
+    // Path used to normalize sync localroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
     // are served with such prefix from macOS catalina +
 #ifdef __APPLE__
     string mFsEventsPath;
 #endif
-    // current state
-    syncstate_t state = SYNC_INITIALSCAN;
 
     //// are we conducting a full tree scan? (during initialization and if event notification failed)
     //bool fullscan = true;
@@ -346,37 +351,42 @@ public:
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = nullptr, LocalPath* outpath = nullptr);
 
-    vector<syncRow> computeSyncTriplets(Node* cloudNode,
+    void combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::iterator b) const;
+
+    vector<syncRow> computeSyncTriplets(
+        vector<CloudNode>& cloudNodes,
         const LocalNode& root,
         vector<FSNode>& fsNodes) const;
-    bool inferAlreadySyncedTriplets(Node* cloudNode,
+    bool inferAlreadySyncedTriplets(
+        vector<CloudNode>& cloudNodes,
         const LocalNode& root,
         vector<FSNode>& fsNodes,
         vector<syncRow>& inferredRows) const;
 
-    bool recursiveSync(syncRow& row, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
-    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool belowRemovedCloudNode, bool belowRemovedFsNode);
-    bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
+    bool recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
+    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
+    bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
+    bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer);
-    bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, DBTableTransactionCommitter& committer, bool alreadyExists);
+    bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists);
     bool resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
 
-    bool syncEqual(const Node&, const FSNode&);
-    bool syncEqual(const Node&, const LocalNode&);
+    bool syncEqual(const CloudNode&, const FSNode&);
+    bool syncEqual(const CloudNode&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
     bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
     bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
 
-    void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc);
+    void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
     bool collectScanBlocked(list<LocalPath>& paths) const;
@@ -385,20 +395,13 @@ public:
     bool collectUseBlocked(list<LocalPath>& paths) const;
     void collectUseBlocked(const LocalNode& node, list<LocalPath>& paths) const;
 
-    //// rescan sequence number (incremented when a full rescan or a new
-    //// notification batch starts)
-    //int scanseqno = 0;
-
     // debris path component relative to the base path
     string debris;
     LocalPath localdebris;
     LocalPath localdebrisname;
 
-    // permanent lock on the debris/tmp folder
-    std::unique_ptr<FileAccess> tmpfa;
-
     // state cache table
-    DbTable* statecachetable = nullptr;
+    unique_ptr<DbTable> statecachetable;
 
     // move file or folder to localdebris
     bool movetolocaldebris(LocalPath& localpath);
@@ -418,11 +421,9 @@ public:
     // true if the local synced folder is a network folder
     bool isnetwork = false;
 
-    bool updateSyncRemoteLocation(Node* n, bool forceCallback);
-
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
-    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool);
+    Sync(UnifiedSync&, const string&, const LocalPath&, NodeHandle rootNodeHandle, const string& rootNodeName, bool, const string& logname);
     ~Sync();
 
     // Should we synchronize this sync?
@@ -467,6 +468,14 @@ protected :
 
 private:
     LocalPath mLocalPath;
+
+    // permanent lock on the debris/tmp folder
+    void createDebrisTmpLockOnce();
+
+    // permanent lock on the debris/tmp folder
+    unique_ptr<FileAccess> tmpfa;
+    LocalPath tmpfaPath;
+
 };
 
 class SyncConfigIOContext;
@@ -635,6 +644,26 @@ private:
     HMACSHA256 mSigner;
 }; // SyncConfigIOContext
 
+struct SyncStallInfo
+{
+    struct CloudStallInfo
+    {
+        SyncWaitReason reason = SyncWaitReason::NoReason;
+        string involvedCloudPath;
+        LocalPath involvedLocalPath;
+    };
+    struct LocalStallInfo {
+        SyncWaitReason reason = SyncWaitReason::NoReason;
+        LocalPath involvedLocalPath;
+        string involvedCloudPath;
+    };
+    typedef map<string, CloudStallInfo> CloudStallInfoMap;
+    typedef map<LocalPath, LocalStallInfo> LocalStallInfoMap;
+
+    CloudStallInfoMap cloud;
+    LocalStallInfoMap local;
+};
+
 struct SyncFlags
 {
     // we can only perform moves after scanning is complete
@@ -657,63 +686,54 @@ struct SyncFlags
     // to help with slowing down retries in stall state
     dstime recursiveSyncLastCompletedDs = 0;
 
-    struct CloudStallInfo
-    {
-        SyncWaitReason reason = SyncWaitReason::NoReason;
-        string involvedCloudPath;
-        LocalPath involvedLocalPath;
-    };
-    struct LocalStallInfo {
-        SyncWaitReason reason = SyncWaitReason::NoReason;
-        LocalPath involvedLocalPath;
-        string involvedCloudPath;
-    };
-    typedef map<string, CloudStallInfo> CloudStallInfoMap;
-    typedef map<LocalPath, LocalStallInfo> LocalStallInfoMap;
-    CloudStallInfoMap stalledNodePaths;
-    LocalStallInfoMap stalledLocalPaths;
+    SyncStallInfo stall;
 };
 
 
 struct Syncs
 {
-    UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
+    void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
 
-    bool hasRunningSyncs();
-    size_t numRunningSyncs();
-    unsigned numSyncs();    // includes non-running syncs, but configured
-    Sync* firstRunningSync();
-    Sync* runningSyncByBackupId(handle backupId) const;
-    SyncConfig* syncConfigByBackupId(handle backupId) const;
+    shared_ptr<UnifiedSync> lookupUnifiedSync(handle backupId);
 
+    // only for use in tests; not really thread safe
+    Sync* runningSyncByBackupIdForTests(handle backupId) const;
+
+    // Pause/unpause a sync. Returns a future for async operation.
+    std::future<bool> setSyncPausedByBackupId(handle id, bool pause);
+
+    // returns a copy of the config, for thread safety
+    bool syncConfigByBackupId(handle backupId, SyncConfig&) const;
+
+    // This function is deprecated; very few still using it, eventually we should remove it
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
+
+    // This function is deprecated; very few still using it, eventually we should remove it
     void forEachRunningSync(bool includePaused, std::function<void(Sync* s)>) const;
+
+    // Temporary; Only to be used from MegaApiImpl::syncPathState.
     bool forEachRunningSync_shortcircuit(bool includePaused, std::function<bool(Sync* s)>);
-    void forEachRunningSyncContainingNode(Node* node, bool includePaused, std::function<void(Sync* s)> f);
+
+    vector<NodeHandle> getSyncRootHandles(bool mustBeActive);
 
     void purgeRunningSyncs();
-    void stopCancelledFailedDisabled();
-    void resumeResumableSyncsOnStartup();
-    void enableResumeableSyncs();
-    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&);
+    void resumeResumableSyncsOnStartup(bool resetSyncConfigStore, std::function<void(error)>&& completion);
+
+    void enableSyncByBackupId(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error)> completion, const string& logname);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
 
-    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag);
+    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted.  Async as request is forwarded to thread
+    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
-    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
+    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
 
-    // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
-    void purgeSyncs();
-
-    void resetSyncConfigStore();
-    void clear();
+    void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
     SyncConfigVector configsForDrive(const LocalPath& drive) const;
     SyncConfigVector allConfigs() const;
@@ -721,7 +741,11 @@ struct Syncs
     // updates in state & error
     void saveSyncConfig(const SyncConfig& config);
 
+    // synchronous for now as that's a constraint from the intermediate layer
+    NodeHandle getSyncedNodeForLocalPath(const LocalPath&);
+
     Syncs(MegaClient& mc);
+    ~Syncs();
 
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool isEmpty = true;
@@ -735,8 +759,6 @@ struct Syncs
         m_time_t updatedfileinitialts = 0;
     };
     std::map<LocalPath, FileChangingState> mFileChangingCheckState;
-
-    unique_ptr<BackupMonitor> mHeartBeatMonitor;
 
     /**
      * @brief
@@ -786,14 +808,17 @@ struct Syncs
      */
     error backupOpenDrive(LocalPath drivePath);
 
-    // Returns a reference to this user's internal configuration database.
-    SyncConfigStore* syncConfigStore();
 
     // Add a config directly to the internal sync config DB.
     //
     // Note that configs added in this way bypass the usual sync mechanism.
     // That is, they are added directly to the JSON DB on disk.
     error syncConfigStoreAdd(const SyncConfig& config);
+
+private:  // anything to do with loading/saving/storing configs etc is done on the sync thread
+
+    // Returns a reference to this user's internal configuration database.
+    SyncConfigStore* syncConfigStore();
 
     // Whether the internal database has changes that need to be written to disk.
     bool syncConfigStoreDirty();
@@ -804,12 +829,121 @@ struct Syncs
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
 
+public:
+
     string exportSyncConfigs(const SyncConfigVector configs) const;
     string exportSyncConfigs() const;
 
     void importSyncConfigs(const char* data, std::function<void(error)> completion);
 
+    unique_ptr<SyncFlags> mSyncFlags;
+
+    // app scanstate flag
+    bool syncscanstate = false;
+
+    // whether any sync has any work to do
+    bool syncBusyState = false;
+
+    // app stall state flag
+    bool syncStallState = false;
+
+    // app conflict tate flag
+    bool syncConflictState = false;
+
+    // maps local fsid to corresponding LocalNode* (s)
+    fsid_localnode_map localnodeBySyncedFsid;
+    fsid_localnode_map localnodeByScannedFsid;
+    LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
+    LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
+
+    void setSyncedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
+    void setScannedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
+
+    // maps nodehanlde to corresponding LocalNode* (s)
+    nodehandle_localnode_map localnodeByNodeHandle;
+    LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
+
+    bool mDetailedSyncLogging = false;
+
+    // total number of LocalNode objects
+    long long totalLocalNodes = 0;
+
+    // manage syncdown flags inside the syncs
+    void setSyncsNeedFullSync(bool andFullScan, handle backupId = UNDEF);
+
+    // retrieves information about any detected name conflicts.
+    bool conflictsDetected(list<NameConflict>& conflicts) const;
+
+    bool syncStallDetected(SyncStallInfo& si) const;
+
+    // Get name conficts - pass UNDEF to collect for all syncs.
+    void collectSyncNameConflicts(handle backupId, std::function<void(list<NameConflict>&& nc)>, bool completionInClient);
+
+    // Get scan and use blocked paths - pass UNDEF to collect for all syncs.
+    void collectSyncScanUseBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked)>, bool completionInClient);
+
+    // waiter for sync loop on thread
+    WAIT_CLASS waiter;
+
+    // used to asynchronously perform scans.
+    unique_ptr<ScanService> mScanService;
+
+    typedef MegaClient MC;
+    typedef DBTableTransactionCommitter DBTC;
+
+    ThreadSafeDeque<std::function<void(MC&, DBTC&)>> clientThreadActions;
+    ThreadSafeDeque<std::function<void()>> syncThreadActions;
+
+    void syncRun(std::function<void()>);
+    void queueSync(std::function<void()>&&);
+    void queueClient(std::function<void(MC&, DBTC&)>&&);
+
+    // Update remote location
+    bool updateSyncRemoteLocation(UnifiedSync&, bool exists, string cloudPath);
+
+    // mark nodes as needing to be checked for sync actions
+    void triggerSync(NodeHandle, bool recurse = false);
+
+    // todo: move relevant code to this class later
+    // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem browser for icon indicators
+    std::timed_mutex mLocalNodeChangeMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
+
 private:
+
+    // for heartbeats
+    BackoffTimer btheartbeat;
+    unique_ptr<BackupMonitor> mHeartBeatMonitor;
+
+    // functions for internal use on-thread only
+    void stopCancelledFailedDisabled();
+
+    // Most of these private fields should only be used on the Sync's own thread
+    // LocalNodes are entirely managed on this thread
+    friend struct LocalNode;
+    friend class Sync;
+    friend struct SyncPath;
+    friend struct UnifiedSync;
+    friend class BackupInfoSync;
+    friend class BackupMonitor;
+
+    // Syncs should have a separate fsaccess for use on its thread
+    unique_ptr<FileSystemAccess> fsaccess;
+
+    // pseudo-random number generator
+    PrnGen rng;
+
+    // Separate key to avoid threading issues
+    SymmCipher syncKey;
+
+    // data structure with mutex to interchange stall info
+    SyncStallInfo stall;
+    mutable mutex stallMutex;
+
+    // When the node tree changes, this structure lets the sync code know which LocalNodes need to be flagged
+    map<NodeHandle, bool> triggerHandles;
+    mutex triggerMutex;
+    void processTriggerHandles();
+
     void exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const;
 
     bool importSyncConfig(JSON& reader, SyncConfig& config);
@@ -824,7 +958,10 @@ private:
     // Responsible for securely writing config databases to disk.
     unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
 
-    vector<unique_ptr<UnifiedSync>> mSyncVec;
+    // Stopgap solution - mutex to protect mSyncVec, and return shared_ptrs.
+    // Gradually we will tighten up the interface so UnifiedSync is only managed within the sync thread.
+    mutable mutex mSyncVecMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
+    vector<shared_ptr<UnifiedSync>> mSyncVec;
 
     // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
     void removeSyncByIndex(size_t index);
@@ -832,7 +969,40 @@ private:
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
     void unloadSyncByIndex(size_t index);
 
+    void proclocaltree(LocalNode* n, LocalTreeProc* tp);
+
     MegaClient& mClient;
+
+    bool mightAnySyncsHaveMoves(bool includePausedSyncs);
+    bool isAnySyncSyncing(bool includePausedSyncs);
+    bool isAnySyncScanning(bool includePausedSyncs);
+
+    bool conflictsFlagged() const;
+
+
+    // actually start the sync (on sync thread)
+    void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
+        NodeHandle rootNodeHandle, const string& rootNodeName, bool inshare, bool isNetwork, const LocalPath& rootpath,
+        std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
+    void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
+    void resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, std::function<void(error)>);
+    void enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
+    void clear_inThread();
+    void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector);
+    void purgeRunningSyncs_inThread();
+
+    std::thread syncThread;
+    void syncLoop();
+
+    bool onSyncThread() const { return std::this_thread::get_id() == syncThread.get_id(); }
+
+    enum WhichCloudVersion { EXACT_VERSION, LATEST_VERSION, FOLDER_ONLY };
+    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveSync, WhichCloudVersion);
+
+    bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 };
 
 } // namespace

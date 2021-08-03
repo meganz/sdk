@@ -3,6 +3,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <functional>
 
 #include "stdfs.h"
 
@@ -53,6 +54,8 @@ extern bool gRunningInCI;
 extern bool gTestingInvalidArgs;
 extern bool gResumeSessions;
 extern int gFseventsFd;
+
+extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
 
 LogStream out();
 

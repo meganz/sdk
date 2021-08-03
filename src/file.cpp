@@ -272,7 +272,7 @@ File *File::unserialize(string *d)
     return file;
 }
 
-void File::prepare()
+void File::prepare(FileSystemAccess&)
 {
     transfer->localfilename = localname;
 }
@@ -285,8 +285,9 @@ void File::progress()
 {
 }
 
-void File::completed(Transfer* t, LocalNode* l)
+void File::completed(Transfer* t, putsource_t source)
 {
+    assert(!transfer || t == transfer);
     if (t->type == PUT)
     {
         vector<NewNode> newnodes(1);
@@ -306,10 +307,9 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
 #ifdef ENABLE_SYNC
-        if (l)
+        if (auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(this))
         {
-            l->newnode.crossref(newnode, l);
-            newnode->syncid = l->syncid;
+            newnode->syncUpload = uploadPtr->shared_from_this();
         }
 #endif
         AttrMap attrs;
@@ -342,45 +342,41 @@ void File::completed(Transfer* t, LocalNode* l)
             {
                 th.set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
             }
-#ifdef ENABLE_SYNC
-            if (l)
-            {
-                if (l->parent)
-                {
-                    // tag the previous version in the synced folder (if any) or move to SyncDebris
-                    Node* prevSyncedNode = t->client->nodeByHandle(l->syncedCloudNodeHandle);
-                    Node* parentPrevSyncedNode = t->client->nodeByHandle(l->parent->syncedCloudNodeHandle);
-                    if (prevSyncedNode && parentPrevSyncedNode &&
-                        prevSyncedNode->parent == parentPrevSyncedNode)
-                    {
-                        if (t->client->versions_disabled)
-                        {
-                            t->client->movetosyncdebris(prevSyncedNode, l->sync->inshare);
-                            t->client->execsyncdeletions();
-                        }
-                        else
-                        {
-                            newnode->ovhandle = prevSyncedNode->nodehandle;
-                        }
-                    }
-                }
-                t->client->syncadding++;
-            }
-#endif
+///todo:
+//#ifdef ENABLE_SYNC
+//            if (l)
+//            {
+//                if (l->parent)
+//                {
+//                    // tag the previous version in the synced folder (if any) or move to SyncDebris
+//                    Node* prevSyncedNode = t->client->nodeByHandle(l->syncedCloudNodeHandle);
+//                    Node* parentPrevSyncedNode = t->client->nodeByHandle(l->parent->syncedCloudNodeHandle);
+//                    if (prevSyncedNode && parentPrevSyncedNode &&
+//                        prevSyncedNode->parent == parentPrevSyncedNode)
+//                    {
+//                        if (t->client->versions_disabled)
+//                        {
+//                            t->client->movetosyncdebris(prevSyncedNode, l->sync->inshare);
+//                            t->client->execsyncdeletions();
+//                        }
+//                        else
+//                        {
+//                            newnode->ovhandle = prevSyncedNode->nodehandle;
+//                        }
+//                    }
+//                }
+//            }
+//#endif
             if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
             {
                 newnode->ovhandle = t->client->getovhandle(t->client->nodeByHandle(th), &name);
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,
-                                                                  th, NULL,
-                                                                  move(newnodes),
-                                                                  tag,
-#ifdef ENABLE_SYNC
-                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
-#else
-                                                                  PUTNODES_APP));
-#endif
+                                                    th, NULL,
+                                                    move(newnodes),
+                                                    tag,
+                                                    source, nullptr, nullptr));
         }
     }
 }
@@ -392,7 +388,7 @@ void File::terminated()
 
 // do not retry crypto errors or administrative takedowns; retry other types of
 // failuresup to 16 times, except I/O errors (6 times)
-bool File::failed(error e)
+bool File::failed(error e, MegaClient*)
 {
     if (e == API_EKEY)
     {
@@ -456,141 +452,112 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(LocalNode& ln, Node& n, const LocalPath& clocalname)
-    : localNode(ln)
+SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare, FileSystemAccess& fsaccess)
 {
-    h = n.nodeHandle();
-    *(FileFingerprint*)this = n;
+    h = n.handle;
+    *(FileFingerprint*)this = n.fingerprint;
     localname = clocalname;
 
     syncxfer = true;
+    fromInsycShare = fromInshare;
 
-    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
+    LocalPath tmpfilename;
+    fsaccess.tmpnamelocal(tmpfilename);
+    localname.appendWithSeparator(tmpfilename, true);
+
+
+    // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
 }
 
-// create sync-specific temp download directory and set unique filename
-void SyncFileGet::prepare()
+SyncDownload_inClient::~SyncDownload_inClient()
 {
-    if (transfer->localfilename.empty())
+    if (!wasTerminated && !wasCompleted)
     {
-        auto sync = localNode.sync;
-        LocalPath tmpname = LocalPath::fromName("tmp", *sync->client->fsaccess, localNode.sync->mFilesystemType);
-
-        if (!sync->tmpfa)
-        {
-            sync->tmpfa = sync->client->fsaccess->newfileaccess();
-
-            int i = 3;
-            while (i--)
-            {
-                LOG_verbose << "Creating tmp folder";
-                transfer->localfilename = sync->localdebris;
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true);
-
-                transfer->localfilename.appendWithSeparator(tmpname, true);
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename);
-
-                // lock it
-                LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess, sync->mFilesystemType);
-                transfer->localfilename.appendWithSeparator(lockname, true);
-
-                if (sync->tmpfa->fopen(transfer->localfilename, false, true))
-                {
-                    break;
-                }
-            }
-
-            // if we failed to create the tmp dir three times in a row, fall
-            // back to the sync's root
-            if (i < 0)
-            {
-                sync->tmpfa.reset();
-            }
-        }
-
-        if (sync->tmpfa)
-        {
-            transfer->localfilename = sync->localdebris;
-            transfer->localfilename.appendWithSeparator(tmpname, true);
-        }
-        else
-        {
-            transfer->localfilename = sync->localroot->localname;
-        }
-
-        LocalPath tmpfilename;
-        sync->client->fsaccess->tmpnamelocal(tmpfilename);
-        transfer->localfilename.appendWithSeparator(tmpfilename, true);
+        assert(wasRequesterAbandoned);
+        transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
     }
 }
 
-bool SyncFileGet::failed(error e)
+
+// set unique filename in sync-specific temp download directory
+void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
 {
-    bool retry = File::failed(e);
+    if (transfer->localfilename.empty())
+    {
+        transfer->localfilename = localname;
+        transfer->localfilename.append(LocalPath::fromPath(".tmp", fsaccess));
+    }
+}
 
-    auto sync = localNode.sync;
-    auto client = sync->client;
+bool SyncDownload_inClient::failed(error e, MegaClient* mc)
+{
+    bool retry = File::failed(e, mc);
 
-    if (Node* n = client->nodeByHandle(h))
+    if (Node* n = mc->nodeByHandle(h))
     {
         if (!retry && (e == API_EBLOCKED || e == API_EKEY))
         {
             if (e == API_EKEY)
             {
-                n->parent->client->sendevent(99433, "Undecryptable file", 0);
+                mc->sendevent(99433, "Undecryptable file", 0);
             }
-            n->parent->client->movetosyncdebris(n, sync->inshare);
+            mc->movetosyncdebris(n, fromInsycShare, nullptr);
         }
     }
 
     return retry;
 }
 
-void SyncFileGet::progress()
+void SyncDownload_inClient::progress()
 {
     File::progress();
-    localNode.treestate(TREESTATE_SYNCING);
+    //todo: localNode.treestate(TREESTATE_SYNCING);
 }
 
 // update localname (parent's localnode)
-void SyncFileGet::updatelocalname()
+void SyncDownload_inClient::updatelocalname()
 {
-    auto sync = localNode.sync;
-    auto client = sync->client;
+// todo:
+    //auto sync = localNode.sync;
+    //auto client = sync->client;
 
-    if (Node* n = client->nodeByHandle(h))
-    {
-        attr_map::iterator ait;
-        if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
-        {
-            if (n->parent)
-            {
-                if (LocalNode* lnParent = sync->client->findLocalNodeByNodeHandle(n->parent->nodeHandle()))
-                {
-                    localname = lnParent->getLocalPath();
-                    localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
-                }
-            }
-        }
-    }
+    //if (Node* n = client->nodeByHandle(h))
+    //{
+    //    attr_map::iterator ait;
+    //    if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
+    //    {
+    //        if (n->parent)
+    //        {
+    //            if (LocalNode* lnParent = sync->client->syncs.findLocalNodeByNodeHandle(n->parent->nodeHandle()))
+    //            {
+    //                localname = lnParent->getLocalPath();
+    //                localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
+    //            }
+    //        }
+    //    }
+    //}
 }
 
 // add corresponding LocalNode (by path), then self-destruct
-void SyncFileGet::completed(Transfer*, LocalNode* )
+void SyncDownload_inClient::completed(Transfer*, putsource_t)
 {
-    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
+    // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
 
-    localNode.setScanAgain(true, false, false, 0);
-    LOG_debug << "clearing downlaod for " << &localNode << " on completed";
-    localNode.download.reset(); // deletes this;
+    // todo: localNode.setScanAgain(true, false, false, 0);
+
+    //LOG_debug << "clearing downlaod for " << &localNode << " on completed";
+    //localNode.download.reset(); // deletes this;
+    wasCompleted = true;
 }
 
-void SyncFileGet::terminated()
+void SyncDownload_inClient::terminated()
 {
-    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
+    // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
 
-    LOG_debug << "clearing download for " << &localNode << " on terminated";
-    localNode.download.reset(); // deletes this;
+    //LOG_debug << "clearing download for " << &localNode << " on terminated";
+    //localNode.download.reset(); // deletes this;
+
+    wasTerminated = true;
 }
 #endif
 } // namespace
