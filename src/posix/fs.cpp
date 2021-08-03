@@ -867,7 +867,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 LOG_debug << "Filesystem notification:"
                           << " Root: "
-                          << node.name
+                          << node.localname.toPath()
                           << " Path: "
                           << name;
 
