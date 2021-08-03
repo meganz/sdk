@@ -2520,6 +2520,8 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::DownsyncNeedsTargetFolder:                     return "DownsyncNeedsTargetFolder";
         case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
         case SyncWaitReason::WatiingForFileToStopChanging:                  return "WatiingForFileToStopChanging";
+        case SyncWaitReason::MovingDownloadToTarget:                        return "MovingDownloadToTarget";
+        case SyncWaitReason::MovingExistingDownloadTargetToDebris:          return "MovingExistingDownloadTargetToDebris";
     }
     return "<out of range>";
 }

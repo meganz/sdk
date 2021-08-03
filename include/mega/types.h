@@ -1025,7 +1025,9 @@ enum class SyncWaitReason {
     UpsyncNeedsTargetFolder,
     DownsyncNeedsTargetFolder,
     DeleteWaitingOnMoves,
-    WatiingForFileToStopChanging
+    WatiingForFileToStopChanging,
+    MovingDownloadToTarget,
+    MovingExistingDownloadTargetToDebris
 };
 
 string syncWaitReasonString(SyncWaitReason);

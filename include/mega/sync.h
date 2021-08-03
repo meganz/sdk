@@ -247,7 +247,7 @@ struct SyncPath
     string syncPath;
 
     // convenience, performs the conversion
-    string localPath_utf8();
+    string localPath_utf8() const;
 
     bool appendRowNames(const syncRow& row, FileSystemType filesystemType);
 

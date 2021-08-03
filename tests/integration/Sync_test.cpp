@@ -1595,7 +1595,7 @@ struct StandardClient : public MegaApp
           SyncConfig(LocalPath::fromPath(sourcePath, *client.fsaccess),
                      sourcePath,
                      targetNode->nodeHandle(),
-                     targetPath,
+                     targetNode->displaypath(),
                      0,
                      LocalPath::fromPath(drivePath, *client.fsaccess),
                      //string_vector(),
@@ -8062,20 +8062,31 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         testcase.second.CheckSetup(allstate, false);
     }
 
-    out() << "Checking Backups are Monitoring";
-    bool anyNotMonitoring = false;
-    for (auto& testcase : cases)
-    {
-        if (Sync* sync = testcase.second.client1().syncByBackupId(testcase.second.backupId))
+    auto backupsAreMonitoring = [&cases]() {
+        for (auto& i : cases)
         {
-            if (testcase.second.isBackup() && sync && !sync->isBackupMonitoring())
-            {
-                out() << " backup should be monitoring but isn't: " << testcase.second.name();
-                anyNotMonitoring = true;
-            }
+            // Convenience.
+            auto& testcase = i.second;
+
+            // Only check backup syncs.
+            if (!testcase.isBackup()) continue;
+
+            // Only check active syncs.
+            if (!testcase.client1().syncByBackupId(testcase.backupId)) continue;
+
+            // Get the sync's config so we can determine if it's monitoring.
+            auto config = testcase.client1().syncConfigByBackupID(testcase.backupId);
+
+            // Is the sync monitoring as it should be?
+            if (config.getBackupState() != SYNC_BACKUP_MONITOR) return false;
         }
-    }
-    ASSERT_FALSE(anyNotMonitoring);
+
+        // Everyone's monitoring as they should be.
+        return true;
+    };
+
+    out() << "Checking Backups are Monitoring";
+    ASSERT_TRUE(backupsAreMonitoring());
 
     int paused = 0;
     for (auto& testcase : cases)
@@ -8137,19 +8148,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
 
     out() << "Checking Backups are Monitoring";
-    anyNotMonitoring = false;
-    for (auto& testcase : cases)
-    {
-        if (Sync* sync = testcase.second.client1().syncByBackupId(testcase.second.backupId))
-        {
-            if (testcase.second.isBackup() && sync && !sync->isBackupMonitoring())
-            {
-                out() << " backup should be monitoring but isn't: " << testcase.second.name();
-                anyNotMonitoring = true;
-            }
-        }
-    }
-    ASSERT_FALSE(anyNotMonitoring);
+    ASSERT_TRUE(backupsAreMonitoring());
 
     out() << "Checking local and remote state in each sub-test";
 
