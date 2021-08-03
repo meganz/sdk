@@ -74,7 +74,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     Node* p;
 
-    client->nodes[h] = this;
+    client->nodes[NodeHandle().set6byte(h)] = this;
 
     if (t >= ROOTNODE && t <= RUBBISHNODE)
     {

@@ -7287,7 +7287,7 @@ void MegaClient::notifypurge(void)
                     notifyuser(n->inshare->user);
                 }
 
-                nodes.erase(n->nodehandle);
+                nodes.erase(n->nodeHandle());
                 delete n;
             }
             else
@@ -7404,7 +7404,7 @@ void MegaClient::notifypurge(void)
 // return node pointer derived from node handle
 Node* MegaClient::nodebyhandle(handle h) const
 {
-    auto it = nodes.find(h);
+    auto it = nodes.find(NodeHandle().set6byte(h));
 
     if (it != nodes.end())
     {
@@ -7417,7 +7417,9 @@ Node* MegaClient::nodebyhandle(handle h) const
 Node* MegaClient::nodeByHandle(NodeHandle h) const
 {
     if (h.isUndef()) return nullptr;
-    return nodebyhandle(h.as8byte());
+
+    auto it = nodes.find(h);
+    return it != nodes.end() ? it->second : nullptr;
 }
 
 Node* MegaClient::nodeByPath(const char* path, Node* node)

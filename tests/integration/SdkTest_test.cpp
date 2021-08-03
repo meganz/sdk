@@ -5697,7 +5697,15 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, ::m
         sync.reset(megaApi->getSyncByNode(remoteNode));
         return (sync && sync->isEnabled() == enabled && sync->isActive() == active && sync->getError() == err);
     }, 30*1000);
-    return sync;
+
+    if (sync && sync->isEnabled() == enabled && sync->isActive() == active && sync->getError() == err)
+    {
+        return sync;
+    }
+    else
+    {
+        return nullptr; // signal that the sync never reached the expected/required state
+    }
 }
 
 std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, handle backupID, bool enabled, bool active, MegaSync::Error err)
@@ -5708,7 +5716,15 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, han
         sync.reset(megaApi->getSyncByBackupId(backupID));
         return (sync && sync->isEnabled() == enabled && sync->isActive() == active && sync->getError() == err);
     }, 30*1000);
-    return sync;
+
+    if (sync && sync->isEnabled() == enabled && sync->isActive() == active && sync->getError() == err)
+    {
+        return sync;
+    }
+    else
+    {
+        return nullptr; // signal that the sync never reached the expected/required state
+    }
 }
 
 

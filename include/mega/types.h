@@ -498,7 +498,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<handle, Transfer*> handletransfer_map;
 
 // maps node handles to Node pointers
-typedef map<handle, Node*> node_map;
+typedef map<NodeHandle, Node*> node_map;
 
 struct NodeCounter
 {
