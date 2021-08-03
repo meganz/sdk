@@ -1060,12 +1060,13 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             {
                 if (paths[i])
                 {
-                    LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->name << "   Path: " << paths[i];
+                    LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->localname.toPath() << "   Path: " << paths[i];
 
                     auto& dirnotify = *pathsync[i]->dirnotify;
 
                     dirnotify.notify(dirnotify.fsEventq,
                                      pathsync[i]->localroot.get(),
+                                     Notification::NEEDS_SCAN_UNKNOWN,
                                      LocalPath::fromPlatformEncoded(paths[i]),
                                      strlen(paths[i]));
 
