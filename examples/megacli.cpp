@@ -3152,6 +3152,12 @@ autocomplete::ACN autocompleteSyntax()
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
 
+    p->Add(exec_syncblock,
+           sequence(text("sync"),
+                    text("block"),
+                    either(text("scan"), text("use")),
+                    localFSPath()));
+
     p->Add(exec_syncclosedrive,
            sequence(text("sync"),
                     text("closedrive"),
@@ -8851,6 +8857,48 @@ void exec_syncadd(autocomplete::ACState& s)
     client->addsync(config, false, sync_completion, "");
 }
 
+// For debugging.
+void exec_syncblock(autocomplete::ACState& s)
+{
+    // sync block (scan|use) path
+
+    // Make sure we're logged in.
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to block a file/folder."
+             << endl;
+        return;
+    }
+
+    auto path = LocalPath::fromPath(s.words[3].s, *client->fsaccess);
+
+    LocalNode* node;
+
+    // Locate the node for this path.
+    client->syncs.forEachRunningSync_shortcircuit(true, [&](Sync* sync) {
+        return !(node = sync->localnodebypath(nullptr, path));
+    });
+
+    // Were we able to find a suitable local node?
+    if (!node)
+    {
+        cerr << "Couldn't locate a node for the path: "
+             << path.toPath()
+             << endl;
+        return;
+    }
+
+    // What flag are we marking?
+    if (s.words[2].s == "scan")
+    {
+        node->setScanBlocked();
+    }
+    else
+    {
+        node->setUseBlocked();
+    }
+}
+
 void exec_syncclosedrive(autocomplete::ACState& s)
 {
     // Are we logged in?
@@ -9090,6 +9138,30 @@ void exec_synclist(autocomplete::ACState& s)
             synchronous.set_value(true);
         }, false);  // false so executes on sync thread - we are blocked here on client thread in single-threaded megacli.
         synchronous.get_future().get();
+
+        std::promise<bool> synchronous2;
+        client->syncs.collectSyncScanUseBlockedPaths(config.mBackupId, [&synchronous2](list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked){
+
+            cout << "  Scan Blocked:\n";
+
+            while (!scanBlocked.empty())
+            {
+                cout << "    " << scanBlocked.front().toPath() << "\n";
+                scanBlocked.pop_front();
+            }
+
+            cout << "  Use Blocked:\n";
+
+            while (!useBlocked.empty())
+            {
+                cout << "    " << useBlocked.front().toPath() << "\n";
+                useBlocked.pop_front();
+            }
+
+            cout << std::endl;
+            synchronous2.set_value(true);
+        }, false);  // false so executes on sync thread - we are blocked here on client thread in single-threaded megacli.
+        synchronous2.get_future().get();
     }
 
     SyncStallInfo stall;

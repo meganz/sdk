@@ -2075,6 +2075,9 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                syncs.mClient.nodeByHandle(sourceSyncNode->parent->syncedCloudNodeHandle) :
                                nullptr;
 
+        // True if the move-target exists and we're free to "overwrite" it.
+        auto overwrite = false;
+
         // is there already something else at the target location though?
         if (row.fsNode)
         {
@@ -2085,10 +2088,21 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 << " old parent: " << (oldCloudParent ? oldCloudParent->displaypath() : "?")
                 << logTriplet(row, fullPath);
 
-            row.syncNode->setCheckMovesAgain(false, true, false);
-            monitor.waitingCloud(fullPath.cloudPath, sourceSyncNode->getCloudPath(), fullPath.localPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
-            rowResult = false;
-            return true;
+            if (row.syncNode)
+            {
+                overwrite |= row.syncNode->type == row.fsNode->type;
+                overwrite &= row.syncNode->fsid_lastSynced == row.fsNode->fsid;
+            }
+
+            if (!overwrite)
+            {
+                row.syncNode->setCheckMovesAgain(false, true, false);
+                monitor.waitingCloud(fullPath.cloudPath, sourceSyncNode->getCloudPath(), fullPath.localPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
+                rowResult = false;
+                return true;
+            }
+
+            SYNC_verbose << syncname << "Move is a legit overwrite of a synced file, so we overwrite that locally too." << logTriplet(row, fullPath);
         }
 
         if (!sourceSyncNode->moveApplyingToLocal && !belowRemovedFsNode && parentRow.cloudNode)
@@ -2157,12 +2171,44 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         // check filesystem is not changing fsids as a result of rename
         assert(sourceSyncNode->fsid_lastSynced == debug_getfsid(sourcePath, *syncs.fsaccess));
 
+        if (overwrite)
+        {
+            auto path = fullPath.localPath.toPath(*syncs.fsaccess);
+
+            SYNC_verbose << "Move-target exists and must be moved to local debris: " << path;
+
+            if (!movetolocaldebris(fullPath.localPath))
+            {
+                // Couldn't move the target to local debris.
+                LOG_err << "Couldn't move move-target to local debris: " << path;
+
+                // Sanity: Must exist for overwrite to be true.
+                assert(row.syncNode);
+
+                // Mark subtree as blocked.
+                row.syncNode->setUseBlocked();
+
+                // Don't recurse as the subtree's fubar.
+                row.suppressRecursion = true;
+
+                // Move hasn't completed.
+                sourceSyncNode->moveAppliedToLocal = false;
+
+                // Row hasn't been synced.
+                rowResult = false;
+
+                return true;
+            }
+
+            LOG_debug << "Move-target moved to local debris: " << path;
+        }
+
         if (syncs.fsaccess->renamelocal(sourcePath, fullPath.localPath))
         {
             // todo: move anything at this path to sync debris first?  Old algo didn't though
 
             // check filesystem is not changing fsids as a result of rename
-            assert(sourceSyncNode->fsid_lastSynced == debug_getfsid(fullPath.localPath, *syncs.fsaccess));
+            assert(overwrite || sourceSyncNode->fsid_lastSynced == debug_getfsid(fullPath.localPath, *syncs.fsaccess));
 
             LOG_debug << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath(*syncs.fsaccess) << " -> " << fullPath.localPath.toPath(*syncs.fsaccess);
 
@@ -2177,7 +2223,11 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname);
             sourceSyncNode->setSyncedNodeHandle(NodeHandle());
 
-            sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
+            if (sourceSyncNode->type == FILENODE || !overwrite)
+            {
+                sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
+            }
+
             sourceSyncNode->moveAppliedToLocal = true;
 
             sourceSyncNode->setScanAgain(true, false, false, 0);
@@ -4513,6 +4563,56 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, 
 
             recursiveCollectNameConflicts(childRow, ncs, fullPath);
         }
+    }
+}
+
+bool Sync::collectScanBlocked(list<LocalPath>& paths) const
+{
+    collectScanBlocked(*localroot, paths);
+
+    return !paths.empty();
+}
+
+void Sync::collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) const
+{
+    assert(node.type == FOLDERNODE);
+
+    if (node.scanBlocked == TREE_RESOLVED) return;
+
+    if (node.scanBlocked > TREE_DESCENDANT_FLAGGED)
+    {
+        paths.emplace_back(node.getLocalPath());
+        return;
+    }
+
+    for (auto& child : node.children)
+    {
+        if (child.second->type != FOLDERNODE) continue;
+
+        collectScanBlocked(*child.second, paths);
+    }
+}
+
+bool Sync::collectUseBlocked(list<LocalPath>& paths) const
+{
+    collectUseBlocked(*localroot, paths);
+
+    return !paths.empty();
+}
+
+void Sync::collectUseBlocked(const LocalNode& node, list<LocalPath>& paths) const
+{
+    if (node.useBlocked == TREE_RESOLVED) return;
+
+    if (node.useBlocked > TREE_DESCENDANT_FLAGGED)
+    {
+        paths.emplace_back(node.getLocalPath());
+        return;
+    }
+
+    for (auto& child : node.children)
+    {
+        collectUseBlocked(*child.second, paths);
     }
 }
 
@@ -8201,6 +8301,39 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
                 }
             }
             finalcompletion(move(nc));
+        });
+}
+
+// Get scan and use blocked paths - pass UNDEF to collect for all syncs.
+void Syncs::collectSyncScanUseBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked)> completion, bool completionInClient)
+{
+    assert(!onSyncThread());
+
+    auto clientCompletion = [this, completion](list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked)
+    {
+        shared_ptr<list<LocalPath>> b1(new list<LocalPath>(move(useBlocked)));
+        shared_ptr<list<LocalPath>> b2(new list<LocalPath>(move(scanBlocked)));
+        queueClient([completion, b1, b2](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                if (completion) completion(move(*b1), move(*b2));
+            });
+    };
+
+    auto finalcompletion = completionInClient ? clientCompletion : completion;
+
+    queueSync([=]()
+        {
+            list<LocalPath> b1;
+            list<LocalPath> b2;
+            for (auto& us : mSyncVec)
+            {
+                if (us->mSync && (us->mConfig.mBackupId == backupId || backupId == UNDEF))
+                {
+                    us->mSync->collectScanBlocked(b1);
+                    us->mSync->collectUseBlocked(b2);
+                }
+            }
+            finalcompletion(move(b1), move(b2));
         });
 }
 
