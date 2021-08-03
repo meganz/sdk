@@ -12631,7 +12631,7 @@ class MegaApi
          * "Your business account is overdue, please contact your administrator."
          *
          * This method includes a mechanism to cancel a folder upload process by calling MegaCancelToken::cancel through parameter
-         * cancelToken. This mechanish will be available just between the following stages: MegaTransfer::STAGE_SCAN and
+         * cancelToken. This mechanism will be available just between the following stages: MegaTransfer::STAGE_SCAN and
          * MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE both included.
          *
          * In case we are trying to upload a file, mechanism to cancel upload process by calling
@@ -12913,7 +12913,7 @@ class MegaApi
          * "Your business account is overdue, please contact your administrator."
          *
          * This method includes a mechanism to cancel a folder download process by calling MegaCancelToken::cancel through parameter
-         * cancelToken. This mechanish will be available just between the following stages: MegaTransfer::STAGE_SCAN and
+         * cancelToken. This mechanism will be available just between the following stages: MegaTransfer::STAGE_SCAN and
          * MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE both included.
          *
          * In case we are trying to download a file, mechanism to cancel upload process by calling
