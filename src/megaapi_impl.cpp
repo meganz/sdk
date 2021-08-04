@@ -1565,7 +1565,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     }
 
     // create the new node(s)
-    client->putnodes(deviceNameNode ? deviceNameNode->nodehandle : myBackupsNode->nodehandle, move(newnodes), nullptr, client->reqtag);  // followup in putnodes_result()
+    client->putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(), move(newnodes), nullptr, client->reqtag);  // followup in putnodes_result()
 
     return API_OK;
 }
@@ -14701,8 +14701,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
     if (request->getType() == MegaRequest::TYPE_IMPORT_LINK)
     {
-        handle parenthandle = request->getParentHandle();
-        Node *target = client->nodebyhandle(parenthandle);
+        auto parenthandle = NodeHandle().set6byte(request->getParentHandle());
+        Node *target = client->nodeByHandle(parenthandle);
         if (!target)
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EARGS));
@@ -18149,7 +18149,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             }
                             else
                             {
-                                client->putnodes(parent->nodehandle, move(tc.nn), nullptr, nextTag);
+                                client->putnodes(parent->nodeHandle(), move(tc.nn), nullptr, nextTag);
                             }
 
                             transfer->setDeltaSize(size);
@@ -18848,7 +18848,7 @@ void MegaApiImpl::sendPendingRequests()
             client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
             // add the newly generated folder node
-            client->putnodes(parent->nodehandle, move(newnodes), nullptr, nextTag);
+            client->putnodes(parent->nodeHandle(), move(newnodes), nullptr, nextTag);
             break;
         }
         case MegaRequest::TYPE_MOVE:
@@ -18994,7 +18994,7 @@ void MegaApiImpl::sendPendingRequests()
                     client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
-                client->putnodes(newParent->nodehandle, move(tc.nn), nullptr, nextTag);
+                client->putnodes(newParent->nodeHandle(), move(tc.nn), nullptr, nextTag);
                 e = API_OK;
                 break;
             }
@@ -19100,7 +19100,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, std::move(tc.nn), megaNode->getChatAuth(), nextTag);
+                    client->putnodes(target->nodeHandle(), std::move(tc.nn), megaNode->getChatAuth(), nextTag);
                 }
                 else
                 {
@@ -19188,7 +19188,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, move(tc.nn), nullptr, nextTag);
+                    client->putnodes(target->nodeHandle(), move(tc.nn), nullptr, nextTag);
                 }
                 else
                 {
@@ -19243,7 +19243,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
 
-            client->putnodes(current->parent->nodehandle, move(newnodes), nullptr, nextTag);
+            client->putnodes(current->parent->nodeHandle(), move(newnodes), nullptr, nextTag);
             break;
         }
         case MegaRequest::TYPE_RENAME:
@@ -22653,12 +22653,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             const char* utf8Name = request->getName();
-            MegaHandle parentHandle = request->getParentHandle();
+            auto parentHandle = NodeHandle().set6byte(request->getParentHandle());
             const char *uploadToken = request->getSessionKey();
             const char* fingerprintOriginal = request->getPassword();
             const char* fingerprint = request->getNewPassword();
 
-            if (!fingerprint || !utf8Name || !uploadToken || ISUNDEF(parentHandle))
+            if (!fingerprint || !utf8Name || !uploadToken || parentHandle.isUndef())
             {
                 e = API_EINCOMPLETE;
                 break;
@@ -22694,7 +22694,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            Node *parentNode = client->nodebyhandle(parentHandle);
+            Node *parentNode = client->nodeByHandle(parentHandle);
             if (!parentNode)
             {
                 LOG_err << "Parent node doesn't exist anymore";
