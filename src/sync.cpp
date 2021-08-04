@@ -769,7 +769,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     localnodes[FILENODE] = 0;
     localnodes[FOLDERNODE] = 0;
 
-    getConfig().mRunningState = SYNC_INITIALSCAN;
+    state() = SYNC_INITIALSCAN;
 
     //fullscan = true;
     //scanseqno = 0;
@@ -1068,7 +1068,7 @@ bool Sync::readstatecache()
 {
     assert(syncs.onSyncThread());
 
-    if (statecachetable && getConfig().mRunningState == SYNC_INITIALSCAN)
+    if (statecachetable && state() == SYNC_INITIALSCAN)
     {
         string cachedata;
         idlocalnode_map tmap;
@@ -1118,7 +1118,7 @@ void Sync::statecachedel(LocalNode* l)
 {
     assert(syncs.onSyncThread());
 
-    if (getConfig().mRunningState == SYNC_CANCELED)
+    if (state() == SYNC_CANCELED)
     {
         return;
     }
@@ -1142,7 +1142,7 @@ void Sync::statecacheadd(LocalNode* l)
 {
     assert(syncs.onSyncThread());
 
-    if (getConfig().mRunningState == SYNC_CANCELED)
+    if (state() == SYNC_CANCELED)
     {
         return;
     }
@@ -1166,7 +1166,7 @@ void Sync::cachenodes()
         insertq.clear();
     }
 
-    if ((getConfig().mRunningState == SYNC_ACTIVE || (getConfig().mRunningState == SYNC_INITIALSCAN /*&& insertq.size() > 100*/)) && (deleteq.size() || insertq.size()))
+    if ((state() == SYNC_ACTIVE || (state() == SYNC_INITIALSCAN /*&& insertq.size() > 100*/)) && (deleteq.size() || insertq.size()))
     {
         LOG_debug << syncname << "Saving LocalNode database with " << insertq.size() << " additions and " << deleteq.size() << " deletions";
         statecachetable->begin();
@@ -1222,10 +1222,10 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     config.setError(newSyncError);
     config.setEnabled(newEnableFlag);
 
-    if (newstate != getConfig().mRunningState)
+    if (newstate != state())
     {
-        auto oldstate = getConfig().mRunningState;
-        getConfig().mRunningState = newstate;
+        auto oldstate = state();
+        state() = newstate;
 
         if (notifyApp)
         {
@@ -4056,9 +4056,9 @@ void Syncs::stopCancelledFailedDisabled()
     for (auto& unifiedSync : mSyncVec)
     {
         if (unifiedSync->mSync && (
-            unifiedSync->mSync->getConfig().mRunningState == SYNC_CANCELED ||
-            unifiedSync->mSync->getConfig().mRunningState == SYNC_FAILED ||
-            unifiedSync->mSync->getConfig().mRunningState == SYNC_DISABLED))
+            unifiedSync->mSync->state() == SYNC_CANCELED ||
+            unifiedSync->mSync->state() == SYNC_FAILED ||
+            unifiedSync->mSync->state() == SYNC_DISABLED))
         {
             unifiedSync->mSync.reset();
         }
@@ -4942,7 +4942,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     assert(syncs.onSyncThread());
 
     // in case of sync failing while we recurse
-    if (getConfig().mRunningState < 0) return false;
+    if (state() < 0) return false;
     (void)depth;  // just useful for setting conditional breakpoints when debugging
 
     assert(row.syncNode);
@@ -5059,7 +5059,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
             for (auto& childRow : childRows)
             {
                 // in case of sync failing while we recurse
-                if (getConfig().mRunningState < 0) return false;
+                if (state() < 0) return false;
 
                 if (!childRow.cloudClashingNames.empty() ||
                     !childRow.fsClashingNames.empty())
@@ -7594,7 +7594,7 @@ void Syncs::syncLoop()
         {
             if (Sync* sync = us->mSync.get())
             {
-                if (sync->getConfig().mRunningState != SYNC_FAILED && sync->fsfp)
+                if (sync->state() != SYNC_FAILED && sync->fsfp)
                 {
                     fsfp_t current = sync->dirnotify->fsfingerprint();
                     if (sync->fsfp != current)
@@ -7607,7 +7607,7 @@ void Syncs::syncLoop()
 
                 bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle, sync->cloudRoot, &sync->cloudRootPath, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
-                if (!foundRootNode && sync->getConfig().mRunningState != SYNC_FAILED)
+                if (!foundRootNode && sync->state() != SYNC_FAILED)
                 {
                     LOG_err << "The remote root node doesn't exist";
                     sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
@@ -8034,8 +8034,8 @@ void Syncs::syncLoop()
             {
                 Sync* sync = us->mSync.get();
                 if (sync && (
-                    sync->getConfig().mRunningState == SYNC_ACTIVE ||
-                    sync->getConfig().mRunningState == SYNC_INITIALSCAN))
+                    sync->state() == SYNC_ACTIVE ||
+                    sync->state() == SYNC_INITIALSCAN))
                 {
 
                     if (sync->dirnotify->mErrorCount.load())
@@ -8090,7 +8090,7 @@ void Syncs::syncLoop()
                         sync->cachenodes();
 
                         bool doneScanning = sync->localroot->scanAgain == TREE_RESOLVED;
-                        if (doneScanning && sync->getConfig().mRunningState == SYNC_INITIALSCAN)
+                        if (doneScanning && sync->state() == SYNC_INITIALSCAN)
                         {
                             sync->changestate(SYNC_ACTIVE, NO_SYNC_ERROR, true, true);
                         }

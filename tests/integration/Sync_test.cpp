@@ -7869,7 +7869,7 @@ struct TwoWaySyncSymmetryCase
         else
         {
             EXPECT_NE(sync, (Sync*)nullptr);
-            EXPECT_TRUE(sync && sync->getConfig().mRunningState == SYNC_ACTIVE);
+            EXPECT_TRUE(sync && sync->state() == SYNC_ACTIVE);
 
             bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
             bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
@@ -7878,7 +7878,7 @@ struct TwoWaySyncSymmetryCase
             EXPECT_EQ(localnode, remote);
             EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
 
-            finalResult = localfs && localnode && remote && sync && sync->getConfig().mRunningState == SYNC_ACTIVE;
+            finalResult = localfs && localnode && remote && sync && sync->state() == SYNC_ACTIVE;
         }
 
     }

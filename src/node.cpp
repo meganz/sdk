@@ -2004,7 +2004,7 @@ LocalNode::~LocalNode()
     }
 
     if (!sync->mDestructorRunning && (
-        sync->getConfig().mRunningState == SYNC_ACTIVE || sync->getConfig().mRunningState == SYNC_INITIALSCAN))
+        sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN))
     {
         sync->statecachedel(this);
     }

@@ -502,13 +502,12 @@ public:
 class MEGA_API CommandDelNode : public Command
 {
     NodeHandle h;
-    NodeHandle parent;
     std::function<void(NodeHandle, Error)> mResultFunction;
 
 public:
     bool procresult(Result) override;
 
-    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>);
+    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&);
 };
 
 class MEGA_API CommandDelVersions : public Command
@@ -643,7 +642,7 @@ private:
     putsource_t source;
     bool emptyResponse = false;
     NodeHandle targethandle;
-    Completion completion;
+    Completion mResultFunction;
 
     void removePendingDBRecordsAndTempFiles();
     void performAppCallback(Error e, bool targetOverride = false);
@@ -651,7 +650,7 @@ private:
 public:
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, NodeHandle, const char*, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion);
+    CommandPutNodes(MegaClient*, NodeHandle, const char*, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&);
 };
 
 class MEGA_API CommandSetAttr : public Command

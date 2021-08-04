@@ -976,7 +976,9 @@ bool CommandSetAttr::procresult(Result r)
 // (the result is not processed directly - we rely on the server-client
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
-                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth, Completion c)
+                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
+                                 Completion&& resultFunction)
+  : mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
 
@@ -984,7 +986,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
-    completion = c;
 
     mSeqtagArray = true;
     cmd("p");
@@ -1146,20 +1147,7 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
 
 void CommandPutNodes::performAppCallback(Error e, bool targetOverride)
 {
-
-    // First disassociate the LocalNodes and NewNodes
-    // We needed them for internal processing (calling back the sync code etc)
-    // but the app should not know about them, and if it calls move(nn)
-    // then we may not remove newnode references from the LocalNodes in a timely fashion.
-
-//#ifdef ENABLE_SYNC
-//    for (size_t i = 0; i < nn.size(); i++)
-//    {
-//        nn[i].localnode.reset();
-//    }
-//#endif
-
-    if (completion) completion(e, type, nn, targetOverride);
+    if (mResultFunction) mResultFunction(e, type, nn, targetOverride);
 	else client->app->putnodes_result(e, type, nn, targetOverride);
 }
 
@@ -1390,8 +1378,8 @@ bool CommandMoveNode::procresult(Result r)
     return r.wasErrorOrActionpacket();
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)> f)
-    : mResultFunction(f)
+CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f)
+    : mResultFunction(move(f))
 {
     cmd("d");
 
@@ -1404,8 +1392,6 @@ CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversi
 
     h = th;
     tag = cmdtag;
-    const Node* n = client->nodeByHandle(h);
-    parent = (n && n->parent) ? n->parent->nodeHandle() : NodeHandle();
 }
 
 bool CommandDelNode::procresult(Result r)
