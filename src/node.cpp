@@ -1099,6 +1099,26 @@ bool Node::isbelow(Node* p) const
     }
 }
 
+bool Node::isbelow(NodeHandle p) const
+{
+    const Node* n = this;
+
+    for (;;)
+    {
+        if (!n)
+        {
+            return false;
+        }
+
+        if (n->nodeHandle() == p)
+        {
+            return true;
+        }
+
+        n = n->parent;
+    }
+}
+
 void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const string &authKey)
 {
     if (!plink) // creation

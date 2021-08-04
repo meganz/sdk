@@ -460,25 +460,33 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
         {
             // check if the low(ered) access level is affecting any syncs
             // a) have we just cut off full access to a subtree of a sync?
-            do {
-                if (n->localnode && (n->localnode->sync->state() == SYNC_ACTIVE ||
-                                     n->localnode->sync->state() == SYNC_INITIALSCAN))
+            auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
+            for (NodeHandle rootHandle : activeSyncRootHandles)
+            {
+                if (n->isbelow(rootHandle))
                 {
                     LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                    n->localnode->sync->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS, false, true);
+                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
+                        return c.mRemoteNode == rootHandle;
+                        }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
+
                 }
-            } while ((n = n->parent));
+            }
 
             // b) have we just lost full access to the subtree a sync is in?
-            syncs.forEachRunningSync([&](Sync* sync){
-                if (sync->inshare && (sync->state() == SYNC_ACTIVE ||
-                                      sync->state() == SYNC_INITIALSCAN) && !checkaccess(sync->localroot->node, FULL))
+            Node* root = nullptr;
+            for (NodeHandle rootHandle : activeSyncRootHandles)
+            {
+                if (n->isbelow(rootHandle) &&
+                    (nullptr != (root = nodeByHandle(rootHandle))) &&
+                    !checkaccess(root, FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
-                    sync->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS, false, true);
+                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
+                        return c.mRemoteNode == rootHandle;
+                        }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
                 }
-            });
-
+            };
         }
 #endif
     }
@@ -2216,7 +2224,16 @@ void MegaClient::exec()
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
 #ifdef ENABLE_SYNC
-                        failSyncs(TOO_MANY_ACTION_PACKETS);
+                        // Fail all syncs.
+                        // Setting flag for fail rather than disable
+                        std::promise<bool> pb;
+                        syncs.disableSelectedSyncs([](SyncConfig&, Sync* s){ return !!s; },
+                            true,
+                            TOO_MANY_ACTION_PACKETS,
+                            false,
+                            [&pb](size_t){ pb.set_value(true); });
+                        // wait for operation to complete
+                        pb.get_future().get();
 #endif
                         int creqtag = reqtag;
                         reqtag = fetchnodestag; // associate with ongoing request, if any
@@ -15593,43 +15610,22 @@ void MegaClient::failSync(Sync* sync, SyncError syncerror)
     syncactivity = true;
 }
 
-
-void MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag)
+void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag)
 {
-    auto sync = getSyncContainingNodeHandle(nodeHandle);
-    if (sync)
+    if (Node* n = nodeByHandle(nodeHandle))
     {
-        syncs.disableSelectedSyncs([&](SyncConfig&, Sync* s) {
-            return s == sync;
-        }, syncError, newEnabledFlag);
-    }
-}
-
-Sync * MegaClient::getSyncContainingNodeHandle(mega::handle nodeHandle)
-{
-    Sync* syncFound = nullptr;
-    while(!ISUNDEF(nodeHandle) && !syncFound)
-    {
-        syncs.forEachRunningSync([&](Sync* sync) {
-
-            if (sync->localroot && sync->localroot->node && sync->localroot->node->nodehandle == nodeHandle)
+        auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
+        for (NodeHandle rootHandle : activeSyncRootHandles)
+        {
+            if (n->isbelow(rootHandle))
             {
-                syncFound =  sync;  // no nested synched folders is allowed, so if found, there's no more active syncssyncs
+                LOG_warn << "Disabling sync containing node " << n->displaypath();
+                syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
+                    return c.mRemoteNode == rootHandle;
+                    }, false, syncError, newEnabledFlag, nullptr);
             }
-        });
-
-        Node *n = nodebyhandle(nodeHandle);
-        nodeHandle = n ? n->parenthandle : UNDEF;
+        }
     }
-    return syncFound;
-}
-
-void MegaClient::failSyncs(SyncError syncError)
-{
-    syncs.forEachRunningSync([&](Sync* sync) {
-        sync->changestate(SYNC_FAILED, syncError, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
-    });
-    syncactivity = true;
 }
 
 void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)

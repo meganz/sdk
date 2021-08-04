@@ -9069,30 +9069,31 @@ void exec_syncxable(autocomplete::ACState& s)
     // Disable or fail?
     if (command == "fail")
     {
-        // Find the specified sync.
-        auto* sync = client->syncs.runningSyncByBackupId(backupId);
-
-        // Have we found the backup sync?
-        if (!sync)
-        {
-            cerr << "No sync found with the id "
-                 << Base64Str<sizeof(handle)>(backupId)
-                 << endl;
-            return;
-        }
-
-        client->failSync(sync, static_cast<SyncError>(error));
-        return;
+        client->syncs.disableSelectedSyncs(
+            [backupId](SyncConfig& config, Sync*)
+            {
+                return config.getBackupId() == backupId;
+            },
+            true, // disable is fail
+                static_cast<SyncError>(error),
+                false,
+                [](size_t nFailed){
+                cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
+            });
     }
     else    // command == "disable"
     {
         client->syncs.disableSelectedSyncs(
-          [&backupId](SyncConfig& config, Sync*)
-          {
-              return config.getBackupId() == backupId;
-          },
-          static_cast<SyncError>(error),
-          false);
+            [backupId](SyncConfig& config, Sync*)
+            {
+                return config.getBackupId() == backupId;
+            },
+            false,
+                static_cast<SyncError>(error),
+                false,
+                [](size_t nDisabled){
+                cout << "disablement complete. Count disabled: " << nDisabled << endl;
+            });
     }
 }
 
