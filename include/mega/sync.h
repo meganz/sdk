@@ -159,6 +159,9 @@ public:
     // Whether this backup is monitoring or mirroring.
     SyncBackupState mBackupState;
 
+    // Current running state.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
+    syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no assoicated mSync
+
     // enum to string conversion
     static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
@@ -237,7 +240,7 @@ public:
     string mFsEventsPath;
 #endif
     // current state
-    syncstate_t state = SYNC_INITIALSCAN;
+    syncstate_t& state() { return getConfig().mRunningState; }
 
     // are we conducting a full tree scan? (during initialization and if event notification failed)
     bool fullscan = true;

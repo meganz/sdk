@@ -89,8 +89,8 @@ class SyncApp : public MegaApp, public Logger
     void request_error(error e);
 
 #ifdef ENABLE_SYNC
-    void syncupdate_stateconfig(handle backupId) override;
-    void syncupdate_treestate(LocalNode*) override;
+    void syncupdate_stateconfig(const SyncConfig& config) override;
+    void syncupdate_treestate(const SyncConfig& config, const LocalPath& lp, treestate_t ts, nodetype_t) override;
 #endif
 
     Node* nodebypath(const char* ptr, string* user, string* namepart);
@@ -462,9 +462,9 @@ void SyncApp::request_error(error e)
 }
 
 #ifdef ENABLE_SYNC
-void SyncApp::syncupdate_stateconfig(handle backupId)
+void SyncApp::syncupdate_stateconfig(const SyncConfig &config)
 {
-    LOG_info << "Sync config updated: " << backupId;
+    LOG_info << "Sync config updated: " << config.mBackupId;
 }
 
 
@@ -488,9 +488,9 @@ static const char* treestatename(treestate_t ts)
     return "UNKNOWN";
 }
 
-void SyncApp::syncupdate_treestate(LocalNode* l)
+void SyncApp::syncupdate_treestate(const SyncConfig &config, const LocalPath& lp, treestate_t ts, nodetype_t)
 {
-    LOG_info << "Sync - state change of node " << l->name << " to " << treestatename(l->ts);
+    LOG_info << "Sync - state change of node " << lp.toPath() << " to " << treestatename(ts);
 }
 
 #endif
