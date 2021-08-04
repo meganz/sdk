@@ -29,9 +29,9 @@ PubKeyAction::PubKeyAction()
     cmd = NULL;
 }
 
-PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag, CommandPutNodes::Completion c)
+PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag, CommandPutNodes::Completion&& c)
     : nn(move(newnodes))
-    , completion(c)
+    , completion(move(c))
 {
     tag = ctag;
 }
@@ -55,7 +55,7 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), move(nn), tag, PUTNODES_APP, nullptr, completion));
+        client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), move(nn), tag, PUTNODES_APP, nullptr, move(completion)));
     }
     else
     {

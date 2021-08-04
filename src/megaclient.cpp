@@ -7232,24 +7232,25 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion completion)
+void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& completion)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, completion));
+    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, move(completion)));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
-void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag)
+void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
     User* u;
 
     if (!(u = finduser(user, 0)) && !user)
     {
         restag = tag;
-        app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
+        if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false);
+        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
 		return;
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag, nullptr));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag, move(completion)));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -7477,7 +7478,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)> resultFunction)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
@@ -7498,7 +7499,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, resultFunction));
+    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction)));
 
     return API_OK;
 }
@@ -14377,9 +14378,10 @@ void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, LocalPath& reuseBu
 
 void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion)
 {
-    error err = unlink(n, false, 0, completion);
+    error err = unlink(n, false, 0, move(completion));
     if (err)
     {
+        // if an err was returned from unlink(), then it has not actually move()d from the completion function rvalue ref
         completion(n->nodeHandle(), err);
     }
 }
