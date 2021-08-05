@@ -2387,18 +2387,17 @@ struct StandardClient : public MegaApp
 
     void disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result)
     {
-        auto matched = false;
-
         client.syncs.disableSelectedSyncs(
-          [&](SyncConfig& config, Sync*)
-          {
-              matched |= config.mBackupId == id;
-              return matched;
-          },
-          error,
-          enabled);
-
-        result->set_value(matched);
+            [id](SyncConfig& config, Sync*)
+            {
+                return config.mBackupId == id;
+            },
+            false,
+            error,
+            enabled,
+            [result](size_t nDisabled){
+                result->set_value(!!nDisabled);
+            });
     }
 
     bool disableSync(handle id, SyncError error, bool enabled)

@@ -258,6 +258,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // check if node is below this node
     bool isbelow(Node*) const;
+    bool isbelow(NodeHandle) const;
 
     // handle of public link for the node
     PublicLink* plink = nullptr;

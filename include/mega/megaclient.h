@@ -687,17 +687,12 @@ private:
 
 public:
 
-    ////// sync config updating & persisting ////
-
     // transition the cache to failed
     void failSync(Sync* sync, SyncError syncerror);
 
     // disable synchronization. syncError specifies why we are disabling it.
     // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
-    void disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag);
-
-    // fail all active syncs
-    void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
+    void disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag);
 
 #endif  // ENABLE_SYNC
 

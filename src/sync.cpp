@@ -986,6 +986,11 @@ void Sync::setBackupMonitoring()
     client->syncs.saveSyncConfig(config);
 }
 
+bool Sync::active() const
+{
+    return getConfig().mRunningState >= SYNC_INITIALSCAN;
+}
+
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
 {
     auto range = tmap->equal_range(parent_dbid);
@@ -1142,7 +1147,7 @@ void Sync::cachenodes()
         insertq.clear();
     }
 
-    if ((state() == SYNC_ACTIVE || 
+    if ((state() == SYNC_ACTIVE ||
         (state() == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
     {
         LOG_debug << "Saving LocalNode database with " << insertq.size() << " additions and " << deleteq.size() << " deletions";
@@ -2744,28 +2749,28 @@ bool Syncs::syncConfigStoreFlush()
              << " drive(s).";
 
     // Disable syncs present on drives that we couldn't write.
-    size_t disabled = 0;
+    size_t nFailed = failed.size();
 
     disableSelectedSyncs(
-      [&](SyncConfig& config, Sync*)
-      {
-          // But only if they're not already disabled.
-          if (!config.getEnabled()) return false;
+        [&](SyncConfig& config, Sync*)
+        {
+            // But only if they're not already disabled.
+            if (!config.getEnabled()) return false;
 
-          auto matched = failed.count(config.mExternalDrivePath);
+            auto matched = failed.count(config.mExternalDrivePath);
 
-          disabled += matched;
-
-          return matched > 0;
-      },
-      SYNC_CONFIG_WRITE_FAILURE,
-      false);
-
-    LOG_warn << "Disabled "
-             << disabled
-             << " sync(s) on "
-             << failed.size()
-             << " drive(s).";
+            return matched > 0;
+        },
+        false,
+        SYNC_CONFIG_WRITE_FAILURE,
+        false,
+        [=](size_t disabled){
+            LOG_warn << "Disabled "
+                << disabled
+                << " sync(s) on "
+                << nFailed
+                << " drive(s).";
+        });
 
     return false;
 }
@@ -3352,6 +3357,20 @@ void Syncs::resetSyncConfigStore()
     static_cast<void>(syncConfigStore());
 }
 
+vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
+{
+    vector<NodeHandle> v;
+    for (auto& s : mSyncVec)
+    {
+        if (mustBeActive && (!s->mSync || !s->mSync->active()))
+        {
+            continue;
+        }
+        v.emplace_back(s->mConfig.mRemoteNode);
+    }
+    return v;
+}
+
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
 {
     isEmpty = false;
@@ -3510,26 +3529,22 @@ void Syncs::purgeRunningSyncs()
 
 void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
 {
-    bool anySyncDisabled = false;
-    disableSelectedSyncs([&](SyncConfig& config, Sync*){
-
-        if (config.getEnabled())
+    disableSelectedSyncs([&](SyncConfig& config, Sync*)
         {
-            anySyncDisabled = true;
-            return true;
-        }
-        return false;
-    }, syncError, newEnabledFlag);
-
-    if (anySyncDisabled)
-    {
-        LOG_info << "Disabled syncs. error = " << syncError;
-        mClient.app->syncs_disabled(syncError);
-    }
+            return config.getEnabled();
+        },
+        false,
+        syncError,
+        newEnabledFlag,
+        [=](size_t nDisabled) {
+            LOG_info << "Disabled " << nDisabled << " syncs. error = " << syncError;
+            if (nDisabled) mClient.app->syncs_disabled(syncError);
+        });
 }
 
-void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag)
+void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion)
 {
+    size_t nDisabled = 0;
     for (auto i = mSyncVec.size(); i--; )
     {
         auto& us = *mSyncVec[i];
@@ -3540,7 +3555,7 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
         {
             if (sync)
             {
-                sync->changestate(SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+                sync->changestate(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
                 mClient.syncactivity = true;
             }
             else
@@ -3549,10 +3564,12 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
                 config.setEnabled(config.isInternal() && newEnabledFlag);
                 us.changedConfigState(true);
             }
+            nDisabled += 1;
 
             mHeartBeatMonitor->updateOrRegisterSync(*mSyncVec[i]);
         }
     }
+    if (completion) completion(nDisabled);
 }
 
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)

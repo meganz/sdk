@@ -339,6 +339,9 @@ public:
     Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool);
     ~Sync();
 
+    // Should we synchronize this sync?
+    bool active() const;
+
     static const int SCANNING_DELAY_DS;
     static const int EXTRA_SCANNING_DELAY_DS;
     static const int FILE_UPDATE_DELAY_DS;
@@ -553,6 +556,8 @@ struct Syncs
     void forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f);
     void forEachSyncConfig(std::function<void(const SyncConfig&)>);
 
+    vector<NodeHandle> getSyncRootHandles(bool mustBeActive);
+
     void purgeRunningSyncs();
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
@@ -562,8 +567,8 @@ struct Syncs
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
 
-    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag);
+    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted.  Compatible with syncs on a separate thread in future
+    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
