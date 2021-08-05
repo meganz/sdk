@@ -7543,7 +7543,9 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
 
 void Syncs::syncLoop()
 {
+    syncThreadId = std::this_thread::get_id();
     assert(onSyncThread());
+
     std::condition_variable cv;
     std::mutex dummy_mutex;
     std::unique_lock<std::mutex> dummy_lock(dummy_mutex);

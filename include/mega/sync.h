@@ -1000,9 +1000,10 @@ private:
     void purgeRunningSyncs_inThread();
 
     std::thread syncThread;
+    std::thread::id syncThreadId;
     void syncLoop();
 
-    bool onSyncThread() const { return std::this_thread::get_id() == syncThread.get_id(); }
+    bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
     enum WhichCloudVersion { EXACT_VERSION, LATEST_VERSION, FOLDER_ONLY };
     bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveSync, WhichCloudVersion);
