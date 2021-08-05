@@ -5462,7 +5462,12 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             if (row.cloudNode)
             {
                 // local item not present
-                if (row.syncNode->fsid_lastSynced != UNDEF)
+                if (isBackupAndMirroring())
+                {
+                    // in mirror mode, make the cloud the same as local
+                    rowSynced = resolve_fsNodeGone(row, parentRow, fullPath);
+                }
+                else if (row.syncNode->fsid_lastSynced != UNDEF)
                 {
                     // used to be synced - remove in the cloud (or detect move)
                     rowSynced = resolve_fsNodeGone(row, parentRow, fullPath);
@@ -5909,6 +5914,13 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
+    if (isBackup())
+    {
+        // Backups must not change the local
+        changestate(SYNC_FAILED, BACKUP_MODIFIED, false, true);
+        return false;
+    }
+
     // Consider making this a class-wide function.
     auto checkForFilenameAnomaly = [this](const SyncPath& path, const string& name) {
         // Have we encountered an anomalous filename?
@@ -5929,13 +5941,6 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
     if (row.cloudNode->type == FILENODE)
     {
-        if (isBackup())
-        {
-            // Backups must not change the local
-            changestate(SYNC_FAILED, BACKUP_MODIFIED, false, true);
-            return false;
-        }
-
         // download the file if we're not already downloading
         // if (alreadyExists), we will move the target to the trash when/if download completes //todo: check
 
@@ -6052,13 +6057,6 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
         if (parentRow.fsNode)
         {
-            if (isBackup())
-            {
-                // Backups must not change the local
-                changestate(SYNC_FAILED, BACKUP_MODIFIED, false, true);
-                return false;
-            }
-
             // Check for and report filename anomalies.
             checkForFilenameAnomaly(fullPath, row.cloudNode->name);
 

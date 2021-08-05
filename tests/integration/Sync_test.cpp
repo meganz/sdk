@@ -2968,17 +2968,24 @@ struct StandardClient : public MegaApp
 
     bool backupOpenDrive(const fs::path& drivePath)
     {
-        auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
-            client.backupOpenDrive(drivePath, std::move(result));
+        auto localDrivePath = LocalPath::fromPath(drivePath.u8string(), *client.fsaccess);
+
+        error e = API_OK;
+        client.syncs.syncRun([&]() {
+            e = client.syncs.backupOpenDrive(localDrivePath);
         });
 
-        return result.get();
+        return e == API_OK;
     }
 
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
     {
         auto localDrivePath = LocalPath::fromPath(drivePath.u8string(), *client.fsaccess);
-        result->set_value(client.syncs.backupOpenDrive(localDrivePath) == API_OK);
+
+        client.syncs.queueSync([=]() {
+                error e = client.syncs.backupOpenDrive(localDrivePath);
+                result->set_value(e == API_OK);
+            });
     }
 
     void wouldBeEscapedOnDownload(fs::path root, string remoteName, PromiseBoolSP result)
@@ -8758,7 +8765,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
     // Wait for the mirror to complete.
     waitonsyncs(TIMEOUT, &cb);
 
-    // Cloud should mirror the local disk.
+    // Cloud should mirror the local disk. (ie, g should be gone in the cloud)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
