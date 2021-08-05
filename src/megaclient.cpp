@@ -484,7 +484,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
                 }
             };
-
         }
 #endif
     }
@@ -2198,10 +2197,10 @@ void MegaClient::exec()
                         // Setting flag for fail rather than disable
                         std::promise<bool> pb;
                         syncs.disableSelectedSyncs([](SyncConfig&, Sync* s){ return !!s; },
-                                true,
-                                TOO_MANY_ACTION_PACKETS,
-                                false,
-                                [&pb](size_t){ pb.set_value(true); });
+                            true,
+                            TOO_MANY_ACTION_PACKETS,
+                            false,
+                            [&pb](size_t){ pb.set_value(true); });
                         // wait for operation to complete
                         pb.get_future().get();
 #endif
@@ -3652,7 +3651,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     unshareablekey.clear();
     mFolderLink.mPublicHandle = UNDEF;
     mFolderLink.mWriteAuth.clear();
-    mFolderLink.mAccountAuth.clear();
     cachedscsn = UNDEF;
     achievements_enabled = false;
     isNewSession = false;
@@ -6694,7 +6692,7 @@ void MegaClient::notifypurge(void)
                     notifyuser(n->inshare->user);
                 }
 
-                nodes.erase(n->nodehandle);
+                nodes.erase(n->nodeHandle());
                 delete n;
             }
             else
@@ -6811,7 +6809,7 @@ void MegaClient::notifypurge(void)
 // return node pointer derived from node handle
 Node* MegaClient::nodebyhandle(handle h, bool fileVersionOk) const
 {
-    auto it = nodes.find(h);
+    auto it = nodes.find(NodeHandle().set6byte(h));
 
     if (it != nodes.end())
     {
@@ -6828,7 +6826,20 @@ Node* MegaClient::nodebyhandle(handle h, bool fileVersionOk) const
 Node* MegaClient::nodeByHandle(NodeHandle h, bool fileVersionOk) const
 {
     if (h.isUndef()) return nullptr;
-    return nodebyhandle(h.as8byte(), fileVersionOk);
+
+    auto it = nodes.find(h);
+
+    if (it != nodes.end())
+    {
+        // if this assert fails, please check the code calling it deals with file versions, and if not then fix,
+        // if it already deals with file versions then just pass  fileVersionOk == true
+        assert(fileVersionOk || !it->second->parent || it->second->parent->type != FILENODE);
+
+        return it->second;
+    }
+
+    return nullptr;
+
 }
 
 Node* MegaClient::nodeByPath(const char* path, Node* node)
@@ -7232,9 +7243,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& completion)
+void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, move(completion)));
+    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
@@ -14527,7 +14538,7 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
         {
             if (n->isbelow(rootHandle))
             {
-                LOG_warn << "Disabling sync containing node";
+                LOG_warn << "Disabling sync containing node " << n->displaypath();
                 syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
                     return c.mRemoteNode == rootHandle;
                 }, false, syncError, newEnabledFlag, nullptr);

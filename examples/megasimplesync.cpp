@@ -90,7 +90,7 @@ class SyncApp : public MegaApp, public Logger
 
 #ifdef ENABLE_SYNC
     void syncupdate_stateconfig(const SyncConfig& config) override;
-    void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) override;
+    void syncupdate_treestate(const SyncConfig& config, const LocalPath& lp, treestate_t ts, nodetype_t) override;
 #endif
 
     Node* nodebypath(const char* ptr, string* user, string* namepart);
@@ -488,9 +488,9 @@ static const char* treestatename(treestate_t ts)
     return "UNKNOWN";
 }
 
-void SyncApp::syncupdate_treestate(const SyncConfig &, const LocalPath& lp, treestate_t ts, nodetype_t)
+void SyncApp::syncupdate_treestate(const SyncConfig &config, const LocalPath& lp, treestate_t ts, nodetype_t)
 {
-    LOG_info << "Sync - state change of node " << lp.toPath(*client->fsaccess) << " to " << treestatename(ts);
+    LOG_info << "Sync - state change of node " << lp.toPath() << " to " << treestatename(ts);
 }
 
 #endif

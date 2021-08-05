@@ -151,16 +151,22 @@ void WaitMillisec(unsigned n)
 #endif
 }
 
-bool WaitFor(std::function<bool()>&& f, unsigned millisec)
+template<typename Predicate>
+bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
 {
-    unsigned waited = 0;
-    for (;;)
+    unsigned sleepMs = 100;
+    unsigned totalMs = 0;
+
+    do
     {
-        if (f()) return true;
-        if (waited >= millisec) return false;
-        WaitMillisec(100);
-        waited += 100;
+        if (predicate()) return true;
+
+        WaitMillisec(sleepMs);
+        totalMs += sleepMs;
     }
+    while (totalMs < timeoutMs);
+
+    return false;
 }
 
 MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
@@ -1077,24 +1083,35 @@ void SdkTest::removePublicLink(unsigned apiIndex, MegaNode *n, int timeout)
 
 void SdkTest::getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize)
 {
-    MegaContactRequestList *crl;
+    unique_ptr<MegaContactRequestList> crl;
+    unsigned timeoutMs = 8000;
 
     if (outgoing)
     {
-        crl = mApi[apiIndex].megaApi->getOutgoingContactRequests();
-        ASSERT_EQ(expectedSize, crl->size()) << "Too many outgoing contact requests in account " << apiIndex;
-        if (expectedSize)
-            mApi[apiIndex].cr.reset(crl->get(0)->copy());
+        auto predicate = [&]() {
+            crl.reset(mApi[apiIndex].megaApi->getOutgoingContactRequests());
+            return crl->size() == expectedSize;
+        };
+
+        ASSERT_TRUE(WaitFor(predicate, timeoutMs))
+          << "Too many outgoing contact requests in account: "
+          << apiIndex;
     }
     else
     {
-        crl = mApi[apiIndex].megaApi->getIncomingContactRequests();
-        ASSERT_EQ(expectedSize, crl->size()) << "Too many incoming contact requests in account " << apiIndex;
-        if (expectedSize)
-            mApi[apiIndex].cr.reset(crl->get(0)->copy());
+        auto predicate = [&]() {
+            crl.reset(mApi[apiIndex].megaApi->getIncomingContactRequests());
+            return crl->size() == expectedSize;
+        };
+
+        ASSERT_TRUE(WaitFor(predicate, timeoutMs))
+          << "Too many incoming contact requests in account: "
+          << apiIndex;
     }
 
-    delete crl;
+    if (!expectedSize) return;
+
+    mApi[apiIndex].cr.reset(crl->get(0)->copy());
 }
 
 MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int timeout)
@@ -4779,17 +4796,40 @@ TEST_F(SdkTest, SdkRecentsTest)
 
 #ifdef __linux__
 std::string exec(const char* cmd) {
-    std::array<char, 128> buffer;
-    std::string result;
+    // Open pipe for reading.
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-    if (!pipe)
+
+    // Make sure the pipe was actually created.
+    if (!pipe) throw std::runtime_error("popen() failed!");
+
+    std::string result;
+
+    // Read from the pipe until we hit EOF or encounter an error.
+    for (std::array<char, 128> buffer; ; )
     {
-        throw std::runtime_error("popen() failed!");
+        // Read from the pipe.
+        auto nRead = fread(buffer.data(), 1, buffer.size(), pipe.get());
+
+        // Were we able to extract any data?
+        if (nRead > 0)
+        {
+            // If so, add it to our result buffer.
+            result.append(buffer.data(), nRead);
+        }
+
+        // Have we extracted as much as we can?
+        if (nRead < buffer.size()) break;
     }
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        result += buffer.data();
+
+    // Were we able to extract all of the data?
+    if (feof(pipe.get()))
+    {
+        // Then return the result.
+        return result;
     }
-    return result;
+
+    // Otherwise, let the caller know we couldn't read the pipe.
+    throw std::runtime_error("couldn't read all data from the pipe!");
 }
 #endif
 
@@ -5818,7 +5858,15 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, ::m
         sync.reset(megaApi->getSyncByNode(remoteNode));
         return (sync && sync->isEnabled() == enabled && sync->isActive() == active && sync->getError() == err);
     }, 30*1000);
-    return sync;
+
+    if (sync && sync->isEnabled() == enabled && sync->isActive() == active && sync->getError() == err)
+    {
+        return sync;
+    }
+    else
+    {
+        return nullptr; // signal that the sync never reached the expected/required state
+    }
 }
 
 std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, handle backupID, bool enabled, bool active, MegaSync::Error err)
@@ -5829,7 +5877,15 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, han
         sync.reset(megaApi->getSyncByBackupId(backupID));
         return (sync && sync->isEnabled() == enabled && sync->isActive() == active && sync->getError() == err);
     }, 30*1000);
-    return sync;
+
+    if (sync && sync->isEnabled() == enabled && sync->isActive() == active && sync->getError() == err)
+    {
+        return sync;
+    }
+    else
+    {
+        return nullptr; // signal that the sync never reached the expected/required state
+    }
 }
 
 
@@ -6818,13 +6874,15 @@ TEST_F(SdkTest, SyncOQTransitions)
 
         LOG_verbose << "SyncOQTransitions :  Check that Sync could not be enabled while disabled due to OQ.";
         ASSERT_EQ(MegaError::API_EFAILED, synchronousEnableSync(0, backupId))  << "API Error enabling a sync";
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::STORAGE_OVERQUOTA);  // fresh snapshot of sync state
+        ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
     }
 
     LOG_verbose << "SyncOQTransitions :  Free up space and check that Sync is not active again.";
     ASSERT_EQ(MegaError::API_OK, synchronousRemove(0, last1GBFileNode.get()));
     ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are not in OQ
-    sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::NO_SYNC_ERROR);
+    sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::STORAGE_OVERQUOTA);  // of course the error stays as OverQuota.  Sync still not re-enabled.
     ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
 
     LOG_verbose << "SyncOQTransitions :  Share big files folder with another account.";
@@ -6856,7 +6914,7 @@ TEST_F(SdkTest, SyncOQTransitions)
     {
         TestingWithLogErrorAllowanceGuard g;
 
-        ASSERT_NO_FATAL_FAILURE(resumeSession(session.c_str()));
+        ASSERT_NO_FATAL_FAILURE(resumeSession(session.c_str()));   // sync not actually resumed here though (though it would be if it was still enabled)
         ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::STORAGE_OVERQUOTA);

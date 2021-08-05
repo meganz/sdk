@@ -502,6 +502,7 @@ public:
 class MEGA_API CommandDelNode : public Command
 {
     NodeHandle h;
+    NodeHandle parent;
     std::function<void(NodeHandle, Error)> mResultFunction;
 
 public:

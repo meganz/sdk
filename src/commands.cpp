@@ -588,8 +588,11 @@ bool CommandDirectRead::procresult(Result r)
                     }
                     if (tempurls.size() == 1 || tempurls.size() == RAIDPARTS)
                     {
-                        drn->tempurls.swap(tempurls);
-                        e.setErrorCode(API_OK);
+                        if (drn)
+                        {
+                            drn->tempurls.swap(tempurls);
+                            e.setErrorCode(API_OK);
+                        }
                     }
                     else
                     {
@@ -8141,13 +8144,12 @@ bool CommandGetCountryCallingCodes::procresult(Result r)
 
     map<string, vector<string>> countryCallingCodes;
 
-    string countryCode;
-    vector<string> callingCodes;
-
     bool success = true;
     while (client->json.enterobject())
     {
         bool exit = false;
+        string countryCode;
+        vector<string> callingCodes;
         while (!exit)
         {
             switch (client->json.getnameid())

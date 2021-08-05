@@ -581,6 +581,11 @@ bool SyncConfig::isExternal() const
     return !mExternalDrivePath.empty();
 }
 
+bool SyncConfig::isInternal() const
+{
+    return mExternalDrivePath.empty();
+}
+
 bool SyncConfig::errorOrEnabledChanged()
 {
     bool changed = mError != mKnownError ||
@@ -745,6 +750,11 @@ bool SyncConfig::synctypefromname(const string& name, Type& type)
     return false;
 }
 
+SyncError SyncConfig::knownError() const
+{
+    return mKnownError;
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const string& cdebris,
@@ -776,9 +786,20 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
+    // If we're a backup sync...
     if (mUnifiedSync.mConfig.isBackup())
     {
-        mUnifiedSync.mConfig.setBackupState(SYNC_BACKUP_MIRROR);
+        auto& config = mUnifiedSync.mConfig;
+
+        auto firstTime = config.mBackupState == SYNC_BACKUP_NONE;
+        auto isExternal = config.isExternal();
+        auto wasDisabled = config.knownError() == BACKUP_MODIFIED;
+
+        if (firstTime || isExternal || wasDisabled)
+        {
+            // Then we must come up in mirroring mode.
+            mUnifiedSync.mConfig.mBackupState = SYNC_BACKUP_MIRROR;
+        }
     }
 
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
@@ -957,20 +978,6 @@ void Sync::setBackupMonitoring()
     syncs.saveSyncConfig(config);
 }
 
-bool Sync::active() const
-{
-    switch (getConfig().mRunningState)
-    {
-    case SYNC_ACTIVE:
-    case SYNC_INITIALSCAN:
-        return true;
-    default:
-        break;
-    }
-
-    return false;
-}
-
 void Sync::setSyncPaused(bool pause)
 {
     assert(syncs.onSyncThread());
@@ -983,6 +990,11 @@ bool Sync::isSyncPaused() {
     assert(syncs.onSyncThread());
 
     return syncPaused;
+}
+
+bool Sync::active() const
+{
+    return getConfig().mRunningState >= SYNC_INITIALSCAN;
 }
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
@@ -1166,7 +1178,8 @@ void Sync::cachenodes()
         insertq.clear();
     }
 
-    if ((state() == SYNC_ACTIVE || (state() == SYNC_INITIALSCAN /*&& insertq.size() > 100*/)) && (deleteq.size() || insertq.size()))
+    if ((state() == SYNC_ACTIVE ||
+        (state() == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
     {
         LOG_debug << syncname << "Saving LocalNode database with " << insertq.size() << " additions and " << deleteq.size() << " deletions";
         statecachetable->begin();
@@ -1216,8 +1229,12 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
 
     auto& config = getConfig();
 
-    // See explanation in disableSelectedSyncs(...).
-    newEnableFlag &= !(config.isBackup() && newstate < SYNC_INITIALSCAN);
+    // Transitioning to a 'stopped' state...
+    if (newstate < SYNC_INITIALSCAN)
+    {
+        // Should "user-disable" external backups...
+        newEnableFlag &= config.isInternal();
+    }
 
     config.setError(newSyncError);
     config.setEnabled(newEnableFlag);
@@ -3186,17 +3203,19 @@ bool Syncs::syncConfigStoreFlush()
 
           auto matched = failed.count(config.mExternalDrivePath);
 
-          return matched > 0;
-      },
-      false, SYNC_CONFIG_WRITE_FAILURE,
-      false, [=](size_t disabled){
+            return matched > 0;
+        },
+        false,
+        SYNC_CONFIG_WRITE_FAILURE,
+        false,
+        [=](size_t disabled){
+            LOG_warn << "Disabled "
+                << disabled
+                << " sync(s) on "
+                << nFailed
+                << " drive(s).";
+        });
 
-        LOG_warn << "Disabled "
-                 << disabled
-                 << " sync(s) on "
-                 << nFailed
-                 << " drive(s).";
-      });
     return false;
 }
 
@@ -4104,7 +4123,7 @@ void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
         [=](size_t nDisabled) {
             LOG_info << "Disabled " << nDisabled << " syncs. error = " << syncError;
             assert(onSyncThread());
-            mClient.app->syncs_disabled(syncError);
+            if (nDisabled) mClient.app->syncs_disabled(syncError);
         });
 }
 
@@ -4124,35 +4143,21 @@ void Syncs::disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)
     size_t nDisabled = 0;
     for (auto i = mSyncVec.size(); i--; )
     {
-        if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
+        auto& us = *mSyncVec[i];
+        auto& config = us.mConfig;
+        auto* sync = us.mSync.get();
+
+        if (selector(config, sync))
         {
-            if (auto sync = mSyncVec[i]->mSync.get())
+            if (sync)
             {
                 sync->changestate(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
             }
             else
             {
-                // Backups should not be automatically resumed unless we can be sure
-                // that mirror phase completed, and no cloud changes occurred since.
-                //
-                // If the backup was mirroring, the mirror may be incomplete. In that
-                // case, the cloud may still contain files/folders that should not be
-                // in the backup, and so we would need to restore in mirror phase, but
-                // we must have the user's permission and instruction to do that.
-                //
-                // If the backup was monitoring when it was disabled, it's possible that
-                // the cloud has changed in the meantime. If it was resumed, there may
-                // be cloud changes that cause it to immediately fail.  Again we should
-                // have the user's instruction to start again with mirroring phase.
-                //
-                // For initial implementation we are keeping things simple and reliable,
-                // the user must resume the sync manually, and confirm that starting
-                // with mirroring phase is appropriate.
-                auto enabled = newEnabledFlag & !mSyncVec[i]->mConfig.isBackup();
-
-                mSyncVec[i]->mConfig.setError(syncError);
-                mSyncVec[i]->mConfig.setEnabled(enabled);
-                mSyncVec[i]->changedConfigState(true);
+                config.setError(syncError);
+                config.setEnabled(config.isInternal() && newEnabledFlag);
+                us.changedConfigState(true);
             }
             nDisabled += 1;
 
@@ -4404,19 +4409,6 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
                 bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
                 updateSyncRemoteLocation(*unifiedSync, foundCloudNode, cloudNodePath); //updates cache & notice app of this change
-            }
-
-            if (unifiedSync->mConfig.getBackupState() == SYNC_BACKUP_MIRROR)
-            {
-                // Should only be possible for a backup sync.
-                assert(unifiedSync->mConfig.isBackup());
-
-                // Disable only if necessary.
-                if (unifiedSync->mConfig.getEnabled())
-                {
-                    unifiedSync->mConfig.setEnabled(false);
-                    saveSyncConfig(unifiedSync->mConfig);
-                }
             }
 
             bool hadAnError = unifiedSync->mConfig.getError() != NO_SYNC_ERROR;

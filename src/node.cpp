@@ -67,7 +67,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     Node* p;
 
-    client->nodes[h] = this;
+    client->nodes[NodeHandle().set6byte(h)] = this;
 
     if (t >= ROOTNODE && t <= RUBBISHNODE)
     {
@@ -2049,80 +2049,12 @@ LocalNode::~LocalNode()
     {
         delete it++->second;
     }
-
-    //if (node)
-    //{
-    //    // move associated node to SyncDebris unless the sync is currently
-    //    // shutting down
-    //    if (node->localnode == this)
-    //    {
-    //        node->localnode = NULL;
-    //    }
-    //}
 }
 
-//void LocalNode::conflictDetected(const TREESTATE conflicts)
-//{
-//    this->conflicts = conflicts;
-//    conflictRefresh();
-//}
-//
-//void LocalNode::conflictDetected()
-//{
-//    conflicts |= TREE_ACTION_HERE;
-//    conflictRefresh();
-//}
-//
-//void LocalNode::conflictRefresh()
-//{
-//    if (conflicts == TREE_RESOLVED)
-//    {
-//        return;
-//    }
-//
-//    for (auto* node = parent; node; node = node->parent)
-//    {
-//        if (node->conflictsDetectedBelow())
-//        {
-//            return;
-//        }
-//
-//        node->conflicts |= TREE_DESCENDANT_FLAGGED;
-//    }
-//}
-//
 bool LocalNode::conflictsDetected() const
 {
     return conflicts != TREE_RESOLVED;
 }
-//
-//bool LocalNode::conflictsDetectedBelow() const
-//{
-//    return conflicts & TREE_DESCENDANT_FLAGGED;
-//}
-//
-//bool LocalNode::conflictsDetectedHere() const
-//{
-//    return conflicts & TREE_ACTION_HERE;
-//}
-//
-//void LocalNode::conflictsResolved()
-//{
-//    conflicts = TREE_RESOLVED;
-//}
-
-//void LocalNode::detach(const bool recreate)
-//{
-//    // Never detach the root node.
-//    if (parent && node)
-//    {
-//        node->localnode = nullptr;
-//        node->tag = sync->tag;
-//        node = nullptr;
-//
-//        created &= !recreate;
-//    }
-//}
 
 bool LocalNode::isAbove(const LocalNode& other) const
 {

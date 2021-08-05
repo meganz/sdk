@@ -102,6 +102,7 @@ public:
 
     // Whether this sync is backed by an external device.
     bool isExternal() const;
+    bool isInternal() const;
 
     // check if we need to notify the App about error/enable flag changes
     bool errorOrEnabledChanged();
@@ -158,6 +159,8 @@ public:
     static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
     static bool synctypefromname(const string& name, Type& type);
+
+    SyncError knownError() const;
 
 private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
@@ -726,7 +729,7 @@ struct Syncs
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
 
-    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted.  Async as request is forwarded to thread
+    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
     void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
