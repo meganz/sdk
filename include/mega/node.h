@@ -573,6 +573,7 @@ struct MEGA_API LocalNode : public Cacheable
         struct DeleteToDebrisInProgress
         {
             // (actually if it's an inshare, we unlink() as there's no debris
+            string pathDeleting;
         };
 
         shared_ptr<MoveInProgress> moveFromHere;

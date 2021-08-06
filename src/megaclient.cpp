@@ -14401,7 +14401,7 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
 {
     if (requestedNode)
     {
-        pendingDebris.emplace_back(requestedNode->nodeHandle(), completion);
+        pendingDebris.emplace_back(requestedNode->nodeHandle(), move(completion));
     }
 
     if (Node* debrisTarget = getOrCreateSyncdebrisFolder())
@@ -14425,13 +14425,6 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
 
 Node* MegaClient::getOrCreateSyncdebrisFolder()
 {
-    m_time_t ts = m_time();
-    m_time_t currentminute = ts / 60;
-    if (syncdebrisadding || syncdebrisminute == currentminute)
-    {
-        return nullptr;
-    }
-
     Node* binNode = nodebyhandle(rootnodes[RUBBISHNODE - ROOTNODE]);
     if (!binNode)
     {
@@ -14440,6 +14433,7 @@ Node* MegaClient::getOrCreateSyncdebrisFolder()
 
     bool foundDebris = false;
 
+    m_time_t ts = m_time();
     struct tm tms;
     char buf[32];
     struct tm* ptm = m_localtime(ts, &tms);
@@ -14460,11 +14454,16 @@ Node* MegaClient::getOrCreateSyncdebrisFolder()
         }
     }
 
-    // not found, so create whatever is missing
+    // not found, so create whatever is missing (but don't attempt too frequently)
+    m_time_t currentminute = ts / 60;
+    if (syncdebrisadding || syncdebrisminute == currentminute)
+    {
+        return nullptr;
+    }
 
     syncdebrisadding = true;
     syncdebrisminute = currentminute;
-    LOG_debug << "Creating daily SyncDebris folder";
+    LOG_debug << "Creating daily SyncDebris and daily folder: " << buf;
 
     // create missing component(s) of the sync debris folder of the day
     vector<NewNode> nnVec;
@@ -14494,13 +14493,15 @@ Node* MegaClient::getOrCreateSyncdebrisFolder()
         makeattr(&tkey, nn->attrstring, tattrstring.c_str());
     }
 
-    reqs.add(new CommandPutNodes(this, binNode->nodeHandle(), NULL, move(nnVec),
-                                    0, PUTNODES_SYNCDEBRIS, nullptr,
-                                    [this](const Error&, targettype_t, vector<NewNode>&, bool targetOverride){
-                                    // on completion, send the queued nodes
-                                    execmovetosyncdebris(nullptr, nullptr);
-                                    syncdebrisadding = false;
-                                    }));
+    reqs.add(new CommandPutNodes(
+        this, binNode->nodeHandle(), NULL, move(nnVec),
+        0, PUTNODES_SYNCDEBRIS, nullptr,
+        [this](const Error&, targettype_t, vector<NewNode>&, bool targetOverride){
+            syncdebrisadding = false;
+            // on completion, send the queued nodes
+            LOG_debug << "Daily SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
+            execmovetosyncdebris(nullptr, nullptr);
+        }));
     return nullptr;
 }
 

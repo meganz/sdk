@@ -5845,6 +5845,18 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
         ASSERT_EQ(API_OK, removeTracker.waitForResult());
     }
 
+    std::unique_ptr<MegaNode> binNode{megaApi->getNodeByPath("//bin")};
+    if (binNode)
+    {
+        unique_ptr<MegaNodeList> cs(megaApi->getChildren(binNode.get()));
+        for (int i = 0; i < (cs ? cs->size() : 0); ++i)
+        {
+            RequestTracker removeTracker(megaApi);
+            megaApi->remove(cs->get(i), &removeTracker);
+            ASSERT_EQ(API_OK, removeTracker.waitForResult());
+        }
+    }
+
     std::error_code ignoredEc;
     fs::remove_all(basePath, ignoredEc);
 
@@ -6525,7 +6537,7 @@ TEST_F(SdkTest, SyncRemoteNode)
 
         LOG_verbose << "SyncRemoteNode :  Renaming back the remote node.";
         ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
-        
+
         WaitMillisec(1000);
 
         ASSERT_NE(remoteBaseNode.get(), nullptr);

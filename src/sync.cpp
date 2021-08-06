@@ -6592,13 +6592,17 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                 auto debrisNodeHandle = row.cloudNode->handle;
 
                 auto deletePtr = std::make_shared<LocalNode::RareFields::DeleteToDebrisInProgress>();
+                deletePtr->pathDeleting = fullPath.cloudPath;
 
                 syncs.queueClient([debrisNodeHandle, fromInshare, deletePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         if (auto n = mc.nodeByHandle(debrisNodeHandle))
                         {
                             mc.movetosyncdebris(n, fromInshare, [deletePtr](NodeHandle, Error){
+
                                 // deletePtr lives until this moment
+                                LOG_debug << "Sync delete to sync debris completed: " << deletePtr->pathDeleting;
+
                             });
                         }
                     });
