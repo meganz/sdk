@@ -14091,6 +14091,16 @@ class MegaApi
         void setExclusionUpperSizeLimit(long long limit);
 
         /**
+         * @brief Move a local file to the local "Debris" folder
+         *
+         * The file have to be inside a local synced folder
+         *
+         * @param path Path of the local file
+         * @return true on success, false on failure
+         */
+        bool moveToLocalDebris(const char *path);
+
+        /**
          * @brief Check if a path is syncable based on the excluded names and paths and sizes
          * @param name Path to check
          * @param size Size of the file or -1 to ignore the size
