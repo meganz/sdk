@@ -12351,23 +12351,13 @@ void MegaApiImpl::file_added(File *f)
         }
         else
         {
-#ifdef ENABLE_SYNC
-            LocalNode *ll = dynamic_cast<LocalNode *>(f);
-            Node* n = ll && ll->parent ? client->nodeByHandle(ll->parent->syncedCloudNodeHandle) : nullptr;
-            if (n)
-            {
-                transfer->setParentHandle(n->nodehandle);
-            }
-            else
-#endif
-            {
-                transfer->setParentHandle(f->h.as8byte());
-            }
+            transfer->setParentHandle(f->h.as8byte());
         }
 
 
         string path;
 #ifdef ENABLE_SYNC
+// todo: this won't be working - need to figure out a better solution
         LocalNode *l = dynamic_cast<LocalNode *>(f);
         if (l)
         {

@@ -3032,6 +3032,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
     {
         bool any_activity = false;
         bool any_still_syncing = false;
+        bool any_running_at_all = false;
 
         for (size_t i = v.size(); i--; ) if (v[i])
         {
@@ -3044,6 +3045,8 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                         mc.client.syncs.forEachRunningSync(false,
                           [&](Sync* s)
                           {
+                              any_running_at_all = true;
+
                               if (s->deleteq.size() || s->insertq.size())
                                   any_activity = true;
 
@@ -3074,6 +3077,11 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
                     pb->set_value(true);
                 }).get();
+        }
+
+        if (!any_running_at_all)
+        {
+            return result;
         }
 
         if (any_activity || StandardClient::debugging)
@@ -8898,22 +8906,21 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Disable the sync when it starts uploading a file.
-        cb.mOnFileAdded = [&cb](File& file) {
-            // Get our hands on the local node.
-            auto* node = dynamic_cast<LocalNode*>(&file);
-            if (!node) return;
+        cb.mOnFileAdded = [&cb, &id](File& file) {
 
-            // Get our hands on the sync.
-            auto& sync = *node->sync;
+            // the upload has been set super slow so there's loads of time.
+
+            // get the single sync
+            SyncConfig config;
+            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config));
 
             // Make sure the sync's in mirroring mode.
-            ASSERT_TRUE(sync.isBackupAndMirroring());
+            ASSERT_EQ(config.mBackupId, id);
+            ASSERT_EQ(config.mSyncType, SyncConfig::TYPE_BACKUP);
+            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
 
             // Disable the sync.
-            sync.changestate(SYNC_DISABLED, NO_SYNC_ERROR, true, true);
-
-            // Mimic disableSelectedSyncs(...).
-            //cb.client.syncactivity = true;
+            cb.client.syncs.disableSyncs(NO_SYNC_ERROR, true);
 
             // Callback's done its job.
             cb.mOnFileAdded = nullptr;
@@ -8952,13 +8959,16 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         // Log out the client when we try and upload a file.
         std::promise<void> waiter;
 
-        cb.mOnFileAdded = [&cb, &waiter](File& file) {
-            // Get our hands on the local node.
-            auto* node = dynamic_cast<LocalNode*>(&file);
-            if (!node) return;
+        cb.mOnFileAdded = [&cb, &waiter, &id](File& file) {
+
+            // get the single sync
+            SyncConfig config;
+            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config));
 
             // Make sure we're mirroring.
-            ASSERT_TRUE(node->sync->isBackupAndMirroring());
+            ASSERT_EQ(config.mBackupId, id);
+            ASSERT_EQ(config.mSyncType, SyncConfig::TYPE_BACKUP);
+            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
 
             // Notify the waiter.
             waiter.set_value();
@@ -8998,6 +9008,8 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 
     // Log in client, resuming prior session.
     ASSERT_TRUE(cb.login_fetchnodes(sessionID));
+
+    WaitMillisec(3000);
 
     // Check config has been resumed.
     ASSERT_TRUE(cb.syncByBackupId(id));
