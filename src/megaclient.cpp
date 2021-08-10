@@ -2460,6 +2460,7 @@ void MegaClient::exec()
             size_t ctr_N = 0;
             DBTableTransactionCommitter committer(tctable);
             std::function<void(MegaClient&, DBTableTransactionCommitter&)> f;
+            waiter->bumpds();
             while (ctr_start + 1 >= waiter->ds && syncs.clientThreadActions.popFront(f))
             {
                 f(*this, committer);
