@@ -3321,6 +3321,12 @@ void MegaApi::setStreamingMinimumRate(int bytesPerSecond)
 
 #ifdef ENABLE_SYNC
 
+//Move local files inside synced folders to the "Rubbish" folder.
+bool MegaApi::moveToLocalDebris(const char *path)
+{
+    return pImpl->moveToLocalDebris(path);
+}
+
 int MegaApi::syncPathState(string* path)
 {
     return pImpl->syncPathState(path);
