@@ -866,6 +866,31 @@ struct StandardClient : public MegaApp
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
+    std::function<void(const SyncConfig&, bool, bool)> onAutoResumeResult;
+
+    void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override
+    {
+        onCallback();
+
+        if (logcb)
+        {
+            lock_guard<mutex> guard(om);
+
+            out() << clientname
+                  << "sync_auto_resume_result(): id: "
+                  << toHandle(config.mBackupId)
+                  << ", attempted: "
+                  << attempted
+                  << ", hadAnError: "
+                  << hadAnError; 
+        }
+
+        if (onAutoResumeResult)
+        {
+            onAutoResumeResult(config, attempted, hadAnError);
+        }
+    }
+
     void syncupdate_stateconfig(const SyncConfig& config) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << "syncupdate_stateconfig() " << toHandle(config.mBackupId); } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_scanning()" << b; } }
     void syncupdate_stalled(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_stalled()" << b; } }
@@ -5082,8 +5107,35 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     auto id1 = c1.copySyncConfig(config1);
     ASSERT_NE(id1, UNDEF);
 
+    // So we can wait until the syncs are resumed.
+    promise<void> notify;
+
+    // Hook onAutoResumeResult callback.
+    c1.onAutoResumeResult = ([id0, id1, &notify]() {
+        auto waiting = std::make_shared<set<handle>>();
+
+        // Track the syncs we're waiting for.
+        waiting->emplace(id0);
+        waiting->emplace(id1);
+
+        // Return effective callback.
+        return [&notify, waiting](const SyncConfig& config, bool, bool) {
+            // This sync's been resumed.
+            waiting->erase(config.mBackupId);
+
+            // Are we still waiting for any syncs to resume?
+            if (!waiting->empty()) return;
+
+            // Let the waiter know the syncs are up.
+            notify.set_value();
+        };
+    })();
+
     // Fetch nodes (and resume syncs.)
     ASSERT_TRUE(c1.fetchnodes());
+
+    // Wait for the syncs to be resumed.
+    notify.get_future().get();
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c1);
