@@ -8651,6 +8651,43 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
 
 #ifdef ENABLE_SYNC
 
+//Move local files inside synced folders to the "Rubbish" folder.
+bool MegaApiImpl::moveToLocalDebris(const char *path)
+{
+    if (!path)
+    {
+        return false;
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    string utf8path = path;
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if(!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
+            utf8path.insert(0, "\\\\?\\");
+#endif
+
+    auto localpath = LocalPath::fromPath(utf8path, *fsAccess);
+
+    Sync *sync = NULL;
+    client->syncs.forEachRunningSync([&](Sync* s) {
+
+        if (s->localroot->localname.isContainingPathOf(localpath))
+        {
+            sync = s;
+        }
+    });
+
+    if(!sync)
+    {
+        return false;
+    }
+
+    bool result = sync->movetolocaldebris(localpath);
+
+    return result;
+}
+
 int MegaApiImpl::syncPathState(string* path)
 {
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
