@@ -6884,9 +6884,21 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         // Logout (taking care to preserve the caches.)
         c->localLogout();
 
-        // Resume session.
+        // Recreate client.
         c.reset(new StandardClient(TESTROOT, "c"));
+
+        // Hook onAutoResumeResult callback.
+        promise<void> notify;
+
+        c->onAutoResumeResult = [&](const SyncConfig&, bool, bool) {
+            notify.set_value();
+        };
+
+        // Resume session.
         ASSERT_TRUE(c->login_fetchnodes(session));
+
+        // Wait for the sync to be resumed.
+        notify.get_future().get();
 
         // Wait for sync to complete.
         waitonsyncs(TIMEOUT, c.get());
