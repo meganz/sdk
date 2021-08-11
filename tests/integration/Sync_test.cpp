@@ -6766,16 +6766,31 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
 
     c.setSyncPausedByBackupId(id, false);
 
-    vector<SyncWaitResult> waitResult = waitonsyncs(chrono::seconds(4), &c);
-    ASSERT_EQ(waitResult[0].syncStalled, true);
+    // TODO: Make this a global predicate when we've merged the rest from develop.
+    // TODO: Maybe make it so we can check if a specific sync has stalled?
+    const auto SyncStallState = [](bool state) {
+        return [state](StandardClient& client) {
+            SyncStallInfo dummy;
+            return client.client.syncs.syncStallDetected(dummy) == state;
+        };
+    };
 
-    // uncross one
+    // Wait for sync activity to complete (as far as stall.)
+    waitonsyncs(TIMEOUT, &c);
+
+    // Be absolutely sure we've stalled.
+    ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
+    // Make it possible for the sync to resolve the stall.
     fs::rename(
         SYNCROOT / "d" / "d_1" / "d_0",
         SYNCROOT / "d" / "d_0");
-    waitResult = waitonsyncs(chrono::seconds(4), &c);
-    ASSERT_EQ(waitResult[0].syncStalled, false);
 
+    // Wait for the sync to exit the stall state.
+    ASSERT_TRUE(c.waitFor(SyncStallState(false), TIMEOUT));
+
+    // Make sure the sync's completed its processing.
+    waitonsyncs(TIMEOUT, &c);
 
 // todo: many more test cases to add here
 
