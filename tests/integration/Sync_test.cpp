@@ -8644,8 +8644,18 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     // Update the model.
     model.movenode("c", "b");
 
+    // Hook onAutoResumeResult callback.
+    promise<void> notify;
+
+    c.onAutoResumeResult = [&notify](const SyncConfig&, bool, bool) {
+        notify.set_value();
+    };
+
     // Log in client resuming prior session.
     ASSERT_TRUE(c.login_fetchnodes(session));
+
+    // Wait for the sync to be resumed.
+    notify.get_future().get();
 
     // Wait for the sync to catch up.
     waitonsyncs(TIMEOUT, &c);
