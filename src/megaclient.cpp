@@ -10950,8 +10950,8 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                            case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
-                               assert(readingPublicChats);
                                meeting = j->getbool();
+                               assert(readingPublicChats || !meeting); // chats in 'c' array can carry mr:0
                                break;
 
                             case EOO:
