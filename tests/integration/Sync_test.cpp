@@ -9212,8 +9212,18 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     // Log callbacks.
     cb.logcb = true;
 
+    // Hook onAutoResumeResult callback.
+    promise<void> notify;
+
+    cb.onAutoResumeResult = [&notify](const SyncConfig&, bool, bool) {
+        notify.set_value();
+    };
+
     // Log in the client.
     ASSERT_TRUE(cb.login_fetchnodes(sessionID));
+
+    // Wait for the sync to be resumed.
+    notify.get_future().get();
 
     // Give the sync some time to think.
     waitonsyncs(TIMEOUT, &cb);

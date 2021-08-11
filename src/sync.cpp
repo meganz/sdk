@@ -786,22 +786,6 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
-    // If we're a backup sync...
-    if (mUnifiedSync.mConfig.isBackup())
-    {
-        auto& config = mUnifiedSync.mConfig;
-
-        auto firstTime = config.mBackupState == SYNC_BACKUP_NONE;
-        auto isExternal = config.isExternal();
-        auto wasDisabled = config.knownError() == BACKUP_MODIFIED;
-
-        if (firstTime || isExternal || wasDisabled)
-        {
-            // Then we must come up in mirroring mode.
-            mUnifiedSync.mConfig.mBackupState = SYNC_BACKUP_MIRROR;
-        }
-    }
-
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
 
     localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
@@ -2733,6 +2717,22 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint
 
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mEnabled = true;
+
+    // If we're a backup sync...
+    if (us.mConfig.isBackup())
+    {
+        auto& config = us.mConfig;
+
+        auto firstTime = config.mBackupState == SYNC_BACKUP_NONE;
+        auto isExternal = config.isExternal();
+        auto wasDisabled = config.knownError() == BACKUP_MODIFIED;
+
+        if (firstTime || isExternal || wasDisabled)
+        {
+            // Then we must come up in mirroring mode.
+            config.mBackupState = SYNC_BACKUP_MIRROR;
+        }
+    }
 
     string debris = DEBRISFOLDER;
     auto localdebris = LocalPath();
