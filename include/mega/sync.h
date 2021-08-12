@@ -301,11 +301,6 @@ public:
 
     FileSystemType mFilesystemType = FS_UNKNOWN;
 
-    // Path used to normalize sync localroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
-    // are served with such prefix from macOS catalina +
-#ifdef __APPLE__
-    string mFsEventsPath;
-#endif
     // current state
     syncstate_t& state() { return getConfig().mRunningState; }
 

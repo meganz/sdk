@@ -340,7 +340,6 @@ FileSystemAccess::FileSystemAccess()
     //, notifyfailed(false)
 #endif
     , target_exists(false)
-    , client(NULL)
 {
 }
 

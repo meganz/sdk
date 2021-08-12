@@ -72,6 +72,11 @@ public:
     WatchMap mWatches;
 #endif
 
+#ifdef __MACH__
+    // Correlates filesystem event path to sync root node.
+    map<string, Sync*> mRoots;
+#endif // __MACH__
+
 #ifdef USE_IOS
     static char *appbasepath;
 #endif
@@ -194,12 +199,20 @@ public:
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
 
-    PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalPath& rootPath);
+    PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root, LocalPath& rootPath);
+
+    ~PosixDirNotify();
 
 #if defined(ENABLE_SYNC) && defined(USE_INOTIFY)
     pair<WatchMapIterator, bool> addWatch(LocalNode& node, const LocalPath& path, handle fsid);
     void removeWatch(WatchMapIterator entry);
 #endif // ENABLE_SYNC && USE_INOTIFY
+
+private:
+#ifdef __MACH__
+    // Our position in the PFSA::mRoots map.
+    map<string, Sync*>::iterator mRootsIt;
+#endif // __MACH__
 };
 #endif
 

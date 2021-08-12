@@ -622,8 +622,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // append id for stats
     virtual void statsid(string*) const { }
 
-    MegaClient* client;
-
     FileSystemAccess();
     virtual ~FileSystemAccess() { }
 

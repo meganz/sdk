@@ -948,7 +948,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     kfs_event* kfse;
     kfs_event_arg* kea;
     char buffer[131072];
-    char* paths[2];
+    const char* paths[2];
     Sync* pathsync[2];
     mega_fd_set_t rfds;
     timeval tv = { 0, 0 };
@@ -1014,38 +1014,38 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             {
                 const auto* path = paths[i];
                 const auto psize = strlen(path);
-                auto foundOne = false;
 
-                client->syncs.forEachRunningSync(true, [&](Sync* sync) {
-                    // No need to continue searching as we've found a match.
-                    if (foundOne) return;
+                // Assume we can't locate any match.
+                paths[i] = nullptr;
 
-                    // Root used for filesystem notifications.
-                    const auto& rootPath = sync->mFsEventsPath;
+                // Skip notifications about resource forks.
+                if (IsResourceFork(path, psize)) continue;
 
-                    // Is the notification coming from within this sync?
-                    if (!IsContainingLocalPathOf(rootPath, path, psize)) return;
+                // Determine which node the notification is relative to.
+                for (const auto &j : mRoots)
+                {
+                    // Root used for filesystem events.
+                    const auto& rootPath = j.first;
 
-                    // Is this notification regarding a resource fork?
-                    if (IsResourceFork(path, psize)) return;
+                    // Is the notification coming from within this root?
+                    if (!IsContainingLocalPathOf(rootPath, path, psize))
+                    {
+                        continue;
+                    }
 
-                    // Symbolic link?
+                    // Is it about a symbolic link?
                     if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
                     {
                         LOG_debug << "Link skipped: " << path;
-                        paths[i] = nullptr;
-                        foundOne = true;
-                        return;
+                        continue;
                     }
 
-                    paths[i] += rootPath.size();
-                    pathsync[i] = sync;
-                    foundOne = true;
-                });
+                    // We've got a match.
+                    paths[i] = path + rootPath.size();
+                    pathsync[i] = j.second;
 
-                if (!foundOne)
-                {
-                    paths[i] = NULL;
+                    // Stop searching.
+                    break;
                 }
             }
 
@@ -1769,9 +1769,12 @@ void PosixFileSystemAccess::statsid(string *id) const
 
 #if defined(ENABLE_SYNC)
 
-PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalPath& rootPath)
+PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root, LocalPath& rootPath)
   : DirNotify(rootPath)
   , fsaccess(&fsAccess)
+#ifdef __MACH__
+  , mRootsIt(fsAccess.mRoots.end())
+#endif // __MACH__
 {
 #ifdef USE_INOTIFY
     setFailed(0, "");
@@ -1779,7 +1782,64 @@ PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalPath& rootP
 
 #ifdef __MACH__
     setFailed(0, "");
+
+    // Assume FS events are relative to the sync root.
+    auto eventsPath = rootPath.platformEncoded();
+
+    // Are we running on Catalina or newer?
+    if (macOSmajorVersion() >= 19)
+    {
+        auto root = "/System/Volumes/Data" + eventsPath;
+
+        LOG_debug << "MacOS 10.15+ filesystem detected.";
+        LOG_debug << "Checking FSEvents path: " << root;
+
+        // Check for presence of volume metadata.
+        if (auto fd = open(root.c_str(), O_RDONLY); fd >= 0)
+        {
+            // Make sure it's actually about the root.
+            if (char buf[MAXPATHLEN]; fcntl(fd, F_GETPATH, buf) >= 0)
+            {
+                // Awesome, let's use the FSEvents path.
+                eventsPath = std::move(root);
+            }
+
+            close(fd);
+        }
+        else
+        {
+            LOG_debug << "Unable to open FSEvents path.";
+        }
+
+        // Safe as root is strictly larger.
+        auto usingEvents = eventsPath.size() == root.size();
+
+        LOG_debug << "Using "
+                  << (usingEvents ? "FSEvents" : "standard")
+                  << " paths for detecting filesystem notifications: "
+                  << eventsPath;
+    }
+
+    // Link the filesystem event path to the sync root.
+    auto result = fsAccess.mRoots.emplace(eventsPath, root.sync);
+
+    // Sanity;
+    assert(result.second);
+
+    // Remember where we were placed for later removal.
+    mRootsIt = result.first;
 #endif
+}
+
+PosixDirNotify::~PosixDirNotify()
+{
+#ifdef __MACH__
+    // Sanity.
+    assert(mRootsIt != fsaccess->mRoots.end());
+
+    // Remove the link.
+    fsaccess->mRoots.erase(mRootsIt);
+#endif // __MACH__
 }
 
 #if defined(USE_INOTIFY)
@@ -1884,9 +1944,9 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
     return new PosixDirAccess();
 }
 
-DirNotify* PosixFileSystemAccess::newdirnotify(LocalNode&, LocalPath& rootPath, Waiter*)
+DirNotify* PosixFileSystemAccess::newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter*)
 {
-    return new PosixDirNotify(*this, rootPath);
+    return new PosixDirNotify(*this, root, rootPath);
 }
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)

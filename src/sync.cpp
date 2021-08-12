@@ -826,49 +826,8 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     // Always create a watch for the root node.
     localroot->watch(mLocalPath, UNDEF);
 
-#ifdef __APPLE__
-    // Assume FS events are relative to the sync root.
-    mFsEventsPath = mLocalPath.platformEncoded();
-
-    // Are we running on Catalina or newer?
-    if (macOSmajorVersion() >= 19)
-    {
-        auto root = "/System/Volumes/Data" + mFsEventsPath;
-
-        LOG_debug << "MacOS 10.15+ filesystem detected.";
-        LOG_debug << "Checking FSEvents path: " << root;
-
-        // Check for presence of volume metadata.
-        if (auto fd = open(root.c_str(), O_RDONLY); fd >= 0)
-        {
-            // Make sure it's actually about the root.
-            if (char buf[MAXPATHLEN]; fcntl(fd, F_GETPATH, buf) >= 0)
-            {
-                // Awesome, let's use the FSEvents path.
-                mFsEventsPath = root;
-            }
-
-            close(fd);
-        }
-        else
-        {
-            LOG_debug << "Unable to open FSEvents path.";
-        }
-
-        // Safe as root is strictly larger.
-        auto usingEvents = mFsEventsPath.size() == root.size();
-
-        LOG_debug << "Using "
-                  << (usingEvents ? "FSEvents" : "standard")
-                  << " paths for detecting filesystem notifications: "
-                  << mFsEventsPath;
-    }
-#endif
-
     // load LocalNodes from cache (only for internal syncs)
-
-// todo: assuming for now, dbaccess is thread safe
-
+    // todo: assuming for now, dbaccess is thread safe
     if (syncs.mClient.dbaccess && !us.mConfig.isExternal())
     {
         // open state cache table
