@@ -139,7 +139,13 @@ using namespace mega;
 }
 
 - (MEGANode *)publicNode {
-    return (self.megaTransfer && self.megaTransfer->getPublicMegaNode()) ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
+    MegaNode *n = self.megaTransfer->getPublicMegaNode();
+    if (self.megaTransfer != nil && n) {
+        MEGANode *node = [[MEGANode alloc] initWithMegaNode:n->copy() cMemoryOwn:YES];
+        delete n;
+        return node;
+    }
+    return nil;
 }
 
 - (BOOL)isStreamingTransfer {
