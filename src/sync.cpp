@@ -6677,6 +6677,24 @@ void Syncs::triggerSync(NodeHandle h, bool recurse)
     if (recurse) entry = true;
 }
 
+std::future<bool> Syncs::moveToLocalDebris(LocalPath path)
+{
+    assert(!onSyncThread());
+
+    auto notifier = std::make_shared<std::promise<bool>>();
+    auto result = notifier->get_future();
+
+    queueSync([notifier, path = std::move(path), this]() mutable {
+        // What sync contains this path?
+        auto* sync = syncContainingPath(path, true);
+        
+        // Move file to local debris if a suitable sync was located.
+        notifier->set_value(sync && sync->movetolocaldebris(path));
+    });
+
+    return result;
+}
+
 void Syncs::processTriggerHandles()
 {
     assert(onSyncThread());
@@ -8506,6 +8524,31 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     return false;
 }
 
+Sync* Syncs::syncContainingPath(const LocalPath& path, bool includePaused)
+{
+    assert(onSyncThread());
+
+    lock_guard<mutex> guard(mSyncVecMutex);
+
+    for (auto &i : mSyncVec)
+    {
+        // Skip inactive syncs.
+        if (!i->mSync) continue;
+
+        // Optionally skip paused syncs.
+        if (!includePaused && i->mSync->syncPaused) continue;
+
+        const auto &rootPath = i->mConfig.mLocalPath;
+
+        // Skip syncs that don't contain this path.
+        if (!rootPath.isContainingPathOf(path)) continue;
+
+        // We've found a suitable sync.
+        return i->mSync.get();
+    }
+
+    return nullptr;
+}
 
 void Syncs::queueSync(std::function<void()>&& f)
 {

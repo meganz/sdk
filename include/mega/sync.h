@@ -913,6 +913,9 @@ public:
     // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem browser for icon indicators
     std::timed_mutex mLocalNodeChangeMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
 
+    // Move a file into the nearest suitable local debris.
+    std::future<bool> moveToLocalDebris(LocalPath path);
+
 private:
 
     // for heartbeats
@@ -1009,6 +1012,8 @@ private:
     bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveSync, WhichCloudVersion);
 
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
+
+    Sync* syncContainingPath(const LocalPath& path, bool includePaused);
 };
 
 } // namespace
