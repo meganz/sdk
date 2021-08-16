@@ -1500,7 +1500,8 @@ void LocalNode::trimRareFields()
             !rareFields->moveFromHere &&
             !rareFields->moveToHere &&
             rareFields->createFolderHere.expired() &&
-            rareFields->removeNodeHere.expired())
+            rareFields->removeNodeHere.expired() &&
+            rareFields->unlinkHere.expired())
         {
             rareFields.reset();
         }

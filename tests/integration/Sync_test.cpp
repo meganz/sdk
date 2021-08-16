@@ -7297,6 +7297,82 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
+TEST_F(SyncTest, ReplaceParentWithEmptyChild)
+{
+    const auto TESTROOT = makeNewTestRoot();
+    const auto TIMEOUT = chrono::seconds(4);
+
+    handle id;
+    Model model;
+    string session;
+
+    // Populate initial filesystem.
+    {
+        StandardClient c(TESTROOT, "c");
+        
+        // Log callbacks.
+        c.logcb = true;
+
+        // Log in client.
+        ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+        // Add and start sync.
+        id = c.setupSync_mainthread("s", "s");
+        ASSERT_NE(id, UNDEF);
+
+        // Build model and populate filesystem.
+        model.addfolder("0/1");
+        model.generate(c.syncSet(id).localpath);
+
+        // Wait for the sync to complete.
+        waitonsyncs(TIMEOUT, &c);
+
+        // Make sure the tree made it to the cloud.
+        ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+        // Save the session.
+        c.client.dumpsession(session);
+
+        // Locally log out the client.
+        c.localLogout();
+    }
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Replace 0 with 1.
+    model.removenode("0/1");
+
+    fs::rename(c.fsBasePath / "s" / "0" / "1",
+               c.fsBasePath / "s" / "1");
+
+    fs::remove_all(c.fsBasePath / "s" / "0");
+
+    fs::rename(c.fsBasePath / "s" / "1",
+               c.fsBasePath / "s" / "0");
+
+    // Hook resume callbacks.
+    promise<void> notify;
+
+    c.onAutoResumeResult = [&notify](const SyncConfig&, bool, bool) {
+        notify.set_value();
+    };
+
+    // Resume client.
+    ASSERT_TRUE(c.login_fetchnodes(session));
+
+    // Wait for sync to resume.
+    notify.get_future().get();
+
+    // Wait for the sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Is the cloud as we expect?
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
 TEST_F(SyncTest, RootHasFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();

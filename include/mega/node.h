@@ -576,10 +576,22 @@ struct MEGA_API LocalNode : public Cacheable
             string pathDeleting;
         };
 
+        struct UnlinkInProgress
+        {
+            bool failed = false;
+            bool succeeded = false;
+
+            handle sourceFsid = UNDEF;
+            nodetype_t sourceType = FILENODE;
+            FileFingerprint sourceFingerprint;
+            LocalNode* sourcePtr = nullptr;
+        };
+
         shared_ptr<MoveInProgress> moveFromHere;
         shared_ptr<MoveInProgress> moveToHere;
         weak_ptr<CreateFolderInProgress> createFolderHere;
         weak_ptr<DeleteToDebrisInProgress> removeNodeHere;
+        weak_ptr<UnlinkInProgress> unlinkHere;
     };
 
 private:

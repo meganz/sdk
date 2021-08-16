@@ -1557,22 +1557,41 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     }
     else
     {
-
-        if (row.syncNode &&
-            row.syncNode->hasRare() &&
-            row.syncNode->rare().moveToHere)
+        if (auto* s = row.syncNode; s && s->hasRare())
         {
-            if (row.syncNode->rare().moveToHere->failed)
+            // Move is (was) in progress?
+            if (auto& moveToHere = s->rare().moveToHere)
             {
-                row.syncNode->rare().moveToHere.reset();
+                if (moveToHere->failed)
+                {
+                    // Move's failed. Try again.
+                    moveToHere.reset();
+                }
+                else
+                {
+                    // Move's in progress.
+                    //
+                    // Revisit when the move is complete.
+                    // In the mean time, don't recurse below this node.
+                    row.suppressRecursion = true;
+                    rowResult = false;
+
+                    // When false, we can visit resolve_rowMatched(...).
+                    return !moveToHere->succeeded;
+                }
             }
-            else
+
+            // Unlink in progress?
+            if (!s->rare().unlinkHere.expired())
             {
-                // move/rename already active - revisit here when that is resolved
-                // in the meantime, we don't recurse below this node
+                // Don't recurse into our children.
                 row.suppressRecursion = true;
+
+                // Row isn't synced.
                 rowResult = false;
-                return !row.syncNode->rare().moveToHere->succeeded;  // when false we can visit resolve_rowMatched
+
+                // Move isn't complete.
+                return true;
             }
         }
 
@@ -1629,11 +1648,17 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 }
                 else if (row.syncNode->type != FILENODE)
                 {
-                    // todo: need some logic here to check if the cloud source node (as synced) actually exists otherwise no point attempting a move
-                    row.syncNode->setCheckMovesAgain(false, true, false);
-                    monitor.waitingLocal(fullPath.localPath, sourceSyncNode->getLocalPath(), fullPath.cloudPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
-                    rowResult = false;
-                    return true;
+                    // TODO: Check that the source actually exists in the cloud.
+
+                    // Is the move source an empty directory?
+                    if (!sourceSyncNode->children.empty())
+                    {
+                        // Nope, need a more complex merging strategy.
+                        row.syncNode->setCheckMovesAgain(false, true, false);
+                        monitor.waitingLocal(fullPath.localPath, sourceSyncNode->getLocalPath(), fullPath.cloudPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
+                        rowResult = false;
+                        return true;
+                    }
                 }
                 else if (row.syncNode->type == FILENODE)
                 {
@@ -1709,6 +1734,51 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 }
                 else
                 {
+                    // Are we overwriting a directory?
+                    if (row.cloudNode && row.cloudNode->type != FILENODE)
+                    {
+                        // The source must be empty.
+                        assert(sourceSyncNode->children.empty());
+
+                        // Shouldn't be here if we're already unlinking the node.
+                        if (!sourceSyncNode->rareRO().unlinkHere.expired())
+                        {
+                            // Row isn't synced.
+                            rowResult = false;
+
+                            // "Move" isn't complete.
+                            return true;
+                        }
+
+                        // What node are we removing?
+                        auto handle = sourceCloudNode.handle;
+
+                        // So we can track the unlink-in-progress.
+                        auto unlinkPtr = std::make_shared<LocalNode::RareFields::UnlinkInProgress>();
+
+                        // Queue the unlink.
+                        syncs.queueClient([handle, unlinkPtr](MegaClient& client, DBTableTransactionCommitter&) {
+                            // Get our hands on the node.
+                            auto* node = client.nodeByHandle(handle);
+
+                            // Can't remove the node if it doesn't exist.
+                            if (!node) return;
+
+                            // Remove the node.
+                            client.unlink(node, false, 0, [unlinkPtr](NodeHandle, Error) {
+                                // unlinkPtr kept alive until the request is complete.
+                            });
+                        });
+
+                        // Track the unlink-in-progress.
+                        sourceSyncNode->rare().unlinkHere = unlinkPtr;
+
+                        // Row isn't synced.
+                        rowResult = false;
+
+                        // "Move" isn't complete.
+                        return true;
+                    }
 
                     if (row.cloudNode && row.cloudNode->handle != sourceCloudNode.handle)
                     {
@@ -5121,6 +5191,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             //!childRow.syncNode->moveTargetApplyingToCloud &&
                             //!childRow.syncNode->deletedFS &&   we should not check this one, or we won't remove the LocalNode
                             childRow.syncNode->rareRO().removeNodeHere.expired() &&
+                            childRow.syncNode->rareRO().unlinkHere.expired() &&
                             !childRow.syncNode->rareRO().moveToHere))) // don't create new LocalNodes under a moving-to folder, we'll move the already existing LocalNodes when the move completes
                     {
                         // Add watches as necessary.
@@ -5340,22 +5411,28 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     bool rowSynced = false;
 
     // check for cases in progress that we shouldn't be re-evaluating yet
-    if (row.syncNode &&
-        row.syncNode->hasRare())
+    if (auto* s = row.syncNode; s && s->hasRare())
     {
-        if (auto& p = row.syncNode->rare().moveFromHere)
+        // Move in progress?
+        if (auto& moveFromHere = s->rare().moveFromHere)
         {
-            if (p->syncCodeProcessedResult ||
-                p->failed)
+            if (moveFromHere->failed || moveFromHere->syncCodeProcessedResult)
             {
-                p.reset();
-                row.syncNode->trimRareFields();
+                // Move's completed.
+                moveFromHere.reset();
             }
             else
             {
-                // move still in progress or awaiting sync code recognition
+                // Move's still underway.
                 return false;
             }
+        }
+
+        // Unlink in progress?
+        if (!s->rare().unlinkHere.expired())
+        {
+            // Unlink's still underway.
+            return false;
         }
     }
 
