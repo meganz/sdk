@@ -120,9 +120,10 @@ TEST(UtfCompare, SortTenThousandSpeed)
     unsigned t21 = unsigned(duration_cast<milliseconds>(t2 - t1).count());
     unsigned t32 = unsigned(duration_cast<milliseconds>(t3 - t2).count());
     cout << t10 << " " << t21 << " " << t32 << endl;
-    ASSERT_LE(t10, 1000u);
-    ASSERT_LE(t21, 1000u);
-    ASSERT_LE(t32, 1000u);
+
+    ASSERT_LE(t10, 1500u);
+    ASSERT_LE(t21, 1500u);
+    ASSERT_LE(t32, 1500u);
 }
 
 
