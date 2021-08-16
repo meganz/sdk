@@ -6955,7 +6955,18 @@ TEST_F(SdkTest, SyncOQTransitions)
  *
  * Testing multiple SDK instances working in parallel
  */
-TEST_F(SdkTest, StressTestSDKInstancesOverWritableFoldersOverWritableFolders)
+
+// dgw: This test will consistently fail on Linux unless we raise the
+//      maximum number of open file descriptors.
+//
+//      This is necessary as a great many PosixWaiters are created for each
+//      API object. Each waiter requires us to create a pipe pair.
+//
+//      As such, we quickly exhaust the default limit on descriptors.
+//
+//      If we raise the limit, the test will run but will still encounter
+//      other limits, say memory exhaustion.
+TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFolders)
 {
     // What we are going to test here:
     // - Creating multiple writable folders
