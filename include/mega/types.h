@@ -95,6 +95,9 @@ using std::streambuf;
 using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
+using std::shared_ptr;
+using std::weak_ptr;
+using std::move;
 using std::mutex;
 using std::lock_guard;
 
@@ -276,10 +279,12 @@ class NodeHandle
     uint64_t h = 0xFFFFFFFFFFFFFFFF;
 public:
     bool isUndef() const { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
+    void setUndef() { h = 0xFFFFFFFFFFFFFFFF; }
     NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0 || n == 0xFFFFFFFFFFFFFFFF); return *this; }
     bool eq(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
     bool eq(handle b) const { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
     bool ne(handle b) const { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    bool ne(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) != (b.h & 0xFFFFFFFFFFFF); }
     bool operator<(const NodeHandle& rhs) const { return h < rhs.h; }
     handle as8byte() const { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
 };
@@ -287,6 +292,7 @@ public:
 inline bool operator==(NodeHandle a, NodeHandle b) { return a.eq(b); }
 inline bool operator==(NodeHandle a, handle b) { return a.eq(b); }
 inline bool operator!=(NodeHandle a, handle b) { return a.ne(b); }
+inline bool operator!=(NodeHandle a, NodeHandle b) { return a.ne(b); }
 std::ostream& operator<<(std::ostream&, NodeHandle h);
 
 // (can use unordered_set if available)
@@ -453,7 +459,7 @@ class deque_with_lazy_bulk_erase
     // Any other operation on the deque performs all the gathered erases in a single std::remove_if for efficiency.
     // This makes an enormous difference when cancelling 100k transfers in MEGAsync's transfers window for example.
     deque<E> mDeque;
-    bool mErasing = false;
+    size_t nErased = 0;
 
 public:
 
@@ -463,16 +469,31 @@ public:
     {
         assert(i != mDeque.end());
         i->erase();
-        mErasing = true;
+        ++nErased;
     }
 
     void applyErase()
     {
-        if (mErasing)
+        if (nErased)
         {
-            auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
-            mDeque.erase(newEnd, mDeque.end());
-            mErasing = false;
+            // quite often the elements are at the front, no need to traverse the whole thing
+            // removal from the front or back of a deque is cheap
+            while (nErased && !mDeque.empty() && mDeque.front().isErased())
+            {
+                mDeque.pop_front();
+                --nErased;
+            }
+            while (nErased && !mDeque.empty() && mDeque.back().isErased())
+            {
+                mDeque.pop_back();
+                --nErased;
+            }
+            if (nErased)
+            {
+                auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
+                mDeque.erase(newEnd, mDeque.end());
+                nErased = 0;
+            }
         }
     }
 
@@ -498,7 +519,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<handle, Transfer*> handletransfer_map;
 
 // maps node handles to Node pointers
-typedef map<handle, Node*> node_map;
+typedef map<NodeHandle, Node*> node_map;
 
 struct NodeCounter
 {

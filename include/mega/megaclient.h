@@ -482,7 +482,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(handle, error)> resultFunction = nullptr);
+    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
@@ -550,7 +550,7 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& resultFunction = nullptr);
+    void putnodes(NodeHandle, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag);
@@ -687,17 +687,12 @@ private:
 
 public:
 
-    ////// sync config updating & persisting ////
-
     // transition the cache to failed
     void failSync(Sync* sync, SyncError syncerror);
 
     // disable synchronization. syncError specifies why we are disabling it.
     // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
-    void disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag);
-
-    // fail all active syncs
-    void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
+    void disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag);
 
 #endif  // ENABLE_SYNC
 
@@ -1664,6 +1659,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
     Node* childnodebyattribute(Node*, nameid, const char*);
     void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);

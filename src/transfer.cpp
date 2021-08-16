@@ -452,7 +452,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, false);
+                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE, false);
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);

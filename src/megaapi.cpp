@@ -671,18 +671,6 @@ MegaNode *MegaNode::unserialize(const char *d)
     return MegaNodePrivate::unserialize(&data);
 }
 
-#ifdef ENABLE_SYNC
-bool MegaNode::isSyncDeleted()
-{
-    return false;
-}
-
-string MegaNode::getLocalPath()
-{
-    return string();
-}
-#endif
-
 MegaUser::~MegaUser() { }
 
 MegaUser *MegaUser::copy()
@@ -3469,11 +3457,6 @@ MegaSyncList* MegaApi::getSyncs()
    return pImpl->getSyncs();
 }
 
-int MegaApi::getNumActiveSyncs()
-{
-    return pImpl->getNumActiveSyncs();
-}
-
 string MegaApi::getLocalPath(MegaNode *n)
 {
     return pImpl->getLocalPath(n);
@@ -3522,11 +3505,6 @@ bool MegaApi::isSynced(MegaNode *n)
 bool MegaApi::isSyncable(const char *path, long long size)
 {
     return pImpl->isSyncable(path, size);
-}
-
-bool MegaApi::isInsideSync(MegaNode *node)
-{
-    return pImpl->isInsideSync(node);
 }
 
 int MegaApi::isNodeSyncable(MegaNode *node)

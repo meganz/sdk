@@ -460,23 +460,33 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
         {
             // check if the low(ered) access level is affecting any syncs
             // a) have we just cut off full access to a subtree of a sync?
-            do {
-                if (n->localnode && (n->localnode->sync->state == SYNC_ACTIVE || n->localnode->sync->state == SYNC_INITIALSCAN))
+            auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
+            for (NodeHandle rootHandle : activeSyncRootHandles)
+            {
+                if (n->isbelow(rootHandle))
                 {
                     LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                    n->localnode->sync->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS, false, true);
+                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
+                        return c.mRemoteNode == rootHandle;
+                        }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
+
                 }
-            } while ((n = n->parent));
+            }
 
             // b) have we just lost full access to the subtree a sync is in?
-            syncs.forEachRunningSync([&](Sync* sync){
-                if (sync->inshare && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN) && !checkaccess(sync->localroot->node, FULL))
+            Node* root = nullptr;
+            for (NodeHandle rootHandle : activeSyncRootHandles)
+            {
+                if (n->isbelow(rootHandle) &&
+                    (nullptr != (root = nodeByHandle(rootHandle))) &&
+                    !checkaccess(root, FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
-                    sync->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS, false, true);
+                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
+                        return c.mRemoteNode == rootHandle;
+                        }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
                 }
-            });
-
+            };
         }
 #endif
     }
@@ -1081,6 +1091,31 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
     }
 
     return found;
+}
+
+// returns a matching child node by UTF-8 name (does not resolve name clashes)
+// folder nodes take precedence over file nodes
+Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t mustBeType)
+{
+    string nname = name;
+
+    if (!p || p->type == FILENODE)
+    {
+        return NULL;
+    }
+
+    fsaccess->normalize(&nname);
+
+    for (auto it : p->children)
+    {
+        if (it->type == mustBeType &&
+            !strcmp(nname.c_str(), it->displayname()))
+        {
+            return it;
+        }
+    }
+
+    return nullptr;
 }
 
 // returns a matching child node that has the given attribute with the given value
@@ -2189,7 +2224,16 @@ void MegaClient::exec()
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
 #ifdef ENABLE_SYNC
-                        failSyncs(TOO_MANY_ACTION_PACKETS);
+                        // Fail all syncs.
+                        // Setting flag for fail rather than disable
+                        std::promise<bool> pb;
+                        syncs.disableSelectedSyncs([](SyncConfig&, Sync* s){ return !!s; },
+                            true,
+                            TOO_MANY_ACTION_PACKETS,
+                            false,
+                            [&pb](size_t){ pb.set_value(true); });
+                        // wait for operation to complete
+                        pb.get_future().get();
 #endif
                         int creqtag = reqtag;
                         reqtag = fetchnodestag; // associate with ongoing request, if any
@@ -2483,7 +2527,7 @@ void MegaClient::exec()
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
         syncs.forEachRunningSync([&](Sync* sync){
-            if (sync->state != SYNC_FAILED && sync->fsfp)
+            if (sync->state() != SYNC_FAILED && sync->fsfp)
             {
                 fsfp_t current = sync->dirnotify->fsfingerprint();
                 if (sync->fsfp != current)
@@ -2498,7 +2542,7 @@ void MegaClient::exec()
         // do the initial scan for newly added syncs
         syncs.forEachRunningSync([&](Sync* sync) {
 
-            if (sync->initializing && sync->state == SYNC_INITIALSCAN)
+            if (sync->initializing && sync->state() == SYNC_INITIALSCAN)
             {
                 const auto &syncConfig = sync->getConfig();
                 LocalPath localPath = sync->getConfig().getLocalPath();
@@ -2545,7 +2589,7 @@ void MegaClient::exec()
             bool anyscanning = false;
             syncs.forEachRunningSync([&](Sync* sync) {
 
-                if (sync->state == SYNC_INITIALSCAN)
+                if (sync->state() == SYNC_INITIALSCAN)
                 {
                     anyscanning = true;
                 }
@@ -2617,7 +2661,7 @@ void MegaClient::exec()
                 dstime mindelay = NEVER;
                 syncs.forEachRunningSync([&](Sync* sync) {
 
-                    if (sync->isnetwork && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
+                    if (sync->isnetwork && (sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN))
                     {
                         Notification notification;
                         while (sync->dirnotify->notifyq[DirNotify::EXTRA].popFront(notification))
@@ -2661,7 +2705,7 @@ void MegaClient::exec()
 
                         syncs.forEachRunningSync_shortcircuit([&](Sync* sync) {
 
-                            if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                            if (sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN)
                             {
                                 // process items from the notifyq until depleted
                                 if (sync->dirnotify->notifyq[q].size())
@@ -2713,7 +2757,7 @@ void MegaClient::exec()
                                     }
                                 }
 
-                                if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
+                                if (sync->state() == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
                                 {
                                     sync->changestate(SYNC_ACTIVE, NO_SYNC_ERROR, true, true);
 
@@ -2812,7 +2856,7 @@ void MegaClient::exec()
                     syncs.forEachRunningSync([&](Sync* sync) {
 
                         // make sure that the remote synced folder still exists
-                        if (!sync->localroot->node && sync->state != SYNC_FAILED)
+                        if (!sync->localroot->node && sync->state() != SYNC_FAILED)
                         {
                             LOG_err << "The remote root node doesn't exist";
                             sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
@@ -2868,7 +2912,7 @@ void MegaClient::exec()
                             bool syncupdone = false;
                             syncs.forEachRunningSync([&](Sync* sync) {
 
-                                if ((sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                                if ((sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN)
                                  && !syncadding && syncuprequired && !syncnagleretry)
                                 {
                                     LOG_debug << "Running syncup on demand";
@@ -2909,7 +2953,7 @@ void MegaClient::exec()
 
                                 totalnodes += sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
 
-                                if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                                if (sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN)
                                 {
                                     if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
                                      || sync->dirnotify->notifyq[DirNotify::RETRY].size())
@@ -2928,7 +2972,7 @@ void MegaClient::exec()
 
                                         // if the directory events notification subsystem is permanently unavailable or
                                         // has signaled a temporary error, initiate a full rescan
-                                        if (sync->state == SYNC_ACTIVE)
+                                        if (sync->state() == SYNC_ACTIVE)
                                         {
                                             sync->fullscan = false;
 
@@ -3003,7 +3047,7 @@ void MegaClient::exec()
                         // make sure that the remote synced folder still exists
                         if (!sync->localroot->node)
                         {
-                            if (sync->state != SYNC_FAILED)
+                            if (sync->state() != SYNC_FAILED)
                             {
                                 LOG_err << "The remote root node doesn't exist";
                                 sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
@@ -3012,7 +3056,7 @@ void MegaClient::exec()
                         else
                         {
                             LocalPath localpath = sync->localroot->localname;
-                            if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                            if (sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN)
                             {
                                 LOG_debug << "Running syncdown on demand";
                                 if (!syncdown(sync->localroot.get(), localpath))
@@ -3085,7 +3129,7 @@ void MegaClient::exec()
             string auth = getAuthURI();
             if (auth.size())
             {
-                LOG_debug << "Sending lock request";
+                LOG_debug << clientname << "Sending lock request";
                 workinglockcs.reset(new HttpReq());
                 workinglockcs->logname = clientname + "accountBusyCheck ";
                 workinglockcs->posturl = httpio->APIURL;
@@ -7320,7 +7364,7 @@ void MegaClient::notifypurge(void)
                     notifyuser(n->inshare->user);
                 }
 
-                nodes.erase(n->nodehandle);
+                nodes.erase(n->nodeHandle());
                 delete n;
             }
             else
@@ -7437,7 +7481,7 @@ void MegaClient::notifypurge(void)
 // return node pointer derived from node handle
 Node* MegaClient::nodebyhandle(handle h) const
 {
-    auto it = nodes.find(h);
+    auto it = nodes.find(NodeHandle().set6byte(h));
 
     if (it != nodes.end())
     {
@@ -7450,7 +7494,9 @@ Node* MegaClient::nodebyhandle(handle h) const
 Node* MegaClient::nodeByHandle(NodeHandle h) const
 {
     if (h.isUndef()) return nullptr;
-    return nodebyhandle(h.as8byte());
+
+    auto it = nodes.find(h);
+    return it != nodes.end() ? it->second : nullptr;
 }
 
 Node* MegaClient::nodeByPath(const char* path, Node* node)
@@ -7862,9 +7908,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, std::move(resultFunction)));
+    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
@@ -8118,7 +8164,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(handle, error)> resultFunction)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
@@ -8139,7 +8185,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodehandle, kv, tag, resultFunction));
+    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction)));
 
     mergenewshares(1);
 
@@ -12141,7 +12187,7 @@ void MegaClient::purgeOrphanTransfers(bool remove)
         else
         {
             syncs.forEachRunningSync([&](Sync* sync) {
-                if (sync->state != SYNC_ACTIVE)
+                if (sync->state() != SYNC_ACTIVE)
                 {
                     purgeOrphanTransfers = false;
                 }
@@ -13500,7 +13546,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
         bool anyAbove = false;
         syncs.forEachRunningSync([&](Sync* sync) {
 
-            if ((sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+            if ((sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN)
              && n == sync->localroot->node)
             {
                 anyAbove = true;
@@ -15010,7 +15056,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                     ll->type,
                     (int)ll->name.size(),
                     (int)ll->mtime,
-                    (int)ll->sync->state,
+                    (int)ll->sync->state(),
                     (int)ll->sync->inshare,
                     ll->size);
 
@@ -15247,7 +15293,7 @@ void MegaClient::syncupdate()
 
                 auto nextTag = nextreqtag();
                 reqs.add(new CommandPutNodes(this,
-                                                localNode->parent->node->nodehandle,
+                                                localNode->parent->node->nodeHandle(),
                                                 NULL, move(nn),
                                                 nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC,
@@ -15557,7 +15603,7 @@ void MegaClient::execmovetosyncdebris()
             makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
-        reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, move(nnVec),
+        reqs.add(new CommandPutNodes(this, tn->nodeHandle(), NULL, move(nnVec),
                                         -reqtag,
                                         PUTNODES_SYNCDEBRIS,
                                         nullptr,
@@ -15599,43 +15645,22 @@ void MegaClient::failSync(Sync* sync, SyncError syncerror)
     syncactivity = true;
 }
 
-
-void MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag)
+void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag)
 {
-    auto sync = getSyncContainingNodeHandle(nodeHandle);
-    if (sync)
+    if (Node* n = nodeByHandle(nodeHandle))
     {
-        syncs.disableSelectedSyncs([&](SyncConfig&, Sync* s) {
-            return s == sync;
-        }, syncError, newEnabledFlag);
-    }
-}
-
-Sync * MegaClient::getSyncContainingNodeHandle(mega::handle nodeHandle)
-{
-    Sync* syncFound = nullptr;
-    while(!ISUNDEF(nodeHandle) && !syncFound)
-    {
-        syncs.forEachRunningSync([&](Sync* sync) {
-
-            if (sync->localroot && sync->localroot->node && sync->localroot->node->nodehandle == nodeHandle)
+        auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
+        for (NodeHandle rootHandle : activeSyncRootHandles)
+        {
+            if (n->isbelow(rootHandle))
             {
-                syncFound =  sync;  // no nested synched folders is allowed, so if found, there's no more active syncssyncs
+                LOG_warn << "Disabling sync containing node " << n->displaypath();
+                syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
+                    return c.mRemoteNode == rootHandle;
+                    }, false, syncError, newEnabledFlag, nullptr);
             }
-        });
-
-        Node *n = nodebyhandle(nodeHandle);
-        nodeHandle = n ? n->parenthandle : UNDEF;
+        }
     }
-    return syncFound;
-}
-
-void MegaClient::failSyncs(SyncError syncError)
-{
-    syncs.forEachRunningSync([&](Sync* sync) {
-        sync->changestate(SYNC_FAILED, syncError, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
-    });
-    syncactivity = true;
 }
 
 void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)

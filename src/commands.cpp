@@ -587,8 +587,11 @@ bool CommandDirectRead::procresult(Result r)
                     }
                     if (tempurls.size() == 1 || tempurls.size() == RAIDPARTS)
                     {
-                        drn->tempurls.swap(tempurls);
-                        e.setErrorCode(API_OK);
+                        if (drn)
+                        {
+                            drn->tempurls.swap(tempurls);
+                            e.setErrorCode(API_OK);
+                        }
                     }
                     else
                     {
@@ -945,7 +948,7 @@ bool CommandSetAttr::procresult(Result r)
 
 // (the result is not processed directly - we rely on the server-client
 // response)
-CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
+CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                                  const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
                                  Completion&& resultFunction)
   : mResultFunction(resultFunction)
@@ -963,7 +966,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (userhandle)
     {
         arg("t", userhandle);
-        targethandle = UNDEF;
+        targethandle.setUndef();
     }
     else
     {
@@ -1054,7 +1057,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (type == NODE_HANDLE)
     {
         Node* tn;
-        if ((tn = client->nodebyhandle(th)))
+        if ((tn = client->nodeByHandle(th)))
         {
             ShareNodeKeys snk;
 
@@ -1121,7 +1124,7 @@ bool CommandPutNodes::procresult(Result r)
         LOG_debug << "Putnodes error " << r.errorOrOK();
         if (r.wasError(API_EOVERQUOTA))
         {
-            if (client->isPrivateNode(NodeHandle().set6byte(targethandle)))
+            if (client->isPrivateNode(targethandle))
             {
                 client->activateoverquota(0, false);
             }
@@ -1227,7 +1230,7 @@ bool CommandPutNodes::procresult(Result r)
     // when the target has been removed, the API automatically adds the new node/s
     // into the rubbish bin
     Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
-    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle);
+    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle.as8byte());
 
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
@@ -1242,9 +1245,9 @@ bool CommandPutNodes::procresult(Result r)
     if (source == PUTNODES_APP)
     {
 #ifdef ENABLE_SYNC
-        if (!ISUNDEF(targethandle))
+        if (!targethandle.isUndef())
         {
-            Node *parent = client->nodebyhandle(targethandle);
+            Node *parent = client->nodeByHandle(targethandle);
             if (parent && parent->localnode)
             {
                 // A node has been added by a regular (non sync) putnodes
@@ -1283,8 +1286,9 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     // Additionally the servers can't deliver `st` in that packet for the same reason.  And of course we will not ignore this `t` packet, despite setting 'i'.
     notself(client);
 
-    arg("n", (byte*)&h, MegaClient::NODEHANDLE);
-    arg("t", (byte*)&t->nodehandle, MegaClient::NODEHANDLE);
+    arg("n", h);
+    arg("t", t->nodeHandle());
+    assert(t->type != FILENODE);
 
     TreeProcShareKeys tpsk;
     client->proctree(n, &tpsk);
@@ -1388,8 +1392,8 @@ bool CommandMoveNode::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions, int cmdtag, std::function<void(handle, error)> f)
-    : mResultFunction(f)
+CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f)
+    : mResultFunction(move(f))
 {
     cmd("d");
     notself(client);
@@ -1410,7 +1414,7 @@ bool CommandDelNode::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         if (mResultFunction)    mResultFunction(h, r.errorOrOK());
-        else         client->app->unlink_result(h, r.errorOrOK());
+        else         client->app->unlink_result(h.as8byte(), r.errorOrOK());
         return true;
     }
     else
@@ -1435,14 +1439,14 @@ bool CommandDelNode::procresult(Result r)
 
                 case EOO:
                     if (mResultFunction)    mResultFunction(h, e);
-                    else         client->app->unlink_result(h, e);
+                    else         client->app->unlink_result(h.as8byte(), e);
                     return true;
 
                 default:
                     if (!client->json.storeobject())
                     {
                         if (mResultFunction)    mResultFunction(h, API_EINTERNAL);
-                        else         client->app->unlink_result(h, API_EINTERNAL);
+                        else         client->app->unlink_result(h.as8byte(), API_EINTERNAL);
                         return false;
                     }
             }
@@ -4989,7 +4993,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
 
-                        client->putnodes(client->rootnodes[0], move(newnodes), nullptr, 0);
+                        client->putnodes(NodeHandle().set6byte(client->rootnodes[0]), move(newnodes), nullptr, 0);
                     }
                     else if (havekey)
                     {
@@ -8081,13 +8085,12 @@ bool CommandGetCountryCallingCodes::procresult(Result r)
 
     map<string, vector<string>> countryCallingCodes;
 
-    string countryCode;
-    vector<string> callingCodes;
-
     bool success = true;
     while (client->json.enterobject())
     {
         bool exit = false;
+        string countryCode;
+        vector<string> callingCodes;
         while (!exit)
         {
             switch (client->json.getnameid())
