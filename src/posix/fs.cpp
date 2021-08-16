@@ -1789,19 +1789,19 @@ PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root,
     // Are we running on Catalina or newer?
     if (macOSmajorVersion() >= 19)
     {
-        auto root = "/System/Volumes/Data" + eventsPath;
+        auto rootCheckPath = "/System/Volumes/Data" + eventsPath;
 
         LOG_debug << "MacOS 10.15+ filesystem detected.";
-        LOG_debug << "Checking FSEvents path: " << root;
+        LOG_debug << "Checking FSEvents path: " << rootCheckPath;
 
         // Check for presence of volume metadata.
-        if (auto fd = open(root.c_str(), O_RDONLY); fd >= 0)
+        if (auto fd = open(rootCheckPath.c_str(), O_RDONLY); fd >= 0)
         {
             // Make sure it's actually about the root.
             if (char buf[MAXPATHLEN]; fcntl(fd, F_GETPATH, buf) >= 0)
             {
                 // Awesome, let's use the FSEvents path.
-                eventsPath = std::move(root);
+                eventsPath = std::move(rootCheckPath);
             }
 
             close(fd);
@@ -1812,7 +1812,7 @@ PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root,
         }
 
         // Safe as root is strictly larger.
-        auto usingEvents = eventsPath.size() == root.size();
+        auto usingEvents = eventsPath.size() == rootCheckPath.size();
 
         LOG_debug << "Using "
                   << (usingEvents ? "FSEvents" : "standard")
