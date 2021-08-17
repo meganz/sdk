@@ -227,7 +227,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
           return lhs.type == rhs.type
                  && lhs.fsid == rhs.fsid
                  && lhs.fingerprint.mtime == rhs.fingerprint.mtime
-                 && rhs.fingerprint.size == rhs.fingerprint.size;
+                 && lhs.fingerprint.size == rhs.fingerprint.size;
       };
 
     FSNode result;
