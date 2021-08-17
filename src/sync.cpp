@@ -1557,41 +1557,45 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     }
     else
     {
-        if (auto* s = row.syncNode; s && s->hasRare())
+        if (auto* s = row.syncNode)
         {
-            // Move is (was) in progress?
-            if (auto& moveToHere = s->rare().moveToHere)
+            // Do w have any rare fields?
+            if (s->hasRare())
             {
-                if (moveToHere->failed)
+                // Move is (was) in progress?
+                if (auto& moveToHere = s->rare().moveToHere)
                 {
-                    // Move's failed. Try again.
-                    moveToHere.reset();
+                    if (moveToHere->failed)
+                    {
+                        // Move's failed. Try again.
+                        moveToHere.reset();
+                    }
+                    else
+                    {
+                        // Move's in progress.
+                        //
+                        // Revisit when the move is complete.
+                        // In the mean time, don't recurse below this node.
+                        row.suppressRecursion = true;
+                        rowResult = false;
+
+                        // When false, we can visit resolve_rowMatched(...).
+                        return !moveToHere->succeeded;
+                    }
                 }
-                else
+
+                // Unlink in progress?
+                if (!s->rare().unlinkHere.expired())
                 {
-                    // Move's in progress.
-                    //
-                    // Revisit when the move is complete.
-                    // In the mean time, don't recurse below this node.
+                    // Don't recurse into our children.
                     row.suppressRecursion = true;
+
+                    // Row isn't synced.
                     rowResult = false;
 
-                    // When false, we can visit resolve_rowMatched(...).
-                    return !moveToHere->succeeded;
+                    // Move isn't complete.
+                    return true;
                 }
-            }
-
-            // Unlink in progress?
-            if (!s->rare().unlinkHere.expired())
-            {
-                // Don't recurse into our children.
-                row.suppressRecursion = true;
-
-                // Row isn't synced.
-                rowResult = false;
-
-                // Move isn't complete.
-                return true;
             }
         }
 
@@ -5411,28 +5415,32 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     bool rowSynced = false;
 
     // check for cases in progress that we shouldn't be re-evaluating yet
-    if (auto* s = row.syncNode; s && s->hasRare())
+    if (auto* s = row.syncNode)
     {
-        // Move in progress?
-        if (auto& moveFromHere = s->rare().moveFromHere)
+        // Any rare fields?
+        if (s->hasRare())
         {
-            if (moveFromHere->failed || moveFromHere->syncCodeProcessedResult)
+            // Move in progress?
+            if (auto& moveFromHere = s->rare().moveFromHere)
             {
-                // Move's completed.
-                moveFromHere.reset();
+                if (moveFromHere->failed || moveFromHere->syncCodeProcessedResult)
+                {
+                    // Move's completed.
+                    moveFromHere.reset();
+                }
+                else
+                {
+                    // Move's still underway.
+                    return false;
+                }
             }
-            else
+
+            // Unlink in progress?
+            if (!s->rare().unlinkHere.expired())
             {
-                // Move's still underway.
+                // Unlink's still underway.
                 return false;
             }
-        }
-
-        // Unlink in progress?
-        if (!s->rare().unlinkHere.expired())
-        {
-            // Unlink's still underway.
-            return false;
         }
     }
 
