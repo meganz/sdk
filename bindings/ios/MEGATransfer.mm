@@ -141,8 +141,7 @@ using namespace mega;
 - (MEGANode *)publicNode {
     MegaNode *n = self.megaTransfer->getPublicMegaNode();
     if (self.megaTransfer != nil && n) {
-        MEGANode *node = [[MEGANode alloc] initWithMegaNode:n->copy() cMemoryOwn:YES];
-        delete n;
+        MEGANode *node = [[MEGANode alloc] initWithMegaNode:n cMemoryOwn:YES];
         return node;
     }
     return nil;
