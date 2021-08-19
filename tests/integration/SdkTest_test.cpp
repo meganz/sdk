@@ -1219,6 +1219,36 @@ string runProgram(const string& command)
     return output;
 }
 
+string getLinkFromMailbox(const string& exe,         // Python
+                          const string& script,      // email_processor.py
+                          const string& realAccount, // user
+                          const string& realPswd,    // password for user@host.domain
+                          const string& toAddr,      // user+testnewaccount@host.domain
+                          const string& intent)      // confirm / delete
+{
+    string command = exe + " \"" + script + "\" \"" + realAccount + "\" \"" + realPswd + "\" \"" + toAddr + "\" " + intent;
+    string output;
+
+    // Wait for the link to be sent
+    constexpr int deltaMs = 10000; // 10 s interval to check for the email
+    for (int i = 0; ; i += deltaMs)
+    {
+        WaitMillisec(deltaMs);
+
+        output = runProgram(command); // Run Python script
+        if (!output.empty() || i > 180000 / deltaMs) // 3 minute maximum wait
+            break;
+    }
+
+    // Print whatever was fetched from the mailbox
+    LOG_debug << "Link from email (" << intent << "):" << (output.empty() ? "[empty]" : output);
+
+    // Validate the link
+    constexpr char expectedLinkPrefix[] = "https://";
+    return output.substr(0, sizeof(expectedLinkPrefix) - 1) == expectedLinkPrefix ?
+           output : string();
+}
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -1227,41 +1257,94 @@ string runProgram(const string& command)
  * It tests the creation of a new account for a random user.
  *  - Create account and send confirmation link
  *  - Logout and resume the create-account process
- *  - Send the confirmation link to a different email address
- *  - Wait for confirmation of account by a different client
+ *  - Send the confirmation link (again) to a different email address
+ *  - Extract confirmation link from the mailbox
+ *  - Use the link to confirm the account
+ *  - Login to the new account
+ *  - Request cancel account link
+ *  - Extract cancel account link from the mailbox
+ *  - Use the link to cancel the account
  */
-TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
+TEST_F(SdkTest, SdkTestCreateAccount)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
-
-    string email1 = "user@domain.com";
-    string pwd = "pwd";
-    string email2 = "other-user@domain.com";
-
     LOG_info << "___TEST Create account___";
 
+    // Make sure the new account details have been set up
+    const char* bufRealEmail = getenv("MEGA_REAL_EMAIL"); // user@host.domain
+    const char* bufRealPswd = getenv("MEGA_REAL_PWD"); // email password of user@host.domain
+    const char* bufScript = getenv("MEGA_LINK_EXTRACT_SCRIPT"); // full path to the link extraction script
+    ASSERT_TRUE(bufRealEmail && bufRealPswd && bufScript) <<
+        "MEGA_REAL_EMAIL, MEGA_REAL_PWD, MEGA_LINK_EXTRACT_SCRIPT env vars must all be defined";
+
+    // Test that Python was installed
+    string pyExe = "Python";
+    const string pyOpt = " -V";
+    const string pyExpected = "Python 3.";
+    string output = runProgram(pyExe + pyOpt);  // Python -V
+    if (output.substr(0, pyExpected.length()) != pyExpected)
+    {
+        pyExe += "3";
+        output = runProgram(pyExe + pyOpt);  // Python3 -V
+        ASSERT_EQ(pyExpected, output.substr(0, pyExpected.length())) << "Python 3 was not found.";
+    }
+    LOG_debug << "Using " << output;
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
+
+    const string realEmail(bufRealEmail); // user@host.domain
+    auto pos = realEmail.find('@');
+    const string realAccount = realEmail.substr(0, pos); // user
+    const string newTestAcc = realAccount + "+testnewaccount" + realEmail.substr(pos); // user+testnewaccount@host.domain
+    const char* newTestPwd = "TestPswd!@#$";
+
     // Create an ephemeral session internally and send a confirmation link to email
-    ASSERT_TRUE(synchronousCreateAccount(0, email1.c_str(), pwd.c_str(), "MyFirstname", "MyLastname"))
-            << "Account creation has failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Account creation failed (error: " << mApi[0].lastError << ")";
+    ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), newTestPwd, "MyFirstname", "MyLastname"));
 
     // Logout from ephemeral session and resume session
     ASSERT_NO_FATAL_FAILURE( locallogout() );
-    ASSERT_TRUE(synchronousResumeCreateAccount(0, sid.c_str()))
-            << "Account creation has failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Account creation failed (error: " << mApi[0].lastError << ")";
+    ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, sid.c_str()));
 
     // Send the confirmation link to a different email address
-    ASSERT_TRUE(synchronousSendSignupLink(0, email2.c_str(), "MyFirstname", pwd.c_str()))
-            << "Send confirmation link to another email failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Send confirmation link to another email address failed (error: " << mApi[0].lastError << ")";
+    // Isn't this supposed to fail??
+    string megaBadAcc = "bad.bad." + newTestAcc;
+    ASSERT_EQ(API_OK, synchronousSendSignupLink(0, megaBadAcc.c_str(), "MyFirstname", newTestPwd))
+            << "Send confirmation link to another email address failed";
 
-    // Now, confirm the account by using a different client...
+    // Get confirmation link from the correct address
+    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "confirm");
+    ASSERT_FALSE(output.empty()) << "Confirmation link was not found.";
 
-    // ...and wait for the AP notifying the confirmation
-    bool *flag = &mApi[0].accountUpdated; *flag = false;
-    ASSERT_TRUE( waitForResponse(flag) )
-            << "Account confirmation not received after " << maxTimeout << " seconds";
+    // Use confirmation link
+    ASSERT_EQ(API_OK, synchronousConfirmSignupLink(0, output.c_str(), newTestPwd));
+
+    // Create a separate megaApi instance
+    std::unique_ptr<MegaApi> testMegaApi(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder((int)mApi.size()).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    testMegaApi->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+    testMegaApi->setLoggingName(to_string(mApi.size()).c_str());
+
+    // Login to the new account
+    auto loginTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
+    testMegaApi->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
+
+    // fetchnodes // needed internally to fill in user details, including email
+    auto fetchnodesTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
+    testMegaApi->fetchNodes(fetchnodesTracker.get());
+    ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
+
+    // Request cancel account link
+    auto cancelLinkTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
+    testMegaApi->cancelAccount(cancelLinkTracker.get());
+    ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << newTestAcc.c_str();
+
+    // Get cancel account link from the mailbox
+    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "delete");
+    ASSERT_FALSE(output.empty()) << "Cancel account link was not found.";
+
+    // Use cancel account link
+    auto useCancelLinkTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
+    testMegaApi->confirmCancelAccount(output.c_str(), newTestPwd, useCancelLinkTracker.get());
+    ASSERT_EQ(API_OK, useCancelLinkTracker->waitForResult()) << " Failed to confirm cancel account " << newTestAcc.c_str();
 }
 
 /**
