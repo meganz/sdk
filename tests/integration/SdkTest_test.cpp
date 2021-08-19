@@ -264,7 +264,7 @@ void SdkTest::TearDown()
 
     releaseMegaApi(1);
     releaseMegaApi(2);
-    if (megaApi[0])
+    if (!megaApi.empty() && megaApi[0])
     {
         releaseMegaApi(0);
     }
@@ -299,7 +299,7 @@ void SdkTest::Cleanup()
     WaitMillisec(5000);
 #endif
 
-    if (megaApi[0])
+    if (!megaApi.empty() && megaApi[0])
     {
 
         // Remove nodes in Cloud & Rubbish
