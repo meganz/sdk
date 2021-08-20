@@ -1944,10 +1944,12 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
     return new PosixDirAccess();
 }
 
+#ifdef ENABLE_SYNC
 DirNotify* PosixFileSystemAccess::newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter*)
 {
     return new PosixDirNotify(*this, root, rootPath);
 }
+#endif
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {
