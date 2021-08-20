@@ -3670,21 +3670,26 @@ void MegaClient::dispatchTransfers()
         counters[tc.directionIndex()].addexisting(ts->transfer->size,  ts->progressreported);
     }
 
-    std::function<bool(Transfer*)> testAddTransferFunction = [&counters, this](Transfer* t)
-        {
-            TransferCategory tc(t);
+    std::function<bool(direction_t)> continueDirection = [&counters, this](direction_t putget) {
 
             // hard limit on puts/gets
-            if (counters[tc.directionIndex()].total >= MAXTRANSFERS)
+            if (counters[putget].total >= MAXTRANSFERS)
             {
                 return false;
             }
 
             // only request half the max at most, to get a quicker response from the API and get overlap with transfers going
-            if (counters[tc.directionIndex()].added >= MAXTRANSFERS/2)
+            if (counters[putget].added >= MAXTRANSFERS/2)
             {
                 return false;
             }
+
+            return true;
+        };
+
+    std::function<bool(Transfer*)> testAddTransferFunction = [&counters, this](Transfer* t)
+        {
+            TransferCategory tc(t);
 
             // If we have one very big file, that is enough to max out the bandwidth by itself; get that one done quickly (without preventing more small files).
             if (counters[tc.index()].hasVeryBig)
@@ -3709,7 +3714,7 @@ void MegaClient::dispatchTransfers()
             return true;
         };
 
-    std::array<vector<Transfer*>, 6> nextInCategory = transferlist.nexttransfers(testAddTransferFunction);
+    std::array<vector<Transfer*>, 6> nextInCategory = transferlist.nexttransfers(testAddTransferFunction, continueDirection);
 
     // Iterate the 4 combinations in this order:
     static const TransferCategory categoryOrder[] = {
