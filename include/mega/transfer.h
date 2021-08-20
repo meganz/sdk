@@ -213,7 +213,8 @@ public:
     transfer_list::iterator begin(direction_t direction);
     transfer_list::iterator end(direction_t direction);
     bool getIterator(Transfer *transfer, transfer_list::iterator&, bool canHandleErasedElements = false);
-    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction);
+    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction, 
+	                                               std::function<bool(direction_t)>& directionContinuefunction);
     Transfer *transferat(direction_t direction, unsigned int position);
 
     std::array<transfer_list, 2> transfers;
