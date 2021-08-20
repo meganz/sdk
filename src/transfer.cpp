@@ -1954,7 +1954,8 @@ bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, 
     return false;
 }
 
-std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction)
+std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction, 
+                                                             std::function<bool(direction_t)>& directionContinuefunction)
 {
     std::array<vector<Transfer*>, 6> chosenTransfers;
 
@@ -1964,6 +1965,9 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
     {
         for (Transfer *transfer : transfers[direction])
         {
+            // don't traverse the whole list if we already have as many as we are going to get
+            if (!directionContinuefunction(direction)) break;
+
             bool continueLarge = true;
             bool continueSmall = true;
 
