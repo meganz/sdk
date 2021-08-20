@@ -3639,7 +3639,9 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
     mAsyncQueue.clearDiscardable();
 
+#ifdef ENABLE_SYNC
     syncs.locallogout(removecaches, keepSyncsConfigFile);
+#endif
 
     if (removecaches)
     {
