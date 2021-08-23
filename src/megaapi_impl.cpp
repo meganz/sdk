@@ -1543,8 +1543,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
 
         string deviceName;
         tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
-        string deviceIdHash = client->getDeviceidHash();    // the attribute is keyed with the hash
-        if (!tlvRecords || !tlvRecords->get(deviceIdHash, deviceName) || deviceName.empty()) { return API_EINCOMPLETE; }
+        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty()) { return API_EINCOMPLETE; }
 
         // add a new node for it
         newnodes.emplace_back();
