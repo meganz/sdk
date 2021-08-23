@@ -1501,7 +1501,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     bool isInternalDrive = !request->getLink();
     if (isInternalDrive)
     {
-        deviceId = client->getDeviceid();
+        deviceId = client->getDeviceidHash();
     }
     else // external drive
     {
