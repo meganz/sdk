@@ -120,18 +120,6 @@ struct MEGA_API Transfer : public FileFingerprint
     // previous wrong fingerprint
     FileFingerprint badfp;
 
-    // flag to know if prevmetamac is valid
-    bool hasprevmetamac;
-
-    // previous wrong metamac
-    int64_t prevmetamac;
-
-    // flag to know if currentmetamac is valid
-    bool hascurrentmetamac;
-
-    // current wrong metamac
-    int64_t currentmetamac;
-
     // transfer state
     bool finished;
 
@@ -213,7 +201,8 @@ public:
     transfer_list::iterator begin(direction_t direction);
     transfer_list::iterator end(direction_t direction);
     bool getIterator(Transfer *transfer, transfer_list::iterator&, bool canHandleErasedElements = false);
-    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction);
+    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction, 
+	                                               std::function<bool(direction_t)>& directionContinuefunction);
     Transfer *transferat(direction_t direction, unsigned int position);
 
     std::array<transfer_list, 2> transfers;
