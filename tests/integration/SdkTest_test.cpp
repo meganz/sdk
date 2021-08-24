@@ -2398,6 +2398,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
  * - Share a folder with an existing contact
  * - Check the correctness of the outgoing share
  * - Check the reception and correctness of the incoming share
+ * - Move a shared file (not owned) to Rubbish bin
  * - Modify the access level
  * - Revoke the access to the share
  * - Share a folder with a non registered email
@@ -2424,6 +2425,7 @@ TEST_F(SdkTest, SdkTestShares)
     // Create some nodes to share
     //  |--Shared-folder
     //    |--subfolder
+    //      |--file.txt
     //    |--file.txt
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
@@ -2444,6 +2446,9 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get())) << "Cannot upload a test file";
 
     hfile1 = mApi[0].h;
+
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get())) << "Cannot upload a second test file";
+    MegaHandle hfile2 = mApi[0].h;
 
 
     // --- Download authorized node from another account ---
@@ -2488,7 +2493,7 @@ TEST_F(SdkTest, SdkTestShares)
     // --- Create a new outgoing share ---
 
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_READ) );
+    ASSERT_NO_FATAL_FAILURE( shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_FULL) );
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
@@ -2503,7 +2508,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     n1 = megaApi[0]->getNodeByHandle(hfolder1);    // get an updated version of the node
 
-    ASSERT_EQ(MegaShare::ACCESS_READ, s->getAccess()) << "Wrong access level of outgoing share";
+    ASSERT_EQ(MegaShare::ACCESS_FULL, s->getAccess()) << "Wrong access level of outgoing share";
     ASSERT_EQ(hfolder1, s->getNodeHandle()) << "Wrong node handle of outgoing share";
     ASSERT_STREQ(mApi[1].email.data(), s->getUser()) << "Wrong email address of outgoing share";
     ASSERT_TRUE(n1->isShared()) << "Wrong sharing information at outgoing share";
@@ -2523,9 +2528,21 @@ TEST_F(SdkTest, SdkTestShares)
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_READ).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
+
+    // --- Move shared file (not owned) to Rubbish bin ---
+    mApi[1].requestFlags[MegaRequest::TYPE_MOVE] = false;
+    MegaNode* fileNode2 = megaApi[0]->getNodeByHandle(hfile2);
+    megaApi[1]->moveNode(fileNode2, megaApi[1]->getRubbishNode());
+    ASSERT_TRUE(waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_MOVE]))
+        << "Move operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Moving shared file (not owned) to Rubbish bin failed (error: " << mApi[1].lastError << ")";
+
+    // --- Test that file in Rubbish bin can be restored ---
+    MegaNode* nodeMovedFile = megaApi[1]->getNodeByHandle(mApi[1].h);
+    ASSERT_EQ(nodeMovedFile->getRestoreHandle(), hfolder2) << "Incorrect restore handle for file in Rubbish Bin";
 
     delete nl;
 
