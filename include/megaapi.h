@@ -19670,7 +19670,7 @@ public:
     virtual unsigned int getPricePerTransfer(int productIndex);
 
     /**
-     * @brief Get the local price per transfertransfertransfer block
+     * @brief Get the local price per transfer block
      *
      * Local prices are only available if the account will be charged in a different
      * currency than local.
