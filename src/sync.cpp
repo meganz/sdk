@@ -1640,35 +1640,29 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                 // but, is is ok to overwrite that thing?  If that's what happened locally to a synced file, and the cloud item was also synced and is still there, then it's legit
                 // overwriting a folder like that is not possible so far as I know
-                bool legitOverwrite = row.syncNode->type == FILENODE &&
-                                      row.syncNode->fsid_lastSynced != UNDEF &&
+                // Note that the original algorithm would overwrite a file or folder, moving the old one to cloud debris
+                bool legitOverwrite = //row.syncNode->type == FILENODE &&
+                                      //row.syncNode->fsid_lastSynced != UNDEF &&
                                       row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle;
 
                 if (legitOverwrite)
                 {
-                    SYNC_verbose << syncname << "Move is a legit overwrite of a synced file, so we overwrite that in the cloud also." << logTriplet(row, fullPath);
+                    SYNC_verbose << syncname << "Move is a legit overwrite of a synced file/folder, so we overwrite that in the cloud also." << logTriplet(row, fullPath);
                     nameOverwritten = row.cloudNode->name;
                     // todo: record the old one as prior version?
                 }
-                else if (row.syncNode->type != FILENODE)
+                else //if (row.syncNode->type != FILENODE)
                 {
-                    // TODO: Check that the source actually exists in the cloud.
-
-                    // Is the move source an empty directory?
-                    if (!sourceSyncNode->children.empty())
-                    {
-                        // Nope, need a more complex merging strategy.
-                        row.syncNode->setCheckMovesAgain(false, true, false);
-                        monitor.waitingLocal(fullPath.localPath, sourceSyncNode->getLocalPath(), fullPath.cloudPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
-                        rowResult = false;
-                        return true;
-                    }
-                }
-                else if (row.syncNode->type == FILENODE)
-                {
+                    row.syncNode->setCheckMovesAgain(false, true, false);
+                    monitor.waitingLocal(fullPath.localPath, sourceSyncNode->getLocalPath(), fullPath.cloudPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
                     rowResult = false;
-                    return false;  // let the non-move code run for this node, it can resolve it by upload/download or user intervention
+                    return true;
                 }
+                //else if (row.syncNode->type == FILENODE)
+                //{
+                //    rowResult = false;
+                //    return false;  // let the non-move code run for this node, it can resolve it by upload/download or user intervention
+                //}
             }
 
             row.suppressRecursion = true;   // wait until we have moved the other LocalNodes below this one
@@ -1739,64 +1733,73 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 else
                 {
                     // Are we overwriting a directory?
-                    if (row.cloudNode && row.cloudNode->type != FILENODE)
-                    {
-                        // The source must be empty.
-                        assert(sourceSyncNode->children.empty());
+                    //if (row.cloudNode && row.cloudNode->type != FILENODE)
+                    //{
+                    //    // The source must be empty.
+                    //    assert(sourceSyncNode->children.empty());
 
-                        // Shouldn't be here if we're already unlinking the node.
-                        if (!sourceSyncNode->rareRO().unlinkHere.expired())
-                        {
-                            // Row isn't synced.
-                            rowResult = false;
+                    //    // Shouldn't be here if we're already unlinking the node.
+                    //    if (!sourceSyncNode->rareRO().unlinkHere.expired())
+                    //    {
+                    //        // Row isn't synced.
+                    //        rowResult = false;
 
-                            // "Move" isn't complete.
-                            return true;
-                        }
+                    //        // "Move" isn't complete.
+                    //        return true;
+                    //    }
 
-                        // What node are we removing?
-                        auto handle = sourceCloudNode.handle;
+                    //    // What node are we removing?
+                    //    auto handle = sourceCloudNode.handle;
 
-                        // So we can track the unlink-in-progress.
-                        auto unlinkPtr = std::make_shared<LocalNode::RareFields::UnlinkInProgress>();
+                    //    // So we can track the unlink-in-progress.
+                    //    auto unlinkPtr = std::make_shared<LocalNode::RareFields::UnlinkInProgress>();
 
-                        // Queue the unlink.
-                        syncs.queueClient([handle, unlinkPtr](MegaClient& client, DBTableTransactionCommitter&) {
-                            // Get our hands on the node.
-                            auto* node = client.nodeByHandle(handle);
+                    //    // Queue the unlink.
+                    //    syncs.queueClient([handle, unlinkPtr](MegaClient& client, DBTableTransactionCommitter&) {
+                    //        // Get our hands on the node.
+                    //        auto* node = client.nodeByHandle(handle);
 
-                            // Can't remove the node if it doesn't exist.
-                            if (!node) return;
+                    //        // Can't remove the node if it doesn't exist.
+                    //        if (!node) return;
 
-                            // Remove the node.
-                            client.unlink(node, false, 0, [unlinkPtr](NodeHandle, Error) {
-                                // unlinkPtr kept alive until the request is complete.
-                            });
-                        });
+                    //        // Remove the node.
+                    //        client.unlink(node, false, 0, [unlinkPtr](NodeHandle, Error) {
+                    //            // unlinkPtr kept alive until the request is complete.
+                    //        });
+                    //    });
 
-                        // Track the unlink-in-progress.
-                        sourceSyncNode->rare().unlinkHere = unlinkPtr;
+                    //    // Track the unlink-in-progress.
+                    //    sourceSyncNode->rare().unlinkHere = unlinkPtr;
 
-                        // Row isn't synced.
-                        rowResult = false;
+                    //    // Row isn't synced.
+                    //    rowResult = false;
 
-                        // "Move" isn't complete.
-                        return true;
-                    }
+                    //    // "Move" isn't complete.
+                    //    return true;
+                    //}
+
+                    Syncs::QueuedClientFunc simultaneousMoveReplacedNodeToDebris = nullptr;
 
                     if (row.cloudNode && row.cloudNode->handle != sourceCloudNode.handle)
                     {
                         LOG_debug << syncname << "Moving node to debris for replacement: " << fullPath.cloudPath << logTriplet(row, fullPath);
 
+                        auto deletePtr = std::make_shared<LocalNode::RareFields::DeleteToDebrisInProgress>();
+                        sourceSyncNode->rare().removeNodeHere = deletePtr;
+
                         bool inshareFlag = inshare;
                         auto deleteHandle = row.cloudNode->handle;
-                        syncs.queueClient([deleteHandle, inshareFlag](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        simultaneousMoveReplacedNodeToDebris = [deleteHandle, inshareFlag, deletePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(deleteHandle))
                                 {
                                     mc.movetosyncdebris(n, inshareFlag, nullptr);
                                 }
-                            });
+
+                                // deletePtr lives until this moment
+                            };
+
+                        syncs.queueClient(move(simultaneousMoveReplacedNodeToDebris));
                     }
 
                     // movePtr stays alive until the move completes
@@ -1846,10 +1849,18 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " to " << newName  << logTriplet(row, fullPath);
 
                         auto renameHandle = sourceCloudNode.handle;
-                        syncs.queueClient([renameHandle, newName, movePtr, anomalyReport](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([renameHandle, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris](MegaClient& mc, DBTableTransactionCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(renameHandle))
                                 {
+
+                                    // first move the old thing at the target path to debris.
+                                    // this should occur in the same batch so it looks simultaneous
+                                    if (simultaneousMoveReplacedNodeToDebris)
+                                    {
+                                        simultaneousMoveReplacedNodeToDebris(mc, committer);
+                                    }
+
                                     mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName, anomalyReport](NodeHandle, Error err){
 
                                         movePtr->succeeded = !error(err);
@@ -1878,13 +1889,21 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " into " << targetCloudNodePath
                                   << (newName.empty() ? "" : (" as " + newName).c_str()) << logTriplet(row, fullPath);
 
-                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
                             auto fromNode = mc.nodeByHandle(sourceCloudNode.handle);
                             auto toNode = mc.nodeByHandle(targetCloudNode.handle);
 
                             if (fromNode && toNode)
                             {
+
+                                // first move the old thing at the target path to debris.
+                                // this should occur in the same batch so it looks simultaneous
+                                if (simultaneousMoveReplacedNodeToDebris)
+                                {
+                                    simultaneousMoveReplacedNodeToDebris(mc, committer);
+                                }
+
                                 auto err = mc.rename(fromNode, toNode,
                                             SYNCDEL_NONE,
                                             sourceCloudNode.parentHandle,
@@ -2680,7 +2699,7 @@ void Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, bool no
 
     auto clientCompletion = [=](error e, SyncError, handle)
         {
-            queueClient([completion, e](MC& mc, DBTC& committer)
+            queueClient([completion, e](MegaClient&, DBTableTransactionCommitter&)
                 {
                     if (completion) completion(e);
                 });
@@ -5603,9 +5622,9 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
             LOG_debug << syncname << "Checking move source/target by fsid " << toHandle(movePtr->sourceFsid);
 
-            if ((sourceSyncNode = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid, movePtr->sourceType, movePtr->sourceFingerprint, this, nullptr))
-                && sourceSyncNode == movePtr->sourcePtr)
+            if (sourceSyncNode = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid, movePtr->sourceType, movePtr->sourceFingerprint, this, nullptr))
             {
+                assert(sourceSyncNode == movePtr->sourcePtr);
 
                 LOG_debug << syncname << "Sync cloud move/rename from : " << sourceSyncNode->getCloudPath() << " resolved here! " << logTriplet(row, fullPath);
 
@@ -5624,9 +5643,17 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                 sourceSyncNode->rare().moveFromHere->syncCodeProcessedResult = true;
                 sourceSyncNode->rare().moveFromHere.reset();
                 sourceSyncNode->trimRareFields();
-                row.syncNode->rare().moveToHere.reset();
-                row.syncNode->trimRareFields();
             }
+            else
+            {
+                // just alert us to this an double check the case in the debugger
+                assert(false);
+            }
+
+            // regardless, make sure we don't get stuck
+            row.syncNode->rare().moveToHere->syncCodeProcessedResult = true;
+            row.syncNode->rare().moveToHere.reset();
+            row.syncNode->trimRareFields();
         }
 
         LOG_verbose << syncname << "Row is synced, setting fsid and nodehandle" << logTriplet(row, fullPath);
@@ -5654,6 +5681,10 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
     {
         SYNC_verbose << syncname << "Row was already synced" << logTriplet(row, fullPath);
     }
+
+    row.syncNode->syncAgain = std::max<unsigned>(row.syncNode->syncAgain,
+        row.syncNode->type == FILENODE ? TREE_DESCENDANT_FLAGGED : TREE_RESOLVED);
+
     return true;
 }
 
@@ -6731,7 +6762,7 @@ std::future<bool> Syncs::moveToLocalDebris(LocalPath path)
     queueSync([notifier, path = std::move(path), this]() mutable {
         // What sync contains this path?
         auto* sync = syncContainingPath(path, true);
-        
+
         // Move file to local debris if a suitable sync was located.
         notifier->set_value(sync && sync->movetolocaldebris(path));
     });
@@ -8088,6 +8119,8 @@ void Syncs::syncLoop()
             mSyncFlags->stall.cloud.clear();
             mSyncFlags->stall.local.clear();
 
+            unsigned skippedForScanning = 0;
+
             for (auto& us : mSyncVec)
             {
                 Sync* sync = us->mSync.get();
@@ -8118,6 +8151,15 @@ void Syncs::syncLoop()
 
                     if (!sync->syncPaused)
                     {
+                        if (sync->mActiveScanRequest && !sync->mActiveScanRequest->completed())
+                        {
+                            // Save CPU by not starting another recurse of the LocalNode tree
+                            // if a scan is not finished yet.  Scans can take a fair while for large
+                            // folders since they also extract file fingerprints if not known yet.
+                            ++skippedForScanning;
+                            continue;
+                        }
+
                         // make sure we don't have a LocalNode for the debris folder (delete if we have added one historically)
                         if (LocalNode* debrisNode = sync->localroot->childbyname(&sync->localdebrisname))
                         {
@@ -8173,7 +8215,8 @@ void Syncs::syncLoop()
             mSyncFlags->isInitialPass = false;
 
 #ifdef MEGA_MEASURE_CODE
-            LOG_verbose << "recursiveSync took ms: " << std::chrono::duration_cast<std::chrono::milliseconds>(rst.timeSpent()).count();
+            LOG_verbose << "recursiveSync took ms: " << std::chrono::duration_cast<std::chrono::milliseconds>(rst.timeSpent()).count()
+                        << " skipped for scanning: " << skippedForScanning;
             rst.complete();
 #endif
             mSyncFlags->recursiveSyncLastCompletedDs = waiter.ds;
@@ -8602,7 +8645,7 @@ void Syncs::queueSync(std::function<void()>&& f)
 }
 
 
-void Syncs::queueClient(std::function<void(MC&, DBTC&)>&& f)
+void Syncs::queueClient(std::function<void(MegaClient&, DBTableTransactionCommitter&)>&& f)
 {
     assert(onSyncThread());
     clientThreadActions.pushBack(move(f));

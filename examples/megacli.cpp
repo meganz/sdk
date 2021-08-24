@@ -4661,7 +4661,7 @@ void exec_syncresume(autocomplete::ACState& s)
     handle backupId = 0;
     Base64::atob(backupIdStr.c_str(), (byte*)&backupId, int(sizeof(backupId)));
 
-    auto future = client->syncs.setSyncPausedByBackupId(backupId, true);
+    auto future = client->syncs.setSyncPausedByBackupId(backupId, false);
     bool result = future.get();
     cout << "Sync " << toHandle(backupId) << " resume success: " << result << endl;
 }

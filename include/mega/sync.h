@@ -888,15 +888,13 @@ public:
     // used to asynchronously perform scans.
     unique_ptr<ScanService> mScanService;
 
-    typedef MegaClient MC;
-    typedef DBTableTransactionCommitter DBTC;
-
-    ThreadSafeDeque<std::function<void(MC&, DBTC&)>> clientThreadActions;
+    typedef std::function<void(MegaClient&, DBTableTransactionCommitter&)> QueuedClientFunc;
+    ThreadSafeDeque<QueuedClientFunc> clientThreadActions;
     ThreadSafeDeque<std::function<void()>> syncThreadActions;
 
     void syncRun(std::function<void()>);
     void queueSync(std::function<void()>&&);
-    void queueClient(std::function<void(MC&, DBTC&)>&&);
+    void queueClient(QueuedClientFunc&&);
 
     // Update remote location
     bool updateSyncRemoteLocation(UnifiedSync&, bool exists, string cloudPath);
