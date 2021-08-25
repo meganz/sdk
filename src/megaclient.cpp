@@ -3637,6 +3637,8 @@ void MegaClient::logout(bool keepSyncConfigsFile)
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
+    executingLocalLogout = true;
+
     mAsyncQueue.clearDiscardable();
 
 #ifdef ENABLE_SYNC
@@ -3792,12 +3794,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
         dbaccess->currentDbVersion = DbAccess::LEGACY_DB_VERSION;
     }
 
-//#ifdef ENABLE_SYNC
-//    syncadding = 0;
-//    totalLocalNodes = 0;
-//#endif
-
     fetchingkeys = false;
+    executingLocalLogout = false;
 }
 
 void MegaClient::removeCaches()
@@ -10000,7 +9998,10 @@ void MegaClient::transfercachedel(Transfer *transfer, DBTableTransactionCommitte
 {
     if (tctable && transfer->dbid)
     {
-        LOG_debug << "Removing cached transfer";
+        if (!transfer->client->executingLocalLogout)
+        {
+            LOG_debug << "Removing cached transfer";
+        }
         tctable->checkCommitter(committer);
         tctable->del(transfer->dbid);
     }
@@ -11422,6 +11423,9 @@ void MegaClient::purgeOrphanTransfers(bool remove)
 {
     bool purgeOrphanTransfers = statecurrent;
 
+    unsigned purgeCount = 0;
+    unsigned notPurged = 0;
+
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
         DBTableTransactionCommitter committer(tctable);
@@ -11431,14 +11435,30 @@ void MegaClient::purgeOrphanTransfers(bool remove)
             Transfer *transfer = it->second;
             if (remove || (purgeOrphanTransfers && (m_time() - transfer->lastaccesstime) >= 172500))
             {
-                LOG_warn << "Purging orphan transfer";
+                if (purgeCount == 0)
+                {
+                    LOG_warn << "Purging orphan transfers";
+                }
+                purgeCount ++;
                 transfer->finished = true;
             }
+            else
+            {
+                notPurged ++;
+            }
 
-            app->transfer_removed(transfer);
+            // if the transfer is still in cachedtransfers, then the app never knew about it
+            // during this running instance, so no need to call the app back here.
+            //app->transfer_removed(transfer);
+
             delete transfer;
             cachedtransfers[d].erase(it);
         }
+    }
+
+    if (purgeCount > 0 || notPurged > 0)
+    {
+        LOG_warn << "Purged " << purgeCount << " orphan transfers, " << notPurged << " non-referenced cached transfers remain";
     }
 }
 
@@ -11530,7 +11550,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         }
     }
     LOG_debug << "Cached transfers loaded: " << cachedTransfersLoaded;
-    LOG_debug << "Cached files loaded" << cachedFilesLoaded;
+    LOG_debug << "Cached files loaded: " << cachedFilesLoaded;
 
 
     // if we are logged in but the filesystem is not current yet
@@ -11660,7 +11680,8 @@ void MegaClient::fetchnodes(bool nocache)
 
             // allow sc requests to start
             scsn.setScsn(cachedscsn);
-            LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
+            LOG_info << "Session loaded from local cache. SCSN: " << scsn.text()
+                     << " node count: " << nodes.size() << " user count: " << users.size();
 
             if (loggedIntoWritableFolder())
             {
@@ -14337,9 +14358,6 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
         //    nn[nni].localnode->sync->changestate(SYNC_FAILED, PUT_NODES_ERROR, false, true);
         //}
     }
-
-    //syncadding--;
-    //syncactivity = true;
 }
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent

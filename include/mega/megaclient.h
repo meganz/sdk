@@ -1511,10 +1511,6 @@ public:
     // local nodes that need to be added remotely
 //    localnode_vector synccreate;
 
-    // number of sync-initiated putnodes() in progress
-    //int syncadding;
-
-
     // sync id dispatch
     //handle nextsyncid();
     //handle currsyncid;
@@ -1832,6 +1828,8 @@ public:
 
     // the SDK is trying to log out
     int loggingout = 0;
+
+    bool executingLocalLogout = false;
 
     // the logout request succeeded, time to clean up localy once returned from CS response processing
     std::function<void(MegaClient*)> mOnCSCompletion;

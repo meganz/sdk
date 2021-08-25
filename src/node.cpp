@@ -1410,14 +1410,10 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 //    }
 //#endif
 
-//    scanseqno = sync->scanseqno;
-
     // mark fsid as not valid
     fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
     syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
-
-    //sync->client->syncactivity = true;
 
     sync->syncs.totalLocalNodes++;
 
@@ -1974,7 +1970,8 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h)
 
         assert(syncedCloudNodeHandle_it->first == syncedCloudNodeHandle);
 
-        LOG_verbose << sync->syncname << "removing syned handle " << syncedCloudNodeHandle << " for " << localnodedisplaypath(*sync->syncs.fsaccess);
+        // too verbose for million-node syncs
+        //LOG_verbose << sync->syncname << "removing synced handle " << syncedCloudNodeHandle << " for " << localnodedisplaypath(*sync->syncs.fsaccess);
 
         sync->syncs.localnodeByNodeHandle.erase(syncedCloudNodeHandle_it);
     }
@@ -1987,7 +1984,8 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h)
     }
     else
     {
-        LOG_verbose << sync->syncname << "adding syned handle " << syncedCloudNodeHandle << " for " << localnodedisplaypath(*sync->syncs.fsaccess);
+        // too verbose for million-node syncs
+        //LOG_verbose << sync->syncname << "adding synced handle " << syncedCloudNodeHandle << " for " << localnodedisplaypath(*sync->syncs.fsaccess);
 
         syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.insert(std::make_pair(syncedCloudNodeHandle, this));
     }

@@ -1942,11 +1942,11 @@ bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, 
     {
         return true;
     }
-    LOG_debug << "Transfer not found";
+    //LOG_debug << "Transfer not found";
     return false;
 }
 
-std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction, 
+std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction,
                                                              std::function<bool(direction_t)>& directionContinuefunction)
 {
     std::array<vector<Transfer*>, 6> chosenTransfers;

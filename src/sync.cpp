@@ -781,9 +781,6 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     state() = SYNC_INITIALSCAN;
 
-    //fullscan = true;
-    //scanseqno = 0;
-
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
@@ -827,7 +824,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     localroot->watch(mLocalPath, UNDEF);
 
     // load LocalNodes from cache (only for internal syncs)
-    // todo: assuming for now, dbaccess is thread safe
+    // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
     if (syncs.mClient.dbaccess && !us.mConfig.isExternal())
     {
         // open state cache table
@@ -973,28 +970,6 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 
         l->init(this, l->type, p, localpath, std::move(shortname));
 
-#ifdef DEBUG
-        if (fsid != UNDEF)
-        {
-            auto fa = syncs.fsaccess->newfileaccess(false);
-            if (fa->fopen(localpath))  // exists, is file
-            {
-                auto sn = syncs.fsaccess->fsShortname(localpath);
-                if (!(!l->localname.empty() &&
-                    ((!l->slocalname && (!sn || l->localname == *sn)) ||
-                    (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn))))
-                {
-                    // This can happen if a file was moved elsewhere and moved back before the sync restarts.
-                    // We'll refresh slocalname while scanning.
-                    LOG_warn << "Shortname mismatch on LocalNode load!" <<
-                        " Was: " << (l->slocalname ? l->slocalname->toPath(*syncs.fsaccess) : "(null") <<
-                        " Now: " << (sn ? sn->toPath(*syncs.fsaccess) : "(null") <<
-                        " at " << localpath.toPath(*syncs.fsaccess);
-                }
-            }
-        }
-#endif
-
         l->parent_dbid = parent_dbid;
         l->syncedFingerprint.size = size;
         l->setSyncedFsid(fsid, syncs.localnodeBySyncedFsid, l->localname);
@@ -1030,25 +1005,28 @@ bool Sync::readstatecache()
         uint32_t cid;
         LocalNode* l;
 
+        LOG_debug << "Sync " << toHandle(getConfig().mBackupId) << " about to load from db";
+
         statecachetable->rewind();
+        unsigned numLocalNodes = 0;
 
         // bulk-load cached nodes into tmap
+        assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
         while (statecachetable->next(&cid, &cachedata, &syncs.syncKey))
         {
             if ((l = LocalNode::unserialize(this, &cachedata)))
             {
                 l->dbid = cid;
                 tmap.insert(pair<int32_t,LocalNode*>(l->parent_dbid,l));
+                numLocalNodes += 1;
             }
         }
 
-        // recursively build LocalNode tree, set scanseqnos to sync's current scanseqno
+        // recursively build LocalNode tree
         addstatecachechildren(0, &tmap, localroot->localname, localroot.get(), 100);
         cachenodes();
 
-        //// trigger a single-pass full scan to identify deleted nodes
-        //fullscan = true;
-        //scanseqno++;
+        LOG_debug << "Sync " << toHandle(getConfig().mBackupId) << " loaded from db with " << numLocalNodes << " sync nodes";
 
         localroot->setScanAgain(false, true, true, 0);
 
@@ -1149,6 +1127,7 @@ void Sync::cachenodes()
                 }
                 else if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
+                    assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
                     statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &syncs.syncKey);
                     insertq.erase(it++);
                     added = true;
@@ -2566,32 +2545,6 @@ dstime Sync::procscanq()
     return delay;
 }
 
-//// todo: do we still need this?
-//// delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
-//void Sync::deletemissing(LocalNode* l)
-//{
-//    LocalPath path;
-//    std::unique_ptr<FileAccess> fa;
-//    for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
-//    {
-//        if (scanseqno-it->second->scanseqno > 1)
-//        {
-//            if (!fa)
-//            {
-//                fa = client->fsaccess->newfileaccess();
-//            }
-//            client->unlinkifexists(it->second, fa.get(), path);
-//            delete it++->second;
-//        }
-//        else
-//        {
-//            deletemissing(it->second);
-//            it++;
-//        }
-//    }
-//}
-
-
 bool Sync::movetolocaldebris(LocalPath& localpath)
 {
     assert(syncs.onSyncThread());
@@ -3815,6 +3768,7 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
     }
 
     // Try and decrypt the payload.
+    assert(!memcmp(syncKey.key, mClient.key.key, sizeof(syncKey.key)));
     unique_ptr<TLVstore> store(
       TLVstore::containerToTLVrecords(payload, &syncKey));
 
@@ -4229,6 +4183,7 @@ void Syncs::syncRun(std::function<void()> f)
             synchronous.set_value(true);
         });
 
+    waiter.notify();
     synchronous.get_future().get();
 }
 
@@ -7646,13 +7601,18 @@ void Syncs::syncLoop()
     std::condition_variable cv;
     std::mutex dummy_mutex;
     std::unique_lock<std::mutex> dummy_lock(dummy_mutex);
+
+    unsigned lastRecurseMs = 0;
+
     for (;;)
     {
         waiter.bumpds();
 
-        // always wait a little bit, keep CPU down and let MegaClient lock if it needs to
-        //cv.wait_for(dummy_lock, std::chrono::milliseconds(50), [this]() { return false; });
-        waiter.init(2);
+        // Aim to wait at least one second between recursiveSync traversals, keep CPU down.
+        // If traversals are very long, have a fair wait between (up to 5 seconds)
+        // If something happens that means the sync needs attention, the waiter
+        // should be woken up by a waiter->notify() call, and we break out of this wait
+        waiter.init(10 + std::min<unsigned>(lastRecurseMs, 10000)/200);
         waiter.wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
         waiter.wait();
 
@@ -8107,6 +8067,7 @@ void Syncs::syncLoop()
 
         if (mClient.actionpacketsCurrent && (isAnySyncSyncing(true) || syncStallState) && !tooSoon)
         {
+            auto recurseStart = std::chrono::high_resolution_clock::now();
             CodeCounter::ScopeTimer rst(mClient.performanceStats.recursiveSyncTime);
 
             // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
@@ -8214,8 +8175,11 @@ void Syncs::syncLoop()
 
             mSyncFlags->isInitialPass = false;
 
+            lastRecurseMs = unsigned(std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::high_resolution_clock::now() - recurseStart).count());
 #ifdef MEGA_MEASURE_CODE
-            LOG_verbose << "recursiveSync took ms: " << std::chrono::duration_cast<std::chrono::milliseconds>(rst.timeSpent()).count()
+
+            LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
                         << " skipped for scanning: " << skippedForScanning;
             rst.complete();
 #endif

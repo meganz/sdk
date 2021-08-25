@@ -304,9 +304,6 @@ public:
     // current state
     syncstate_t& state() { return getConfig().mRunningState; }
 
-    //// are we conducting a full tree scan? (during initialization and if event notification failed)
-    //bool fullscan = true;
-
     // syncing to an inbound share?
     bool inshare = false;
 
