@@ -5740,7 +5740,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Returns the id of this device
+     * Returns the id of this device
      *
      * You take the ownership of the returned value.
      *
@@ -5751,7 +5751,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Returns the name set for this device
+     * Returns the name set for this device
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
@@ -5768,16 +5768,22 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Returns the name set for this device
+     * Returns the name set for this device
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns device name.
      */
     public void getDeviceName() {
         megaApi.getDeviceName();
     }
 
     /**
-     * @brief Sets device name
+     * Sets device name
      *
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
@@ -5792,16 +5798,21 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Sets device name
+     * Sets device name
      *
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     * - MegaRequest::getName - Returns device name.
+     *
+     * @param deviceName String with device name
      */
     public void setDeviceName(String deviceName) {
         megaApi.setDeviceName(deviceName);
     }
 
     /**
-     * @brief Returns the name set for this drive
+     * Returns the name set for this drive
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
@@ -5820,16 +5831,25 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Returns the name set for this drive
+     * Returns the name set for this drive
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+     * - MegaRequest::getFile - Returns the path to the drive
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns drive name.
+     *
+     * @param pathToDrive Path to the root of the external drive
      */
     public void getDriveName(String pathToDrive) {
         megaApi.getDriveName(pathToDrive);
     }
 
     /**
-     * @brief Sets drive name
+     * Sets drive name
      *
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
@@ -5846,9 +5866,16 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Sets drive name
+     * Sets drive name
      *
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+     * - MegaRequest::getName - Returns drive name.
+     * - MegaRequest::getFile - Returns the path to the drive
+     *
+     * @param pathToDrive Path to the root of the external drive
+     * @param driveName String with drive name
      */
     public void setDriveName(String pathToDrive, String driveName) {
         megaApi.setDriveName(pathToDrive, driveName);
