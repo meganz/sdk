@@ -19035,12 +19035,11 @@ void MegaApiImpl::sendPendingRequests()
                 if (newParent->type == RUBBISHNODE && node->parent->type != RUBBISHNODE)
                 {
                     // "rr" attribute name and value
-                    char base64Handle[12];
-                    Base64::btoa((byte*)&node->parent->nodehandle, MegaClient::NODEHANDLE, base64Handle);
                     nameid rrname = AttrMap::string2nameid("rr");
+                    Base64Str<MegaClient::NODEHANDLE> rrvalue(node->parent->nodehandle);
                     // Add attribute to a copy of old attributes
                     AttrMap attrs = node->attrs;
-                    attrs.map[rrname] = base64Handle;
+                    attrs.map[rrname] = rrvalue;
 
                     // Magic incantations for setting attributes
                     string attrstring;
