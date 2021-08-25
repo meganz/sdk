@@ -928,20 +928,16 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
     looprequested = true;
 }
 
-std::string MegaClient::getDeviceid()
+std::string MegaClient::getDeviceidHash()
 {
+    string deviceIdHash;
+
     if (MegaClient::statsid.empty())
     {
         fsaccess->statsid(&statsid);
     }
 
-    return MegaClient::statsid;
-}
-
-std::string MegaClient::getDeviceidHash()
-{
-    string deviceIdHash;
-    string id = getDeviceid();
+    string id = MegaClient::statsid;
     if (id.size())
     {
         string hash;

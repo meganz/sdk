@@ -73,8 +73,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     slot = NULL;
     asyncopencontext = NULL;
     progresscompleted = 0;
-    hasprevmetamac = false;
-    hascurrentmetamac = false;
     finished = false;
     lastaccesstime = 0;
     ultoken = NULL;

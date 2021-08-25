@@ -1883,8 +1883,6 @@ public:
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
-    std::string getDeviceid();
-
     std::string getDeviceidHash();
 
     // generate a new drive id

@@ -392,22 +392,7 @@ bool File::failed(error e, MegaClient*)
 {
     if (e == API_EKEY)
     {
-        if (!transfer->hascurrentmetamac)
-        {
-            // several integrity check errors uploading chunks
-            return transfer->failcount < 1;
-        }
-
-        if (transfer->hasprevmetamac && transfer->prevmetamac == transfer->currentmetamac)
-        {
-            // integrity check failed after download, two times with the same value
-            return false;
-        }
-
-        // integrity check failed once, try again
-        transfer->prevmetamac = transfer->currentmetamac;
-        transfer->hasprevmetamac = true;
-        return transfer->failcount < 16;
+        return false; // mac error; do not retry
     }
 
     return  // Non fatal errors, up to 16 retries

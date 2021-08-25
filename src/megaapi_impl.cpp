@@ -1533,7 +1533,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     bool isInternalDrive = !request->getLink();
     if (isInternalDrive)
     {
-        deviceId = client->getDeviceid();
+        deviceId = client->getDeviceidHash();
     }
     else // external drive
     {
@@ -6914,7 +6914,7 @@ void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *li
 
 const char* MegaApiImpl::getDeviceId() const
 {
-    return MegaApi::strdup(client->getDeviceid().c_str());
+    return MegaApi::strdup(client->getDeviceidHash().c_str());
 }
 
 void MegaApiImpl::getDeviceName(MegaRequestListener *listener)
@@ -6930,7 +6930,7 @@ void MegaApiImpl::setDeviceName(const char *deviceName, MegaRequestListener *lis
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     MegaStringMapPrivate stringMap;
     string buf = deviceName ? deviceName : "";
-    stringMap.set(client->getDeviceid().c_str(), Base64::btoa(buf).c_str());
+    stringMap.set(client->getDeviceidHash().c_str(), Base64::btoa(buf).c_str());
     request->setMegaStringMap(&stringMap);
     request->setName(deviceName);
     request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
@@ -15295,7 +15295,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_DEVICE_NAMES:
             {
-                const char *buf = stringMap->get(client->getDeviceid().c_str());
+                const char *buf = stringMap->get(client->getDeviceidHash().c_str());
                 if (!buf)
                 {
                     e = API_ENOENT;
