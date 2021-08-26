@@ -3858,11 +3858,18 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth, const char *currency, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan, std::unique_ptr<LocaleData> localeData)
+void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
+                                    int months, int amount, int amountMonth, const char *currency,
+                                    string localPrice, string localPriceCurrency,
+                                    const char* description, const char* iosid, const char* androidid,
+                                    std::unique_ptr<BusinessPlan> bizPlan, std::unique_ptr<LocaleData> localeData)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer, months, amount, amountMonth, currency, description, iosid, androidid, move(bizPlan), move(localeData));
+        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer,
+                                months, amount, amountMonth, currency,
+                                localPrice, localPriceCurrency,
+                                description, iosid, androidid, move(bizPlan), move(localeData));
     }
 }
 
@@ -14063,7 +14070,7 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
         return;
     }
 
-    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, currency, description, iosid, androidid, move(bizPlan), move(localeData));
+    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, currency, localPrice, localPriceCurrency, description, iosid, androidid, move(bizPlan), move(localeData));
 }
 
 void MegaApiImpl::enumeratequotaitems_result(error e)
@@ -24263,6 +24270,18 @@ const char *MegaPricingPrivate::getCurrency(int productIndex)
     return NULL;
 }
 
+const char *mega::MegaPricingPrivate::getLocalPrice(int productIndex)
+{
+    if((unsigned)productIndex < mLocalPrice.size())
+        return mLocalPrice[productIndex].c_str();
+}
+
+const char *mega::MegaPricingPrivate::getLocalPriceCurrency(int productIndex)
+{
+    if((unsigned)productIndex < mLocalPriceCurrency.size())
+        return mLocalPriceCurrency[productIndex].c_str();
+}
+
 const char *MegaPricingPrivate::getDescription(int productIndex)
 {
     if((unsigned)productIndex < description.size())
@@ -24312,7 +24331,9 @@ MegaPricing *MegaPricingPrivate::copy()
         std::unique_ptr<LocaleData> localeData(mLocaleData[i] ? new LocaleData(*mLocaleData[i]) : nullptr);
 
         megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], amountMonth[i], currency[i], description[i], iosId[i], androidId[i],
+                                months[i], amount[i], amountMonth[i], currency[i],
+                                mLocalPrice[i], mLocalPriceCurrency[i],
+                                description[i], iosId[i], androidId[i],
                                 move(bizPlan), move(localeData));
     }
 
@@ -24320,7 +24341,7 @@ MegaPricing *MegaPricingPrivate::copy()
 }
 
 void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
-                                    const char *currency, const char* description, const char* iosid, const char* androidid,
+                                    const char *currency, std::string localPrice, std::string localPriceCurrency, const char* description, const char* iosid, const char* androidid,
                                     std::unique_ptr<BusinessPlan> bizPlan, std::unique_ptr<LocaleData> localeData)
 {
     this->type.push_back(type);
@@ -24332,6 +24353,8 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
     this->amount.push_back(amount);
     this->amountMonth.push_back(amountMonth);
     this->currency.push_back(MegaApi::strdup(currency));
+    mLocalPrice.push_back(localPrice);
+    mLocalPriceCurrency.push_back(localPriceCurrency);
     this->description.push_back(MegaApi::strdup(description));
     this->iosId.push_back(MegaApi::strdup(iosid));
     this->androidId.push_back(MegaApi::strdup(androidid));

@@ -1136,7 +1136,9 @@ class MegaRequestPrivate : public MegaRequest
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
         void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
-                        int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid,
+                        int months, int amount, int amountMonth, const char *currency,
+                        string localPrice, string localPriceCurrency,
+                        const char *description, const char *iosid, const char *androidid,
                         std::unique_ptr<BusinessPlan>, std::unique_ptr<LocaleData>);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
@@ -1418,6 +1420,8 @@ public:
     int getMonths(int productIndex) override;
     int getAmount(int productIndex) override;
     const char* getCurrency(int productIndex) override;
+    const char *getLocalPrice(int productIndex) override;
+    const char *getLocalPriceCurrency(int productIndex) override;
     const char* getDescription(int productIndex) override;
     const char* getIosID(int productIndex) override;
     const char* getAndroidID(int productIndex) override;
@@ -1442,7 +1446,9 @@ public:
     bool isCurrencySymbolBeforeNumber(int productIndex) override;
 
     void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
-                    int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid,
+                    int months, int amount, int amountMonth, const char *currency,
+                    string localPrice, string localPriceCurrency,
+                    const char *description, const char *iosid, const char *androidid,
                     std::unique_ptr<BusinessPlan>, std::unique_ptr<LocaleData>);
 private:
     vector<unsigned int> type;
@@ -1454,6 +1460,8 @@ private:
     vector<int> amount;
     vector<int> amountMonth;
     vector<const char *> currency;
+    vector<std::string> mLocalPrice;
+    vector<std::string> mLocalPriceCurrency;
     vector<const char *> description;
     vector<const char *> iosId;
     vector<const char *> androidId;

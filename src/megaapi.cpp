@@ -5805,6 +5805,16 @@ const char *MegaPricing::getCurrency(int)
     return 0;
 }
 
+const char *MegaPricing::getLocalPrice(int /*productIndex*/)
+{
+    return nullptr;
+}
+
+const char *MegaPricing::getLocalPriceCurrency(int /*productIndex*/)
+{
+    return nullptr;
+}
+
 const char *MegaPricing::getDescription(int)
 {
     return NULL;

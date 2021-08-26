@@ -19537,6 +19537,28 @@ public:
     virtual const char* getCurrency(int productIndex);
 
     /**
+     * @brief Get the price in the local currency
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Price of the product, formatted as a string (ie. $8.41)
+     */
+    virtual const char* getLocalPrice(int productIndex);
+
+    /**
+     * @brief Get the currency associated with MegaPricing::getLocalPrice
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Currency associated with MegaPricing::getLocalPrice (ie. NZD)
+     */
+    virtual const char* getLocalPriceCurrency(int productIndex);
+
+    /**
      * @brief Get a description of the product
      *
      * The SDK retains the ownership of the returned value. It will be valid until
