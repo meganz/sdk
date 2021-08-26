@@ -1458,7 +1458,7 @@ public:
     bool nodeIsDocument(const Node *n) const;
 
     // generate & return upload handle
-    handle getuploadhandle();
+    UploadHandle getuploadhandle();
 
     // maps node handle to public handle
     std::map<handle, handle> mPublicLinks;
