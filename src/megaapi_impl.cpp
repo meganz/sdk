@@ -14052,7 +14052,7 @@ void MegaApiImpl::putfa_result(handle h, fatype, error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan, std::unique_ptr<LocaleData> localeData)
+void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, std::string localPrice, std::string localPriceCurrency, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan, std::unique_ptr<LocaleData> localeData)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);

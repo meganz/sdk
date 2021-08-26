@@ -3045,6 +3045,7 @@ protected:
         // purchase transactions
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,
                                         unsigned months, unsigned amount, unsigned amountMonth, const char* currency,
+                                        string localPrice, string localPriceCurrency,
                                         const char* description, const char* iosid, const char* androidid,
                                         std::unique_ptr<BusinessPlan>, std::unique_ptr<LocaleData>) override;
         void enumeratequotaitems_result(error e) override;

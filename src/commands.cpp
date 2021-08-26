@@ -2295,6 +2295,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
         unsigned amount = 0, amountMonth = 0;
         const char* amountStr = nullptr;
         const char* amountMonthStr = nullptr;
+        string localPrice, localPriceCurrency;
         const char* curr = nullptr;
         const char* desc = nullptr;
         const char* ios = nullptr;
@@ -2347,6 +2348,12 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                     break;
                 case MAKENAMEID3('m', 'b', 'p'):
                     amountMonthStr = client->json.getvalue();
+                    break;
+                case MAKENAMEID2('l', 'p'):
+                    localPrice = client->json.getvalue();
+                    break;
+                case MAKENAMEID3('l', 'p', 'c'):
+                    localPriceCurrency = client->json.getvalue();
                     break;
                 case MAKENAMEID2('b', 'd'): // BusinessPlan
                 {
@@ -2663,9 +2670,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
         }
 
         client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
-                                                gbtransfer, months, amount, amountMonth,
-                                                currency.c_str(), description.c_str(),
-                                                ios_id.c_str(), android_id.c_str(), move(bizPlan), move(localeData));
+                                                gbtransfer, months, amount, amountMonth, currency.c_str(),
+                                                move(localPrice), move(localPriceCurrency),
+                                                description.c_str(), ios_id.c_str(), android_id.c_str(),
+                                                move(bizPlan), move(localeData));
     }
 
     client->app->enumeratequotaitems_result(API_OK);

@@ -222,7 +222,7 @@ struct DemoApp : public MegaApp
     void resetSmsVerifiedPhoneNumber_result(error e) override;
 
     void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
-                                    unsigned, const char*, const char*, const char*, const char*,
+                                    unsigned, const char*, string, string, const char*, const char*, const char*,
                                     std::unique_ptr<BusinessPlan>, std::unique_ptr<LocaleData>) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
