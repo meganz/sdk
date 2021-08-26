@@ -33,22 +33,22 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
+HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, std::unique_ptr<string> cdata)
     : data(move(cdata))
 {
     cmd("ufa");
     arg("s", data->size());
 
-    if (checkAccess)
+    if (cth.isNodeHandle())
     {
-        arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
+        arg("h", cth.nodeHandle());
     }
 
     progressreported = 0;
     persistent = true;  // object will be recycled either for retry or for
                         // posting to the file attribute server
 
-    if (client->usehttps)
+    if (usehttps)
     {
         arg("ssl", 2);
     }
@@ -58,7 +58,7 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
 
     binary = true;
 
-    tag = client->reqtag;
+    tag = ctag;
 }
 
 bool HttpReqCommandPutFA::procresult(Result r)
@@ -76,7 +76,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
             if (r.wasError(API_EACCESS))
             {
                 // create a custom attribute indicating thumbnail can't be restored from this account
-                Node *n = client->nodebyhandle(th);
+                Node *n = client->nodeByHandle(th.nodeHandle());
 
                 char me64[12];
                 Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
@@ -91,7 +91,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
             }
 
             status = REQ_SUCCESS;
-            client->app->putfa_result(th, type, r.errorOrOK());
+            client->app->putfa_result(th.nodeHandle().as8byte(), type, r.errorOrOK());
         }
         return true;
     }
@@ -126,7 +126,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     if (!client->json.storeobject())
                     {
                         status = REQ_SUCCESS;
-                        client->app->putfa_result(th, type, API_EINTERNAL);
+                        client->app->putfa_result(th.nodeHandle().as8byte(), type, API_EINTERNAL);
                         return false;
                     }
             }
