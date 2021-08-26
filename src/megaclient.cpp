@@ -7111,7 +7111,7 @@ void MegaClient::sc_sqac()
                     LOG_warn << "Missing GB allowance in `sqac` action packet";
                 }
 
-                getuserdata(reqtag);
+                getuserdata(0);
                 return;
 
             default:
