@@ -1344,7 +1344,9 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Use cancel account link
     auto useCancelLinkTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
     testMegaApi->confirmCancelAccount(output.c_str(), newTestPwd, useCancelLinkTracker.get());
-    ASSERT_EQ(API_OK, useCancelLinkTracker->waitForResult()) << " Failed to confirm cancel account " << newTestAcc.c_str();
+    // Allow API_ESID beside API_OK, due to the race between sc and cs channels
+    ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
+        << " Failed to confirm cancel account " << newTestAcc.c_str();
 }
 
 /**
