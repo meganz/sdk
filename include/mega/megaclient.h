@@ -1062,8 +1062,8 @@ private:
     BackoffTimer btpfa;
     bool faretrying;
 
-    // next internal upload handle
-    handle nextuh;
+    // next internal upload handle (call UploadHandle::next() to update value)
+    UploadHandle mUploadHandle;
 
     // just one notification after fetchnodes and catch-up actionpackets
     bool notifyStorageChangeOnStateCurrent = false;
@@ -1456,9 +1456,6 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
-
-    // generate & return upload handle
-    UploadHandle getuploadhandle();
 
     // maps node handle to public handle
     std::map<handle, handle> mPublicLinks;

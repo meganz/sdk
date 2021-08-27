@@ -2525,5 +2525,20 @@ std::string getSafeUrl(const std::string &posturl)
     return safeurl;
 }
 
+UploadHandle UploadHandle::next()
+{
+    do
+    {
+        byte* ptr = (byte*)(&h + 1);
+
+        while (!++*--ptr);
+    }
+    while ((h & 0xFFFF000000000000) == 0 || // if the top two bytes were all 0 then it could clash with NodeHandles
+            h == UNDEF);
+
+
+    return *this;
+}
+
 } // namespace
 
