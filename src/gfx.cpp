@@ -200,7 +200,9 @@ int GfxProc::checkevents(Waiter *)
 
                 if (job->h.isNodeHandle())
                 {
-                    // TODO: should we be making some sort of callback to the app to say their request failed?
+                    // This case is for the automatic "Restoring missing attributes" case (from syncup() or from download completion).
+                    // It doesn't matter much if we can't do it
+                    // App requests don't come by this route (they supply already generated preview/thumnnail) so no need to make any callbacks
                     LOG_warn << "Media file processing failed for existing Node";
                 }
                 else

@@ -1653,7 +1653,6 @@ void MegaClient::exec()
                             }
                             else
                             {
-                                Node* n;
                                 NodeHandle h;
 
                                 // do we have a valid upload handle?
@@ -1679,7 +1678,7 @@ void MegaClient::exec()
                                 // are we updating a live node? issue command directly.
                                 // otherwise, queue for processing upon upload
                                 // completion.
-                                if ((n = nodeByHandle(h)))
+                                if (Node* n = nodeByHandle(h))
                                 {
                                     LOG_debug << "Attaching file attribute";
                                     reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
