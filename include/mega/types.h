@@ -302,6 +302,9 @@ struct UploadHandle
     UploadHandle() {}
     UploadHandle(handle uh) : h(uh) { assert( (h & 0xFFFF000000000000) != 0 ); }
 
+    // generate upload handle for the next upload
+    UploadHandle next();
+
     bool isUndef() const { return h == 0xFFFFFFFFFFFFFFFF; }
 
     bool eq(UploadHandle b) const { return h == b.h; }

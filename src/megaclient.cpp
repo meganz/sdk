@@ -1357,7 +1357,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
         reqid[i] = static_cast<char>('a' + rng.genuint32(26));
     }
 
-    nextuh = 0;
     reqtag = 0;
 
     badhostcs = NULL;
@@ -3969,7 +3968,7 @@ void MegaClient::dispatchTransfers()
                         // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
                         if (!nexttransfer->localfilename.empty() && nexttransfer->uploadhandle.isUndef())
                         {
-                            nexttransfer->uploadhandle = getuploadhandle();
+                            nexttransfer->uploadhandle = mUploadHandle.next();
 
                             if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename))
                             {
@@ -4111,21 +4110,6 @@ void MegaClient::dispatchTransfers()
             }
         }
     }
-}
-
-// generate upload handle for this upload
-UploadHandle MegaClient::getuploadhandle()
-{
-    do
-    {
-        byte* ptr = (byte*)(&nextuh + 1);
-
-        while (!++*--ptr);
-    }
-    while ((nextuh & 0xFFFF000000000000) == 0 || // if the top two bytes were all 0 then it could clash with NodeHandles
-            nextuh == UNDEF);
-
-    return UploadHandle(nextuh);
 }
 
 // do we have an upload that is still waiting for file attributes before being completed?
@@ -7818,7 +7802,7 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     newnode->type = FILENODE;
     memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
     newnode->parenthandle = UNDEF;
-    newnode->uploadhandle = getuploadhandle();
+    newnode->uploadhandle = mUploadHandle.next();
     newnode->attrstring.reset(new string);
     newnode->fileattributes.reset(new string);
 
