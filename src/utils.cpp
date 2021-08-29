@@ -2529,6 +2529,9 @@ UploadHandle UploadHandle::next()
 {
     do
     {
+        // Since we start with UNDEF, the first update would overwrite the whole handle and at least 1 byte further, causing data corruption
+        if (h == UNDEF) h = 0;
+
         byte* ptr = (byte*)(&h + 1);
 
         while (!++*--ptr);
