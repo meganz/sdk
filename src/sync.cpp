@@ -4818,22 +4818,22 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.cloudNode->name, false, rhs.cloudNode->name, false, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.cloudNode->name, true, caseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.cloudNode->name, false, rhs.syncNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->localname, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.cloudNode->name, false, rhs.fsNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->localname, true, caseInsensitive);
             }
         }
         else if (lhs.syncNode)
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.syncNode->localname, true, rhs.cloudNode->name, false, caseInsensitive);
+                return compareUtf(lhs.syncNode->localname, true, rhs.cloudNode->name, true, caseInsensitive);
             }
             else if (rhs.syncNode)
             {
@@ -4848,7 +4848,7 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.fsNode->localname, true, rhs.cloudNode->name, false, caseInsensitive);
+                return compareUtf(lhs.fsNode->localname, true, rhs.cloudNode->name, true, caseInsensitive);
             }
             else if (rhs.syncNode)
             {
@@ -5362,7 +5362,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
             row.cloudNode->handle == row.syncNode->syncedCloudNodeHandle &&
             row.fsNode->fsid != UNDEF && row.fsNode->fsid == row.syncNode->fsid_lastSynced)
         {
-            SYNC_verbose << "Name clashes at this already-synced folder.  We will sync below though." << logTriplet(row, fullPath);
+            SYNC_verbose << "Name clashes at this already-synced folder.  We will sync nodes below though." << logTriplet(row, fullPath);
         }
         else
         {

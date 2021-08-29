@@ -882,7 +882,7 @@ struct StandardClient : public MegaApp
                   << ", attempted: "
                   << attempted
                   << ", hadAnError: "
-                  << hadAnError; 
+                  << hadAnError;
         }
 
         if (onAutoResumeResult)
@@ -5545,7 +5545,8 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 }
 
-TEST_F(SyncTest, RemotesWithEscapesSynchronizeCorrectly)
+// this test contains tests for % being escaped from cloud->local which we are undoing for now on this branch
+TEST_F(SyncTest, DISABLED_RemotesWithEscapesSynchronizeCorrectly)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
@@ -7309,7 +7310,7 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
     // Populate initial filesystem.
     {
         StandardClient c(TESTROOT, "c");
-        
+
         // Log callbacks.
         c.logcb = true;
 

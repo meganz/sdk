@@ -454,11 +454,16 @@ bool FileSystemAccess::islocalfscompatible(const int character, const FileSystem
         return false;
     }
 
-    // Escape '%' if it is not encoding a control character.
-    if (character == '%')
-    {
-        return false;
-    }
+
+    // it turns out that escaping the escape character doesn't interact well with the
+    // existing sync code, should an older megasync etc be running in the same account
+    // so let's leave this aspect the same as the old system, for now at least.
+
+    //// Escape '%' if it is not encoding a control character.
+    //if (character == '%')
+    //{
+    //    return false;
+    //}
 
     // Filesystem-specific policies.
     switch (type)
@@ -509,9 +514,10 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
             const char incompatibleChar = name->at(i);
             sprintf(buf, "%%%02x", c);
             name->replace(i, 1, buf);
-            LOG_debug << "Escape incompatible character for filesystem type "
-                << fstypetostring(fileSystemType)
-                << ", replace '" << incompatibleChar << "' by '" << buf << "'\n";
+            // Logging these at such a low level is too frequent and verbose
+            //LOG_debug << "Escape incompatible character for filesystem type "
+            //    << fstypetostring(fileSystemType)
+            //    << ", replace '" << incompatibleChar << "' by '" << buf << "'\n";
         }
         i += utf8seqsize;
     }
