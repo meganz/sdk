@@ -22944,51 +22944,11 @@ void MegaApiImpl::sendPendingRequests()
                                                            }));
             break;
         }
-        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
-        {
-                int flags = int(request->getNumber());
-                if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
-                {
-                    e = API_EARGS;
-                    break;
-                }
-
-                const string_vector &vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
-                client->reqs.add(new CommandFetchGoogleAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
-                {
-                    if (e == API_OK)
-                    {
-                        std::unique_ptr<MegaStringMap> stringMap = std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
-                        for (const auto itMap : value)
-                        {
-                            stringMap->set(itMap.first.c_str(), itMap.second.c_str());
-                        }
-
-                        request->setMegaStringMap(stringMap.get());
-                    }
-
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                }));
-            break;
-        }
+        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:    // fall-through
         case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
         {
-            int flags = int(request->getNumber());
-            if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            client->reqs.add(new CommandQueryGoogleAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
-            {
-                if (e == API_OK)
-                {
-                    request->setNumDetails(value);
-                }
-
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-            }));
+            // deprecated
+            e = API_EEXPIRED;
             break;
         }
         default:
