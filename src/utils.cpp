@@ -67,6 +67,24 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
     return s << toNodeHandle(h);
 }
 
+SimpleLogger& operator<<(SimpleLogger& s, UploadHandle h)
+{
+    return s << toHandle(h.h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
+{
+    if (h.isNodeHandle())
+    {
+        return s << "nh:" << h.nodeHandle();
+    }
+    else
+    {
+        return s << "uh:" << h.uploadHandle();
+    }
+}
+
+
 string backupTypeToStr(BackupType type)
 {
     switch (type)
@@ -2524,6 +2542,24 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::MovingExistingDownloadTargetToDebris:          return "MovingExistingDownloadTargetToDebris";
     }
     return "<out of range>";
+}
+
+UploadHandle UploadHandle::next()
+{
+    do
+    {
+        // Since we start with UNDEF, the first update would overwrite the whole handle and at least 1 byte further, causing data corruption
+        if (h == UNDEF) h = 0;
+
+        byte* ptr = (byte*)(&h + 1);
+
+        while (!++*--ptr);
+    }
+    while ((h & 0xFFFF000000000000) == 0 || // if the top two bytes were all 0 then it could clash with NodeHandles
+            h == UNDEF);
+
+
+    return *this;
 }
 
 

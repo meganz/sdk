@@ -1323,7 +1323,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
         reqid[i] = static_cast<char>('a' + rng.genuint32(26));
     }
 
-    nextuh = 0;
     reqtag = 0;
 
     badhostcs = NULL;
@@ -1612,76 +1611,102 @@ void MegaClient::exec()
                             // remove from list
                             handle fah = MemAccess::get<handle>(fa->in.data());
 
-                            if (fa->th == UNDEF)
+                            if (fa->th.isUndef())
                             {
                                 // client app requested the upload without a node yet, and it will use the fa handle
                                 app->putfa_result(fah, fa->type, API_OK);
                             }
                             else
                             {
-                                Node* n;
-                                handle h;
-                                handlepair_set::iterator it;
+                                NodeHandle h;
 
                                 // do we have a valid upload handle?
-                                h = fa->th;
-
-                                it = uhnh.lower_bound(pair<handle, handle>(h, 0));
-
-                                if (it != uhnh.end() && it->first == h)
+                                if (fa->th.isNodeHandle())
                                 {
-                                    h = it->second;
+                                    // we were originally generating file attributes for an existing node
+                                    h = fa->th.nodeHandle();
+                                }
+                                else
+                                {
+                                    // we were generating file attributes for an upload
+                                    // but we already completed the upload and now we need the resulting node handle
+                                    // TODO: we may have a gap here when the putnodes is already in-flight
+                                    auto it = uhnh.lower_bound(pair<UploadHandle, NodeHandle>
+                                        (fa->th.uploadHandle(), NodeHandle().setImpossibleValue(0)));
+
+                                    if (it != uhnh.end() && it->first == fa->th.uploadHandle())
+                                    {
+                                        h = it->second;
+                                    }
                                 }
 
                                 // are we updating a live node? issue command directly.
                                 // otherwise, queue for processing upon upload
                                 // completion.
-                                if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
+                                if (Node* n = nodeByHandle(h))
                                 {
                                     LOG_debug << "Attaching file attribute";
                                     reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
                                 }
                                 else
                                 {
-                                    pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
-                                    LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
-                                    checkfacompletion(fa->th);
+                                    // TODO: possibly another gap here where we were generating for an existing Node, but now it's not found
+
+                                    if (fa->th.isNodeHandle())
+                                    {
+                                        LOG_warn << "Can't attach file attribute to no longer existing node";
+                                    }
+                                    else
+                                    {
+                                        pendingfa[pair<UploadHandle, fatype>(fa->th.uploadHandle(), fa->type)] = pair<handle, int>(fah, fa->tag);
+                                        LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
+                                        checkfacompletion(fa->th.uploadHandle());
+                                    }
                                 }
                             }
                         }
                         else
                         {
                             LOG_warn << "Error attaching attribute";
-                            Transfer *transfer = NULL;
-                            handletransfer_map::iterator htit = faputcompletion.find(fa->th);
-                            if (htit != faputcompletion.end())
+
+                            if (fa->th.isNodeHandle())
                             {
-                                // the failed attribute belongs to a pending upload
-                                transfer = htit->second;
+                                // TODO: possibly another gap here where we were generating for an existing Node, code only dealt with the upload-in-progress case
+                                LOG_warn << "Error returned from file attribute servers for existing Node case: " << fa->in;
                             }
                             else
                             {
-                                // check if the failed attribute belongs to an active upload
-                                for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+                                Transfer *transfer = NULL;
+                                uploadhandletransfer_map::iterator htit = faputcompletion.find(fa->th.uploadHandle());
+                                if (htit != faputcompletion.end())
                                 {
-                                    if (it->second->uploadhandle == fa->th)
+                                    // the failed attribute belongs to a pending upload
+                                    transfer = htit->second;
+                                }
+                                else
+                                {
+                                    // check if the failed attribute belongs to an active upload
+                                    for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
                                     {
-                                        transfer = it->second;
-                                        break;
+                                        if (it->second->uploadhandle == fa->th.uploadHandle())
+                                        {
+                                            transfer = it->second;
+                                            break;
+                                        }
                                     }
                                 }
-                            }
 
-                            if (transfer)
-                            {
-                                // reduce the number of required attributes to let the upload continue
-                                transfer->minfa--;
-                                checkfacompletion(fa->th);
-                                sendevent(99407,"Attribute attach failed during active upload", 0);
-                            }
-                            else
-                            {
-                                LOG_debug << "Transfer related to failed attribute not found: " << fa->th;
+                                if (transfer)
+                                {
+                                    // reduce the number of required attributes to let the upload continue
+                                    transfer->minfa--;
+                                    checkfacompletion(fa->th.uploadHandle());
+                                    sendevent(99407,"Attribute attach failed during active upload", 0);
+                                }
+                                else
+                                {
+                                    LOG_debug << "Transfer related to failed attribute not found: " << fa->th;
+                                }
                             }
                         }
 
@@ -3258,14 +3283,14 @@ void MegaClient::dispatchTransfers()
                         }
 
                         // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
-                        if (!nexttransfer->localfilename.empty() && !nexttransfer->uploadhandle)
+                        if (!nexttransfer->localfilename.empty() && nexttransfer->uploadhandle.isUndef())
                         {
-                            nexttransfer->uploadhandle = getuploadhandle();
+                            nexttransfer->uploadhandle = mUploadHandle.next();
 
                             if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename))
                             {
                                 // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
+                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename, NodeOrUploadHandle(nexttransfer->uploadhandle), nexttransfer->transfercipher(), -1);
                             }
                         }
                     }
@@ -3404,25 +3429,13 @@ void MegaClient::dispatchTransfers()
     }
 }
 
-// generate upload handle for this upload
-// (after 65536 uploads, a node handle clash is possible, but far too unlikely
-// to be of real-world concern)
-handle MegaClient::getuploadhandle()
-{
-    byte* ptr = (byte*)(&nextuh + 1);
-
-    while (!++*--ptr);
-
-    return nextuh;
-}
-
 // do we have an upload that is still waiting for file attributes before being completed?
-void MegaClient::checkfacompletion(handle th, Transfer* t)
+void MegaClient::checkfacompletion(UploadHandle th, Transfer* t)
 {
-    if (th)
+    if (!th.isUndef())
     {
         bool delayedcompletion;
-        handletransfer_map::iterator htit;
+        uploadhandletransfer_map::iterator htit;
 
         if ((delayedcompletion = !t))
         {
@@ -3439,7 +3452,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
         int facount = 0;
 
         // do we have the pre-set threshold number of file attributes available? complete upload.
-        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(th, fatype(0)));
+        for (fa_map::iterator it = pendingfa.lower_bound(pair<UploadHandle, fatype>(th, fatype(0)));
              it != pendingfa.end() && it->first.first == th; it++)
         {
             facount++;
@@ -3451,7 +3464,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
             if (!delayedcompletion)
             {
                 // we have insufficient file attributes available: remove transfer and put on hold
-                t->faputcompletion_it = faputcompletion.insert(pair<handle, Transfer*>(th, t)).first;
+                t->faputcompletion_it = faputcompletion.insert(pair<UploadHandle, Transfer*>(th, t)).first;
 
                 transfers[t->type].erase(t->transfers_it);
                 t->transfers_it = transfers[t->type].end();
@@ -4298,6 +4311,11 @@ bool MegaClient::procsc()
                                 // business account update
                                 sc_ub();
                                 break;
+
+                            case MAKENAMEID4('s', 'q', 'a', 'c'):
+                                // storage quota allowance changed
+                                sc_sqac();
+                                break;
                         }
                     }
                     else
@@ -4660,11 +4678,11 @@ error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey,
 }
 
 // build pending attribute string for this handle and remove
-void MegaClient::pendingattrstring(handle h, string* fa)
+void MegaClient::pendingattrstring(UploadHandle h, string* fa)
 {
     char buf[128];
 
-    for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(h, fatype(0)));
+    for (fa_map::iterator it = pendingfa.lower_bound(pair<UploadHandle, fatype>(h, fatype(0)));
          it != pendingfa.end() && it->first.first == h; )
     {
         if (it->first.second != fa_media)
@@ -4680,13 +4698,13 @@ void MegaClient::pendingattrstring(handle h, string* fa)
 
 // attach file attribute to a file (th can be upload or node handle)
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
-void MegaClient::putfa(handle th, fatype t, SymmCipher* key, std::unique_ptr<string> data, bool checkAccess)
+void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag, std::unique_ptr<string> data)
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(this, th, t, std::move(data), checkAccess));
+    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, std::move(data)));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
@@ -6520,6 +6538,36 @@ void MegaClient::sc_uac()
     }
 }
 
+void MegaClient::sc_sqac()
+{
+    m_off_t gb = -1;
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case MAKENAMEID2('g','b'):
+                gb = jsonsc.getint(); // should there be a notification about this?
+                break;
+
+            case EOO:
+                if (gb == -1)
+                {
+                    LOG_warn << "Missing GB allowance in `sqac` action packet";
+                }
+
+                getuserdata(0);
+                return;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    LOG_warn << "Failed to parse `sqac` action packet";
+                    return;
+                }
+        }
+    }
+}
+
 void MegaClient::sc_la()
 {
     for (;;)
@@ -7159,7 +7207,7 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     newnode->type = FILENODE;
     memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
     newnode->parenthandle = UNDEF;
-    newnode->uploadhandle = getuploadhandle();
+    newnode->uploadhandle = mUploadHandle.next();
     newnode->attrstring.reset(new string);
     newnode->fileattributes.reset(new string);
 
@@ -7994,10 +8042,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                     if (nn_nni.source == NEW_UPLOAD)
                     {
-                        handle uh = nn_nni.uploadhandle;
+                        UploadHandle uh = nn_nni.uploadhandle;
 
                         // do we have pending file attributes for this upload? set them.
-                        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, fatype(0)));
+                        for (fa_map::iterator it = pendingfa.lower_bound(pair<UploadHandle, fatype>(uh, fatype(0)));
                              it != pendingfa.end() && it->first.first == uh; )
                         {
                             reqs.add(new CommandAttachFA(this, h, it->first.second, it->second.first, it->second.second));
@@ -8005,7 +8053,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         }
 
                         // FIXME: only do this for in-flight FA writes
-                        uhnh.insert(pair<handle, handle>(uh, h));
+                        uhnh.insert(pair<UploadHandle, NodeHandle>(uh, NodeHandle().set6byte(h)));
                     }
                 }
             }
@@ -13782,7 +13830,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
                                         LOG_debug << "Restoring missing attributes: " << ll->name;
                                         SymmCipher *symmcipher = ll->node->nodecipher();
                                         auto llpath = ll->getLocalPath();
-                                        gfx->gendimensionsputfa(NULL, llpath, ll->node->nodehandle, symmcipher, missingattr);
+                                        gfx->gendimensionsputfa(NULL, llpath, NodeOrUploadHandle(ll->node->nodeHandle()), symmcipher, missingattr);
                                     }
                                 }
                             }

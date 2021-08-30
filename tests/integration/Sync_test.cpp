@@ -7107,7 +7107,7 @@ TEST_F(SyncTest, DeleteReplaceReplacementHasFilesystemWatch)
 TEST_F(SyncTest, RenameReplaceSourceAndTargetHaveFilesystemWatch)
 {
     const auto TESTROOT = makeNewTestRoot();
-    const auto TIMEOUT = chrono::seconds(4);
+    const auto TIMEOUT = chrono::seconds(8);
 
     StandardClient c(TESTROOT, "c");
 
@@ -7170,6 +7170,8 @@ TEST_F(SyncTest, RenameReplaceSourceAndTargetHaveFilesystemWatch)
     // Make sure (now replaced) rename sources still receive notifications.
     model.addfile("dq/fq", "q");
     model.addfile("dz/fz", "z");
+
+    LOG_debug << " --- Creating files fq and fz now ----";
 
     ASSERT_TRUE(createDataFile(SYNCROOT / "dq" / "fq", "q"));
     ASSERT_TRUE(createDataFile(SYNCROOT / "dz" / "fz", "z"));

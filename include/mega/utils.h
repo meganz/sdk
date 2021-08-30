@@ -61,6 +61,8 @@ std::string toHandle(handle h);
 #define LOG_HANDLE(x) toHandle(x)
 class SimpleLogger;
 SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
+SimpleLogger& operator<<(SimpleLogger&, UploadHandle h);
+SimpleLogger& operator<<(SimpleLogger&, NodeOrUploadHandle h);
 
 std::string backupTypeToStr(BackupType type);
 

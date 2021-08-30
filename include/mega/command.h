@@ -182,7 +182,7 @@ public:
 // file attribute put
 struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 {
-    handle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
+    NodeOrUploadHandle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
     fatype type;
     m_off_t progressreported;
 
@@ -191,7 +191,7 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     // progress information
     virtual m_off_t transferred(MegaClient*) override;
 
-    HttpReqCommandPutFA(MegaClient*, handle, fatype, std::unique_ptr<string> faData, bool);
+    HttpReqCommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, std::unique_ptr<string> faData);
 
 private:
     std::unique_ptr<string> data;
