@@ -101,7 +101,7 @@ TEST(UtfCompare, SortTenThousandSpeed)
 
         fsNodes.push_back("somelongstring_" + rev);
         lnNodes.push_back(LocalPath::fromPath("somelongstring_" + rev, fsAccess));
-        crossCompare.emplace_back("somelongstring_" + rev, LocalPath::fromPath("somelongstring_" + rev, fsAccess)); 
+        crossCompare.emplace_back("somelongstring_" + rev, LocalPath::fromPath("somelongstring_" + rev, fsAccess));
     }
 
     using namespace std::chrono;
@@ -206,7 +206,7 @@ TEST(Filesystem, EscapesReservedCharacters)
     using namespace mega;
 
     // All of these characters will be escaped.
-    string name = "%\\/:?\"<>|*";
+    string name = "\\/:?\"<>|*";   // not % anymore (for now)
 
     // Generate expected result.
     ostringstream osstream;
