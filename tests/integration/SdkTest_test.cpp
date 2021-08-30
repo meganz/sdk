@@ -1257,7 +1257,6 @@ string getLinkFromMailbox(const string& exe,         // Python
  * It tests the creation of a new account for a random user.
  *  - Create account and send confirmation link
  *  - Logout and resume the create-account process
- *  - Send the confirmation link (again) to a different email address
  *  - Extract confirmation link from the mailbox
  *  - Use the link to confirm the account
  *  - Login to the new account
@@ -1304,13 +1303,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, sid.c_str()));
 
-    // Send the confirmation link to a different email address
-    // Isn't this supposed to fail??
-    string megaBadAcc = "bad.bad." + newTestAcc;
-    ASSERT_EQ(API_OK, synchronousSendSignupLink(0, megaBadAcc.c_str(), "MyFirstname", newTestPwd))
-            << "Send confirmation link to another email address failed";
-
-    // Get confirmation link from the correct address
+    // Get confirmation link from the email
     output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "confirm");
     ASSERT_FALSE(output.empty()) << "Confirmation link was not found.";
 
