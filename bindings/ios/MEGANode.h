@@ -291,6 +291,12 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) uint64_t owner;
 
 /**
+ * @brief The device id stored as a Node attribute of a Backup folder.
+ * It will be an empty string for other nodes.
+ */
+@property (readonly, nonatomic) NSString *deviceId;
+
+/**
  * @brief Creates a copy of this MEGANode object.
  *
  * The resulting object is fully independent of the source MEGANode,
