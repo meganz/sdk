@@ -19032,7 +19032,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
 
                 // Mark node to be restored if moving to Rubbish Bin
-                if (newParent->type == RUBBISHNODE && node->parent->type != RUBBISHNODE)
+                if (client->getrootnode(newParent)->type == RUBBISHNODE && client->getrootnode(node)->type != RUBBISHNODE)
                 {
                     // "rr" attribute name and value
                     nameid rrname = AttrMap::string2nameid("rr");
