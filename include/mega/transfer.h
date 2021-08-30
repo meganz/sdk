@@ -87,7 +87,7 @@ struct MEGA_API Transfer : public FileFingerprint
     chunkmac_map chunkmacs;
 
     // upload handle for file attribute attachment (only set if file attribute queued)
-    handle uploadhandle;
+    UploadHandle uploadhandle;
 
     // minimum number of file attributes that need to be posted before a PUT transfer can complete
     int minfa;
@@ -96,7 +96,7 @@ struct MEGA_API Transfer : public FileFingerprint
     transfer_map::iterator transfers_it;
 
     // position in faputcompletion[uploadhandle]
-    handletransfer_map::iterator faputcompletion_it;
+    uploadhandletransfer_map::iterator faputcompletion_it;
 
     // upload result
     unique_ptr<byte[]> ultoken;
@@ -201,7 +201,7 @@ public:
     transfer_list::iterator begin(direction_t direction);
     transfer_list::iterator end(direction_t direction);
     bool getIterator(Transfer *transfer, transfer_list::iterator&, bool canHandleErasedElements = false);
-    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction, 
+    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction,
 	                                               std::function<bool(direction_t)>& directionContinuefunction);
     Transfer *transferat(direction_t direction, unsigned int position);
 
