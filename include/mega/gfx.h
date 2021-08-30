@@ -42,13 +42,10 @@ public:
     vector<fatype> imagetypes;
 
     // handle related to the image
-    handle h;
+    NodeOrUploadHandle h;
 
     // key related to the image
     byte key[SymmCipher::KEYLENGTH];
-
-    // flag related to the job
-    bool flag;
 
     // resulting images
     vector<string *> images;
@@ -112,7 +109,7 @@ public:
     // handle is uploadhandle or nodehandle
     // - must respect JPEG EXIF rotation tag
     // - must save at 85% quality (120*120 pixel result: ~4 KB)
-    int gendimensionsputfa(FileAccess*, const LocalPath&, handle, SymmCipher*, int = -1, bool checkAccess = true);
+    int gendimensionsputfa(FileAccess*, const LocalPath&, NodeOrUploadHandle, SymmCipher*, int missingattr);
 
     // FIXME: read dynamically from API server
     typedef enum { THUMBNAIL, PREVIEW } meta_t;

@@ -69,7 +69,7 @@ struct MEGA_API NewNode : public NodeCore
     newnodesource_t source = NEW_NODE;
 
     handle ovhandle = UNDEF;
-    handle uploadhandle = UNDEF;
+    UploadHandle uploadhandle;
     byte uploadtoken[UPLOADTOKENLEN]{};
 
     handle syncid = UNDEF;
