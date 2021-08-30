@@ -5647,6 +5647,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     fs::remove_all(downloadpath, ec);
 }
 
+/* Google ads are no longer supported by the API
 TEST_F(SdkTest, QueryGoogleAds)
 {
     LOG_info << "___TEST QueryGoogleAds";
@@ -5665,7 +5666,7 @@ TEST_F(SdkTest, FetchGoogleAds)
     int err = synchronousFetchGoogleAds(0, MegaApi::GOOGLE_ADS_FORCE_ADS, stringList.get());
     ASSERT_EQ(MegaError::API_OK, err) << "Fetch Google Ads failed (error: " << err << ")";
     ASSERT_EQ(mApi[0].mStringMap->size(), 2);
-}
+}*/
 
 #ifdef ENABLE_SYNC
 
