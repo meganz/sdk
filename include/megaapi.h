@@ -3292,6 +3292,7 @@ class MegaRequest
          * - MegaApi::fetchGoogleAds - Returns public handle that the user is visiting (optionally)
          * - MegaApi::queryGoogleAds - Returns public handle that the user is visiting (optionally)
          * - MegaApi::getChatLinkURL - Returns the public handle
+         * - MegaApi::sendChatLogs - Returns the user handle
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3349,7 +3350,7 @@ class MegaRequest
          * - MegaApi::syncFolder - Returns the backupId asociated with the sync
          * - MegaApi::copySyncDataToCache - Returns the backupId asociated with the sync
          * - MegaApi::getChatLinkURL - Returns the chatid
-         * - MegaApi::sendChatLogs - Returns the user handle
+         * - MegaApi::sendChatLogs - Returns the callid (if exits)
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3364,7 +3365,6 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::fastLogin - Returns session key used to access the account
-         * - MegaApi::sendChatLogs - Returns the callid (if exits)
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
