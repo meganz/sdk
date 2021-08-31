@@ -10345,11 +10345,12 @@ void MegaApiImpl::sendChatStats(const char *data, int port, MegaRequestListener 
     waiter->notify();
 }
 
-void MegaApiImpl::sendChatLogs(const char *data, const char* aid, int port, MegaRequestListener *listener)
+void MegaApiImpl::sendChatLogs(const char *data, MegaHandle userid, MegaHandle callid, int port, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
-    request->setSessionKey(aid);
+    request->setNodeHandle(userid);
+    request->setParentHandle(callid);
     request->setParamType(2);
     request->setNumber(port);
     requestQueue.push(request);
@@ -22457,14 +22458,16 @@ void MegaApiImpl::sendPendingRequests()
             }
             else if (type == 2)
             {
-                const char *aid = request->getSessionKey();
-                if (!aid)
+                handle userid = request->getNodeHandle();
+                if (userid == UNDEF)
                 {
                     e = API_EARGS;
                     break;
                 }
 
-                client->sendchatlogs(json, aid, port);
+                handle callid = request->getParentHandle();
+
+                client->sendchatlogs(json, userid, callid, port);
             }
             else
             {

@@ -4500,7 +4500,7 @@ void MegaClient::sendchatstats(const char *json, int port)
     req->post(this);
 }
 
-void MegaClient::sendchatlogs(const char *json, const char *aid, int port)
+void MegaClient::sendchatlogs(const char *json, handle userid, handle callid, int port)
 {
     GenericHttpReq *req = new GenericHttpReq(rng);
     req->tag = reqtag;
@@ -4514,9 +4514,18 @@ void MegaClient::sendchatlogs(const char *json, const char *aid, int port)
         sprintf(stringPort, "%d", port);
         req->posturl.append(stringPort);
     }
-    req->posturl.append("/msglog?aid=");
-    req->posturl.append(aid);
+
+    Base64Str<MegaClient::USERHANDLE> uid(userid);
+    req->posturl.append("/msglog?userid=");
+    req->posturl.append(uid);
     req->posturl.append("&t=e");
+    if (callid != UNDEF)
+    {
+    Base64Str<MegaClient::USERHANDLE> cid(callid);
+        req->posturl.append("&callid=");
+        req->posturl.append(cid);
+    }
+
     req->protect = true;
     req->out->assign(json);
     req->post(this);

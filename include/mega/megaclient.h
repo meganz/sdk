@@ -743,7 +743,7 @@ public:
     void sendchatstats(const char*, int port);
 
     // send chat logs with user's annonymous id
-    void sendchatlogs(const char*, const char*, int port);
+    void sendchatlogs(const char*, mega::handle userid, mega::handle callid, int port);
 
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
