@@ -19031,6 +19031,25 @@ void MegaApiImpl::sendPendingRequests()
                     client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
+                // Mark node to be restored if moving to Rubbish Bin
+                if (client->getrootnode(newParent)->type == RUBBISHNODE && client->getrootnode(node)->type != RUBBISHNODE)
+                {
+                    // "rr" attribute name and value
+                    nameid rrname = AttrMap::string2nameid("rr");
+                    Base64Str<MegaClient::NODEHANDLE> rrvalue(node->parent->nodehandle);
+                    // Add attribute to a copy of old attributes
+                    AttrMap attrs = node->attrs;
+                    attrs.map[rrname] = rrvalue;
+
+                    // Magic incantations for setting attributes
+                    string attrstring;
+                    attrs.getjson(&attrstring);
+
+                    SymmCipher key;
+                    key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
+                    client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+                }
+
                 client->putnodes(newParent->nodeHandle(), move(tc.nn), nullptr, nextTag);
                 e = API_OK;
                 break;
