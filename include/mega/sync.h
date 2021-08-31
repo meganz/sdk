@@ -680,6 +680,8 @@ struct SyncFlags
     bool noProgress = true;
     int noProgressCount = 0;
 
+    bool earlyRecurseExitRequested = false;
+
     // to help with slowing down retries in stall state
     dstime recursiveSyncLastCompletedDs = 0;
 

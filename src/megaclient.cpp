@@ -2481,7 +2481,7 @@ void MegaClient::exec()
             DBTableTransactionCommitter committer(tctable);
             std::function<void(MegaClient&, DBTableTransactionCommitter&)> f;
             waiter->bumpds();
-            while (ctr_start + 1 >= waiter->ds && syncs.clientThreadActions.popFront(f))
+            while (ctr_start + 5 >= waiter->ds && syncs.clientThreadActions.popFront(f))
             {
                 f(*this, committer);
                 ++ctr_N;
@@ -2489,7 +2489,7 @@ void MegaClient::exec()
             }
             if (auto n = syncs.clientThreadActions.size())
             {
-                LOG_debug << "Processed " << ctr_N << " sync requests, " << n << " outstanding";
+                LOG_debug << "Processed " << ctr_N << " sync requests in " << (waiter->ds - ctr_start) << "ms, " << n << " requests outstanding";
             }
         }
 #endif

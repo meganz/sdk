@@ -4183,6 +4183,7 @@ void Syncs::syncRun(std::function<void()> f)
             synchronous.set_value(true);
         });
 
+    mSyncFlags->earlyRecurseExitRequested = true;
     waiter.notify();
     synchronous.get_future().get();
 }
@@ -4975,6 +4976,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     //SYNC_verbose << syncname << "sync/recurse here: " << syncHere << recurseHere;
 
     // reset this node's sync flag. It will be set again below or while recursing if anything remains to be done.
+    auto originalSyncAgain = row.syncNode->syncAgain;
     row.syncNode->syncAgain = TREE_RESOLVED;
 
     if (!row.fsNode)
@@ -5026,6 +5028,9 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
     bool folderSynced = syncHere; // todo: prob needs fixing
 
+    auto originalCheckMovesAgain = row.syncNode->checkMovesAgain;
+    auto originalConflicsFlag = row.syncNode->conflicts;
+
     if (syncHere || recurseHere)
     {
         // Reset these flags before we evaluate each subnode.
@@ -5059,6 +5064,24 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
             {
                 // in case of sync failing while we recurse
                 if (state() < 0) return false;
+
+                if (syncs.mSyncFlags->earlyRecurseExitRequested)
+                {
+                    // restore flags to at least what they were, for when we revisit on next full recurse
+                    row.syncNode->syncAgain = std::max<unsigned>(row.syncNode->syncAgain, originalSyncAgain);
+                    row.syncNode->checkMovesAgain = std::max<unsigned>(row.syncNode->checkMovesAgain, originalCheckMovesAgain);
+                    row.syncNode->conflicts = std::max<unsigned>(row.syncNode->conflicts, originalConflicsFlag);
+
+                    LOG_debug << syncname
+                        << "recursiveSync early exit due to pending outside request with "
+                        << row.syncNode->scanAgain  << "-"
+                        << row.syncNode->checkMovesAgain << "-"
+                        << row.syncNode->syncAgain << " ("
+                        << row.syncNode->conflicts << ") at "
+                        << fullPath.syncPath;
+
+                    return false;
+                }
 
                 if (!childRow.cloudClashingNames.empty() ||
                     !childRow.fsClashingNames.empty())
@@ -7621,6 +7644,9 @@ void Syncs::syncLoop()
         // make sure we are using the client key (todo: shall we set it just when the client sets its key? easy to miss one though)
         syncKey.setkey(mClient.key.key);
 
+        // reset flag now, if it gets set then we speed back to processsing syncThreadActions
+        mSyncFlags->earlyRecurseExitRequested = false;
+
         // execute any requests from the MegaClient
         waiter.bumpds();
         std::function<void()> f;
@@ -7635,6 +7661,8 @@ void Syncs::syncLoop()
             }
 
             f();
+
+            mSyncFlags->earlyRecurseExitRequested = false;
         }
 
         // verify filesystem fingerprints, disable deviating syncs
@@ -8173,6 +8201,7 @@ void Syncs::syncLoop()
                 }
             }
 
+            mSyncFlags->earlyRecurseExitRequested = false;
             mSyncFlags->isInitialPass = false;
 
             lastRecurseMs = unsigned(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -8605,6 +8634,7 @@ void Syncs::queueSync(std::function<void()>&& f)
 {
     assert(!onSyncThread());
     syncThreadActions.pushBack(move(f));
+    mSyncFlags->earlyRecurseExitRequested = true;
     waiter.notify();
 }
 
