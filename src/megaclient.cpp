@@ -4515,15 +4515,13 @@ void MegaClient::sendchatlogs(const char *json, handle userid, handle callid, in
         req->posturl.append(stringPort);
     }
 
-    char uid[12];
-    Base64::btoa((byte*)&userid, MegaClient::USERHANDLE, uid);
+    Base64Str<MegaClient::USERHANDLE> uid(userid);
     req->posturl.append("/msglog?userid=");
     req->posturl.append(uid);
     req->posturl.append("&t=e");
     if (callid != UNDEF)
     {
-        char cid[12];
-        Base64::btoa((byte*)&callid, MegaClient::USERHANDLE, cid);
+    Base64Str<MegaClient::USERHANDLE> cid(callid);
         req->posturl.append("&callid=");
         req->posturl.append(cid);
     }
