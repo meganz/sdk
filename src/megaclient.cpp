@@ -7303,7 +7303,15 @@ void MegaClient::notifypurge(void)
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
             Node* n = nodeByHandle(us.mConfig.getRemoteNode());
-            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
+
+            // check if moved to rubbish
+            bool movedToRubbish = false;
+            for (auto p = n ? n->parent : nullptr; p && !movedToRubbish; p = p->parent)
+            {
+                movedToRubbish = p->nodehandle == rubbishHandle;
+            }
+
+            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed || movedToRubbish))
             {
                 bool removed = n->changed.removed;
 
@@ -7317,27 +7325,14 @@ void MegaClient::notifypurge(void)
                 }
 
                 // fail sync if required
-                if(n->changed.parent) //moved
+                if(movedToRubbish)
+                {
+                    failSync(activeSync.get(), REMOTE_NODE_MOVED_TO_RUBBISH);
+                }
+                else if(n->changed.parent) //moved
                 {
                     assert(pathChanged);
-                    // check if moved to rubbish
-                    auto p = n->parent;
-                    bool alreadyFailed = false;
-                    while (p)
-                    {
-                        if (p->nodehandle == rubbishHandle)
-                        {
-                            failSync(activeSync.get(), REMOTE_NODE_MOVED_TO_RUBBISH);
-                            alreadyFailed = true;
-                            break;
-                        }
-                        p = p->parent;
-                    }
-
-                    if (!alreadyFailed)
-                    {
-                        failSync(activeSync.get(), REMOTE_PATH_HAS_CHANGED);
-                    }
+                    failSync(activeSync.get(), REMOTE_PATH_HAS_CHANGED);
                 }
                 else if (removed)
                 {
