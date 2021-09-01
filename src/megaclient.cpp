@@ -7303,15 +7303,7 @@ void MegaClient::notifypurge(void)
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
             Node* n = nodeByHandle(us.mConfig.getRemoteNode());
-
-            // check if moved to rubbish
-            bool movedToRubbish = false;
-            for (auto p = n ? n->parent : nullptr; p && !movedToRubbish; p = p->parent)
-            {
-                movedToRubbish = p->nodehandle == rubbishHandle;
-            }
-
-            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed || movedToRubbish))
+            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
             {
                 bool removed = n->changed.removed;
 
@@ -7325,7 +7317,7 @@ void MegaClient::notifypurge(void)
                 }
 
                 // fail sync if required
-                if(movedToRubbish)
+                if(n->firstancestor()->nodehandle == rubbishHandle) // check if moved to rubbish
                 {
                     failSync(activeSync.get(), REMOTE_NODE_MOVED_TO_RUBBISH);
                 }
