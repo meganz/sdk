@@ -3014,6 +3014,8 @@ void MegaClient::exec()
                                                 }
                                                 scanfailed = true;
 
+                                                sync->localroot->setSubtreeNeedsRescan(true);
+
                                                 sync->scan(&sync->localroot->localname, NULL);
                                                 sync->dirnotify->mErrorCount = 0;
                                                 sync->fullscan = true;
