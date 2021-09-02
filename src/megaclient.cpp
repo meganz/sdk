@@ -7303,11 +7303,14 @@ void MegaClient::notifypurge(void)
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
             Node* n = nodeByHandle(us.mConfig.getRemoteNode());
+            if (!n)
+                return;
 
-            // check if moved to rubbish
-            bool movedToRubbish = n ? n->firstancestor()->nodehandle == rubbishHandle : false;
+            // check if moved (just like UnifiedSync::updateSyncRemoteLocation() does it)
+            bool pathChanged = n->displaypath() != us.mConfig.mOriginalPathOfRemoteRootNode ||
+                               us.mConfig.getRemoteNode() != n->nodehandle;
 
-            if (n && (n->changed.attrs || movedToRubbish || n->changed.removed))
+            if (n->changed.attrs || pathChanged || n->changed.removed)
             {
                 bool removed = n->changed.removed;
 
@@ -7321,13 +7324,17 @@ void MegaClient::notifypurge(void)
                 }
 
                 // fail sync if required
-                if (movedToRubbish)
+                if (n->firstancestor()->nodehandle == rubbishHandle) // moved to rubbish
                 {
                     failSync(activeSync.get(), REMOTE_NODE_MOVED_TO_RUBBISH);
                 }
                 else if (removed)
                 {
                     failSync(activeSync.get(), REMOTE_NODE_NOT_FOUND);
+                }
+                else if (pathChanged) // moved
+                {
+                    failSync(activeSync.get(), REMOTE_PATH_HAS_CHANGED);
                 }
             }
         });
