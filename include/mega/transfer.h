@@ -79,12 +79,15 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // file crypto key and shared cipher
     std::array<byte, SymmCipher::KEYLENGTH> transferkey;
+
+    // returns a pointer to MegaClient::tmptransfercipher setting its key to the transfer
+    // tmptransfercipher key will change: to be used right away: this is not a dedicated SymmCipher for this transfer!
     SymmCipher *transfercipher();
 
     chunkmac_map chunkmacs;
 
     // upload handle for file attribute attachment (only set if file attribute queued)
-    handle uploadhandle;
+    UploadHandle uploadhandle;
 
     // minimum number of file attributes that need to be posted before a PUT transfer can complete
     int minfa;
@@ -93,7 +96,7 @@ struct MEGA_API Transfer : public FileFingerprint
     transfer_map::iterator transfers_it;
 
     // position in faputcompletion[uploadhandle]
-    handletransfer_map::iterator faputcompletion_it;
+    uploadhandletransfer_map::iterator faputcompletion_it;
 
     // upload result
     unique_ptr<byte[]> ultoken;
@@ -116,18 +119,6 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // previous wrong fingerprint
     FileFingerprint badfp;
-
-    // flag to know if prevmetamac is valid
-    bool hasprevmetamac;
-
-    // previous wrong metamac
-    int64_t prevmetamac;
-
-    // flag to know if currentmetamac is valid
-    bool hascurrentmetamac;
-
-    // current wrong metamac
-    int64_t currentmetamac;
 
     // transfer state
     bool finished;
@@ -210,7 +201,8 @@ public:
     transfer_list::iterator begin(direction_t direction);
     transfer_list::iterator end(direction_t direction);
     bool getIterator(Transfer *transfer, transfer_list::iterator&, bool canHandleErasedElements = false);
-    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction);
+    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction,
+	                                               std::function<bool(direction_t)>& directionContinuefunction);
     Transfer *transferat(direction_t direction, unsigned int position);
 
     std::array<transfer_list, 2> transfers;

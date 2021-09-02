@@ -815,7 +815,7 @@ TransferBufferManager::TransferBufferManager()
 {
 }
 
-void TransferBufferManager::setIsRaid(Transfer* t, std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t maxRequestSize)
+void TransferBufferManager::setIsRaid(Transfer* t, const std::vector<std::string>& tempUrls,m_off_t resumepos, m_off_t maxRequestSize)
 {
     RaidBufferManager::setIsRaid(tempUrls, resumepos, t->size, t->size, maxRequestSize);
 

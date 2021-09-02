@@ -155,8 +155,6 @@ struct DemoApp : public MegaApp
     void richlinkrequest_result(string*, error) override;
 #endif
 
-    void setattr_result(handle, Error) override;
-    void rename_result(handle, error) override;
     void unlink_result(handle, error) override;
 
     void fetchnodes_result(const Error&) override;
@@ -194,9 +192,6 @@ struct DemoApp : public MegaApp
 
     void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
 
-    void checkfile_result(handle, const Error&) override;
-    void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) override;
-
     dstime pread_failure(const Error&, int, void*, dstime) override;
     bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) override;
 
@@ -208,29 +203,14 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_stateconfig(handle backupId) override;
-    void syncupdate_active(handle backupId, bool active) override;
-    void sync_auto_resume_result(const UnifiedSync&, bool attempted, bool hadAnError) override;
-    void sync_removed(handle backupId) override;
+    void syncupdate_stateconfig(const SyncConfig& config) override;
+    void syncupdate_active(const SyncConfig& config, bool active) override;
+    void sync_auto_resume_result(const SyncConfig&, bool attempted, bool hadAnError) override;
+    void sync_removed(const SyncConfig& config) override;
 
     void syncupdate_scanning(bool) override;
-    void syncupdate_local_folder_addition(Sync*, const LocalPath& path) override;
-    void syncupdate_local_folder_deletion(Sync* , const LocalPath& path) override;
-    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override;
-    void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override;
-    void syncupdate_local_file_change(Sync*, const LocalPath& path) override;
-    void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override;
     void syncupdate_local_lockretry(bool) override;
-    void syncupdate_get(Sync*, Node*, const char*) override;
-    void syncupdate_put(Sync*, const char*) override;
-    void syncupdate_remote_file_addition(Sync*, Node*) override;
-    void syncupdate_remote_file_deletion(Sync*, Node*) override;
-    void syncupdate_remote_folder_addition(Sync*, Node*) override;
-    void syncupdate_remote_folder_deletion(Sync*, Node*) override;
-    void syncupdate_remote_copy(Sync*, const char*) override;
-    void syncupdate_remote_move(Sync*, Node*, Node*) override;
-    void syncupdate_remote_rename(Sync*, Node*, const char*) override;
-    void syncupdate_treestate(LocalNode*) override;
+    void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
 
     bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
     bool sync_syncable(Sync*, const char*, LocalPath&) override;
@@ -266,7 +246,7 @@ struct DemoApp : public MegaApp
 
     void notify_retry(dstime, retryreason_t) override;
 
-    string getExtraInfoErrorString(const Error&);
+    static string getExtraInfoErrorString(const Error&);
 
 protected:
 #ifdef USE_DRIVE_NOTIFICATIONS

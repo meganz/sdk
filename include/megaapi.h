@@ -789,6 +789,7 @@ class MegaNode
          * If the node hasn't been created/modified during the current execution, this function returns 0
          *
          * @return The tag associated with the node.
+         * @deprecated This function will be removed in future releases, it was unreliable due to race conditions
          */
         virtual int getTag();
 
@@ -1151,31 +1152,6 @@ class MegaNode
          * @return Child nodes of an authorized folder node, otherwise NULL
          */
         virtual MegaNodeList *getChildren();
-
-#ifdef ENABLE_SYNC
-        /**
-         * @brief Returns true if this node was deleted from the MEGA account by the
-         * synchronization engine
-         *
-         * This value is only useful for nodes notified by MegaListener::onNodesUpdate or
-         * MegaGlobalListener::onNodesUpdate that can notify about deleted nodes.
-         *
-         * In other cases, the return value of this function will be always false.
-         *
-         * @return True if this node was deleted from the MEGA account by the synchronization engine
-         */
-        virtual bool isSyncDeleted();
-
-        /**
-         * @brief Returns the local path associated with this node
-         *
-         * Only synchronized nodes has an associated local path, for all other nodes
-         * the return value will be an empty string.
-         *
-         * @return The local path associated with this node or an empty string if the node isn't synced-
-         */
-        virtual std::string getLocalPath();
-#endif
 
         virtual MegaHandle getOwner() const;
 
@@ -3183,7 +3159,8 @@ class MegaRequest
             TYPE_GET_ATTR_NODE                                              = 138,
             TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS                                = 139,
             TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS                               = 140,
-            TOTAL_OF_REQUEST_TYPES                                          = 141,
+            TYPE_GET_DOWNLOAD_URLS                                          = 141,
+            TOTAL_OF_REQUEST_TYPES                                          = 142,
         };
 
         virtual ~MegaRequest();
@@ -3309,6 +3286,8 @@ class MegaRequest
          * - MegaApi::getPaymentId - Returns the payment identifier
          * - MegaApi::getUrlChat - Returns the user-specific URL for the chat
          * - MegaApi::getChatPresenceURL - Returns the user-specific URL for the chat presence server
+         * - MegaApi::getUploadURL - Returns the upload IPv4
+         * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv4 of the server in the URL(s)
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -3367,6 +3346,7 @@ class MegaRequest
          * - MegaApi::copySyncDataToCache - Returns the name for the sync
          * - MegaApi::setBackup - Returns the device id hash of the backup source device
          * - MegaApi::updateBackup - Returns the device id hash of the backup source device
+         * - MegaApi::getUploadURL - Returns the upload URL
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3374,6 +3354,7 @@ class MegaRequest
          * - MegaApi::confirmAccount - Returns the name of the user
          * - MegaApi::fastConfirmAccount - Returns the name of the user
          * - MegaApi::getUserData - Returns the name of the user
+         * - MegaApi::getDownloadUrl - Returns semicolon-separated download URL(s) to the file
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -3580,6 +3561,8 @@ class MegaRequest
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
          * - MegaApi::setBackup - Returns the cron like time string to define period
+         * - MegaApi::getUploadURL - Returns the upload IPv6
+         * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv6 of the server in the URL(s)
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -5160,99 +5143,6 @@ public:
 
 
 #ifdef ENABLE_SYNC
-
-/**
- * @brief Provides information about a synchronization event
- *
- * This object is provided in callbacks related to the synchronization engine
- * (MegaListener::onSyncEvent)
- */
-class MegaSyncEvent
-{
-public:
-
-    /**
-     * Event types.
-     */
-    enum {
-        TYPE_LOCAL_FOLDER_ADITION, TYPE_LOCAL_FOLDER_DELETION,
-        TYPE_LOCAL_FILE_ADDITION, TYPE_LOCAL_FILE_DELETION,
-        TYPE_LOCAL_FILE_CHANGED, TYPE_LOCAL_MOVE,
-        TYPE_REMOTE_FOLDER_ADDITION, TYPE_REMOTE_FOLDER_DELETION,
-        TYPE_REMOTE_FILE_ADDITION, TYPE_REMOTE_FILE_DELETION,
-        TYPE_REMOTE_MOVE, TYPE_REMOTE_RENAME,
-        TYPE_FILE_GET, TYPE_FILE_PUT
-    };
-
-    virtual ~MegaSyncEvent();
-
-    virtual MegaSyncEvent *copy();
-
-    /**
-     * @brief Returns the type of event
-     * @return Type of event
-     */
-    virtual int getType() const;
-
-    /**
-     * @brief Returns the local path related to the event.
-     *
-     * If there isn't any local path related to the event (remote events)
-     * this function returns NULL
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaSyncEvent object is deleted.
-     *
-     * @return Local path related to the event
-     */
-    virtual const char* getPath() const;
-
-    /**
-     * @brief getNodeHandle Returns the node handle related to the event
-     *
-     * If there isn't any local path related to the event (remote events)
-     * this function returns mega::INVALID_HANDLE
-     *
-     * @return Node handle related to the event
-     */
-    virtual MegaHandle getNodeHandle() const;
-
-    /**
-     * @brief Returns the previous path of the local file.
-     *
-     * This data is only valid when the event type is TYPE_LOCAL_MOVE
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaSyncEvent object is deleted.
-     *
-     * @return Previous path of the local file.
-     */
-    virtual const char* getNewPath() const;
-
-    /**
-     * @brief Returns the previous name of the remote node
-     *
-     * This data is only valid when the event type is TYPE_REMOTE_RENAME
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaSyncEvent object is deleted.
-     *
-     * @return Previous name of the remote node
-     */
-    virtual const char* getPrevName() const;
-
-    /**
-     * @brief Returns the handle of the previous parent of the remote node
-     *
-     * This data is only valid when the event type is TYPE_REMOTE_MOVE
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaSyncEvent object is deleted.
-     *
-     * @return Handle of the previous parent of the remote node
-     */
-    virtual MegaHandle getPrevParent() const;
-};
 
 /**
  * @brief Provides information about a synchronization
@@ -7060,24 +6950,6 @@ class MegaListener
     virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
 
     /**
-     * @brief This function is called when there is a synchronization event
-     *
-     * Synchronization events can be local deletions, local additions, remote deletions,
-     * remote additions, etc. See MegaSyncEvent to know the full list of event types
-     *
-     * The SDK retains the ownership of the sync and event parameters.
-     * Don't use them after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object that detects the event
-     * @param event Information about the event
-     *
-     * This parameter will be deleted just after the callback. If you want to save it use
-     * MegaSyncEvent::copy
-     */
-    virtual void onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event);
-
-    /**
      * @brief This callback will be called when a sync is added
      *
      * The SDK will call this after loading (and attempt to resume) syncs from cache or whenever a new
@@ -7940,6 +7812,9 @@ class MegaApi
         MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount = 1);
 #endif
 
+#ifdef HAVE_MEGAAPI_RPC
+        MegaApi();
+#endif
         virtual ~MegaApi();
 
 
@@ -10433,6 +10308,26 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get downloads urls for a node
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_DOWNLOAD_URLS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns semicolon-separated download URL(s) to the file
+         * - MegaRequest::getLink - Returns semicolon-separated IPv4 of the server in the URL(s)
+         * - MegaRequest::getText - Returns semicolon-separated IPv6 of the server in the URL(s)
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node to get the downloads URLs
+         * @param singleUrl Always return one URL (even for raided files)
+         * @param listener MegaRequestListener to track this request
+         */
+        void getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Build the URL for a public link
@@ -13809,7 +13704,6 @@ class MegaApi
             const char* driveRootIfExternal,
             MegaRequestListener *listener);
 
-
         /**
          * @brief Copy sync data to SDK cache.
          *
@@ -14129,15 +14023,6 @@ class MegaApi
         MegaSyncList* getSyncs();
 
         /**
-         * @brief Get the number of active synced folders
-         * @return The number of active synced folders
-         *
-         * @deprecated New functions to manage synchronizations are being implemented. This funtion will
-         * be removed in future updates.
-         */
-        int getNumActiveSyncs();
-
-        /**
          * @brief Check if the synchronization engine is scanning files
          * @return true if it is scanning, otherwise false
          */
@@ -14222,13 +14107,6 @@ class MegaApi
          * @return true if the path is syncable, otherwise false
          */
         bool isSyncable(const char *path, long long size);
-
-        /**
-         * @brief Check if a node is inside a synced folder
-         * @param node Node to check
-         * @return true if the node is inside a synced folder, otherwise false
-         */
-        bool isInsideSync(MegaNode *node);
 
         /**
          * @brief Check if it's possible to start synchronizing a folder node.
@@ -16931,6 +16809,67 @@ class MegaApi
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
 
         /**
+         * @brief Create the node after completing the upload of the file by the app.
+         *
+		 * Note: added for the use of MEGA Proxy and not otherwise supported
+		 *
+         * Call this function after completing the upload of all the file data
+         * The node representing the file will be created in the cloud, with all the suitable
+         * attributes and file attributes attached.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getPassword - Returns the original fingerprint
+         * - MegaRequest::getNewPassword - Returns the fingerprint
+         * - MegaRequest::getName - Returns the name
+         * - MegaRequest::getParentHandle - Returns the parent nodehandle
+         * - MegaRequest::getSessionKey - Returns the upload token converted to B64url encoding
+         * - MegaRequest::getPrivateKey - Returns the file key provided in B64url encoding
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Returns the handle of the uploaded node
+         * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
+         *
+         * @param utf8Name The leaf name of the file, utf-8 encoded
+         * @param parent The folder node under which this new file should appear
+         * @param fingerprint The fingerprint for the uploaded file (use MegaApi::getFingerprint to generate this)
+         * @param fingerprintoriginal If the file uploaded is modified from the original,
+         *        pass the fingerprint of the original file here, otherwise NULL.
+         * @param string64UploadToken The token returned from the upload of the last portion of the file,
+         *        which is exactly 36 binary bytes, converted to a base 64 string with MegaApi::binaryToString64.
+         * @param string64FileKey file encryption key converted to a base 64 string with MegaApi::binaryToString64.
+         * @param listener MegaRequestListener to track this request
+         */
+        void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+                                          const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener);
+
+        /**
+         * @brief Request the URL suitable for uploading a file.
+         *
+		 * Note: added for the use of MEGA Proxy and not otherwise supported
+		 *
+         * This function requests the base URL needed for uploading the file.
+         * The URL will need the urlSuffix resulting from encryption.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - The URL to use
+         * - MegaRequest::getLink - The IPv4 of the upload server
+         * - MegaRequest::getText - The IPv6 of the upload server
+         *
+         * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
+         * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
+         * A new URL could specify a different upload server for example.
+         *
+         * @param fullFileSize The size of the file
+         * @param forceSSL Enforce using getting a https URL
+         * @param listener MegaRequestListener to track this request
+         */
+         void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+
+        /**
          * @brief Create the node after completing the background upload of the file.
          *
          * Call this function after completing the background upload of all the file data
@@ -18909,7 +18848,7 @@ class MegaApi
         bool driveMonitorEnabled();
 
  private:
-        MegaApiImpl *pImpl;
+        MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
 };
 
