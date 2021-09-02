@@ -7850,13 +7850,13 @@ class MegaApi
          * @brief Add a listener for all events related to backups
          * @param listener Listener that will receive backup events
          */
-        void addBackupListener(MegaScheduledCopyListener *listener);
+        void addScheduledCopyListener(MegaScheduledCopyListener *listener);
 
         /**
          * @brief Unregister a backup listener
          * @param listener Objet that will be unregistered
          */
-        void removeBackupListener(MegaScheduledCopyListener *listener);
+        void removeScheduledCopyListener(MegaScheduledCopyListener *listener);
 
         /**
          * @brief Unregister a listener
@@ -14183,10 +14183,10 @@ class MegaApi
          * @param tag Tag that identifies the backup
          * @return Backup identified by the tag
          */
-        MegaScheduledCopy *getBackupByTag(int tag);
+        MegaScheduledCopy *getScheduledCopyByTag(int tag);
 
         /**
-         * @brief getBackupByNode Get the backup associated with a node
+         * @brief getScheduledCopyByNode Get the backup associated with a node
          *
          * You take the ownership of the returned value
          * Caveat: Two backups can have the same parent node, the first one encountered is returned
@@ -14194,17 +14194,17 @@ class MegaApi
          * @param node Root node of the backup
          * @return Backup with the specified root node
          */
-        MegaScheduledCopy *getBackupByNode(MegaNode *node);
+        MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
 
         /**
-         * @brief getBackupByPath Get the backup associated with a local path
+         * @brief getScheduledCopyByPath Get the backup associated with a local path
          *
          * You take the ownership of the returned value
          *
          * @param localPath Root local path of the backup
          * @return Backup with the specified root local path
          */
-        MegaScheduledCopy *getBackupByPath(const char *localPath);
+        MegaScheduledCopy *getScheduledCopyByPath(const char *localPath);
 
         /**
          * @brief Force a loop of the SDK thread

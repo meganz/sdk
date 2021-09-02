@@ -1571,7 +1571,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
 }
 #endif
 
-MegaScheduledCopy *MegaApiImpl::getBackupByTag(int tag)
+MegaScheduledCopy *MegaApiImpl::getScheduledCopyByTag(int tag)
 {
     sdkMutex.lock();
     if (backupsMap.find(tag) == backupsMap.end())
@@ -1584,7 +1584,7 @@ MegaScheduledCopy *MegaApiImpl::getBackupByTag(int tag)
     return result;
 }
 
-MegaScheduledCopy *MegaApiImpl::getBackupByNode(MegaNode *node)
+MegaScheduledCopy *MegaApiImpl::getScheduledCopyByNode(MegaNode *node)
 {
     if (!node)
     {
@@ -1610,7 +1610,7 @@ MegaScheduledCopy *MegaApiImpl::getBackupByNode(MegaNode *node)
     return result;
 }
 
-MegaScheduledCopy *MegaApiImpl::getBackupByPath(const char *localPath)
+MegaScheduledCopy *MegaApiImpl::getScheduledCopyByPath(const char *localPath)
 {
     if (!localPath)
     {
@@ -16012,7 +16012,7 @@ void MegaApiImpl::addTransferListener(MegaTransferListener* listener)
     sdkMutex.unlock();
 }
 
-void MegaApiImpl::addBackupListener(MegaScheduledCopyListener* listener)
+void MegaApiImpl::addScheduledCopyListener(MegaScheduledCopyListener* listener)
 {
     if(!listener) return;
 
@@ -16081,7 +16081,7 @@ void MegaApiImpl::removeTransferListener(MegaTransferListener* listener)
     sdkMutex.unlock();
 }
 
-void MegaApiImpl::removeBackupListener(MegaScheduledCopyListener* listener)
+void MegaApiImpl::removeScheduledCopyListener(MegaScheduledCopyListener* listener)
 {
     if(!listener) return;
 

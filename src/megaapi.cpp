@@ -3534,19 +3534,19 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 #endif
 
 
-MegaScheduledCopy *MegaApi::getBackupByTag(int tag)
+MegaScheduledCopy *MegaApi::getScheduledCopyByTag(int tag)
 {
-    return pImpl->getBackupByTag(tag);
+    return pImpl->getScheduledCopyByTag(tag);
 }
 
-MegaScheduledCopy *MegaApi::getBackupByNode(MegaNode *node)
+MegaScheduledCopy *MegaApi::getScheduledCopyByNode(MegaNode *node)
 {
-    return pImpl->getBackupByNode(node);
+    return pImpl->getScheduledCopyByNode(node);
 }
 
-MegaScheduledCopy *MegaApi::getBackupByPath(const char *localPath)
+MegaScheduledCopy *MegaApi::getScheduledCopyByPath(const char *localPath)
 {
-    return pImpl->getBackupByPath(localPath);
+    return pImpl->getScheduledCopyByPath(localPath);
 }
 
 int MegaApi::getNumPendingUploads()
@@ -4084,14 +4084,14 @@ void MegaApi::addGlobalListener(MegaGlobalListener* listener)
     pImpl->addGlobalListener(listener);
 }
 
-void MegaApi::addBackupListener(MegaScheduledCopyListener *listener)
+void MegaApi::addScheduledCopyListener(MegaScheduledCopyListener *listener)
 {
-    pImpl->addBackupListener(listener);
+    pImpl->addScheduledCopyListener(listener);
 }
 
-void MegaApi::removeBackupListener(MegaScheduledCopyListener *listener)
+void MegaApi::removeScheduledCopyListener(MegaScheduledCopyListener *listener)
 {
-    pImpl->removeBackupListener(listener);
+    pImpl->removeScheduledCopyListener(listener);
 }
 
 void MegaApi::removeListener(MegaListener* listener)

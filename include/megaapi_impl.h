@@ -2069,12 +2069,12 @@ class MegaApiImpl : public MegaApp
         void addListener(MegaListener* listener);
         void addRequestListener(MegaRequestListener* listener);
         void addTransferListener(MegaTransferListener* listener);
-        void addBackupListener(MegaScheduledCopyListener* listener);
+        void addScheduledCopyListener(MegaScheduledCopyListener* listener);
         void addGlobalListener(MegaGlobalListener* listener);
         void removeListener(MegaListener* listener);
         void removeRequestListener(MegaRequestListener* listener);
         void removeTransferListener(MegaTransferListener* listener);
-        void removeBackupListener(MegaScheduledCopyListener* listener);
+        void removeScheduledCopyListener(MegaScheduledCopyListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
 
         void cancelPendingTransfersByFolderTag(int folderTag);
@@ -2401,9 +2401,9 @@ class MegaApiImpl : public MegaApp
         char *getBlockedPath();
 #endif
 
-        MegaScheduledCopy *getBackupByTag(int tag);
-        MegaScheduledCopy *getBackupByNode(MegaNode *node);
-        MegaScheduledCopy *getBackupByPath(const char * localPath);
+        MegaScheduledCopy *getScheduledCopyByTag(int tag);
+        MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
+        MegaScheduledCopy *getScheduledCopyByPath(const char * localPath);
 
         void update();
         int isWaiting();
