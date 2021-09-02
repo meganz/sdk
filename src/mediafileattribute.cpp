@@ -207,26 +207,26 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
         for (size_t i = queuedForDownloadTranslation.size(); i--; )
         {
             queuedvp& q = queuedForDownloadTranslation[i];
-            sendOrQueueMediaPropertiesFileAttributesForExistingFile(q.vp, q.fakey, client, q.handle);
+            sendOrQueueMediaPropertiesFileAttributesForExistingFile(q.vp, q.fakey, client, q.handle.nodeHandle());
         }
         queuedForDownloadTranslation.clear();
     }
 
     // resume any upload transfers that were waiting for this
-    for (std::map<handle, queuedvp>::iterator i = uploadFileAttributes.begin(); i != uploadFileAttributes.end(); )
+    for (std::map<UploadHandle, queuedvp>::iterator i = uploadFileAttributes.begin(); i != uploadFileAttributes.end(); )
     {
-        handle th = i->second.handle;
+        UploadHandle th = i->second.handle.uploadHandle();
         ++i;   // the call below may remove this item from the map
 
         // indicate that file attribute 8 can be retrieved now, allowing the transfer to complete
-        client->pendingfa[pair<handle, fatype>(th, fatype(fa_media))] = pair<handle, int>(0, 0);
+        client->pendingfa[pair<UploadHandle, fatype>(th, fatype(fa_media))] = pair<handle, int>(0, 0);
         client->checkfacompletion(th);
     }
 
     client->app->mediadetection_ready();
 }
 
-unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle uploadHandle)
+unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, UploadHandle uploadHandle)
 {
     if (mediaCodecsFailed)
     {
@@ -234,7 +234,7 @@ unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaPropert
     }
 
     MediaFileInfo::queuedvp q;
-    q.handle = uploadHandle;
+    q.handle = NodeOrUploadHandle(uploadHandle);
     q.vp = vp;
     memcpy(q.fakey, fakey, sizeof(q.fakey));
     uploadFileAttributes[uploadHandle] = q;
@@ -243,12 +243,12 @@ unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaPropert
     if (mediaCodecsReceived)
     {
         // indicate we have this attribute ready to go. Otherwise the transfer will be put on hold till we can
-        client->pendingfa[pair<handle, fatype>(uploadHandle, fatype(fa_media))] = pair<handle, int>(0, 0);
+        client->pendingfa[pair<UploadHandle, fatype>(uploadHandle, fatype(fa_media))] = pair<handle, int>(0, 0);
     }
     return 1;
 }
 
-void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle fileHandle)
+void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, NodeHandle fileHandle)
 {
     if (mediaCodecsFailed)
     {
@@ -258,7 +258,7 @@ void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(Medi
     if (!mediaCodecsReceived)
     {
         MediaFileInfo::queuedvp q;
-        q.handle = fileHandle;
+        q.handle = NodeOrUploadHandle(fileHandle);
         q.vp = vp;
         memcpy(q.fakey, fakey, sizeof(q.fakey));
         queuedForDownloadTranslation.push_back(q);
@@ -268,13 +268,13 @@ void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(Medi
     {
         LOG_debug << "Sending media attributes";
         std::string mediafileattributes = vp.convertMediaPropertyFileAttributes(fakey, client->mediaFileInfo);
-        client->reqs.add(new CommandAttachFA(client, fileHandle, fa_media, mediafileattributes.c_str(), 0));
+        client->reqs.add(new CommandAttachFA(client, fileHandle.as8byte(), fa_media, mediafileattributes.c_str(), 0));
     }
 }
 
-void MediaFileInfo::addUploadMediaFileAttributes(handle& uploadhandle, std::string* s)
+void MediaFileInfo::addUploadMediaFileAttributes(UploadHandle uploadhandle, std::string* s)
 {
-    std::map<handle, MediaFileInfo::queuedvp>::iterator i = uploadFileAttributes.find(uploadhandle);
+    std::map<UploadHandle, MediaFileInfo::queuedvp>::iterator i = uploadFileAttributes.find(uploadhandle);
     if (i != uploadFileAttributes.end())
     {
         if (!mediaCodecsFailed)
@@ -663,7 +663,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
             break;
         }
 
-        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((m_time() - startTime) > maxSeconds))) 
+        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((m_time() - startTime) > maxSeconds)))
         {
             if (hasVideo && vidDuration)
             {
