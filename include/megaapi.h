@@ -1153,31 +1153,6 @@ class MegaNode
          */
         virtual MegaNodeList *getChildren();
 
-#ifdef ENABLE_SYNC
-        /**
-         * @brief Returns true if this node was deleted from the MEGA account by the
-         * synchronization engine
-         *
-         * This value is only useful for nodes notified by MegaListener::onNodesUpdate or
-         * MegaGlobalListener::onNodesUpdate that can notify about deleted nodes.
-         *
-         * In other cases, the return value of this function will be always false.
-         *
-         * @return True if this node was deleted from the MEGA account by the synchronization engine
-         */
-        virtual bool isSyncDeleted();
-
-        /**
-         * @brief Returns the local path associated with this node
-         *
-         * Only synchronized nodes has an associated local path, for all other nodes
-         * the return value will be an empty string.
-         *
-         * @return The local path associated with this node or an empty string if the node isn't synced-
-         */
-        virtual std::string getLocalPath();
-#endif
-
         virtual MegaHandle getOwner() const;
 
         /**
@@ -14064,15 +14039,6 @@ class MegaApi
         MegaSyncList* getSyncs();
 
         /**
-         * @brief Get the number of active synced folders
-         * @return The number of active synced folders
-         *
-         * @deprecated New functions to manage synchronizations are being implemented. This funtion will
-         * be removed in future updates.
-         */
-        int getNumActiveSyncs();
-
-        /**
          * @brief Check if the synchronization engine is scanning files
          * @return true if it is scanning, otherwise false
          */
@@ -14157,13 +14123,6 @@ class MegaApi
          * @return true if the path is syncable, otherwise false
          */
         bool isSyncable(const char *path, long long size);
-
-        /**
-         * @brief Check if a node is inside a synced folder
-         * @param node Node to check
-         * @return true if the node is inside a synced folder, otherwise false
-         */
-        bool isInsideSync(MegaNode *node);
 
         /**
          * @brief Check if it's possible to start synchronizing a folder node.

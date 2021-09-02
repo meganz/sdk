@@ -159,6 +159,9 @@ public:
     // Whether this backup is monitoring or mirroring.
     SyncBackupState mBackupState;
 
+    // Current running state.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
+    syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no assoicated mSync
+
     // enum to string conversion
     static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
@@ -237,7 +240,7 @@ public:
     string mFsEventsPath;
 #endif
     // current state
-    syncstate_t state = SYNC_INITIALSCAN;
+    syncstate_t& state() { return getConfig().mRunningState; }
 
     // are we conducting a full tree scan? (during initialization and if event notification failed)
     bool fullscan = true;
@@ -335,6 +338,9 @@ public:
     bool mDestructorRunning = false;
     Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool);
     ~Sync();
+
+    // Should we synchronize this sync?
+    bool active() const;
 
     static const int SCANNING_DELAY_DS;
     static const int EXTRA_SCANNING_DELAY_DS;
@@ -550,6 +556,8 @@ struct Syncs
     void forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f);
     void forEachSyncConfig(std::function<void(const SyncConfig&)>);
 
+    vector<NodeHandle> getSyncRootHandles(bool mustBeActive);
+
     void purgeRunningSyncs();
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
@@ -559,8 +567,8 @@ struct Syncs
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
 
-    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag);
+    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted.  Compatible with syncs on a separate thread in future
+    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
