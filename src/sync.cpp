@@ -804,7 +804,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     localnodes[FILENODE] = 0;
     localnodes[FOLDERNODE] = 0;
 
-    state = SYNC_INITIALSCAN;
+    state() = SYNC_INITIALSCAN;
     statecachetable = NULL;
 
     fullscan = true;
@@ -987,6 +987,11 @@ void Sync::setBackupMonitoring()
     client->syncs.saveSyncConfig(config);
 }
 
+bool Sync::active() const
+{
+    return getConfig().mRunningState >= SYNC_INITIALSCAN;
+}
+
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
 {
     auto range = tmap->equal_range(parent_dbid);
@@ -1053,7 +1058,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 
 bool Sync::readstatecache()
 {
-    if (statecachetable && state == SYNC_INITIALSCAN)
+    if (statecachetable && state() == SYNC_INITIALSCAN)
     {
         string cachedata;
         idlocalnode_map tmap;
@@ -1099,7 +1104,7 @@ const SyncConfig& Sync::getConfig() const
 // remove LocalNode from DB cache
 void Sync::statecachedel(LocalNode* l)
 {
-    if (state == SYNC_CANCELED)
+    if (state() == SYNC_CANCELED)
     {
         return;
     }
@@ -1121,7 +1126,7 @@ void Sync::statecachedel(LocalNode* l)
 // insert LocalNode into DB cache
 void Sync::statecacheadd(LocalNode* l)
 {
-    if (state == SYNC_CANCELED)
+    if (state() == SYNC_CANCELED)
     {
         return;
     }
@@ -1143,7 +1148,8 @@ void Sync::cachenodes()
         insertq.clear();
     }
 
-    if ((state == SYNC_ACTIVE || (state == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
+    if ((state() == SYNC_ACTIVE ||
+        (state() == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
     {
         LOG_debug << "Saving LocalNode database with " << insertq.size() << " additions and " << deleteq.size() << " deletions";
         statecachetable->begin();
@@ -1197,10 +1203,10 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     config.setError(newSyncError);
     config.setEnabled(newEnableFlag);
 
-    if (newstate != state)
+    if (newstate != state())
     {
-        auto oldstate = state;
-        state = newstate;
+        auto oldstate = state();
+        state() = newstate;
         fullscan = false;
 
         if (notifyApp)
@@ -1209,7 +1215,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
             bool nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
-                mUnifiedSync.mClient.app->syncupdate_active(config.getBackupId(), nowActive);
+                mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
             }
         }
     }
@@ -1447,7 +1453,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
     if (parent)
     {
-        if (state != SYNC_INITIALSCAN && !parent->node)
+        if (state() != SYNC_INITIALSCAN && !parent->node)
         {
             LOG_warn << "Parent doesn't exist yet: " << path;
             return (LocalNode*)~0;
@@ -2458,7 +2464,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
         mClient.syncs.saveSyncConfig(mConfig);
         if (notifyApp)
         {
-            mClient.app->syncupdate_stateconfig(mConfig.getBackupId());
+            mClient.app->syncupdate_stateconfig(mConfig);
         }
         mClient.abortbackoff(false);
     }
@@ -2744,28 +2750,28 @@ bool Syncs::syncConfigStoreFlush()
              << " drive(s).";
 
     // Disable syncs present on drives that we couldn't write.
-    size_t disabled = 0;
+    size_t nFailed = failed.size();
 
     disableSelectedSyncs(
-      [&](SyncConfig& config, Sync*)
-      {
-          // But only if they're not already disabled.
-          if (!config.getEnabled()) return false;
+        [&](SyncConfig& config, Sync*)
+        {
+            // But only if they're not already disabled.
+            if (!config.getEnabled()) return false;
 
-          auto matched = failed.count(config.mExternalDrivePath);
+            auto matched = failed.count(config.mExternalDrivePath);
 
-          disabled += matched;
-
-          return matched > 0;
-      },
-      SYNC_CONFIG_WRITE_FAILURE,
-      false);
-
-    LOG_warn << "Disabled "
-             << disabled
-             << " sync(s) on "
-             << failed.size()
-             << " drive(s).";
+            return matched > 0;
+        },
+        false,
+        SYNC_CONFIG_WRITE_FAILURE,
+        false,
+        [=](size_t disabled){
+            LOG_warn << "Disabled "
+                << disabled
+                << " sync(s) on "
+                << nFailed
+                << " drive(s).";
+        });
 
     return false;
 }
@@ -3352,6 +3358,20 @@ void Syncs::resetSyncConfigStore()
     static_cast<void>(syncConfigStore());
 }
 
+vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
+{
+    vector<NodeHandle> v;
+    for (auto& s : mSyncVec)
+    {
+        if (mustBeActive && (!s->mSync || !s->mSync->active()))
+        {
+            continue;
+        }
+        v.emplace_back(s->mConfig.mRemoteNode);
+    }
+    return v;
+}
+
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
 {
     isEmpty = false;
@@ -3482,9 +3502,9 @@ void Syncs::stopCancelledFailedDisabled()
     for (auto& unifiedSync : mSyncVec)
     {
         if (unifiedSync->mSync && (
-            unifiedSync->mSync->state == SYNC_CANCELED ||
-            unifiedSync->mSync->state == SYNC_FAILED ||
-            unifiedSync->mSync->state == SYNC_DISABLED))
+            unifiedSync->mSync->state() == SYNC_CANCELED ||
+            unifiedSync->mSync->state() == SYNC_FAILED ||
+            unifiedSync->mSync->state() == SYNC_DISABLED))
         {
             unifiedSync->mSync.reset();
         }
@@ -3510,26 +3530,22 @@ void Syncs::purgeRunningSyncs()
 
 void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
 {
-    bool anySyncDisabled = false;
-    disableSelectedSyncs([&](SyncConfig& config, Sync*){
-
-        if (config.getEnabled())
+    disableSelectedSyncs([&](SyncConfig& config, Sync*)
         {
-            anySyncDisabled = true;
-            return true;
-        }
-        return false;
-    }, syncError, newEnabledFlag);
-
-    if (anySyncDisabled)
-    {
-        LOG_info << "Disabled syncs. error = " << syncError;
-        mClient.app->syncs_disabled(syncError);
-    }
+            return config.getEnabled();
+        },
+        false,
+        syncError,
+        newEnabledFlag,
+        [=](size_t nDisabled) {
+            LOG_info << "Disabled " << nDisabled << " syncs. error = " << syncError;
+            if (nDisabled) mClient.app->syncs_disabled(syncError);
+        });
 }
 
-void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag)
+void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion)
 {
+    size_t nDisabled = 0;
     for (auto i = mSyncVec.size(); i--; )
     {
         auto& us = *mSyncVec[i];
@@ -3540,7 +3556,7 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
         {
             if (sync)
             {
-                sync->changestate(SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+                sync->changestate(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
                 mClient.syncactivity = true;
             }
             else
@@ -3549,10 +3565,12 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
                 config.setEnabled(config.isInternal() && newEnabledFlag);
                 us.changedConfigState(true);
             }
+            nDisabled += 1;
 
             mHeartBeatMonitor->updateOrRegisterSync(*mSyncVec[i]);
         }
     }
+    if (completion) completion(nDisabled);
 }
 
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
@@ -3619,11 +3637,11 @@ void Syncs::removeSyncByIndex(size_t index)
         mSyncConfigStore->markDriveDirty(mSyncVec[index]->mConfig.mExternalDrivePath);
 
         // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
-        auto backupId = mSyncVec[index]->mConfig.getBackupId();
-        mClient.app->sync_removed(backupId);
+        auto& config = mSyncVec[index]->mConfig;
+        mClient.app->sync_removed(config);
 
         // unregister this sync/backup from API (backup center)
-        mClient.reqs.add(new CommandBackupRemove(&mClient, backupId));
+        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
 
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);
@@ -3772,12 +3790,12 @@ void Syncs::resumeResumableSyncsOnStartup()
                 unifiedSync->enableSync(false, false);
                 LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
-                mClient.app->sync_auto_resume_result(*unifiedSync, true, hadAnError);
+                mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
             }
             else
             {
                 LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
-                mClient.app->sync_auto_resume_result(*unifiedSync, false, hadAnError);
+                mClient.app->sync_auto_resume_result(unifiedSync->mConfig, false, hadAnError);
             }
         }
     }

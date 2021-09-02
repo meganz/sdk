@@ -156,7 +156,7 @@ public:
 // file attribute put
 struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 {
-    handle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
+    NodeOrUploadHandle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
     fatype type;
     m_off_t progressreported;
 
@@ -165,7 +165,7 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     // progress information
     virtual m_off_t transferred(MegaClient*) override;
 
-    HttpReqCommandPutFA(MegaClient*, handle, fatype, std::unique_ptr<string> faData, bool);
+    HttpReqCommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, std::unique_ptr<string> faData);
 
 private:
     std::unique_ptr<string> data;
@@ -475,13 +475,14 @@ public:
 
 class MEGA_API CommandDelNode : public Command
 {
-    handle h;
-    std::function<void(handle, error)> mResultFunction;
+    NodeHandle h;
+    NodeHandle parent;
+    std::function<void(NodeHandle, Error)> mResultFunction;
 
 public:
     bool procresult(Result) override;
 
-    CommandDelNode(MegaClient*, handle, bool keepversions, int tag, std::function<void(handle, error)>);
+    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&);
 };
 
 class MEGA_API CommandDelVersions : public Command
@@ -604,7 +605,7 @@ public:
 class MEGA_API CommandPutNodes : public Command
 {
 public:
-    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool)>;
+    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>;
 
 private:
     friend class MegaClient;
@@ -612,15 +613,15 @@ private:
     targettype_t type;
     putsource_t source;
     bool emptyResponse = false;
-    handle targethandle;
-    Completion mCompletion;
+    NodeHandle targethandle;
+    Completion mResultFunction;
 
     void removePendingDBRecordsAndTempFiles();
 
 public:
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&& completion);
+    CommandPutNodes(MegaClient*, NodeHandle, const char*, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&);
 };
 
 class MEGA_API CommandSetAttr : public Command
@@ -1440,26 +1441,6 @@ public:
     bool procresult(Result) override;
 
     CommandDismissBanner(MegaClient*, int id, m_time_t ts);
-};
-
-typedef std::function<void(Error, string_map)> CommandFetchGoogleAdsCompletion;
-class MEGA_API CommandFetchGoogleAds : public Command
-{
-    CommandFetchGoogleAdsCompletion mCompletion;
-public:
-    bool procresult(Result) override;
-
-    CommandFetchGoogleAds(MegaClient*, int adFlags, const std::vector<std::string>& adUnits, handle publicHandle, CommandFetchGoogleAdsCompletion completion);
-};
-
-typedef std::function<void(Error, int)> CommandQueryGoogleAdsCompletion;
-class MEGA_API CommandQueryGoogleAds : public Command
-{
-    CommandQueryGoogleAdsCompletion mCompletion;
-public:
-    bool procresult(Result) override;
-
-    CommandQueryGoogleAds(MegaClient*, int adFlags, handle publicHandle, CommandQueryGoogleAdsCompletion completion);
 };
 
 } // namespace
