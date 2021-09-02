@@ -22724,7 +22724,7 @@ void MegaApiImpl::sendPendingRequests()
             std::string binaryUploadToken((char *)binTok, binTokSize);
 
             byte *theFileKey;
-            std::unique_ptr<byte> filekey;
+            std::unique_ptr<byte, std::default_delete<byte[]>> filekey;
             if (bgMediaUpload) //using MegaBackgroundMediaUploadPrivate key
             {
                 theFileKey = bgMediaUpload->filekey;
