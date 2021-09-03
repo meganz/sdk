@@ -357,7 +357,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
-    mApi[apiIndex].requestFlags[request->getType()] = true;
     mApi[apiIndex].lastError = e->getErrorCode();
 
     // there could be a race on these getting set?
@@ -584,6 +583,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             break;
 
     }
+
+    // set this flag always the latest, since it is used to unlock the wait
+    // for requests results, so we want data to be collected first
+    mApi[apiIndex].requestFlags[request->getType()] = true;
 }
 
 void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
