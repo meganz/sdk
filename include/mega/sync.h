@@ -403,6 +403,9 @@ public:
     // move file or folder to localdebris
     bool movetolocaldebris(LocalPath& localpath);
 
+    // Moves a file from source to target.
+    bool moveTo(LocalPath source, LocalPath target, bool overwrite);
+
     // get progress for heartbeats
     m_off_t getInflightProgress();
 

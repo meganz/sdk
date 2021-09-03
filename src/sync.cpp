@@ -2606,6 +2606,35 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
     return false;
 }
 
+bool Sync::moveTo(LocalPath source, LocalPath target, bool overwrite)
+{
+    // Convenience.
+    auto& fsAccess = *syncs.fsaccess;
+
+    // Try and move the source to the target.
+    if (fsAccess.renamelocal(source, target, overwrite))
+    {
+        return true;
+    }
+
+    // Did the move fail because the target was already present?
+    if (overwrite || !fsAccess.target_exists)
+    {
+        // Failed for some other reason.
+        return false;
+    }
+
+    // Move the target to the local debris.
+    if (!movetolocaldebris(target))
+    {
+        // Couldn't move the target to the debris.
+        return false;
+    }
+    
+    // Try the move once more.
+    return fsAccess.renamelocal(source, target, false);
+}
+
 // todo: move this to client-side?
 m_off_t Sync::getInflightProgress()
 {
@@ -6045,13 +6074,10 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 auto& sourcePath = row.syncNode->download.actualDownload->localname;
                 auto& targetPath = fullPath.localPath;
 
-                // Let the monitor know what we're up to.
-                monitor.waitingLocal(sourcePath, targetPath, cloudPath, SyncWaitReason::MovingDownloadToTarget);
-
                 // Try and move the downloaded file into its new home.
-                if (fsAccess.renamelocal(sourcePath, targetPath, false))
+                if (moveTo(sourcePath, targetPath, false))
                 {
-                    // No existing file at the target location and the move was successful.
+                    // Move was successful.
                     SYNC_verbose << syncname << "Download complete, moved file to final destination" << logTriplet(row, fullPath);
 
                     // Check for anomalous file names.
@@ -6059,35 +6085,17 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                     row.syncNode->download.reset(nullptr);
                 }
-                else if (fsAccess.target_exists)
-                {
-                    // Something already exists at the move location.
-                    monitor.waitingLocal(sourcePath, targetPath, cloudPath, SyncWaitReason::MovingExistingDownloadTargetToDebris);
-
-                    SYNC_verbose << syncname << "Existing file detected at download target: " << targetPath.toPath();
-
-                    // Try and move it to the local debris.
-                    if (movetolocaldebris(targetPath))
-                    {
-                        SYNC_verbose << syncname << "Moved existing file to local debris: " << targetPath.toPath();
-                    }
-                    else if (fsAccess.transient_error)
-                    {
-                        SYNC_verbose << syncname << "Transient error moving existing file to local debris: " << targetPath.toPath();
-                    }
-                    else
-                    {
-                        SYNC_verbose << syncname << "Failed to move existing file to local debris: " << targetPath.toPath();
-                    }
-                }
                 else if (fsAccess.transient_error)
                 {
-                    // Nothing was there but we encountered a transient error while moving.
+                    // Transient error while moving download into place.
                     SYNC_verbose << syncname << "Download complete, but move transient error" << logTriplet(row, fullPath);
+
+                    // Let the monitor know what we're up to.
+                    monitor.waitingLocal(sourcePath, targetPath, cloudPath, SyncWaitReason::MovingDownloadToTarget);
                 }
                 else
                 {
-                    // Nothing was there but we encountered a hard error while moving.
+                    // Hard error while moving download into place.
                     SYNC_verbose << syncname << "Download complete, but move failed" << logTriplet(row, fullPath);
                     row.syncNode->download.reset(nullptr);
                 }
