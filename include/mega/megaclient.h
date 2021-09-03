@@ -482,7 +482,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(handle, error)> resultFunction = nullptr);
+    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
@@ -536,9 +536,6 @@ public:
     // number of parallel connections per transfer (PUT/GET)
     unsigned char connections[2];
 
-    // generate & return next upload handle
-    handle uploadhandle(int);
-
     // helpfer function for preparing a putnodes call for new node
     error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const std::string &binaryUploadToken,
                                   byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
@@ -550,19 +547,19 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& resultFunction = nullptr);
+    void putnodes(NodeHandle, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag);
 
     // attach file attribute to upload or node handle
-    void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
+    void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
 
     // notify delayed upload completion subsystem about new file attribute
-    void checkfacompletion(handle, Transfer* = NULL);
+    void checkfacompletion(UploadHandle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
     void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0,
@@ -687,17 +684,12 @@ private:
 
 public:
 
-    ////// sync config updating & persisting ////
-
     // transition the cache to failed
     void failSync(Sync* sync, SyncError syncerror);
 
     // disable synchronization. syncError specifies why we are disabling it.
     // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
-    void disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag);
-
-    // fail all active syncs
-    void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
+    void disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag);
 
 #endif  // ENABLE_SYNC
 
@@ -1070,8 +1062,8 @@ private:
     BackoffTimer btpfa;
     bool faretrying;
 
-    // next internal upload handle
-    handle nextuh;
+    // next internal upload handle (call UploadHandle::next() to update value)
+    UploadHandle mUploadHandle;
 
     // just one notification after fetchnodes and catch-up actionpackets
     bool notifyStorageChangeOnStateCurrent = false;
@@ -1137,6 +1129,7 @@ private:
     void sc_uac();
     void sc_la();
     void sc_ub();
+    void sc_sqac();
 
     void init();
 
@@ -1312,13 +1305,13 @@ public:
     fa_map pendingfa;
 
     // upload waiting for file attributes
-    handletransfer_map faputcompletion;
+    uploadhandletransfer_map faputcompletion;
 
     // file attribute fetch channels
     fafc_map fafcs;
 
     // generate attribute string based on the pending attributes for this upload
-    void pendingattrstring(handle, string*);
+    void pendingattrstring(UploadHandle, string*);
 
     // active/pending direct reads
     handledrn_map hdrns;   // DirectReadNodes, main ownership.  One per file, each with one DirectRead per client request.
@@ -1464,9 +1457,6 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
-
-    // generate & return upload handle
-    handle getuploadhandle();
 
     // maps node handle to public handle
     std::map<handle, handle> mPublicLinks;
@@ -1617,7 +1607,7 @@ public:
     bool isFetchingNodesPendingCS();
 
     // upload handle -> node handle map (filled by upload completion)
-    handlepair_set uhnh;
+    set<pair<UploadHandle, NodeHandle>> uhnh;
 
     // transfer chunk failed
     void setchunkfailed(string*);
@@ -1663,6 +1653,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
     Node* childnodebyattribute(Node*, nameid, const char*);
     void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
@@ -1921,8 +1912,6 @@ public:
         CodeCounter::DurationSum transfersActiveTime;
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
-
-    std::string getDeviceid();
 
     std::string getDeviceidHash();
 

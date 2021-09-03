@@ -64,7 +64,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     client = cclient;
     size = 0;
     failcount = 0;
-    uploadhandle = 0;
     minfa = 0;
     pos = 0;
     ctriv = 0;
@@ -73,8 +72,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     slot = NULL;
     asyncopencontext = NULL;
     progresscompleted = 0;
-    hasprevmetamac = false;
-    hascurrentmetamac = false;
     finished = false;
     lastaccesstime = 0;
     ultoken = NULL;
@@ -452,7 +449,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, false);
+                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE, false);
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -584,7 +581,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
             }
             else
             {
-                client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(vp, attrKey, client, node->nodehandle);
+                client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(vp, attrKey, client, node->nodeHandle());
             }
         }
     }
@@ -882,7 +879,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                                 if (missingattr)
                                 {
-                                    client->gfx->gendimensionsputfa(NULL, localname, n->nodehandle, n->nodecipher(), missingattr);
+                                    client->gfx->gendimensionsputfa(NULL, localname, NodeOrUploadHandle(n->nodeHandle()), n->nodecipher(), missingattr);
                                 }
 
                                 addAnyMissingMediaFileAttributes(n, localname);
@@ -1956,7 +1953,8 @@ bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, 
     return false;
 }
 
-std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction)
+std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction,
+                                                             std::function<bool(direction_t)>& directionContinuefunction)
 {
     std::array<vector<Transfer*>, 6> chosenTransfers;
 
@@ -1966,6 +1964,9 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
     {
         for (Transfer *transfer : transfers[direction])
         {
+            // don't traverse the whole list if we already have as many as we are going to get
+            if (!directionContinuefunction(direction)) break;
+
             bool continueLarge = true;
             bool continueSmall = true;
 

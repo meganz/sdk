@@ -217,7 +217,7 @@ int BackupInfoSync::calculatePauseActiveState(MegaClient *client)
 int BackupInfoSync::getSyncState(const UnifiedSync& us)
 {
     SyncError error = us.mConfig.getError();
-    syncstate_t state = us.mSync ? us.mSync->state : SYNC_FAILED;
+    syncstate_t state = us.mSync ? us.mSync->state() : SYNC_FAILED;
 
     return getSyncState(error, state, &us.mClient);
 }
