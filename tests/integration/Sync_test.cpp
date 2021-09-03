@@ -1733,13 +1733,12 @@ struct StandardClient : public MegaApp
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                const string displayPath = m->displaypath();
-                out() << clientname << "Setting up sync from " << displayPath << " to " << localpath;
+                out() << clientname << "Setting up sync from " << m->displaypath() << " to " << localpath;
                 auto syncConfig =
                     SyncConfig(LocalPath::fromPath(localpath.u8string(), *client.fsaccess),
                                localpath.u8string(),
                                NodeHandle().set6byte(m->nodehandle),
-                               displayPath,
+                               subfoldername,
                                0,
                                LocalPath(),
                                //string_vector(),

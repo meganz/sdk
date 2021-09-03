@@ -7306,9 +7306,19 @@ void MegaClient::notifypurge(void)
             if (!n)
                 return;
 
-            // check if moved (just like UnifiedSync::updateSyncRemoteLocation() does it)
-            bool pathChanged = n->displaypath() != us.mConfig.mOriginalPathOfRemoteRootNode ||
-                               us.mConfig.getRemoteNode() != n->nodehandle;
+            // check if moved
+            bool movedToRubbish = n->firstancestor()->nodehandle == rubbishHandle;
+            string displayPath = n->displaypath(); // full path (are there exceptions?)
+            const string& originalPath = us.mConfig.mOriginalPathOfRemoteRootNode; // this can be relative
+            bool pathChanged = n->changed.parent || movedToRubbish ||
+                               // the rest was inpired by UnifiedSync::updateSyncRemoteLocation()
+                               us.mConfig.getRemoteNode() != n->nodehandle ||
+                               // check if path changed, with a special case for original path being relative
+                               originalPath.length() > displayPath.length() ||
+                               (originalPath.length() == displayPath.length() && originalPath != displayPath)  ||
+                               originalPath.empty() || // probably never true
+                               (originalPath.front() != '/' &&
+                                originalPath != displayPath.substr(displayPath.length() - originalPath.length()));
 
             if (n->changed.attrs || pathChanged || n->changed.removed)
             {
@@ -7324,7 +7334,7 @@ void MegaClient::notifypurge(void)
                 }
 
                 // fail sync if required
-                if (n->firstancestor()->nodehandle == rubbishHandle) // moved to rubbish
+                if (movedToRubbish)
                 {
                     failSync(activeSync.get(), REMOTE_NODE_MOVED_TO_RUBBISH);
                 }
