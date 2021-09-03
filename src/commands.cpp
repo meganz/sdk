@@ -2275,8 +2275,8 @@ bool CommandUpdatePendingContact::procresult(Result r)
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
-    arg("nf", 1);
-    arg("b", 2);
+    arg("nf", 2);
+    arg("b", 1);
     tag = client->reqtag;
 }
 
@@ -2288,32 +2288,89 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
         return true;
     }
 
+    string currency; // common for all plans, populated from `l` object
+
     while (client->json.enterobject())
     {
         handle product = UNDEF;
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
-        unsigned amount = 0, amountMonth = 0;
-        const char* amountStr = nullptr;
-        const char* amountMonthStr = nullptr;
-        string localPrice, localPriceCurrency;
-        const char* curr = nullptr;
-        const char* desc = nullptr;
-        const char* ios = nullptr;
-        const char* android = nullptr;
-        string currency;
+        unsigned amount = 0, amountMonth = 0, localPrice = 0;
         string description;
         string ios_id;
         string android_id;
 
         unique_ptr<BusinessPlan> bizPlan;
-        unique_ptr<LocaleData> localeData;
+        unique_ptr<CurrencyData> currencyData;
 
         bool finished = false;
+        bool readingL = false;
+        const char* buf = nullptr;
         while (!finished)
         {
+            buf = nullptr;
+
             switch (client->json.getnameid())
             {
-                case MAKENAMEID2('i', 't'):
+                case MAKENAMEID1('l'):  // currency localization
+                {
+                    if (!client->json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, `l` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    currencyData = mega::make_unique<CurrencyData>();
+                    readingL = true;
+
+                    while (!finished)
+                    {
+                        buf = nullptr;
+
+                        switch(client->json.getnameid())
+                        {
+                            case MAKENAMEID1('c'):  // currency, ie. EUR
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->currencyName, buf);
+                                currency = currencyData->currencyName;
+                                break;
+                            case MAKENAMEID2('c', 's'): // currency symbol, ie. €
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->currencySymbol, buf);
+                                break;
+                            case MAKENAMEID2('l', 'c'):  // local currency, ie. NZD
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->localCurrencyName, buf);
+                                break;
+                            case MAKENAMEID3('l', 'c', 's'):    // local currency symbol, ie. $
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->localCurrencySymbol, buf);
+                                break;
+                            case EOO:
+                                // sanity checks for received data
+                                if (currencyData->currencyName.empty() || currencyData->currencySymbol.empty())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `l` data";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return true;
+                                }
+
+                                finished = true;    // exits from the outer loop too
+                                client->json.leaveobject(); // 'l' object
+                                break;
+                            default:
+                                if (!client->json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, store `l` data";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+                    break;
+                }
+                case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan
                     type = static_cast<int>(client->json.getint());
                     break;
                 case MAKENAMEID2('i', 'd'):
@@ -2331,29 +2388,26 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                 case 'm':
                     months = static_cast<int>(client->json.getint());
                     break;
-                case 'p':
-                    amountStr = client->json.getvalue();
-                    break;
-                case 'c':
-                    curr = client->json.getvalue();
+                case 'p':   // price (in cents)
+                    amount = static_cast<unsigned>(client->json.getint());
                     break;
                 case 'd':
-                    desc = client->json.getvalue();
+                    buf = client->json.getvalue();
+                    JSON::copystring(&description, buf);
                     break;
                 case MAKENAMEID3('i', 'o', 's'):
-                    ios = client->json.getvalue();
+                    buf = client->json.getvalue();
+                    JSON::copystring(&ios_id, buf);
                     break;
                 case MAKENAMEID6('g', 'o', 'o', 'g', 'l', 'e'):
-                    android = client->json.getvalue();
+                    buf = client->json.getvalue();
+                    JSON::copystring(&android_id, buf);
                     break;
-                case MAKENAMEID3('m', 'b', 'p'):
-                    amountMonthStr = client->json.getvalue();
+                case MAKENAMEID3('m', 'b', 'p'):    // monthly price (in cents)
+                    amountMonth = static_cast<unsigned>(client->json.getint());
                     break;
-                case MAKENAMEID2('l', 'p'):
-                    localPrice = client->json.getvalue();
-                    break;
-                case MAKENAMEID3('l', 'p', 'c'):
-                    localPriceCurrency = client->json.getvalue();
+                case MAKENAMEID2('l', 'p'): // local price (in cents)
+                    localPrice = static_cast<unsigned>(client->json.getint());
                     break;
                 case MAKENAMEID2('b', 'd'): // BusinessPlan
                 {
@@ -2540,80 +2594,21 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                     client->json.leaveobject();
                     break;
                 }
-                case 'l':   // LocaleData
-                {
-                    if (!client->json.enterobject())
-                    {
-                        LOG_err << "Failed to parse Enumerate-quota-items response, `l` object";
-                        client->app->enumeratequotaitems_result(API_EINTERNAL);
-                        return false;
-                    }
-
-                    localeData = mega::make_unique<LocaleData>();
-
-                    bool readingL = true;
-                    while (readingL)
-                    {
-                        // parse info and get `gbstorage` and `gbtransfer` from the inner object
-                        switch (client->json.getnameid())
-                        {
-                            case MAKENAMEID2('c', 's'): // currency symbol
-                            {
-                                localeData->currencySymbol = client->json.getvalue();
-                                break;
-                            }
-                            case 'n':
-                                localeData->currencyName = client->json.getvalue();
-                                break;
-                            case MAKENAMEID2('s', 'p'):   // separators
-                            {
-                                if (!client->json.enterarray())
-                                {
-                                    LOG_err << "Failed to parse Enumerate-quota-items response, `sp` array";
-                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
-                                    return false;
-                                }
-
-                                localeData->decimalSeparator = client->json.getvalue();
-                                localeData->thousandsSeparator = client->json.getvalue();
-
-                                client->json.leavearray();
-                                break;
-                            }
-                            case MAKENAMEID2('p', 'l'):   // 1=currency symbol before number, 0=after
-                            {
-                                localeData->currencySymbolBeforeNumber = static_cast<bool>(client->json.getint());
-                                break;
-                            }
-                            case EOO:
-                                readingL = false;
-                                break;
-                            default:
-                                if (!client->json.storeobject())
-                                {
-                                    LOG_err << "Failed to parse Enumerate-quota-items response, `l` object";
-                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
-                                    return false;
-                                }
-                                break;
-                        }
-                    }
-                    client->json.leaveobject();
-                    break;
-                }
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
                             || (prolevel < 0)
+                            || (months < 0)
+                            || currency.empty()
+                            || description.empty()
+                            // only available for Pro plans, not for Business
                             || (!type && gbstorage < 0)
                             || (!type && gbtransfer < 0)
-                            || (months < 0)
-                            || !amountStr
-                            || !curr
-                            || !desc
-                            || !amountMonthStr
-                            || (!type && !ios)
-                            || (!type && !android)
+                            || (!type && !amount)
+                            || (!type && !amountMonth)
+                            || (!type && ios_id.empty())
+                            || (!type && android_id.empty())
+                            // only available for Business plan(s)
                             || (type == 1 && !bizPlan))
                     {
                         client->app->enumeratequotaitems_result(API_EINTERNAL);
@@ -2631,49 +2626,24 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                     }
                     break;
             }
-        }
+        }   // end while(!finished)
 
         client->json.leaveobject();
-        JSON::copystring(&currency, curr);
-        JSON::copystring(&description, desc);
-        JSON::copystring(&ios_id, ios);
-        JSON::copystring(&android_id, android);
 
-        amount = atoi(amountStr) * 100;
-        if ((curr = strchr(amountStr, '.')))
+        if (readingL)
         {
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amount += (*curr - '0') * 10;
-            }
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amount += *curr - '0';
-            }
+            // just read currency data, keep reading objects for each pro/business plan
+            readingL = false;
+            client->app->enumeratequotaitems_result(move(currencyData));
+            continue;
         }
-
-        amountMonth = atoi(amountMonthStr) * 100;
-        if ((curr = strchr(amountMonthStr, '.')))
+        else
         {
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amountMonth += (*curr - '0') * 10;
-            }
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amountMonth += *curr - '0';
-            }
+            client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
+                                                    gbtransfer, months, amount, amountMonth, localPrice,
+                                                    description.c_str(), ios_id.c_str(), android_id.c_str(),
+                                                    move(bizPlan));
         }
-
-        client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
-                                                gbtransfer, months, amount, amountMonth, currency.c_str(),
-                                                move(localPrice), move(localPriceCurrency),
-                                                description.c_str(), ios_id.c_str(), android_id.c_str(),
-                                                move(bizPlan), move(localeData));
     }
 
     client->app->enumeratequotaitems_result(API_OK);

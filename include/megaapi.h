@@ -58,6 +58,7 @@ class MegaTreeProcessor;
 class MegaAccountDetails;
 class MegaAchievementsDetails;
 class MegaPricing;
+class MegaCurrency;
 class MegaNode;
 class MegaUser;
 class MegaUserAlert;
@@ -3721,6 +3722,19 @@ class MegaRequest
          * @return Available pricing plans to upgrade a MEGA account
          */
         virtual MegaPricing *getPricing() const;
+
+        /**
+         * @brief Returns currency data related to prices
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getCurrency - Returns the currency data related to prices
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return Currency data related to prices
+         */
+        virtual MegaCurrency *getCurrency() const;
 
         /**
          * @brief Returns details related to the MEGA Achievements of this account
@@ -11444,6 +11458,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getPricing - MegaPricing object with all pricing plans
+         * - MegaRequest::getCurrency - MegaCurrency object with currency data related to prices
          *
          * @param listener MegaRequestListener to track this request
          *
@@ -19455,6 +19470,65 @@ public:
     virtual bool isTemporalBandwidthValid();
 };
 
+class MegaCurrency
+{
+public:
+    virtual ~MegaCurrency();
+
+    /**
+     * @brief Creates a copy of this MegaCurrency object.
+     *
+     * The resulting object is fully independent of the source MegaCurrency,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaCurrency object
+     */
+    virtual MegaCurrency *copy();
+
+    /**
+     * @brief Get the currency symbol of prices, ie. €
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @return currency symbol of price
+     */
+    virtual const char* getCurrencySymbol();
+
+    /**
+     * @brief Get the currency name of prices, ie. EUR
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @return currency name of price
+     */
+    virtual const char* getCurrencyName();
+
+    /**
+     * @brief Get the currency symbol of local prices, ie. $
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @return currency symbol of local price
+     */
+    virtual const char* getLocalCurrencySymbol();
+
+    /**
+     * @brief Get the currency name of local prices, ie. NZD
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @return currency name of local price
+     */
+    virtual const char* getLocalCurrencyName();
+};
+
 /**
  * @brief Details about pricing plans
  *
@@ -19526,37 +19600,11 @@ public:
     virtual int getAmount(int productIndex);
 
     /**
-     * @brief Get the currency associated with MegaPricing::getAmount
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaPricing object is deleted.
-     *
+     * @brief Get the price in the local currency (in cents)
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return Currency associated with MegaPricing::getAmount
+     * @return Price of the product (in cents)
      */
-    virtual const char* getCurrency(int productIndex);
-
-    /**
-     * @brief Get the price in the local currency
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaPricing object is deleted.
-     *
-     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return Price of the product, formatted as a string (ie. $8.41)
-     */
-    virtual const char* getLocalPrice(int productIndex);
-
-    /**
-     * @brief Get the currency associated with MegaPricing::getLocalPrice
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaPricing object is deleted.
-     *
-     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return Currency associated with MegaPricing::getLocalPrice (ie. NZD)
-     */
-    virtual const char* getLocalPriceCurrency(int productIndex);
+    virtual int getLocalPrice(int productIndex);
 
     /**
      * @brief Get a description of the product
@@ -19708,57 +19756,6 @@ public:
      * @return price per storage block
      */
     virtual int getGBPerTransfer(int productIndex);
-
-    /**
-     * @brief Get the currency symbol of local price
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaPricing object is deleted.
-     *
-     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return currency symbol of local price
-     */
-    virtual const char* getCurrencySymbol(int productIndex);
-
-    /**
-     * @brief Get the currency name of local price
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaPricing object is deleted.
-     *
-     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return currency name of local price
-     */
-    virtual const char* getCurrencyName(int productIndex);
-
-    /**
-     * @brief Get the decimal separator used locally
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaPricing object is deleted.
-
-     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return decimal separator used locally
-     */
-    virtual const char* getDecimalSeparator(int productIndex);
-
-    /**
-     * @brief Get the thousands separator used locally
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaPricing object is deleted.
-
-     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return thousands separator used locally
-     */
-    virtual const char* getThousandsSeparator(int productIndex);
-
-    /**
-     * @brief True if currency symbol goes before number, false if after number
-     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return True if currency symbol goes before number, false if after number
-     */
-    virtual bool isCurrencySymbolBeforeNumber(int productIndex);
 };
 
 /**

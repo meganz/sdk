@@ -139,8 +139,9 @@ struct MEGA_API MegaApp
 
     // purchase transactions
     virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
-                                            unsigned, const char*, string, string, const char*, const char*, const char*,
-                                            unique_ptr<BusinessPlan>, unique_ptr<LocaleData>) { }
+                                            unsigned, unsigned, const char*, const char*, const char*,
+                                            unique_ptr<BusinessPlan>) { }
+    virtual void enumeratequotaitems_result(unique_ptr<CurrencyData>) {}
     virtual void enumeratequotaitems_result(error) { }
     virtual void additem_result(error) { }
     virtual void checkout_result(const char*, error) { }

@@ -173,13 +173,13 @@ struct MEGA_API BusinessPlan
     int gbPerTransfer = 0;
 };
 
-struct MEGA_API LocaleData
+struct MEGA_API CurrencyData
 {
-    std::string currencySymbol;
-    std::string currencyName;
-    std::string decimalSeparator;
-    std::string thousandsSeparator;
-    bool currencySymbolBeforeNumber = false;
+    std::string currencySymbol;         // ie. €
+    std::string currencyName;           // ie. EUR
+
+    std::string localCurrencySymbol;    // ie. $
+    std::string localCurrencyName;      // ie. NZD
 };
 
 } // namespace
