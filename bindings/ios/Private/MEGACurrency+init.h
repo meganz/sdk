@@ -21,7 +21,7 @@
 #import "MEGACurrency.h"
 #import "megaapi.h"
 
-@interface MEGAPricing (init)
+@interface MEGACurrency (init)
 
 - (instancetype)initWithMegaCurrency:(mega::MegaCurrency *)currency cMemoryOwn:(BOOL)cMemoryOwn;
 - (mega::MegaCurrency *)getCPtr;
