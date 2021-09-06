@@ -2480,10 +2480,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                                     switch (client->json.getnameid())
                                     {
                                         case 'p':
-                                            bizPlan->pricePerUser = static_cast<int>(client->json.getfloat()*100);
+                                            bizPlan->pricePerUser = static_cast<unsigned>(client->json.getint());
                                             break;
                                         case MAKENAMEID2('l', 'p'):
-                                            bizPlan->localPricePerUser = static_cast<int>(client->json.getfloat()*100);
+                                            bizPlan->localPricePerUser = static_cast<unsigned>(client->json.getint());
                                             break;
                                         case EOO:
                                             readingUs = false;
@@ -2519,10 +2519,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                                             bizPlan->gbPerStorage = static_cast<int>(client->json.getint());
                                             break;
                                         case 'p':
-                                            bizPlan->pricePerStorage = static_cast<int>(client->json.getfloat()*100);
+                                            bizPlan->pricePerStorage = static_cast<unsigned>(client->json.getint());
                                             break;
                                         case MAKENAMEID2('l', 'p'):
-                                            bizPlan->localPricePerStorage = static_cast<int>(client->json.getfloat()*100);
+                                            bizPlan->localPricePerStorage = static_cast<unsigned>(client->json.getint());
                                             break;
                                         case EOO:
                                             readingSto = false;
@@ -2558,10 +2558,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                                             bizPlan->gbPerTransfer = static_cast<int>(client->json.getint());
                                             break;
                                         case 'p':
-                                            bizPlan->pricePerTransfer = static_cast<int>(client->json.getfloat()*100);
+                                            bizPlan->pricePerTransfer = static_cast<unsigned>(client->json.getint());
                                             break;
                                         case MAKENAMEID2('l', 'p'):
-                                            bizPlan->localPricePerTransfer = static_cast<int>(client->json.getfloat()*100);
+                                            bizPlan->localPricePerTransfer = static_cast<unsigned>(client->json.getint());
                                             break;
                                         case EOO:
                                             readingTrns = false;
