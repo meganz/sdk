@@ -7315,8 +7315,8 @@ void MegaClient::notifypurge(void)
                                us.mConfig.getRemoteNode() != n->nodehandle ||
                                // check if path changed, with a special case for original path being relative
                                originalPath.length() > displayPath.length() ||
-                               (originalPath.length() == displayPath.length() && originalPath != displayPath)  ||
                                originalPath.empty() || // probably never true
+                               (originalPath.front() == '/' && originalPath != displayPath)  ||
                                (originalPath.front() != '/' &&
                                 originalPath != displayPath.substr(displayPath.length() - originalPath.length()));
 
