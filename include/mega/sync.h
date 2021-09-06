@@ -384,6 +384,8 @@ public:
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
+    bool collectIgnoreFileFailures(list<LocalPath>& paths) const;
+
     bool collectScanBlocked(list<LocalPath>& paths) const;
     void collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) const;
 
@@ -888,6 +890,9 @@ public:
 
     // Get scan and use blocked paths - pass UNDEF to collect for all syncs.
     void collectSyncScanUseBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked)>, bool completionInClient);
+
+    // Get ignore file failures - pass UNDEF to collect for all syncs.
+    void collectIgnoreFileFailures(handle id, std::function<void(list<LocalPath>&& names)> completion, bool inClient);
 
     // waiter for sync loop on thread
     WAIT_CLASS waiter;

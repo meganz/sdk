@@ -4350,6 +4350,11 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, 
     }
 }
 
+bool Sync::collectIgnoreFileFailures(list<LocalPath>&) const
+{
+    return false;
+}
+
 bool Sync::collectScanBlocked(list<LocalPath>& paths) const
 {
     collectScanBlocked(*localroot, paths);
@@ -7875,6 +7880,50 @@ void Syncs::collectSyncScanUseBlockedPaths(handle backupId, std::function<void(l
             }
             finalcompletion(move(b1), move(b2));
         });
+}
+
+void Syncs::collectIgnoreFileFailures(handle id, std::function<void(list<LocalPath>&& names)> completion, bool inClient)
+{
+    assert(!onSyncThread());
+
+    // No need to perform any work if there's no one to receive the result.
+    if (!completion) return;
+
+    // Construct trampoline if necessary.
+    if (inClient)
+    {
+        completion = [completion, this](list<LocalPath>&& p) {
+            // Shared so it exists until used.
+            auto pptr = std::make_shared<list<LocalPath>>(std::move(p));
+
+            // Queue the completion function for a call from the client.
+            queueClient([completion, pptr](MegaClient&, DBTableTransactionCommitter&) {
+                // Hey, we're done!
+                completion(std::move(*pptr));
+            });
+        };
+    }
+
+    // Ask the core to gather our results.
+    queueSync([completion, id, this]() {
+        list<LocalPath> paths;
+
+        // Iterate over the syncs, gathering results where appropriate.
+        for (auto& us : mSyncVec)
+        {
+            // Skip syncs that aren't running.
+            if (!us->mSync) continue;
+
+            // Skip syncs we're not interested in.
+            if (id != UNDEF && us->mConfig.mBackupId != id) continue;
+
+            // Gather results.
+            us->mSync->collectIgnoreFileFailures(paths);
+        }
+
+        // Pass results to whoever's waiting.
+        completion(std::move(paths));
+    });
 }
 
 void Syncs::setSyncsNeedFullSync(bool andFullScan, handle backupId)
