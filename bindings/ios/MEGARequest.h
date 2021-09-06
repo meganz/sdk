@@ -29,6 +29,7 @@
 #import "MEGAPushNotificationSettings.h"
 #import "MEGABannerList.h"
 #import "MEGAHandleList.h"
+#import "MEGACurrency.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -465,6 +466,15 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) MEGAPricing *pricing;
+
+/**
+ * @brief Currency data related to prices
+ *
+ * This value is valid for these request in onRequestFinish when the
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk getPricing] - Returns the currency data related to prices
+ */
+@property (readonly, nonatomic) MEGACurrency *currency;
 
 /**
  * @brief Details related to the MEGA Achievements of this account
