@@ -1173,51 +1173,6 @@ byte *EncryptFilePieceByChunks::nextbuffer(unsigned bufsize)
 
 #ifdef ENABLE_SYNC
 
-bool WildcardMatch(const char *pszString, const char *pszMatch)
-//  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
-{
-    const char *cp = nullptr;
-    const char *mp = nullptr;
-
-    while ((*pszString) && (*pszMatch != '*'))
-    {
-        if ((*pszMatch != *pszString) && (*pszMatch != '?'))
-        {
-            return false;
-        }
-        pszMatch++;
-        pszString++;
-    }
-
-    while (*pszString)
-    {
-        if (*pszMatch == '*')
-        {
-            if (!*++pszMatch)
-            {
-                return true;
-            }
-            mp = pszMatch;
-            cp = pszString + 1;
-        }
-        else if ((*pszMatch == *pszString) || (*pszMatch == '?'))
-        {
-            pszMatch++;
-            pszString++;
-        }
-        else
-        {
-            pszMatch = mp;
-            pszString = cp++;
-        }
-    }
-    while (*pszMatch == '*')
-    {
-        pszMatch++;
-    }
-    return !*pszMatch;
-}
-
 bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpath)
 {
     // Is this path excluded by any path filters?
@@ -1236,7 +1191,7 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpa
                 return false;
             }
 
-            if (WildcardMatch(temp.c_str(), xpath.c_str()))
+            if (wildcardMatch(temp, xpath))
             {
                 return false;
             }
@@ -1266,7 +1221,7 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpa
         // Is this component's name excluded by any filename filters?
         for (const auto& xname : excludedNames)
         {
-            if (WildcardMatch(name.c_str(), xname.c_str()))
+            if (wildcardMatch(name, xname))
             {
                 return false;
             }

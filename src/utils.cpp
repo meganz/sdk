@@ -2585,6 +2585,56 @@ bool readLines(const std::string& input, string_vector& destination)
     return true;
 }
 
+bool wildcardMatch(const string& text, const string& pattern)
+{
+    return wildcardMatch(text.c_str(), pattern.c_str());
+}
+
+bool wildcardMatch(const char *text, const char *pattern)
+//  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
+{
+    const char *cp = nullptr;
+    const char *mp = nullptr;
+
+    while ((*text) && (*pattern != '*'))
+    {
+        if ((*pattern != *text) && (*pattern != '?'))
+        {
+            return false;
+        }
+        pattern++;
+        text++;
+    }
+
+    while (*text)
+    {
+        if (*pattern == '*')
+        {
+            if (!*++pattern)
+            {
+                return true;
+            }
+            mp = pattern;
+            cp = text + 1;
+        }
+        else if ((*pattern == *text) || (*pattern == '?'))
+        {
+            pattern++;
+            text++;
+        }
+        else
+        {
+            pattern = mp;
+            text = cp++;
+        }
+    }
+    while (*pattern == '*')
+    {
+        pattern++;
+    }
+    return !*pattern;
+}
+
 string syncWaitReasonString(SyncWaitReason r)
 {
     switch(r)
