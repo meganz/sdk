@@ -3699,7 +3699,7 @@ class MegaRequest
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
-         * - MegaApi::getCurrency - Returns the currency data related to prices
+         * - MegaApi::getPricing - Returns available pricing plans to upgrade a MEGA account
          *
          * You take the ownership of the returned value.
          *
