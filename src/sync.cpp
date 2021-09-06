@@ -4882,14 +4882,21 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 }
                 childRow.rowSiblings = &childRows;
 
-                if (childRow.fsNode && childRow.syncNode)
+                if (auto* s = childRow.syncNode)
                 {
-                    if (childRow.syncNode->fsid_asScanned != childRow.fsNode->fsid)
+                    if (auto* f = childRow.fsNode)
                     {
-                        syncs.setScannedFsidReused(childRow.fsNode->fsid, nullptr);   // todo: could put these lines first then we don't need excluded parameter?
-                        childRow.syncNode->setScannedFsid(childRow.fsNode->fsid, syncs.localnodeByScannedFsid, childRow.fsNode->localname);
+                        // Maintain the scanned fingerprint.
+                        s->scannedFingerprint = f->fingerprint;
+
+                        // Maintain scanned FSID.
+                        if (s->fsid_asScanned != f->fsid)
+                        {
+                            // TODO: Put these lines first to eliminate excluded parameter?
+                            syncs.setScannedFsidReused(f->fsid, nullptr);
+                            s->setScannedFsid(f->fsid, syncs.localnodeByScannedFsid, f->localname);
+                        }
                     }
-                    childRow.syncNode->scannedFingerprint = childRow.fsNode->fingerprint; // this can change anytime
                 }
 
                 ScopedSyncPathRestore syncPathRestore(fullPath);

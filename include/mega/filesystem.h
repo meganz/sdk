@@ -677,15 +677,20 @@ struct MEGA_API FSNode
     bool isBlocked = false;
     FileFingerprint fingerprint; // includes size, mtime
 
-    bool equivalentTo(const FSNode& n) {
-        return localname == n.localname &&
-            //name == n.name &&
-            (!shortname && (!n.shortname || localname == *n.shortname) ||
-                (shortname && n.shortname && *shortname == *n.shortname)) &&
-            type == n.type &&
-            fsid == n.fsid &&
-            isSymlink == n.isSymlink &&
-            fingerprint == n.fingerprint;
+    bool equivalentTo(const FSNode& n) const
+    {
+        if (type != n.type) return false;
+
+        if (fsid != n.fsid) return false;
+
+        if (isSymlink != n.isSymlink) return false;
+
+        if (type == FILENODE && !(fingerprint == n.fingerprint)) return false;
+
+        if (localname != n.localname) return false;
+
+        return (!shortname && (!n.shortname || localname == *n.shortname))
+               || (shortname && n.shortname && *shortname == *n.shortname);
     }
 
     unique_ptr<LocalPath> cloneShortname() const
