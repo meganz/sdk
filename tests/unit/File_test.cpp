@@ -95,7 +95,7 @@ TEST(File, unserialize_32bit)
     auto client = mt::makeClient(app, fsaccess);
     mega::File file;
     file.name = "foo";
-    file.localname = ::mega::LocalPath::fromPath(file.name, fsaccess);
+    file.setLocalname(::mega::LocalPath::fromPath(file.name, fsaccess));
     file.h.set6byte(42);
     file.hprivate = true;
     file.hforeign = true;
