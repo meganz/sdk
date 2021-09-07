@@ -1239,7 +1239,7 @@ struct StandardClient : public MegaApp
 
         file->h = node.nodeHandle();
         file->hprivate = true;
-        file->localname = LocalPath::fromPath(destination.u8string(), *client.fsaccess);
+        file->setLocalname(LocalPath::fromPath(destination.u8string(), *client.fsaccess));
         file->name = node.displayname();
         file->result = std::move(result);
 
@@ -1288,7 +1288,7 @@ struct StandardClient : public MegaApp
         unique_ptr<File> file(new FilePut());
 
         file->h = parent->nodeHandle();
-        file->localname = LocalPath::fromPath(path.u8string(), *client.fsaccess);
+        file->setLocalname(LocalPath::fromPath(path.u8string(), *client.fsaccess));
         file->name = name;
 
         client.startxfer(PUT, file.release(), committer);

@@ -104,7 +104,7 @@ public:
     bool renamelocal(LocalPath&, LocalPath&, bool) override;
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
     bool rubbishlocal(string*);
-    bool unlinklocal(LocalPath&) override;
+    bool unlinklocal(const LocalPath&) override;
     bool rmdirlocal(LocalPath&) override;
     bool mkdirlocal(LocalPath&, bool) override;
     bool setmtimelocal(LocalPath&, m_time_t) override;
@@ -156,7 +156,7 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
+    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
 
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);

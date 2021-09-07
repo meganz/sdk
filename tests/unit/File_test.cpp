@@ -41,7 +41,7 @@ namespace
 void checkFiles(const mega::File& exp, const mega::File& act)
 {
     ASSERT_EQ(exp.name, act.name);
-    ASSERT_EQ(exp.localname, act.localname);
+    ASSERT_EQ(exp.getLocalname(), act.getLocalname());
     ASSERT_EQ(exp.h, act.h);
     ASSERT_EQ(exp.hprivate, act.hprivate);
     ASSERT_EQ(exp.hforeign, act.hforeign);
@@ -65,7 +65,7 @@ TEST(File, serialize_unserialize)
     auto client = mt::makeClient(app, fsaccess);
     mega::File file;
     file.name = "foo";
-    file.localname = ::mega::LocalPath::fromPath(file.name, fsaccess);
+    file.setLocalname(::mega::LocalPath::fromPath(file.name, fsaccess));
     file.h.set6byte(42);
     file.hprivate = true;
     file.hforeign = true;

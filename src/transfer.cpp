@@ -250,7 +250,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     const char *filepath = ptr;
     ptr += ll;
 
-    Transfer *t = new Transfer(client, type);
+    unique_ptr<Transfer> t(new Transfer(client, type));
 
     memcpy(t->filekey, ptr, sizeof t->filekey);
     ptr += sizeof(t->filekey);
@@ -269,7 +269,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (!t->chunkmacs.unserialize(ptr, end))
     {
         LOG_err << "Transfer unserialization failed - chunkmacs too long";
-        delete t;
         return NULL;
     }
 
@@ -279,11 +278,10 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (!fp)
     {
         LOG_err << "Error unserializing Transfer: Unable to unserialize FileFingerprint";
-        delete t;
         return NULL;
     }
 
-    *(FileFingerprint *)t = *(FileFingerprint *)fp;
+    *(FileFingerprint *)t.get() = *(FileFingerprint *)fp;
     delete fp;
 
     fp = FileFingerprint::unserialize(d);
@@ -296,7 +294,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (ptr + sizeof(m_time_t) + sizeof(char) > end)
     {
         LOG_err << "Transfer unserialization failed - fingerprint too long";
-        delete t;
         return NULL;
     }
 
@@ -312,7 +309,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
             || (ptr + ll + sizeof(unsigned short) > end))
     {
         LOG_err << "Transfer unserialization failed - invalid ultoken";
-        delete t;
         return NULL;
     }
 
@@ -329,7 +325,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (ptr + ll + 10 > end)
     {
         LOG_err << "Transfer unserialization failed - temp URL too long";
-        delete t;
         return NULL;
     }
 
@@ -345,7 +340,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (!t->tempurls.empty() && t->tempurls.size() != 1 && t->tempurls.size() != RAIDPARTS)
     {
         LOG_err << "Transfer unserialization failed - temp URL incorrect components";
-        delete t;
         return NULL;
     }
     ptr += ll;
@@ -364,15 +358,19 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (*ptr)
     {
         LOG_err << "Transfer unserialization failed - invalid version";
-        delete t;
         return NULL;
     }
     ptr++;
 
     t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
-    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
-    return t;
+    auto it_bool = transfers[type].insert(pair<FileFingerprint*, Transfer*>(t.get(), t.get()));
+    if (!it_bool.second)
+    {
+        // duplicate transfer
+        t.reset();
+    }
+    return t.release();
 }
 
 SymmCipher *Transfer::transfercipher()
@@ -447,10 +445,6 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         client->looprequested = true;
         ++client->performanceStats.transferTempErrors;
     }
-
-#ifdef ENABLE_SYNC
-    bool alreadyDisabled = false;
-#endif
 
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
@@ -533,6 +527,10 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         state = TRANSFERSTATE_FAILED;
         finished = true;
 
+#ifdef ENABLE_SYNC
+        bool alreadyDisabled = false;
+#endif
+
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
 #ifdef ENABLE_SYNC
@@ -584,7 +582,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
         if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
             // if we don't have the codec id mappings yet, send the request
-            client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+            client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
 
             // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
             MediaProperties vp;
@@ -631,13 +629,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         // set timestamp (subsequent moves & copies are assumed not to alter mtime)
         success = client->fsaccess->setmtimelocal(localfilename, mtime);
 
-#ifdef ENABLE_SYNC
         if (!success)
         {
             transient_error = client->fsaccess->transient_error;
             LOG_debug << "setmtimelocal failed " << transient_error;
         }
-#endif
 
         // verify integrity of file
         auto fa = client->fsaccess->newfileaccess();
@@ -701,7 +697,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 }
             }
         }
-#ifdef ENABLE_SYNC
         else
         {
             if (syncxfer && !fixedfingerprint && success)
@@ -710,7 +705,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 LOG_debug << "Unable to validate fingerprint " << transient_error;
             }
         }
-#endif
         fa.reset();
 
         char me64[12];
@@ -759,7 +753,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             {
                 transient_error = false;
                 success = false;
-                localname = (*it)->localname;
+                localname = (*it)->getLocalname();
 
                 if (localname != localfilename)
                 {
@@ -767,9 +761,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     if (fa->fopen(localname) || fa->type == FOLDERNODE)
                     {
                         // the destination path already exists
-        #ifdef ENABLE_SYNC
                         if(!(*it)->syncxfer)
-        #endif
                         {
                             LOG_debug << "The destination file exist (not synced). Saving with a different name";
 
@@ -783,7 +775,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                             } while (fa->fopen(localnewname) || fa->type == FOLDERNODE);
 
 
-                            (*it)->localname = localnewname;
+                            (*it)->setLocalname(localnewname);
                             localname = localnewname;
                         }
                     }
@@ -877,7 +869,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     {
                         if (auto node = client->nodeByHandle((*it)->h))
                         {
-                            auto path = (*it)->localname;
+                            auto path = (*it)->getLocalname();
                             auto type = isFilenameAnomaly(path, node);
 
                             if (type != FILENAME_ANOMALY_NONE)
@@ -970,21 +962,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             File *f = (*it);
-            LocalPath *localpath = &f->localname;
+            LocalPath localpath = f->getLocalname();
 
-#ifdef ENABLE_SYNC
-            LocalPath synclocalpath;
-            LocalNode *ll = dynamic_cast<LocalNode *>(f);
-            if (ll)
-            {
-                LOG_debug << "Verifying sync upload";
-                synclocalpath = ll->getLocalPath();
-                localpath = &synclocalpath;
-            }
-#endif
             if (auto node = client->nodeByHandle(f->h))
             {
-                auto type = isFilenameAnomaly(*localpath, f->name);
+                auto type = isFilenameAnomaly(localpath, f->name);
 
                 if (type != FILENAME_ANOMALY_NONE)
                 {
@@ -995,17 +977,14 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                << (node->parent ? "/" : "")
                                << f->name;
 
-                    client->filenameAnomalyDetected(type, localpath->toPath(), remotepath.str());
+                    client->filenameAnomalyDetected(type, localpath.toPath(), remotepath.str());
                 }
             }
 
-            if (localpath == &f->localname)
-            {
-                LOG_debug << "Verifying regular upload";
-            }
+            LOG_debug << "Verifying upload";
 
             auto fa = client->fsaccess->newfileaccess();
-            bool isOpen = fa->fopen(*localpath);
+            bool isOpen = fa->fopen(localpath);
             if (!isOpen)
             {
                 if (client->fsaccess->transient_error)
@@ -1028,16 +1007,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     LOG_warn << "Modification detected after upload";
                 }
 
-#ifdef ENABLE_SYNC
-                if (f->syncxfer)
-                {
-                    if (SyncUpload_inClient *syncUpload = dynamic_cast<SyncUpload_inClient*>(f))
-                    {
-                    //todo:
-                        //syncUpload->localNode.setScanAgain(true, false, false, 0);
-                    }
-                }
-#endif
                 it++; // the next line will remove the current item and invalidate that iterator
                 removeTransferFile(API_EREAD, f, &committer);
             }
@@ -1081,7 +1050,7 @@ void Transfer::completefiles()
             {
                 pfs = &client->pendingfiles[tag];
             }
-            pfs->push_back(f->localname);
+            pfs->push_back(f->getLocalname());
         }
 
         client->app->file_complete(f);

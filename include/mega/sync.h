@@ -207,7 +207,7 @@ struct syncRow
     {
     };
 
-    // needs to be move constructable/assingable for sorting (note std::list of non-copyable below)
+    // needs to be move constructable/assignable for sorting (note std::list of non-copyable below)
     syncRow(syncRow&&) = default;
     syncRow& operator=(syncRow&&) = default;
 
@@ -354,7 +354,7 @@ public:
         vector<CloudNode>& cloudNodes,
         const LocalNode& root,
         vector<FSNode>& fsNodes) const;
-    bool inferAlreadySyncedTriplets(
+    bool inferRegeneratableTriplets(
         vector<CloudNode>& cloudNodes,
         const LocalNode& root,
         vector<FSNode>& fsNodes,

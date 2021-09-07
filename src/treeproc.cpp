@@ -134,13 +134,17 @@ void LocalTreeProcMove::proc(FileSystemAccess&, LocalNode* localnode)
 
 void LocalTreeProcUpdateTransfers::proc(FileSystemAccess& fsa, LocalNode *localnode)
 {
-    if (localnode->upload.actualUpload &&
-        localnode->upload.actualUpload->transfer &&   // todo: thread safety
-        !localnode->upload.actualUpload->transfer->localfilename.empty())
+    // Only updating the localname thread safe field.
+    // Transfers are managed from the megaclient thread
+
+    if (localnode->upload.actualTransfer)
     {
-        LOG_debug << "Updating transfer path";
-        localnode->upload.actualUpload->localname = localnode->getLocalPath();
-        localnode->upload.actualUpload->prepare(fsa);
+        localnode->upload.actualTransfer->setLocalname(localnode->getLocalPath());
+    }
+
+    if (localnode->download.actualTransfer)
+    {
+        localnode->download.actualTransfer->setLocalname(localnode->getLocalPath());
     }
 }
 

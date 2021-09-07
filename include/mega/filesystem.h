@@ -320,7 +320,7 @@ struct MEGA_API FileAccess
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
     // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
-    virtual bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) = 0;
+    virtual bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) = 0;
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
@@ -560,7 +560,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool copylocal(LocalPath&, LocalPath&, m_time_t) = 0;
 
     // delete file
-    virtual bool unlinklocal(LocalPath&) = 0;
+    virtual bool unlinklocal(const LocalPath&) = 0;
 
     // delete empty directory
     virtual bool rmdirlocal(LocalPath&) = 0;

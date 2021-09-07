@@ -2630,7 +2630,7 @@ bool Sync::moveTo(LocalPath source, LocalPath target, bool overwrite)
         // Couldn't move the target to the debris.
         return false;
     }
-    
+
     // Try the move once more.
     return fsAccess.renamelocal(source, target, false);
 }
@@ -4499,7 +4499,7 @@ void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& chi
     // Effective children are from the last scan, if present.
     vector<FSNode>* effectiveFsChildren = syncNode->lastFolderScan.get();
 
-    if (wasSynced && syncNode->sync->inferAlreadySyncedTriplets(cloudChildren, *syncNode, fsInferredChildren, childRows))
+    if (wasSynced && syncNode->sync->inferRegeneratableTriplets(cloudChildren, *syncNode, fsInferredChildren, childRows))
     {
         effectiveFsChildren = &fsInferredChildren;
     }
@@ -4514,7 +4514,7 @@ void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& chi
             {
                 if (childIt.second->fsid_lastSynced != UNDEF)
                 {
-                    fsChildren.emplace_back(childIt.second->getLastSyncedFSDetails());
+                    fsChildren.emplace_back(childIt.second->getScannedFSDetails());
                 }
             }
 
@@ -4919,7 +4919,7 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
     return triplets;
 }
 
-bool Sync::inferAlreadySyncedTriplets(vector<CloudNode>& cloudChildren, const LocalNode& syncParent, vector<FSNode>& inferredFsNodes, vector<syncRow>& inferredRows) const
+bool Sync::inferRegeneratableTriplets(vector<CloudNode>& cloudChildren, const LocalNode& syncParent, vector<FSNode>& inferredFsNodes, vector<syncRow>& inferredRows) const
 {
     assert(syncs.onSyncThread());
 
@@ -4954,13 +4954,13 @@ bool Sync::inferAlreadySyncedTriplets(vector<CloudNode>& cloudChildren, const Lo
             return false;
         }
 
-        if (child.second->fsid_lastSynced == UNDEF || child.second->fsid_lastSynced != child.second->fsid_asScanned)
+        if (child.second->fsid_asScanned == UNDEF)
         {
-            // on-disk is different to our LocalNode list
+            assert(false); // shouldn't be in this function if we haven't scanned yet
             return false;
         }
 
-        inferredFsNodes.push_back(child.second->getLastSyncedFSDetails());
+        inferredFsNodes.push_back(child.second->getScannedFSDetails());
         inferredRows.emplace_back(node, child.second, &inferredFsNodes.back());
     }
     return true;
@@ -5023,6 +5023,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
             row.syncNode->scanAgain = TREE_ACTION_HERE;
             row.syncNode->setScannedFsid(row.fsNode->fsid, syncs.localnodeByScannedFsid, row.fsNode->localname);
         }
+        row.syncNode->scannedFingerprint = row.fsNode->fingerprint; // this can change anytime
     }
 
     // Do we need to scan this node?
@@ -5123,11 +5124,14 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 //assert(!row.syncNode || row.syncNode->localname.empty() || row.syncNode->name.empty() || !row.syncNode->parent ||
                 //       0 == compareUtf(row.syncNode->localname, true, row.syncNode->name, false, true));
 
-                if (childRow.fsNode && childRow.syncNode &&
-                    childRow.syncNode->fsid_asScanned != childRow.fsNode->fsid)
+                if (childRow.fsNode && childRow.syncNode)
                 {
-                    syncs.setScannedFsidReused(childRow.fsNode->fsid, nullptr);   // todo: could put these lines first then we don't need excluded parameter?
-                    childRow.syncNode->setScannedFsid(childRow.fsNode->fsid, syncs.localnodeByScannedFsid, childRow.fsNode->localname);
+                    if (childRow.syncNode->fsid_asScanned != childRow.fsNode->fsid)
+                    {
+                        syncs.setScannedFsidReused(childRow.fsNode->fsid, nullptr);   // todo: could put these lines first then we don't need excluded parameter?
+                        childRow.syncNode->setScannedFsid(childRow.fsNode->fsid, syncs.localnodeByScannedFsid, childRow.fsNode->localname);
+                    }
+                    childRow.syncNode->scannedFingerprint = childRow.fsNode->fingerprint; // this can change anytime
                 }
 
                 ScopedSyncPathRestore syncPathRestore(fullPath);
@@ -5473,7 +5477,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     // each of the 8 possible cases of present/absent for this row
     if (row.syncNode)
     {
-        if (row.syncNode->upload.actualUpload) row.syncNode->upload.checkCompleted();
+        if (row.syncNode->upload.actualTransfer) row.syncNode->upload.checkCompleted();
         //todo: if (row.syncNode->download) row.syncNode->download.checkCompleted();
 
         if (row.fsNode)
@@ -5707,18 +5711,18 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
     assert(row.syncNode == nullptr);
     row.syncNode = new LocalNode;
 
+    row.syncNode->init(this, row.fsNode->type, parentRow.syncNode, fullPath.localPath, row.fsNode->cloneShortname());
+    row.syncNode->setScannedFsid(row.fsNode->fsid, syncs.localnodeByScannedFsid, row.fsNode->localname);
+
     if (row.fsNode->type == FILENODE)
     {
         assert(row.fsNode->fingerprint.isvalid);
-        row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
+        row.syncNode->scannedFingerprint = row.fsNode->fingerprint;
     }
-
-    row.syncNode->init(this, row.fsNode->type, parentRow.syncNode, fullPath.localPath, row.fsNode->cloneShortname());
 
     if (considerSynced)
     {
-        row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname);  // todo: not sure we need this one at this stage
-        row.syncNode->setScannedFsid(row.fsNode->fsid, syncs.localnodeByScannedFsid, row.fsNode->localname);
+        row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname);
         row.syncNode->treestate(TREESTATE_SYNCED);
     }
     else
@@ -5749,7 +5753,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
 
     if (row.cloudNode->type == FILENODE)
     {
-        assert(row.cloudNode->fingerprint.isvalid);
+        assert(row.cloudNode->fingerprint.isvalid); // todo: move inside considerSynced?
         row.syncNode->syncedFingerprint = row.cloudNode->fingerprint;
     }
     row.syncNode->init(this, row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
@@ -5862,14 +5866,14 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     {
         // upload the file if we're not already uploading
 
-        if (row.syncNode->upload.actualUpload &&
-          !(row.syncNode->upload.actualUpload->fingerprint() == row.fsNode->fingerprint))
+        if (row.syncNode->upload.actualTransfer &&
+          !(row.syncNode->upload.actualTransfer->fingerprint() == row.fsNode->fingerprint))
         {
             LOG_debug << syncname << "An older version of this file was already uploading, cancelling." << fullPath.localPath_utf8() << logTriplet(row, fullPath);
             row.syncNode->upload.reset(nullptr);
         }
 
-        if (!row.syncNode->upload.actualUpload /*&& !row.syncNode->newnode*/)
+        if (!row.syncNode->upload.actualTransfer /*&& !row.syncNode->newnode*/)
         {
             // Sanity.
             assert(row.syncNode->parent);
@@ -5880,14 +5884,15 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 LOG_debug << "Sync - local file addition detected: " << fullPath.localPath.toPath(*syncs.fsaccess);
 
                 LOG_debug << syncname << "Uploading file " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
-                assert(row.syncNode->syncedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint
+                assert(row.syncNode->scannedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint
+                assert(row.syncNode->scannedFingerprint == row.fsNode->fingerprint);
 
                 // if we were already matched with a name that is not exactly the same as toName(), keep using it
                 string nodeName = row.cloudNode ? row.cloudNode->name : row.fsNode->localname.toName(*syncs.fsaccess);
 
                 row.syncNode->upload.reset(std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle, fullPath.localPath, nodeName, row.fsNode->fingerprint));
 
-                auto uploadPtr = row.syncNode->upload.actualUpload;
+                auto uploadPtr = row.syncNode->upload.actualTransfer;
                 syncs.queueClient([uploadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         mc.nextreqtag();
@@ -6026,8 +6031,8 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
         // download the file if we're not already downloading
         // if (alreadyExists), we will move the target to the trash when/if download completes //todo: check
 
-        if (row.syncNode->download.actualDownload &&
-            !(row.syncNode->download.actualDownload->fingerprint() == row.cloudNode->fingerprint))
+        if (row.syncNode->download.actualTransfer &&
+            !(row.syncNode->download.actualTransfer->fingerprint() == row.cloudNode->fingerprint))
         {
             LOG_debug << syncname << "An older version of this file was already downloading, cancelling." << fullPath.cloudPath << logTriplet(row, fullPath);
             row.syncNode->download.reset(nullptr);
@@ -6035,7 +6040,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
         if (parentRow.fsNode)
         {
-            if (!row.syncNode->download.actualDownload)
+            if (!row.syncNode->download.actualTransfer)
             {
                 LOG_debug << "Sync - remote file addition detected: " << fullPath.cloudPath;
 
@@ -6047,9 +6052,9 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 createDebrisTmpLockOnce();
 
                 // download to tmpfaPath (folder debris/tmp). We will rename/mv it to correct location (updated if necessary) after that completes
-                row.syncNode->download.reset(std::make_shared<SyncDownload_inClient>(*row.cloudNode, tmpfaPath, inshare, *syncs.fsaccess));
+                row.syncNode->download.actualTransfer.reset(new SyncDownload_inClient(*row.cloudNode, tmpfaPath, inshare, *syncs.fsaccess));
 
-                auto downloadPtr = row.syncNode->download.actualDownload;
+                auto downloadPtr = row.syncNode->download.actualTransfer;
                 syncs.queueClient([downloadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         mc.nextreqtag();
@@ -6059,19 +6064,19 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
                 else if (parentRow.syncNode) parentRow.syncNode->treestate(TREESTATE_SYNCING);
             }
-            else if (row.syncNode->download.actualDownload->wasTerminated)
+            else if (row.syncNode->download.actualTransfer->wasTerminated)
             {
                 SYNC_verbose << syncname << "Download was terminated " << logTriplet(row, fullPath);
                 row.syncNode->download.reset(nullptr);
             }
-            else if (row.syncNode->download.actualDownload->wasCompleted)
+            else if (row.syncNode->download.actualTransfer->wasCompleted)
             {
                 // Convenience.
                 auto& fsAccess = *syncs.fsaccess;
 
                 // Clarity.
                 auto& cloudPath  = fullPath.cloudPath;
-                auto& sourcePath = row.syncNode->download.actualDownload->localname;
+                auto sourcePath = row.syncNode->download.actualTransfer->getLocalname();
                 auto& targetPath = fullPath.localPath;
 
                 // Try and move the downloaded file into its new home.

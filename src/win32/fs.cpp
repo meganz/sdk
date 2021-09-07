@@ -507,12 +507,12 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes)
+bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes)
 {
     return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes);
 }
 
-bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes)
+bool WinFileAccess::fopen_impl(const LocalPath& namePath_in, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
@@ -525,7 +525,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
     bool skipcasecheck = false;
 
-    ScopedLengthRestore restoreNamePath(namePath);
+    LocalPath namePath = namePath_in;
     sanitizedriveletter(namePath.localpath);
 
     if (write)
@@ -944,7 +944,7 @@ bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
     return r;
 }
 
-bool WinFileSystemAccess::unlinklocal(LocalPath& namePath)
+bool WinFileSystemAccess::unlinklocal(const LocalPath& namePath)
 {
     bool r = !!DeleteFileW(namePath.localpath.data());
 

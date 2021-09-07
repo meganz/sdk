@@ -1052,7 +1052,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
     if (!api->client->mediaFileInfo.mediaCodecsReceived)
     {
         // the client app should already have requested these but just in case:
-        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, NULL);
+        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, LocalPath());
         return false;
     }
 
@@ -5009,7 +5009,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
     if(n->nodekey().size()>=sizeof(filekey))
         memcpy(filekey,n->nodekey().data(),sizeof filekey);
 
-    localname = finalPath;
+    setLocalname(finalPath);
     hprivate = true;
     hforeign = false;
 }
@@ -5052,7 +5052,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPa
     if(n->getNodeKey()->size()>=sizeof(filekey))
         memcpy(filekey,n->getNodeKey()->data(),sizeof filekey);
 
-    localname = finalPath;
+    setLocalname(finalPath);
     hprivate = !n->isPublic();
     hforeign = n->isForeign();
 
@@ -5126,7 +5126,7 @@ void MegaFileGet::prepare(FileSystemAccess&)
 {
     if (transfer->localfilename.empty())
     {
-        transfer->localfilename = localname;
+        transfer->localfilename = getLocalname();
 
         size_t leafIndex = transfer->localfilename.getLeafnameByteIndex(*transfer->client->fsaccess);
         transfer->localfilename.truncate(leafIndex);
@@ -5169,7 +5169,7 @@ MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, N
     : MegaFile()
 {
     // full local path
-    localname = std::move(clocalname);
+    setLocalname(clocalname);
 
     // target parent node
     h = ch;
@@ -9427,7 +9427,7 @@ bool MegaApiImpl::ensureMediaInfo()
     else
     {
         sdkMutex.lock();
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
         sdkMutex.unlock();
         return false;
     }
@@ -12387,7 +12387,7 @@ void MegaApiImpl::file_added(File *f)
         else
 #endif
         {
-            path = f->localname.toPath(*fsAccess);
+            path = f->getLocalname().toPath(*fsAccess);
         }
         transfer->setPath(path.c_str());
     }
@@ -12438,7 +12438,7 @@ void MegaApiImpl::file_complete(File *f)
             // The final name can change when downloads are complete
             // if there is another file in the same path
 
-            string path = f->localname.toPath(*fsAccess);
+            string path = f->getLocalname().toPath(*fsAccess);
             transfer->setPath(path.c_str());
         }
 

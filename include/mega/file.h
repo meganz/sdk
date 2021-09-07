@@ -58,8 +58,10 @@ struct MEGA_API File: public FileFingerprint
     string name;
 
     // local filename (must be set upon injection for uploads, can be set in start() for downloads)
-    // todo: needs to be thread safe
-    LocalPath localname;
+    static mutex localname_mutex;
+    LocalPath localname_multithreaded;
+    LocalPath getLocalname() const;
+    void setLocalname(const LocalPath&);
 
     // source/target node handle
     NodeHandle h;

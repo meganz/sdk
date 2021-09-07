@@ -1451,6 +1451,7 @@ void LocalNode::init(const FSNode& fsNode)
 
     // Update our fingerprint.
     syncedFingerprint = fsNode.fingerprint;
+    scannedFingerprint = FileFingerprint();   // todo: was this fingerprint from a scan tho?
 
     // Update our FSID.
     setSyncedFsid(fsNode.fsid, sync->syncs.localnodeBySyncedFsid, fsNode.localname);
@@ -1678,9 +1679,9 @@ void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath)
         vector<FSNode> generated;
         for (auto& childIt : children)
         {
-            if (childIt.second->fsid_lastSynced != UNDEF)
+            if (childIt.second->fsid_asScanned != UNDEF)
             {
-                generated.emplace_back(childIt.second->getLastSyncedFSDetails());
+                generated.emplace_back(childIt.second->getScannedFSDetails());
             }
         }
         assert(generated.size() == lastFolderScan->size());
@@ -1769,7 +1770,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                 if (c.second->fsid_lastSynced != UNDEF)
                 {
                     assert(*c.first == c.second->localname);
-                    priorScanChildren.emplace(*c.first, c.second->getLastSyncedFSDetails());   // todo: should be scannedFSDetails - but, we would need another fingerprint
+                    priorScanChildren.emplace(*c.first, c.second->getLastSyncedFSDetails());   // todo: should be scannedFSDetails - but, we would need another fingerprint.  Also, would we use synced for the very first scan
                 }
             }
 
@@ -2164,12 +2165,33 @@ FSNode LocalNode::getScannedFSDetails()
     n.type = type;
     n.fsid = fsid_asScanned;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
-
-    assert(false); // do we need scannedFingerprint too?  Prob nodes would be too large
-    n.fingerprint = syncedFingerprint;
+    n.fingerprint = scannedFingerprint;
+    assert(scannedFingerprint.isvalid || type != FILENODE);
     return n;
 }
 
+
+void SyncTransfer_inClient::terminated()
+{
+    //todo: put this somewhere
+    //localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
+
+    File::terminated();
+
+    wasTerminated = true;
+    selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
+}
+
+void SyncTransfer_inClient::completed(Transfer* t, putsource_t source)
+{
+    //todo: put this somewhere
+    //localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
+
+    File::completed(t, source);
+
+    wasCompleted = true;
+    selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
+}
 
 SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath, const string& nodeName, const FileFingerprint& ff)
 {
@@ -2180,7 +2202,7 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
     name = nodeName;
 
     // setting the full path means it works like a normal non-sync transfer
-    localname = fullPath;
+    setLocalname(fullPath);
 
     h = targetFolder;
 
@@ -2207,7 +2229,7 @@ SyncUpload_inClient::~SyncUpload_inClient()
 
 void SyncUpload_inClient::prepare(FileSystemAccess&)
 {
-    transfer->localfilename = localname;
+    transfer->localfilename = getLocalname();
 
     // is this transfer in progress? update file's filename.
     if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
@@ -2218,33 +2240,7 @@ void SyncUpload_inClient::prepare(FileSystemAccess&)
     //todo: localNode.treestate(TREESTATE_SYNCING);
 }
 
-void SyncUpload_inClient::terminated()
-{
-    //todo: put this somewhere
-    //localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
 
-    File::terminated();
-
-    wasTerminated = true;
-    selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
-}
-
-// complete a sync upload: complete to //bin if a newer node exists (which
-// would have been caused by a race condition)
-void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
-{
-//todo: put this somewhere
-//localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
-
-    // in case this LocalNode was moved around (todo: since we don't actually move, make sure to copy internals such as upload transfers)
-
-    // in case the source LocalNode moved around, our field h (the target folder for upload) has already been adjusted.
-    // but, still make sure it exists
-
-    File::completed(t, source);
-    wasCompleted = true;
-    selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
-}
 
 // serialize/unserialize the following LocalNode properties:
 // - type/size

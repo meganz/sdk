@@ -506,7 +506,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool)
+bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool)
 {
     struct stat statbuf;
 
@@ -1210,7 +1210,7 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
     return !t;
 }
 
-bool PosixFileSystemAccess::unlinklocal(LocalPath& name)
+bool PosixFileSystemAccess::unlinklocal(const LocalPath& name)
 {
     if (!unlink(adjustBasePath(name).c_str()))
     {

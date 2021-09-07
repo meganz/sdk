@@ -31,7 +31,7 @@ public:
     : mega::FileAccess{nullptr}
     {}
 
-    bool fopen(mega::LocalPath&, bool, bool, mega::DirAccess* iteratingDir = nullptr, bool = false) override
+    bool fopen(const mega::LocalPath&, bool, bool, mega::DirAccess* iteratingDir = nullptr, bool = false) override
     {
         throw NotImplemented{__func__};
     }

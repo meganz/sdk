@@ -29,6 +29,9 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
+
+mutex File::localname_mutex;
+
 File::File()
 {
     transfer = NULL;
@@ -50,6 +53,18 @@ File::~File()
     delete [] chatauth;
 }
 
+LocalPath File::getLocalname() const
+{
+    lock_guard<mutex> g(localname_mutex);
+    return localname_multithreaded;
+}
+
+void File::setLocalname(const LocalPath& ln)
+{
+    lock_guard<mutex> g(localname_mutex);
+    localname_multithreaded = ln;
+}
+
 bool File::serialize(string *d)
 {
     char type = char(transfer->type);
@@ -68,7 +83,7 @@ bool File::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(name.data(), ll);
 
-    auto tmpstr = localname.platformEncoded();
+    auto tmpstr = getLocalname().platformEncoded();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
@@ -207,7 +222,7 @@ File *File::unserialize(string *d)
     delete fp;
 
     file->name.assign(name, namelen);
-    file->localname = LocalPath::fromPlatformEncoded(std::string(localname, localnamelen));
+    file->setLocalname(LocalPath::fromPlatformEncoded(std::string(localname, localnamelen)));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
@@ -274,7 +289,7 @@ File *File::unserialize(string *d)
 
 void File::prepare(FileSystemAccess&)
 {
-    transfer->localfilename = localname;
+    transfer->localfilename = getLocalname();
 }
 
 void File::start()
@@ -437,18 +452,18 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare, FileSystemAccess& fsaccess)
+SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, LocalPath clocalname, bool fromInshare, FileSystemAccess& fsaccess)
 {
     h = n.handle;
     *(FileFingerprint*)this = n.fingerprint;
-    localname = clocalname;
 
     syncxfer = true;
     fromInsycShare = fromInshare;
 
     LocalPath tmpfilename;
     fsaccess.tmpnamelocal(tmpfilename);
-    localname.appendWithSeparator(tmpfilename, true);
+    clocalname.appendWithSeparator(tmpfilename, true);
+    setLocalname(clocalname);
 
 
     // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
@@ -469,7 +484,7 @@ void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
 {
     if (transfer->localfilename.empty())
     {
-        transfer->localfilename = localname;
+        transfer->localfilename = getLocalname();
         transfer->localfilename.append(LocalPath::fromPath(".tmp", fsaccess));
     }
 }
@@ -493,56 +508,5 @@ bool SyncDownload_inClient::failed(error e, MegaClient* mc)
     return retry;
 }
 
-void SyncDownload_inClient::progress()
-{
-    File::progress();
-    //todo: localNode.treestate(TREESTATE_SYNCING);
-}
-
-// update localname (parent's localnode)
-void SyncDownload_inClient::updatelocalname()
-{
-// todo:
-    //auto sync = localNode.sync;
-    //auto client = sync->client;
-
-    //if (Node* n = client->nodeByHandle(h))
-    //{
-    //    attr_map::iterator ait;
-    //    if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
-    //    {
-    //        if (n->parent)
-    //        {
-    //            if (LocalNode* lnParent = sync->client->syncs.findLocalNodeByNodeHandle(n->parent->nodeHandle()))
-    //            {
-    //                localname = lnParent->getLocalPath();
-    //                localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
-    //            }
-    //        }
-    //    }
-    //}
-}
-
-// add corresponding LocalNode (by path), then self-destruct
-void SyncDownload_inClient::completed(Transfer*, putsource_t)
-{
-    // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
-
-    // todo: localNode.setScanAgain(true, false, false, 0);
-
-    //LOG_debug << "clearing downlaod for " << &localNode << " on completed";
-    //localNode.download.reset(); // deletes this;
-    wasCompleted = true;
-}
-
-void SyncDownload_inClient::terminated()
-{
-    // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
-
-    //LOG_debug << "clearing download for " << &localNode << " on terminated";
-    //localNode.download.reset(); // deletes this;
-
-    wasTerminated = true;
-}
 #endif
 } // namespace

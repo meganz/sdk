@@ -96,7 +96,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool unlinklocal(mega::LocalPath&) override
+    bool unlinklocal(const mega::LocalPath&) override
     {
         throw NotImplemented{__func__};
     }
