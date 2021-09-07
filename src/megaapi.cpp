@@ -1706,15 +1706,15 @@ void MegaListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 #endif
 
-void MegaListener::onBackupStateChanged(MegaApi *, MegaBackup *)
+void MegaListener::onBackupStateChanged(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaListener::onBackupStart(MegaApi *, MegaBackup *)
+void MegaListener::onBackupStart(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaListener::onBackupFinish(MegaApi *, MegaBackup *, MegaError *)
+void MegaListener::onBackupFinish(MegaApi *, MegaScheduledCopy *, MegaError *)
 { }
-void MegaListener::onBackupUpdate(MegaApi *, MegaBackup *)
+void MegaListener::onBackupUpdate(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaListener::onBackupTemporaryError(MegaApi *, MegaBackup *, MegaError *)
+void MegaListener::onBackupTemporaryError(MegaApi *, MegaScheduledCopy *, MegaError *)
 { }
 
 #ifdef ENABLE_CHAT
@@ -3149,19 +3149,19 @@ MegaStringList *MegaApi::getBackupFolders(int backuptag) const
     return pImpl->getBackupFolders(backuptag);
 }
 
-void MegaApi::setBackup(const char* localPath, MegaNode* parent, bool attendPastBackups, int64_t period, const char *periodstring, int numBackups, MegaRequestListener *listener)
+void MegaApi::setScheduledCopy(const char* localPath, MegaNode* parent, bool attendPastBackups, int64_t period, const char *periodstring, int numBackups, MegaRequestListener *listener)
 {
-    pImpl->setBackup(localPath, parent, attendPastBackups, period, periodstring ? periodstring : "", numBackups, listener);
+    pImpl->setScheduledCopy(localPath, parent, attendPastBackups, period, periodstring ? periodstring : "", numBackups, listener);
 }
 
-void MegaApi::removeBackup(int tag, MegaRequestListener *listener)
+void MegaApi::removeScheduledCopy(int tag, MegaRequestListener *listener)
 {
-    pImpl->removeBackup(tag, listener);
+    pImpl->removeScheduledCopy(tag, listener);
 }
 
-void MegaApi::abortCurrentBackup(int tag, MegaRequestListener *listener)
+void MegaApi::abortCurrentScheduledCopy(int tag, MegaRequestListener *listener)
 {
-    pImpl->abortCurrentBackup(tag, listener);
+    pImpl->abortCurrentScheduledCopy(tag, listener);
 }
 
 void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
@@ -3542,19 +3542,19 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 #endif
 
 
-MegaBackup *MegaApi::getBackupByTag(int tag)
+MegaScheduledCopy *MegaApi::getScheduledCopyByTag(int tag)
 {
-    return pImpl->getBackupByTag(tag);
+    return pImpl->getScheduledCopyByTag(tag);
 }
 
-MegaBackup *MegaApi::getBackupByNode(MegaNode *node)
+MegaScheduledCopy *MegaApi::getScheduledCopyByNode(MegaNode *node)
 {
-    return pImpl->getBackupByNode(node);
+    return pImpl->getScheduledCopyByNode(node);
 }
 
-MegaBackup *MegaApi::getBackupByPath(const char *localPath)
+MegaScheduledCopy *MegaApi::getScheduledCopyByPath(const char *localPath)
 {
-    return pImpl->getBackupByPath(localPath);
+    return pImpl->getScheduledCopyByPath(localPath);
 }
 
 int MegaApi::getNumPendingUploads()
@@ -4092,14 +4092,14 @@ void MegaApi::addGlobalListener(MegaGlobalListener* listener)
     pImpl->addGlobalListener(listener);
 }
 
-void MegaApi::addBackupListener(MegaBackupListener *listener)
+void MegaApi::addScheduledCopyListener(MegaScheduledCopyListener *listener)
 {
-    pImpl->addBackupListener(listener);
+    pImpl->addScheduledCopyListener(listener);
 }
 
-void MegaApi::removeBackupListener(MegaBackupListener *listener)
+void MegaApi::removeScheduledCopyListener(MegaScheduledCopyListener *listener)
 {
-    pImpl->removeBackupListener(listener);
+    pImpl->removeScheduledCopyListener(listener);
 }
 
 void MegaApi::removeListener(MegaListener* listener)
@@ -5957,118 +5957,118 @@ void MegaSyncList::addSync(MegaSync *sync)
 #endif
 
 
-void MegaBackupListener::onBackupStateChanged(MegaApi *, MegaBackup *)
+void MegaScheduledCopyListener::onBackupStateChanged(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaBackupListener::onBackupStart(MegaApi *, MegaBackup *)
+void MegaScheduledCopyListener::onBackupStart(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaBackupListener::onBackupFinish(MegaApi*, MegaBackup *, MegaError*)
+void MegaScheduledCopyListener::onBackupFinish(MegaApi*, MegaScheduledCopy *, MegaError*)
 { }
-void MegaBackupListener::onBackupUpdate(MegaApi *, MegaBackup *)
+void MegaScheduledCopyListener::onBackupUpdate(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaBackupListener::onBackupTemporaryError(MegaApi *, MegaBackup *, MegaError*)
+void MegaScheduledCopyListener::onBackupTemporaryError(MegaApi *, MegaScheduledCopy *, MegaError*)
 { }
-MegaBackupListener::~MegaBackupListener()
+MegaScheduledCopyListener::~MegaScheduledCopyListener()
 { }
 
-MegaBackup::~MegaBackup() { }
+MegaScheduledCopy::~MegaScheduledCopy() { }
 
-MegaBackup *MegaBackup::copy()
+MegaScheduledCopy *MegaScheduledCopy::copy()
 {
     return NULL;
 }
 
-MegaHandle MegaBackup::getMegaHandle() const
+MegaHandle MegaScheduledCopy::getMegaHandle() const
 {
     return INVALID_HANDLE;
 }
 
-const char *MegaBackup::getLocalFolder() const
+const char *MegaScheduledCopy::getLocalFolder() const
 {
     return NULL;
 }
 
-int MegaBackup::getTag() const
+int MegaScheduledCopy::getTag() const
 {
     return 0;
 }
 
-bool MegaBackup::getAttendPastBackups() const
+bool MegaScheduledCopy::getAttendPastBackups() const
 {
     return false;
 }
 
-int64_t MegaBackup::getPeriod() const
+int64_t MegaScheduledCopy::getPeriod() const
 {
     return 0;
 }
 
-const char *MegaBackup::getPeriodString() const
+const char *MegaScheduledCopy::getPeriodString() const
 {
     return NULL;
 }
 
-long long MegaBackup::getNextStartTime(long long oldStartTimeAbsolute) const
+long long MegaScheduledCopy::getNextStartTime(long long oldStartTimeAbsolute) const
 {
     return 0;
 }
 
 
-int MegaBackup::getMaxBackups() const
+int MegaScheduledCopy::getMaxBackups() const
 {
     return 0;
 }
 
-int MegaBackup::getState() const
+int MegaScheduledCopy::getState() const
 {
-    return MegaBackup::BACKUP_FAILED;
+    return MegaScheduledCopy::SCHEDULED_COPY_FAILED;
 }
 
-long long MegaBackup::getNumberFolders() const
-{
-     return 0;
-}
-
-long long MegaBackup::getNumberFiles() const
+long long MegaScheduledCopy::getNumberFolders() const
 {
      return 0;
 }
 
-long long MegaBackup::getTotalFiles() const
+long long MegaScheduledCopy::getNumberFiles() const
 {
      return 0;
 }
 
-int64_t MegaBackup::getCurrentBKStartTime() const
+long long MegaScheduledCopy::getTotalFiles() const
 {
      return 0;
 }
 
-long long MegaBackup::getTransferredBytes() const
+int64_t MegaScheduledCopy::getCurrentBKStartTime() const
 {
      return 0;
 }
 
-long long MegaBackup::getTotalBytes() const
+long long MegaScheduledCopy::getTransferredBytes() const
 {
      return 0;
 }
 
-long long MegaBackup::getSpeed() const
+long long MegaScheduledCopy::getTotalBytes() const
 {
      return 0;
 }
 
-long long MegaBackup::getMeanSpeed() const
+long long MegaScheduledCopy::getSpeed() const
 {
      return 0;
 }
 
-int64_t MegaBackup::getUpdateTime() const
+long long MegaScheduledCopy::getMeanSpeed() const
 {
      return 0;
 }
 
-MegaTransferList *MegaBackup::getFailedTransfers()
+int64_t MegaScheduledCopy::getUpdateTime() const
+{
+     return 0;
+}
+
+MegaTransferList *MegaScheduledCopy::getFailedTransfers()
 {
     return NULL;
 }
