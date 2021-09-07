@@ -365,8 +365,8 @@ public:
 
     bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
-    bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
+    bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists);
