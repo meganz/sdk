@@ -198,6 +198,17 @@ private:
     void changedConfigState(bool notifyApp);
 };
 
+enum SyncRowType : unsigned {
+    SRT_XXX,
+    SRT_XXF,
+    SRT_XSX,
+    SRT_XSF,
+    SRT_CXX,
+    SRT_CXF,
+    SRT_CSX,
+    SRT_CSF
+}; // SyncRowType
+
 struct syncRow
 {
     syncRow(CloudNode* node, LocalNode* syncNode, FSNode* fsNode)
@@ -239,6 +250,8 @@ struct syncRow
             bool belowRemovedFsNode, fsid_localnode_map& localnodeByScannedFsid);
 
     bool empty() { return !cloudNode && !syncNode && !fsNode && cloudClashingNames.empty() && fsClashingNames.empty(); }
+
+    SyncRowType type() const;
 };
 
 struct SyncPath
@@ -361,6 +374,90 @@ public:
     bool recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
     bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
     bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+
+    // Invalid combination.
+    //
+    // Can result from name clashes.
+    bool syncItem_XXX(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+
+    // A new file has been detected.
+    //
+    // Triggers creation of a new sync node.
+    // 
+    // Transitions to XSF.
+    bool syncItem_XXF(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+
+    // File doesn't exist locally or in the cloud.
+    //
+    // Triggers deletion of the sync node.
+    //
+    // No further transition.
+    bool syncItem_XSX(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+
+    // File exists locally and in memory.
+    //
+    // Transitions to XSX or CSF.
+    //
+    // If the file was previously synced to the cloud, this triplet
+    // represents a cloud-remove. The local file will be moved into the
+    // debris and will trigger a transition to XSX.
+    //
+    // If the file hadn't been uploaded, an upload will be started and upon
+    // completion will trigger a transition to CSF.
+    bool syncItem_XSF(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+
+    // Files exists only in the cloud.
+    //
+    // Triggers the creation of a new sync node.
+    //
+    // Transitions to CSx.
+    bool syncItem_CXX(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+
+    // File exists both locally and in the cloud but has yet to be processed
+    // by the sync engine.
+    //
+    // Triggers creation of a new sync node.
+    //
+    // Transitions to CSF.
+    bool syncItem_CXF(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+
+    // File exists in the cloud and in memory.
+    //
+    // Transitions to XSX or CSF.
+    //
+    // If the file had previously been synced, this triplet represents a
+    // local-remove. The cloud node will be moved into the rubbish and will
+    // a transition to XSX.
+    //
+    // If the file hadn't been synced, a download will be started and upon
+    // completion will trigger a transition to CSF.
+    bool syncItem_CSX(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+
+    // File exists in the cloud, in memory and on disk.
+    //
+    // Transitions possible to xSF, CSx or CSF.
+    //
+    // Behavior of this triplet depends on the state of the nodes.
+    //
+    // Download
+    // - If the cloud has changed.
+    //   - C != S, S == F.
+    //
+    // Intervention
+    // - Both cloud and local file have changed.
+    //   - C != S, S != F.
+    //
+    // Link
+    // - File is the same in the cloud, in memory and on disk.
+    //   - C == S, S == F.
+    //   - Checks for completion of moves.
+    //   - Creates relationship between CS an SF.
+    //
+    // Upload
+    // - If the local file has changed.
+    //   - C == S, S != F.
+    bool syncItem_CSF(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
     bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath);

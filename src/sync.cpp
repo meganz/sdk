@@ -4427,6 +4427,14 @@ const LocalPath& syncRow::comparisonLocalname() const
     }
 }
 
+SyncRowType syncRow::type() const
+{
+    auto c = static_cast<unsigned>(cloudNode != nullptr);
+    auto s = static_cast<unsigned>(syncNode != nullptr);
+    auto f = static_cast<unsigned>(fsNode != nullptr);
+
+    return static_cast<SyncRowType>(c * 4 + s * 2 + f);
+}
 
 void Sync::combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::iterator b) const
 {
@@ -5073,7 +5081,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         bool belowRemovedCloudNode, bool belowRemovedFsNode)
 {
     assert(syncs.onSyncThread());
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemTime1);
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCheckMove);
 
     // Since we are visiting this node this time, reset its flags-for-parent
     // They should only stay set when the conditions require it
@@ -5194,9 +5202,9 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
 
 bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItem);
+
     assert(syncs.onSyncThread());
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemTime2);
-    bool rowSynced = false;
 
     // check for cases in progress that we shouldn't be re-evaluating yet
     if (auto* s = row.syncNode)
@@ -5226,158 +5234,181 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 return false;
             }
         }
+        s->checkTransferCompleted();
     }
 
-    // each of the 8 possible cases of present/absent for this row
-    if (row.syncNode)
+    switch (row.type())
     {
-        row.syncNode->checkTransferCompleted();
-
-        if (row.fsNode)
-        {
-            if (row.cloudNode) // CSF case
-            {
-                // all three exist; compare
-                bool fsCloudEqual = syncEqual(*row.cloudNode, *row.fsNode);
-                bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
-                bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
-                if (fsCloudEqual)
-                {
-                    // success! this row is synced
-
-                    if (!cloudEqual || !fsEqual)
-                    {
-                        row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
-                        assert(row.syncNode->syncedFingerprint == row.cloudNode->fingerprint);
-                        statecacheadd(row.syncNode);
-                    }
-
-                    rowSynced = resolve_rowMatched(row, parentRow, fullPath);
-                }
-                else if (cloudEqual || isBackupAndMirroring())
-                {
-                    // filesystem changed, put the change
-                    rowSynced = resolve_upsync(row, parentRow, fullPath);
-                }
-                else if (fsEqual)
-                {
-                    // cloud has changed, get the change
-                    rowSynced = resolve_downsync(row, parentRow, fullPath, true);
-                }
-                else
-                {
-                    // both changed, so we can't decide without the user's help
-                    rowSynced = resolve_userIntervention(row, parentRow, fullPath);
-                }
-            }
-            else // xSF case
-            {
-                // cloud item absent
-                if (isBackupAndMirroring())
-                {
-                    // for backups, we only change the cloud
-                    rowSynced = resolve_upsync(row, parentRow, fullPath);
-                }
-                else if (!row.syncNode->syncedCloudNodeHandle.isUndef() &&
-                         row.syncNode->fsid_lastSynced != UNDEF &&
-                         row.syncNode->fsid_lastSynced == row.fsNode->fsid &&
-                         syncEqual(*row.fsNode, *row.syncNode))  // on disk, content could be changed without an fsid change
-                {
-                    // used to be fully synced and the fs side still has that version
-                    // remove in the fs (if not part of a move)
-                    rowSynced = resolve_cloudNodeGone(row, parentRow, fullPath);
-                }
-                else
-                {
-                    // either
-                    //  - cloud item did not exist before; upsync
-                    //  - the fs item has changed too; upsync (this lets users recover from the both sides changed state - user deletes the one they don't want anymore)
-                    rowSynced = resolve_upsync(row, parentRow, fullPath);
-                }
-            }
-        }
-        else
-        {
-            if (row.cloudNode) // CSx case
-            {
-                // local item not present
-                if (isBackupAndMirroring())
-                {
-                    // in mirror mode, make the cloud the same as local
-                    // if backing up and not mirroring, the resolve_downsync branch will cancel the sync
-                    rowSynced = resolve_fsNodeGone(row, parentRow, fullPath);
-                }
-                else if (row.syncNode->fsid_lastSynced != UNDEF &&
-                    !row.syncNode->syncedCloudNodeHandle.isUndef() &&
-                    row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle)  // for cloud nodes, same handle must be same content
-                {
-                    // used to be fully synced and the cloud side still has that version
-                    // remove in the cloud (if not part of a move)
-                    rowSynced = resolve_fsNodeGone(row, parentRow, fullPath);
-                }
-                else
-                {
-                    // either
-                    //  - fs item did not exist before; downsync
-                    //  - the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
-                    rowSynced = resolve_downsync(row, parentRow, fullPath, false);
-                }
-            }
-            else // xSx case
-            {
-                // local and cloud disappeared; remove sync item also
-                rowSynced = resolve_delSyncNode(row, parentRow, fullPath);
-            }
-        }
+    case SRT_XXX:
+        break;
+    case SRT_XXF:
+        return syncItem_XXF(row, parentRow, fullPath);
+    case SRT_XSX:
+        return syncItem_XSX(row, parentRow, fullPath);
+    case SRT_XSF:
+        return syncItem_XSF(row, parentRow, fullPath);
+    case SRT_CXX:
+        return syncItem_CXX(row, parentRow, fullPath);
+    case SRT_CXF:
+        return syncItem_CXF(row, parentRow, fullPath);
+    case SRT_CSX:
+        return syncItem_CSX(row, parentRow, fullPath);
+    case SRT_CSF:
+        return syncItem_CSF(row, parentRow, fullPath);
     }
-    else
-    {
-        if (row.fsNode)
-        {
-            if (row.cloudNode) // CxF case
-            {
-                // Item exists locally and remotely but we haven't synced them previously
-                // If they are equal then join them with a Localnode. Othewise report or choose greater mtime.
-                if (row.fsNode->type != row.cloudNode->type)
-                {
-                    rowSynced = resolve_userIntervention(row, parentRow, fullPath);
-                }
-                else if (row.fsNode->type != FILENODE ||
-                         row.fsNode->fingerprint == row.cloudNode->fingerprint)
-                {
-                    rowSynced = resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
-                }
-                else
-                {
-                    // When initially joining two trees together, use the old rules (pick most recent)
-                    // Todo: evaluate that against asking the user as we would do for the existing-sync case
-                    rowSynced = resolve_pickWinner(row, parentRow, fullPath);
-                }
-            }
-            else    // xxF case
-            {
-                // Item exists locally only. Check if it was moved/renamed here, or Create
-                // If creating, next run through will upload it
-                rowSynced = resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
-            }
-        }
-        else
-        {
-            if (row.cloudNode) // Cxx case
-            {
-                // item exists remotely only
-                rowSynced = resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
-            }
-            else // xxx case
-            {
-                // no entries - can occur when names clash, but should be caught above
-                assert(false);
-            }
-        }
-    }
-    return rowSynced;
+
+    return syncItem_XXX(row, parentRow, fullPath);
 }
 
+bool Sync::syncItem_XXX(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+{
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXXX);
+
+    // no entries - can occur when names clash, but should be caught above
+    assert(false);
+
+    return false;
+}
+
+bool Sync::syncItem_XXF(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+{
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXXF);
+
+    // Item exists locally only. Check if it was moved/renamed here, or Create
+    // If creating, next run through will upload it
+    return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+}
+
+bool Sync::syncItem_XSX(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+{
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSX);
+
+    // local and cloud disappeared; remove sync item also
+    return resolve_delSyncNode(row, parentRow, fullPath);
+}
+
+bool Sync::syncItem_XSF(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+{
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSF);
+
+    // cloud item absent
+    if (isBackupAndMirroring())
+    {
+        // for backups, we only change the cloud
+        return resolve_upsync(row, parentRow, fullPath);
+    }
+    
+    if (!row.syncNode->syncedCloudNodeHandle.isUndef()
+        && row.syncNode->fsid_lastSynced != UNDEF
+        && row.syncNode->fsid_lastSynced == row.fsNode->fsid
+        // on disk, content could be changed without an fsid change
+        && syncEqual(*row.fsNode, *row.syncNode))
+    {
+        // used to be fully synced and the fs side still has that version
+        // remove in the fs (if not part of a move)
+        return resolve_cloudNodeGone(row, parentRow, fullPath);
+    }
+    
+    // either
+    //  - cloud item did not exist before; upsync
+    //  - the fs item has changed too; upsync (this lets users recover from the both sides changed state - user deletes the one they don't want anymore)
+    return resolve_upsync(row, parentRow, fullPath);
+}
+
+bool Sync::syncItem_CXX(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+{
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXX);
+
+    // item exists remotely only
+    return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
+}
+
+bool Sync::syncItem_CXF(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+{
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXF);
+
+    // Item exists locally and remotely but we haven't synced them previously
+    // If they are equal then join them with a Localnode. Othewise report or choose greater mtime.
+    if (row.fsNode->type != row.cloudNode->type)
+    {
+        return resolve_userIntervention(row, parentRow, fullPath);
+    }
+
+    if (row.fsNode->type != FILENODE || row.fsNode->fingerprint == row.cloudNode->fingerprint)
+    {
+        return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+    }
+
+    // When initially joining two trees together, use the old rules (pick most recent)
+    // Todo: evaluate that against asking the user as we would do for the existing-sync case
+    return resolve_pickWinner(row, parentRow, fullPath);
+}
+
+bool Sync::syncItem_CSX(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+{
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSX);
+
+    // local item not present
+    if (isBackupAndMirroring())
+    {
+        // in mirror mode, make the cloud the same as local
+        // if backing up and not mirroring, the resolve_downsync branch will cancel the sync
+        return resolve_fsNodeGone(row, parentRow, fullPath);
+    }
+
+    if (row.syncNode->fsid_lastSynced != UNDEF
+        && !row.syncNode->syncedCloudNodeHandle.isUndef()
+        // for cloud nodes, same handle must be same content        
+        && row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle)
+    {
+        // used to be fully synced and the cloud side still has that version
+        // remove in the cloud (if not part of a move)
+        return resolve_fsNodeGone(row, parentRow, fullPath);
+    }
+    
+    // either
+    //  - fs item did not exist before; downsync
+    //  - the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
+    return resolve_downsync(row, parentRow, fullPath, false);
+}
+
+bool Sync::syncItem_CSF(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+{
+    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSF);
+
+    // all three exist; compare
+    bool fsCloudEqual = syncEqual(*row.cloudNode, *row.fsNode);
+    bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
+    bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
+
+    if (fsCloudEqual)
+    {
+        // success! this row is synced
+        if (!cloudEqual || !fsEqual)
+        {
+            row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
+            assert(row.syncNode->syncedFingerprint == row.cloudNode->fingerprint);
+            statecacheadd(row.syncNode);
+        }
+
+        return resolve_rowMatched(row, parentRow, fullPath);
+    }
+
+    if (cloudEqual || isBackupAndMirroring())
+    {
+        // filesystem changed, put the change
+        return resolve_upsync(row, parentRow, fullPath);
+    }
+
+    if (fsEqual)
+    {
+        // cloud has changed, get the change
+        return resolve_downsync(row, parentRow, fullPath, true);
+    }
+
+    // both changed, so we can't decide without the user's help
+    return resolve_userIntervention(row, parentRow, fullPath);
+}
 
 bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {

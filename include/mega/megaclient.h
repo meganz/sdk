@@ -1856,13 +1856,21 @@ public:
         CodeCounter::ScopeStats dispatchTransfers = { "dispatchTransfers" };
         CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
         CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
-        CodeCounter::ScopeStats recursiveSyncTime = { "recursiveSync" };
 #ifdef ENABLE_SYNC
+        CodeCounter::ScopeStats recursiveSyncTime = { "recursiveSync" };
         CodeCounter::ScopeStats computeSyncTripletsTime = { "computeSyncTriplets" };
-#endif
         CodeCounter::ScopeStats inferSyncTripletsTime = { "inferSyncTriplets" };
-        CodeCounter::ScopeStats syncItemTime1 = { "syncItem1" };
-        CodeCounter::ScopeStats syncItemTime2 = { "syncItem2" };
+        CodeCounter::ScopeStats syncItem = { "syncItem" };
+        CodeCounter::ScopeStats syncItemCheckMove = { "syncItemCheckMove" };
+        CodeCounter::ScopeStats syncItemXXX = { "syncItemXXX" };
+        CodeCounter::ScopeStats syncItemXXF = { "syncItemXXF" };
+        CodeCounter::ScopeStats syncItemXSX = { "syncItemXSX" };
+        CodeCounter::ScopeStats syncItemXSF = { "syncItemXSF" };
+        CodeCounter::ScopeStats syncItemCXX = { "syncItemCXX" };
+        CodeCounter::ScopeStats syncItemCXF = { "syncItemCXF" };
+        CodeCounter::ScopeStats syncItemCSX = { "syncItemCSX" };
+        CodeCounter::ScopeStats syncItemCSF = { "syncItemCSF" };
+#endif
         uint64_t transferStarts = 0, transferFinishes = 0;
         uint64_t transferTempErrors = 0, transferFails = 0;
         uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;
