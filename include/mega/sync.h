@@ -235,7 +235,8 @@ struct syncRow
     // to this list so that we recurse into it immediately.
     list<FSNode> fsAddedSiblings;
 
-    void inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren);
+    void inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren,
+            bool belowRemovedFsNode, fsid_localnode_map& localnodeByScannedFsid);
 
     bool empty() { return !cloudNode && !syncNode && !fsNode && cloudClashingNames.empty() && fsClashingNames.empty(); }
 };

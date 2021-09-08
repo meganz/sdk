@@ -4510,12 +4510,13 @@ bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
     return !conflicts.empty();
 }
 
-void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren)
+void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren,
+                bool belowRemovedFsNode, fsid_localnode_map& localnodeByScannedFsid)
 {
     // Effective children are from the last scan, if present.
-    vector<FSNode>* effectiveFsChildren = syncNode->lastFolderScan.get();
+    vector<FSNode>* effectiveFsChildren = belowRemovedFsNode ? nullptr : syncNode->lastFolderScan.get();
 
-    if (wasSynced && syncNode->sync->inferRegeneratableTriplets(cloudChildren, *syncNode, fsInferredChildren, childRows))
+    if (wasSynced && !belowRemovedFsNode && syncNode->sync->inferRegeneratableTriplets(cloudChildren, *syncNode, fsInferredChildren, childRows))
     {
         effectiveFsChildren = &fsInferredChildren;
     }
@@ -4528,7 +4529,15 @@ void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& chi
 
             for (auto &childIt : syncNode->children)
             {
-                if (childIt.second->fsid_lastSynced != UNDEF)
+                if (belowRemovedFsNode)
+                {
+                    if (childIt.second->fsid_asScanned != UNDEF)
+                    {
+                        childIt.second->setScannedFsid(UNDEF, localnodeByScannedFsid, LocalPath());
+                        childIt.second->scannedFingerprint = FileFingerprint();
+                    }
+                }
+                else if (childIt.second->fsid_asScanned != UNDEF)
                 {
                     fsChildren.emplace_back(childIt.second->getScannedFSDetails());
                 }
@@ -4564,7 +4573,7 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, 
     }
 
     bool wasSynced = false;  // todo
-    row.inferOrCalculateChildSyncRows(wasSynced, childRows, fsInferredChildren, fsChildren, cloudChildren);
+    row.inferOrCalculateChildSyncRows(wasSynced, childRows, fsInferredChildren, fsChildren, cloudChildren, false, syncs.localnodeByScannedFsid);
 
 
     for (auto& childRow : childRows)
@@ -5031,6 +5040,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         row.syncNode->setScannedFsid(UNDEF, syncs.localnodeByScannedFsid, LocalPath());
         syncHere = row.syncNode->parent ? row.syncNode->parent->scanAgain < TREE_ACTION_HERE : true;
         recurseHere = false;  // If we need to scan, we need the folder to exist first - revisit later
+        row.syncNode->lastFolderScan.reset();
+        belowRemovedFsNode = true; // this flag will prevent us reconstructing from scannedFingerprint etc
     }
     else
     {
@@ -5102,7 +5113,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
             syncs.lookupCloudChildren(row.cloudNode->handle, cloudChildren);
         }
 
-        row.inferOrCalculateChildSyncRows(wasSynced, childRows, fsInferredChildren, fsChildren, cloudChildren);
+        row.inferOrCalculateChildSyncRows(wasSynced, childRows, fsInferredChildren, fsChildren, cloudChildren, belowRemovedFsNode, syncs.localnodeByScannedFsid);
 
         bool anyNameConflicts = false;
         for (unsigned step = 0; step < 3; ++step)
