@@ -5588,7 +5588,7 @@ TEST_F(SdkTest, EscapesReservedCharacters)
     // Set up necessary accounts.
     getAccountsForTest(1);
 
-    const string input = "%\r\\/:?\"<>|*";
+    const string input = "\r\\/:?\"<>|*";
 
     // Generate expected string.
     ostringstream osstream;
@@ -5603,14 +5603,12 @@ TEST_F(SdkTest, EscapesReservedCharacters)
     }
 
     // Escape input string.
-    const char *output =
-      megaApi[0]->escapeFsIncompatible(input.c_str());
+    unique_ptr<char[]> output(
+      megaApi[0]->escapeFsIncompatible(input.c_str()));
 
     // Was the string escaped as expected?
-    ASSERT_NE(output, nullptr);
-    ASSERT_STREQ(output, osstream.str().c_str());
-
-    delete[] output;
+    ASSERT_NE(output.get(), nullptr);
+    ASSERT_STREQ(output.get(), osstream.str().c_str());
 }
 
 TEST_F(SdkTest, EscapesReservedCharactersOnDownload)
@@ -5674,26 +5672,22 @@ TEST_F(SdkTest, UnescapesReservedCharacters)
     // Set up necessary accounts.
     getAccountsForTest(1);
 
-    const string input = "\\/:?\"<>|*%5a%21";
+    string input = "\\/:?\"<>|*%5a%21";
+    string input_unescaped = "\\/:?\"<>|*Z!";
 
     // Escape input string.
-    const char* escaped =
-      megaApi[0]->escapeFsIncompatible(input.c_str());
+    unique_ptr<char[]> escaped(
+      megaApi[0]->escapeFsIncompatible(input.c_str()));
 
-    ASSERT_NE(escaped, nullptr);
+    ASSERT_NE(escaped.get(), nullptr);
 
     // Unescape the escaped string.
-    const char* unescaped =
-      megaApi[0]->unescapeFsIncompatible(escaped);
+    unique_ptr<char[]> unescaped(
+      megaApi[0]->unescapeFsIncompatible(escaped.get()));
 
-    // Release escaped, we're done with it.
-    delete[] escaped;
-
-    // Was the string unescaped as expected?
-    ASSERT_NE(unescaped, nullptr);
-    ASSERT_STREQ(input.c_str(), unescaped);
-
-    delete[] unescaped;
+    // Was the string unescaped as expected?  (round trip causes %5a to be unescaped now)
+    ASSERT_NE(unescaped.get(), nullptr);
+    ASSERT_STREQ(input_unescaped.c_str(), unescaped.get());
 }
 
 TEST_F(SdkTest, UnescapesReservedCharactersOnUpload)
