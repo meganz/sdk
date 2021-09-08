@@ -8823,7 +8823,7 @@ void exec_syncadd(autocomplete::ACState& s)
       SyncConfig(sourcePath,
                  sourcePath.leafName().toPath(*client->fsaccess),
                  NodeHandle().set6byte(targetNode->nodehandle),
-                 targetPath,
+                 targetNode->displaypath(),
                  0,
                  external ? std::move(drivePath) : LocalPath(),
                  true,
