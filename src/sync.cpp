@@ -4954,9 +4954,10 @@ bool Sync::inferRegeneratableTriplets(vector<CloudNode>& cloudChildren, const Lo
             return false;
         }
 
-        if (child.second->fsid_asScanned == UNDEF)
+        if (child.second->fsid_asScanned == UNDEF ||
+           (!child.second->scannedFingerprint.isvalid && child.second->type == FILENODE))
         {
-            assert(false); // shouldn't be in this function if we haven't scanned yet
+            // we haven't scanned yet, or the scans don't match up with LocalNodes yet
             return false;
         }
 
@@ -5008,7 +5009,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     auto originalSyncAgain = row.syncNode->syncAgain;
     row.syncNode->syncAgain = TREE_RESOLVED;
 
-    if (!row.fsNode)
+    if (!row.fsNode || belowRemovedFsNode)
     {
         row.syncNode->scanAgain = TREE_RESOLVED;
         row.syncNode->setScannedFsid(UNDEF, syncs.localnodeByScannedFsid, LocalPath());
@@ -5486,8 +5487,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             {
                 // all three exist; compare
                 bool fsCloudEqual = syncEqual(*row.cloudNode, *row.fsNode);
-                bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
-                bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
+                bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode, true);
+                bool fsEqual = syncEqual(*row.fsNode, *row.syncNode, true);
                 if (fsCloudEqual)
                 {
                     // success! this row is synced
@@ -5677,6 +5678,8 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
         row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname);
         row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+
+        row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
 
         row.syncNode->treestate(TREESTATE_SYNCED);
 
@@ -6712,24 +6715,40 @@ bool Sync::syncEqual(const CloudNode& n, const FSNode& fs)
     return n.fingerprint == fs.fingerprint;  // size, mtime, crc
 }
 
-bool Sync::syncEqual(const CloudNode& n, const LocalNode& ln)
+bool Sync::syncEqual(const CloudNode& n, const LocalNode& ln, bool useScannedFingerprint)
 {
     // Assuming names already match
     // Not comparing nodehandle here.  If they all match we set syncedCloudNodeHandle
     if (n.type != ln.type) return false;
     if (n.type != FILENODE) return true;
-    assert(n.fingerprint.isvalid && ln.syncedFingerprint.isvalid);
-    return n.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
+    if (useScannedFingerprint)
+    {
+        assert(n.fingerprint.isvalid && ln.scannedFingerprint.isvalid);
+        return n.fingerprint == ln.scannedFingerprint;  // size, mtime, crc
+    }
+    else
+    {
+        assert(n.fingerprint.isvalid && ln.syncedFingerprint.isvalid);
+        return n.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
+    }
 }
 
-bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
+bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln, bool useScannedFingerprint)
 {
     // Assuming names already match
     // Not comparing fsid here. If they all match then we set LocalNode's fsid
     if (fsn.type != ln.type) return false;
     if (fsn.type != FILENODE) return true;
-    assert(fsn.fingerprint.isvalid && ln.syncedFingerprint.isvalid);
-    return fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
+    if (useScannedFingerprint)
+    {
+        assert(fsn.fingerprint.isvalid && ln.scannedFingerprint.isvalid);
+        return fsn.fingerprint == ln.scannedFingerprint;  // size, mtime, crc
+    }
+    else
+    {
+        assert(fsn.fingerprint.isvalid && ln.syncedFingerprint.isvalid);
+        return fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
+    }
 }
 
 void Syncs::triggerSync(NodeHandle h, bool recurse)
