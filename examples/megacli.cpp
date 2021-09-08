@@ -9168,7 +9168,7 @@ void exec_synclist(autocomplete::ACState& s)
     SyncStallInfo stall;
     if (client->syncs.syncStallDetected(stall))
     {
-        cout << "Stalled (mutually unresolvable) changes detected!" << endl;
+        cout << "Stalled (mutually unresolvable changes detected)!" << endl;
         for (auto& p : stall.cloud)
         {
             cout << "stalled node path: " << p.first << " " << syncWaitReasonString(p.second.reason);

@@ -1072,7 +1072,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
     }
 }
 
-bool WinFileSystemAccess::mkdirlocal(LocalPath& namePath, bool hidden)
+bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, bool logAlreadyExistsError)
 {
     const std::wstring& name = namePath.localpath;
 
@@ -1081,8 +1081,12 @@ bool WinFileSystemAccess::mkdirlocal(LocalPath& namePath, bool hidden)
     if (!r)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to create folder. Error code: " << e;
         transient_error = istransientorexists(e);
+
+        if (!target_exists || logAlreadyExistsError)
+        {
+            LOG_debug << "Unable to create folder. Error code: " << e << " for: " << namePath.toPath();
+        }
     }
     else if (hidden)
     {

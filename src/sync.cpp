@@ -1269,13 +1269,19 @@ void Sync::createDebrisTmpLockOnce()
         int i = 3;
         while (i--)
         {
-            LOG_verbose << "Creating sync tmp folder";
+
             LocalPath localfilename = localdebris;
-            syncs.fsaccess->mkdirlocal(localfilename, true);
+            if (syncs.fsaccess->mkdirlocal(localfilename, true, false))
+            {
+                LOG_verbose << syncname << "Created local sync debris folder";
+            }
 
             LocalPath tmpname = LocalPath::fromName("tmp", *syncs.fsaccess, mFilesystemType);
             localfilename.appendWithSeparator(tmpname, true);
-            syncs.fsaccess->mkdirlocal(localfilename);
+            if (syncs.fsaccess->mkdirlocal(localfilename, false, false))
+            {
+                LOG_verbose << syncname << "Created local sync debris tmp folder";
+            }
 
             tmpfaPath = localfilename;
 
@@ -1285,6 +1291,7 @@ void Sync::createDebrisTmpLockOnce()
 
             if (tmpfa->fopen(localfilename, false, true))
             {
+                LOG_verbose << syncname << "Locked local sync debris tmp lock file";
                 break;
             }
         }
@@ -2562,8 +2569,10 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
 
         if (i == -2 || i > 95)
         {
-            LOG_verbose << syncname << "Creating local debris folder";
-            syncs.fsaccess->mkdirlocal(localdebris, true);
+            if (syncs.fsaccess->mkdirlocal(localdebris, true, false))
+            {
+                LOG_verbose << syncname << "Created local debris folder: " << localdebris.toPath();
+            }
         }
 
         sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
@@ -2578,8 +2587,15 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
 
         if (i > -3)
         {
-            LOG_verbose << syncname << "Creating daily local debris folder";
-            havedir = syncs.fsaccess->mkdirlocal(localdebris, false) || syncs.fsaccess->target_exists;
+            if (syncs.fsaccess->mkdirlocal(localdebris, false, false))
+            {
+                LOG_verbose << syncname << "Created daily local debris folder: " << localdebris.toPath();
+                havedir = true;
+            }
+            else
+            {
+                havedir = syncs.fsaccess->target_exists;
+            }
         }
 
         localdebris.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex(*syncs.fsaccess)), true);
@@ -5487,8 +5503,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             {
                 // all three exist; compare
                 bool fsCloudEqual = syncEqual(*row.cloudNode, *row.fsNode);
-                bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode, true);
-                bool fsEqual = syncEqual(*row.fsNode, *row.syncNode, true);
+                bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
+                bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
                 if (fsCloudEqual)
                 {
                     // success! this row is synced
@@ -6132,7 +6148,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
             LOG_verbose << syncname << "Creating local folder at: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
 
             assert(!isBackup());
-            if (syncs.fsaccess->mkdirlocal(fullPath.localPath))
+            if (syncs.fsaccess->mkdirlocal(fullPath.localPath, false, true))
             {
                 assert(row.syncNode);
                 assert(row.syncNode->localname == fullPath.localPath.leafName());
@@ -6207,8 +6223,10 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& 
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
-    LOG_debug << syncname << "write me" << logTriplet(row, fullPath);
-    assert(false);
+
+    monitor.waitingCloud(fullPath.cloudPath, string(), fullPath.localPath, SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
+    monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
+
     return false;
 }
 
@@ -6715,40 +6733,28 @@ bool Sync::syncEqual(const CloudNode& n, const FSNode& fs)
     return n.fingerprint == fs.fingerprint;  // size, mtime, crc
 }
 
-bool Sync::syncEqual(const CloudNode& n, const LocalNode& ln, bool useScannedFingerprint)
+bool Sync::syncEqual(const CloudNode& n, const LocalNode& ln)
 {
+    // return true if this node was previously synced, and the CloudNode fingerprint is equal to the fingerprint from then.
     // Assuming names already match
     // Not comparing nodehandle here.  If they all match we set syncedCloudNodeHandle
     if (n.type != ln.type) return false;
     if (n.type != FILENODE) return true;
-    if (useScannedFingerprint)
-    {
-        assert(n.fingerprint.isvalid && ln.scannedFingerprint.isvalid);
-        return n.fingerprint == ln.scannedFingerprint;  // size, mtime, crc
-    }
-    else
-    {
-        assert(n.fingerprint.isvalid && ln.syncedFingerprint.isvalid);
-        return n.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
-    }
+    assert(n.fingerprint.isvalid);
+    return ln.syncedFingerprint.isvalid &&
+            n.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
 }
 
-bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln, bool useScannedFingerprint)
+bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
 {
+    // return true if this node was previously synced, and the FSNode fingerprint is equal to the fingerprint from then.
     // Assuming names already match
     // Not comparing fsid here. If they all match then we set LocalNode's fsid
     if (fsn.type != ln.type) return false;
     if (fsn.type != FILENODE) return true;
-    if (useScannedFingerprint)
-    {
-        assert(fsn.fingerprint.isvalid && ln.scannedFingerprint.isvalid);
-        return fsn.fingerprint == ln.scannedFingerprint;  // size, mtime, crc
-    }
-    else
-    {
-        assert(fsn.fingerprint.isvalid && ln.syncedFingerprint.isvalid);
-        return fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
-    }
+    assert(fsn.fingerprint.isvalid);
+    return ln.syncedFingerprint.isvalid &&
+            fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
 }
 
 void Syncs::triggerSync(NodeHandle h, bool recurse)
@@ -7397,7 +7403,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
               << slot;
 
     // Try and create the backup configuration directory.
-    if (!(mFsAccess.mkdirlocal(path) || mFsAccess.target_exists))
+    if (!(mFsAccess.mkdirlocal(path, false, false) || mFsAccess.target_exists))
     {
         LOG_err << "Unable to create config DB directory: "
                 << dbPath.toPath(mFsAccess);

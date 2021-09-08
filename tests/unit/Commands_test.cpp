@@ -274,7 +274,7 @@ public:
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override { return false; }
     bool unlinklocal(const LocalPath&) override { return false; }
     bool rmdirlocal(LocalPath&) override { return false; }
-    bool mkdirlocal(LocalPath&, bool = false) override { return false; }
+    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override { return false; }
     bool setmtimelocal(LocalPath&, m_time_t) override { return false; }
     bool chdirlocal(LocalPath&) const override { return false; }
     bool getextension(const LocalPath&, string&) const override { return false; }

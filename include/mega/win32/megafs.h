@@ -77,7 +77,7 @@ public:
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
     bool unlinklocal(const LocalPath&) override;
     bool rmdirlocal(LocalPath&) override;
-    bool mkdirlocal(LocalPath&, bool) override;
+    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
     bool setmtimelocal(LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, string&) const override;

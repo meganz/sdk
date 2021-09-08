@@ -104,7 +104,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool mkdirlocal(mega::LocalPath&, bool = false) override
+    bool mkdirlocal(const mega::LocalPath&, bool, bool) override
     {
         throw NotImplemented{__func__};
     }

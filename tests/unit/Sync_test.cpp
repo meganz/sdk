@@ -58,7 +58,7 @@ public:
       : mFSAccess(fsAccess)
       , mPath(path)
     {
-        mFSAccess.mkdirlocal(mPath, false);
+        mFSAccess.mkdirlocal(mPath, false, true);
     }
 
     ~Directory()
@@ -597,7 +597,7 @@ TEST_F(SyncConfigIOContextTest, RemoveSlots)
                 getSlotsInOrder(Eq(drivePath), _))
       .WillRepeatedly(DoAll(SetArgReferee<1>(slotsVec),
                             Return(API_OK)));
-    
+
     // All slots should be removed successfully.
     EXPECT_CALL(ioContext(),
                 remove(Eq(drivePath), _))

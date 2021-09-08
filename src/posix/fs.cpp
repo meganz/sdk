@@ -1332,7 +1332,7 @@ bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
     return false;
 }
 
-bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
+bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlreadyExistsError)
 {
 #ifdef USE_IOS
     const string nameStr = adjustBasePath(name);
@@ -1350,7 +1350,10 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
         target_exists = errno == EEXIST;
         if (target_exists)
         {
-            LOG_debug << "Failed to create local directory: " << nameStr << " (already exists)";
+            if (logAlreadyExistsError)
+            {
+                LOG_debug << "Failed to create local directory: " << nameStr << " (already exists)";
+            }
         }
         else
         {

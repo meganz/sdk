@@ -377,8 +377,8 @@ public:
     bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
 
     bool syncEqual(const CloudNode&, const FSNode&);
-    bool syncEqual(const CloudNode&, const LocalNode&, bool useScannedFingerprint);
-    bool syncEqual(const FSNode&, const LocalNode&, bool useScannedFingerprint);
+    bool syncEqual(const CloudNode&, const LocalNode&);
+    bool syncEqual(const FSNode&, const LocalNode&);
 
     bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
     bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);

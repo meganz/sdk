@@ -1064,7 +1064,8 @@ enum class SyncWaitReason {
     DeleteWaitingOnMoves,
     WatiingForFileToStopChanging,
     MovingDownloadToTarget,
-    MovingExistingDownloadTargetToDebris
+    MovingExistingDownloadTargetToDebris,
+    LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
 };
 
 string syncWaitReasonString(SyncWaitReason);

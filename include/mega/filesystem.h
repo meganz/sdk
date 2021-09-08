@@ -566,7 +566,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool rmdirlocal(LocalPath&) = 0;
 
     // create directory, optionally hidden
-    virtual bool mkdirlocal(LocalPath&, bool = false) = 0;
+    virtual bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) = 0;
 
     // make sure that we stay within the range of timestamps supported by the server data structures (unsigned 32-bit)
     static void captimestamp(m_time_t*);

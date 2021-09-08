@@ -2540,6 +2540,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::WatiingForFileToStopChanging:                  return "WatiingForFileToStopChanging";
         case SyncWaitReason::MovingDownloadToTarget:                        return "MovingDownloadToTarget";
         case SyncWaitReason::MovingExistingDownloadTargetToDebris:          return "MovingExistingDownloadTargetToDebris";
+        case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
     }
     return "<out of range>";
 }
