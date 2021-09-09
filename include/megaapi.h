@@ -19404,7 +19404,10 @@ public:
     virtual MegaCurrency *copy();
 
     /**
-     * @brief Get the currency symbol of prices, ie. €
+     * @brief Get the currency symbol of prices
+     *
+     * The currency symbol is encoded in B64url, since it may be a UTF-8 char.
+     * In example, for €, it returns "4oKs".
      *
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaPricing object is deleted.
@@ -19424,7 +19427,10 @@ public:
     virtual const char* getCurrencyName();
 
     /**
-     * @brief Get the currency symbol of local prices, ie. $
+     * @brief Get the currency symbol of local prices
+     *
+     * The currency symbol is encoded in B64url, since it may be a UTF-8 char.
+     * In example, for €, it returns "4oKs".
      *
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaPricing object is deleted.

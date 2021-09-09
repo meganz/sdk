@@ -2279,7 +2279,7 @@ bool CommandUpdatePendingContact::procresult(Result r)
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
-    arg("nf", 2);
+    arg("nf", 3);
     arg("b", 1);
     tag = client->reqtag;
 }
