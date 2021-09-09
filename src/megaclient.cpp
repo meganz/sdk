@@ -2568,6 +2568,7 @@ void MegaClient::exec()
                 const auto &syncConfig = sync->getConfig();
                 LocalPath localPath = sync->getConfig().getLocalPath();
                 auto fa = fsaccess->newfileaccess();
+                auto syncErr = NO_SYNC_ERROR;
 
                 if (fa->fopen(localPath, true, false))
                 {
@@ -2584,20 +2585,26 @@ void MegaClient::exec()
                         else
                         {
                             LOG_err << "Initial delayed scan failed";
-                            failSync(sync, INITIAL_SCAN_FAILED);
-                            sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, false, true);
+                            syncErr = INITIAL_SCAN_FAILED;
                         }
 
                         syncactivity = true;
                     }
                     else
                     {
-                        failSync(sync, INVALID_LOCAL_TYPE);
+                        syncErr = INVALID_LOCAL_TYPE;
                     }
                 }
                 else
                 {
-                    failSync(sync, fa->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE);
+                    syncErr = fa->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
+                }
+
+                if (syncErr != NO_SYNC_ERROR)
+                {
+                    syncs.disableSelectedSyncs(
+                        [&](SyncConfig&, Sync* s) { return s == sync; },
+                        true, syncErr, false, nullptr);
                 }
             }
         });
@@ -3013,6 +3020,8 @@ void MegaClient::exec()
                                                     LOG_warn << "The cause was: " << failedReason;
                                                 }
                                                 scanfailed = true;
+
+                                                sync->localroot->setSubtreeNeedsRescan(true);
 
                                                 sync->scan(&sync->localroot->localname, NULL);
                                                 sync->dirnotify->mErrorCount = 0;
@@ -7333,18 +7342,27 @@ void MegaClient::notifypurge(void)
                     return;
                 }
 
+                auto syncErr = NO_SYNC_ERROR;
+
                 // fail sync if required
                 if (movedToRubbish)
                 {
-                    failSync(activeSync.get(), REMOTE_NODE_MOVED_TO_RUBBISH);
+                    syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
                 }
                 else if (removed)
                 {
-                    failSync(activeSync.get(), REMOTE_NODE_NOT_FOUND);
+                    syncErr = REMOTE_NODE_NOT_FOUND;
                 }
                 else if (pathChanged) // moved
                 {
-                    failSync(activeSync.get(), REMOTE_PATH_HAS_CHANGED);
+                    syncErr = REMOTE_PATH_HAS_CHANGED;
+                }
+
+                if (syncErr != NO_SYNC_ERROR)
+                {
+                    syncs.disableSelectedSyncs(
+                        [&](SyncConfig&, Sync* s) { return s == activeSync.get(); },
+                        true, syncErr, false, nullptr);
                 }
             }
         });
@@ -15648,15 +15666,6 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
 }
 
 #ifdef ENABLE_SYNC
-
-void MegaClient::failSync(Sync* sync, SyncError syncerror)
-{
-    LOG_err << "Failing sync: " << sync->getConfig().getLocalPath().toPath(*fsaccess) << " error = " << syncerror;
-
-    sync->changestate(SYNC_FAILED, syncerror, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
-
-    syncactivity = true;
-}
 
 void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag)
 {

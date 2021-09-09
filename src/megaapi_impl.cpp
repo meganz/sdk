@@ -1571,7 +1571,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
 }
 #endif
 
-MegaBackup *MegaApiImpl::getBackupByTag(int tag)
+MegaScheduledCopy *MegaApiImpl::getScheduledCopyByTag(int tag)
 {
     sdkMutex.lock();
     if (backupsMap.find(tag) == backupsMap.end())
@@ -1579,25 +1579,25 @@ MegaBackup *MegaApiImpl::getBackupByTag(int tag)
         sdkMutex.unlock();
         return NULL;
     }
-    MegaBackup *result = backupsMap.at(tag)->copy();
+    MegaScheduledCopy *result = backupsMap.at(tag)->copy();
     sdkMutex.unlock();
     return result;
 }
 
-MegaBackup *MegaApiImpl::getBackupByNode(MegaNode *node)
+MegaScheduledCopy *MegaApiImpl::getScheduledCopyByNode(MegaNode *node)
 {
     if (!node)
     {
         return NULL;
     }
 
-    MegaBackup *result = NULL;
+    MegaScheduledCopy *result = NULL;
     MegaHandle nodeHandle = node->getHandle();
     sdkMutex.lock();
-    std::map<int, MegaBackupController*>::iterator it = backupsMap.begin();
+    std::map<int, MegaScheduledCopyController*>::iterator it = backupsMap.begin();
     while(it != backupsMap.end())
     {
-        MegaBackupController* backup = it->second;
+        MegaScheduledCopyController* backup = it->second;
         if (backup->getMegaHandle() == nodeHandle)
         {
             result = backup->copy();
@@ -1610,19 +1610,19 @@ MegaBackup *MegaApiImpl::getBackupByNode(MegaNode *node)
     return result;
 }
 
-MegaBackup *MegaApiImpl::getBackupByPath(const char *localPath)
+MegaScheduledCopy *MegaApiImpl::getScheduledCopyByPath(const char *localPath)
 {
     if (!localPath)
     {
         return NULL;
     }
 
-    MegaBackup *result = NULL;
+    MegaScheduledCopy *result = NULL;
     sdkMutex.lock();
-    std::map<int, MegaBackupController*>::iterator it = backupsMap.begin();
+    std::map<int, MegaScheduledCopyController*>::iterator it = backupsMap.begin();
     while(it != backupsMap.end())
     {
-        MegaBackupController* backup = it->second;
+        MegaScheduledCopyController* backup = it->second;
         if (!strcmp(localPath, backup->getLocalFolder()))
         {
             result = backup->copy();
@@ -3530,12 +3530,12 @@ void MegaRequestPrivate::setMegaHandleList(const vector<handle> &handles)
     mHandleList.reset(new MegaHandleListPrivate(handles));
 }
 
-MegaBackupListener *MegaRequestPrivate::getBackupListener() const
+MegaScheduledCopyListener *MegaRequestPrivate::getBackupListener() const
 {
     return backupListener;
 }
 
-void MegaRequestPrivate::setBackupListener(MegaBackupListener *value)
+void MegaRequestPrivate::setBackupListener(MegaScheduledCopyListener *value)
 {
     backupListener = value;
 }
@@ -4006,10 +4006,10 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_MULTI_FACTOR_AUTH_CHECK: return "MULTI_FACTOR_AUTH_CHECK";
         case TYPE_MULTI_FACTOR_AUTH_GET: return "MULTI_FACTOR_AUTH_GET";
         case TYPE_MULTI_FACTOR_AUTH_SET: return "MULTI_FACTOR_AUTH_SET";
-        case TYPE_ADD_BACKUP: return "ADD_BACKUP";
-        case TYPE_REMOVE_BACKUP: return "REMOVE_BACKUP";
+        case TYPE_ADD_SCHEDULED_COPY: return "ADD_BACKUP"; // TODO: consider renaming this in the future.
+        case TYPE_REMOVE_SCHEDULED_COPY: return "REMOVE_BACKUP"; // TODO: consider renaming this in the future..
+        case TYPE_ABORT_CURRENT_SCHEDULED_COPY: return "ABORT_BACKUP"; // TODO: consider renaming this in the future.
         case TYPE_TIMER: return "SET_TIMER";
-        case TYPE_ABORT_CURRENT_BACKUP: return "ABORT_BACKUP";
         case TYPE_GET_PSA: return "GET_PSA";
         case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
         case TYPE_USERALERT_ACKNOWLEDGE: return "USERALERT_ACKNOWLEDGE";
@@ -8310,7 +8310,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     map<int64_t, string> backupTimesPaths;
     sdkMutex.lock();
 
-    map<int, MegaBackupController *>::iterator itr = backupsMap.find(backuptag) ;
+    map<int, MegaScheduledCopyController *>::iterator itr = backupsMap.find(backuptag) ;
     if (itr == backupsMap.end())
     {
         LOG_err << "Failed to find backup with tag " << backuptag;
@@ -8318,7 +8318,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
         return NULL;
     }
 
-    MegaBackupController *mbc = itr->second;
+    MegaScheduledCopyController *mbc = itr->second;
 
     MegaNode * parentNode = getNodeByHandle(mbc->getMegaHandle());
     if (parentNode)
@@ -8361,9 +8361,9 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     return backupFolders;
 }
 
-void MegaApiImpl::setBackup(const char* localFolder, MegaNode* parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
+void MegaApiImpl::setScheduledCopy(const char* localFolder, MegaNode* parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SCHEDULED_COPY, listener);
     if(parent) request->setNodeHandle(parent->getHandle());
     if(localFolder)
     {
@@ -8384,18 +8384,18 @@ void MegaApiImpl::setBackup(const char* localFolder, MegaNode* parent, bool atte
     waiter->notify();
 }
 
-void MegaApiImpl::removeBackup(int tag, MegaRequestListener *listener)
+void MegaApiImpl::removeScheduledCopy(int tag, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_BACKUP, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SCHEDULED_COPY, listener);
     request->setNumber(tag);
     requestQueue.push(request);
     waiter->notify();
 }
 
 
-void MegaApiImpl::abortCurrentBackup(int tag, MegaRequestListener *listener)
+void MegaApiImpl::abortCurrentScheduledCopy(int tag, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_BACKUP, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_SCHEDULED_COPY, listener);
     request->setNumber(tag);
     requestQueue.push(request);
     waiter->notify();
@@ -16012,7 +16012,7 @@ void MegaApiImpl::addTransferListener(MegaTransferListener* listener)
     sdkMutex.unlock();
 }
 
-void MegaApiImpl::addBackupListener(MegaBackupListener* listener)
+void MegaApiImpl::addScheduledCopyListener(MegaScheduledCopyListener* listener)
 {
     if(!listener) return;
 
@@ -16081,17 +16081,17 @@ void MegaApiImpl::removeTransferListener(MegaTransferListener* listener)
     sdkMutex.unlock();
 }
 
-void MegaApiImpl::removeBackupListener(MegaBackupListener* listener)
+void MegaApiImpl::removeScheduledCopyListener(MegaScheduledCopyListener* listener)
 {
     if(!listener) return;
 
     sdkMutex.lock();
     backupListeners.erase(listener);
 
-    std::map<int, MegaBackupController*>::iterator it = backupsMap.begin();
+    std::map<int, MegaScheduledCopyController*>::iterator it = backupsMap.begin();
     while(it != backupsMap.end())
     {
-        MegaBackupController* backup = it->second;
+        MegaScheduledCopyController* backup = it->second;
         if(backup->getBackupListener() == listener)
             backup->setBackupListener(NULL);
 
@@ -16587,19 +16587,19 @@ void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *loca
 
 #endif
 
-void MegaApiImpl::fireOnBackupStateChanged(MegaBackupController *backup)
+void MegaApiImpl::fireOnBackupStateChanged(MegaScheduledCopyController *backup)
 {
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onBackupStateChanged(api, backup);
     }
 
-    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    for(set<MegaScheduledCopyListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
         (*it++)->onBackupStateChanged(api, backup);
     }
 
-    MegaBackupListener* listener = backup->getBackupListener();
+    MegaScheduledCopyListener* listener = backup->getBackupListener();
     if(listener)
     {
         listener->onBackupStateChanged(api, backup);
@@ -16607,9 +16607,9 @@ void MegaApiImpl::fireOnBackupStateChanged(MegaBackupController *backup)
 }
 
 
-void MegaApiImpl::fireOnBackupStart(MegaBackupController *backup)
+void MegaApiImpl::fireOnBackupStart(MegaScheduledCopyController *backup)
 {
-    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    for(set<MegaScheduledCopyListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
         (*it++)->onBackupStart(api, backup);
     }
@@ -16619,7 +16619,7 @@ void MegaApiImpl::fireOnBackupStart(MegaBackupController *backup)
         (*it++)->onBackupStart(api, backup);
     }
 
-    MegaBackupListener* listener = backup->getBackupListener();
+    MegaScheduledCopyListener* listener = backup->getBackupListener();
     if(listener)
     {
         listener->onBackupStart(api, backup);
@@ -16627,9 +16627,9 @@ void MegaApiImpl::fireOnBackupStart(MegaBackupController *backup)
 
 }
 
-void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e)
+void MegaApiImpl::fireOnBackupFinish(MegaScheduledCopyController *backup, unique_ptr<MegaErrorPrivate> e)
 {
-    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    for(set<MegaScheduledCopyListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
         (*it++)->onBackupFinish(api, backup, e.get());
     }
@@ -16639,16 +16639,16 @@ void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, unique_ptr<Me
         (*it++)->onBackupFinish(api, backup, e.get());
     }
 
-    MegaBackupListener* listener = backup->getBackupListener();
+    MegaScheduledCopyListener* listener = backup->getBackupListener();
     if(listener)
     {
         listener->onBackupFinish(api, backup, e.get());
     }
 }
 
-void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e)
+void MegaApiImpl::fireOnBackupTemporaryError(MegaScheduledCopyController *backup, unique_ptr<MegaErrorPrivate> e)
 {
-    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    for(set<MegaScheduledCopyListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
         (*it++)->onBackupTemporaryError(api, backup, e.get());
     }
@@ -16658,18 +16658,18 @@ void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, uniqu
         (*it++)->onBackupTemporaryError(api, backup, e.get());
     }
 
-    MegaBackupListener* listener = backup->getBackupListener();
+    MegaScheduledCopyListener* listener = backup->getBackupListener();
     if(listener)
     {
         listener->onBackupTemporaryError(api, backup, e.get());
     }
 }
 
-void MegaApiImpl::fireOnBackupUpdate(MegaBackupController *backup)
+void MegaApiImpl::fireOnBackupUpdate(MegaScheduledCopyController *backup)
 {
 //    notificationNumber++; //TODO: should we use notificationNumber for backups??
 
-    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    for(set<MegaScheduledCopyListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
         (*it++)->onBackupUpdate(api, backup);
     }
@@ -16679,7 +16679,7 @@ void MegaApiImpl::fireOnBackupUpdate(MegaBackupController *backup)
         (*it++)->onBackupUpdate(api, backup);
     }
 
-    MegaBackupListener* listener = backup->getBackupListener();
+    MegaScheduledCopyListener* listener = backup->getBackupListener();
     if(listener)
     {
         listener->onBackupUpdate(api, backup);
@@ -18040,9 +18040,9 @@ MegaContactRequest *MegaApiImpl::getContactRequestByHandle(MegaHandle handle)
 
 void MegaApiImpl::updateBackups()
 {
-    for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
+    for (std::map<int, MegaScheduledCopyController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
     {
-        MegaBackupController *backupController=it->second;
+        MegaScheduledCopyController *backupController=it->second;
         backupController->update();
     }
 }
@@ -18562,17 +18562,17 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
     int tag = int(request->getNumber());
     bool found = false;
 
-    map<int, MegaBackupController *>::iterator itr = backupsMap.find(tag) ;
+    map<int, MegaScheduledCopyController *>::iterator itr = backupsMap.find(tag) ;
     if (itr != backupsMap.end())
     {
         found = true;
 
-        MegaBackupController *backup = itr->second;
+        MegaScheduledCopyController *backup = itr->second;
 
         bool flag = request->getFlag();
         if (!flag)
         {
-            if (backup->getState() == MegaBackup::BACKUP_ONGOING)
+            if (backup->getState() == MegaScheduledCopy::SCHEDULED_COPY_ONGOING)
             {
                 for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
                 {
@@ -21223,7 +21223,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             break;
         }
-        case MegaRequest::TYPE_ADD_BACKUP:
+        case MegaRequest::TYPE_ADD_SCHEDULED_COPY:
         {
             Node *parent = client->nodebyhandle(request->getNodeHandle());
             const char *localPath = request->getFile();
@@ -21234,10 +21234,10 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             string utf8name(localPath);
-            MegaBackupController *mbc = NULL;
+            MegaScheduledCopyController *mbc = NULL;
             int tagexisting = 0;
             bool existing = false;
-            for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
+            for (std::map<int, MegaScheduledCopyController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
             {
                 if (!strcmp(it->second->getLocalFolder(), utf8name.c_str()) && it->second->getMegaHandle() == request->getNodeHandle())
                 {
@@ -21270,10 +21270,10 @@ void MegaApiImpl::sendPendingRequests()
                 bool attendPastBackups= request->getFlag();
                 //TODO: add existence of local folder check (optional??)
 
-                MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
+                MegaScheduledCopyController *mbc = new MegaScheduledCopyController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
                                                                      utf8name.c_str(), attendPastBackups, speriod.c_str(),
                                                                      request->getNumber(), request->getNumRetry());
-                mbc->setBackupListener(request->getBackupListener()); //TODO: should we add this in setBackup?
+                mbc->setBackupListener(request->getBackupListener()); //TODO: should we add this in setScheduledCopy?
                 if (mbc->isValid())
                 {
                     backupsMap[tag] = mbc;
@@ -21291,14 +21291,14 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
-        case MegaRequest::TYPE_REMOVE_BACKUP:
+        case MegaRequest::TYPE_REMOVE_SCHEDULED_COPY:
         {
             int backuptag = int(request->getNumber());
             bool found = false;
             bool flag = request->getFlag();
 
 
-            map<int, MegaBackupController *>::iterator itr = backupsMap.find(backuptag) ;
+            map<int, MegaScheduledCopyController *>::iterator itr = backupsMap.find(backuptag) ;
             if (itr != backupsMap.end())
             {
                 found = true;
@@ -21308,7 +21308,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (!flag)
                 {
-                    MegaRequestPrivate *requestabort = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_BACKUP);
+                    MegaRequestPrivate *requestabort = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_SCHEDULED_COPY);
                     requestabort->setNumber(backuptag);
 
                     nextTag = client->nextreqtag();
@@ -21330,7 +21330,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
-                    MegaBackupController * todelete = itr->second;
+                    MegaScheduledCopyController * todelete = itr->second;
                     backupsMap.erase(backuptag);
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                     delete todelete;
@@ -21343,7 +21343,7 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
-        case MegaRequest::TYPE_ABORT_CURRENT_BACKUP:
+        case MegaRequest::TYPE_ABORT_CURRENT_SCHEDULED_COPY:
         {
             e = processAbortBackupRequest(request, e);
 
@@ -22724,7 +22724,7 @@ void MegaApiImpl::sendPendingRequests()
             std::string binaryUploadToken((char *)binTok, binTokSize);
 
             byte *theFileKey;
-            std::unique_ptr<byte> filekey;
+            std::unique_ptr<byte[]> filekey;
             if (bgMediaUpload) //using MegaBackgroundMediaUploadPrivate key
             {
                 theFileKey = bgMediaUpload->filekey;
@@ -23506,7 +23506,7 @@ void RequestQueue::removeListener(MegaRequestListener *listener)
     mutex.unlock();
 }
 
-void RequestQueue::removeListener(MegaBackupListener *listener)
+void RequestQueue::removeListener(MegaScheduledCopyListener *listener)
 {
     mutex.lock();
 
@@ -25090,7 +25090,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
-MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
+MegaScheduledCopyController::MegaScheduledCopyController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
 {
     LOG_info << "Registering backup for folder " << filename << " period=" << period << " speriod=" << speriod << " Number-of-Backups=" << maxBackups;
 
@@ -25139,17 +25139,17 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     if (valid)
     {
         megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
-        this->state = MegaBackup::BACKUP_ACTIVE;
+        this->state = MegaScheduledCopy::SCHEDULED_COPY_ACTIVE;
         megaApi->fireOnBackupStateChanged(this);
         removeexceeding(false);
     }
     else
     {
-        this->state = MegaBackup::BACKUP_FAILED;
+        this->state = MegaScheduledCopy::SCHEDULED_COPY_FAILED;
     }
 }
 
-MegaBackupController::MegaBackupController(MegaBackupController *backup)
+MegaScheduledCopyController::MegaScheduledCopyController(MegaScheduledCopyController *backup)
 {
     this->pendingremovals = backup->pendingremovals;
     this->setTag(backup->getTag());
@@ -25204,7 +25204,7 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
 }
 
 
-long long MegaBackupController::getNextStartTime(long long oldStartTimeAbsolute) const
+long long MegaScheduledCopyController::getNextStartTime(long long oldStartTimeAbsolute) const
 {
     if (oldStartTimeAbsolute == -1)
     {
@@ -25216,7 +25216,7 @@ long long MegaBackupController::getNextStartTime(long long oldStartTimeAbsolute)
     }
 }
 
-long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) const
+long long MegaScheduledCopyController::getNextStartTimeDs(long long oldStartTimeds) const
 {
     if (oldStartTimeds == -1)
     {
@@ -25240,13 +25240,13 @@ long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) con
     }
 }
 
-void MegaBackupController::update()
+void MegaScheduledCopyController::update()
 {
     if (!valid)
     {
         if (!isBusy())
         {
-            state = BACKUP_FAILED;
+            state = SCHEDULED_COPY_FAILED;
         }
         return;
     }
@@ -25259,7 +25259,7 @@ void MegaBackupController::update()
             {
                 LOG_err << "Invalid calculated NextStartTime" ;
                 valid = false;
-                state = BACKUP_FAILED;
+                state = SCHEDULED_COPY_FAILED;
                 return;
             }
 
@@ -25279,7 +25279,7 @@ void MegaBackupController::update()
         else
         {
             LOG_verbose << "Backup busy: " << basepath <<
-                           ". State=" << ((state==MegaBackup::BACKUP_ONGOING)?"On Going":"Removing exeeding") << ". Postponing ...";
+                           ". State=" << ((state==MegaScheduledCopy::SCHEDULED_COPY_ONGOING)?"On Going":"Removing exeeding") << ". Postponing ...";
             if ((lastwakeuptime+10) < Waiter::ds )
             {
                 megaApi->startTimer(10); //give it a while
@@ -25298,7 +25298,7 @@ void MegaBackupController::update()
     }
 }
 
-void MegaBackupController::removeexceeding(bool currentoneOK)
+void MegaScheduledCopyController::removeexceeding(bool currentoneOK)
 {
     map<int64_t, MegaNode *> backupTimesNodes;
     int ncompleted=0;
@@ -25365,7 +25365,7 @@ void MegaBackupController::removeexceeding(bool currentoneOK)
             char * nodepath = megaApi->getNodePath(nodeToDelete);
             LOG_info << " Removing exceeding backup " << nodepath;
             delete []nodepath;
-            state = BACKUP_REMOVING_EXCEEDING;
+            state = SCHEDULED_COPY_REMOVING_EXCEEDING;
             megaApi->fireOnBackupStateChanged(this);
             pendingremovals++;
             megaApi->remove(nodeToDelete, false, this);
@@ -25378,7 +25378,7 @@ void MegaBackupController::removeexceeding(bool currentoneOK)
     delete parentNode;
 }
 
-int64_t MegaBackupController::getLastBackupTime()
+int64_t MegaScheduledCopyController::getLastBackupTime()
 {
     map<int64_t, MegaNode *> backupTimesPaths;
     int64_t latesttime=0;
@@ -25414,12 +25414,12 @@ int64_t MegaBackupController::getLastBackupTime()
     return latesttime;
 }
 
-bool MegaBackupController::isBackup(string localname, string backupname) const
+bool MegaScheduledCopyController::isBackup(string localname, string backupname) const
 {
     return ( localname.compare(0, backupname.length(), backupname) == 0) && (localname.find("_bk_") != string::npos);
 }
 
-int64_t MegaBackupController::getTimeOfBackup(string localname) const
+int64_t MegaScheduledCopyController::getTimeOfBackup(string localname) const
 {
     size_t pos = localname.find("_bk_");
     if (pos == string::npos || ( (pos+4) >= (localname.size()-1) ) )
@@ -25433,163 +25433,163 @@ int64_t MegaBackupController::getTimeOfBackup(string localname) const
     return toret;
 }
 
-bool MegaBackupController::getAttendPastBackups() const
+bool MegaScheduledCopyController::getAttendPastBackups() const
 {
     return attendPastBackups;
 }
 
-MegaTransferList *MegaBackupController::getFailedTransfers()
+MegaTransferList *MegaScheduledCopyController::getFailedTransfers()
 {
     MegaTransferList *result = new MegaTransferListPrivate(failedTransfers.data(), int(failedTransfers.size()));
     return result;
 }
 
-void MegaBackupController::setAttendPastBackups(bool value)
+void MegaScheduledCopyController::setAttendPastBackups(bool value)
 {
     attendPastBackups = value;
 }
 
-bool MegaBackupController::isValid() const
+bool MegaScheduledCopyController::isValid() const
 {
     return valid;
 }
 
-void MegaBackupController::setValid(bool value)
+void MegaScheduledCopyController::setValid(bool value)
 {
     valid = value;
 }
 
-cron_expr MegaBackupController::getCcronexpr() const
+cron_expr MegaScheduledCopyController::getCcronexpr() const
 {
     return ccronexpr;
 }
 
-void MegaBackupController::setCcronexpr(const cron_expr &value)
+void MegaScheduledCopyController::setCcronexpr(const cron_expr &value)
 {
     ccronexpr = value;
 }
 
-MegaBackupListener *MegaBackupController::getBackupListener() const
+MegaScheduledCopyListener *MegaScheduledCopyController::getBackupListener() const
 {
     return backupListener;
 }
 
-void MegaBackupController::setBackupListener(MegaBackupListener *value)
+void MegaScheduledCopyController::setBackupListener(MegaScheduledCopyListener *value)
 {
     backupListener = value;
 }
 
-long long MegaBackupController::getTotalFiles() const
+long long MegaScheduledCopyController::getTotalFiles() const
 {
     return totalFiles;
 }
 
-void MegaBackupController::setTotalFiles(long long value)
+void MegaScheduledCopyController::setTotalFiles(long long value)
 {
     totalFiles = value;
 }
 
-int64_t MegaBackupController::getCurrentBKStartTime() const
+int64_t MegaScheduledCopyController::getCurrentBKStartTime() const
 {
     return currentBKStartTime;
 }
 
-void MegaBackupController::setCurrentBKStartTime(const int64_t &value)
+void MegaScheduledCopyController::setCurrentBKStartTime(const int64_t &value)
 {
     currentBKStartTime = value;
 }
 
-int64_t MegaBackupController::getUpdateTime() const
+int64_t MegaScheduledCopyController::getUpdateTime() const
 {
     return updateTime;
 }
 
-void MegaBackupController::setUpdateTime(const int64_t &value)
+void MegaScheduledCopyController::setUpdateTime(const int64_t &value)
 {
     updateTime = value;
 }
 
-long long MegaBackupController::getTransferredBytes() const
+long long MegaScheduledCopyController::getTransferredBytes() const
 {
     return transferredBytes;
 }
 
-void MegaBackupController::setTransferredBytes(long long value)
+void MegaScheduledCopyController::setTransferredBytes(long long value)
 {
     transferredBytes = value;
 }
 
-long long MegaBackupController::getTotalBytes() const
+long long MegaScheduledCopyController::getTotalBytes() const
 {
     return totalBytes;
 }
 
-void MegaBackupController::setTotalBytes(long long value)
+void MegaScheduledCopyController::setTotalBytes(long long value)
 {
     totalBytes = value;
 }
 
-long long MegaBackupController::getSpeed() const
+long long MegaScheduledCopyController::getSpeed() const
 {
     return speed;
 }
 
-void MegaBackupController::setSpeed(long long value)
+void MegaScheduledCopyController::setSpeed(long long value)
 {
     speed = value;
 }
 
-long long MegaBackupController::getMeanSpeed() const
+long long MegaScheduledCopyController::getMeanSpeed() const
 {
     return meanSpeed;
 }
 
-void MegaBackupController::setMeanSpeed(long long value)
+void MegaScheduledCopyController::setMeanSpeed(long long value)
 {
     meanSpeed = value;
 }
 
-long long MegaBackupController::getNumberFiles() const
+long long MegaScheduledCopyController::getNumberFiles() const
 {
     return numberFiles;
 }
 
-void MegaBackupController::setNumberFiles(long long value)
+void MegaScheduledCopyController::setNumberFiles(long long value)
 {
     numberFiles = value;
 }
 
-long long MegaBackupController::getNumberFolders() const
+long long MegaScheduledCopyController::getNumberFolders() const
 {
     return numberFolders;
 }
 
-void MegaBackupController::setNumberFolders(long long value)
+void MegaScheduledCopyController::setNumberFolders(long long value)
 {
     numberFolders = value;
 }
 
-int64_t MegaBackupController::getLastbackuptime() const
+int64_t MegaScheduledCopyController::getLastbackuptime() const
 {
     return lastbackuptime;
 }
 
-void MegaBackupController::setLastbackuptime(const int64_t &value)
+void MegaScheduledCopyController::setLastbackuptime(const int64_t &value)
 {
     lastbackuptime = value;
 }
 
-void MegaBackupController::setState(int value)
+void MegaScheduledCopyController::setState(int value)
 {
     state = value;
 }
 
-bool MegaBackupController::isBusy() const
+bool MegaScheduledCopyController::isBusy() const
 {
-    return (state == BACKUP_ONGOING) || (state == BACKUP_REMOVING_EXCEEDING || (state == BACKUP_SKIPPING));
+    return (state == SCHEDULED_COPY_ONGOING) || (state == SCHEDULED_COPY_REMOVING_EXCEEDING || (state == SCHEDULED_COPY_SKIPPING));
 }
 
-std::string MegaBackupController::epochdsToString(const int64_t rawtimeds) const
+std::string MegaScheduledCopyController::epochdsToString(const int64_t rawtimeds) const
 {
     struct tm dt;
     char buffer [40];
@@ -25601,7 +25601,7 @@ std::string MegaBackupController::epochdsToString(const int64_t rawtimeds) const
     return std::string(buffer);
 }
 
-int64_t MegaBackupController::stringTimeTods(string stime) const
+int64_t MegaScheduledCopyController::stringTimeTods(string stime) const
 {
     struct tm dt;
     memset(&dt, 0, sizeof(struct tm));
@@ -25632,7 +25632,7 @@ int64_t MegaBackupController::stringTimeTods(string stime) const
     return (mktime(&dt))*10;
 }
 
-void MegaBackupController::clearCurrentBackupData()
+void MegaScheduledCopyController::clearCurrentBackupData()
 {
     this->recursive = 0;
     this->pendingTransfers = 0;
@@ -25655,7 +25655,7 @@ void MegaBackupController::clearCurrentBackupData()
 }
 
 
-void MegaBackupController::start(bool skip)
+void MegaScheduledCopyController::start(bool skip)
 {
     LOG_info << "starting backup of " << basepath << ". Next one will be in " << getNextStartTimeDs(startTime)-offsetds << " ds" ;
     clearCurrentBackupData();
@@ -25688,11 +25688,11 @@ void MegaBackupController::start(bool skip)
     {
         if (skip)
         {
-            state = BACKUP_SKIPPING;
+            state = SCHEDULED_COPY_SKIPPING;
         }
         else
         {
-            state = BACKUP_ONGOING;
+            state = SCHEDULED_COPY_ONGOING;
         }
         megaApi->fireOnBackupStateChanged(this);
 
@@ -25709,7 +25709,7 @@ void MegaBackupController::start(bool skip)
         {
             LOG_err << "Could not start backup: "<< backupname << ". Backup already exists";
             megaApi->fireOnBackupFinish(this, make_unique<MegaErrorPrivate>(API_EEXIST));
-            state = BACKUP_ACTIVE;
+            state = SCHEDULED_COPY_ACTIVE;
 
         }
 
@@ -25718,13 +25718,13 @@ void MegaBackupController::start(bool skip)
     }
 }
 
-void MegaBackupController::onFolderAvailable(MegaHandle handle)
+void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
 {
     MegaNode *parent = megaApi->getNodeByHandle(handle);
     if(currentHandle == UNDEF)//main folder of the backup instance
     {
         currentHandle = handle;
-        if (state == BACKUP_ONGOING)
+        if (state == SCHEDULED_COPY_ONGOING)
         {
             this->pendingTags++;
             megaApi->setCustomNodeAttribute(parent, "BACKST", "ONGOING", this);
@@ -25743,7 +25743,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
     LocalPath localPath = pendingFolders.front();
     pendingFolders.pop_front();
 
-    if (state == BACKUP_ONGOING)
+    if (state == SCHEDULED_COPY_ONGOING)
     {
         LocalPath localname;
         DirAccess* da;
@@ -25791,7 +25791,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
 
         delete da;
     }
-    else if (state == BACKUP_SKIPPING)
+    else if (state == SCHEDULED_COPY_SKIPPING)
     {
         //do nth
     }
@@ -25806,7 +25806,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
     checkCompletion();
 }
 
-bool MegaBackupController::checkCompletion()
+bool MegaScheduledCopyController::checkCompletion()
 {
     if(!recursive && !pendingFolders.size() && !pendingTransfers && !pendingTags)
     {
@@ -25821,7 +25821,7 @@ bool MegaBackupController::checkCompletion()
                 megaApi->setCustomNodeAttribute(node, "BACKST", "INCOMPLETE", this);
                 e = API_EINCOMPLETE;
             }
-            else if (state != BACKUP_SKIPPING)
+            else if (state != SCHEDULED_COPY_SKIPPING)
             {
                 this->pendingTags++;
                 megaApi->setCustomNodeAttribute(node, "BACKST", "COMPLETE", this);
@@ -25838,7 +25838,7 @@ bool MegaBackupController::checkCompletion()
             e = API_ENOENT;
         }
 
-        state = BACKUP_ACTIVE;
+        state = SCHEDULED_COPY_ACTIVE;
         megaApi->fireOnBackupFinish(this, make_unique<MegaErrorPrivate>(e));
         megaApi->fireOnBackupStateChanged(this);
 
@@ -25849,36 +25849,36 @@ bool MegaBackupController::checkCompletion()
     return false;
 }
 
-int MegaBackupController::getFolderTransferTag() const
+int MegaScheduledCopyController::getFolderTransferTag() const
 {
     return folderTransferTag;
 }
 
-void MegaBackupController::setFolderTransferTag(int value)
+void MegaScheduledCopyController::setFolderTransferTag(int value)
 {
     folderTransferTag = value;
 }
 
-int64_t MegaBackupController::getOffsetds() const
+int64_t MegaScheduledCopyController::getOffsetds() const
 {
     return offsetds;
 }
 
-void MegaBackupController::setOffsetds(const int64_t &value)
+void MegaScheduledCopyController::setOffsetds(const int64_t &value)
 {
     offsetds = value;
 }
 
-void MegaBackupController::abortCurrent()
+void MegaScheduledCopyController::abortCurrent()
 {
     LOG_debug << "Setting backup as aborted: " << currentName;
 
-    if (state == BACKUP_ONGOING || state == BACKUP_SKIPPING)
+    if (state == SCHEDULED_COPY_ONGOING || state == SCHEDULED_COPY_SKIPPING)
     {
         megaApi->fireOnBackupFinish(this, make_unique<MegaErrorPrivate>(API_EINCOMPLETE));
     }
 
-    state = BACKUP_ACTIVE;
+    state = SCHEDULED_COPY_ACTIVE;
     megaApi->fireOnBackupStateChanged(this);
 
     MegaNode *node = megaApi->getNodeByHandle(currentHandle);
@@ -25897,7 +25897,7 @@ void MegaBackupController::abortCurrent()
 
 }
 
-void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
+void MegaScheduledCopyController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
 {
     int type = request->getType();
     int errorCode = e->getErrorCode();
@@ -25924,7 +25924,7 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
             assert(pendingTags>=0);
             if (pendingTags <= 0)
             {
-                state = BACKUP_ACTIVE;
+                state = SCHEDULED_COPY_ACTIVE;
             }
             megaApi->fireOnBackupStateChanged(this);
         }
@@ -25936,15 +25936,15 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
 
         if (!pendingTags)
         {
-            if (state == BACKUP_ONGOING || state == BACKUP_SKIPPING)
+            if (state == SCHEDULED_COPY_ONGOING || state == SCHEDULED_COPY_SKIPPING)
             {
                 checkCompletion();
             }
             else // from REMOVING OR after abort
             {
-                if (state != BACKUP_ACTIVE)
+                if (state != SCHEDULED_COPY_ACTIVE)
                 {
-                    state = BACKUP_ACTIVE;
+                    state = SCHEDULED_COPY_ACTIVE;
                     megaApi->fireOnBackupStateChanged(this);
                 }
             }
@@ -25953,9 +25953,9 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
 
 }
 
-void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)
+void MegaScheduledCopyController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
-    LOG_verbose << " at MegaBackupController::onTransferStart: "+ string(t->getFileName());
+    LOG_verbose << " at MegaScheduledCopyController::onTransferStart: "+ string(t->getFileName());
 
     this->setTotalBytes(this->getTotalBytes() + t->getTotalBytes());
     this->setUpdateTime(Waiter::ds);
@@ -25963,9 +25963,9 @@ void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)
     megaApi->fireOnBackupUpdate(this);
 }
 
-void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
+void MegaScheduledCopyController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
-    LOG_verbose << " at MegaBackupController::onTransferUpdate";
+    LOG_verbose << " at MegaScheduledCopyController::onTransferUpdate";
 
     this->setTransferredBytes(this->getTransferredBytes() + t->getDeltaSize());
     this->setUpdateTime(Waiter::ds);
@@ -25975,9 +25975,9 @@ void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
     megaApi->fireOnBackupUpdate(this);
 }
 
-void MegaBackupController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError *e)
+void MegaScheduledCopyController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError *e)
 {
-    LOG_verbose << " at MegaBackupController::onTransferTemporaryError";
+    LOG_verbose << " at MegaScheduledCopyController::onTransferTemporaryError";
 
     unique_ptr<MegaErrorPrivate> errorPrivate;
     if (dynamic_cast<MegaErrorPrivate *>(e))
@@ -25992,7 +25992,7 @@ void MegaBackupController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, 
     megaApi->fireOnBackupTemporaryError(this, std::move(errorPrivate));  // we received a non-owning pointer but we need to pass ownership to fireOnBackupTemporaryError
 }
 
-void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
+void MegaScheduledCopyController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
     LOG_verbose << " at MegaackupController::onTransferFinish";
 
@@ -26016,43 +26016,43 @@ void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaErro
     checkCompletion();
 }
 
-MegaBackup *MegaBackupController::copy()
+MegaScheduledCopy *MegaScheduledCopyController::copy()
 {
-    return new MegaBackupController(this);
+    return new MegaScheduledCopyController(this);
 }
 
 
-int MegaBackupController::getMaxBackups() const
+int MegaScheduledCopyController::getMaxBackups() const
 {
     return maxBackups;
 }
 
-void MegaBackupController::setMaxBackups(int value)
+void MegaScheduledCopyController::setMaxBackups(int value)
 {
     maxBackups = value;
 }
 
-string MegaBackupController::getBackupName() const
+string MegaScheduledCopyController::getBackupName() const
 {
     return backupName;
 }
 
-void MegaBackupController::setBackupName(const string &value)
+void MegaScheduledCopyController::setBackupName(const string &value)
 {
     backupName = value;
 }
 
-int64_t MegaBackupController::getPeriod() const
+int64_t MegaScheduledCopyController::getPeriod() const
 {
     return period;
 }
 
-const char *MegaBackupController::getPeriodString() const
+const char *MegaScheduledCopyController::getPeriodString() const
 {
     return periodstring.c_str();
 }
 
-void MegaBackupController::setPeriod(const int64_t &value)
+void MegaScheduledCopyController::setPeriod(const int64_t &value)
 {
     period = value;
     if (value != -1)
@@ -26064,7 +26064,7 @@ void MegaBackupController::setPeriod(const int64_t &value)
     }
 }
 
-void MegaBackupController::setPeriodstring(const string &value)
+void MegaScheduledCopyController::setPeriodstring(const string &value)
 {
     periodstring = value;
     valid = true;
@@ -26129,52 +26129,52 @@ void MegaBackupController::setPeriodstring(const string &value)
     }
 }
 
-int64_t MegaBackupController::getStartTime() const
+int64_t MegaScheduledCopyController::getStartTime() const
 {
     return startTime;
 }
 
-void MegaBackupController::setStartTime(const int64_t &value)
+void MegaScheduledCopyController::setStartTime(const int64_t &value)
 {
     startTime = value;
 }
 
-int MegaBackupController::getTag() const
+int MegaScheduledCopyController::getTag() const
 {
     return this->tag;
 }
 
-void MegaBackupController::setTag(int value)
+void MegaScheduledCopyController::setTag(int value)
 {
     tag = value;
 }
 
-MegaHandle MegaBackupController::getMegaHandle() const
+MegaHandle MegaScheduledCopyController::getMegaHandle() const
 {
     return this->parenthandle;
 }
 
-void MegaBackupController::setMegaHandle(const MegaHandle &value)
+void MegaScheduledCopyController::setMegaHandle(const MegaHandle &value)
 {
     parenthandle = value;
 }
 
-const char *MegaBackupController::getLocalFolder() const
+const char *MegaScheduledCopyController::getLocalFolder() const
 {
     return this->basepath.c_str();
 }
 
-void MegaBackupController::setLocalFolder(const string &value)
+void MegaScheduledCopyController::setLocalFolder(const string &value)
 {
     basepath = value;
 }
 
-int MegaBackupController::getState() const
+int MegaScheduledCopyController::getState() const
 {
     return state;
 }
 
-MegaBackupController::~MegaBackupController()
+MegaScheduledCopyController::~MegaScheduledCopyController()
 {
     megaApi->removeRequestListener(this);
     megaApi->removeTransferListener(this);
