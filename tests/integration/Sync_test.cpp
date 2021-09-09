@@ -190,6 +190,7 @@ struct Model
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
         bool changed = false;
+        bool fsOnly = false;
 
         ModelNode() = default;
 
@@ -556,6 +557,7 @@ struct Model
             {
                 auto uniqueptr = makeModelSubfolder(DEBRISFOLDER);
                 trash = uniqueptr.get();
+                trash->fsOnly = true;
                 syncroot->addkid(move(uniqueptr));
             }
 
@@ -1313,10 +1315,22 @@ struct StandardClient : public MegaApp
     bool uploadFile(const fs::path& path, const string& name, Node* parent)
     {
         auto result =
-          thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
-                    {
-                        client.uploadFile(path, name, parent, pb);
-                    });
+            thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
+                {
+                    client.uploadFile(path, name, parent, pb);
+                });
+
+        return result.get();
+    }
+
+    bool uploadFile(const fs::path& path, const string& name, string parentPath)
+    {
+        auto result =
+            thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
+                {
+                    Node* parent = client.client.nodeByPath(parentPath.c_str(), nullptr);
+                    client.uploadFile(path, name, parent, pb);
+                });
 
         return result.get();
     }
@@ -1589,6 +1603,7 @@ struct StandardClient : public MegaApp
     {
         NodeHandle h;
         fs::path localpath;
+        string remotepath;
     };
 
     SyncConfig syncConfigByBackupID(handle backupID) const
@@ -1608,6 +1623,7 @@ struct StandardClient : public MegaApp
         {
             info.h = config.getRemoteNode();
             info.localpath = config.getLocalPath().toPath(*client.fsaccess);
+            info.remotepath = config.mOriginalPathOfRemoteRootNode; // bit of a hack
 
             return true;
         }
@@ -1887,6 +1903,7 @@ struct StandardClient : public MegaApp
         multimap<string, Node*, CloudNameLess> ns;
         for (auto& m : mn->kids)
         {
+            if (!m->fsOnly)
             ms.emplace(m->cloudName(), m.get());
         }
         for (auto& n2 : n->children)
@@ -2026,6 +2043,7 @@ struct StandardClient : public MegaApp
         multimap<string, LocalNode*, CloudNameLess> ns;
         for (auto& m : mn->kids)
         {
+            if (!m->fsOnly)
             ms.emplace(m->fsName(), m.get());
         }
         for (auto& n2 : n->children)
@@ -2503,9 +2521,10 @@ struct StandardClient : public MegaApp
         return ResultType();
     }
 
-    void deleteremote(string path, PromiseBoolSP pb)
+    void deleteremote(string path, bool fromroot, PromiseBoolSP pb)
     {
-        if (Node* n = drillchildnodebyname(gettestbasenode(), path))
+        if (fromroot && !path.empty() && path[0] == '/') path.erase(0, 1);
+        if (Node* n = drillchildnodebyname(fromroot ? getcloudrootnode() : gettestbasenode(), path))
         {
             auto completion = [pb](NodeHandle, Error e) {
                 pb->set_value(!e);
@@ -2521,10 +2540,10 @@ struct StandardClient : public MegaApp
         }
     }
 
-    bool deleteremote(string path)
+    bool deleteremote(string path, bool fromroot = false)
     {
         return withWait<bool>([&](PromiseBoolSP result) {
-            deleteremote(path, std::move(result));
+            deleteremote(path, fromroot, std::move(result));
         });
     }
 
@@ -2563,8 +2582,6 @@ struct StandardClient : public MegaApp
 
     bool movenode(string path, string newParentPath)
     {
-        using std::future_status;
-
         auto promise = newPromiseBoolSP();
         auto future = promise->get_future();
 
@@ -3507,7 +3524,7 @@ TEST_F(SyncTest, BasicSync_DelRemoteFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // delete something remotely and let sync catch up
-    future<bool> fb = clientA1.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_2/f_2_1", pb); });
+    future<bool> fb = clientA1.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_2/f_2_1", false, pb); });
     ASSERT_TRUE(waitonresults(&fb));
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
 
@@ -4213,7 +4230,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_TRUE(waitonresults(&p1));
 
     out() << "*********************  remove remote folders via A2";
-    p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_0", pb); });
+    p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_0", false, pb); });
     model1.movetosynctrash("f/f_0", "f");
     model2.movetosynctrash("f/f_0", "f");
     ASSERT_TRUE(waitonresults(&p1));
@@ -4278,7 +4295,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     pclientA1->localLogout();
 
     // remove remote folder via A2
-    future<bool> p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_1", pb); });
+    future<bool> p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_1", false, pb); });
     ASSERT_TRUE(waitonresults(&p1));
 
     // add local folders in A1 on disk folder
@@ -6745,27 +6762,65 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     c.logcb = true;
 
     // Log client in.
-    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 1, 3));
 
-    // Add and start sync.
-    const auto id = c.setupSync_mainthread("s", "x");
-    ASSERT_NE(id, UNDEF);
-    const auto SYNCROOT = c.syncSet(id).localpath;
+    // Add and start syncs.
+    auto id0 = c.setupSync_mainthread("s0", "x/x_0");
+    ASSERT_NE(id0, UNDEF);
+    auto SYNC0 = c.syncSet(id0);
 
-    // Create and populate model.
-    Model model;
-    model.root->addkid(model.buildModelSubdirs("d", 8, 2, 0));
-    model.generate(SYNCROOT);
+    auto id1 = c.setupSync_mainthread("s1", "x/x_1");
+    ASSERT_NE(id1, UNDEF);
+    auto SYNC1 = c.syncSet(id1);
+
+    auto id2 = c.setupSync_mainthread("s2", "x/x_2");
+    ASSERT_NE(id2, UNDEF);
+    auto SYNC2 = c.syncSet(id2);
+
+    // Create and populate models.
+    Model model0;
+    model0.root->addkid(model0.buildModelSubdirs("d", 8, 2, 0));
+    model0.generate(SYNC0.localpath, true);
+
+    Model model1;
+    model1.root->addkid(model1.buildModelSubdirs("d", 1, 1, 2));
+    model1.generate(SYNC1.localpath, true);
+
+    Model model2;
+    model2.root->addkid(model2.buildModelSubdirs("d", 1, 1, 2));
+    model2.generate(SYNC2.localpath, true);
+
     waitonsyncs(TIMEOUT, &c);
 
-    c.setSyncPausedByBackupId(id, true);
+    c.setSyncPausedByBackupId(id0, true);
+    c.setSyncPausedByBackupId(id1, true);
+    c.setSyncPausedByBackupId(id2, true);
 
-    // make some crossed-over moves
-    fs::rename(SYNCROOT / "d" / "d_0",
-               SYNCROOT / "d" / "d_1" / "d_0");
-    c.movenode("x/d/d_1", "x/d/d_0");
+    std::ofstream remoteFile("remoteFile");
+    remoteFile << "remoteFile";
+    remoteFile.close();
 
-    c.setSyncPausedByBackupId(id, false);
+    // case 0: make some crossed-over moves
+    fs::rename(SYNC0.localpath / "d" / "d_0",
+               SYNC0.localpath / "d" / "d_1" / "d_0");
+    c.movenode("x/x_0/d/d_1", "x/x_0/d/d_0");
+
+
+    // case 1: update the local and remote file differently while paused (to resolve remotely)
+    std::ofstream fstream1(SYNC1.localpath / "d" / "file0_d", ios_base::app);
+    fstream1 << " plus local change";
+    fstream1.close();
+    ASSERT_TRUE(c.uploadFile("remoteFile", "file0_d", SYNC1.remotepath + "/d"));
+
+    // case 2: update the local and remote file differently while paused (to resolve locally)
+    std::ofstream fstream2(SYNC2.localpath / "d" / "file0_d", ios_base::app);
+    fstream2 << " plus local change";
+    fstream2.close();
+    ASSERT_TRUE(c.uploadFile("remoteFile", "file0_d", SYNC2.remotepath + "/d"));
+
+    c.setSyncPausedByBackupId(id0, false);
+    c.setSyncPausedByBackupId(id1, false);
+    c.setSyncPausedByBackupId(id2, false);
 
     // TODO: Make this a global predicate when we've merged the rest from develop.
     // TODO: Maybe make it so we can check if a specific sync has stalled?
@@ -6779,13 +6834,23 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     // Wait for sync activity to complete (as far as stall.)
     waitonsyncs(TIMEOUT, &c);
 
-    // Be absolutely sure we've stalled.
+    // Be absolutely sure we've stalled. (stall is across all syncs - todo: figure out if each one contains a stall)
     ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
 
-    // Make it possible for the sync to resolve the stall.
+    // resolve case 0: Make it possible for the sync to resolve the stall.
     fs::rename(
-        SYNCROOT / "d" / "d_1" / "d_0",
-        SYNCROOT / "d" / "d_0");
+        SYNC0.localpath / "d" / "d_1" / "d_0",
+        SYNC0.localpath / "d" / "d_0");
+    model0.movenode("d/d_1", "d/d_0");
+
+    // resolve case 1: remove remote, local should replace it
+    c.deleteremote(SYNC1.remotepath + "/d/file0_d", true);
+    model1.findnode("d/file0_d")->content = "file0_d plus local change";
+
+    // resolve case 2: remove local, remote should replace it
+    fs::remove(SYNC2.localpath / "d" / "file0_d");
+    model2.findnode("d/file0_d")->content = "remoteFile";
+    model2.ensureLocalDebrisTmpLock(""); // due to download temp location
 
     // Wait for the sync to exit the stall state.
     ASSERT_TRUE(c.waitFor(SyncStallState(false), TIMEOUT));
@@ -6793,13 +6858,12 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     // Make sure the sync's completed its processing.
     waitonsyncs(TIMEOUT, &c);
 
-// todo: many more test cases to add here
-
-    // now the sync should have unstalled and performed the other move:
-    model.movenode("d/d_1", "d/d_0");
+    // now the sync should have unstalled and resolved the stalled cases:
 
     // Confirm state
-    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+    ASSERT_TRUE(c.confirmModel_mainthread(model0.root.get(), id0));
+    ASSERT_TRUE(c.confirmModel_mainthread(model1.root.get(), id1));
+    ASSERT_TRUE(c.confirmModel_mainthread(model2.root.get(), id2));
 }
 
 

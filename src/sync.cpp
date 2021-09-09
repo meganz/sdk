@@ -1014,7 +1014,7 @@ bool Sync::readstatecache()
         assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
         while (statecachetable->next(&cid, &cachedata, &syncs.syncKey))
         {
-            if ((l = LocalNode::unserialize(this, &cachedata)))
+            if ((l = LocalNode::unserialize(this, &cachedata).release()))
             {
                 l->dbid = cid;
                 tmap.insert(pair<int32_t,LocalNode*>(l->parent_dbid,l));
@@ -5510,7 +5510,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
         if (row.fsNode)
         {
-            if (row.cloudNode)
+            if (row.cloudNode) // CSF case
             {
                 // all three exist; compare
                 bool fsCloudEqual = syncEqual(*row.cloudNode, *row.fsNode);
@@ -5544,55 +5544,71 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     rowSynced = resolve_userIntervention(row, parentRow, fullPath);
                 }
             }
-            else
+            else // xSF case
             {
                 // cloud item absent
-                if (row.syncNode->syncedCloudNodeHandle.isUndef() || isBackupAndMirroring())
+                if (isBackupAndMirroring())
                 {
-                    // cloud item did not exist before; upsync
+                    // for backups, we only change the cloud
                     rowSynced = resolve_upsync(row, parentRow, fullPath);
+                }
+                else if (!row.syncNode->syncedCloudNodeHandle.isUndef() &&
+                         row.syncNode->fsid_lastSynced != UNDEF &&
+                         row.syncNode->fsid_lastSynced == row.fsNode->fsid &&
+                         syncEqual(*row.fsNode, *row.syncNode))  // on disk, content could be changed without an fsid change
+                {
+                    // used to be fully synced and the fs side still has that version
+                    // remove in the fs (if not part of a move)
+                    rowSynced = resolve_cloudNodeGone(row, parentRow, fullPath);
                 }
                 else
                 {
-                    // cloud item disappeared - remove locally (or figure out if it was a move, etc)
-                    rowSynced = resolve_cloudNodeGone(row, parentRow, fullPath);
+                    // either
+                    //  - cloud item did not exist before; upsync
+                    //  - the fs item has changed too; upsync (this lets users recover from the both sides changed state - user deletes the one they don't want anymore)
+                    rowSynced = resolve_upsync(row, parentRow, fullPath);
                 }
             }
         }
         else
         {
-            if (row.cloudNode)
+            if (row.cloudNode) // CSx case
             {
                 // local item not present
                 if (isBackupAndMirroring())
                 {
                     // in mirror mode, make the cloud the same as local
+                    // if backing up and not mirroring, the resolve_downsync branch will cancel the sync
                     rowSynced = resolve_fsNodeGone(row, parentRow, fullPath);
                 }
-                else if (row.syncNode->fsid_lastSynced != UNDEF)
+                else if (row.syncNode->fsid_lastSynced != UNDEF &&
+                    !row.syncNode->syncedCloudNodeHandle.isUndef() &&
+                    row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle)  // for cloud nodes, same handle must be same content
                 {
-                    // used to be synced - remove in the cloud (or detect move)
+                    // used to be fully synced and the cloud side still has that version
+                    // remove in the cloud (if not part of a move)
                     rowSynced = resolve_fsNodeGone(row, parentRow, fullPath);
                 }
                 else
                 {
-                    // fs item did not exist before; downsync
+                    // either
+                    //  - fs item did not exist before; downsync
+                    //  - the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
                     rowSynced = resolve_downsync(row, parentRow, fullPath, false);
                 }
             }
-            else
+            else // xSx case
             {
                 // local and cloud disappeared; remove sync item also
                 rowSynced = resolve_delSyncNode(row, parentRow, fullPath);
             }
         }
     }
-
     else
     {
         if (row.fsNode)
         {
-            if (row.cloudNode)
+            if (row.cloudNode) // CxF case
             {
                 // Item exists locally and remotely but we haven't synced them previously
                 // If they are equal then join them with a Localnode. Othewise report or choose greater mtime.
@@ -5607,10 +5623,12 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 }
                 else
                 {
+                    // When initially joining two trees together, use the old rules (pick most recent)
+                    // Todo: evaluate that against asking the user as we would do for the existing-sync case
                     rowSynced = resolve_pickWinner(row, parentRow, fullPath);
                 }
             }
-            else
+            else    // xxF case
             {
                 // Item exists locally only. Check if it was moved/renamed here, or Create
                 // If creating, next run through will upload it
@@ -5619,12 +5637,12 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         }
         else
         {
-            if (row.cloudNode)
+            if (row.cloudNode) // Cxx case
             {
                 // item exists remotely only
                 rowSynced = resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
             }
-            else
+            else // xxx case
             {
                 // no entries - can occur when names clash, but should be caught above
                 assert(false);

@@ -2304,7 +2304,7 @@ bool LocalNode::serialize(string* d)
 #ifdef DEBUG
     // just check deserializing, real quick, only in debug
     string testread = w.dest;
-    LocalNode* test = LocalNode::unserialize(sync, &testread);
+    auto test = LocalNode::unserialize(sync, &testread);
     assert(test->localname == localname);
     assert((test->slocalname && slocalname) || (!test->slocalname && !slocalname));
     assert(!test->slocalname || *test->slocalname == *slocalname);
@@ -2313,7 +2313,7 @@ bool LocalNode::serialize(string* d)
     return true;
 }
 
-LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
+unique_ptr<LocalNode> LocalNode::unserialize(Sync* sync, const string* d)
 {
     if (d->size() < sizeof(m_off_t)         // type/size combo
                   + sizeof(handle)          // fsid
@@ -2364,11 +2364,12 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         (expansionflags[0] && !r.unserializecstr(shortname, false)))
     {
         LOG_err << "LocalNode unserialization failed at field " << r.fieldnum;
+        assert(false);
         return nullptr;
     }
     assert(!r.hasdataleft());
 
-    LocalNode* l = new LocalNode();
+    unique_ptr<LocalNode> l(new LocalNode());
 
     l->type = type;
     l->syncedFingerprint.size = size;

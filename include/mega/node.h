@@ -714,7 +714,7 @@ public:
     void init(const FSNode& fsNode);
 
     bool serialize(string*) override;
-    static LocalNode* unserialize( Sync* sync, const string* sData );
+    static unique_ptr<LocalNode> unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();
 
