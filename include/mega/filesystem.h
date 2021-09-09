@@ -153,6 +153,7 @@ public:
 
     bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
+    bool hasNextPathComponent(size_t index) const;
 
     // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
     // No escaping or unescaping is done.

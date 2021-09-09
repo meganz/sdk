@@ -1341,6 +1341,11 @@ bool LocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component) co
     }
 }
 
+bool LocalPath::hasNextPathComponent(size_t index) const
+{
+    return index < localpath.size();
+}
+
 ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)
     : path(p)
     , length(path.localpath.size())
