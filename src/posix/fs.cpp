@@ -1134,7 +1134,7 @@ bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPat
     transient_error = !existingandcare && (errno == ETXTBSY || errno == EBUSY);
 
     int e = errno;
-    if (!skip_errorreport)
+    if (e != EEXIST  || !skip_targetexists_errorreport)
     {
         LOG_warn << "Unable to move file: " << oldnamestr << " to " << newnamestr << ". Error code: " << e;
     }
@@ -1224,8 +1224,10 @@ bool PosixFileSystemAccess::unlinklocal(const LocalPath& name)
 
 // delete all files, folders and symlinks contained in the specified folder
 // (does not recurse into mounted devices)
-void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
+void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t basedev)
 {
+    LocalPath name = nameParam;
+
     DIR* dp;
     dirent* d;
     int removed;

@@ -118,7 +118,7 @@ public:
     void osversion(string*, bool includeArchitecture) const override;
     void statsid(string*) const override;
 
-    static void emptydirlocal(LocalPath&, dev_t = 0);
+    static void emptydirlocal(const LocalPath&, dev_t = 0);
 
     int getdefaultfilepermissions();
     void setdefaultfilepermissions(int);

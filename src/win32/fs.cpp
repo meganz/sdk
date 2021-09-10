@@ -956,8 +956,10 @@ bool WinFileSystemAccess::unlinklocal(const LocalPath& namePath)
 
 // delete all files and folders contained in the specified folder
 // (does not recurse into mounted devices)
-void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
+void WinFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t basedev)
 {
+    LocalPath namePath = nameParam;
+
     HANDLE hDirectory, hFind;
     dev_t currentdev;
 
