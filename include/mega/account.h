@@ -175,10 +175,10 @@ struct MEGA_API BusinessPlan
 
 struct MEGA_API CurrencyData
 {
-    std::string currencySymbol;         // ie. €
+    std::string currencySymbol;         // ie. €, encoded in B64url
     std::string currencyName;           // ie. EUR
 
-    std::string localCurrencySymbol;    // ie. $
+    std::string localCurrencySymbol;    // ie. $, encoded in B64url
     std::string localCurrencyName;      // ie. NZD
 };
 
