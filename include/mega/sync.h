@@ -402,8 +402,14 @@ public:
     unique_ptr<DbTable> statecachetable;
 
     // move file or folder to localdebris
-    bool movetolocaldebris(LocalPath& localpath);
+    bool movetolocaldebris(const LocalPath& localpath);
+    bool movetolocaldebrisSubfolder(const LocalPath& localpath, const LocalPath& targetFolder, bool& failedDueToTargetExists);
 
+private:
+    string mLastDailyDateTimeDebrisName;
+    unsigned mLastDailyDateTimeDebrisCounter = 0;
+
+public:
     // Moves a file from source to target.
     bool moveTo(LocalPath source, LocalPath target, bool overwrite);
 

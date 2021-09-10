@@ -332,14 +332,6 @@ LocalPath NormalizeRelative(const LocalPath& path)
 }
 
 FileSystemAccess::FileSystemAccess()
-    : waiter(NULL)
-    , skip_errorreport(false)
-    , transient_error(false)
-#ifdef ENABLE_SYNC
-    //, notifyerr(false)
-    //, notifyfailed(false)
-#endif
-    , target_exists(false)
 {
 }
 

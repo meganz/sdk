@@ -495,10 +495,10 @@ public:
 struct MEGA_API FileSystemAccess : public EventTrigger
 {
     // waiter to notify on filesystem events
-    Waiter *waiter;
+    Waiter *waiter = nullptr;
 
-    // indicate error reports are not necessary on this call as it'll be retried in a moment if there is a continuing problem
-    bool skip_errorreport;
+    // indicate target_exists error logging is not necessary on this call as we may try something else for overall operation success
+    bool skip_targetexists_errorreport = false;
 
     /**
      * @brief instantiate FileAccess object
@@ -554,7 +554,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool getsname(const LocalPath&, LocalPath&) const = 0;
 
     // rename file, overwrite target
-    virtual bool renamelocal(LocalPath&, LocalPath&, bool = true) = 0;
+    virtual bool renamelocal(const LocalPath&, const LocalPath&, bool = true) = 0;
 
     // copy file, overwrite target, set mtime
     virtual bool copylocal(LocalPath&, LocalPath&, m_time_t) = 0;
@@ -563,7 +563,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool unlinklocal(const LocalPath&) = 0;
 
     // delete empty directory
-    virtual bool rmdirlocal(LocalPath&) = 0;
+    virtual bool rmdirlocal(const LocalPath&) = 0;
 
     // create directory, optionally hidden
     virtual bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) = 0;
@@ -601,19 +601,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool fileExistsAt(const LocalPath&);
 
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
-    bool transient_error;
-
-#ifdef ENABLE_SYNC
-    // set whenever there was a global file notification error or permanent failure
-    // (this is in addition to the DirNotify-local error)
-
-    // now managing these on a per-dirnotify basis
-    //bool notifyerr;
-    //bool notifyfailed;
-#endif
+    bool transient_error = false;
 
     // set whenever an operation fails because the target already exists
-    bool target_exists;
+    bool target_exists = false;
 
     // append local operating system version information to string.
     // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is via the WOW subsystem)

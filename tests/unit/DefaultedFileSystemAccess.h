@@ -88,7 +88,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool renamelocal(mega::LocalPath&, mega::LocalPath&, bool = true) override
+    bool renamelocal(const mega::LocalPath&, const mega::LocalPath&, bool = true) override
     {
         throw NotImplemented{__func__};
     }
@@ -100,7 +100,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool rmdirlocal(mega::LocalPath&) override
+    bool rmdirlocal(const mega::LocalPath&) override
     {
         throw NotImplemented{__func__};
     }

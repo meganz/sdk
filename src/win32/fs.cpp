@@ -702,10 +702,6 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath_in, bool read, bool wri
 
 WinFileSystemAccess::WinFileSystemAccess()
 {
-#ifdef ENABLE_SYNC
-    //notifyerr = false;
-    //notifyfailed = false;
-#endif  // ENABLE_SYNC
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
@@ -895,19 +891,19 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
 
 // FIXME: if a folder rename fails because the target exists, do a top-down
 // recursive copy/delete
-bool WinFileSystemAccess::renamelocal(LocalPath& oldnamePath, LocalPath& newnamePath, bool replace)
+bool WinFileSystemAccess::renamelocal(const LocalPath& oldnamePath, const LocalPath& newnamePath, bool replace)
 {
     bool r = !!MoveFileExW(oldnamePath.localpath.c_str(), newnamePath.localpath.c_str(), replace ? MOVEFILE_REPLACE_EXISTING : 0);
 
     if (!r)
     {
         DWORD e = GetLastError();
-        if (SimpleLogger::logCurrentLevel >= logWarning && !skip_errorreport)
+        transient_error = istransientorexists(e);
+        if (!target_exists || !skip_targetexists_errorreport)
         {
             LOG_warn << "Unable to move file: " << oldnamePath.toPath(gWfsa) <<
                         " to " << newnamePath.toPath(gWfsa) << ". Error code: " << e;
         }
-        transient_error = istransientorexists(e);
     }
 
     return r;
@@ -931,7 +927,7 @@ bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePa
     return r;
 }
 
-bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
+bool WinFileSystemAccess::rmdirlocal(const LocalPath& namePath)
 {
     bool r = !!RemoveDirectoryW(namePath.localpath.data());
     if (!r)

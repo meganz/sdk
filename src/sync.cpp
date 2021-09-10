@@ -2552,74 +2552,117 @@ dstime Sync::procscanq()
     return delay;
 }
 
-bool Sync::movetolocaldebris(LocalPath& localpath)
+bool Sync::movetolocaldebris(const LocalPath& localpath)
 {
     assert(syncs.onSyncThread());
     assert(!isBackup());
 
-    char buf[32];
+    // first make sure the debris folder exists
+    createDebrisTmpLockOnce();
+
+    char buf[42];
     struct tm tms;
     string day, localday;
-    bool havedir = false;
     struct tm* ptm = m_localtime(m_time(), &tms);
 
-    for (int i = -3; i < 100; i++)
+    // first try a subfolder with only the date (we expect that we may have target filename clashes here)
+    sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    LocalPath targetFolder = localdebris;
+    targetFolder.appendWithSeparator(LocalPath::fromPath(buf, *syncs.fsaccess), true);
+
+    bool failedDueToTargetExists = false;
+
+    if (movetolocaldebrisSubfolder(localpath, targetFolder, false, failedDueToTargetExists))
     {
-        ScopedLengthRestore restoreLen(localdebris);
+        return true;
+    }
 
-        if (i == -2 || i > 95)
-        {
-            if (syncs.fsaccess->mkdirlocal(localdebris, true, false))
-            {
-                LOG_verbose << syncname << "Created local debris folder: " << localdebris.toPath();
-            }
-        }
+    if (!failedDueToTargetExists) return false;
 
-        sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    // next try a subfolder with additional time and sequence - target filename clashes here should not occur
+    sprintf(strchr(buf, 0), " %02d.%02d.%02d.", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec);
 
-        if (i >= 0)
-        {
-            sprintf(strchr(buf, 0), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
-        }
+    string datetime = buf;
+    bool counterReset = false;
+    if (datetime != mLastDailyDateTimeDebrisName)
+    {
+        mLastDailyDateTimeDebrisName = datetime;
+        mLastDailyDateTimeDebrisCounter = 0;
+        counterReset = true;
+    }
 
-        day = buf;
-        localdebris.appendWithSeparator(LocalPath::fromPath(day, *syncs.fsaccess), true);
+    // initially try wih the same sequence number as last time, to avoid making large numbers of these when possible
+    targetFolder = localdebris;
+    targetFolder.appendWithSeparator(LocalPath::fromPath(
+        datetime + std::to_string(mLastDailyDateTimeDebrisCounter), *syncs.fsaccess), false);
 
-        if (i > -3)
-        {
-            if (syncs.fsaccess->mkdirlocal(localdebris, false, false))
-            {
-                LOG_verbose << syncname << "Created daily local debris folder: " << localdebris.toPath();
-                havedir = true;
-            }
-            else
-            {
-                havedir = syncs.fsaccess->target_exists;
-            }
-        }
+    if (movetolocaldebrisSubfolder(localpath, targetFolder, counterReset, failedDueToTargetExists))
+    {
+        return true;
+    }
 
-        localdebris.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex(*syncs.fsaccess)), true);
+    if (!failedDueToTargetExists) return false;
 
-        syncs.fsaccess->skip_errorreport = i == -3;  // we expect a problem on the first one when the debris folders or debris day folders don't exist yet
-        if (syncs.fsaccess->renamelocal(localpath, localdebris, false))
-        {
-            syncs.fsaccess->skip_errorreport = false;
-            return true;
-        }
-        syncs.fsaccess->skip_errorreport = false;
+    if (counterReset)
+    {
+        // no need to try an incremented number if it was a new folder anyway
+        return false;
+    }
 
-        if (syncs.fsaccess->transient_error)
-        {
-            return false;
-        }
+    // if that fails, try with the sequence incremented, that should be a new, empty folder with no filename clash possible
+    ++mLastDailyDateTimeDebrisCounter;
 
-        if (havedir && !syncs.fsaccess->target_exists)
+    targetFolder = localdebris;
+    targetFolder.appendWithSeparator(LocalPath::fromPath(
+        datetime + std::to_string(mLastDailyDateTimeDebrisCounter), *syncs.fsaccess), true);
+
+    if (movetolocaldebrisSubfolder(localpath, targetFolder, true, failedDueToTargetExists))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool Sync::movetolocaldebrisSubfolder(const LocalPath& localpath, const LocalPath& targetFolder, bool logFailReason, bool& failedDueToTargetExists)
+{
+    failedDueToTargetExists = false;
+
+    bool createdFolder = false;
+    if (syncs.fsaccess->mkdirlocal(targetFolder, false, false))
+    {
+        createdFolder = true;
+    }
+    else
+    {
+        if (!syncs.fsaccess->target_exists)
         {
             return false;
         }
     }
 
-    return false;
+    LocalPath moveTarget = targetFolder;
+    moveTarget.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex(*syncs.fsaccess)), true);
+
+    syncs.fsaccess->skip_targetexists_errorreport = !logFailReason;
+    bool success = syncs.fsaccess->renamelocal(localpath, moveTarget, false);
+    syncs.fsaccess->skip_targetexists_errorreport = false;
+
+    failedDueToTargetExists = !success && syncs.fsaccess->target_exists;
+
+    if (createdFolder)
+    {
+        if (success)
+        {
+            LOG_verbose << syncname << "Created daily local debris folder: " << targetFolder.toPath();
+        }
+        else
+        {
+            // we didn't use the folder anyway, remove to avoid making huge numbers of them
+            syncs.fsaccess->rmdirlocal(targetFolder);
+        }
+    }
+    return success;
 }
 
 bool Sync::moveTo(LocalPath source, LocalPath target, bool overwrite)
@@ -6320,9 +6363,9 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
             return false;
         }
 
-        LOG_debug << syncname << "Moving local item to local sync debris: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
         if (movetolocaldebris(fullPath.localPath))
         {
+            LOG_debug << syncname << "Moved local item to local sync debris: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
             row.syncNode->setScanAgain(true, false, false, 0);
             row.syncNode->scanAgain = TREE_RESOLVED;
 
@@ -6331,8 +6374,9 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
         }
         else
         {
+            monitor.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::CouldNotMoveToLocalDebrisFolder);
             LOG_err << syncname << "Failed to move to local debris:  " << fullPath.localPath_utf8();
-            // todo: try again on a delay?
+            // todo: do we need some sort of delay before retry on the next go-round?
         }
     }
     else
