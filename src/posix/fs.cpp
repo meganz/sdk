@@ -1112,7 +1112,7 @@ bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
     return false;
 }
 
-bool PosixFileSystemAccess::renamelocal(LocalPath& oldname, LocalPath& newname, bool override)
+bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPath& newname, bool override)
 {
 #ifdef USE_IOS
     const string oldnamestr = adjustBasePath(oldname);
@@ -1318,7 +1318,7 @@ void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
     defaultfolderpermissions = permissions | 0700;
 }
 
-bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
+bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
 {
     emptydirlocal(name);
 
