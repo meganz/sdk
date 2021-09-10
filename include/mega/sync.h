@@ -403,7 +403,7 @@ public:
 
     // move file or folder to localdebris
     bool movetolocaldebris(const LocalPath& localpath);
-    bool movetolocaldebrisSubfolder(const LocalPath& localpath, const LocalPath& targetFolder, bool& failedDueToTargetExists);
+    bool movetolocaldebrisSubfolder(const LocalPath& localpath, const LocalPath& targetFolder, bool logFailReason, bool& failedDueToTargetExists);
 
 private:
     string mLastDailyDateTimeDebrisName;
