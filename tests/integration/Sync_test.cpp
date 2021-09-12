@@ -1961,6 +1961,7 @@ struct StandardClient : public MegaApp
             ostream << " and unmatched remote nodes:";
             for (auto& i : ns) ostream << " " << i.first;
             out() << ostream.str();
+            EXPECT_TRUE(false) << ostream.str();
         };
         return false;
     }
@@ -2101,6 +2102,7 @@ struct StandardClient : public MegaApp
             ostream << " and unmatched LocalNodes:";
             for (auto& i : ns) ostream << " " << i.first;
             out() << ostream.str();
+            EXPECT_TRUE(false) << ostream.str();
         };
         return false;
     }
@@ -2172,10 +2174,15 @@ struct StandardClient : public MegaApp
             ps.emplace(pi->path().filename().u8string(), pi->path());
         }
 
-        if (ignoreDebris)
+        if (ignoreDebris && depth == 0)
         {
             ms.erase(DEBRISFOLDER);
             ps.erase(DEBRISFOLDER);
+        }
+        else if (depth == 1 && mn->name == DEBRISFOLDER)
+        {
+            ms.erase("tmp");
+            ps.erase("tmp");
         }
 
         int matched = 0;
@@ -2226,6 +2233,7 @@ struct StandardClient : public MegaApp
             for (auto& i : ps) ostream << " " << i.second.filename();
             ostream << " in " << p;
             out() << ostream.str();
+            EXPECT_TRUE(false) << ostream.str();
         };
         return false;
     }
