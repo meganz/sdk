@@ -187,47 +187,55 @@ int GfxProc::checkevents(Waiter *)
             {
                 LOG_debug << "Media file correctly processed. Attaching file attribute: " << job->h;
 
-                // store the file attribute data - it will be attached to the file
-                // immediately if the upload has already completed; otherwise, once
-                // the upload completes
+                // thumbnail/preview has been extracted from the main image.
+                // Now we upload those to the file attribute servers
+                // The file attribute will either be added to an existing node
+                // or added to the eventual putnodes if this was started as part of an upload transfer
                 mCheckEventsKey.setkey(job->key);
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->putfa(job->h, job->imagetypes[i], &mCheckEventsKey, std::unique_ptr<string>(job->images[i]), job->flag);
-                client->reqtag = creqtag;
+                client->putfa(job->h, job->imagetypes[i], &mCheckEventsKey, 0, std::unique_ptr<string>(job->images[i]));
             }
             else
             {
                 LOG_debug << "Unable to process media file: " << job->h;
 
-                Transfer *transfer = NULL;
-                handletransfer_map::iterator htit = client->faputcompletion.find(job->h);
-                if (htit != client->faputcompletion.end())
+                if (job->h.isNodeHandle())
                 {
-                    transfer = htit->second;
+                    // This case is for the automatic "Restoring missing attributes" case (from syncup() or from download completion).
+                    // It doesn't matter much if we can't do it
+                    // App requests don't come by this route (they supply already generated preview/thumnnail) so no need to make any callbacks
+                    LOG_warn << "Media file processing failed for existing Node";
                 }
                 else
                 {
-                    // check if the failed attribute belongs to an active upload
-                    for (transfer_map::iterator it = client->transfers[PUT].begin(); it != client->transfers[PUT].end(); it++)
+                    Transfer *transfer = NULL;
+                    uploadhandletransfer_map::iterator htit = client->faputcompletion.find(job->h.uploadHandle());
+                    if (htit != client->faputcompletion.end())
                     {
-                        if (it->second->uploadhandle == job->h)
+                        transfer = htit->second;
+                    }
+                    else
+                    {
+                        // check if the failed attribute belongs to an active upload
+                        for (transfer_map::iterator it = client->transfers[PUT].begin(); it != client->transfers[PUT].end(); it++)
                         {
-                            transfer = it->second;
-                            break;
+                            if (it->second->uploadhandle == job->h.uploadHandle())
+                            {
+                                transfer = it->second;
+                                break;
+                            }
                         }
                     }
-                }
 
-                if (transfer)
-                {
-                    // reduce the number of required attributes to let the upload continue
-                    transfer->minfa--;
-                    client->checkfacompletion(job->h);
-                }
-                else
-                {
-                    LOG_debug << "Transfer related to media file not found: " << job->h;
+                    if (transfer)
+                    {
+                        // reduce the number of required attributes to let the upload continue
+                        transfer->minfa--;
+                        client->checkfacompletion(job->h.uploadHandle());
+                    }
+                    else
+                    {
+                        LOG_debug << "Transfer related to media file not found: " << job->h;
+                    }
                 }
             }
             needexec = true;
@@ -282,8 +290,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 }
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
-// FIXME: move to a worker thread to keep the engine nonblocking
-int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
+int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilename, NodeOrUploadHandle th, SymmCipher* key, int missing)
 {
     if (SimpleLogger::logCurrentLevel >= logDebug)
     {
@@ -292,7 +299,6 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
 
     GfxJob *job = new GfxJob();
     job->h = th;
-    job->flag = checkAccess;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
     job->localfilename = localfilename;
     for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )

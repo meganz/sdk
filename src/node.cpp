@@ -74,7 +74,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     Node* p;
 
-    client->nodes[h] = this;
+    client->nodes[NodeHandle().set6byte(h)] = this;
 
     if (t >= ROOTNODE && t <= RUBBISHNODE)
     {
@@ -630,16 +630,21 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
         int l = int(attrstrlen * 3 / 4 + 3);
         byte* buf = new byte[l];
 
-        l = Base64::atob(attrstring, buf, l);
+        int convertedLen = Base64::atob(attrstring, buf, l);
 
-        if (!(l & (SymmCipher::BLOCKSIZE - 1)))
+        if (convertedLen && convertedLen <= l &&
+            !(convertedLen % SymmCipher::BLOCKSIZE)) // must be multiple of CBC_Decryption::MandatoryBlockSize()
         {
-            key->cbc_decrypt(buf, l);
+            key->cbc_decrypt(buf, convertedLen);
 
-            if (!memcmp(buf, "MEGA{\"", 6))
+            if (l >= 6 && !memcmp(buf, "MEGA{\"", 6))
             {
                 return buf;
             }
+        }
+        else
+        {
+            LOG_err << "Invalid node attr: convertedLen = " << convertedLen << ", input attrstring: " << attrstring;
         }
 
         delete[] buf;
@@ -1099,6 +1104,26 @@ bool Node::isbelow(Node* p) const
     }
 }
 
+bool Node::isbelow(NodeHandle p) const
+{
+    const Node* n = this;
+
+    for (;;)
+    {
+        if (!n)
+        {
+            return false;
+        }
+
+        if (n->nodeHandle() == p)
+        {
+            return true;
+        }
+
+        n = n->parent;
+    }
+}
+
 void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const string &authKey)
 {
     if (!plink) // creation
@@ -1202,7 +1227,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     }
                     else
                     {
-                        sync->client->app->syncupdate_treestate(this);
+                        sync->client->app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
                     }
 
                     string prevname = node->attrs.map['n'];
@@ -1395,7 +1420,7 @@ void LocalNode::treestate(treestate_t newts)
 
     if (ts != dts)
     {
-        sync->client->app->syncupdate_treestate(this);
+        sync->client->app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
     }
 
     if (parent && ((newts == TREESTATE_NONE && ts != TREESTATE_NONE)
@@ -1528,7 +1553,7 @@ LocalNode::~LocalNode()
     }
 
     if (!sync->mDestructorRunning && (
-        sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
+        sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN))
     {
         sync->statecachedel(this);
 
@@ -1592,7 +1617,7 @@ LocalNode::~LocalNode()
     {
         // move associated node to SyncDebris unless the sync is currently
         // shutting down
-        if (sync->state >= SYNC_INITIALSCAN)
+        if (sync->state() >= SYNC_INITIALSCAN)
         {
             sync->client->movetosyncdebris(node, sync->inshare);
         }
