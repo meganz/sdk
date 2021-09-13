@@ -11611,7 +11611,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
         nodes.clear();
 
-        sctable->getNodesWithSharesOrLink(nodes, DbTable::sharesOrLink_t::IN_SHARES);
+        sctable->getNodesWithSharesOrLink(nodes, DbTable::ShareType_t::IN_SHARES);
         for (const NodeSerialized& node : nodes)
         {
             n = Node::unserialize(this, &node.mNode, &dp, node.mDecrypted);
@@ -11621,7 +11621,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
         // TODO Nodes on Demand: Maybe it's possible to get mLink handle directly and
         // we don't have to unserialize all node -> client->mPublicLinks[n->nodehandle] = plink->ph;
-        sctable->getNodesWithSharesOrLink(nodes, DbTable::sharesOrLink_t::LINK);
+        sctable->getNodesWithSharesOrLink(nodes, DbTable::ShareType_t::LINK);
         for (const NodeSerialized& node : nodes)
         {
             n = Node::unserialize(this, &node.mNode, &dp, node.mDecrypted);
