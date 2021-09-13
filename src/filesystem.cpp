@@ -26,6 +26,8 @@
 
 #include "megafs.h"
 
+#include <cassert>
+
 namespace mega {
 
 namespace detail {
@@ -495,6 +497,7 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
 // default DirNotify: no notification available
 DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore, Sync* s)
 {
+    assert(!clocalbasepath.empty());
     localbasepath = clocalbasepath;
     ignore = cignore;
 
