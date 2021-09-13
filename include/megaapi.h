@@ -19672,9 +19672,9 @@ public:
     virtual unsigned int getLocalPricePerTransfer(int productIndex);
 
     /**
-     * @brief Get the price per transfer block
+     * @brief Get the number of GB of transfer, per block
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return price per storage block
+     * @return number of GB of transfer, per block
      */
     virtual int getGBPerTransfer(int productIndex);
 };
