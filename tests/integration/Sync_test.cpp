@@ -1873,7 +1873,7 @@ struct StandardClient : public MegaApp
         }
     }; // CloudNameLess
 
-    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported)
+    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail)
     {
         // top level names can differ so we don't check those
         if (!mn || !n) return false;
@@ -1928,7 +1928,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0;
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported, expectFail))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -1950,7 +1950,7 @@ struct StandardClient : public MegaApp
             descendants += matched;
             return true;
         }
-        else if (!firstreported)
+        else if (!firstreported && !expectFail)
         {
             ostringstream ostream;
             firstreported = true;
@@ -1981,7 +1981,7 @@ struct StandardClient : public MegaApp
         return {iter1, iter2};
     }
 
-    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported)
+    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail)
     {
         // top level names can differ so we don't check those
         if (!mn || !n) return false;
@@ -2070,7 +2070,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0;
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported, expectFail))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -2091,7 +2091,7 @@ struct StandardClient : public MegaApp
         {
             return true;
         }
-        else if (!firstreported)
+        else if (!firstreported && !expectFail)
         {
             ostringstream ostream;
             firstreported = true;
@@ -2108,7 +2108,7 @@ struct StandardClient : public MegaApp
     }
 
 
-    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported)
+    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported, bool expectFail)
     {
         struct Comparator
         {
@@ -2196,7 +2196,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0;
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris, firstreported))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris, firstreported, expectFail))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -2221,7 +2221,7 @@ struct StandardClient : public MegaApp
         {
             return true;
         }
-        else if (!firstreported)
+        else if (!firstreported && !expectFail)
         {
             ostringstream ostream;
             firstreported = true;
@@ -2302,49 +2302,49 @@ struct StandardClient : public MegaApp
         CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
     };
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot)
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail)
     {
         auto result =
           thread_do<bool>(
             [=](StandardClient& client, PromiseBoolSP result)
             {
-                result->set_value(client.confirmModel(id, mRoot, rRoot));
+                result->set_value(client.confirmModel(id, mRoot, rRoot, expectFail));
             });
 
         return result.get();
     }
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot)
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot, bool expectFail)
     {
         auto result =
           thread_do<bool>(
             [=](StandardClient& client, PromiseBoolSP result)
             {
-                result->set_value(client.confirmModel(id, mRoot, lRoot));
+                result->set_value(client.confirmModel(id, mRoot, lRoot, expectFail));
             });
 
         return result.get();
     }
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris = false)
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, bool ignoreDebris, bool expectFail)
     {
         auto result =
           thread_do<bool>(
             [=](StandardClient& client, PromiseBoolSP result)
             {
-                result->set_value(client.confirmModel(id, mRoot, lRoot, ignoreDebris));
+                result->set_value(client.confirmModel(id, mRoot, lRoot, ignoreDebris, expectFail));
             });
 
         return result.get();
     }
 
-    bool confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot)
+    bool confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail)
     {
         string name = "Sync " + toHandle(id);
         int descendents = 0;
         bool reported = false;
 
-        if (!recursiveConfirm(mRoot, rRoot, descendents, name, 0, reported))
+        if (!recursiveConfirm(mRoot, rRoot, descendents, name, 0, reported, expectFail))
         {
             out() << clientname << " syncid " << toHandle(id) << " comparison against remote nodes failed";
             return false;
@@ -2353,13 +2353,13 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot)
+    bool confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot, bool expectFail)
     {
         string name = "Sync " + toHandle(id);
         int descendents = 0;
         bool reported = false;
 
-        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, reported))
+        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, reported, expectFail))
         {
             out() << clientname << " syncid " << toHandle(id) << " comparison against LocalNodes failed";
             return false;
@@ -2368,13 +2368,13 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris = false)
+    bool confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, bool ignoreDebris, bool expectFail)
     {
         string name = "Sync " + toHandle(id);
         int descendents = 0;
         bool reported = false;
 
-        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, ignoreDebris, reported))
+        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, ignoreDebris, reported, expectFail))
         {
             out() << clientname << " syncid " << toHandle(id) << " comparison against local filesystem failed";
             return false;
@@ -2383,7 +2383,7 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris)
+    bool confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris, bool expectFail)
     {
         SyncInfo si;
 
@@ -2394,7 +2394,7 @@ struct StandardClient : public MegaApp
         }
 
         // compare model against nodes representing remote state
-        if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodeByHandle(si.h)))
+        if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodeByHandle(si.h), expectFail))
         {
             return false;
         }
@@ -2402,14 +2402,14 @@ struct StandardClient : public MegaApp
         // compare model against LocalNodes
         if (Sync* sync = syncByBackupId(backupId))
         {
-            if ((confirm & CONFIRM_LOCALNODE) && !confirmModel(backupId, mnode, sync->localroot.get()))
+            if ((confirm & CONFIRM_LOCALNODE) && !confirmModel(backupId, mnode, sync->localroot.get(), expectFail))
             {
                 return false;
             }
         }
 
         // compare model against local filesystem
-        if ((confirm & CONFIRM_LOCALFS) && !confirmModel(backupId, mnode, si.localpath, ignoreDebris))
+        if ((confirm & CONFIRM_LOCALFS) && !confirmModel(backupId, mnode, si.localpath, ignoreDebris, expectFail))
         {
             return false;
         }
@@ -2890,10 +2890,10 @@ struct StandardClient : public MegaApp
         return fb.get();
     }
 
-    bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, const bool ignoreDebris = false, const int confirm = CONFIRM_ALL)
+    bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false)
     {
         future<bool> fb;
-        fb = thread_do<bool>([backupId, mnode, ignoreDebris, confirm](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris)); });
+        fb = thread_do<bool>([backupId, mnode, ignoreDebris, confirm, expectFail](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris, expectFail)); });
         return fb.get();
     }
 
@@ -6419,9 +6419,9 @@ TEST_F(SyncTest, BasicSyncExportImport)
     waitonsyncs(TIMEOUT, cx.get());
 
     // Confirm should fail.
-    ASSERT_FALSE(cx->confirmModel_mainthread(model0.root.get(), id0));
-    ASSERT_FALSE(cx->confirmModel_mainthread(model1.root.get(), id1));
-    ASSERT_FALSE(cx->confirmModel_mainthread(model2.root.get(), id2));
+    ASSERT_FALSE(cx->confirmModel_mainthread(model0.root.get(), id0, false, StandardClient::Confirm::CONFIRM_ALL, true));
+    ASSERT_FALSE(cx->confirmModel_mainthread(model1.root.get(), id1, false, StandardClient::Confirm::CONFIRM_ALL, true));
+    ASSERT_FALSE(cx->confirmModel_mainthread(model2.root.get(), id2, false, StandardClient::Confirm::CONFIRM_ALL, true));
 
     // Enable the imported syncs.
     ASSERT_TRUE(cx->enableSyncByBackupId(id0, "sync0 "));
@@ -8324,9 +8324,9 @@ struct TwoWaySyncSymmetryCase
         if (!initial) out() << "Checking setup state (should be no changes in twoway sync source): "<< name();
 
         // confirm source is unchanged after setup  (Two-way is not sending changes to the wrong side)
-        bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
-        bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
-        bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true); // todo: later enable debris checks
+        bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false); // todo: later enable debris checks
+        bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false); // todo: later enable debris checks
+        bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true, false); // todo: later enable debris checks
         EXPECT_EQ(localfs, localnode);
         EXPECT_EQ(localnode, remote);
         EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
@@ -8364,8 +8364,8 @@ struct TwoWaySyncSymmetryCase
 
         if (shouldDisableSync())
         {
-            bool lfs = client1().confirmModel(backupId, localModel.findnode("f"), localSyncRootPath(), true);
-            bool rnt = client1().confirmModel(backupId, remoteModel.findnode("f"), remoteSyncRoot());
+            bool lfs = client1().confirmModel(backupId, localModel.findnode("f"), localSyncRootPath(), true, false);
+            bool rnt = client1().confirmModel(backupId, remoteModel.findnode("f"), remoteSyncRoot(), false);
 
             EXPECT_EQ(sync, nullptr) << "Sync isn't disabled: " << name();
             EXPECT_TRUE(lfs) << "Couldn't confirm LFS: " << name();
@@ -8380,9 +8380,9 @@ struct TwoWaySyncSymmetryCase
             EXPECT_NE(sync, (Sync*)nullptr);
             EXPECT_TRUE(sync && sync->state() == SYNC_ACTIVE);
 
-            bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
-            bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
-            bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true); // todo: later enable debris checks
+            bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false); // todo: later enable debris checks
+            bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false); // todo: later enable debris checks
+            bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true, false); // todo: later enable debris checks
             EXPECT_EQ(localfs, localnode);
             EXPECT_EQ(localnode, remote);
             EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
