@@ -633,7 +633,7 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
         int convertedLen = Base64::atob(attrstring, buf, l);
 
         if (convertedLen && convertedLen <= l &&
-            !(convertedLen & (SymmCipher::BLOCKSIZE - 1))) // this condition is terribly cryptic...
+            !(convertedLen % SymmCipher::BLOCKSIZE)) // must be multiple of CBC_Decryption::MandatoryBlockSize()
         {
             key->cbc_decrypt(buf, convertedLen);
 
