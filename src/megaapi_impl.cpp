@@ -142,6 +142,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->videocodecid = np->videocodecid;
         this->mFavourite = np->mFavourite;
         this->mLabel = np->mLabel;
+        this->mDeviceId = np->mDeviceId;
     }
     else
     {
