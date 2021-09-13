@@ -140,7 +140,7 @@ std::string megaApiCacheFolder(int index)
     } else
     {
         std::unique_ptr<DirAccess> da(fileSystemAccess.newdiraccess());
-        auto lp = LocalPath::fromPlatformEncoded(p);
+        auto lp = LocalPath::fromPath(p, fileSystemAccess);
         if (!da->dopen(&lp, nullptr, false))
         {
             throw std::runtime_error(
