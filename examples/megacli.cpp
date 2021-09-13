@@ -7798,11 +7798,11 @@ void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
 {
     cout << "Currency data: " << endl;
     cout << "\tName: " << data->currencyName;
-    cout << "\tSymbol: " << data->currencySymbol;
+    cout << "\tSymbol: " << Base64::atob(data->currencySymbol);
     if (data->localCurrencyName.size())
     {
         cout << "\tName (local): " << data->localCurrencyName;
-        cout << "\tSymbol (local): " << data->localCurrencySymbol;
+        cout << "\tSymbol (local): " << Base64::atob(data->localCurrencySymbol);
     }
 }
 
