@@ -142,6 +142,8 @@ bool createFile(const fs::path &path, const void *data, const size_t data_length
     ofstream ostream(path.u8string(), ios::binary);
 #endif
 
+    LOG_verbose << "Creating local data file at " << path.u8string() << ", length " << data_length;
+
     ostream.write(reinterpret_cast<const char *>(data), data_length);
 
     return ostream.good();
@@ -7164,6 +7166,7 @@ TEST_F(SyncTest, DeleteReplaceReplacementHasFilesystemWatch)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
     // Add a file in the new directory so we trigger a notification.
+    out() << "creating file dx/g";
     model.addfile("dx/g", "g");
 
     ASSERT_TRUE(createDataFile(ROOT / "dx" / "g", "g"));
