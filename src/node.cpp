@@ -642,6 +642,10 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
                 return buf;
             }
         }
+        else
+        {
+            LOG_err << "Invalid node attr: convertedLen = " << convertedLen << ", input attrstring: " << attrstring;
+        }
 
         delete[] buf;
     }
