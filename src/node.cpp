@@ -1311,8 +1311,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
         }
     }
 
-    ln->upload = move(upload);
-    ln->download = move(download);
+    ln->transferSP = move(transferSP);
 
     LocalTreeProcUpdateTransfers tput;
     tput.proc(*sync->syncs.fsaccess, ln);
@@ -2013,6 +2012,13 @@ LocalNode::~LocalNode()
         sync->statecachedel(this);
     }
 
+    if (!sync->syncs.mExecutingLocallogout)
+    {
+        // for Locallogout, we will resume syncs and their transfers on re-login.
+        // for other cases - single sync cancel, disable etc - transfers are cancelled.
+        resetTransfer(nullptr);
+    }
+
     //newnode.reset();
 
     if (sync->dirnotify.get())
@@ -2173,6 +2179,89 @@ FSNode LocalNode::getScannedFSDetails()
     return n;
 }
 
+void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload)
+{
+    resetTransfer(upload);
+
+    sync->syncs.queueClient([upload](MegaClient& mc, DBTableTransactionCommitter& committer)
+        {
+            mc.nextreqtag();
+            mc.startxfer(PUT, upload.get(), committer);
+        });
+
+}
+
+void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download)
+{
+    resetTransfer(download);
+
+    sync->syncs.queueClient([download](MegaClient& mc, DBTableTransactionCommitter& committer)
+        {
+            mc.nextreqtag();
+            mc.startxfer(GET, download.get(), committer);
+        });
+
+}
+
+void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
+{
+    if (transferSP)
+    {
+        // this flag allows in-progress transfers to self-cancel
+        transferSP->wasRequesterAbandoned = true;
+
+        // also queue an operation on the client thread to cancel it if it's queued
+        auto tsp = transferSP;
+        sync->syncs.queueClient([tsp](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                mc.nextreqtag();
+                mc.stopxfer(tsp.get(), &committer);
+            });
+    }
+
+    if (p) p->selfKeepAlive = p;
+    transferSP = move(p);
+}
+
+void LocalNode::checkTransferCompleted()
+{
+    if (auto upload = dynamic_cast<SyncUpload_inClient*>(transferSP.get()))
+    {
+        if (transferSP->wasTerminated ||
+            (transferSP->wasCompleted && upload->wasPutnodesCompleted))
+        {
+            resetTransfer(nullptr);
+        }
+    }
+    else if (transferSP)
+    {
+        if (transferSP->wasTerminated ||
+            transferSP->wasCompleted)
+        {
+            resetTransfer(nullptr);
+        }
+    }
+}
+
+void LocalNode::updateTransferLocalname()
+{
+    if (transferSP)
+    {
+        transferSP->setLocalname(getLocalPath());
+    }
+}
+
+void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)
+{
+    // todo: should we be more accurate than just fingerprint?
+    if (transferSP && (
+        dir != (dynamic_cast<SyncUpload_inClient*>(transferSP.get()) ? PUT : GET) ||
+        !(transferSP->fingerprint() == fingerprint)))
+    {
+        LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname().toPath();
+        resetTransfer(nullptr);
+    }
+}
 
 void SyncTransfer_inClient::terminated()
 {

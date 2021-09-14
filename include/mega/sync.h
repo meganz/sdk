@@ -1004,6 +1004,8 @@ private:
     void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector);
     void purgeRunningSyncs_inThread();
 
+    bool mExecutingLocallogout = false;
+
     std::thread syncThread;
     std::thread::id syncThreadId;
     void syncLoop();

@@ -593,9 +593,6 @@ struct MEGA_API LocalNode : public Cacheable
         weak_ptr<UnlinkInProgress> unlinkHere;
     };
 
-private:
-    unique_ptr<RareFields> rareFields;
-public:
     bool hasRare() { return !!rareFields; }
     RareFields& rare();
     void trimRareFields();
@@ -662,42 +659,16 @@ public:
     FSNode getLastSyncedFSDetails();
     FSNode getScannedFSDetails();
 
-    struct TransferProxy
-    {
-        // This class is the LocalNodes' refrence to the SyncUpload_inClient.
-        // Deleting this class will just mark the SyncUpload_inClient as to be deleted by the Client's systems
-        void reset(shared_ptr<SyncTransfer_inClient> p)
-        {
-            if (actualTransfer) actualTransfer->wasRequesterAbandoned = true;
-            if (p) p->selfKeepAlive = p;
-            actualTransfer = move(p);
-        }
+    // Each node can be either uploading or downloading a file.
+    // These functions manage that
+    void queueClientUpload(shared_ptr<SyncUpload_inClient> upload);
+    void queueClientDownload(shared_ptr<SyncDownload_inClient> upload);
+    void resetTransfer(shared_ptr<SyncTransfer_inClient> p);
+    void checkTransferCompleted();
+    void updateTransferLocalname();
+    void transferResetUnlessMatched(direction_t, const FileFingerprint& fingerprint);
+    shared_ptr<SyncTransfer_inClient> transferSP;
 
-        void checkCompleted()
-        {
-            if (auto upload = dynamic_cast<SyncUpload_inClient*>(actualTransfer.get()))
-            {
-                if (actualTransfer->wasTerminated ||
-                    (actualTransfer->wasCompleted && upload->wasPutnodesCompleted))
-                {
-                    reset(nullptr);
-                }
-            }
-            else if (actualTransfer)
-            {
-                if (actualTransfer->wasTerminated ||
-                    actualTransfer->wasCompleted)
-                {
-                    reset(nullptr);
-                }
-            }
-        }
-
-        shared_ptr<SyncTransfer_inClient> actualTransfer;
-    };
-
-    TransferProxy upload;
-    TransferProxy download;
 
     void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
     void setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
@@ -752,6 +723,9 @@ public:
     bool watch(const LocalPath& path, handle fsid);
 
 private:
+
+    unique_ptr<RareFields> rareFields;
+
 #ifdef USE_INOTIFY
     class WatchHandle
     {

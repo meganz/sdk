@@ -4317,6 +4317,7 @@ void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile)
 void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
 {
     assert(onSyncThread());
+    mExecutingLocallogout = true;
 
     // NULL the statecachetable databases for Syncs first, then Sync destruction won't remove LocalNodes from them
     // If we are deleting syncs then just remove() the database direct
@@ -4368,6 +4369,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
     removeSelectedSyncs_inThread([](SyncConfig&, Sync*) { return true; });
 
     clear_inThread();
+    mExecutingLocallogout = false;
 }
 
 void Syncs::removeSyncByIndex(size_t index)
@@ -5548,7 +5550,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     // each of the 8 possible cases of present/absent for this row
     if (row.syncNode)
     {
-        if (row.syncNode->upload.actualTransfer) row.syncNode->upload.checkCompleted();
+        row.syncNode->checkTransferCompleted();
         //todo: if (row.syncNode->download) row.syncNode->download.checkCompleted();
 
         if (row.fsNode)
@@ -5955,16 +5957,10 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
     if (row.fsNode->type == FILENODE)
     {
-        // upload the file if we're not already uploading
+        // upload the file if we're not already uploading it
+        row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint);
 
-        if (row.syncNode->upload.actualTransfer &&
-          !(row.syncNode->upload.actualTransfer->fingerprint() == row.fsNode->fingerprint))
-        {
-            LOG_debug << syncname << "An older version of this file was already uploading, cancelling." << fullPath.localPath_utf8() << logTriplet(row, fullPath);
-            row.syncNode->upload.reset(nullptr);
-        }
-
-        if (!row.syncNode->upload.actualTransfer /*&& !row.syncNode->newnode*/)
+        if (!row.syncNode->transferSP)
         {
             // Sanity.
             assert(row.syncNode->parent);
@@ -5981,15 +5977,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 // if we were already matched with a name that is not exactly the same as toName(), keep using it
                 string nodeName = row.cloudNode ? row.cloudNode->name : row.fsNode->localname.toName(*syncs.fsaccess);
 
-                row.syncNode->upload.reset(std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle, fullPath.localPath, nodeName, row.fsNode->fingerprint));
-
-                auto uploadPtr = row.syncNode->upload.actualTransfer;
-                syncs.queueClient([uploadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
-                    {
-                        mc.nextreqtag();
-                        mc.startxfer(PUT, uploadPtr.get(), committer);
-                    });
-
+                row.syncNode->queueClientUpload(std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle, fullPath.localPath, nodeName, row.fsNode->fingerprint));
 
                 LOG_debug << "Sync - sending file " << fullPath.localPath_utf8();
 
@@ -6122,16 +6110,11 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
         // download the file if we're not already downloading
         // if (alreadyExists), we will move the target to the trash when/if download completes //todo: check
 
-        if (row.syncNode->download.actualTransfer &&
-            !(row.syncNode->download.actualTransfer->fingerprint() == row.cloudNode->fingerprint))
-        {
-            LOG_debug << syncname << "An older version of this file was already downloading, cancelling." << fullPath.cloudPath << logTriplet(row, fullPath);
-            row.syncNode->download.reset(nullptr);
-        }
+        row.syncNode->transferResetUnlessMatched(GET, row.cloudNode->fingerprint);
 
         if (parentRow.fsNode)
         {
-            if (!row.syncNode->download.actualTransfer)
+            if (!row.syncNode->transferSP)
             {
                 LOG_debug << "Sync - remote file addition detected: " << fullPath.cloudPath;
 
@@ -6143,31 +6126,24 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 createDebrisTmpLockOnce();
 
                 // download to tmpfaPath (folder debris/tmp). We will rename/mv it to correct location (updated if necessary) after that completes
-                row.syncNode->download.actualTransfer.reset(new SyncDownload_inClient(*row.cloudNode, tmpfaPath, inshare, *syncs.fsaccess));
-
-                auto downloadPtr = row.syncNode->download.actualTransfer;
-                syncs.queueClient([downloadPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
-                    {
-                        mc.nextreqtag();
-                        mc.startxfer(GET, downloadPtr.get(), committer);
-                    });
+                row.syncNode->queueClientDownload(std::make_shared<SyncDownload_inClient>(*row.cloudNode, tmpfaPath, inshare, *syncs.fsaccess));
 
                 if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
                 else if (parentRow.syncNode) parentRow.syncNode->treestate(TREESTATE_SYNCING);
             }
-            else if (row.syncNode->download.actualTransfer->wasTerminated)
+            else if (row.syncNode->transferSP->wasTerminated)
             {
                 SYNC_verbose << syncname << "Download was terminated " << logTriplet(row, fullPath);
-                row.syncNode->download.reset(nullptr);
+                row.syncNode->resetTransfer(nullptr);
             }
-            else if (row.syncNode->download.actualTransfer->wasCompleted)
+            else if (row.syncNode->transferSP->wasCompleted)
             {
                 // Convenience.
                 auto& fsAccess = *syncs.fsaccess;
 
                 // Clarity.
                 auto& cloudPath  = fullPath.cloudPath;
-                auto sourcePath = row.syncNode->download.actualTransfer->getLocalname();
+                auto sourcePath = row.syncNode->transferSP->getLocalname();
                 auto& targetPath = fullPath.localPath;
 
                 // Try and move the downloaded file into its new home.
@@ -6179,7 +6155,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     // Check for anomalous file names.
                     checkForFilenameAnomaly(fullPath, row.cloudNode->name);
 
-                    row.syncNode->download.reset(nullptr);
+                    row.syncNode->resetTransfer(nullptr);
                 }
                 else if (fsAccess.transient_error)
                 {
@@ -6193,7 +6169,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 {
                     // Hard error while moving download into place.
                     SYNC_verbose << syncname << "Download complete, but move failed" << logTriplet(row, fullPath);
-                    row.syncNode->download.reset(nullptr);
+                    row.syncNode->resetTransfer(nullptr);
                 }
             }
             else
