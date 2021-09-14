@@ -29,6 +29,8 @@
 
 #include "megafs.h"
 
+#include <cassert>
+
 namespace mega {
 
 CodeCounter::ScopeStats g_compareUtfTimings("compareUtfTimings");
@@ -620,6 +622,7 @@ bool FileSystemAccess::fileExistsAt(const LocalPath& path)
 // default DirNotify: no notification available
 DirNotify::DirNotify(const LocalPath& rootPath)
 {
+    assert(!clocalbasepath.empty());
     localbasepath = rootPath;
 
     mFailed = 1;

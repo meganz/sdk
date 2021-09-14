@@ -979,6 +979,11 @@ MegaPricing *MegaRequest::getPricing() const
     return NULL;
 }
 
+MegaCurrency *MegaRequest::getCurrency() const
+{
+    return nullptr;
+}
+
 MegaAchievementsDetails *MegaRequest::getMegaAchievementsDetails() const
 {
     return NULL;
@@ -5786,7 +5791,7 @@ int MegaPricing::getAmount(int)
     return 0;
 }
 
-const char *MegaPricing::getCurrency(int)
+int MegaPricing::getLocalPrice(int /*productIndex*/)
 {
     return 0;
 }
@@ -5819,6 +5824,81 @@ int MegaPricing::getAmountMonth(int)
 MegaPricing *MegaPricing::copy()
 {
     return NULL;
+}
+
+int MegaPricing::getGBStoragePerUser(int)
+{
+    return 0;
+}
+
+int MegaPricing::getGBTransferPerUser(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getMinUsers(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getPricePerUser(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getLocalPricePerUser(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getPricePerStorage(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getLocalPricePerStorage(int)
+{
+    return 0;
+}
+
+int MegaPricing::getGBPerStorage(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getPricePerTransfer(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getLocalPricePerTransfer(int)
+{
+    return 0;
+}
+
+int MegaPricing::getGBPerTransfer(int)
+{
+    return 0;
+}
+
+const char *MegaCurrency::getCurrencySymbol()
+{
+    return nullptr;
+}
+
+const char *MegaCurrency::getCurrencyName()
+{
+    return nullptr;
+}
+
+const char *MegaCurrency::getLocalCurrencySymbol()
+{
+    return nullptr;
+}
+
+const char *MegaCurrency::getLocalCurrencyName()
+{
+    return nullptr;
 }
 
 #ifdef ENABLE_SYNC
@@ -7079,6 +7159,15 @@ const MegaBanner* MegaBannerList::get(int i) const
 int MegaBannerList::size() const
 {
     return 0;
+}
+
+MegaCurrency::~MegaCurrency()
+{
+}
+
+MegaCurrency *MegaCurrency::copy()
+{
+    return nullptr;
 }
 
 }

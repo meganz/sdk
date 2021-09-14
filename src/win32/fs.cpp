@@ -1349,6 +1349,7 @@ bool WinDirNotify::fsstableids() const
         }
     }
     LOG_err << "Failed to get filesystem type. Error code: " << GetLastError();
+    assert(false);
     return true;
 }
 

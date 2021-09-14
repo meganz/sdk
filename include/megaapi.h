@@ -58,6 +58,7 @@ class MegaTreeProcessor;
 class MegaAccountDetails;
 class MegaAchievementsDetails;
 class MegaPricing;
+class MegaCurrency;
 class MegaNode;
 class MegaUser;
 class MegaUserAlert;
@@ -3692,6 +3693,19 @@ class MegaRequest
          * @return Available pricing plans to upgrade a MEGA account
          */
         virtual MegaPricing *getPricing() const;
+
+        /**
+         * @brief Returns currency data related to prices
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getPricing - Returns available pricing plans to upgrade a MEGA account
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return Currency data related to prices
+         */
+        virtual MegaCurrency *getCurrency() const;
 
         /**
          * @brief Returns details related to the MEGA Achievements of this account
@@ -11411,6 +11425,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getPricing - MegaPricing object with all pricing plans
+         * - MegaRequest::getCurrency - MegaCurrency object with currency data related to prices
          *
          * @param listener MegaRequestListener to track this request
          *
@@ -19395,6 +19410,71 @@ public:
     virtual bool isTemporalBandwidthValid();
 };
 
+class MegaCurrency
+{
+public:
+    virtual ~MegaCurrency();
+
+    /**
+     * @brief Creates a copy of this MegaCurrency object.
+     *
+     * The resulting object is fully independent of the source MegaCurrency,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaCurrency object
+     */
+    virtual MegaCurrency *copy();
+
+    /**
+     * @brief Get the currency symbol of prices
+     *
+     * The currency symbol is encoded in B64url, since it may be a UTF-8 char.
+     * In example, for €, it returns "4oKs".
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @return currency symbol of price
+     */
+    virtual const char* getCurrencySymbol();
+
+    /**
+     * @brief Get the currency name of prices, ie. EUR
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @return currency name of price
+     */
+    virtual const char* getCurrencyName();
+
+    /**
+     * @brief Get the currency symbol of local prices
+     *
+     * The currency symbol is encoded in B64url, since it may be a UTF-8 char.
+     * In example, for €, it returns "4oKs".
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @return currency symbol of local price
+     */
+    virtual const char* getLocalCurrencySymbol();
+
+    /**
+     * @brief Get the currency name of local prices, ie. NZD
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     *
+     * @return currency name of local price
+     */
+    virtual const char* getLocalCurrencyName();
+};
+
 /**
  * @brief Details about pricing plans
  *
@@ -19466,15 +19546,11 @@ public:
     virtual int getAmount(int productIndex);
 
     /**
-     * @brief Get the currency associated with MegaPricing::getAmount
-     *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaPricing object is deleted.
-     *
+     * @brief Get the price in the local currency (in cents)
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return Currency associated with MegaPricing::getAmount
+     * @return Price of the product (in cents)
      */
-    virtual const char* getCurrency(int productIndex);
+    virtual int getLocalPrice(int productIndex);
 
     /**
      * @brief Get a description of the product
@@ -19537,6 +19613,95 @@ public:
      * @return Copy of the MegaPricing object
      */
     virtual MegaPricing *copy();
+
+    /**
+     * @brief Get the number of GB of storage associated with the product, per user
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return number of GB of storage associated with the product, per user
+     */
+    virtual int getGBStoragePerUser(int productIndex);
+
+    /**
+     * @brief Get the number of GB of transfer associated with the product, per user
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return number of GB of transfer associated with the product, per user
+     */
+    virtual int getGBTransferPerUser(int productIndex);
+
+    /**
+     * @brief Get the minimum number of users to purchase the product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return minimum number of users to purchase the product
+     */
+    virtual unsigned int getMinUsers(int productIndex);
+
+    /**
+     * @brief Get the monthly price of the product, per user (in cents)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return monthly price of the product, per user (in cents)
+     */
+    virtual unsigned int getPricePerUser(int productIndex);
+
+    /**
+     * @brief Get the monthly local price of the product, per user (in cents)
+     *
+     * Local prices are only available if the account will be charged in a different
+     * currency than local.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return monthly local price of the product, per user (in cents)
+     */
+    virtual unsigned int getLocalPricePerUser(int productIndex);
+
+    /**
+     * @brief Get the price per storage block
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return price per storage block
+     */
+    virtual unsigned int getPricePerStorage(int productIndex);
+
+    /**
+     * @brief Get the local price per storage block
+     *
+     * Local prices are only available if the account will be charged in a different
+     * currency than local.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return local price per storage block
+     */
+    virtual unsigned int getLocalPricePerStorage(int productIndex);
+
+    /**
+     * @brief Get the number of GB of storage, per block
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return number of GB of storage, per block
+     */
+    virtual int getGBPerStorage(int productIndex);
+
+    /**
+     * @brief Get the price per transfer block
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return price per transfer block
+     */
+    virtual unsigned int getPricePerTransfer(int productIndex);
+
+    /**
+     * @brief Get the local price per transfer block
+     *
+     * Local prices are only available if the account will be charged in a different
+     * currency than local.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return local price per storage block
+     */
+    virtual unsigned int getLocalPricePerTransfer(int productIndex);
+
+    /**
+     * @brief Get the number of GB of transfer, per block
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return number of GB of transfer, per block
+     */
+    virtual int getGBPerTransfer(int productIndex);
 };
 
 /**

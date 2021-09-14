@@ -224,7 +224,10 @@ struct DemoApp : public MegaApp
     void userattr_update(User*, int, const char*) override;
     void resetSmsVerifiedPhoneNumber_result(error e) override;
 
-    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) override;
+    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
+                                    unsigned, unsigned, const char*, const char*, const char*,
+                                    std::unique_ptr<BusinessPlan>) override;
+    void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
     void checkout_result(const char*, error) override;

@@ -625,16 +625,21 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
         int l = int(attrstrlen * 3 / 4 + 3);
         byte* buf = new byte[l];
 
-        l = Base64::atob(attrstring, buf, l);
+        int convertedLen = Base64::atob(attrstring, buf, l);
 
-        if (!(l & (SymmCipher::BLOCKSIZE - 1)))
+        if (convertedLen && convertedLen <= l &&
+            !(convertedLen % SymmCipher::BLOCKSIZE)) // must be multiple of CBC_Decryption::MandatoryBlockSize()
         {
-            key->cbc_decrypt(buf, l);
+            key->cbc_decrypt(buf, convertedLen);
 
-            if (!memcmp(buf, "MEGA{\"", 6))
+            if (l >= 6 && !memcmp(buf, "MEGA{\"", 6))
             {
                 return buf;
             }
+        }
+        else
+        {
+            LOG_err << "Invalid node attr: convertedLen = " << convertedLen << ", input attrstring: " << attrstring;
         }
 
         delete[] buf;
