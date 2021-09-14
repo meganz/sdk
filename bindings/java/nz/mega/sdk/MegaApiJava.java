@@ -5740,6 +5740,148 @@ public class MegaApiJava {
     }
 
     /**
+     * Returns the id of this device
+     *
+     * You take the ownership of the returned value.
+     *
+     * @return The id of this device
+     */
+    public String getDeviceId() {
+        return megaApi.getDeviceId();
+    }
+
+    /**
+     * Returns the name set for this device
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns device name.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getDeviceName(MegaRequestListenerInterface listener) {
+        megaApi.getDeviceName(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Returns the name set for this device
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns device name.
+     */
+    public void getDeviceName() {
+        megaApi.getDeviceName();
+    }
+
+    /**
+     * Sets device name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     * - MegaRequest::getName - Returns device name.
+     *
+     * @param deviceName String with device name
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setDeviceName(String deviceName, MegaRequestListenerInterface listener) {
+        megaApi.setDeviceName(deviceName, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Sets device name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     * - MegaRequest::getName - Returns device name.
+     *
+     * @param deviceName String with device name
+     */
+    public void setDeviceName(String deviceName) {
+        megaApi.setDeviceName(deviceName);
+    }
+
+    /**
+     * Returns the name set for this drive
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+     * - MegaRequest::getFile - Returns the path to the drive
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns drive name.
+     *
+     * @param pathToDrive Path to the root of the external drive
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getDriveName(String pathToDrive, MegaRequestListenerInterface listener) {
+        megaApi.getDriveName(pathToDrive, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Returns the name set for this drive
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+     * - MegaRequest::getFile - Returns the path to the drive
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns drive name.
+     *
+     * @param pathToDrive Path to the root of the external drive
+     */
+    public void getDriveName(String pathToDrive) {
+        megaApi.getDriveName(pathToDrive);
+    }
+
+    /**
+     * Sets drive name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+     * - MegaRequest::getName - Returns drive name.
+     * - MegaRequest::getFile - Returns the path to the drive
+     *
+     * @param pathToDrive Path to the root of the external drive
+     * @param driveName String with drive name
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setDriveName(String pathToDrive, String driveName, MegaRequestListenerInterface listener) {
+        megaApi.setDriveName(pathToDrive, driveName, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Sets drive name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+     * - MegaRequest::getName - Returns drive name.
+     * - MegaRequest::getFile - Returns the path to the drive
+     *
+     * @param pathToDrive Path to the root of the external drive
+     * @param driveName String with drive name
+     */
+    public void setDriveName(String pathToDrive, String driveName) {
+        megaApi.setDriveName(pathToDrive, driveName);
+    }
+
+    /**
      * Change the password of the MEGA account
      *
      * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
