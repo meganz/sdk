@@ -270,20 +270,20 @@ public:
 };
 
 
-class MegaBackupController : public MegaBackup, public MegaRequestListener, public MegaTransferListener
+class MegaScheduledCopyController : public MegaScheduledCopy, public MegaRequestListener, public MegaTransferListener
 {
 public:
-    MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, bool attendPastBackups, const char *speriod, int64_t period=-1, int maxBackups = 10);
-    MegaBackupController(MegaBackupController *backup);
-    ~MegaBackupController();
+    MegaScheduledCopyController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, bool attendPastBackups, const char *speriod, int64_t period=-1, int maxBackups = 10);
+    MegaScheduledCopyController(MegaScheduledCopyController *backup);
+    ~MegaScheduledCopyController();
 
     void update();
     void start(bool skip = false);
     void removeexceeding(bool currentoneOK);
     void abortCurrent();
 
-    // MegaBackup interface
-    MegaBackup *copy() override;
+    // MegaScheduledCopy interface
+    MegaScheduledCopy *copy() override;
     const char *getLocalFolder() const override;
     MegaHandle getMegaHandle() const override;
     int getTag() const override;
@@ -296,7 +296,7 @@ public:
     MegaTransferList *getFailedTransfers() override;
 
 
-    // MegaBackup setters
+    // MegaScheduledCopy setters
     void setLocalFolder(const std::string &value);
     void setMegaHandle(const MegaHandle &value);
     void setTag(int value);
@@ -327,7 +327,7 @@ protected:
     // common variables
     MegaApiImpl *megaApi;
     MegaClient *client;
-    MegaBackupListener *backupListener;
+    MegaScheduledCopyListener *backupListener;
 
     int state;
     int tag;
@@ -404,8 +404,8 @@ public:
     void setCurrentBKStartTime(const int64_t &value);
     long long getTotalFiles() const override;
     void setTotalFiles(long long value);
-    MegaBackupListener *getBackupListener() const;
-    void setBackupListener(MegaBackupListener *value);
+    MegaScheduledCopyListener *getBackupListener() const;
+    void setBackupListener(MegaScheduledCopyListener *value);
     cron_expr getCcronexpr() const;
     void setCcronexpr(const cron_expr &value);
     bool isValid() const;
@@ -1190,8 +1190,8 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaStringList(MegaStringList* stringList);
         void setMegaHandleList(const vector<handle> &handles);
 
-        MegaBackupListener *getBackupListener() const;
-        void setBackupListener(MegaBackupListener *value);
+        MegaScheduledCopyListener *getBackupListener() const;
+        void setBackupListener(MegaScheduledCopyListener *value);
 
         MegaBannerList* getMegaBannerList() const override;
         void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
@@ -1220,7 +1220,7 @@ protected:
         long long totalBytes;
         long long transferredBytes;
         MegaRequestListener *listener;
-        MegaBackupListener *backupListener;
+        MegaScheduledCopyListener *backupListener;
 
         int transfer;
         int numDetails;
@@ -2025,7 +2025,7 @@ class RequestQueue
         MegaRequestPrivate * pop();
         MegaRequestPrivate * front();
         void removeListener(MegaRequestListener *listener);
-        void removeListener(MegaBackupListener *listener);
+        void removeListener(MegaScheduledCopyListener *listener);
 };
 
 
@@ -2071,12 +2071,12 @@ class MegaApiImpl : public MegaApp
         void addListener(MegaListener* listener);
         void addRequestListener(MegaRequestListener* listener);
         void addTransferListener(MegaTransferListener* listener);
-        void addBackupListener(MegaBackupListener* listener);
+        void addScheduledCopyListener(MegaScheduledCopyListener* listener);
         void addGlobalListener(MegaGlobalListener* listener);
         void removeListener(MegaListener* listener);
         void removeRequestListener(MegaRequestListener* listener);
         void removeTransferListener(MegaTransferListener* listener);
-        void removeBackupListener(MegaBackupListener* listener);
+        void removeScheduledCopyListener(MegaScheduledCopyListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
 
         void cancelPendingTransfersByFolderTag(int folderTag);
@@ -2307,9 +2307,9 @@ class MegaApiImpl : public MegaApp
 
         //Backups
         MegaStringList *getBackupFolders(int backuptag);
-        void setBackup(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
-        void removeBackup(int tag, MegaRequestListener *listener=NULL);
-        void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);
+        void setScheduledCopy(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
+        void removeScheduledCopy(int tag, MegaRequestListener *listener=NULL);
+        void abortCurrentScheduledCopy(int tag, MegaRequestListener *listener=NULL);
 
         //Timer
         void startTimer( int64_t period, MegaRequestListener *listener=NULL);
@@ -2403,9 +2403,9 @@ class MegaApiImpl : public MegaApp
         char *getBlockedPath();
 #endif
 
-        MegaBackup *getBackupByTag(int tag);
-        MegaBackup *getBackupByNode(MegaNode *node);
-        MegaBackup *getBackupByPath(const char * localPath);
+        MegaScheduledCopy *getScheduledCopyByTag(int tag);
+        MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
+        MegaScheduledCopy *getScheduledCopyByPath(const char * localPath);
 
         void update();
         int isWaiting();
@@ -2777,11 +2777,11 @@ class MegaApiImpl : public MegaApp
         static char* getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size);
 
         error processAbortBackupRequest(MegaRequestPrivate *request, error e);
-        void fireOnBackupStateChanged(MegaBackupController *backup);
-        void fireOnBackupStart(MegaBackupController *backup);
-        void fireOnBackupFinish(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e);
-        void fireOnBackupUpdate(MegaBackupController *backup);
-        void fireOnBackupTemporaryError(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e);
+        void fireOnBackupStateChanged(MegaScheduledCopyController *backup);
+        void fireOnBackupStart(MegaScheduledCopyController *backup);
+        void fireOnBackupFinish(MegaScheduledCopyController *backup, unique_ptr<MegaErrorPrivate> e);
+        void fireOnBackupUpdate(MegaScheduledCopyController *backup);
+        void fireOnBackupTemporaryError(MegaScheduledCopyController *backup, unique_ptr<MegaErrorPrivate> e);
 
         void yield();
         void lockMutex();
@@ -2858,7 +2858,7 @@ protected:
         set<MegaTransferListener *> ftpServerListeners;
 #endif
 
-        map<int, MegaBackupController *> backupsMap;
+        map<int, MegaScheduledCopyController *> backupsMap;
 
         RequestQueue requestQueue;
         TransferQueue transferQueue;
@@ -2879,7 +2879,7 @@ protected:
         long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
-        set<MegaBackupListener *> backupListeners;
+        set<MegaScheduledCopyListener *> backupListeners;
 
 #ifdef ENABLE_SYNC
         MegaSyncPrivate* cachedMegaSyncPrivateByBackupId(const SyncConfig&);

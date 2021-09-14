@@ -1444,26 +1444,6 @@ public:
     CommandDismissBanner(MegaClient*, int id, m_time_t ts);
 };
 
-typedef std::function<void(Error, string_map)> CommandFetchGoogleAdsCompletion;
-class MEGA_API CommandFetchGoogleAds : public Command
-{
-    CommandFetchGoogleAdsCompletion mCompletion;
-public:
-    bool procresult(Result) override;
-
-    CommandFetchGoogleAds(MegaClient*, int adFlags, const std::vector<std::string>& adUnits, handle publicHandle, CommandFetchGoogleAdsCompletion completion);
-};
-
-typedef std::function<void(Error, int)> CommandQueryGoogleAdsCompletion;
-class MEGA_API CommandQueryGoogleAds : public Command
-{
-    CommandQueryGoogleAdsCompletion mCompletion;
-public:
-    bool procresult(Result) override;
-
-    CommandQueryGoogleAds(MegaClient*, int adFlags, handle publicHandle, CommandQueryGoogleAdsCompletion completion);
-};
-
 #ifdef ENABLE_CHAT
 typedef std::function<void(Error, std::string, handle)> CommandMeetingStartCompletion;
 class MEGA_API CommandMeetingStart : public Command
