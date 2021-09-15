@@ -622,7 +622,7 @@ bool FileSystemAccess::fileExistsAt(const LocalPath& path)
 // default DirNotify: no notification available
 DirNotify::DirNotify(const LocalPath& rootPath)
 {
-    assert(!clocalbasepath.empty());
+    assert(!rootPath.empty());
     localbasepath = rootPath;
 
     mFailed = 1;
