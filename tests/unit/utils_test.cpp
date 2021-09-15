@@ -64,7 +64,8 @@ TEST(utils, hashCombine_integer)
 //}
 
 
-TEST(UtfCompare, SortTenThousandSpeed)
+// Unfortunately this test is unreliable because the jenkins test nodes are pretty slow anyway, and it seems subject to a lot of variation between runs
+TEST(UtfCompare, DISABLED_SortTenThousandSpeed)
 {
     using namespace std;
     using namespace mega;
