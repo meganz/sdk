@@ -36,7 +36,7 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSyste
 mega::Node& makeNode(mega::MegaClient& client, mega::nodetype_t type, mega::handle handle, mega::Node* parent = nullptr);
 
 #ifdef ENABLE_SYNC
-std::unique_ptr<mega::Sync> makeSync(mega::MegaClient& client, const std::string& localname);
+std::unique_ptr<mega::UnifiedSync> makeSync(mega::MegaClient& client, const std::string& localname);
 
 std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode& parent,
                                                mega::nodetype_t type, const std::string& name,

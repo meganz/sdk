@@ -19,6 +19,9 @@
  * program.
  */
 
+#include <cctype>
+#include <cwctype>
+
 #include "mega.h"
 #include <wow64apiset.h>
 
@@ -32,6 +35,57 @@ namespace mega {
 WinFileSystemAccess gWfsa;
 
 int sanitizedriveletter(std::wstring& localpath);
+
+LocalPath NormalizeAbsolute(const LocalPath& path)
+{
+    LocalPath result = path;
+
+    // Convenience.
+    wstring& raw = result.localpath;
+
+    // Absolute paths should never be empty.
+    assert(!raw.empty());
+
+    // Add a drive separator if necessary.
+    if (raw.back() == L':')
+    {
+        raw.push_back(L'\\');
+    }
+
+    if (raw.size() > 1)
+    {
+        // Remove trailing separator if we're not the root.
+        if (raw.back() == L'\\')
+        {
+            if (raw[raw.size() - 2] != L':')
+            {
+                raw.pop_back();
+            }
+        }
+    }
+
+    return result;
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
 
 WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 {
@@ -119,6 +173,31 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
          return false;
      }
      return true;
+}
+
+bool WinFileAccess::ftruncate()
+{
+    LARGE_INTEGER zero;
+
+    zero.QuadPart = 0x0;
+
+    // Set the file pointer to the start of the file.
+    if (SetFilePointerEx(hFile, zero, nullptr, FILE_BEGIN))
+    {
+        // Truncate the file.
+        if (SetEndOfFile(hFile))
+        {
+            return true;
+        }
+    }
+
+    // Why couldn't we truncate the file?
+    auto error = GetLastError();
+
+    // Is it a transient error?
+    retry = WinFileSystemAccess::istransient(error);
+
+    return false;
 }
 
 m_time_t FileTime_to_POSIX(FILETIME* ft)
@@ -623,13 +702,17 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
 WinFileSystemAccess::WinFileSystemAccess()
 {
+#ifdef ENABLE_SYNC
     notifyerr = false;
     notifyfailed = false;
+#endif  // ENABLE_SYNC
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
 {
+#ifdef ENABLE_SYNC
     assert(!dirnotifys.size());
+#endif
 }
 
 bool WinFileSystemAccess::cwd(LocalPath& path) const
@@ -644,7 +727,9 @@ bool WinFileSystemAccess::cwd(LocalPath& path) const
 
     path.localpath.resize(nRequired);
 
-    return GetCurrentDirectoryW(nRequired, &path.localpath[0]) > 0;
+    DWORD nWritten = GetCurrentDirectoryW(nRequired, &path.localpath[0]);
+    path.localpath.resize(nWritten); // doesn't include terminator now
+    return nWritten > 0;
 #else // WINDOWS_PHONE
     return false;
 #endif // ! WINDOWS_PHONE
@@ -725,7 +810,7 @@ void WinFileSystemAccess::path2local(const string* path, std::wstring* local) co
     int len = MultiByteToWideChar(CP_UTF8, 0,
         path->c_str(),
         -1,
-        local->data(),
+        const_cast<wchar_t*>(local->data()),
         int(local->size()));
     if (len)
     {
@@ -776,13 +861,13 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     DWORD r = DWORD(name.size());
     sname.resize(r);
 
-    DWORD rr = GetShortPathNameW(name.data(), sname.data(), r);
+    DWORD rr = GetShortPathNameW(name.data(), const_cast<wchar_t*>(sname.data()), r);
 
     sname.resize(rr);
 
     if (rr >= r)
     {
-        rr = GetShortPathNameW(name.data(), sname.data(), rr);
+        rr = GetShortPathNameW(name.data(), const_cast<wchar_t*>(sname.data()), rr);
         sname.resize(rr);
     }
 
@@ -797,7 +882,8 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     // we are only interested in the path's last component
     wchar_t* ptr;
 
-    if ((ptr = wcsrchr(sname.data(), L'\\')) || (ptr = wcsrchr(sname.data(), L':')))
+    if ((ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L'\\')) ||
+        (ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L':')))
     {
         sname.erase(0, ptr - sname.data() + 1);
     }
@@ -1121,7 +1207,7 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
     }
 
     absolutepathArg.localpath.resize(len);
-    int newlen = GetFullPathNameW(pathArg.localpath.data(), len, absolutepathArg.localpath.data(), NULL);
+    int newlen = GetFullPathNameW(pathArg.localpath.data(), len, const_cast<wchar_t*>(absolutepathArg.localpath.data()), NULL);
     if (newlen <= 0 || newlen >= len)
     {
         absolutepathArg.localpath = pathArg.localpath;
@@ -1218,15 +1304,11 @@ void WinFileSystemAccess::statsid(string *id) const
 #endif
 }
 
+#ifdef ENABLE_SYNC
+
 // set DirNotify's root LocalNode
 void WinDirNotify::addnotify(LocalNode* l, const LocalPath&)
 {
-#ifdef ENABLE_SYNC
-    if (!l->parent)
-    {
-        localrootnode = l;
-    }
-#endif
 }
 
 fsfp_t WinDirNotify::fsfingerprint() const
@@ -1249,6 +1331,7 @@ fsfp_t WinDirNotify::fsfingerprint() const
     return fi.dwVolumeSerialNumber + 1;
 #endif
 }
+
 
 bool WinDirNotify::fsstableids() const
 {
@@ -1473,7 +1556,9 @@ void WinDirNotify::notifierThreadFunction()
     LOG_debug << "Filesystem notify thread stopped";
 }
 
-WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, WinFileSystemAccess* owner, Waiter* waiter) : DirNotify(localbasepath, ignore)
+WinDirNotify::WinDirNotify(const LocalPath& localbasepathParam, const LocalPath& ignore, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot)
+    : DirNotify(localbasepathParam, ignore, syncroot->sync)
+    , localrootnode(syncroot)
 {
     fsaccess = owner;
     fsaccess->dirnotifys.insert(this);
@@ -1498,19 +1583,19 @@ WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, Wi
     mOverlappedEnabled = false;
     mOverlappedExit = false;
 
-    ScopedLengthRestore restoreLocalbasePath(localbasepath);
+    LocalPath localbasepath(localbasepathParam);
     sanitizedriveletter(localbasepath.localpath);
 
     // ReadDirectoryChangesW: If you opened the file using the short name, you can receive change notifications for the short name.  (so make sure it's a long name)
     std::wstring longname;
     auto r = localbasepath.localpath.size() + 20;
     longname.resize(r);
-    auto rr = GetLongPathNameW(localbasepath.localpath.data(), longname.data(), DWORD(r));
+    auto rr = GetLongPathNameW(localbasepath.localpath.data(), const_cast<wchar_t*>(longname.data()), DWORD(r));
 
     longname.resize(rr);
     if (rr >= r)
     {
-        rr = GetLongPathNameW(localbasepath.localpath.data(), longname.data(), rr);
+        rr = GetLongPathNameW(localbasepath.localpath.data(), const_cast<wchar_t*>(longname.data()), rr);
         longname.resize(rr);
     }
 
@@ -1580,6 +1665,7 @@ WinDirNotify::~WinDirNotify()
     }
 
 }
+#endif   // ENABLE_SYNC
 
 std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool followSymLinks)
 {
@@ -1594,7 +1680,7 @@ bool WinFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& 
     wstring mountPoint(MAX_PATH + 1, L'\0');
 
     if (!GetVolumePathNameW(path.localpath.c_str(),
-                            mountPoint.data(),
+                            const_cast<wchar_t*>(mountPoint.data()),
                             MAX_PATH + 1))
     {
         return type = FS_UNKNOWN, false;
@@ -1642,31 +1728,33 @@ DirAccess* WinFileSystemAccess::newdiraccess()
     return new WinDirAccess();
 }
 
-DirNotify* WinFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter* waiter)
+#ifdef ENABLE_SYNC
+DirNotify* WinFileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter* waiter, LocalNode* syncroot)
 {
-    return new WinDirNotify(localpath, ignore, this, waiter);
+    return new WinDirNotify(localpath, ignore, this, waiter, syncroot);
 }
+#endif
 
-bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwork, SyncError *syncError)
+bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {
     WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
     std::wstring path, fsname;
     bool result = true;
+    isnetwork = false;
+    syncError = NO_SYNC_ERROR;
+    syncWarning = NO_SYNC_WARNING;
 
 #ifndef WINDOWS_PHONE
     path.resize(MAX_PATH * sizeof(WCHAR));
     fsname.resize(MAX_PATH * sizeof(WCHAR));
 
-    if (GetVolumePathNameW(localpathArg.localpath.data(), path.data(), MAX_PATH)
+    if (GetVolumePathNameW(localpathArg.localpath.data(), const_cast<wchar_t*>(path.data()), MAX_PATH)
         && GetVolumeInformationW((LPCWSTR)path.data(), NULL, 0, NULL, NULL, NULL, (LPWSTR)fsname.data(), MAX_PATH))
     {
         if (!memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
         {
             LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
-            if (syncError)
-            {
-                *syncError = VBOXSHAREDFOLDER_UNSUPPORTED;
-            }
+            syncError = VBOXSHAREDFOLDER_UNSUPPORTED;
             result = false;
         }
         else if ((!memcmp(fsname.data(), L"FAT", 6) || !memcmp(fsname.data(), L"exFAT", 10))) // TODO: have these checks for !windows too
@@ -1676,31 +1764,21 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
                         "that can cause synchronization problems (e.g. when daylight saving changes), "
                         "so it's strongly recommended that you only sync folders formatted with more "
                         "reliable filesystems like NTFS (more information at https://help.mega.nz/megasync/syncing.html#can-i-sync-fat-fat32-partitions-under-windows.";
-            if (syncError)
-            {
-                *syncError = LOCAL_IS_FAT;
-            }
-
+            syncWarning = LOCAL_IS_FAT;
         }
         else if (!memcmp(fsname.data(), L"HGFS", 8))
         {
             LOG_warn << "You are syncing a local folder shared with VMWare. Those folders do not support filesystem notifications "
             "so MEGAsync will have to be continuously scanning to detect changes in your files and folders. "
             "Please use a different folder if possible to reduce the CPU usage.";
-            if (syncError)
-            {
-                *syncError = LOCAL_IS_HGFS;
-            }
+            syncWarning = LOCAL_IS_HGFS;
         }
     }
 
     if (GetDriveTypeW(path.data()) == DRIVE_REMOTE)
     {
         LOG_debug << "Network folder detected";
-        if (isnetwork)
-        {
-            *isnetwork = true;
-        }
+        isnetwork = true;
     }
 
     string utf8fsname;
@@ -1816,4 +1894,37 @@ WinDirAccess::~WinDirAccess()
         FindClose(hFind);
     }
 }
+
+bool isReservedName(const string& name, nodetype_t type)
+{
+    if (name.empty()) return false;
+
+    if (type == FOLDERNODE && name.back() == '.') return true;
+
+    if (name.size() == 3)
+    {
+        static const string reserved[] = {"AUX", "CON", "NUL", "PRN"};
+
+        for (auto& r : reserved)
+        {
+            if (!_stricmp(name.c_str(), r.c_str())) return true;
+        }
+
+        return false;
+    }
+
+    if (name.size() != 4) return false;
+
+    if (!std::isdigit(name.back())) return false;
+
+    static const string reserved[] = {"COM", "LPT"};
+
+    for (auto& r : reserved)
+    {
+        if (!_strnicmp(name.c_str(), r.c_str(), 3)) return true;
+    }
+
+    return false;
+}
+
 } // namespace

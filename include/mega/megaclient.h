@@ -38,9 +38,12 @@
 #include "mediafileattribute.h"
 #include "useralerts.h"
 #include "user.h"
+#include "sync.h"
+#include "drivenotify.h"
 
 namespace mega {
 
+class Logger;
 class SyncConfigBag;
 
 class MEGA_API FetchNodesStats
@@ -214,6 +217,17 @@ public:
 
 std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
+class SyncdownContext
+{
+public:
+    SyncdownContext()
+      : mActionsPerformed(false)
+    {
+    }
+
+    bool mActionsPerformed;
+}; // SyncdownContext
+
 class MEGA_API MegaClient
 {
 public:
@@ -222,7 +236,7 @@ public:
     string uid;
 
     // root nodes (files, incoming, rubbish)
-    handle rootnodes[3];
+    NodeHandle rootnodes[3];
 
     // Not all nodes are loaded
     node_map mNodes;
@@ -260,6 +274,9 @@ public:
     // Use new format to generate Mega links
     bool mNewLinkFormat = false;
 
+    // Don't start showing the cookie banner until API says so
+    bool mCookieBannerEnabled = false;
+
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
 
@@ -270,8 +287,9 @@ public:
     PrnGen rng;
 
     bool ephemeralSession = false;
+    bool ephemeralSessionPlusPlus = false;
 
-    static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
+    static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
 
@@ -297,15 +315,14 @@ public:
     // ID tag of the next request
     int nextreqtag();
 
-    // ID tag of the next sync
-    int nextSyncTag(int increment = 0);
-
     // corresponding ID tag of the currently executing callback
     int restag;
 
     // ephemeral session support
     void createephemeral();
+    void createephemeralPlusPlus();
     void resumeephemeral(handle, const byte*, int = 0);
+    void resumeephemeralPlusPlus(const std::string& session);
     void cancelsignup();
 
     // full account confirmation/creation support
@@ -335,13 +352,13 @@ public:
     void fastlogin(const char*, const byte*, uint64_t);
 
     // session login: binary session, bytecount
-    void login(const byte*, int);
+    void login(string session);
 
     // check password
     error validatepwd(const byte *);
 
     // get user data
-    void getuserdata();
+    void getuserdata(int tag, std::function<void(string*, string*, string*, error)> = nullptr);
 
     // get miscelaneous flags
     void getmiscflags();
@@ -365,10 +382,10 @@ public:
     void unblock();
 
     // dump current session
-    int dumpsession(byte*, size_t);
+    int dumpsession(string&);
 
-    // create a copy of the current session
-    void copysession();
+    // create a copy of the current session. EACCESS for not fully confirmed accounts
+    error copysession();
 
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
@@ -378,8 +395,7 @@ public:
 
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
-    // if the second parameter isn't NULL, it's used as session id instead of the current one
-    string *sessiontransferdata(const char*, string* = NULL);
+    string sessiontransferdata(const char*, string*);
 
     // Kill session id
     void killsession(handle session);
@@ -388,11 +404,14 @@ public:
     // extract public handle and key from a public file/folder link
     error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
+    // open the SC database and get the SCSN from it
+    void checkForResumeableSCDatabase();
+
     // set folder link: node, key. authKey is the authentication key to be able to write into the folder
-    error folderaccess(const char*folderlink, const char *authKey);
+    error folderaccess(const char*folderlink, const char* authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
-    void openfilelink(handle ph, const byte *key, int op);
+    void openfilelink(handle ph, const byte *key);
 
     // decrypt password-protected public link
     // the caller takes the ownership of the returned value in decryptedLink parameter
@@ -448,7 +467,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, const char* prevattr = NULL);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
@@ -463,16 +482,16 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(handle, error)> resultFunction = nullptr);
+    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle prevparenthandle = UNDEF, const char *newName = nullptr);
+    error rename(Node*, Node*, syncdel_t, NodeHandle prevparenthandle, const char *newName, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
-    void removeOutSharesFromSubtree(Node* n);
+    void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
@@ -501,23 +520,14 @@ public:
     bool xferpaused[2];
 
 #ifdef ENABLE_SYNC
-    // active syncs
-    sync_list syncs;
+
+    // one unified structure for SyncConfigs, the Syncs that are running, and heartbeat data
+    Syncs syncs;
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
 
-    // A collection of sync configs backed by a database table
-    std::unique_ptr<SyncConfigBag> syncConfigs;
-
-    // keep sync configuration after logout
-    bool mKeepSyncsAfterLogout = false;
 #endif
-    // backup names pending to be sent
-    string_map mPendingBackupNames;
-
-    // true if setting the backup name for any backup id is in progress
-    bool mSendingBackupName = false;
 
     // if set, symlinks will be followed except in recursive deletions
     // (give the user ample warning about possible sync repercussions)
@@ -526,30 +536,34 @@ public:
     // number of parallel connections per transfer (PUT/GET)
     unsigned char connections[2];
 
-    // generate & return next upload handle
-    handle uploadhandle(int);
+    // helpfer function for preparing a putnodes call for new node
+    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const std::string &binaryUploadToken,
+                                  byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                  std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
+                                  std::function<error(std::string *)> addFileAttrsFunc = nullptr);
 
     // helper function for preparing a putnodes call for new folders
-    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername);
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, const char * = NULL);
+    void putnodes(NodeHandle, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
-    void putnodes(const char*, vector<NewNode>&&);
+    void putnodes(const char*, vector<NewNode>&&, int tag);
 
     // attach file attribute to upload or node handle
-    void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
+    void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
 
     // notify delayed upload completion subsystem about new file attribute
-    void checkfacompletion(handle, Transfer* = NULL);
+    void checkfacompletion(UploadHandle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0,
+        std::function<void(Error)> completion = nullptr);
 
     // attach/update multiple versioned user attributes at once
     void putua(userattr_map *attrs, int ctag = -1);
@@ -575,15 +589,18 @@ public:
     error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, bool writable = false, const char* = NULL);
+    void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
+	    int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, bool writable = false);
-    void getpubliclink(Node* n, int del, m_time_t ets, bool writable = false); // auxiliar method to add req
+    error exportnode(Node*, int, m_time_t, bool writable,
+	    int tag, std::function<void(Error, handle, handle)> completion);
+    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable,
+	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
@@ -600,76 +617,78 @@ public:
     /**
      * @brief is local path syncable
      * @param newPath path to check
-     * @param syncTag tag to exclude in checking (that of the new sync)
+     * @param excludeBackupId backupId to exclude in checking (that of the new sync)
      * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
-
-
-    /**
-     * @brief add sync. Will fill syncError in case there is one.
-     * It will persist the sync configuration if everything goes fine.
-     * @param syncError filled with SyncError with the sync error that prevented the addition
-     * @param delayInitialScan delay the initial scan
-     * @return API_OK if added to active syncs. (regular) error otherwise.
-     */
-    error addsync(SyncConfig, const char*, LocalPath*, SyncError &syncError, bool delayInitialScan = false, void* = NULL);
-
-
-    // removes an active sync (transition to pre-removal state).
-    // This will entail the removal of the sync cache & configuration cache (see removeSyncConfig)
-    void delsync(Sync*);
-
-    // remove sync configuration. It will remove sync configuration cache & call app's callback sync_removed
-    error removeSyncConfig(int tag);
-    error removeSyncConfigByNodeHandle(handle nodeHandle);
-
-    //// sync config updating & persisting ////
-    // updates in state & error
-    error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
-    // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
-    bool updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback = false); //returns if changed
-    // updates heartbeatID
-    error updateSyncBackupId(int tag, handle newHearBeatID);
-
-    // transition the cache to failed
-    void failSync(Sync* sync, SyncError syncerror);
-
-    // disable synchronization. (transition to disable_state)
-    // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    void disableSync(Sync*, SyncError syncError =  NO_SYNC_ERROR);
-    bool disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError);
-
-    // fail all active syncs
-    void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
-
-    //disable all active syncs
-    // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    void disableSyncs(SyncError syncError =  NO_SYNC_ERROR);
-
-    // restore all configured syncs that were in a temporary error state (not manually disabled)
-    void restoreSyncs();
-
-    // attempts to enable a sync. will fill syncError with the SyncError error (if any)
-    // if resetFingeprint is true, it will assign a new Filesystem Fingerprint.
-    // if newRemoteNode is set, it will try to use it to restablish the sync, updating the cached configuration if successful.
-    error enableSync(int tag, SyncError &syncError, bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
-    error enableSync(const SyncConfig *syncConfig, SyncError &syncError,
-                     bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
+    error isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId = UNDEF, SyncError *syncError = nullptr);
 
     /**
-     * @brief updates the state of a synchronization. it will persist the changes and call app syncupdate_state handler
-     * @param fireDisableEvent passed to the app: if when the change entails a transition to inactive, the transition should be
-     * forwarded to the application listeners
-     * @return error if any
+     * @brief check config. Will fill syncError in the SyncConfig in case there is one.
+     * Will fill syncWarning in the SyncConfig in case there is one.
+     * Does not persist the sync configuration.
+     * Does not add the syncConfig.
+     * Reference parameters are filled in while checking syncConfig, for the benefit of addSync() which calls it.
+     * @return And error code if there are problems serious enough with the syncconfig that it should not be added.
+     *         Otherwise, API_OK
      */
-    error changeSyncState(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
-    error changeSyncState(int tag, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent = true);
-    error changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
+    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork);
 
+    /**
+     * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
+     * It will persist the sync configuration if its call to checkSyncConfig succeeds
+     * @param syncConfig the Config to attempt to add
+     * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
+     * @param completion Completion function
+     * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
+     */
+    error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion);
 
-#endif
+    void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
+
+    /**
+     * @brief
+     * Import sync configs from JSON.
+     *
+     * @param configs
+     * A JSON string encoding the sync configs to import.
+     *
+     * @param completion
+     * The function to call when we've completed importing the configs.
+     *
+     * @see MegaApi::exportSyncConfigs
+     * @see MegaApi::importSyncConfigs
+     * @see Syncs::exportSyncConfig
+     * @see Syncs::exportSyncConfigs
+     * @see Syncs::importSyncConfig
+     * @see Syncs::importSyncConfigs
+     */
+    void importSyncConfigs(const char* configs, std::function<void(error)> completion);
+
+    /**
+     * @brief This method ensures that sync user attributes are available.
+     *
+     * This method calls \c completion function when it finishes, with the
+     * corresponding error if was not possible to ensure the attrs are available.
+     *
+     * Note that it may also need to create certain attributes, like *~jscd, if they
+     * don't exist yet.
+     *
+     * @param completion Function that is called when completed
+     */
+    void ensureSyncUserAttributes(std::function<void(Error)> completion);
+
+private:
+    void ensureSyncUserAttributesCompleted(Error e);
+    std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
+
+public:
+
+    // disable synchronization. syncError specifies why we are disabling it.
+    // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
+    void disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag);
+
+#endif  // ENABLE_SYNC
 
     /**
      * @brief creates a tlv with one record and returns it encrypted with master key
@@ -677,7 +696,8 @@ public:
      * @param text value of the record
      * @return encrypted base64 string with the tlv contents
      */
-    std::string cypherTLVTextWithMasterKey(const char *name, const std::string &text);
+    std::string cypherTLVTextWithMasterKey(const char* name, const std::string& text);
+    std::string decypherTLVTextWithMasterKey(const char* name, const std::string& text);
 
     // close all open HTTP connections
     void disconnect();
@@ -688,10 +708,10 @@ public:
     void abortlockrequest();
 
     // abort session and free all state information
-    void logout();
+    void logout(bool keepSyncConfigsFile);
 
     // free all state information
-    void locallogout(bool removecaches);
+    void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
     // SDK version
     const char* version();
@@ -849,11 +869,6 @@ public:
     // get welcome pdf
     void getwelcomepdf();
 
-    // toggle global debug flag
-    bool toggledebug();
-
-    bool debugstate();
-
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
     void reportevent(const char*, const char*, int tag);
@@ -900,9 +915,6 @@ public:
     // finish downloaded chunks in order
     bool orderdownloadedchunks;
 
-    // disable public key pinning (for testing purposes)
-    static bool disablepkp;
-
     // retry API_ESSL errors
     bool retryessl;
 
@@ -915,8 +927,31 @@ public:
     // storage status
     storagestatus_t ststatus;
 
+    class CacheableStatusMap : private map<int64_t, CacheableStatus>
+    {
+    public:
+        CacheableStatusMap(MegaClient *client) { mClient = client; }
+
+        // returns the cached value for type, or defaultValue if not found
+        int64_t lookup(CacheableStatus::Type type, int64_t defaultValue);
+
+        // add/update cached status, both in memory and DB
+        bool addOrUpdate(CacheableStatus::Type type, int64_t value);
+
+        // adds a new item to the map. It also initializes dedicated vars in the client (used to load from DB)
+        void loadCachedStatus(CacheableStatus::Type type, int64_t value);
+
+        // for unserialize
+        CacheableStatus *getPtr(CacheableStatus::Type type);
+
+        void clear() { map::clear(); }
+
+    private:
+        MegaClient *mClient = nullptr;
+    };
+
     // cacheable status
-    std::map<int64_t, std::shared_ptr<CacheableStatus>> mCachedStatus;
+    CacheableStatusMap mCachedStatus;
 
     // warning timestamps related to storage overquota in paywall mode
     vector<m_time_t> mOverquotaWarningTs;
@@ -927,23 +962,20 @@ public:
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
 
-    // root URL for API requests
-    static string APIURL;
-
     // root URL for GeLB requests
-    static string GELBURL;
+    static const string GELBURL;
 
     // root URL for chat stats
-    static string CHATSTATSURL;
+    static const string CHATSTATSURL;
 
-    // account auth for public folders
-    string accountauth;
+    // root URL for Website
+    static const string MEGAURL;
 
     // file that is blocking the sync engine
     LocalPath blockedfile;
 
     // stats id
-    static std::string statsid;
+    std::string statsid;
 
     static string STORAGE_NAME;
     static string FOLDERS_NAME;
@@ -961,10 +993,25 @@ public:
     // backoff for the expiration of cached user data
     BackoffTimer btugexpiration;
 
+    // if logged into public folder (which might optionally be writable)
+    bool loggedIntoFolder() const;
+
     // if logged into writable folder
     bool loggedIntoWritableFolder() const;
 
+    // start receiving external drive [dis]connect notifications
+    bool startDriveMonitor();
+
+    // stop receiving external drive [dis]connect notifications
+    void stopDriveMonitor();
+
+    // returns true if drive monitor is started
+    bool driveMonitorEnabled();
+
 private:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    DriveInfoCollector mDriveInfoCollector;
+#endif
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
@@ -985,9 +1032,6 @@ private:
 
     bool pendingscTimedOut = false;
 
-    // if logged into writable folder
-    bool mLoggedIntoWritableFolder = false;
-
     // badhost report
     HttpReq* badhostcs;
 
@@ -1000,14 +1044,20 @@ private:
     // unique request ID
     char reqid[10];
 
-    // auth URI component for API requests
-    string auth;
-
     // lang URI component for API requests
     string lang;
 
-    // public handle being used
-    handle publichandle;
+    struct FolderLink {
+        // public handle of the folder link ('&n=' param in the POST)
+        handle mPublicHandle = UNDEF;
+
+        // auth token that enables writing into the folder link (appended to the `n` param in POST)
+        string mWriteAuth;      // (optional, only for writable links)
+
+        // auth token that relates the usage of the folder link to a user's session id ('&sid=' param in the POST)
+        string mAccountAuth;    // (optional, set by the app)
+    };
+    FolderLink mFolderLink;
 
     // API response JSON object
     JSON response;
@@ -1022,8 +1072,8 @@ private:
     BackoffTimer btpfa;
     bool faretrying;
 
-    // next internal upload handle
-    handle nextuh;
+    // next internal upload handle (call UploadHandle::next() to update value)
+    UploadHandle mUploadHandle;
 
     // just one notification after fetchnodes and catch-up actionpackets
     bool notifyStorageChangeOnStateCurrent = false;
@@ -1041,11 +1091,7 @@ private:
     static const int MAXPUTFA;
 
 #ifdef ENABLE_SYNC
-    // Resumes all resumable syncs
-    void resumeResumableSyncs();
-
     Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
-
 #endif
 
     // update time at which next deferred transfer retry kicks in
@@ -1059,6 +1105,9 @@ private:
 
     // fetch statusTable from local cache
     bool fetchStatusTable(DbTable*);
+
+    // open/create status database table
+    void doOpenStatusTable();
 
     // remove old (2 days or more) transfers from cache, if they were not resumed
     void purgeOrphanTransfers(bool remove = false);
@@ -1090,11 +1139,12 @@ private:
     void sc_uac();
     void sc_la();
     void sc_ub();
+    void sc_sqac();
 
     void init();
 
     // remove caches
-    void removeCaches();
+    void removeCaches(bool keepSyncsConfigFile);
 
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
@@ -1161,19 +1211,19 @@ public:
     DbAccess* dbaccess = nullptr;
 
     // state cache table for logged in user
-    DbTable* sctable;
+    unique_ptr<DbTable> sctable;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;
 
     // transfer cache table
-    DbTable* tctable;
+    unique_ptr<DbTable> tctable;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
     DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
 
     // status cache table for logged in user. For data pertaining status which requires immediate commits
-    DbTable* statusTable;
+    unique_ptr<DbTable> statusTable;
 
     // scsn as read from sctable
     handle cachedscsn;
@@ -1213,14 +1263,16 @@ public:
     // open/create state cache database table
     void opensctable();
 
-    // open/create status database table
-    void openStatusTable();
+    // opens (or creates if non existing) a status database table.
+    //   if loadFromCache is true, it will load status from the table.
+    void openStatusTable(bool loadFromCache);
 
     // initialize/update state cache referenced sctable
     void initsc();
     void updatesc();
     void finalizesc(bool);
 
+    // truncates status table
     void initStatusTable();
 
     // flag to pause / resume the processing of action packets
@@ -1240,7 +1292,7 @@ public:
     // session key to protect local storage
     string sessionkey;
 
-    // key protecting non-shareable GPS coordinates in nodes
+    // key protecting non-shareable GPS coordinates in nodes (currently used only by CUv2 in iOS)
     string unshareablekey;
 
     // application key
@@ -1251,9 +1303,6 @@ public:
 
     // current request tag
     int reqtag;
-
-    // current sync tag
-    int mSyncTag;
 
     // user maps: by handle and by case-normalized e-mail address
     uh_map uhindex;
@@ -1266,13 +1315,13 @@ public:
     fa_map pendingfa;
 
     // upload waiting for file attributes
-    handletransfer_map faputcompletion;
+    uploadhandletransfer_map faputcompletion;
 
     // file attribute fetch channels
     fafc_map fafcs;
 
     // generate attribute string based on the pending attributes for this upload
-    void pendingattrstring(handle, string*);
+    void pendingattrstring(UploadHandle, string*);
 
     // active/pending direct reads
     handledrn_map hdrns;   // DirectReadNodes, main ownership.  One per file, each with one DirectRead per client request.
@@ -1386,6 +1435,9 @@ public:
     // remove node subtree
     void deltree(handle);
 
+    Node* nodeByHandle(NodeHandle);
+    Node* nodeByPath(const char* path, Node* node = nullptr);
+
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
     Node* nodebyhandleInRam(handle);
@@ -1416,9 +1468,6 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
-
-    // generate & return upload handle
-    handle getuploadhandle();
 
     // maps node handle to public handle
     std::map<handle, handle> mPublicLinks;
@@ -1471,6 +1520,21 @@ public:
     bool syncscanfailed;
     BackoffTimer syncscanbt;
 
+    // Sync monitor timer.
+    //
+    // Meaningful only to backup syncs.
+    //
+    // Set when a backup is mirroring and syncdown(...) returned after
+    // having made changes to bring the cloud in line with local disk.
+    //
+    // That is, the backup remains in the mirror state.
+    //
+    // The timer is used to force another call to syncdown(...) so that we
+    // can give the sync a chance to transition into the monitor state,
+    // regardless of whether the local disk has changed.
+    bool mSyncMonitorRetry;
+    BackoffTimer mSyncMonitorTimer;
+
     // vanished from a local synced folder
     localnode_set localsyncnotseen;
 
@@ -1505,7 +1569,8 @@ public:
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, LocalPath&, bool);
+    bool syncdown(LocalNode*, LocalPath&, SyncdownContext& cxt);
+    bool syncdown(LocalNode*, LocalPath&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
@@ -1553,7 +1618,7 @@ public:
     bool isFetchingNodesPendingCS();
 
     // upload handle -> node handle map (filled by upload completion)
-    handlepair_set uhnh;
+    set<pair<UploadHandle, NodeHandle>> uhnh;
 
     // transfer chunk failed
     void setchunkfailed(string*);
@@ -1561,7 +1626,7 @@ public:
 
     bool requestLock;
     dstime disconnecttimestamp;
-    dstime lastDispatchTransfersDs = 0;
+    dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
     //int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
@@ -1601,6 +1666,8 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
+    Node* childnodebyattribute(Node*, nameid, const char*);
     void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
@@ -1614,6 +1681,7 @@ public:
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
     static const int BACKUPHANDLE = 8;
+    static const int DRIVEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
 
@@ -1689,7 +1757,7 @@ public:
     void mapuser(handle, const char*);
     void discarduser(handle, bool = true);
     void discarduser(const char*);
-    void mappcr(handle, PendingContactRequest*);
+    void mappcr(handle, unique_ptr<PendingContactRequest>&&);
     bool discardnotifieduser(User *);
 
     PendingContactRequest* findpcr(handle);
@@ -1705,26 +1773,28 @@ public:
     static void stringhash(const char*, byte*, SymmCipher*);
     static uint64_t stringhash64(string*, SymmCipher*);
 
-    // set authentication context, either a session ID or a exported folder node handle
-    void setsid(const byte*, unsigned);
-    void setrootnode(handle, const char *authKey = nullptr);
+    // builds the authentication URI to be sent in POST requests
+    string getAuthURI(bool supressSID = false);
 
     bool setlang(string *code);
 
-    // returns the handle of the root node if the account is logged into a public folder, otherwise UNDEF.
-    handle getrootpublicfolder();
+    // sets the auth token to be used when logged into a folder link
+    void setFolderLinkAccountAuth(const char *auth);
 
     // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
-    handle getpublicfolderhandle();
+    handle getFolderLinkPublicHandle();
+
+    // check if there is a valid folder link (rootnode received and the valid key)
+    bool isValidFolderLink();
 
     //returns the top-level node for a node
     Node *getrootnode(Node*);
 
     //returns true if the node referenced by the handle belongs to the logged-in account
-    bool isPrivateNode(handle h);
+    bool isPrivateNode(NodeHandle h);
 
     //returns true if the node referenced by the handle belongs to other account than the logged-in account
-    bool isForeignNode(handle h);
+    bool isForeignNode(NodeHandle h);
 
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
@@ -1732,15 +1802,14 @@ public:
     // hash password
     error pw_key(const char*, byte*) const;
 
-    // convert hex digit to number
-    static int hexval(char);
+    // returns a pointer to tmptransfercipher setting its key to the one provided
+    // tmptransfercipher key will change: to be used right away: this is not a dedicated SymmCipher for the transfer!
+    SymmCipher *getRecycledTemporaryTransferCipher(const byte *key, int type = 1);
 
-    // Since it's quite expensive to create a SymmCipher, these are provided to use for quick operations - just set the key and use.
-    SymmCipher tmpnodecipher;
-    SymmCipher tmptransfercipher;
-
-    void exportDatabase(string filename);
-    bool compareDatabases(string filename1, string filename2);
+    // returns a pointer to tmpnodecipher setting its key to the one provided
+    // tmpnodecipher key will change: to be used right away: this is not a dedicated SymmCipher for the node!
+    SymmCipher *getRecycledTemporaryNodeCipher(const string *key);
+    SymmCipher *getRecycledTemporaryNodeCipher(const byte *key);
 
     // request a link to recover account
     void getrecoverylink(const char *email, bool hasMasterkey);
@@ -1813,16 +1882,13 @@ public:
     int loggingout = 0;
 
     // the logout request succeeded, time to clean up localy once returned from CS response processing
-    bool loggedout = false;
+    std::function<void(MegaClient*)> mOnCSCompletion;
 
     // true if the account is a master business account, false if it's a sub-user account
     BizMode mBizMode;
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
-    // indicates that the last update to mBizStatus comes from cache.
-    // Used to notify the apps in the very first non-cache update. For backwards compatibility.
-    bool mBizStatusLoadedFromCache = false;
 
     // list of handles of the Master business account/s
     std::set<handle> mBizMasters;
@@ -1860,21 +1926,30 @@ public:
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
-    std::string getDeviceid() const;
+    std::string getDeviceidHash();
 
-    std::string getDeviceidHash() const;
+    // generate a new drive id
+    handle generateDriveId();
 
-#ifdef ENABLE_SYNC
-    void resetSyncConfigs();
-    bool getKeepSyncsAfterLogout() const;
-    void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
-#endif
+    // return API_OK if success and set driveId handle to the drive id read from the drive,
+    // otherwise return error code and set driveId to UNDEF
+    error readDriveId(const char *pathToDrive, handle &driveId) const;
 
-    void loadCacheableStatus(std::shared_ptr<CacheableStatus> status);
-
+    // return API_OK if success, otherwise error code
+    error writeDriveId(const char *pathToDrive, handle driveId);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
+
+    void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
+    unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
+
+private:
+    // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
+    SymmCipher tmpnodecipher;
+
+    // Since it's quite expensive to create a SymmCipher, this is provided to use for quick operation - just set the key and use.
+    SymmCipher tmptransfercipher;
 };
 } // namespace
 

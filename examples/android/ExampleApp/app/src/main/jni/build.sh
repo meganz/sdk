@@ -111,11 +111,11 @@ function downloadCheckAndUnpack()
         local CURRENTSHA1=`sha1sum ${FILENAME} | cut -d " " -f 1`
         if [ "${SHA1}" != "${CURRENTSHA1}" ]; then
             echo "* Invalid hash. Redownloading..."
-            wget -O ${FILENAME} ${URL} &>> ${LOG_FILE}
+            wget --no-check-certificate -O ${FILENAME} ${URL} &>> ${LOG_FILE}
         fi
     else
         echo "* Downloading '${FILENAME}' ..."
-        wget -O ${FILENAME} ${URL} &>> ${LOG_FILE}
+        wget --no-check-certificate -O ${FILENAME} ${URL} &>> ${LOG_FILE}
     fi
 
     local NEWSHA1=`sha1sum ${FILENAME} | cut -d " " -f 1`
@@ -184,7 +184,7 @@ if [ "$1" == "clean_mega" ]; then
     exit 0
 fi
 
-if [ "$1" == "clean" ]; then
+if [ "$1" == "clean" -o "$1" == "clean_all" ]; then
     echo "* Deleting Java bindings"
     make -C mega -f MakefileBindings clean JAVA_BASE_OUTPUT_PATH=${JAVA_OUTPUT_PATH} &>> ${LOG_FILE}
     rm -rf megachat/megachat.cpp megachat/megachat.h
@@ -207,23 +207,25 @@ if [ "$1" == "clean" ]; then
     rm -rf ${MEDIAINFO}/${MEDIAINFO_SOURCE_FOLDER}
     rm -rf ${MEDIAINFO}/${MEDIAINFO}
 
-    echo "* Deleting tarballs"
-    rm -rf ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}
+    if [ "$1" == "clean_all" ]; then
+        echo "* Deleting tarballs"
+        rm -rf ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}
+        rm -rf ${SQLITE}/${SQLITE_SOURCE_FILE}
+        rm -rf ${CURL}/${CURL_SOURCE_FILE}
+        rm -rf ${CURL}/${ARES_SOURCE_FILE}
+        rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}
+        rm -rf ${SODIUM}/${SODIUM_SOURCE_FILE}
+        rm -rf ${LIBUV}/${LIBUV_SOURCE_FILE}
+        rm -rf ${MEDIAINFO}/${ZENLIB_SOURCE_FILE}
+        rm -rf ${MEDIAINFO}/${MEDIAINFO_SOURCE_FILE}
+    fi
     rm -rf ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}.ready
-    rm -rf ${SQLITE}/${SQLITE_SOURCE_FILE}
     rm -rf ${SQLITE}/${SQLITE_SOURCE_FILE}.ready
-    rm -rf ${CURL}/${CURL_SOURCE_FILE}
-    rm -rf ${CURL}/${ARES_SOURCE_FILE}
     rm -rf ${CURL}/${CURL_SOURCE_FILE}.ready
-    rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}
     rm -rf ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready
-    rm -rf ${SODIUM}/${SODIUM_SOURCE_FILE}
     rm -rf ${SODIUM}/${SODIUM_SOURCE_FILE}.ready
-    rm -rf ${LIBUV}/${LIBUV_SOURCE_FILE}
     rm -rf ${LIBUV}/${LIBUV_SOURCE_FILE}.ready
-    rm -rf ${MEDIAINFO}/${ZENLIB_SOURCE_FILE}
     rm -rf ${MEDIAINFO}/${ZENLIB_SOURCE_FILE}.ready
-    rm -rf ${MEDIAINFO}/${MEDIAINFO_SOURCE_FILE}
     rm -rf ${MEDIAINFO}/${MEDIAINFO_SOURCE_FILE}.ready
 
     echo "* Deleting object files"
@@ -243,7 +245,7 @@ if [ "$1" == "clean" ]; then
 fi
 
 if [ "$1" != "all" ]; then
-    echo "Usage: $0 <all | bindings | clean | clean_mega>";
+    echo "Usage: $0 <all | bindings | clean | clean_all | clean_mega>";
     exit 1
 fi
 

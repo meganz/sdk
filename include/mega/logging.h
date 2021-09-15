@@ -106,6 +106,10 @@
 
 #include "mega/utils.h"
 
+#if ((defined(ANDROID) || defined(__ANDROID__)) && defined(ENABLE_CRASHLYTICS))
+#include "../../third_party/crashlytics.h"
+#endif
+
 namespace mega {
 
 // available log levels
@@ -167,11 +171,6 @@ public:
     size_t size() const
     {
         return mSize;
-    }
-
-    bool isBigEnoughToOutputDirectly(size_t bufferedSize) const
-    {
-        return (mForce || mSize > directMsgThreshold || mSize + bufferedSize + 40 >= LOGGER_CHUNKS_SIZE /*room for [file:line]*/ );
     }
 
     const char *constChar() const
@@ -522,26 +521,20 @@ public:
 #ifndef ENABLE_LOG_PERFORMANCE
     *this << obj.constChar();
 #else
-        if (!obj.isBigEnoughToOutputDirectly(static_cast<size_t>(std::distance(mBuffer.begin(), mBufferIt)))) //don't bother with little msg
-        {
-            *this << obj.constChar();
-        }
-        else
-        {
-            if (mBufferIt != mBuffer.begin()) //something was appended to the buffer before this direct msg
-            {
-                *mBufferIt = '\0';
-                std::string *newStr  = new string(mBuffer.data());
-                mCopiedParts.emplace_back( newStr);
-                string * back = mCopiedParts[mCopiedParts.size()-1];
+        // careful using constChar() without taking size() into account: *this << obj.constChar(); ended up with 2MB+ lines from fetchnodes.
 
-                mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
-                mBufferIt = mBuffer.begin();
-            }
+        if (mBufferIt != mBuffer.begin()) //something was appended to the buffer before this direct msg
+        {
+            *mBufferIt = '\0';
+            std::string *newStr  = new string(mBuffer.data());
+            mCopiedParts.emplace_back( newStr);
+            string * back = mCopiedParts[mCopiedParts.size()-1];
 
-            mDirectMessages.push_back(DirectMessage(obj.constChar(), obj.size()));
+            mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
+            mBufferIt = mBuffer.begin();
         }
 
+        mDirectMessages.push_back(DirectMessage(obj.constChar(), obj.size()));
 #endif
         return *this;
     }
@@ -611,5 +604,15 @@ template<std::size_t N> inline const char* log_file_leafname(const char(&fullpat
 
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
+
+#if (defined(ANDROID) || defined(__ANDROID__))
+inline void crashlytics_log(const char* msg)
+{
+#ifdef ENABLE_CRASHLYTICS
+    firebase::crashlytics::Log(msg);
+#endif
+}
+#endif
+
 
 } // namespace

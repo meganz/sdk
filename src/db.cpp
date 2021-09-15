@@ -109,9 +109,15 @@ void DbTable::resetCommitter()
     }
 }
 
-void DbTable::checkCommitter(DBTableTransactionCommitter* committer)
+void DbTable::checkCommitter(DBTableTransactionCommitter*)
 {
-    assert(!committer || committer == mTransactionCommitter);
+    // This is to alert us if we haven't put any committer on the stack because
+    // then we are probably taking much longer than needed to make db changes.
+    // Nested committers are allowed; the outermost one will actually commmit.
+    // Committer function parameters are there to remind us to put one on the stack
+    // but are not actually needed - if there is only one on the stack then
+    // the incoming committer == mTransactionCommitter (unless we are being called via a destructor)
+    assert(mTransactionCommitter);
 }
 
 int DbTable::getShareType(Node *node)
@@ -148,6 +154,9 @@ int DbTable::getShareType(Node *node)
 
     return shareType;
 }
+
+const int DbAccess::LEGACY_DB_VERSION = 11;
+const int DbAccess::DB_VERSION = DbAccess::LEGACY_DB_VERSION + 1;
 
 DbAccess::DbAccess()
 {

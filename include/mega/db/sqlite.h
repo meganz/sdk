@@ -26,19 +26,6 @@
 #include <sqlite3.h>
 
 namespace mega {
-class MEGA_API SqliteDbAccess : public DbAccess
-{
-    LocalPath mRootPath;
-
-public:
-    explicit SqliteDbAccess(const LocalPath& rootPath);
-
-    ~SqliteDbAccess();
-
-    DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags) override;
-
-    bool probe(FileSystemAccess& fsAccess, const string& name) const override;
-};
 
 class MEGA_API SqliteDbTable : public DbTable
 {
@@ -51,14 +38,14 @@ public:
     void rewind();
     bool next(uint32_t*, string*);
     bool get(uint32_t, string*);
-    bool getNode(handle nodehandle, NodeSerialized& nodeSerialized) override;
+    bool getNode(mega::NodeHandle nodehandle, NodeSerialized& nodeSerialized) override;
     bool getNodes(std::vector<NodeSerialized>& nodes) override;
     bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::handle, NodeSerialized> &nodes) override;
     bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) override;
     bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized &node) override;
     bool getNodesWithoutParent(std::vector<NodeSerialized>& nodes) override;
     bool getNodesWithSharesOrLink(std::vector<NodeSerialized>& nodes, ShareType_t shareType) override;
-    bool getChildrenFromNode(handle parentHandle, std::map<handle, NodeSerialized>& children) override;
+    bool getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) override;
     bool getChildrenHandlesFromNode(mega::handle parentHandle, std::vector<handle>&children) override;
     bool getNodesByName(const std::string& name, std::map<mega::handle, NodeSerialized>& nodes) override;
     uint32_t getNumberOfChildrenFromNode(handle parentHandle) override;
@@ -66,7 +53,7 @@ public:
     bool isNodesOnDemandDb() override;
     bool isAncestor(handle node, handle ancestor) override;
     bool isFileNode(handle node) override;
-    handle getFirstAncestor(handle node) override;
+    mega::NodeHandle getFirstAncestor(mega::NodeHandle node) override;
     bool isNodeInDB(handle node) override;
     uint64_t getNumberOfNodes() override;
     bool put(uint32_t, char*, unsigned);
@@ -85,8 +72,31 @@ public:
     SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
     ~SqliteDbTable();
 
-    bool inTransaction() const;
+    bool inTransaction() const override;
+
+    LocalPath dbFile() const;
 };
+
+class MEGA_API SqliteDbAccess : public DbAccess
+{
+    LocalPath mRootPath;
+
+public:
+    explicit SqliteDbAccess(const LocalPath& rootPath);
+
+    ~SqliteDbAccess();
+
+    LocalPath databasePath(const FileSystemAccess& fsAccess,
+                           const string& name,
+                           const int version) const;
+
+    SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
+
+    bool probe(FileSystemAccess& fsAccess, const string& name) const override;
+
+    const LocalPath& rootPath() const override;
+};
+
 } // namespace
 
 #endif

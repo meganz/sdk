@@ -37,13 +37,6 @@ Command::Command()
 
 Command::~Command()
 {
-    for (const auto& listenerWeak: mListeners)
-    {
-        if (auto listener = listenerWeak.lock())
-        {
-            listener->onCommandToBeDeleted(this);
-        }
-    }
 }
 
 void Command::cancel()
@@ -54,13 +47,7 @@ void Command::cancel()
 // returns completed command JSON string
 const char* Command::getstring()
 {
-    mRead = true;
     return jsonWriter.getstring().c_str();
-}
-
-void Command::replaceWith(Command &command)
-{
-    jsonWriter = command.jsonWriter;
 }
 
 //return true when the response is an error, false otherwise (in that case it doesn't consume JSON chars)
@@ -122,23 +109,13 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 #ifdef ENABLE_SYNC
     if (errorDetected && errorDetails == API_EBUSINESSPASTDUE)
     {
-        client->disableSyncs(BUSINESS_EXPIRED);
+        client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
     }
 #endif
     return errorDetected;
 }
 
 // add opcode
-bool Command::getRead() const
-{
-    return mRead;
-}
-
-void Command::addListener(const std::shared_ptr<CommandListener> &listener)
-{
-    mListeners.push_back(listener);
-}
-
 void Command::cmd(const char* cmd)
 {
     jsonWriter.cmd(cmd);
@@ -165,6 +142,11 @@ void Command::arg(const char* name, const char* value, int quotes)
 void Command::arg(const char* name, const byte* value, int len)
 {
     jsonWriter.arg(name, value, len);
+}
+
+void Command::arg(const char* name, NodeHandle h)
+{
+    jsonWriter.arg(name, h);
 }
 
 // 64-bit signed integer

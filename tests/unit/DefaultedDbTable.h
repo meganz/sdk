@@ -46,7 +46,7 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    bool getNode(mega::handle, mega::NodeSerialized&) override
+    bool getNode(mega::NodeHandle, mega::NodeSerialized&) override
     {
         return false;
         //throw NotImplemented{__func__};
@@ -80,7 +80,7 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getChildrenFromNode(mega::handle, std::map<mega::handle, mega::NodeSerialized>&) override
+    bool getChildrenFromNode(mega::NodeHandle, std::map<mega::NodeHandle, mega::NodeSerialized>&) override
     {
         return false;
         //throw NotImplemented(__func__);
@@ -111,7 +111,7 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    mega::handle getFirstAncestor(mega::handle h) override
+    mega::NodeHandle getFirstAncestor(mega::NodeHandle h) override
     {
         return h;
         //throw NotImplemented{__func__};
@@ -188,6 +188,11 @@ public:
     {
         return false;
         //throw NotImplemented{__func__};
+    }
+
+    bool inTransaction() const override
+    {
+        return false;
     }
 };
 

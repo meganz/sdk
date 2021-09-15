@@ -21,6 +21,7 @@
 #include <random>
 
 #include <mega/megaapp.h>
+#include <mega/heartbeats.h>
 #include <mega.h>
 
 #include "constants.h"
@@ -70,7 +71,7 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSyste
 
 mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, const mega::handle handle, mega::Node* const parent)
 {
-    assert(client.mNodes.find(handle) == client.mNodes.end());
+    assert(client.mNodes.find(::mega::NodeHandle().set6byte(handle)) == client.mNodes.end());
     mega::node_vector dp;
     const auto ph = parent ? parent->nodehandle : mega::UNDEF;
     auto n = new mega::Node{&client, &dp, handle, ph, type, -1, mega::UNDEF, nullptr, 0}; // owned by the client
@@ -79,16 +80,20 @@ mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, cons
 }
 
 #ifdef ENABLE_SYNC
-std::unique_ptr<mega::Sync> makeSync(mega::MegaClient& client, const std::string& localname)
+std::unique_ptr<mega::UnifiedSync> makeSync(mega::MegaClient& client, const std::string& localname)
 {
     mega::FSACCESS_CLASS fsaccess;
     std::string localdebris = gLocalDebris;
-    auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname));
+    auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname) & 0xFFFFFFFFFFFF);
     auto localdebrisLP = ::mega::LocalPath::fromPath(localdebris, fsaccess);
-    mega::SyncConfig config{127, localname, localname, n.nodehandle, std::string(), 0};
-    auto sync = new mega::Sync{&client, config, nullptr, &localdebrisLP, &n, false, 0, nullptr};
-    sync->state = mega::SYNC_CANCELED; // to avoid the assertion in Sync::~Sync()
-    return std::unique_ptr<mega::Sync>{sync};
+    mega::SyncConfig config{::mega::LocalPath::fromPath(localname, *client.fsaccess), localname, ::mega::NodeHandle().set6byte(n.nodehandle), std::string(), 0, ::mega::LocalPath()};
+
+    auto us = new mega::UnifiedSync(client, config);
+
+    us->mSync.reset(new mega::Sync(*us, nullptr, &localdebrisLP, &n, false));
+    us->mSync->state() = mega::SYNC_CANCELED;
+
+    return std::unique_ptr<mega::UnifiedSync>(us);
 }
 
 std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode& parent,

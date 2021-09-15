@@ -43,9 +43,8 @@ public:
     GfxProcCG();
     ~GfxProcCG();
 };
+#endif
 
 void ios_statsid(std::string *statsid);
 void ios_appbasepath(std::string *appbasepath);
-
-#endif
 #endif

@@ -147,7 +147,7 @@ void PurgeAcc::purge()
 void PurgeAcc::logout()
 {
     logoutReceived = false;
-    megaApi->logout(this);
+    megaApi->logout(nullptr);
     waitForResponse(&logoutReceived);
 }
 

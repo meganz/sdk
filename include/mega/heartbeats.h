@@ -22,76 +22,64 @@
 #pragma once
 
 #include "types.h"
-#include "megaapi.h"
-#include "mega.h"
 #include <memory>
 #include <functional>
+#include "mega/command.h"
 
 namespace mega
 {
+
+struct UnifiedSync;
 
 /**
  * @brief The HeartBeatBackupInfo class
  * This class holds the information that will be heartbeated
  */
-class HeartBeatBackupInfo : public CommandListener
+
+class HeartBeatBackupInfo
 {
 public:
-    HeartBeatBackupInfo(handle backupId);
+    HeartBeatBackupInfo();
     HeartBeatBackupInfo(HeartBeatBackupInfo&&) = default;
     HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = default;
     virtual ~HeartBeatBackupInfo() = default;
 
     MEGA_DISABLE_COPY(HeartBeatBackupInfo)
 
-    virtual handle backupId() const;
-
     virtual int status() const;
 
-    virtual double progress() const;
+    virtual double progress(m_off_t inflightProgress) const;
     virtual void invalidateProgress();
-
-    virtual uint32_t pendingUps() const;
-
-    virtual uint32_t pendingDowns() const;
 
     virtual m_time_t lastAction() const;
 
-    virtual mega::MegaHandle lastItemUpdated() const;
+    virtual handle lastItemUpdated() const;
 
-    virtual Command *runningCommand() const;
-    virtual void setRunningCommand(Command *runningCommand);
-
-    virtual void onCommandToBeDeleted(Command *command) override;
     virtual m_time_t lastBeat() const;
     virtual void setLastBeat(const m_time_t &lastBeat);
     virtual void setLastAction(const m_time_t &lastAction);
     virtual void setStatus(const int &status);
     virtual void setProgress(const double &progress);
-    virtual void setPendingUps(uint32_t pendingUps);
-    virtual void setPendingDowns(uint32_t pendingDowns);
-    virtual void setLastSyncedItem(const mega::MegaHandle &lastItemUpdated);
-    virtual void setBackupId(const handle &backupId);
+    virtual void setLastSyncedItem(const handle &lastItemUpdated);
 
-    virtual void updateStatus(mega::MegaClient *client) {}
+    virtual void updateStatus(UnifiedSync& us) {}
+
+    bool mModified = false;
+    bool mSending = false;
 
 protected:
-    handle mBackupId = UNDEF;   // assigned by API upon registration
-
     int mStatus = 0;
     double mProgress = 0;
     bool mProgressInvalid = true;
 
+    friend class BackupMonitor;
+    int32_t mPendingUps = 0;
+    int32_t mPendingDowns = 0;
 
-    uint32_t mPendingUps = 0;
-    uint32_t mPendingDowns = 0;
-
-    mega::MegaHandle mLastItemUpdated = INVALID_HANDLE; // handle of node most recently updated
+    handle mLastItemUpdated = UNDEF; // handle of node most recently updated
 
     m_time_t mLastAction = -1;   //timestamps of the last action
     m_time_t mLastBeat = -1;     //timestamps of the last beat
-
-    Command *mRunningCommand = nullptr;
 
     void updateLastActionTime();
 };
@@ -105,31 +93,14 @@ protected:
 class HeartBeatTransferProgressedInfo : public HeartBeatBackupInfo
 {
 public:
-    HeartBeatTransferProgressedInfo(handle backupId);
-    MEGA_DISABLE_COPY(HeartBeatTransferProgressedInfo)
+    double progress(m_off_t inflightProgress) const override;
 
-    virtual void updateTransferInfo(MegaTransfer *transfer);
-    virtual void removePendingTransfer(MegaTransfer *transfer);
-    virtual void clearFinshedTransfers();
-    virtual void setTotalBytes(long long value);
-    virtual void setTransferredBytes(long long value);
-
-    double progress() const override;
+    void adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes);
 
 private:
-
+    friend class BackupMonitor;
     long long mTotalBytes = 0;
     long long mTransferredBytes = 0;
-
-
-    class PendingTransferInfo
-    {
-    public:
-        long long mTotalBytes = 0;
-        long long mTransferredBytes = 0;
-    };
-    std::map<int, std::unique_ptr<PendingTransferInfo>> mPendingTransfers;
-    std::vector<std::unique_ptr<PendingTransferInfo>> mFinishedTransfers;
 };
 
 #ifdef ENABLE_SYNC
@@ -145,56 +116,15 @@ public:
         UNKNOWN = 5, // Unknown status
     };
 
-    HeartBeatSyncInfo(int tag, handle backupId);
+    HeartBeatSyncInfo();
     MEGA_DISABLE_COPY(HeartBeatSyncInfo)
 
-    virtual int syncTag() const;
-    virtual void updateStatus(mega::MegaClient *client) override;
-private:
-    int mSyncTag = 0;           // assigned by client (locally) for synced folders
-
+    virtual void updateStatus(UnifiedSync& us) override;
 };
 #endif
 
-/**
- * @brief Information for registration/update of a backup
- */
-class MegaBackupInfo
-{
-public:
-    MegaBackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, string extra, handle backupId = UNDEF);
-
-    BackupType type() const;
-    
-    string backupName() const;
-
-    handle backupId() const;
-
-    string localFolder() const;
-
-    handle megaHandle() const;
-
-    int state() const;
-
-    int subState() const;
-
-    string extra() const;
-
-    void setBackupId(const handle &backupId);
-
-protected:
-    BackupType mType;
-    string mBackupName;
-    handle mBackupId;
-    string mLocalFolder;
-    handle mMegaHandle;
-    int mState;
-    int mSubState;
-    string mExtra;
-};
-
 #ifdef ENABLE_SYNC
-class MegaBackupInfoSync : public MegaBackupInfo
+class BackupInfoSync : public CommandBackupPut::BackupInfo
 {
 public:
     enum State
@@ -207,66 +137,42 @@ public:
         PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
         PAUSE_FULL = 7,         // Active but transfers paused in the SDK
     };
-    MegaBackupInfoSync(mega::MegaClient *client, const MegaSync &sync, handle backupid = UNDEF);
 
-    void updatePauseState(MegaClient *client);
+    BackupInfoSync(const SyncConfig& config, const string& device, handle drive, int calculatedState);
+    BackupInfoSync(const UnifiedSync& us);
 
-    static BackupType getSyncType(MegaClient *client, const MegaSync &sync);
-    static int getSyncState (MegaClient *client, const MegaSync &sync);
-    static int getSyncSubstatus (const MegaSync &sync);
-    string getSyncExtraData(const MegaSync &sync);
+    static BackupType getSyncType(const SyncConfig& config);
+    static int getSyncState (const UnifiedSync &);
+    static int getSyncState(SyncError error, syncstate_t state, MegaClient *client);
+    static int getSyncState(const SyncConfig& config, MegaClient *client);
+    static handle getDriveId(const UnifiedSync&);
+
+    bool operator==(const BackupInfoSync& o) const;
+    bool operator!=(const BackupInfoSync& o) const;
 
 private:
     static int calculatePauseActiveState(MegaClient *client);
 };
 #endif
 
-class MegaBackupMonitor : public MegaListener
+class BackupMonitor
 {
 public:
-    explicit MegaBackupMonitor(MegaClient * client);
+    explicit BackupMonitor(MegaClient * client);
 
     void beat(); // produce heartbeats!
 
-    void digestPutResult(handle backupId);  // called at MegaApiImpl::backupput_result() <-- new backup registered
-#ifdef ENABLE_SYNC
-    void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState) override;
-    void onSyncDeleted(MegaApi *api, MegaSync *sync) override;
-    void onSyncStateChanged(MegaApi *api, MegaSync *sync) override;
-#endif
-    void onPauseStateChanged(MegaApi *api);
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
-    void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error) override;
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
+    void onSyncConfigChanged();
+    void updateOrRegisterSync(UnifiedSync&);
 
 private:
-
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
     mega::MegaClient *mClient = nullptr;
-    std::deque<std::function<void(handle)>> mPendingBackupPutCallbacks; // Callbacks to be executed when backupId received after a registering "sp"
-
-    void updateBackupInfo(const MegaBackupInfo &info);
-    void registerBackupInfo(const MegaBackupInfo &info);
-
-    void beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo> &hbs);
-    void calculateStatus(HeartBeatBackupInfo *hbs);
-
-    std::shared_ptr<HeartBeatTransferProgressedInfo> getHeartBeatBackupInfoByTransfer(MegaApi *api, MegaTransfer *transfer);
 
 #ifdef ENABLE_SYNC
-    // --- Members and methods for syncs. i.e: backups of type: TWO_WAY, UP_SYNC, DOWN_SYNC
-    std::map<int, std::shared_ptr<HeartBeatSyncInfo>> mHeartBeatedSyncs; // Map matching sync tag and HeartBeatBackupInfo
-    std::map<int, int> mTransferToSyncMap; // maps transfer-tag and sync-tag to avoid costly search every update
-    std::set<int> mPendingSyncPuts; // tags of registrations in-flight (waiting for CommandBackupPut's response)
-    std::map<int, std::unique_ptr<MegaBackupInfo>> mPendingSyncUpdates; // updates that were received while CommandBackupPut was being resolved
-
-    void updateOrRegisterSync(MegaSync *sync);
-
-
-    void onSyncBackupRegistered(int syncTag, handle backupId);
+    void beatBackupInfo(UnifiedSync& us);
 #endif
-
 };
 }
 

@@ -68,6 +68,8 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
 #endif
 
+const m_off_t TransferSlot::MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB
+
 TransferSlot::TransferSlot(Transfer* ctransfer)
     : fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
     , retrybt(ctransfer->client->rng, ctransfer->client->transferSlotsBackoff)
@@ -84,8 +86,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 
     failure = false;
     retrying = false;
-
-    fileattrsmutable = 0;
 
     connections = 0;
     asyncIO = NULL;
@@ -246,8 +246,8 @@ TransferSlot::~TransferSlot()
                 {
                     if (!outputPiece->finalized)
                     {
-                        transfer->client->tmptransfercipher.setkey(transfer->transferkey.data());
-                        outputPiece->finalize(true, transfer->size, transfer->ctriv, &transfer->client->tmptransfercipher, &transfer->chunkmacs);
+                        SymmCipher *cipher = transfer->client->getRecycledTemporaryTransferCipher(transfer->transferkey.data());
+                        outputPiece->finalize(true, transfer->size, transfer->ctriv, cipher, &transfer->chunkmacs);
                     }
                     anyData = true;
                     if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
@@ -354,9 +354,9 @@ int64_t TransferSlot::macsmac_gaps(chunkmac_map* m, size_t g1, size_t g2, size_t
 
 bool TransferSlot::checkMetaMacWithMissingLateEntries()
 {
-    // Due to an old bug, some uploads attached a MAC to the node that was missing some MAC entries 
-    // (even though the data was uploaded) - this occurred when a ultoken arrived but one other 
-    // final upload connection had not completed at the local end (even though it must have 
+    // Due to an old bug, some uploads attached a MAC to the node that was missing some MAC entries
+    // (even though the data was uploaded) - this occurred when a ultoken arrived but one other
+    // final upload connection had not completed at the local end (even though it must have
     // completed at the server end).  So the file's data is still complete in the cloud.
     // Here we check if the MAC is one of those with a missing entry (or a few if the connection had multiple chunks)
 
@@ -367,14 +367,13 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
     // first check for the most likely - a single connection gap (or two but completely consecutive making a single gap)
     for (size_t countBack = 1; countBack <= finalN; ++countBack)
     {
-        size_t start1 = end - countBack; 
+        size_t start1 = end - countBack;
         for (size_t len1 = 1; len1 <= 64 && start1 + len1 <= end; ++len1)
         {
             if (transfer->metamac == macsmac_gaps(&transfer->chunkmacs, start1, start1 + len1, end, end))
             {
                 LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " from " << end;
                 auto correctMac = macsmac(&transfer->chunkmacs);
-                transfer->currentmetamac = correctMac;
                 transfer->metamac = correctMac;
                 // TODO: update the Node's key to be correct (needs some API additions before enabling)
                 return true;
@@ -398,7 +397,6 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
                     {
                         LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " " << start2 << " " << len2 << " from " << end;
                         auto correctMac = macsmac(&transfer->chunkmacs);
-                        transfer->currentmetamac = correctMac;
                         transfer->metamac = correctMac;
                         // TODO: update the Node's key to be correct (needs some API additions before enabling)
                         return true;
@@ -414,15 +412,9 @@ bool TransferSlot::checkDownloadTransferFinished(DBTableTransactionCommitter& co
 {
     if (transfer->progresscompleted == transfer->size)
     {
-        if (transfer->progresscompleted)
-        {
-            transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-            transfer->hascurrentmetamac = true;
-        }
-
         // verify meta MAC
         if (!transfer->size
-            || (transfer->currentmetamac == transfer->metamac)
+            || (macsmac(&transfer->chunkmacs) == transfer->metamac)
             || checkMetaMacWithMissingLateEntries())
         {
             client->transfercacheadd(transfer, &committer);
@@ -516,11 +508,8 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             if (fa && transfer->type == GET)
             {
                 LOG_debug << "Verifying cached download";
-                transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-                transfer->hascurrentmetamac = true;
-
                 // verify meta MAC
-                if (transfer->currentmetamac == transfer->metamac)
+                if (macsmac(&transfer->chunkmacs) == transfer->metamac)
                 {
                     return transfer->complete(committer);
                 }
@@ -558,6 +547,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
     dstime backoff = 0;
     m_off_t p = 0;
+    bool earliestUploadCompleted = false;
 
     if (errorcount > 4)
     {
@@ -655,78 +645,56 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     {
                         // completed put transfers are signalled through the
                         // return of the upload token
-                        if (reqs[i]->in.size())
+                        if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN)
                         {
-                            if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN)
+                            LOG_debug << "Upload token received";
+                            transfer->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
+                            memcpy(transfer->ultoken.get(), reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
+
+                            errorcount = 0;
+                            transfer->failcount = 0;
+
+                            // any other connections that have not reported back yet, or we haven't processed yet,
+                            // must have completed also - make sure to include their chunk MACs in the mac-of-macs
+                            for (int j = connections; j--; )
                             {
-                                LOG_debug << "Upload token received";
-                                if (!transfer->ultoken)
+                                if (j != i && reqs[j] &&
+                                        (reqs[j]->status == REQ_INFLIGHT
+                                    || reqs[j]->status == REQ_SUCCESS
+                                    || reqs[j]->status == REQ_FAILURE)) // could be a network error getting the result
                                 {
-                                    transfer->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
-                                }
-
-                                bool tokenOK = true;
-                                if (reqs[i]->in.data()[NewNode::UPLOADTOKENLEN - 1] == 1)
-                                {
-                                    LOG_debug << "New style upload token";
-                                    memcpy(transfer->ultoken.get(), reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
-                                }
-                                else
-                                {
-                                    LOG_debug << "Old style upload token: " << reqs[i]->in;
-                                    tokenOK = (Base64::atob(reqs[i]->in.data(), transfer->ultoken.get(), NewNode::UPLOADTOKENLEN)
-                                               == NewNode::OLDUPLOADTOKENLEN);
-                                }
-
-                                if (tokenOK)
-                                {
-                                    errorcount = 0;
-                                    transfer->failcount = 0;
-
-                                    // any other connections that have not reported back yet, or we haven't processed yet,
-                                    // must have completed also - make sure to include their chunk MACs in the mac-of-macs
-                                    for (int j = connections; j--; )
-                                    {
-                                        if (j != i && reqs[j] &&
-                                              (reqs[j]->status == REQ_INFLIGHT
-                                            || reqs[j]->status == REQ_SUCCESS
-                                            || reqs[j]->status == REQ_FAILURE)) // could be a network error getting the result
-                                        {
-                                            LOG_debug << "Including chunk MACs from incomplete/unprocessed (at this end) connection " << j;
-                                            transfer->progresscompleted += reqs[j]->size;
-                                            transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[j].get())->mChunkmacs);
-                                        }
-                                    }
-
-                                    transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
-                                    transfer->progresscompleted += reqs[i]->size;
-                                    assert(transfer->progresscompleted == transfer->size);
-
-                                    updatecontiguousprogress();
-
-                                    memcpy(transfer->filekey, transfer->transferkey.data(), sizeof transfer->transferkey);
-                                    ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
-                                    ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
-                                    SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
-
-                                    client->transfercacheadd(transfer, &committer);
-
-                                    if (transfer->progresscompleted != progressreported)
-                                    {
-                                        progressreported = transfer->progresscompleted;
-                                        lastdata = Waiter::ds;
-
-                                        progress();
-                                    }
-
-                                    return transfer->complete(committer);
-                                }
-                                else
-                                {
-                                    transfer->ultoken.reset();
+                                    LOG_debug << "Including chunk MACs from incomplete/unprocessed (at this end) connection " << j;
+                                    transfer->progresscompleted += reqs[j]->size;
+                                    transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[j].get())->mChunkmacs);
                                 }
                             }
 
+                            transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
+                            transfer->progresscompleted += reqs[i]->size;
+                            assert(transfer->progresscompleted == transfer->size);
+
+                            updatecontiguousprogress();
+
+                            memcpy(transfer->filekey, transfer->transferkey.data(), sizeof transfer->transferkey);
+                            ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
+                            ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
+                            SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
+
+                            client->transfercacheadd(transfer, &committer);
+
+                            if (transfer->progresscompleted != progressreported)
+                            {
+                                progressreported = transfer->progresscompleted;
+                                lastdata = Waiter::ds;
+
+                                progress();
+                            }
+
+                            return transfer->complete(committer);
+                        }
+
+                        if (reqs[i]->in.size() != 1 || reqs[i]->in[0] != '0')
+                        {
                             LOG_debug << "Error uploading chunk: " << reqs[i]->in;
                             error e = (error)atoi(reqs[i]->in.c_str());
                             if (e == API_EKEY)
@@ -748,7 +716,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 if (e == DAEMON_EFAILED)
                                 {
                                     // megad returning -4 should result in restarting the transfer
-                                    client->sendevent(99440, "Retry requested by storage server", 0);
+                                    LOG_warn << "Upload piece failed with -4, the upload cannot be continued on that server";
+                                    string event = "Unexpected upload chunk confirmation length: " + std::to_string(reqs[i]->in.size());
+                                    client->sendevent(99441, event.c_str(), 0);  // old-style -4 (from requests with c= instead of d=) were/are reported as 99440
                                 }
                                 else
                                 {
@@ -779,6 +749,25 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         transfer->failcount = 0;
                         client->transfercacheadd(transfer, &committer);
                         reqs[i]->status = REQ_READY;
+
+                        // If this upload is the earliest (lowest pos), then release the ones that were waiting
+                        // This scheme prevents us from too big a gap between earlierst and latest (which could cause a -4 reply)
+                        bool earliestInFlight = true;
+                        for (int j = connections; j--; )
+                        {
+                            if (j != i && reqs[j] &&
+                               (reqs[j]->status == REQ_INFLIGHT || reqs[j]->status == REQ_SUCCESS) &&
+                               (reqs[j]->pos < reqs[i]->pos))
+                            {
+                                earliestInFlight = false;
+                            }
+                        }
+                        if (earliestInFlight)
+                        {
+                            LOG_debug << "Connection " << i << " was the earliest upload piece and has now completed at " << reqs[i]->pos;
+                            earliestUploadCompleted = true;
+                        }
+
                     }
                     else   // GET
                     {
@@ -851,6 +840,11 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             break;
                         }
                     }
+                    break;
+                }
+                case REQ_UPLOAD_PREPARED_BUT_WAIT:
+                {
+                    assert(transfer->type == PUT);
                     break;
                 }
                 case REQ_DECRYPTED:
@@ -1227,8 +1221,53 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     }
                 }
             }
+        }
+    }
 
-            if (reqs[i] && (reqs[i]->status == REQ_PREPARED) && !backoff)
+    if (transfer->type == PUT)
+    {
+        // Get the number of reqs in flight and the position of the earliest for...
+        int numInflight = 0;
+        m_off_t earliestPosInFlight = 0;
+        for (int i = connections; i--; )
+        {
+            if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
+            {
+                if (!numInflight || earliestPosInFlight > reqs[i]->pos)
+                {
+                    earliestPosInFlight = reqs[i]->pos;
+                }
+                ++numInflight;
+            }
+        }
+        // ...avoid a gap greater than 256MB between start-pos of the earliest and the end-pos of the latest request
+        // (the request should wait, so the gap doesn't grow over that limit)
+        for (int i = connections; i--; )
+        {
+            if (reqs[i])
+            {
+                if (reqs[i]->status == REQ_PREPARED &&
+                    (numInflight && !earliestUploadCompleted &&
+                    earliestPosInFlight + MAX_GAP_SIZE < (reqs[i]->pos + reqs[i]->size)))
+                {
+                    LOG_debug << "Connection " << i << " delaying until earliest completes. pos=" << reqs[i]->pos;
+                    reqs[i]->status = REQ_UPLOAD_PREPARED_BUT_WAIT;
+                }
+                else if (reqs[i]->status == REQ_UPLOAD_PREPARED_BUT_WAIT &&
+                    (!numInflight || earliestUploadCompleted))
+                {
+                    LOG_debug << "Connection " << i << " resumes. pos=" << reqs[i]->pos;
+                    reqs[i]->status = REQ_PREPARED;
+                }
+            }
+        }
+    }
+    // Finally see if any requests are now fit to post
+    for (int i = connections; i--; )
+    {
+        if (reqs[i] && !failure)
+        {
+            if ((reqs[i]->status == REQ_PREPARED) && !backoff)
             {
                 mReqSpeeds[i].requestStarted();
                 reqs[i]->minspeed = true;

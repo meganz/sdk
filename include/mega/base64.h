@@ -77,6 +77,14 @@ struct Base64Str
     {
         return chars;
     }
+    const byte* bytes() const
+    {
+        return reinterpret_cast<const byte*>(chars);
+    }
+    unsigned int size() const
+    {
+        return STRLEN;
+    }
 };
 
 // lowercase base32 encoding
@@ -93,7 +101,6 @@ public:
 class MEGA_API URLCodec
 {
     static bool ishexdigit(char c);
-    static unsigned char hexval(char c);
 
 public:
     static bool issafe(char c);

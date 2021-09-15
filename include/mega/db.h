@@ -61,20 +61,20 @@ public:
     // get specific record by key
     virtual bool get(uint32_t, string*) = 0;
 
-    virtual bool getNode(handle nodehandle, NodeSerialized& nodeSerialized) = 0;
+    virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
     virtual bool getNodes(std::vector<NodeSerialized>& nodes) = 0;
     virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) = 0;
     virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) = 0;
     virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node) = 0;
     virtual bool getNodesWithoutParent(std::vector<NodeSerialized>& nodes) = 0;
     virtual bool getNodesWithSharesOrLink(std::vector<NodeSerialized>& nodes, ShareType_t shareType) = 0;
-    virtual bool getChildrenFromNode(handle parentHandle, std::map<handle, NodeSerialized>& children) = 0;
+    virtual bool getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
     virtual bool getChildrenHandlesFromNode(handle node, std::vector<handle>& nodes) = 0;
     virtual bool getNodesByName(const std::string& name, std::map<mega::handle, NodeSerialized>& nodes) = 0;
     virtual NodeCounter getNodeCounter(handle node, bool isParentFile) = 0;
     virtual uint32_t getNumberOfChildrenFromNode(handle parentHandle) = 0;
     virtual bool isNodesOnDemandDb() = 0;
-    virtual handle getFirstAncestor(handle node) = 0;
+    virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
     virtual bool isNodeInDB(handle node) = 0;
     virtual bool isAncestor(handle node, handle ancestror) = 0;
     virtual bool isFileNode(handle node) = 0;
@@ -109,6 +109,9 @@ public:
     virtual std::string getVar(const std::string& name) = 0;
     virtual bool setVar(const std::string& name, const std::string& value) = 0;
 
+    // whether an unmatched begin() has been issued
+    virtual bool inTransaction() const = 0;
+
     void checkCommitter(DBTableTransactionCommitter*);
 
     static int getShareType(Node *);
@@ -125,6 +128,7 @@ class MEGA_API DBTableTransactionCommitter
 {
     DbTable* mTable;
     bool mStarted = false;
+    std::thread::id threadId;
 
 public:
     void beginOnce()
@@ -162,13 +166,14 @@ public:
         }
     }
 
-    explicit DBTableTransactionCommitter(DbTable* t)
-        : mTable(t)
+    explicit DBTableTransactionCommitter(unique_ptr<DbTable>& t)
+        : mTable(t.get()), threadId(std::this_thread::get_id())
     {
         if (mTable)
         {
             if (mTable->mTransactionCommitter)
             {
+                assert(mTable->mTransactionCommitter->threadId == threadId);
                 mTable = nullptr;  // we are nested; this one does nothing.  This can occur during eg. putnodes response when the core sdk and the intermediate layer both do db work.
             }
             else
@@ -177,6 +182,7 @@ public:
             }
         }
     }
+
 
     MEGA_DISABLE_COPY_MOVE(DBTableTransactionCommitter)
 };
@@ -191,8 +197,8 @@ enum DbOpenFlag
 
 struct MEGA_API DbAccess
 {
-    static const int LEGACY_DB_VERSION = 11;
-    static const int DB_VERSION = LEGACY_DB_VERSION + 1;
+    static const int LEGACY_DB_VERSION;
+    static const int DB_VERSION;
 
     DbAccess();
 
@@ -201,6 +207,8 @@ struct MEGA_API DbAccess
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
+
+    virtual const LocalPath& rootPath() const = 0;
 
     int currentDbVersion;
 };

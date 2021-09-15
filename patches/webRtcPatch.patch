@@ -1,0 +1,55 @@
+diff --git a/modules/rtp_rtcp/source/rtp_sender_video.cc b/modules/rtp_rtcp/source/rtp_sender_video.cc
+index 934be824a4..1a75cbc21a 100644
+--- a/modules/rtp_rtcp/source/rtp_sender_video.cc
++++ b/modules/rtp_rtcp/source/rtp_sender_video.cc
+@@ -573,9 +573,6 @@ bool RTPSenderVideo::SendVideo(
+   // TODO(benwright@webrtc.org) - Allocate enough to always encrypt inline.
+   rtc::Buffer encrypted_video_payload;
+   if (frame_encryptor_ != nullptr) {
+-    if (!has_generic_descriptor) {
+-      return false;
+-    }
+ 
+     const size_t max_ciphertext_size =
+         frame_encryptor_->GetMaxCiphertextByteSize(cricket::MEDIA_TYPE_VIDEO,
+@@ -587,6 +584,10 @@ bool RTPSenderVideo::SendVideo(
+     // Enable header authentication if the field trial isn't disabled.
+     std::vector<uint8_t> additional_data;
+     if (generic_descriptor_auth_experiment_) {
++      // Patch applied MEGA
++      if (!has_generic_descriptor) {
++        return false;
++      }
+       additional_data = RtpDescriptorAuthentication(video_header);
+     }
+ 
+diff --git a/video/buffered_frame_decryptor.cc b/video/buffered_frame_decryptor.cc
+index 187bac6ee4..db8a08b419 100644
+--- a/video/buffered_frame_decryptor.cc
++++ b/video/buffered_frame_decryptor.cc
+@@ -62,11 +62,7 @@ BufferedFrameDecryptor::FrameDecision BufferedFrameDecryptor::DecryptFrame(
+                         "stream. Stashing frame.";
+     return FrameDecision::kStash;
+   }
+-  // When using encryption we expect the frame to have the generic descriptor.
+-  if (frame->GetRtpVideoHeader().generic == absl::nullopt) {
+-    RTC_LOG(LS_ERROR) << "No generic frame descriptor found dropping frame.";
+-    return FrameDecision::kDrop;
+-  }
++
+   // Retrieve the maximum possible size of the decrypted payload.
+   const size_t max_plaintext_byte_size =
+       frame_decryptor_->GetMaxPlaintextByteSize(cricket::MEDIA_TYPE_VIDEO,
+@@ -79,6 +75,12 @@ BufferedFrameDecryptor::FrameDecision BufferedFrameDecryptor::DecryptFrame(
+   // Enable authenticating the header if the field trial isn't disabled.
+   std::vector<uint8_t> additional_data;
+   if (generic_descriptor_auth_experiment_) {
++    // When using encryption we expect the frame to have the generic descriptor.
++    // Patch applied MEGA
++    if (frame->GetRtpVideoHeader().generic == absl::nullopt) {
++      RTC_LOG(LS_ERROR) << "No generic frame descriptor found dropping frame.";
++      return FrameDecision::kDrop;
++    }
+     additional_data = RtpDescriptorAuthentication(frame->GetRtpVideoHeader());
+   }
+ 

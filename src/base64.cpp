@@ -20,6 +20,7 @@
  */
 
 #include "mega/base64.h"
+#include "mega/utils.h"
 
 namespace mega {
 // modified base64 conversion (no trailing '=' and '-_' instead of '+/')
@@ -405,11 +406,6 @@ bool URLCodec::issafe(char c)
     return false;
 }
 
-unsigned char URLCodec::hexval(char c)
-{
-    return c > '9' ? (c >= 'a' ? c - 'a' + 10 : c - 'A' + 10) : c - '0';
-}
-
 bool URLCodec::ishexdigit(char c)
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
@@ -444,29 +440,33 @@ void URLCodec::escape(string *plain, string *escaped)
 
 void URLCodec::unescape(string *escaped, string *plain)
 {
-    if (!escaped || !plain)
+    if (!(escaped && plain))
     {
         return;
     }
 
     plain->clear();
     plain->reserve(escaped->size());
-    int len = (int)escaped->size();
-    for (int i = 0; i < len; i++)
-    {
-        if (escaped->at(i) == '%' && ishexdigit(escaped->at(i + 1)) && ishexdigit(escaped->at(i + 2)))
-        {
-            unsigned char c1 = hexval(escaped->at(i + 1));
-            unsigned char c2 = hexval(escaped->at(i + 2));
-            unsigned char c = 0xFF & ((c1 << 4) | c2);
 
-            plain->push_back(c);
-            i += 2;
-        }
-        else
+    const char* m = escaped->c_str();
+    const char* n = m + escaped->size();
+
+    while (m < n)
+    {
+        if (*m == '%' && n - m > 2)
         {
-            plain->push_back(escaped->at(i));
+            if (ishexdigit(m[1]) && ishexdigit(m[2]))
+            {
+                auto c = hexval(m[1]) << 4u | hexval(m[2]);
+
+                plain->push_back(static_cast<char>(c));
+
+                m += 3;
+                continue;
+            }
         }
+
+        plain->push_back(*m++);
     }
 }
 

@@ -24,28 +24,6 @@
 #ifdef USE_SQLITE
 namespace mega {
 
-static LocalPath databasePath(const FileSystemAccess& fsAccess,
-                              const LocalPath& rootPath,
-                              const string& name,
-                              const int version)
-{
-    ostringstream osstream;
-
-    osstream << "megaclient_statecache"
-             << version
-             << "_"
-             << name
-             << ".db";
-
-    LocalPath path = rootPath;
-
-    path.appendWithSeparator(
-      LocalPath::fromPath(osstream.str(), fsAccess),
-      false);
-
-    return path;
-}
-
 SqliteDbAccess::SqliteDbAccess(const LocalPath& rootPath)
   : mRootPath(rootPath)
 {
@@ -55,12 +33,34 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
+LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
+                                       const string& name,
+                                       const int version) const
 {
-    auto dbPath = databasePath(fsAccess, mRootPath, name, DB_VERSION);
+    ostringstream osstream;
+
+    osstream << "megaclient_statecache"
+             << version
+             << "_"
+             << name
+             << ".db";
+
+    LocalPath path = mRootPath;
+
+    path.appendWithSeparator(
+      LocalPath::fromPath(osstream.str(), fsAccess),
+      false);
+
+    return path;
+}
+
+SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
+{
+    auto dbPath = databasePath(fsAccess, name, DB_VERSION);
+    auto upgraded = true;
 
     {
-        auto legacyPath = databasePath(fsAccess, mRootPath, name, LEGACY_DB_VERSION);
+        auto legacyPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
         auto fileAccess = fsAccess.newfileaccess();
 
         if (fileAccess->fopen(legacyPath))
@@ -71,6 +71,7 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const str
             {
                 LOG_debug << "Using a legacy database.";
                 dbPath = std::move(legacyPath);
+                upgraded = false;
             }
             else if ((flags & DB_OPEN_FLAG_RECYCLE))
             {
@@ -84,7 +85,7 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const str
 
                     fsAccess.renamelocal(from, to);
 
-                    suffix = LocalPath::fromPath("-shm", fsAccess);
+                    suffix = LocalPath::fromPath("-wal", fsAccess);
                     from = legacyPath + suffix;
                     to = dbPath + suffix;
 
@@ -104,6 +105,12 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const str
                 fsAccess.unlinklocal(legacyPath);
             }
         }
+    }
+
+    if (upgraded)
+    {
+        LOG_debug << "Using an upgraded DB: " << dbPath.toPath(fsAccess);
+        currentDbVersion = DB_VERSION;
     }
 
     const string dbPathStr = dbPath.toPath(fsAccess);
@@ -157,7 +164,7 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const str
     return new SqliteDbTable(rng,
                              db,
                              fsAccess,
-                             dbPathStr, 
+                             dbPathStr,
                              (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
 }
 
@@ -165,16 +172,21 @@ bool SqliteDbAccess::probe(FileSystemAccess& fsAccess, const string& name) const
 {
     auto fileAccess = fsAccess.newfileaccess();
 
-    LocalPath dbPath = databasePath(fsAccess, mRootPath, name, DB_VERSION);
+    LocalPath dbPath = databasePath(fsAccess, name, DB_VERSION);
 
     if (fileAccess->isfile(dbPath))
     {
         return true;
     }
 
-    dbPath = databasePath(fsAccess, mRootPath, name, LEGACY_DB_VERSION);
+    dbPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
 
     return fileAccess->isfile(dbPath);
+}
+
+const LocalPath& SqliteDbAccess::rootPath() const
+{
+    return mRootPath;
 }
 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
@@ -211,6 +223,11 @@ bool SqliteDbTable::inTransaction() const
     return sqlite3_get_autocommit(db) == 0;
 }
 
+LocalPath SqliteDbTable::dbFile() const
+{
+    return LocalPath::fromPath(dbfile, *fsaccess);
+}
+
 // set cursor to first record
 void SqliteDbTable::rewind()
 {
@@ -232,7 +249,8 @@ void SqliteDbTable::rewind()
 
     if (result != SQLITE_OK)
     {
-        LOG_err << "Unable to rewind database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(result));
+        LOG_err << "Unable to rewind database: " << dbfile << err;
         assert(!"Unable to rewind database.");
     }
 }
@@ -259,7 +277,8 @@ bool SqliteDbTable::next(uint32_t* index, string* data)
 
         if (rc != SQLITE_DONE)
         {
-            LOG_err << "Unable to get next record from database: " << dbfile;
+            string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+            LOG_err << "Unable to get next record from database: " << dbfile << err;
             assert(!"Unable to get next record from database.");
         }
 
@@ -304,14 +323,15 @@ bool SqliteDbTable::get(uint32_t index, string* data)
 
     if (rc != SQLITE_DONE && rc != SQLITE_ROW)
     {
-        LOG_err << "Unable to get record from database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to get record from database: " << dbfile << err;
         assert(!"Unable to get record from database.");
     }
 
     return rc == SQLITE_ROW;
 }
 
-bool SqliteDbTable::getNode(handle nodehandle, NodeSerialized &nodeSerialized)
+bool SqliteDbTable::getNode(NodeHandle nodehandle, NodeSerialized &nodeSerialized)
 {
     if (!db)
     {
@@ -326,7 +346,7 @@ bool SqliteDbTable::getNode(handle nodehandle, NodeSerialized &nodeSerialized)
     sqlite3_stmt *stmt;
     if (sqlite3_prepare(db, "SELECT decrypted, node FROM nodes  WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_int64(stmt, 1, nodehandle) == SQLITE_OK)
+        if (sqlite3_bind_int64(stmt, 1, nodehandle.as8byte()) == SQLITE_OK)
         {
             if((sqlite3_step(stmt) == SQLITE_ROW))
             {
@@ -553,7 +573,7 @@ bool SqliteDbTable::getNodesWithSharesOrLink(std::vector<NodeSerialized> &nodes,
     return result == SQLITE_DONE ? true : false;
 }
 
-bool SqliteDbTable::getChildrenFromNode(handle parentHandle, std::map<handle, NodeSerialized> &children)
+bool SqliteDbTable::getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized> &children)
 {
     if (!db)
     {
@@ -566,11 +586,12 @@ bool SqliteDbTable::getChildrenFromNode(handle parentHandle, std::map<handle, No
     int result = SQLITE_ERROR;
     if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_int64(stmt, 1, parentHandle) == SQLITE_OK)
+        if (sqlite3_bind_int64(stmt, 1, parentHandle.as8byte()) == SQLITE_OK)
         {
             while ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
-                handle childHandle = sqlite3_column_int64(stmt, 0);
+                NodeHandle childHandle;
+                childHandle.set6byte(sqlite3_column_int64(stmt, 0));
                 NodeSerialized child;
                 child.mDecrypted = sqlite3_column_int(stmt, 1);
                 const void* data = sqlite3_column_blob(stmt, 2);
@@ -749,9 +770,9 @@ bool SqliteDbTable::isNodesOnDemandDb()
     return numRows > 0 ? true : false;
 }
 
-handle SqliteDbTable::getFirstAncestor(handle node)
+NodeHandle SqliteDbTable::getFirstAncestor(NodeHandle node)
 {
-    handle ancestor = UNDEF;
+    NodeHandle ancestor;
     if (!db)
     {
         return ancestor;
@@ -768,11 +789,11 @@ handle SqliteDbTable::getFirstAncestor(handle node)
     sqlite3_stmt *stmt;
     if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
+        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
         {
             while (sqlite3_step(stmt) == SQLITE_ROW)
             {
-                ancestor = sqlite3_column_int64(stmt, 0);
+                ancestor.set6byte(sqlite3_column_int64(stmt, 0));
             }
         }
     }
@@ -904,13 +925,18 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
     sqlite3_stmt *stmt;
     bool result = false;
 
-    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL);
+    if (rc == SQLITE_OK)
     {
-        if (sqlite3_bind_int(stmt, 1, index) == SQLITE_OK)
+        rc = sqlite3_bind_int(stmt, 1, index);
+        if (rc == SQLITE_OK)
         {
-            if (sqlite3_bind_blob(stmt, 2, data, len, SQLITE_STATIC) == SQLITE_OK)
+            rc = sqlite3_bind_blob(stmt, 2, data, len, SQLITE_STATIC);
+            if (rc == SQLITE_OK)
             {
-                if (sqlite3_step(stmt) == SQLITE_DONE)
+
+                rc = sqlite3_step(stmt);
+                if (rc == SQLITE_DONE)
                 {
                     result = true;
                 }
@@ -922,7 +948,8 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 
     if (!result)
     {
-        LOG_err << "Unable to put record into database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to put record into database: " << dbfile << err;
         assert(!"Unable to put record into database.");
     }
 
@@ -996,9 +1023,11 @@ bool SqliteDbTable::del(uint32_t index)
 
     sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
 
-    if (sqlite3_exec(db, buf, 0, 0, nullptr) != SQLITE_OK)
+    int rc = sqlite3_exec(db, buf, 0, 0, nullptr);
+    if (rc != SQLITE_OK)
     {
-        LOG_err << "Unable to delete record from database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to delete record from database: " << dbfile << err;
         assert(!"Unable to delete record from database.");
 
         return false;
@@ -1045,9 +1074,11 @@ void SqliteDbTable::truncate()
 
     checkTransaction();
 
-    if (sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL) != API_OK)
+    int rc = sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL);
+    if (rc != API_OK)
     {
-        LOG_err << "Unable to truncate database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to truncate database: " << dbfile << err;
         assert(!"Unable to truncate database.");
     }
 }
@@ -1061,9 +1092,11 @@ void SqliteDbTable::begin()
     }
 
     LOG_debug << "DB transaction BEGIN " << dbfile;
-    if (sqlite3_exec(db, "BEGIN", 0, 0, NULL) != SQLITE_OK)
+    int rc = sqlite3_exec(db, "BEGIN", 0, 0, NULL);
+    if (rc != SQLITE_OK)
     {
-        LOG_err << "Unable to begin transaction on database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to begin transaction on database: " << dbfile << err;
         assert(!"Unable to begin transaction on database.");
     }
 }
@@ -1078,9 +1111,11 @@ void SqliteDbTable::commit()
 
     LOG_debug << "DB transaction COMMIT " << dbfile;
 
-    if (sqlite3_exec(db, "COMMIT", 0, 0, NULL) != SQLITE_OK)
+    int rc = sqlite3_exec(db, "COMMIT", 0, 0, NULL);
+    if (rc != SQLITE_OK)
     {
-        LOG_err << "Unable to commit transaction on database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to commit transaction on database: " << dbfile << err;
         assert(!"Unable to commit transaction on database.");
     }
 }
@@ -1095,9 +1130,11 @@ void SqliteDbTable::abort()
 
     LOG_debug << "DB transaction ROLLBACK " << dbfile;
 
-    if (sqlite3_exec(db, "ROLLBACK", 0, 0, NULL) != SQLITE_OK)
+    int rc = sqlite3_exec(db, "ROLLBACK", 0, 0, NULL);
+    if (rc != SQLITE_OK)
     {
-        LOG_err << "Unable to rollback transaction on database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to rollback transaction on database: " << dbfile << err;
         assert(!"Unable to rollback transaction on database.");
     }
 }

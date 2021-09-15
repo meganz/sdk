@@ -64,13 +64,20 @@ public:
      * @return The random number generated.
      */
     uint32_t genuint32(uint64_t max);
+
+    /**
+     * @brief
+     * Generates a string of len random bytes.
+     *
+     * @return
+     * A string of len random bytes.
+     */
+    std::string genstring(const size_t len);
 };
 
 // symmetric cryptography: AES-128
 class MEGA_API SymmCipher
 {
-public:
-
 private:
     CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aesecb_e;
     CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesecb_d;
@@ -97,7 +104,9 @@ public:
 
     typedef uint64_t ctr_iv;
 
-    void setkey(const byte*, int = 1);
+    // type != 1 will enatil xoring the second KEYLENGTH bytes into the first ones
+    // otherwise only first KEYLENGTH raw bytes will be used.
+    void setkey(const byte*, int type = 1);
     bool setkey(const std::string*);
 
     /**
@@ -158,16 +167,50 @@ public:
     void cbc_encrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
 
     /**
-     * @brief Decrypt symmetrically using AES in CBC mode and pkcs padding
+     * @brief
+     * Decrypt symmetrically using AES in CBC mode and pkcs padding
      *
      * The size of the IV is one block in AES-128 (16 bytes).
      *
-     * @param data Data to be decrypted
-     * @param iv Initialisation vector.
-     * @param result Decrypted message
-     * @return Void.
+     * @param data
+     * Data to be decrypted
+     *
+     * @param iv
+     * Initialisation vector.
+     *
+     * @param result
+     * Where we should write the decrypted message.
+     *
+     * @return
+     * True if decryption was successful.
      */
-    void cbc_decrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
+    bool cbc_decrypt_pkcs_padding(const std::string* data, const byte* iv, std::string* result);
+
+    /**
+     * @brief
+     * Decrypt symmetrically using AES in CBC mode and pkcs padding
+     *
+     * The size of the IV is one block in AES-128 (16 bytes).
+     *
+     * @param data
+     * Data to be decrypted
+     *
+     * @param dataLength
+     * Length of data to be decryped.
+     *
+     * @param iv
+     * Initialisation vector.
+     *
+     * @param result
+     * Where we should write the decrypted message.
+     *
+     * @return
+     * True if decryption was successful.
+     */
+    bool cbc_decrypt_pkcs_padding(const byte* data,
+                                  const size_t dataLength,
+                                  const byte* iv,
+                                  std::string* result);
 
     /**
      * Authenticated symmetric encryption using AES in CCM mode (counter with CBC-MAC).
@@ -422,6 +465,7 @@ public:
      * @param length Key length
      */
     HMACSHA256(const byte *key, size_t length);
+    HMACSHA256();
 
     /**
      * @brief Add data to the HMAC
@@ -435,10 +479,22 @@ public:
      * @param out The HMAC-SHA256 will be returned in the first 32 bytes of this buffer
      */
     void get(byte *out);
+
+    /**
+     * @brief
+     * Set the HMAC's key.
+     *
+     * @param key
+     * HMAC key.
+     *
+     * @param length
+     * Length of HMAC key.
+     */
+    void setkey(const byte* key, const size_t length);
 };
 
 /**
- * @brief HMAC-SHA512 generator
+ * @brief PBKDF2 HMAC-SHA512 Key Derivation Function.
  */
 class MEGA_API PBKDF2_HMAC_SHA512
 {
@@ -446,9 +502,14 @@ class MEGA_API PBKDF2_HMAC_SHA512
 
 public:
     PBKDF2_HMAC_SHA512();
-    void deriveKey(byte* derivedkey, size_t derivedkeyLen,
-                   byte* pwd, size_t pwdLen,
-                   byte* salt, size_t saltLen, unsigned int iterations);
+
+    void deriveKey(byte* derivedkey,
+                   const size_t derivedkeyLen,
+                   const byte* pwd,
+                   const size_t pwdLen,
+                   const byte* salt,
+                   const size_t saltLen,
+                   const unsigned int iterations) const;
 };
 
 } // namespace

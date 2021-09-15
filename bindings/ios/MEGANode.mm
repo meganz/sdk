@@ -53,6 +53,18 @@ using namespace mega;
     return self.megaNode ? [[MEGANode alloc] initWithMegaNode:self.megaNode->copy() cMemoryOwn:YES] : nil;
 }
 
+- (BOOL)isEqual:(id)object {
+    if (![object isKindOfClass:[MEGANode class]]) {
+        return false;
+    }
+    
+    return self.handle == ((MEGANode *)object).handle;
+}
+
+- (NSUInteger)hash {
+    return self.handle;
+}
+
 - (MegaNode *)getCPtr {
     return self.megaNode;
 }
@@ -237,6 +249,10 @@ using namespace mega;
 
 - (BOOL)isTakenDown {
     return self.megaNode ? self.megaNode->isTakenDown() : NO;
+}
+
+- (BOOL)isForeign {
+    return self.megaNode ? self.megaNode->isForeign() : NO;
 }
 
 + (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel {

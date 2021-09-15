@@ -39,14 +39,14 @@
 - (nonnull instancetype)clone;
 
 /**
-* @brief Returns the MEGABanner at position i in the MEGABannerList
+* @brief Returns the MEGABanner at position index in the MEGABannerList
 *
 * The MEGABannerList retains the ownership of the returned MEGABanner. It will be only valid until
 * the MEGABannerList is deleted.
 *
-* If the index is >= the size of the list, this function returns NULL.
+* If the index is >= the size of the list, this function returns nil.
 *
-* @param i Position of the MEGABanner that we want to get for the list
+* @param index Position of the MEGABanner that we want to get for the list
 * @return MEGABanner at position i in the list
 */
 - (nullable MEGABanner *)bannerAtIndex:(NSInteger)index;

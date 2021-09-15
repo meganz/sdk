@@ -26,6 +26,7 @@
 #include "mega/sync.h"
 #include "mega/command.h"
 #include "mega/logging.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 File::File()
@@ -36,7 +37,6 @@ File::File()
     hforeign = false;
     syncxfer = false;
     temporaryfile = false;
-    h = UNDEF;
     tag = 0;
 }
 
@@ -212,7 +212,7 @@ File *File::unserialize(string *d)
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
 
-    file->h = MemAccess::get<handle>(ptr);
+    file->h.set6byte(MemAccess::get<handle>(ptr));
     ptr += sizeof(handle);
 
     memcpy(file->filekey, ptr, FILENODEKEYLENGTH);
@@ -287,6 +287,7 @@ void File::progress()
 
 void File::completed(Transfer* t, LocalNode* l)
 {
+    assert(!transfer || t == transfer);
     if (t->type == PUT)
     {
         vector<NewNode> newnodes(1);
@@ -331,17 +332,14 @@ void File::completed(Transfer* t, LocalNode* l)
         if (targetuser.size())
         {
             // drop file into targetuser's inbox
-            int creqtag = t->client->reqtag;
-            t->client->reqtag = tag;
-            t->client->putnodes(targetuser.c_str(), move(newnodes));
-            t->client->reqtag = creqtag;
+            t->client->putnodes(targetuser.c_str(), move(newnodes), tag);
         }
         else
         {
-            handle th = h;
+            NodeHandle th = h;
 
             // inaccessible target folder - use //bin instead
-            if (!t->client->nodebyhandle(th))
+            if (!t->client->nodeByHandle(th))
             {
                 th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
             }
@@ -367,18 +365,20 @@ void File::completed(Transfer* t, LocalNode* l)
 #endif
             if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
             {
-                newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
+                newnode->ovhandle = t->client->getovhandle(t->client->nodeByHandle(th), &name);
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,
-                                                                  th, NULL,
-                                                                  move(newnodes),
-                                                                  tag,
+                                                    th, NULL,
+                                                    move(newnodes),
+                                                    tag,
 #ifdef ENABLE_SYNC
-                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
+                                                    l ? PUTNODES_SYNC : PUTNODES_APP,
 #else
-                                                                  PUTNODES_APP));
+                                                    PUTNODES_APP,
 #endif
+                                                    nullptr,
+                                                    nullptr));
         }
     }
 }
@@ -394,22 +394,7 @@ bool File::failed(error e)
 {
     if (e == API_EKEY)
     {
-        if (!transfer->hascurrentmetamac)
-        {
-            // several integrity check errors uploading chunks
-            return transfer->failcount < 1;
-        }
-
-        if (transfer->hasprevmetamac && transfer->prevmetamac == transfer->currentmetamac)
-        {
-            // integrity check failed after download, two times with the same value
-            return false;
-        }
-
-        // integrity check failed once, try again
-        transfer->prevmetamac = transfer->currentmetamac;
-        transfer->hasprevmetamac = true;
-        return transfer->failcount < 16;
+        return false; // mac error; do not retry
     }
 
     return  // Non fatal errors, up to 16 retries
@@ -433,7 +418,7 @@ void File::displayname(string* dname)
     {
         Node* n;
 
-        if ((n = transfer->client->nodebyhandle(h)))
+        if ((n = transfer->client->nodeByHandle(h)))
         {
             *dname = n->displayname();
         }
@@ -444,18 +429,29 @@ void File::displayname(string* dname)
     }
 }
 
+string File::displayname()
+{
+    string result;
+
+    displayname(&result);
+
+    return result;
+}
+
 #ifdef ENABLE_SYNC
 SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
 {
     sync = csync;
 
     n = cn;
-    h = n->nodehandle;
+    h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
     localname = clocalname;
 
     syncxfer = true;
     n->syncget = this;
+
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
 }
 
 SyncFileGet::~SyncFileGet()
@@ -577,6 +573,8 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
+
     LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
             && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
@@ -592,6 +590,8 @@ void SyncFileGet::completed(Transfer*, LocalNode*)
 
 void SyncFileGet::terminated()
 {
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
+
     delete this;
 }
 #endif

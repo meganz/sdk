@@ -1,6 +1,13 @@
 
 MEGASDK_BASE_PATH = $$PWD/../../
 
+# Define MEGA_USE_C_ARES by default. Allow disabling c-ares code
+# by defining env var MEGA_USE_C_ARES=no before running qmake.
+ENV_MEGA_USE_C_ARES=$$(MEGA_USE_C_ARES)
+!equals(ENV_MEGA_USE_C_ARES, "no") {
+DEFINES += MEGA_USE_C_ARES
+}
+
 THIRDPARTY_VCPKG_PATH = $$THIRDPARTY_VCPKG_BASE_PATH/vcpkg/installed/$$VCPKG_TRIPLET
 exists($$THIRDPARTY_VCPKG_PATH) {
    CONFIG += vcpkg
@@ -65,21 +72,22 @@ SOURCES += src/attrmap.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
-    src/testhooks.cpp
+    src/testhooks.cpp \
+    src/heartbeats.cpp
 
 CONFIG(USE_MEGAAPI) {
-  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp src/heartbeats.cpp
+  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
 
 
   CONFIG(qt) {
     SOURCES += bindings/qt/QTMegaRequestListener.cpp \
         bindings/qt/QTMegaTransferListener.cpp \
         bindings/qt/QTMegaGlobalListener.cpp \
-        bindings/qt/QTMegaSyncListener.cpp \
         bindings/qt/QTMegaListener.cpp \
         bindings/qt/QTMegaEvent.cpp
   }
 }
+
 
 !win32 {
     QMAKE_CXXFLAGS += -std=c++11 -Wextra -Wconversion -Wno-unused-parameter
@@ -92,9 +100,19 @@ CONFIG(USE_MEGAAPI) {
     }
 }
 
+
+
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+  SOURCES += src/rotativeperformancelogger.cpp
+}
+
 CONFIG(USE_AUTOCOMPLETE) {
     SOURCES += src/autocomplete.cpp
     HEADERS += include/mega/autocomplete.h
+}
+
+CONFIG(USE_POLL) {
+    DEFINES += USE_POLL
 }
 
 CONFIG(USE_CONSOLE) {
@@ -235,17 +253,43 @@ CONFIG(USE_LIBRAW) {
 
 CONFIG(USE_PDFIUM) {
 
+    SOURCES += src/gfx/gfx_pdfium.cpp
+
     vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
     vcpkg:LIBS += -lpdfium -lfreetype$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2  -llcms$$DEBUG_SUFFIX 
 
     #make sure we get the vcpkg built icu libraries and not a system one with the same name
-    debug:vcpkg:LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
-    !debug:vcpkg:LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
-    #vcpkg:QMAKE_LFLAGS_WINDOWS += /VERBOSE
+    vcpkg {
+        win32 {
+            vcpkg:LIBS += -lbz2$$DEBUG_SUFFIX_WO -licudt$$DEBUG_SUFFIX_WO
+            debug: LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
+            !debug: LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
+            #QMAKE_LFLAGS_WINDOWS += /VERBOSE
+        }
+        else {
+            debug {
+                # icu doesn't build debug libs with 'd' suffix, but check anyway
+                exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a) {
+                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a
+                }
+                else {
+                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc.a
+                }
+                exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a) {
+                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a
+                }
+                else {
+                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio.a
+                }
+            }
+            !debug: LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libicuuc.a $$THIRDPARTY_VCPKG_PATH/lib/libicuio.a
+        }
+    }
 
-    vcpkg:unix:!macx:LIBS += -lpng -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
+    vcpkg:unix:!macx:LIBS += -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
+    vcpkg:unix:LIBS += -lpng
     # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
-    vcpkg:win32:LIBS += -lGdi32
+    vcpkg:win32:LIBS += -lGdi32  -llibpng16$$DEBUG_SUFFIX
     vcpkg:DEFINES += HAVE_PDFIUM
 
     !vcpkg {
@@ -271,8 +315,8 @@ CONFIG(USE_PDFIUM) {
 CONFIG(USE_FFMPEG) {
 
     unix:!macx {
-    
-        vcpkg:LIBS += -lavformat -lavcodec -lavutil -lswscale -lswresample
+        # On Linux, vcpkg provides libavresample instead of libswresample
+        vcpkg:LIBS += -lavformat -lavcodec -lavutil -lswscale -lavresample
         else {
             exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
             DEFINES += HAVE_FFMPEG
@@ -320,7 +364,10 @@ CONFIG(USE_FFMPEG) {
         vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/ffmpeg
         else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
         LIBS += -lavcodec -lavformat -lavutil -lswscale
-        vcpkg:macx:LIBS += -lswrescale -lbz2
+        vcpkg:macx {
+            debug:LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libbz2d.a
+            else:LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libbz2.a
+        }
     }
 }
 
@@ -356,6 +403,11 @@ CONFIG(USE_WEBRTC) {
         LIBS += -lwebrtc -ldl
         }
     }
+}
+
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+    DEFINES += USE_ROTATIVEPERFORMANCELOGGER
+    DEFINES += ENABLE_LOG_PERFORMANCE
 }
 
 win32 {
@@ -428,12 +480,11 @@ HEADERS  += include/mega.h \
             include/mega/crypto/cryptopp.h  \
             include/mega/crypto/sodium.h  \
             include/mega/db/sqlite.h  \
-            include/mega/gfx/qt.h \
             include/mega/gfx/freeimage.h \
+            include/mega/gfx/gfx_pdfium.h \
             include/mega/gfx/external.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \
-            include/mega/thread/qtthread.h \
             include/megaapi.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
@@ -444,13 +495,13 @@ HEADERS  += include/mega.h \
             include/mega/mega_zxcvbn.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
-            include/mega/testhooks.h
+            include/mega/testhooks.h \
+            include/mega/drivenotify.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \
             bindings/qt//QTMegaGlobalListener.h \
-            bindings/qt/QTMegaSyncListener.h \
             bindings/qt/QTMegaListener.h \
             bindings/qt/QTMegaEvent.h
 }
@@ -480,39 +531,47 @@ CONFIG(USE_PCRE) {
 
 CONFIG(qt) {
   DEFINES += USE_QT MEGA_QT_LOGGING
-  SOURCES += src/gfx/qt.cpp src/thread/qtthread.cpp
+}
+
+win32 {
+    DEFINES += USE_CPPTHREAD
+    SOURCES += src/thread/cppthread.cpp
 }
 else {
+    DEFINES += USE_PTHREAD
+    SOURCES += src/thread/posixthread.cpp
+    LIBS += -lpthread
+}
 
-    win32 {
-        SOURCES += src/thread/win32thread.cpp
+!CONFIG(nofreeimage) {
+    DEFINES += USE_FREEIMAGE
+    SOURCES += src/gfx/freeimage.cpp
+
+    vcpkg {
+        win32:LIBS += -llibpng16$$DEBUG_SUFFIX -llibwebpmux$$DEBUG_SUFFIX
+        else {
+            LIBS += -lpng16$$DEBUG_SUFFIX -lwebpmux$$DEBUG_SUFFIX
+        }
+
+        LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX -ltiff$$DEBUG_SUFFIX \
+        -lIlmImf-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_5$$UNDERSCORE_DEBUG_SUFFIX \
+        -lIexMath-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_5$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_5$$UNDERSCORE_DEBUG_SUFFIX \
+        -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
+        -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX -lHalf-2_5$$UNDERSCORE_DEBUG_SUFFIX \
+        -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw$$DEBUG_SUFFIX -lopenjp2
     }
     else {
-        DEFINES += USE_PTHREAD
-        SOURCES += src/thread/posixthread.cpp
-        LIBS += -lpthread
-    }
-
-   !CONFIG(nofreeimage) {
-        DEFINES += USE_FREEIMAGE
-        SOURCES += src/gfx/freeimage.cpp
-
-        macx {
+        macx{
             INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/FreeImage/Source
             LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
         }
         else {
-            vcpkg:LIBS += -lfreeimage$$DEBUG_SUFFIX
-            !vcpkg:LIBS += -lfreeimage
-        }
-
-        vcpkg {
-            LIBS += -ljpeg$$DEBUG_SUFFIX -ltiff$$DEBUG_SUFFIX -llibpng16$$DEBUG_SUFFIX \
-            -lIlmImf-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_3$$UNDERSCORE_DEBUG_SUFFIX \
-            -lIexMath-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_3$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_3$$UNDERSCORE_DEBUG_SUFFIX \
-            -llibwebpmux$$DEBUG_SUFFIX -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
-            -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX -lHalf-2_3$$UNDERSCORE_DEBUG_SUFFIX \
-            -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw$$DEBUG_SUFFIX -lopenjp2
+            exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.so.3) {
+                LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.so.3
+            }
+            else {
+                LIBS += -lfreeimage
+            }
         }
     }
 }
@@ -535,10 +594,13 @@ vcpkg {
     INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libsodium
 
     CONFIG(USE_CURL) {
-        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
+        !macx:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
         INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/cares
         win32:LIBS +=  -llibcurl$$DASH_DEBUG_SUFFIX -lcares -llibcrypto -llibssl
-        else:LIBS +=  -lcurl$$DASH_DEBUG_SUFFIX -lcares -lcrypto -lssl
+        else {
+            LIBS +=  -lcurl$$DASH_DEBUG_SUFFIX -lcares
+            !macx:LIBS += -lcrypto -lssl
+        }
     }
 
     CONFIG(USE_PCRE) {
@@ -701,4 +763,27 @@ macx {
    LIBS += -framework SystemConfiguration
    
    vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
+}
+
+# DriveNotify settings
+CONFIG(USE_DRIVE_NOTIFICATIONS) {
+    DEFINES += USE_DRIVE_NOTIFICATIONS
+    SOURCES += src/drivenotify.cpp
+
+    win32 {
+        # Allegedly not supported by non-msvc compilers.
+        HEADERS += include/mega/win32/drivenotifywin.h
+        SOURCES += src/win32/drivenotifywin.cpp
+        LIBS += -lwbemuuid
+    }
+    unix:!macx {
+        HEADERS += include/mega/posix/drivenotifyposix.h
+        SOURCES += src/posix/drivenotifyposix.cpp
+        LIBS += -ludev
+    }
+    macx {
+        HEADERS += include/mega/osx/drivenotifyosx.h
+        SOURCES += src/osx/drivenotifyosx.cpp
+        LIBS += -framework DiskArbitration -framework CoreFoundation
+    }
 }

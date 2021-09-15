@@ -119,7 +119,7 @@ struct MEGA_API MediaFileInfo
     // In case we don't have the MediaCodecs yet, remember the media attributes until we can add them to the file.
     struct queuedvp;
     std::vector< queuedvp > queuedForDownloadTranslation;
-    std::map<handle, queuedvp> uploadFileAttributes;
+    std::map<UploadHandle, queuedvp> uploadFileAttributes;
 
     // request MediaCodecs from Mega.  Only do this the first time we know we will need them.
     void requestCodecMappingsOneTime(MegaClient* client, LocalPath* ifSuitableFilename);
@@ -128,11 +128,11 @@ struct MEGA_API MediaFileInfo
     void ReadIdRecords(std::map<std::string, unsigned>&  data, JSON& json);
 
     // get the cached media attributes for a file just before sending CommandPutNodes (for a newly uploaded file)
-    void addUploadMediaFileAttributes(handle& fh, std::string* s);
+    void addUploadMediaFileAttributes(UploadHandle fh, std::string* s);
 
     // we figured out the properties, now attach them to a file.  Queues the action if we don't have the MediaCodecs yet.  Works for uploaded or downloaded files.
-    unsigned queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle uploadHandle);
-    void sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle fileHandle);
+    unsigned queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, UploadHandle uploadHandle);
+    void sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, NodeHandle fileHandle);
 
     // Check if we should retry video property extraction, due to previous failure with older library
     bool timeToRetryMediaPropertyExtraction(const std::string& fileattributes, uint32_t fakey[4]);
@@ -143,7 +143,7 @@ struct MEGA_API MediaFileInfo
 struct MediaFileInfo::queuedvp
 {
     // for a download it is the handle of the node of the file.  For uploads that doesn't exist yet and it is the uploadHandle of the transfer
-    ::mega::handle handle;
+    NodeOrUploadHandle handle;
 
     // The properties to upload. These still need translation from strings to enums, plus file attribute encoding and encryption with XXTEA
     MediaProperties vp;

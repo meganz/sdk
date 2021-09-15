@@ -193,7 +193,7 @@ int main()
 
 #ifdef HAVE_LIBUV
 	std::cout << "Do you want to enable the local HTTP server (y/n)?" << std::endl;
-	char c = getchar();
+	int c = getchar();
 	if (c == 'y' || c == 'Y')
 	{
 		megaApi->httpServerStart();

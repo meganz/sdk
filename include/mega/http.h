@@ -22,6 +22,7 @@
 #ifndef MEGA_HTTP_H
 #define MEGA_HTTP_H 1
 
+#include <atomic>
 #include "types.h"
 #include "waiter.h"
 #include "backofftimer.h"
@@ -33,7 +34,12 @@
 #include <netdb.h>
 #else
 #include <winsock2.h>
+#pragma warning(push)
+#pragma warning( disable : 4459 )
+// um\ws2tcpip.h(738,14): warning C4459: declaration of 'Error' hides global declaration
+// winrt\AsyncInfo.h(77,52): message : see declaration of 'Error'
 #include <ws2tcpip.h>
+#pragma warning(pop)
 #endif
 
 #ifdef __FreeBSD__
@@ -128,6 +134,10 @@ protected:
     dstime mLastRequestUpdate = 0;
 };
 
+extern std::mutex g_APIURL_default_mutex;
+extern string g_APIURL_default;
+extern bool g_disablepkp_default;
+
 // generic host HTTP I/O interface
 struct MEGA_API HttpIO : public EventTrigger
 {
@@ -183,6 +193,12 @@ struct MEGA_API HttpIO : public EventTrigger
     // connection timeout (ds)
     static const int CONNECTTIMEOUT;
 
+    // root URL for API requests
+    string APIURL;
+
+    // disable public key pinning (for testing purposes) (determines if we check the public key from APIURL)
+    bool disablepkp = false;
+
     // set useragent (must be called exactly once)
     virtual void setuseragent(string*) = 0;
 
@@ -206,6 +222,8 @@ struct MEGA_API HttpIO : public EventTrigger
 
     // get max upload speed
     virtual m_off_t getmaxuploadspeed();
+
+    virtual bool cacheresolvedurls(const std::vector<string>&, std::vector<string>&&) { return false; }
 
     HttpIO();
     virtual ~HttpIO() { }

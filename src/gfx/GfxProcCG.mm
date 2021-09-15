@@ -20,7 +20,6 @@
  */
 
 #include "mega.h"
-#include "GfxProcCG.h"
 #include <CoreGraphics/CGBitmapContext.h>
 #include <ImageIO/CGImageDestination.h>
 #include <MobileCoreServices/UTCoreTypes.h>
@@ -31,6 +30,8 @@
 #import <MobileCoreServices/UTType.h>
 
 using namespace mega;
+
+#ifndef USE_FREEIMAGE
 
 GfxProcCG::GfxProcCG()
     : GfxProc()
@@ -62,7 +63,7 @@ const char* GfxProcCG::supportedformats() {
     if ([[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleExecutable"] isEqualToString:@"MEGAFiles"]) {
         return "";
     }
-    return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.";
+    return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.webp.";
 }
 
 bool GfxProcCG::readbitmap(FileAccess* fa, const LocalPath& name, int size) {
@@ -222,6 +223,8 @@ void GfxProcCG::freebitmap() {
     }
     w = h = 0;
 }
+
+#endif
 
 void ios_statsid(std::string *statsid) {
     NSMutableDictionary *queryDictionary = [[NSMutableDictionary alloc] init];
