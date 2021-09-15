@@ -187,6 +187,74 @@ public:
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
 };
 
+class RemotePath
+{
+public:
+    // Create an empty path.
+    RemotePath() = default;
+
+    // Create a remote path from a string.
+    RemotePath(const string& path);
+
+    MEGA_DEFAULT_COPY_MOVE(RemotePath);
+
+    // For convenience.
+    RemotePath& operator=(const string& rhs);
+
+    // Compare this path against another.
+    bool operator==(const RemotePath& rhs) const;
+    bool operator==(const string& rhs) const;
+
+    // Return a string representing this path.
+    operator const string&() const;
+
+    // Add a component to the end of this path.
+    void appendWithSeparator(const RemotePath& component, bool always);
+
+    // Query whether the path begins with a separator.
+    bool beginsWithSeparator() const;
+
+    // Clear the path.
+    void clear();
+
+    // Query whether the path is empty.
+    bool empty() const;
+
+    // Query whether the path ends with a separator.
+    bool endsInSeparator() const;
+
+    // Locate the next path separator.
+    bool findNextSeparator(size_t& index) const;
+
+    // Query whether the path has any further components.
+    bool hasNextPathComponent(size_t index) const;
+
+    // Retrieve the next path component.
+    bool nextPathComponent(size_t& index, RemotePath& component) const;
+
+    // Add a path component to the start of this path.
+    void prependWithSeparator(const RemotePath& component);
+
+    // Return a string representing this path.
+    const string& str() const;
+
+    // Create a new path based on a portion of another.
+    RemotePath subpathFrom(size_t index) const;
+    RemotePath subpathTo(size_t index) const;
+
+    // For compatibility with LocalPath.
+    //
+    // Useful when we're metaprogramming and don't knwo whether the type
+    // provided by the caller is a local or remote path.
+    const string &toName(const FileSystemAccess&) const;
+
+private:
+    string mPath;
+}; // RemotePath
+
+// For convenience.
+using RemotePathPair = pair<RemotePath, RemotePath>;
+
 struct NameConflict {
     string cloudPath;
     vector<string> clashingCloudNames;

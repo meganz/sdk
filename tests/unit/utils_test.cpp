@@ -1368,3 +1368,56 @@ TEST(JSON, NullValue)
     EXPECT_EQ(0, strcmp(j.pos, "\"json\"}remainder"));
 }
 
+TEST(RemotePath, nextPathComponent)
+{
+    // Absolute path.
+    {
+        RemotePath path("/a/b/");
+
+        RemotePath component;
+        size_t index = 0;
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "a");
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "b");
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+
+        // Sanity.
+        path = RemotePath("/");
+
+        index = 0;
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+    }
+
+    // Relative path.
+    {
+        RemotePath path("a/b/");
+
+        RemotePath component;
+        size_t index = 0;
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "a");
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "b");
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+
+        // Sanity.
+        path = RemotePath("");
+
+        index = 0;
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+    }
+}
+
