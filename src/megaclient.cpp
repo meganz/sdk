@@ -2148,19 +2148,18 @@ void MegaClient::exec()
 
                 // fall through
             case REQ_FAILURE:
-//TODO: uncomment this
-                //if (pendingscUserAlerts->httpstatus == 200)
-                //{
-                //    error e = (error)atoi(pendingscUserAlerts->in.c_str());
-                //    if (e == API_EAGAIN || e == API_ERATELIMIT)
-                //    {
-                //        btsc.backoff();
-                //        pendingscUserAlerts.reset();
-                //        LOG_warn << "Backing off before retrying useralerts request: " << btsc.retryin();
-                //        break;
-                //    }
-                //    LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
-                //}
+                if (pendingscUserAlerts->httpstatus == 200)
+                {
+                    error e = (error)atoi(pendingscUserAlerts->in.c_str());
+                    if (e == API_EAGAIN || e == API_ERATELIMIT)
+                    {
+                        btsc.backoff();
+                        pendingscUserAlerts.reset();
+                        LOG_warn << "Backing off before retrying useralerts request: " << btsc.retryin();
+                        break;
+                    }
+                    LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
+                }
                 LOG_warn << "Useralerts request failed, continuing without them";
 
                 if (useralerts.begincatchup)
@@ -3511,22 +3510,6 @@ bool MegaClient::isFetchingNodesPendingCS()
     return pendingcs && pendingcs->includesFetchingNodes;
 }
 
-
-// TODO: merge this code to enableSync
-//void MegaClient::resumeResumableSyncs()
-//
-//                if (newstate == SYNC_DISABLED && config.getError() == PAUSED)
-//                {
-//                    // Paused syncs remain paused on startup.
-//                    s->changestate(SYNC_DISABLED, PAUSED);
-//                    syncError = PAUSED;
-//                }
-//                else
-//                {
-//                    // Otherwise, state reflects the sync.
-//                }
-
-
 // determine next scheduled transfer retry
 void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
 {
@@ -4014,10 +3997,6 @@ bool MegaClient::procsc()
                             }
 
                             enabletransferresumption();
-#ifdef ENABLE_SYNC
-                            nodeTreeIsChanging.unlock();
-                            syncs.resumeResumableSyncsOnStartup(false, nullptr);   // todo: should we make this synchronous?
-#endif
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 
@@ -4033,7 +4012,14 @@ bool MegaClient::procsc()
 
                         statecurrent = true;
                         app->nodes_current();
-                        LOG_debug << "Local filesystem up to date";
+                        LOG_debug << "Cloud node tree up to date";
+
+#ifdef ENABLE_SYNC
+                        // Don't start sync activity until `statecurrent` as it could take actions based on old state
+                        // The reworked sync code can figure out what to do once fully up to date.
+                        nodeTreeIsChanging.unlock();
+                        syncs.resumeResumableSyncsOnStartup(false, nullptr);
+#endif
 
                         if (notifyStorageChangeOnStateCurrent)
                         {
@@ -11743,10 +11729,6 @@ void MegaClient::fetchnodes(bool nocache)
             }
 
             enabletransferresumption();
-
-#ifdef ENABLE_SYNC
-            syncs.resumeResumableSyncsOnStartup(true, nullptr);  // todo: should we make this synchronous?
-#endif
             app->fetchnodes_result(API_OK);
 
             loadAuthrings();
