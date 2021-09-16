@@ -20159,7 +20159,14 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, bu ? bu->nodecipher(client) : node->nodecipher(), nextTag, std::move(attributedata));
+                SymmCipher *cipher = bu ? bu->nodecipher(client) : node->nodecipher();
+                if (!cipher)
+                {
+                    e = API_EKEY;
+                    break;
+                }
+
+                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, cipher, nextTag, std::move(attributedata));
             }
             break;
         }
