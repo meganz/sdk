@@ -1830,7 +1830,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     // exist or is newer
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
-        h = NodeHandle().set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
+        h = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
     }
     else
     {

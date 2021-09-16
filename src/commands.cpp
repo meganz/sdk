@@ -1351,7 +1351,7 @@ bool CommandMoveNode::procresult(Result r)
                 {
                     Node *tn = NULL;
                     if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
-                            || !(tn = client->nodebyhandle(client->rootnodes[RUBBISHNODE - ROOTNODE])))
+                            || !(tn = client->nodeByHandle(client->rootnodes[RUBBISHNODE - ROOTNODE])))
                     {
                         LOG_err << "Error moving node to the Rubbish Bin";
                         syncn->syncdeleted = SYNCDEL_NONE;

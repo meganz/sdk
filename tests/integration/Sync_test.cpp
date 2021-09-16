@@ -1363,7 +1363,7 @@ struct StandardClient : public MegaApp
                 else
                 {
                     TreeProcPrintTree tppt;
-                    client.proctree(client.nodebyhandle(client.rootnodes[0]), &tppt);
+                    client.proctree(client.nodeByHandle(client.rootnodes[0]), &tppt);
 
                     if (onFetchNodes)
                     {
@@ -1415,7 +1415,7 @@ struct StandardClient : public MegaApp
 
     void deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb)
     {
-        if (Node* root = client.nodebyhandle(client.rootnodes[0]))
+        if (Node* root = client.nodeByHandle(client.rootnodes[0]))
         {
             if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
             {
@@ -1448,7 +1448,7 @@ struct StandardClient : public MegaApp
 
     void ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
     {
-        if (Node* root = client.nodebyhandle(client.rootnodes[0]))
+        if (Node* root = client.nodeByHandle(client.rootnodes[0]))
         {
             if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
             {
@@ -1600,7 +1600,7 @@ struct StandardClient : public MegaApp
 
     Node* getcloudrootnode()
     {
-        return client.nodebyhandle(client.rootnodes[0]);
+        return client.nodeByHandle(client.rootnodes[0]);
     }
 
     Node* gettestbasenode()
@@ -1610,7 +1610,7 @@ struct StandardClient : public MegaApp
 
     Node* getcloudrubbishnode()
     {
-        return client.nodebyhandle(client.rootnodes[RUBBISHNODE - ROOTNODE]);
+        return client.nodeByHandle(client.rootnodes[RUBBISHNODE - ROOTNODE]);
     }
 
     Node* drillchildnodebyname(Node* n, const string& path)
@@ -1853,7 +1853,7 @@ struct StandardClient : public MegaApp
         {
             ms.emplace(m->cloudName(), m.get());
         }
-        for (auto& n2 : n->children)
+        for (auto& n2 : client.getChildren(n))
         {
             ns.emplace(n2->displayname(), n2);
         }
@@ -2791,7 +2791,7 @@ struct StandardClient : public MegaApp
             return;
         }
 
-        const auto* destination = client.nodeByHandle(info.h);
+        auto* destination = client.nodeByHandle(info.h);
         result->set_value(destination && match(*destination, *source));
     }
 
@@ -2822,16 +2822,16 @@ struct StandardClient : public MegaApp
         return false;
     }
 
-    bool match(const Node& destination, const Model::ModelNode& source) const
+    bool match(Node& destination, const Model::ModelNode& source)
     {
-        list<pair<const Node*, decltype(&source)>> pending;
+        list<pair<Node*, decltype(&source)>> pending;
 
         pending.emplace_back(&destination, &source);
 
         for ( ; !pending.empty(); pending.pop_front())
         {
-            const auto& dn = *pending.front().first;
-            const auto& sn = *pending.front().second;
+            auto& dn = *pending.front().first;
+            auto& sn = *pending.front().second;
 
             // Nodes must have matching types.
             if (!sn.typematchesnodetype(dn.type)) return false;
@@ -2843,7 +2843,7 @@ struct StandardClient : public MegaApp
             map<string, decltype(&sn), CloudNameLess> sc;
 
             // Index children for pairing.
-            for (const auto* child : dn.children)
+            for (auto* child : client.getChildren(&dn))
             {
                 auto result = dc.emplace(child->displayname(), child);
 
@@ -4380,7 +4380,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
 
-    auto targethandle = NodeHandle().set6byte(standardclient.client.rootnodes[0]);
+    auto targethandle = standardclient.client.rootnodes[0];
 
     std::atomic<bool> putnodesDone{false};
     standardclient.resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
@@ -4773,7 +4773,8 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     {
         matched &= *f == **i++;
 
-        f = f->children.empty() ? nullptr : f->children.front();
+        node_list children = c.client.getChildren(f);
+        f = children.empty() ? nullptr : children.front();
     }
 
     matched &= !f && i == fingerprints.crend();
@@ -7596,7 +7597,7 @@ struct TwoWaySyncSymmetryCase
         prefix += string("/") + n->displayname();
         out() << prefix;
         if (n->type == FILENODE) return;
-        for (auto& c : n->children)
+        for (auto& c : client1().client.getChildren(n))
         {
             PrintRemoteTree(c, prefix);
         }

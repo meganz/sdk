@@ -7336,7 +7336,7 @@ void MegaClient::notifypurge(void)
 #ifdef ENABLE_SYNC
 
         //update sync root node location and trigger failing cases
-        handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+        NodeHandle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
         // check for renamed/moved sync root folders
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
@@ -7364,7 +7364,7 @@ void MegaClient::notifypurge(void)
                     auto p = n->parent;
                     while (p)
                     {
-                        if (p->nodehandle == rubbishHandle)
+                        if (p->nodehandle == rubbishHandle.as8byte())
                         {
                             syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
                             break;
@@ -13732,7 +13732,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     Node* n = remotenode;
     bool inshare = false;
 
-    handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+    NodeHandle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
 
     do {
         bool anyAbove = false;
@@ -13770,7 +13770,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
             inshare = true;
         }
 
-        if (n->nodehandle == rubbishHandle)
+        if (n->nodehandle == rubbishHandle.as8byte())
         {
             if(syncError)
             {
@@ -15680,7 +15680,7 @@ void MegaClient::execmovetosyncdebris()
     // - //bin
 
     // (if no rubbish bin is found, we should probably reload...)
-    if (!(tn = nodebyhandle(rootnodes[RUBBISHNODE - ROOTNODE])))
+    if (!(tn = nodeByHandle(rootnodes[RUBBISHNODE - ROOTNODE])))
     {
         return;
     }
