@@ -357,7 +357,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
-    mApi[apiIndex].requestFlags[request->getType()] = true;
     mApi[apiIndex].lastError = e->getErrorCode();
 
     // there could be a race on these getting set?
@@ -579,7 +578,17 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             mMegaFavNodeList.reset(request->getMegaHandleList()->copy());
         }
         break;
+
+    case MegaRequest::TYPE_GET_PRICING:
+        mApi[apiIndex].mMegaPricing.reset(mApi[apiIndex].lastError == API_OK ? request->getPricing() : nullptr);
+        mApi[apiIndex].mMegaCurrency.reset(mApi[apiIndex].lastError == API_OK ? request->getCurrency() : nullptr);
+            break;
+
     }
+
+    // set this flag always the latest, since it is used to unlock the wait
+    // for requests results, so we want data to be collected first
+    mApi[apiIndex].requestFlags[request->getType()] = true;
 }
 
 void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
@@ -4914,6 +4923,17 @@ TEST_F(SdkTest, SdkMediaUploadTest)
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
 #endif
 
+}
+
+TEST_F(SdkTest, SdkGetPricing)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST GetPricing___";
+
+    auto err = synchronousGetPricing(0);
+    ASSERT_TRUE(err == MegaError::API_OK) << "Get pricing failed (error: " << err << ")";
+
+    ASSERT_TRUE(strcmp(mApi[0].mMegaCurrency->getCurrencyName(), "EUR") == 0) << "Unexpected currency";
 }
 
 TEST_F(SdkTest, SdkGetBanners)

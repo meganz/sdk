@@ -7791,9 +7791,21 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
+void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, std::unique_ptr<BusinessPlan>)
 {
     // FIXME: implement
+}
+
+void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
+{
+    cout << "Currency data: " << endl;
+    cout << "\tName: " << data->currencyName;
+    cout << "\tSymbol: " << Base64::atob(data->currencySymbol);
+    if (data->localCurrencyName.size())
+    {
+        cout << "\tName (local): " << data->localCurrencyName;
+        cout << "\tSymbol (local): " << Base64::atob(data->localCurrencySymbol);
+    }
 }
 
 void DemoApp::enumeratequotaitems_result(error)
