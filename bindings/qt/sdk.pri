@@ -553,7 +553,7 @@ else {
             LIBS += -lpng16$$DEBUG_SUFFIX -lwebpmux$$DEBUG_SUFFIX
         }
 
-        LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX -ltiff$$DEBUG_SUFFIX \
+        LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX_WO -ltiff$$DEBUG_SUFFIX \
         -lIlmImf-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_5$$UNDERSCORE_DEBUG_SUFFIX \
         -lIexMath-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_5$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_5$$UNDERSCORE_DEBUG_SUFFIX \
         -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \

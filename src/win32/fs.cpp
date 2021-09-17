@@ -1351,6 +1351,7 @@ bool WinDirNotify::fsstableids() const
         }
     }
     LOG_err << "Failed to get filesystem type. Error code: " << GetLastError();
+    assert(false);
     return true;
 }
 
@@ -1557,7 +1558,7 @@ void WinDirNotify::notifierThreadFunction()
 }
 
 WinDirNotify::WinDirNotify(const LocalPath& localbasepathParam, const LocalPath& ignore, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot)
-    : DirNotify(localbasepath, ignore, syncroot->sync)
+    : DirNotify(localbasepathParam, ignore, syncroot->sync)
     , localrootnode(syncroot)
 {
     fsaccess = owner;

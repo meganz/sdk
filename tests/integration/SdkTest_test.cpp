@@ -137,6 +137,16 @@ std::string megaApiCacheFolder(int index)
         assert(fileexists(p));
 #endif
 
+    } else
+    {
+        std::unique_ptr<DirAccess> da(fileSystemAccess.newdiraccess());
+        auto lp = LocalPath::fromPath(p, fileSystemAccess);
+        if (!da->dopen(&lp, nullptr, false))
+        {
+            throw std::runtime_error(
+                        "Cannot open existing mega API cache folder " + p
+                        + " please check permissions or delete it so a new one can be created");
+        }
     }
     return p;
 }
@@ -357,7 +367,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
-    mApi[apiIndex].requestFlags[request->getType()] = true;
     mApi[apiIndex].lastError = e->getErrorCode();
 
     // there could be a race on these getting set?
@@ -567,17 +576,23 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         mBackupId = request->getParentHandle();
         break;
 
-    case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
-        mApi[apiIndex].mStringMap.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaStringMap()->copy() : nullptr);
-            break;
-
     case MegaRequest::TYPE_GET_ATTR_NODE:
         if (mApi[apiIndex].lastError == API_OK)
         {
             mMegaFavNodeList.reset(request->getMegaHandleList()->copy());
         }
         break;
+
+    case MegaRequest::TYPE_GET_PRICING:
+        mApi[apiIndex].mMegaPricing.reset(mApi[apiIndex].lastError == API_OK ? request->getPricing() : nullptr);
+        mApi[apiIndex].mMegaCurrency.reset(mApi[apiIndex].lastError == API_OK ? request->getCurrency() : nullptr);
+            break;
+
     }
+
+    // set this flag always the latest, since it is used to unlock the wait
+    // for requests results, so we want data to be collected first
+    mApi[apiIndex].requestFlags[request->getType()] = true;
 }
 
 void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
@@ -2515,6 +2530,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
  * - Share a folder with an existing contact
  * - Check the correctness of the outgoing share
  * - Check the reception and correctness of the incoming share
+ * - Move a shared file (not owned) to Rubbish bin
  * - Modify the access level
  * - Revoke the access to the share
  * - Share a folder with a non registered email
@@ -2541,6 +2557,7 @@ TEST_F(SdkTest, SdkTestShares)
     // Create some nodes to share
     //  |--Shared-folder
     //    |--subfolder
+    //      |--file.txt
     //    |--file.txt
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
@@ -2561,6 +2578,9 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get())) << "Cannot upload a test file";
 
     hfile1 = mApi[0].h;
+
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get())) << "Cannot upload a second test file";
+    MegaHandle hfile2 = mApi[0].h;
 
 
     // --- Download authorized node from another account ---
@@ -2605,7 +2625,7 @@ TEST_F(SdkTest, SdkTestShares)
     // --- Create a new outgoing share ---
 
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_READ) );
+    ASSERT_NO_FATAL_FAILURE( shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_FULL) );
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
@@ -2620,7 +2640,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     n1 = megaApi[0]->getNodeByHandle(hfolder1);    // get an updated version of the node
 
-    ASSERT_EQ(MegaShare::ACCESS_READ, s->getAccess()) << "Wrong access level of outgoing share";
+    ASSERT_EQ(MegaShare::ACCESS_FULL, s->getAccess()) << "Wrong access level of outgoing share";
     ASSERT_EQ(hfolder1, s->getNodeHandle()) << "Wrong node handle of outgoing share";
     ASSERT_STREQ(mApi[1].email.data(), s->getUser()) << "Wrong email address of outgoing share";
     ASSERT_TRUE(n1->isShared()) << "Wrong sharing information at outgoing share";
@@ -2640,9 +2660,21 @@ TEST_F(SdkTest, SdkTestShares)
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
     ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_READ).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
+
+    // --- Move shared file (not owned) to Rubbish bin ---
+    mApi[1].requestFlags[MegaRequest::TYPE_MOVE] = false;
+    MegaNode* fileNode2 = megaApi[0]->getNodeByHandle(hfile2);
+    megaApi[1]->moveNode(fileNode2, megaApi[1]->getRubbishNode());
+    ASSERT_TRUE(waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_MOVE]))
+        << "Move operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Moving shared file (not owned) to Rubbish bin failed (error: " << mApi[1].lastError << ")";
+
+    // --- Test that file in Rubbish bin can be restored ---
+    MegaNode* nodeMovedFile = megaApi[1]->getNodeByHandle(mApi[1].h);
+    ASSERT_EQ(nodeMovedFile->getRestoreHandle(), hfolder2) << "Incorrect restore handle for file in Rubbish Bin";
 
     delete nl;
 
@@ -4989,6 +5021,17 @@ TEST_F(SdkTest, SdkMediaUploadTest)
 
 }
 
+TEST_F(SdkTest, SdkGetPricing)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST GetPricing___";
+
+    auto err = synchronousGetPricing(0);
+    ASSERT_TRUE(err == MegaError::API_OK) << "Get pricing failed (error: " << err << ")";
+
+    ASSERT_TRUE(strcmp(mApi[0].mMegaCurrency->getCurrencyName(), "EUR") == 0) << "Unexpected currency";
+}
+
 TEST_F(SdkTest, SdkGetBanners)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -5763,27 +5806,6 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     fs::remove_all(uploadpath, ec);
     fs::remove_all(downloadpath, ec);
 }
-
-/* Google ads are no longer supported by the API
-TEST_F(SdkTest, QueryGoogleAds)
-{
-    LOG_info << "___TEST QueryGoogleAds";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    int err = synchronousQueryGoogleAds(0, MegaApi::GOOGLE_ADS_FORCE_ADS);
-    ASSERT_EQ(MegaError::API_OK, err) << "Query Google Ads failed (error: " << err << ")";
-}
-
-TEST_F(SdkTest, FetchGoogleAds)
-{
-    LOG_info << "___TEST FetchGoogleAds";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
-    stringList->add("and0");
-    stringList->add("ios0");
-    int err = synchronousFetchGoogleAds(0, MegaApi::GOOGLE_ADS_FORCE_ADS, stringList.get());
-    ASSERT_EQ(MegaError::API_OK, err) << "Fetch Google Ads failed (error: " << err << ")";
-    ASSERT_EQ(mApi[0].mStringMap->size(), 2);
-}*/
 
 #ifdef ENABLE_SYNC
 
