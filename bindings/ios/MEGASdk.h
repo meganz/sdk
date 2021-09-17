@@ -4530,6 +4530,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
+ * - [MEGARequest currency] - MEGACurrency object with currency data related to prices
  *
  * @param delegate Delegate to track this request.
  *
@@ -4548,6 +4549,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
+ * - [MEGARequest currency] - MEGACurrency object with currency data related to prices 
  *
  * @see [MEGASdk getPaymentIdForProductHandle:].
  */
