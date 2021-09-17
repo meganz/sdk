@@ -164,6 +164,18 @@ Node::~Node()
     delete sharekey;
 }
 
+
+Node* Node::childbyname(const string& name)
+{
+    for (auto* child : children)
+    {
+        if (child->hasName(name))
+            return child;
+    }
+
+    return nullptr;
+}
+
 /// it's a nice idea but too simple - what about cases where the key is missing or just not available yet (and hence attrs not decrypted yet), etc
 //string Node::name() const
 //{
@@ -1274,6 +1286,21 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
 
     LocalTreeProcUpdateTransfers tput;
     tput.proc(*sync->syncs.fsaccess, ln);
+
+    ln->mFilterChain = mFilterChain;
+    ln->mFilterFingerprint = mFilterFingerprint;
+    ln->mLoadFailed = mLoadFailed;
+    ln->mLoadPending = mLoadPending;
+
+    // Did we or any of our children fail to load an ignore file?
+    if (mLoadFailed > 0)
+    {
+        // Yes so make sure our parents know.
+        ln->parent->setLoadFailedBelow();
+    }
+
+    // Make sure our exclusion state is recomputed.
+    ln->setRecomputeExclusionState();
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
@@ -1344,15 +1371,29 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 
     bumpnagleds();
 
+    mLoadFailed = TREE_RESOLVED;
+    mLoadPending = false;
+
     if (cparent)
     {
         setnameparent(cparent, cfullpath.leafName(), std::move(shortname));
+
+        mIsIgnoreFile = type == FILENODE && localname == IGNORE_FILE_NAME;
+
+        auto excluded = parent->isExcluded(localname, type);
+
+        mExcluded = excluded < 0;
+        mRecomputeExclusionState = excluded == 0;
     }
     else
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
+    
+        mExcluded = false;
+        mRecomputeExclusionState = false;
     }
+
 
 //#ifdef DEBUG
 //    // double check we were given the right shortname (if the file exists yet)
@@ -2527,6 +2568,330 @@ bool LocalNode::watch(const LocalPath&, handle)
 }
 
 #endif // ! USE_INOTIFY
+
+void LocalNode::clearFilters()
+{
+    // Only for directories.
+    assert(type == FOLDERNODE);
+
+    // Purge all defined filter rules.
+    mFilterChain.clear();
+
+    // No ignore file is loaded.
+    mFilterFingerprint = FileFingerprint();
+
+    // Reset ignore file state.
+    setLoadFailed(false);
+    setLoadPending(false);
+
+    // Re-examine this subtree.
+    setScanAgain(false, true, true, 0);
+    setSyncAgain(false, true, true);
+}
+
+bool LocalNode::loadFilters(const LocalPath& path)
+{
+    // Only meaningful for directories.
+    assert(type == FOLDERNODE);
+
+    // Assume we'll be unable to read the ignore file.
+    auto failed = true;
+
+    // Create a file access so we can read from the local filesystem.
+    auto fileAccess = sync->syncs.fsaccess->newfileaccess(false);
+
+    // Open the ignore file for reading.
+    if (fileAccess->fopen(path, true, false))
+    {
+        // Has the ignore file actually changed?
+        if (mFilterFingerprint.genfingerprint(fileAccess.get()))
+        {
+            // Changed so load the filters.
+            failed = !mFilterChain.load(*fileAccess);
+        }
+        else
+        {
+            // Hasn't changed so no need to update children.
+            return !mLoadPending;
+        }
+    }
+
+    // Let our parents know whether we could load our ignore file.
+    setLoadFailed(failed);
+
+    // Update our load pending state.
+    setLoadPending(failed);
+
+    // Re-examine this subtree.
+    setScanAgain(false, true, true, 0);
+    setSyncAgain(false, true, true);
+
+    return !failed;
+}
+
+bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const
+{
+    // This specialization only makes sense for directories.
+    assert(this->type == FOLDERNODE);
+
+    // Check whether the file is excluded by any filters.
+    for (auto* node = this; node; node = node->parent)
+    {
+        // Sanity: We should never have been called if either of these are true.
+        assert(!node->mExcluded);
+        assert(!node->mRecomputeExclusionState);
+
+        // Should we only consider inheritable filter rules?
+        inherited = inherited || node != this;
+
+        // Check for a filter match.
+        auto result = node->mFilterChain.match(namePath, type, inherited);
+
+        // Was the file matched by any filters?
+        if (result.matched)
+            return !result.included;
+
+        // Compute the node's cloud name.
+        auto name = node->localname.toName(*sync->syncs.fsaccess);
+
+        // Update path so that it's applicable to the next node's path filters.
+        namePath.second.prependWithSeparator(name);
+    }
+
+    // File's included.
+    return false;
+}
+
+bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
+{
+    // Specialization only meaningful for directories.
+    assert(type == FOLDERNODE);
+
+    // We should never be called if the size is unknown.
+    assert(size >= 0);
+
+    // Check whether this file is excluded by any size filters.
+    for (auto* node = this; node; node = node->parent)
+    {
+        // Sanity: We should never be called if either of these is true.
+        assert(!node->mExcluded);
+        assert(!node->mRecomputeExclusionState);
+
+        // Check for a filter match.
+        auto result = node->mFilterChain.match(size);
+        
+        // Was the file matched by any filters?
+        if (result.matched)
+            return !result.included;
+    }
+
+    // File's included.
+    return false;
+}
+
+bool LocalNode::setLoadFailed(bool failed)
+{
+    // Only meaningful for directories.
+    assert(type == FOLDERNODE);
+
+    // Is this node's fail state actually changing?
+    if (loadFailedHere() == failed)
+        return false;
+
+    // Clear the bit only if necessary.
+    if (!failed)
+    {
+        mLoadFailed &= ~TREE_ACTION_HERE;
+        return true;
+    }
+
+    mLoadFailed |= TREE_ACTION_HERE;
+
+    // Let our parent know we couldn't load our ignore file.
+    if (parent)
+        return parent->setLoadFailedBelow();
+
+    // Failure's new so inform the application.
+    sync->syncs.mClient.app->syncupdate_filter_error(sync->getConfig());
+}
+
+void LocalNode::setLoadPending(bool pending)
+{
+    // Only meaningful for directories.
+    assert(type == FOLDERNODE);
+
+    // Do we really need to update our children?
+    if (!mLoadPending)
+    {
+        // Tell our children they need to recompute their state.
+        for (auto& childIt : children)
+            childIt.second->setRecomputeExclusionState();
+    }
+
+    // Apply new pending state.
+    mLoadPending = pending;
+}
+
+bool LocalNode::setLoadFailedBelow()
+{
+    // Only meaningful for directories.
+    assert(type == FOLDERNODE);
+
+    for (auto* node = this; node; node = node->parent)
+    {
+        // No need to continue climbing as the state won't change.
+        if ((node->mLoadFailed & TREE_DESCENDANT_FLAGGED))
+            return false;
+
+        // Let the node know some child failed to load its ignore file.
+        node->mLoadFailed |= TREE_DESCENDANT_FLAGGED;
+    }
+
+    // Failure's new so alert the application.
+    sync->syncs.mClient.app->syncupdate_filter_error(sync->getConfig());
+
+    return true;
+}
+
+void LocalNode::setRecomputeExclusionState()
+{
+    if (mRecomputeExclusionState)
+        return;
+
+    mExcluded = false;
+    mRecomputeExclusionState = true;
+
+    if (type == FILENODE)
+        return;
+
+    list<LocalNode*> pending(1, this);
+
+    while (!pending.empty())
+    {
+        auto& node = *pending.front();
+
+        for (auto& childIt : node.children)
+        {
+            auto& child = *childIt.second;
+
+            if (child.mRecomputeExclusionState)
+                continue;
+
+            child.mExcluded = false;
+            child.mRecomputeExclusionState = true;
+
+            if (child.type == FOLDERNODE)
+                pending.emplace_back(&child);
+        }
+
+        pending.pop_front();
+    }
+}
+
+bool LocalNode::hasParentWithPendingLoad() const
+{
+    for (auto* node = parent; node; node = node->parent)
+    {
+        if (node->mLoadPending)
+            return true;
+    }
+
+    return false;
+}
+
+bool LocalNode::hasPendingLoad() const
+{
+    return mLoadPending || hasParentWithPendingLoad();
+}
+
+
+bool LocalNode::ignoreFileChanged(const FileFingerprint& fingerprint) const
+{
+    // Only meaningful for ignore files.
+    assert(mIsIgnoreFile);
+
+    return parent->mFilterFingerprint != fingerprint;
+}
+
+bool LocalNode::ignoreFileDownloading()
+{
+    // Only meaningful for ignore files.
+    assert(mIsIgnoreFile);
+
+    // Let the parent know it has a pending load.
+    parent->setLoadPending(true);
+}
+
+bool LocalNode::ignoreFileLoad(const LocalPath& path)
+{
+    // Only meaningful for ignore files.
+    assert(mIsIgnoreFile);
+
+    return parent->loadFilters(path);
+}
+
+void LocalNode::ignoreFileRemoved()
+{
+    // Only meaningful for ignore files.
+    assert(mIsIgnoreFile);
+
+    parent->clearFilters();
+}
+
+int LocalNode::isExcluded(const string& name, nodetype_t type) const
+{
+    assert(this->type == FOLDERNODE);
+
+    // Consider providing a specialized implementation to avoid conversion.
+    auto fsAccess = sync->syncs.fsaccess.get();
+    auto fsType = sync->mFilesystemType;
+    auto localname = LocalPath::fromName(name, *fsAccess, fsType);
+
+    return isExcluded(localname, type);
+}
+
+int LocalNode::isExcluded() const
+{
+    if (mRecomputeExclusionState)
+        return 0;
+
+    if (mExcluded)
+        return -1;
+
+    return 1;
+}
+
+bool LocalNode::isIgnoreFile() const
+{
+    return mIsIgnoreFile;
+}
+
+bool LocalNode::loadFailedBelow() const
+{
+    return mLoadFailed & TREE_DESCENDANT_FLAGGED;
+}
+
+bool LocalNode::loadFailedHere() const
+{
+    return mLoadFailed & TREE_ACTION_HERE;
+}
+
+bool LocalNode::recomputeExclusionState()
+{
+    // We should never be asked to recompute the root's exclusion state.
+    assert(parent);
+
+    // Only recompute the state if it's necessary.
+    if (!mRecomputeExclusionState)
+        return false;
+
+    auto excluded = parent->isExcluded(localname, type);
+
+    mExcluded = excluded < 0;
+    mRecomputeExclusionState = excluded == 0;
+
+    return true;
+}
 
 #endif // ENABLE_SYNC
 

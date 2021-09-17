@@ -26,6 +26,7 @@
 #include "filefingerprint.h"
 #include "file.h"
 #include "attrmap.h"
+#include "syncfilter.h"
 
 namespace mega {
 
@@ -360,6 +361,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
+    Node* childbyname(const string& name);
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -384,8 +387,6 @@ inline bool Node::keyApplied() const
 }
 
 #ifdef ENABLE_SYNC
-
-
 
 enum TREESTATE : unsigned
 {
@@ -678,7 +679,177 @@ struct MEGA_API LocalNode : public Cacheable
     bool watch(const LocalPath& path, handle fsid);
 
 private:
+    // Filter rules applicable below this node.
+    FilterChain mFilterChain;
+    
+    // Fingerprint of the last loaded ignore file.
+    FileFingerprint mFilterFingerprint;
 
+    struct
+    {
+        // Whether this node is excluded.
+        bool mExcluded : 1;
+
+        // Did we or one of our children fail to load an ignore file?
+        unsigned mLoadFailed : 2;
+
+        // Whether we need to reload this node's ignore file.
+        bool mLoadPending : 1;
+
+        // Whether we're an ignore file.
+        bool mIsIgnoreFile : 1;
+
+        // Whether we need to recompute this node's exclusion state.
+        bool mRecomputeExclusionState : 1;
+    };
+
+    // Clears the filters defined by this node.
+    void clearFilters();
+
+    // Load filters from the ignore file identified by path.
+    bool loadFilters(const LocalPath& path);
+
+    // Query whether a file is excluded by a name filter.
+    bool isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const;
+
+    // Query whether a file is excluded by a size filter.
+    bool isExcluded(const RemotePathPair& namePath, m_off_t size) const;
+
+    // Signal whether this node failed to load its ignore file.
+    bool setLoadFailed(bool failed);
+
+    // Signal whether this node needs to load its ignore file.
+    void setLoadPending(bool pending);
+
+    // Signal that an ignore file failed to load below this node.
+    bool setLoadFailedBelow();
+
+    // Signal that this node and its children must recompute their exclusion state.
+    void setRecomputeExclusionState();
+
+public:
+    // Query whether we have a parent with a pending load.
+    bool hasParentWithPendingLoad() const;
+
+    // Query whether this node or a parent has a pending load.
+    bool hasPendingLoad() const;
+
+    // Has this ignore file changed?
+    bool ignoreFileChanged(const FileFingerprint& fingerprint) const;
+
+    // Load this ignore file.
+    bool ignoreFileLoad(const LocalPath& path);
+
+    // Signal that this ignore file is downloading.
+    bool ignoreFileDownloading();
+
+    // Signal that this ignore file has been removed.
+    void ignoreFileRemoved();
+
+    // Query whether a file is excluded by this node or one of its parents.
+    template<typename PathType>
+    typename std::enable_if<IsPath<PathType>::value, int>::type
+    isExcluded(const PathType& path, nodetype_t type) const
+    {
+        // This specialization is only meaningful for directories.
+        assert(this->type == FOLDERNODE);
+
+        // We can't determine our child's exclusion state if we don't know our own.
+        if (mRecomputeExclusionState)
+            return 0;
+
+        // Our children are excluded if we are.
+        if (mExcluded)
+            return -1;
+
+        // Children of unknown type are considered excluded.
+        if (type == TYPE_UNKNOWN)
+            return -1;
+
+        // Tracks whether the child is our own ignore file.
+        auto isIgnoreFile = false;
+
+        // Is the child a file?
+        if (type == FILENODE)
+        {
+            // Is the child our ignore file?
+            isIgnoreFile = path == IGNORE_FILE_NAME;
+        }
+
+        // We can't know the child's state unless our filters are current.
+        if (mLoadPending && !isIgnoreFile)
+            return 0;
+
+        // Computed cloud name and relative cloud path.
+        RemotePathPair namePath;
+
+        // Current path component.
+        PathType component;
+
+        // Check if any intermediary path components are excluded.
+        for (size_t index = 0; path.nextPathComponent(index, component); )
+        {
+            // Compute cloud name.
+            namePath.first = component.toName(*sync->syncs.fsaccess);
+
+            // Compute relative cloud path.
+            namePath.second.appendWithSeparator(namePath.first, false);
+
+            // Have we hit the final path component?
+            if (!path.hasNextPathComponent(index))
+                break;
+
+            // Is this path component excluded?
+            if (isExcluded(namePath, FOLDERNODE, false))
+                return -1;
+        }
+
+        // Which node we should start our search from.
+        auto* node = this;
+
+        // Does the final path component represent a file?
+        if (type == FILENODE)
+        {
+            // Does it represent this node's ignore file?
+            if (namePath.second == IGNORE_FILE_NAME)
+            {
+                // Then start the lookup from our parent so that the ignore file
+                // isn't subject to its own rules.
+                node = parent;
+
+                // If we're the root then the ignore file must be included.
+                if (!node)
+                    return 1;
+            }
+        }
+
+        // Is the file excluded by any name filters?
+        if (node->isExcluded(namePath, type, node != this))
+            return -1;
+
+        // File's included.
+        return 1;
+    }
+
+    // Specialization of above intended for cloud name queries.
+    int isExcluded(const string& name, nodetype_t type) const;
+
+    // Query this node's exclusion state.
+    int isExcluded() const;
+
+    // Query whether this node represents an ignore file.
+    bool isIgnoreFile() const;
+
+    // Query whether a child of this node failed to load an ignore file.
+    bool loadFailedBelow() const;
+
+    // Query whether this node failed to load an ignore file.
+    bool loadFailedHere() const;
+
+    // Recompute this node's exclusion state.
+    bool recomputeExclusionState();
+
+private:
     unique_ptr<RareFields> rareFields;
 
 #ifdef USE_INOTIFY

@@ -64,6 +64,8 @@ bool suppressfiles = false;
 
 typedef ::mega::byte byte;
 
+#define NO_SIZE_FILTER 1
+
 // Creates a temporary directory in the current path
 fs::path makeTmpDir(const int maxTries = 1000)
 {
@@ -10517,7 +10519,9 @@ TEST_F(LocalToCloudFilterFixture, DoesntDownloadIgnoredNodes)
 
         model.addfile("d/f");
         model.addfile("f");
+#ifndef NO_SIZE_FILTER
         model.addfile("g", string(16, '!'));
+#endif // ! NO_SIZE_FILTER
         model.generate(root(*cu) / "root");
 
         ASSERT_TRUE(cu->login_reset_makeremotenodes("x"));
@@ -10543,7 +10547,9 @@ TEST_F(LocalToCloudFilterFixture, DoesntDownloadIgnoredNodes)
 
     remoteTree.addfile("d/f");
     remoteTree.addfile("f");
+#ifndef NO_SIZE_FILTER
     remoteTree.addfile("g", string(16, '!'));
+#endif // ! NO_SIZE_FILTER
 
     // Log in client.
     ASSERT_TRUE(cd->login_fetchnodes());
@@ -11198,13 +11204,17 @@ TEST_F(LocalToCloudFilterFixture, FilterChanged)
     localFS.addfile(".megaignore", "-:*y\nmaxsize:2\n");
     localFS.addfile("fx");
     localFS.addfile("fy");
+#ifndef NO_SIZE_FILTER
     localFS.addfile("fz", "xxx");
+#endif // ! NO_SIZE_FILTER
     localFS.generate(root(*cu) / "root");
 
     // fy should not be present in the remote tree.
     remoteTree = localFS;
     remoteTree.removenode("fy");
+#ifndef NO_SIZE_FILTER
     remoteTree.removenode("fz");
+#endif // ! NO_SIZE_FILTER
 
     // Log in client.
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
@@ -11841,7 +11851,9 @@ TEST_F(LocalToCloudFilterFixture, MoveToIgnoredRubbishesRemote)
     // Setup local FS.
     localFS.addfile("1/.megaignore", "-:f\nmaxsize:1\n");
     localFS.addfile("0/f", "f");
+#ifndef NO_SIZE_FILTER
     localFS.addfile("0/g", "gg");
+#endif // ! NO_SIZE_FILTER
     localFS.generate(root(*cu) / "root");
 
     // Setup remote tree.
@@ -11869,16 +11881,21 @@ TEST_F(LocalToCloudFilterFixture, MoveToIgnoredRubbishesRemote)
 
     localFS.movenode("0/f", "1");
 
+#ifndef NO_SIZE_FILTER
     // Move 0/g to 1/g.
     fs::rename(root(*cu) / "root" / "0" / "g",
                root(*cu) / "root" / "1" / "g");
 
     localFS.movenode("0/g", "1");
+#endif // ! NO_SIZE_FILTER
 
     // Neither 0/f or 1 are present in local or remote tree.
     remoteTree = localFS;
     remoteTree.removenode("1/f");
+
+#ifndef NO_SIZE_FILTER
     remoteTree.removenode("1/g");
+#endif // ! NO_SIZE_FILTER
 
     // Wait for sync to complete.
     waitOnSyncs(cu.get());
@@ -12104,6 +12121,12 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
 
         ASSERT_TRUE(createDataFile(root / "d0" / ".megaignore", "-:x"));
     }
+
+    // Wait for synchronization to complete.
+    waitOnSyncs(cu.get());
+
+    // Did the changes make it to the cloud?
+    ASSERT_TRUE(confirm(*cu, id, model));
 
     // Rename/Replace d1/.megaignore
     {
@@ -12780,7 +12803,9 @@ TEST_F(CloudToLocalFilterFixture, DoesntUploadIgnoredNodes)
     localFS.addfile("db/g.txt", "dbg");
     localFS.addfile("f.txt", "rf");
     localFS.addfile("g.txt", "rg");
+#ifndef NO_SIZE_FILTER
     localFS.addfile("h.txt", "!");
+#endif // NO_SIZE_FILTER
     localFS.generate(root(*cd) / "root");
     localFS.addfile(".megaignore", ignoreFile);
 
@@ -12788,7 +12813,9 @@ TEST_F(CloudToLocalFilterFixture, DoesntUploadIgnoredNodes)
     remoteTree.removenode("da");
     remoteTree.removenode("db/f.txt");
     remoteTree.removenode("f.txt");
+#ifndef NO_SIZE_FILTER
     remoteTree.removenode("h.txt");
+#endif // NO_SIZE_FILTER
 
     // Log in client.
     ASSERT_TRUE(cd->login_fetchnodes());
@@ -13661,8 +13688,10 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
 
     // Set up local FS.
     localFS.addfile("f");
+#ifndef NO_SIZE_FILTER
     localFS.addfile("g");
     localFS.addfile("x/.megaignore", "minsize:2\n");
+#endif // ! NO_SIZE_FILTER
     localFS.addfile(".megaignore", "-:d");
     localFS.generate(root(*cdu) / "root");
 
@@ -13703,20 +13732,25 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
     // Move f to d/f.
     ASSERT_TRUE(cdu->movenode("cdu/f", "cdu/d"));
 
+#ifndef NO_SIZE_FILTER
     // Move g to x/g.
     ASSERT_TRUE(cdu->movenode("cdu/g", "cdu/x"));
+#endif // ! NO_SIZE_FILTER
 
     // f and g should have been moved into the local debris.
     localFS.copynode("f", debrisFilePath("f"));
-    localFS.copynode("g", debrisFilePath("g"));
     localFS.removenode("f");
-    localFS.removenode("g");
 
     // f has moved to d/f in the cloud.
     remoteTree.movenode("f", "d");
 
+#ifndef NO_SIZE_FILTER
+    localFS.copynode("g", debrisFilePath("g"));
+    localFS.removenode("g");
+
     // g has moved to x/g in the cloud.
     remoteTree.movenode("g", "x");
+#endif // ! NO_SIZE_FILTER
 
     // Wait for synchronization to complete.
     waitOnSyncs(cdu.get());

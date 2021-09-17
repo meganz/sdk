@@ -251,7 +251,30 @@ struct syncRow
 
     bool empty() { return !cloudNode && !syncNode && !fsNode && cloudClashingNames.empty() && fsClashingNames.empty(); }
 
+    // What type of sync row is this?
     SyncRowType type() const;
+
+    // Does our ignore file require exclusive processing?
+    bool ignoreFileChanged() const;
+
+    // Signals that our ignore file is changing and requires exclusive processing.
+    void ignoreFileChanging();
+
+    // Can our ignore file be processed alongside other rows?
+    bool ignoreFileStable() const;
+
+    // What is this row's exclusion state?
+    int isExcluded(const syncRow& parentRow) const;
+
+    // Does this row represent an ignore file?
+    bool isIgnoreFile() const;
+
+private:
+    // Cached exclusion state.
+    mutable int mExcluded = INT_MIN;
+
+    // Whether our ignore file requires exclusive processing.
+    bool mIgnoreFileChanged = false;
 };
 
 struct SyncPath
@@ -460,6 +483,7 @@ public:
 
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
+    bool resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
@@ -475,6 +499,12 @@ public:
     bool syncEqual(const CloudNode&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
+    // Check if the node associated with this handle is excluded.
+    int isExcluded(const NodeHandle& handle, nodetype_t type);
+
+    // Check if the node associated with this remote path is excluded.
+    int isExcluded(const RemotePath& path, nodetype_t type);
+
     bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
     bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
 
@@ -482,6 +512,7 @@ public:
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
     bool collectIgnoreFileFailures(list<LocalPath>& paths) const;
+    void collectIgnoreFileFailures(const LocalNode& node, list<LocalPath>& paths) const;
 
     bool collectScanBlocked(list<LocalPath>& paths) const;
     void collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) const;
@@ -1116,9 +1147,43 @@ private:
     enum WhichCloudVersion { EXACT_VERSION, LATEST_VERSION, FOLDER_ONLY };
     bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveSync, WhichCloudVersion);
 
+    // Compute the path of the node associated with this handle.
+    RemotePath lookupCloudNodePath(NodeHandle handle);
+
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 
+    template<typename Predicate>
+    Sync* syncMatching(Predicate&& predicate, bool includePaused)
+    {
+        // Sanity.
+        assert(onSyncThread());
+
+        lock_guard<mutex> guard(mSyncVecMutex);
+
+        for (auto& i : mSyncVec)
+        {
+            // Skip inactive syncs.
+            if (!i->mSync)
+                continue;
+
+            // Optionally skip paused syncs.
+            if (!includePaused && i->mSync->syncPaused)
+                continue;
+
+            // Have we found our lucky sync?
+            if (predicate(*i))
+                return i->mSync.get();
+        }
+
+        // No syncs match our search criteria.
+        return nullptr;
+    }
+
     Sync* syncContainingPath(const LocalPath& path, bool includePaused);
+    Sync* syncContainingPath(const string& path, bool includePaused);
+
+public:
+    LocalNode* localNodeByCloudPath(const RemotePath& path, LocalNode** parent = nullptr, RemotePath* remainderPath = nullptr);
 };
 
 } // namespace

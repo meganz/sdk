@@ -49,7 +49,7 @@ public:
     bool inheritable() const;
 
     // True if this filter matches the string pair p.
-    virtual bool match(const string_pair& p) const = 0;
+    virtual bool match(const RemotePathPair& p) const = 0;
 
 protected:
     StringFilter(MatcherPtr matcher,
@@ -76,7 +76,7 @@ public:
                const bool inclusion,
                const bool inheritable);
 
-    bool match(const string_pair& p) const;
+    bool match(const RemotePathPair& p) const;
 }; /* NameFilter */
 
 class PathFilter
@@ -88,7 +88,7 @@ public:
                const bool inclusion,
                const bool inheritable);
 
-    bool match(const string_pair& p) const;
+    bool match(const RemotePathPair& p) const;
 }; /* PathFilter */
 
 class Matcher
@@ -227,7 +227,7 @@ bool DefaultFilterChain::write(FileSystemAccess& fsAccess,
 
     // Compute path of ignore file.
     auto filePath = rootPath;
-    filePath.appendWithSeparator(IGNORE_FILE_LOCAL_NAME(), false);
+    filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
 
     auto fileAccess = fsAccess.newfileaccess(false);
 
@@ -297,9 +297,13 @@ FilterChain::FilterChain()
 {
 }
 
+FilterChain::FilterChain(const FilterChain& other) = default;
+
 FilterChain::FilterChain(FilterChain&& other) = default;
 
 FilterChain::~FilterChain() = default;
+
+FilterChain& FilterChain::operator=(const FilterChain& rhs) = default;
 
 FilterChain& FilterChain::operator=(FilterChain&& rhs) = default;
 
@@ -377,7 +381,7 @@ bool FilterChain::load(FileAccess& fileAccess)
     return true;
 }
 
-FilterResult FilterChain::match(const string_pair& p,
+FilterResult FilterChain::match(const RemotePathPair& p,
                                 const nodetype_t type,
                                 const bool onlyInheritable) const
 {
@@ -426,32 +430,43 @@ FilterResult FilterChain::match(const m_off_t s) const
     return FilterResult(mSizeFilter->match(t));
 }
 
-#define IGNORE_NAME ".megaignore"
-
 #ifdef _WIN32
-#define TO_PLATFORM_HELPER(x) L ## x
-#define TO_PLATFORM(x) TO_PLATFORM_HELPER(x)
+const LocalPath IgnoreFileName::mLocalName = LocalPath::fromPlatformEncoded(L".megaignore");
 #else // _WIN32
-#define TO_PLATFORM(x) x
+const LocalPath IgnoreFileName::mLocalName = LocalPath::fromPlatformEncoded(".megaignore");
 #endif // ! _WIN32
 
-const LocalPath& IGNORE_FILE_LOCAL_NAME()
-{
-    static const LocalPath name =
-        LocalPath::fromPlatformEncoded(TO_PLATFORM(IGNORE_NAME));
+const RemotePath IgnoreFileName::mRemoteName(".megaignore");
 
-    return name;
+IgnoreFileName::operator const LocalPath&() const
+{
+    return mLocalName;
 }
 
-const string& IGNORE_FILE_NAME()
+IgnoreFileName::operator const RemotePath&() const
 {
-    static const std::string name = IGNORE_NAME;
-
-    return name;
+    return mRemoteName;
 }
 
-#undef TO_PLATFORM
-#undef IGNORE_NAME
+IgnoreFileName::operator const string&() const
+{
+    return mRemoteName;
+}
+
+bool IgnoreFileName::operator==(const LocalPath& rhs) const
+{
+    return mLocalName == rhs;
+}
+
+bool IgnoreFileName::operator==(const RemotePath& rhs) const
+{
+    return mRemoteName == rhs;
+}
+
+bool IgnoreFileName::operator==(const string& rhs) const
+{
+    return mRemoteName == rhs;
+}
 
 SizeFilter::SizeFilter()
   : lower(0)
@@ -521,7 +536,7 @@ NameFilter::NameFilter(MatcherPtr matcher,
 {
 }
 
-bool NameFilter::match(const string_pair& p) const
+bool NameFilter::match(const RemotePathPair& p) const
 {
     return StringFilter::match(p.first);
 }
@@ -537,7 +552,7 @@ PathFilter::PathFilter(MatcherPtr matcher,
 {
 }
 
-bool PathFilter::match(const string_pair& p) const
+bool PathFilter::match(const RemotePathPair& p) const
 {
     return StringFilter::match(p.second);
 }

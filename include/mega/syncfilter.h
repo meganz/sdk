@@ -39,8 +39,8 @@ class SizeFilter;
 class StringFilter;
 
 // Convenience.
-using SizeFilterPtr = std::unique_ptr<SizeFilter>;
-using StringFilterPtr = std::unique_ptr<StringFilter>;
+using SizeFilterPtr = std::shared_ptr<SizeFilter>;
+using StringFilterPtr = std::shared_ptr<StringFilter>;
 using StringFilterPtrVector = std::vector<StringFilterPtr>;
 
 class MEGA_API DefaultFilterChain
@@ -74,12 +74,14 @@ class MEGA_API FilterChain
 {
 public:
     FilterChain();
+
+    FilterChain(const FilterChain& other);
     
     FilterChain(FilterChain&& other);
 
     ~FilterChain();
 
-    MEGA_DISABLE_COPY(FilterChain);
+    FilterChain& operator=(const FilterChain& rhs);
 
     FilterChain& operator=(FilterChain&& rhs);
 
@@ -92,8 +94,8 @@ public:
     // Loads filters from a file.
     bool load(FileAccess& fileAccess);
 
-    // Attempts to locate a match for the string pair p.
-    FilterResult match(const string_pair& p,
+    // Attempts to locate a match for the path pair p.
+    FilterResult match(const RemotePathPair& p,
                        const nodetype_t type,
                        const bool onlyInheritable) const;
 
@@ -108,8 +110,30 @@ private:
     SizeFilterPtr mSizeFilter;
 }; /* FilterChain */
 
-const LocalPath& IGNORE_FILE_LOCAL_NAME();
-const string& IGNORE_FILE_NAME();
+class IgnoreFileName
+{
+    static const LocalPath mLocalName;
+    static const RemotePath mRemoteName;
+
+public:
+    operator const LocalPath&() const;
+
+    operator const RemotePath&() const;
+
+    operator const string&() const;
+
+    bool operator==(const LocalPath& rhs) const;
+    bool operator==(const RemotePath& rhs) const;
+    bool operator==(const string& rhs) const;
+}; // IgnoreFileName
+
+template<typename T>
+bool operator==(const T& lhs, const IgnoreFileName& rhs)
+{
+    return rhs == lhs;
+}
+
+constexpr IgnoreFileName IGNORE_FILE_NAME;
 
 } /* mega */
 

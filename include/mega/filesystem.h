@@ -255,6 +255,25 @@ private:
 // For convenience.
 using RemotePathPair = pair<RemotePath, RemotePath>;
 
+// For metaprogramming.
+template<typename T>
+struct IsPath
+  : public std::false_type
+{
+}; // IsPath<T>
+
+template<>
+struct IsPath<LocalPath>
+    : public std::true_type
+{
+}; // IsPath<LocalPath>
+
+template<>
+struct IsPath<RemotePath>
+  : public std::true_type
+{
+}; // IsPath<RemotePath>
+
 struct NameConflict {
     string cloudPath;
     vector<string> clashingCloudNames;
