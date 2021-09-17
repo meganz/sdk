@@ -249,7 +249,9 @@ if (WIN32)
     endif()
 
     # warnings as errors, just for windows builds, as warnings keep creeping in.  Best if we address them once in the original MRs.
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /WX" )
+    if (build_64_bit)
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /WX" )
+    endif()
 
     # accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
