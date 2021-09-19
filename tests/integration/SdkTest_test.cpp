@@ -1239,7 +1239,8 @@ string getLinkFromMailbox(const string& exe,         // Python
                           const string& realAccount, // user
                           const string& realPswd,    // password for user@host.domain
                           const string& toAddr,      // user+testnewaccount@host.domain
-                          const string& intent)      // confirm / delete
+                          const string& intent,      // confirm / delete
+                          const chrono::system_clock::time_point& timeOfEmail)
 {
     string command = exe + " \"" + script + "\" \"" + realAccount + "\" \"" + realPswd + "\" \"" + toAddr + "\" " + intent;
     string output;
@@ -1250,7 +1251,10 @@ string getLinkFromMailbox(const string& exe,         // Python
     {
         WaitMillisec(deltaMs);
 
-        output = runProgram(command); // Run Python script
+        // get time interval to look for emails, add some seconds to account for the connection and other delays
+        const auto& attemptTime = std::chrono::system_clock::now();
+        auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + 20;
+        output = runProgram(command + ' ' + to_string(timeSinceEmail)); // Run Python script
         if (!output.empty() || i > 180000 / deltaMs) // 3 minute maximum wait
             break;
     }
@@ -1331,7 +1335,10 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     const string realAccount = realEmail.substr(0, pos); // user
     const string newTestAcc = realAccount + '+' + getUniqueAlias() + realEmail.substr(pos); // user+rand20210919@host.domain
     LOG_info << "Using Mega account " << newTestAcc;
-    const char* newTestPwd = "TestPswd!@#$";
+    const char* newTestPwd = "TestPswd!@#$"; // maybe this should be logged too
+
+    // save point in time for account init
+    auto timeOfEmail = std::chrono::system_clock::now();
 
     // Create an ephemeral session internally and send a confirmation link to email
     ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), newTestPwd, "MyFirstname", "MyLastname"));
@@ -1341,7 +1348,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, sid.c_str()));
 
     // Get confirmation link from the email
-    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "confirm");
+    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "confirm", timeOfEmail);
     ASSERT_FALSE(output.empty()) << "Confirmation link was not found.";
 
     // Use confirmation link
@@ -1363,12 +1370,13 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
 
     // Request cancel account link
+    timeOfEmail = std::chrono::system_clock::now();
     auto cancelLinkTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
     testMegaApi->cancelAccount(cancelLinkTracker.get());
     ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << newTestAcc.c_str();
 
     // Get cancel account link from the mailbox
-    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "delete");
+    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "delete", timeOfEmail);
     ASSERT_FALSE(output.empty()) << "Cancel account link was not found.";
 
     // Use cancel account link
