@@ -1264,6 +1264,27 @@ string getLinkFromMailbox(const string& exe,         // Python
            output : string();
 }
 
+string getUniqueAlias()
+{
+    // use n random chars
+    int n = 4;
+    string alias;
+    auto t = std::time(nullptr);
+    srand(t);
+    for (int i = 0; i < n; ++i)
+    {
+        alias += 'a' + rand() % 26;
+    }
+
+    // add a timestamp
+    auto tm = *std::localtime(&t);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y%m%d%H%M%S");
+    alias += oss.str();
+
+    return alias;
+}
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -1308,7 +1329,8 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     const string realEmail(bufRealEmail); // user@host.domain
     auto pos = realEmail.find('@');
     const string realAccount = realEmail.substr(0, pos); // user
-    const string newTestAcc = realAccount + "+testnewaccount" + realEmail.substr(pos); // user+testnewaccount@host.domain
+    const string newTestAcc = realAccount + '+' + getUniqueAlias() + realEmail.substr(pos); // user+rand20210919@host.domain
+    LOG_info << "Using Mega account " << newTestAcc;
     const char* newTestPwd = "TestPswd!@#$";
 
     // Create an ephemeral session internally and send a confirmation link to email
