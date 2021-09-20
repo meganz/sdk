@@ -296,10 +296,10 @@ struct MEGA_API MegaApp
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
 
-    // after all syncs have been restored
+    // after all (enabled) syncs have been restored on startup
     virtual void syncs_restored() { }
 
-    // after all syncs have been disabled
+    // after all syncs have been disabled, eg due to overquota
     virtual void syncs_disabled(SyncError) { }
 
     // after an attempt to auto-resume a cache sync

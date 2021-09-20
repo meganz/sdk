@@ -895,6 +895,15 @@ struct StandardClient : public MegaApp
         }
     }
 
+    bool received_syncs_restored = false;
+    void syncs_restored() override
+    {
+        lock_guard<mutex> g(om);
+        out() << clientname << "sync restore complete";
+        received_syncs_restored = true;
+    }
+
+
     void syncupdate_stateconfig(const SyncConfig& config) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << "syncupdate_stateconfig() " << toHandle(config.mBackupId); } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_scanning()" << b; } }
     void syncupdate_stalled(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_stalled()" << b; } }
@@ -8685,6 +8694,9 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     clientA1Resume.client.dumpsession(session);
     clientA1Resume.localLogout();
 
+    auto remainingResumeSyncs = clientA1Resume.client.syncs.allConfigs();
+    ASSERT_EQ(0u, remainingResumeSyncs.size());
+
     if (paused)
     {
         out() << "Paused " << paused << " Two-way syncs";
@@ -8703,9 +8715,14 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA2);   // leave out clientA1Resume as it's 'paused' (locallogout'd) for now
 
     // resume A1R session (with sync), see if A2 nodes and localnodes get in sync again
+    clientA1Resume.received_syncs_restored = false;
     ASSERT_TRUE(clientA1Resume.login_fetchnodes(session));
     ASSERT_EQ(clientA1Resume.basefolderhandle, clientA2.basefolderhandle);
 
+    // wait for normal sync resumes to complete
+    clientA1Resume.waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
+
+    // now resume remainder - some are external syncs
     int resumed = 0;
     for (auto& testcase : cases)
     {

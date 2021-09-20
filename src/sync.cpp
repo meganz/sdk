@@ -4551,6 +4551,10 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
             }
         }
     }
+
+    // Let the app know that we have restored all syncs (which may be 0)
+    // So the app knows this async process is complete, and it's into normal operation
+    mClient.app->syncs_restored();
 }
 
 bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
