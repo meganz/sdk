@@ -4276,13 +4276,13 @@ void Syncs::syncRun(std::function<void()> f)
     synchronous.get_future().get();
 }
 
-void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
+void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat)
 {
     assert(!onSyncThread());
-    syncRun([&](){ removeSelectedSyncs_inThread(selector); });
+    syncRun([&](){ removeSelectedSyncs_inThread(selector, removeSyncDb, notifyApp, unregisterHeartbeat); });
 }
 
-void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector)
+void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat)
 {
     assert(onSyncThread());
 
@@ -4290,7 +4290,7 @@ void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)>
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
-            removeSyncByIndex(i);
+            removeSyncByIndex(i, removeSyncDb, notifyApp, unregisterHeartbeat);
         }
     }
 }
@@ -4365,14 +4365,14 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
     }
     mSyncConfigStore.reset();
 
-    // Remove all syncs.
-    removeSelectedSyncs_inThread([](SyncConfig&, Sync*) { return true; });
+    // Remove all syncs from RAM only.
+    removeSelectedSyncs_inThread([](SyncConfig&, Sync*) { return true; }, false, false, false);
 
     clear_inThread();
     mExecutingLocallogout = false;
 }
 
-void Syncs::removeSyncByIndex(size_t index)
+void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat)
 {
     assert(onSyncThread());
 
@@ -4384,7 +4384,10 @@ void Syncs::removeSyncByIndex(size_t index)
 
             if (syncPtr->statecachetable)
             {
-                syncPtr->statecachetable->remove();
+                if (removeSyncDb)
+                {
+                    syncPtr->statecachetable->remove();
+                }
                 syncPtr->statecachetable.reset();
             }
             syncPtr.reset(); // deletes sync
@@ -4392,21 +4395,27 @@ void Syncs::removeSyncByIndex(size_t index)
 
         if (mSyncConfigStore) mSyncConfigStore->markDriveDirty(mSyncVec[index]->mConfig.mExternalDrivePath);
 
-        // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
         SyncConfig configCopy = mSyncVec[index]->mConfig;
 
-        assert(onSyncThread());
-        mClient.app->sync_removed(configCopy);
+        // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
+        if (notifyApp)
+        {
 
-        // unregister this sync/backup from API (backup center)
-        queueClient([configCopy](MegaClient& mc, DBTableTransactionCommitter& committer)
-            {
-                mc.reqs.add(new CommandBackupRemove(&mc, configCopy.getBackupId()));
-            });
+            assert(onSyncThread());
+            mClient.app->sync_removed(configCopy);
+        }
+
+        if (unregisterHeartbeat)
+        {
+            // unregister this sync/backup from API (backup center)
+            queueClient([configCopy](MegaClient& mc, DBTableTransactionCommitter& committer)
+                {
+                    mc.reqs.add(new CommandBackupRemove(&mc, configCopy.getBackupId()));
+                });
+        }
 
         lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.erase(mSyncVec.begin() + index);
-
         isEmpty = mSyncVec.empty();
     }
 }

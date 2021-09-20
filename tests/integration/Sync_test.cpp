@@ -1839,7 +1839,7 @@ struct StandardClient : public MegaApp
         return result.get();
     }
 
-    bool delSync_inthread(handle backupId, const bool keepCache)
+    bool delSync_inthread(handle backupId, bool keepCache)
     {
         const auto handle = syncSet(backupId).h;
         bool removed = false;
@@ -1852,7 +1852,7 @@ struct StandardClient : public MegaApp
               removed |= matched;
 
               return matched;
-          });
+          }, !keepCache, !keepCache, !keepCache); // in the tests we are going to resume the syncs on session resume
 
         return removed;
     }
@@ -8600,7 +8600,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
                 const bool matched = config.getBackupId() == backupId;
                 removed |= matched;
                 return matched;
-            });
+            }, true, true, true);
 
           return removed;
       };

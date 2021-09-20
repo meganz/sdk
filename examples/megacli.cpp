@@ -9235,7 +9235,7 @@ void exec_syncremove(autocomplete::ACState& s)
           found |= matched;
 
           return matched;
-      });
+      }, true, true, true);
 
     if (!found)
     {

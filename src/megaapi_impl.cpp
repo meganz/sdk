@@ -21669,7 +21669,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; } );
+            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; }, true, true, true );
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
@@ -21700,7 +21700,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 found = found || matched;
                 return matched;
-            });
+            }, true, true, true);
 
             if (!found)
             {

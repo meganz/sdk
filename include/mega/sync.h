@@ -737,7 +737,8 @@ struct Syncs
     void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, 
+	     bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat);
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -973,8 +974,8 @@ private:
     mutable mutex mSyncVecMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
     vector<shared_ptr<UnifiedSync>> mSyncVec;
 
-    // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
-    void removeSyncByIndex(size_t index);
+    // remove the Sync and its config from memory - optionally also other aspects
+    void removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, bool unresg);
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
     void unloadSyncByIndex(size_t index);
@@ -1001,7 +1002,8 @@ private:
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
-    void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector);
+    void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, 
+	     bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat);
     void purgeRunningSyncs_inThread();
 
     bool mExecutingLocallogout = false;
