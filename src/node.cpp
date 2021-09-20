@@ -2235,10 +2235,17 @@ void LocalNode::checkTransferCompleted()
     }
     else if (transferSP)
     {
-        if (transferSP->wasTerminated ||
-            transferSP->wasCompleted)
+        if (transferSP->wasTerminated)
         {
             resetTransfer(nullptr);
+        }
+        else if (transferSP->wasCompleted)
+        {
+            // We don't clear the pointer here, becuase we need it around
+            // for the next recursiveSync node visit here, which will move
+            // and rename the downloaded file to the corresponding
+            // current location of this LocalNode (ie, copes with
+            // localnodes that moved during the download.
         }
     }
 }
