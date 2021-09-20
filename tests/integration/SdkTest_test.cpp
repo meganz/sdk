@@ -137,6 +137,16 @@ std::string megaApiCacheFolder(int index)
         assert(fileexists(p));
 #endif
 
+    } else
+    {
+        std::unique_ptr<DirAccess> da(fileSystemAccess.newdiraccess());
+        auto lp = LocalPath::fromPath(p, fileSystemAccess);
+        if (!da->dopen(&lp, nullptr, false))
+        {
+            throw std::runtime_error(
+                        "Cannot open existing mega API cache folder " + p
+                        + " please check permissions or delete it so a new one can be created");
+        }
     }
     return p;
 }
