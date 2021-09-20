@@ -8829,9 +8829,15 @@ LocalNode* Syncs::localNodeByCloudPath(const RemotePath& path, LocalNode** outPa
         if (!(m = m->childbyname(component)))
             break;
 
-        // Does it have a corresponding local node?
-        if (!(lm = findLocalNodeByNodeHandle(m->nodeHandle())))
+        // Search for the corresponding local node.
+        auto* t = findLocalNodeByNodeHandle(m->nodeHandle());
+
+        // Did we find a suitable local node?
+        if (!t || t->parent != ln)
             break;
+
+        // Found a suitable local node.
+        lm = t;
 
         // Remember where we were in the path.
         j = i;
@@ -8841,7 +8847,7 @@ LocalNode* Syncs::localNodeByCloudPath(const RemotePath& path, LocalNode** outPa
     *outParent = ln;
 
     // Did we find the node we were looking for?
-    if (lm)
+    if (lm && !path.hasNextPathComponent(j))
         return lm;
 
     // Let the caller know how much of the path we couldn't traverse.
