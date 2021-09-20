@@ -2652,6 +2652,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
         case SyncWaitReason::CouldNotMoveToLocalDebrisFolder:               return "CouldNotMoveToLocalDebrisFolder";
         case SyncWaitReason::LocalFolderNotScannable:                       return "LocalFolderNotScannable";
+        case SyncWaitReason::UnknownExclusionState:                         return "UnknownExclusionState";        
     }
     return "<out of range>";
 }

@@ -10719,8 +10719,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntMoveWhenBlocked)
     fs::rename(root(*cu) / "root" / "a" / "fa",
                root(*cu) / "root" / "b" / "fa");
 
-    // Remote tree should have both a/fa and b/fa.
-    remoteTree.copynode("a/fa" , "b/fa");
+    // Move shouldn't be synchronized as the source is blocked.
 
     // Try and synchronize.
     waitOnSyncs(cu.get());
@@ -11789,6 +11788,75 @@ TEST_F(LocalToCloudFilterFixture, FilterRemoved)
     ASSERT_TRUE(confirm(*cu, id, remoteTree));
 }
 
+TEST_F(LocalToCloudFilterFixture, MoveBrokenIgnoreFile)
+{
+    LocalFSModel localFS;
+    
+    // Set up local filesystem.
+    localFS.addfile("d0/.megaignore", "#");
+    localFS.addfolder("d1/d1d0");
+    localFS.generate(root(*cu) / "root");
+
+    // Cloud should mirror the local disk.
+    RemoteNodeModel remoteTree = localFS;
+
+    // Log in the client.
+    ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
+
+    // Add and start a sync.
+    auto id = setupSync(*cu, "root", "cu");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for our tree to upload.
+    waitOnSyncs(cu.get());
+
+    // Was everything uploaded?
+    ASSERT_TRUE(confirm(*cu, id, localFS));
+    ASSERT_TRUE(confirm(*cu, id, remoteTree));
+
+    // Break the ignore file.
+    localFS.addfile("d0/.megaignore", "bad");
+    localFS.generate(root(*cu) / "root");
+
+    // Cloud should match the local disk.
+    remoteTree = localFS;
+
+    // Wait for the sync engine to detect the broken ignore file.
+    waitOnSyncs(cu.get());
+
+    // Move the ignore file across: d0 -> d1.
+    localFS.movenode("d0/.megaignore", "d1");
+
+    fs::rename(root(*cu) / "root" / "d0" / ".megaignore",
+               root(*cu) / "root" / "d1" / ".megaignore");
+
+    // The move should be propogated to the cloud.
+    remoteTree.movenode("d0/.megaignore", "d1");
+
+    // Give the sync engine some time to think.
+    waitOnSyncs(cu.get());
+
+    // Did the engine perform the move?
+    ASSERT_TRUE(confirm(*cu, id, localFS));
+    ASSERT_TRUE(confirm(*cu, id, remoteTree));
+
+    // Move the ignore file down: d1 -> d1d0.
+    localFS.movenode("d1/.megaignore", "d1/d1d0");
+
+    fs::rename(root(*cu) / "root" / "d1" / ".megaignore",
+               root(*cu) / "root" / "d1" / "d1d0" / ".megaignore");
+
+    // Move should be propogated.
+    remoteTree.movenode("d1/.megaignore", "d1/d1d0");
+
+    // Give the sync engine some time to think.
+    waitOnSyncs(cu.get());
+
+    // Did the engine perform the move?
+    ASSERT_TRUE(confirm(*cu, id, localFS));
+    ASSERT_TRUE(confirm(*cu, id, remoteTree));
+}
+
 TEST_F(LocalToCloudFilterFixture, MoveFromBlocked)
 {
     LocalFSModel localFS;
@@ -11832,8 +11900,7 @@ TEST_F(LocalToCloudFilterFixture, MoveFromBlocked)
     fs::rename(root(*cu) / "root" / "d0" / "d0d0" / "d0d0f0",
                root(*cu) / "root" / "d1" / "d0d0f0");
 
-    // Remote tree should have both d0/d0d0/d0d0f0 and d1/d0d0f0.
-    remoteTree.copynode("d0/d0d0/d0d0f0", "d1/d0d0f0");
+    // Move shouldn't be synchronized as the source is blocked.
 
     // Try and synchronize.
     waitOnSyncs(cu.get());
@@ -13621,6 +13688,59 @@ TEST_F(CloudToLocalFilterFixture, FilterRemoved)
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
 }
 
+TEST_F(CloudToLocalFilterFixture, MoveBrokenIgnoreFile)
+{
+    LocalFSModel localFS;
+
+    // Set up local filesystem.
+    localFS.addfile("d0/.megaignore", "bad");
+    localFS.addfolder("d1/d1d0");
+    localFS.generate(root(*cdu) / "root");
+
+    // Cloud should be congruent with the disk.
+    RemoteNodeModel remoteTree = localFS;
+
+    // Log in the client.
+    ASSERT_TRUE(cdu->login_reset_makeremotenodes("cdu"));
+
+    // Add and start a sync.
+    auto id = setupSync(*cdu, "root", "cdu");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitOnSyncs(cdu.get());
+
+    // Was everything uploaded correctly?
+    ASSERT_TRUE(confirm(*cdu, id, localFS));
+    ASSERT_TRUE(confirm(*cdu, id, remoteTree));
+
+    // Move the ignore file across: d0 -> d1.
+    localFS.movenode("d0/.megaignore", "d1");
+    remoteTree.movenode("d0/.megaignore", "d1");
+
+    ASSERT_TRUE(cdu->movenode("cdu/d0/.megaignore", "cdu/d1"));
+
+    // Wait for the sync to complete.
+    waitOnSyncs(cdu.get());
+
+    // Was the move correctly propogated?
+    ASSERT_TRUE(confirm(*cdu, id, localFS));
+    ASSERT_TRUE(confirm(*cdu, id, remoteTree));
+
+    // Move the ignore file down: d1 -> d1d0.
+    localFS.movenode("d1/.megaignore", "d1/d1d0");
+    remoteTree.movenode("d1/.megaignore", "d1/d1d0");
+
+    ASSERT_TRUE(cdu->movenode("cdu/d1/.megaignore", "cdu/d1/d1d0"));
+
+    // Wait for the sync to complete.
+    waitOnSyncs(cdu.get());
+
+    // Was the move correctly propogated?
+    ASSERT_TRUE(confirm(*cdu, id, localFS));
+    ASSERT_TRUE(confirm(*cdu, id, remoteTree));
+}
+
 TEST_F(CloudToLocalFilterFixture, MoveFromBlocked)
 {
     LocalFSModel localFS;
@@ -13666,8 +13786,7 @@ TEST_F(CloudToLocalFilterFixture, MoveFromBlocked)
         remoteTree.movenode("d0/d0f0", "d1");
         ASSERT_TRUE(cu->movenode("cdu/d0/d0f0", "cdu/d1"));
 
-        // Locally, d0/d0f0 should remain and d1/d0f0 should appear.
-        localFS.copynode("d0/d0f0", "d1/d0f0");
+        // Move shouldn't occur as the source is blocked.
 
         // Log out client.
         cu.reset();

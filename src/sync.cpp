@@ -1473,18 +1473,21 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             row.syncNode->setCheckMovesAgain(true, false, false);
 
-            // Is the source's exclusion state well defined?
+            // Is the source's exclusion state well-defined?
             if (!sourceSyncNode->isExcluded())
             {
-                // Is it undefined because we need to recompute it?
-                if (!sourceSyncNode->hasParentWithPendingLoad())
-                {
-                    // Don't recurse below this node.
-                    row.suppressRecursion = true;
+                // Let the engine know why we can't perform the move.
+                monitor.waitingLocal(sourceSyncNode->getLocalPath(),
+                                     LocalPath(),
+                                     string(),
+                                     SyncWaitReason::UnknownExclusionState);
 
-                    // Then attempt this move later.
-                    return rowResult = false, true;
-                }
+
+                // Don't recurse below this node.
+                row.suppressRecursion = true;
+
+                // Attempt the move later.
+                return rowResult = false, true;
             }
 
             // logic to detect files being updated in the local computer moving the original file
@@ -1962,15 +1965,17 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         // Is the source's exclusion state well defined?
         if (!sourceSyncNode->isExcluded())
         {
-            // Is it undefined because we need to recompute it?
-            if (!sourceSyncNode->hasParentWithPendingLoad())
-            {
-                // Don't recurse below this node.
-                row.suppressRecursion = true;
+            // Let the engine know why we couldn't process this move.
+            monitor.waitingLocal(sourceSyncNode->getLocalPath(),
+                                 LocalPath(),
+                                 string(),
+                                 SyncWaitReason::UnknownExclusionState);
 
-                // Try and complete the move later.
-                return rowResult = false, true;
-            }
+            // Don't recurse below this node.
+            row.suppressRecursion = true;
+
+            // Complete the move later.
+            return rowResult = false, true;
         }
 
         sourceSyncNode->treestate(TREESTATE_SYNCING);
@@ -4681,7 +4686,8 @@ bool syncRow::ignoreFileStable() const
     assert(syncNode);
     assert(syncNode->type == FOLDERNODE);
 
-    return !mIgnoreFileChanged;
+    return !mIgnoreFileChanged
+           && !syncNode->hasPendingLoad();
 }
 
 int syncRow::isExcluded(const syncRow& parentRow) const
@@ -5177,10 +5183,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
         for (auto& sequence : sequences)
         {
-            // An ignore file requires exclusive processing.
-            if (row.ignoreFileChanged())
-                break;
-
             for (unsigned step = 0; step < 3; ++step)
             {
                 for (auto i = sequence.first; i != sequence.second; ++i)
@@ -5341,6 +5343,14 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     }
                 }
             }
+
+            // An ignore file requires exclusive processing.
+            if (row.ignoreFileChanged())
+                break;
+
+            // We need to load our ignore file.
+            if (row.syncNode->hasPendingLoad())
+                break;
         }
 
         // If we added any FSNodes that aren't part of our scan data (and we think we don't need another scan), add them to the scan data
@@ -5946,6 +5956,9 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
     // If so, make sure we load its filters.
     row.syncNode->ignoreFileLoad(fullPath.localPath);
+
+    // Let the parent know its rules have changed.
+    parentRow.ignoreFileChanging();
 
     return true;
 }
@@ -7078,13 +7091,6 @@ int Sync::isExcluded(const RemotePath& path, nodetype_t type)
         if (excluded)
             return excluded;
 
-        // Is it undefined because a parent has a load pending?
-        if (node->hasParentWithPendingLoad())
-        {
-            // Then consider the node excluded.
-            return -1;
-        }
-
         // Otherwise, consider it included.
         return 1;
     }
@@ -7102,13 +7108,6 @@ int Sync::isExcluded(const RemotePath& path, nodetype_t type)
     // Does the node have a well-defined exclusion state?
     if (excluded)
         return excluded;
-
-    // Is it undefined because some parent has a pending load?
-    if (parent->hasPendingLoad())
-    {
-        // Then consider the node excluded.
-        return -1;
-    }
 
     // Otherwise, consider the node included.
     return 1;
