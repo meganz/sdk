@@ -503,7 +503,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n, bool updateDb)
 #endif
     }
 
-    if (sctable->isNodeInDB(originalNode->nodehandle) && updateDb)
+    if (sctable->isNodeInDB(originalNode->nodeHandle()) && updateDb)
     {
         sctable->put(originalNode);
     }
@@ -16173,7 +16173,7 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
     return mFingerprints.nodebyfingerprint(fingerprint);
 }
 
-Node* MegaClient::nodebyhandleInRam(handle h)
+Node* MegaClient::nodeByHandleInRam(NodeHandle h)
 {
     if (h == UNDEF)
     {
@@ -16182,10 +16182,7 @@ Node* MegaClient::nodebyhandleInRam(handle h)
 
     node_map::const_iterator it;
 
-    NodeHandle nodeHandle;
-    nodeHandle.set6byte(h);
-
-    if ((it = mNodes.find(nodeHandle)) != mNodes.end())
+    if ((it = mNodes.find(h)) != mNodes.end())
     {
         return it->second;
     }
@@ -16366,8 +16363,8 @@ namespace action_bucket_compare
         if (a->parent != b->parent) return a->parent > b->parent;
 
         // added/updated - distinguish by versioning
-        size_t aChildren = mc->getNumberOfChildren(a->nodehandle);
-        size_t bChildren = mc->getNumberOfChildren(b->nodehandle);
+        size_t aChildren = mc->getNumberOfChildren(a->nodeHandle());
+        size_t bChildren = mc->getNumberOfChildren(b->nodeHandle());
         if (aChildren != bChildren) return aChildren > bChildren;
 
         // media/nonmedia
@@ -16488,7 +16485,7 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
                 ra.time = (*j)->ctime;
                 ra.user = (*j)->owner;
                 ra.parent = (*j)->parent ? (*j)->parent->nodehandle : UNDEF;
-                ra.updated = getNumberOfChildren((*j)->nodehandle);   // children of files represent previous versions
+                ra.updated = getNumberOfChildren((*j)->nodeHandle());   // children of files represent previous versions
                 ra.media = nodeIsMedia(*j, nullptr, nullptr);
                 rav.push_back(ra);
             }
@@ -16513,12 +16510,12 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
 
 void MegaClient::nodesbyoriginalfingerprint(const char* originalfingerprint, Node* parent, node_vector *nv)
 {
-    std::map<handle, NodeSerialized> nodeMap;
+    std::map<NodeHandle, NodeSerialized> nodeMap;
     if (sctable->getNodesByOrigFingerprint(originalfingerprint, nodeMap))
     {
         for (auto nodeIt : nodeMap)
         {
-            if (!parent || (parent && sctable->isAncestor(nodeIt.first, parent->nodehandle)))
+            if (!parent || (parent && sctable->isAncestor(nodeIt.first, parent->nodeHandle())))
             {
                 node_vector nodeVector;
                 Node* node = Node::unserialize(this, &nodeIt.second.mNode, &nodeVector, nodeIt.second.mDecrypted);
@@ -16651,19 +16648,19 @@ node_list MegaClient::getChildren(Node* parent)
     return childrenList;
 }
 
-size_t MegaClient::getNumberOfChildren(handle parentHandle)
+size_t MegaClient::getNumberOfChildren(NodeHandle parentHandle)
 {
     return sctable->getNumberOfChildrenFromNode(parentHandle);
 }
 
-NodeCounter MegaClient::getTreeInfoFromNode(handle nodehandle, bool isParentFileNode)
+NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle, bool isParentFileNode)
 {
-    Node* node = nodebyhandleInRam(nodehandle);
+    Node* node = nodeByHandleInRam(nodehandle);
     bool isFileNode = node ? (node->type == FILENODE) : sctable->isFileNode(nodehandle);
-    std::vector<handle> children;
+    std::vector<NodeHandle> children;
     sctable->getChildrenHandlesFromNode(nodehandle, children);
     NodeCounter nc;
-    for (const handle &h : children)
+    for (const NodeHandle &h : children)
     {
         nc += getTreeInfoFromNode(h, isFileNode);
     }

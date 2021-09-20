@@ -56,12 +56,12 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    bool getNodesByFingerprint(const mega::FileFingerprint&, std::map<mega::handle, mega::NodeSerialized>&) override
+    bool getNodesByFingerprint(const mega::FileFingerprint&, std::map<mega::NodeHandle, mega::NodeSerialized>&) override
     {
         return false;
         //throw NotImplemented{__func__};
     }
-    bool getNodesByOrigFingerprint(const std::string& , std::map<mega::handle, mega::NodeSerialized>&) override
+    bool getNodesByOrigFingerprint(const std::string& , std::map<mega::NodeHandle, mega::NodeSerialized>&) override
     {
         return false;
     }
@@ -85,23 +85,23 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getChildrenHandlesFromNode(mega::handle, std::vector<mega::handle>&) override
+    bool getChildrenHandlesFromNode(mega::NodeHandle, std::vector<mega::NodeHandle>&) override
     {
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getNodesByName(const std::string&, std::map<mega::handle, mega::NodeSerialized>&) override
+    bool getNodesByName(const std::string&, std::map<mega::NodeHandle, mega::NodeSerialized>&) override
     {
         return false;
         //throw NotImplemented(__func__);
     }
-    mega::NodeCounter getNodeCounter(mega::handle, bool) override
+    mega::NodeCounter getNodeCounter(mega::NodeHandle, bool) override
     {
         mega::NodeCounter nc;
         return nc;
         //throw NotImplemented(__func__);
     }
-    uint32_t getNumberOfChildrenFromNode(mega::handle) override
+    uint32_t getNumberOfChildrenFromNode(mega::NodeHandle) override
     {
         return 0;
         //throw NotImplemented(__func__);
@@ -116,16 +116,16 @@ public:
         return h;
         //throw NotImplemented{__func__};
     }
-    bool isNodeInDB(mega::handle) override
+    bool isNodeInDB(mega::NodeHandle) override
     {
         return false;
         //throw NotImplemented{__func__};
     }
-    bool isAncestor(mega::handle, mega::handle) override
+    bool isAncestor(mega::NodeHandle, mega::NodeHandle) override
     {
         return false;
     }
-    bool isFileNode(mega::handle) override
+    bool isFileNode(mega::NodeHandle) override
     {
         return false;
     }

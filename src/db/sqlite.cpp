@@ -397,7 +397,7 @@ bool SqliteDbTable::getNodes(std::vector<NodeSerialized> &nodes)
     return result == SQLITE_DONE ? true : false;
 }
 
-bool SqliteDbTable::getNodesByFingerprint(const FileFingerprint &fingerprint, std::map<mega::handle, NodeSerialized> &nodes)
+bool SqliteDbTable::getNodesByFingerprint(const FileFingerprint &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
 {
     if (!db)
     {
@@ -416,7 +416,8 @@ bool SqliteDbTable::getNodesByFingerprint(const FileFingerprint &fingerprint, st
         {
             while ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
-                handle nodeHandle = sqlite3_column_int64(stmt, 0);
+                NodeHandle nodeHandle;
+                nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
                 NodeSerialized node;
                 node.mDecrypted = sqlite3_column_int(stmt, 1);
                 const void* data = sqlite3_column_blob(stmt, 2);
@@ -434,7 +435,7 @@ bool SqliteDbTable::getNodesByFingerprint(const FileFingerprint &fingerprint, st
     return result == SQLITE_DONE ? true : false;
 }
 
-bool SqliteDbTable::getNodesByOrigFingerprint(const std::string &fingerprint, std::map<mega::handle, NodeSerialized> &nodes)
+bool SqliteDbTable::getNodesByOrigFingerprint(const std::string &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
 {
     if (!db)
     {
@@ -451,7 +452,8 @@ bool SqliteDbTable::getNodesByOrigFingerprint(const std::string &fingerprint, st
         {
             while ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
-                handle nodeHandle = sqlite3_column_int64(stmt, 0);
+                NodeHandle nodeHandle;
+                nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
                 NodeSerialized node;
                 node.mDecrypted = sqlite3_column_int(stmt, 1);
                 const void* data = sqlite3_column_blob(stmt, 2);
@@ -609,7 +611,7 @@ bool SqliteDbTable::getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHa
     return result == SQLITE_DONE ? true : false;
 }
 
-bool SqliteDbTable::getChildrenHandlesFromNode(mega::handle parentHandle, std::vector<handle> & children)
+bool SqliteDbTable::getChildrenHandlesFromNode(mega::NodeHandle parentHandle, std::vector<NodeHandle> & children)
 {
     if (!db)
     {
@@ -622,12 +624,12 @@ bool SqliteDbTable::getChildrenHandlesFromNode(mega::handle parentHandle, std::v
     int result = SQLITE_ERROR;
     if (sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_int64(stmt, 1, parentHandle) == SQLITE_OK)
+        if (sqlite3_bind_int64(stmt, 1, parentHandle.as8byte()) == SQLITE_OK)
         {
             while ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
                 int64_t h = sqlite3_column_int64(stmt, 0);
-                children.push_back(h);
+                children.push_back(NodeHandle().set6byte(h));
             }
         }
     }
@@ -636,7 +638,7 @@ bool SqliteDbTable::getChildrenHandlesFromNode(mega::handle parentHandle, std::v
     return result == SQLITE_DONE ? true : false;
 }
 
-bool SqliteDbTable::getNodesByName(const std::string &name, std::map<mega::handle, NodeSerialized> &nodes)
+bool SqliteDbTable::getNodesByName(const std::string &name, std::map<mega::NodeHandle, NodeSerialized> &nodes)
 {
     if (!db)
     {
@@ -656,7 +658,8 @@ bool SqliteDbTable::getNodesByName(const std::string &name, std::map<mega::handl
     {
         while ((result = sqlite3_step(stmt) == SQLITE_ROW))
         {
-            handle nodeHandle = sqlite3_column_int64(stmt, 0);
+            NodeHandle nodeHandle;
+            nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
             NodeSerialized node;
             node.mDecrypted = sqlite3_column_int(stmt, 1);;
             const void* data = sqlite3_column_blob(stmt, 2);
@@ -673,7 +676,7 @@ bool SqliteDbTable::getNodesByName(const std::string &name, std::map<mega::handl
     return result == SQLITE_DONE ? true : false;
 }
 
-uint32_t SqliteDbTable::getNumberOfChildrenFromNode(handle parentHandle)
+uint32_t SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
     if (!db)
     {
@@ -686,7 +689,7 @@ uint32_t SqliteDbTable::getNumberOfChildrenFromNode(handle parentHandle)
     uint32_t numChildren = 0;
     if (sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_int64(stmt, 1, parentHandle) == SQLITE_OK)
+        if (sqlite3_bind_int64(stmt, 1, parentHandle.as8byte()) == SQLITE_OK)
         {
             int result;
             if ((result = sqlite3_step(stmt) == SQLITE_ROW))
@@ -700,7 +703,7 @@ uint32_t SqliteDbTable::getNumberOfChildrenFromNode(handle parentHandle)
     return numChildren;
 }
 
-NodeCounter SqliteDbTable::getNodeCounter(handle node, bool isParentFile)
+NodeCounter SqliteDbTable::getNodeCounter(NodeHandle node, bool isParentFile)
 {
     NodeCounter nodeCounter;
     if (!db)
@@ -716,7 +719,7 @@ NodeCounter SqliteDbTable::getNodeCounter(handle node, bool isParentFile)
 
     if (sqlite3_prepare(db, "SELECT size, type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
+        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
         {
             if ((sqlite3_step(stmt) == SQLITE_ROW))
             {
@@ -802,7 +805,7 @@ NodeHandle SqliteDbTable::getFirstAncestor(NodeHandle node)
     return ancestor;
 }
 
-bool SqliteDbTable::isAncestor(handle node, handle ancestor)
+bool SqliteDbTable::isAncestor(NodeHandle node, NodeHandle ancestor)
 {
     bool result = false;
     if (!db)
@@ -821,9 +824,9 @@ bool SqliteDbTable::isAncestor(handle node, handle ancestor)
     sqlite3_stmt *stmt;
     if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
+        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
         {
-            if (sqlite3_bind_int64(stmt, 2, ancestor) == SQLITE_OK)
+            if (sqlite3_bind_int64(stmt, 2, ancestor.as8byte()) == SQLITE_OK)
             {
                 if (sqlite3_step(stmt) == SQLITE_ROW)
                 {
@@ -837,7 +840,7 @@ bool SqliteDbTable::isAncestor(handle node, handle ancestor)
     return result;
 }
 
-bool SqliteDbTable::isFileNode(handle node)
+bool SqliteDbTable::isFileNode(NodeHandle node)
 {
     bool isFileNode = false;
     if (!db)
@@ -850,7 +853,7 @@ bool SqliteDbTable::isFileNode(handle node)
     sqlite3_stmt *stmt;
     if (sqlite3_prepare(db, "SELECT type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
+        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
         {
             if (sqlite3_step(stmt) == SQLITE_ROW)
             {
@@ -863,7 +866,7 @@ bool SqliteDbTable::isFileNode(handle node)
     return isFileNode;
 }
 
-bool SqliteDbTable::isNodeInDB(handle node)
+bool SqliteDbTable::isNodeInDB(NodeHandle node)
 {
     bool inDb = false;
     if (!db)
@@ -876,7 +879,7 @@ bool SqliteDbTable::isNodeInDB(handle node)
     sqlite3_stmt *stmt;
     if (sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
+        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
         {
             if (sqlite3_step(stmt) == SQLITE_ROW)
             {

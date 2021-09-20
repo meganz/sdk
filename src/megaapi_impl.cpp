@@ -11756,13 +11756,13 @@ node_vector MegaApiImpl::searchWithDB(MegaHandle nodeHandle, const char *searchS
         return nodeVector;
     }
 
-    std::map<mega::handle, NodeSerialized> nodeMap;
+    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
     client->sctable->getNodesByName(searchString, nodeMap);
     if (nodeHandle != INVALID_HANDLE)
     {
         for (auto it = nodeMap.begin(); it != nodeMap.end(); )
         {
-            if (!client->sctable->isAncestor(it->first, nodeHandle))
+            if (!client->sctable->isAncestor(it->first, NodeHandle().set6byte(nodeHandle)))
             {
                 nodeMap.erase(it);
             }
@@ -11776,7 +11776,7 @@ node_vector MegaApiImpl::searchWithDB(MegaHandle nodeHandle, const char *searchS
     for (const auto nodeMapIt : nodeMap)
     {
         Node* n;
-        auto nodeIt = client->mNodes.find(NodeHandle().set6byte(nodeMapIt.first));
+        auto nodeIt = client->mNodes.find(nodeMapIt.first);
         if (nodeIt == client->mNodes.end())
         {
             n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
@@ -12011,7 +12011,7 @@ long long MegaApiImpl::getSize(MegaNode *n)
         return 0;
     }
 
-    NodeCounter nodeCounter = client->getTreeInfoFromNode(n->getHandle());
+    NodeCounter nodeCounter = client->getTreeInfoFromNode(NodeHandle().set6byte(n->getHandle()));
     sdkMutex.unlock();
 
     return nodeCounter.storage;
@@ -17512,7 +17512,7 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
         return 0;
     }
 
-    int numChildren = client->getNumberOfChildren(parent->nodehandle);
+    int numChildren = client->getNumberOfChildren(parent->nodeHandle());
     sdkMutex.unlock();
 
     return numChildren;
@@ -17808,7 +17808,7 @@ bool MegaApiImpl::hasChildren(MegaNode *parent)
         return false;
     }
 
-    size_t numChilds = client->getNumberOfChildren(p->nodehandle);
+    size_t numChilds = client->getNumberOfChildren(p->nodeHandle());
     sdkMutex.unlock();
 
     return static_cast<bool>(numChilds);
@@ -22638,7 +22638,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            NodeCounter nc = client->getTreeInfoFromNode(node->nodehandle, false);
+            NodeCounter nc = client->getTreeInfoFromNode(node->nodeHandle(), false);
             std::unique_ptr<MegaFolderInfo> folderInfo = make_unique<MegaFolderInfoPrivate>(nc.files, nc.folders - 1, nc.versions, nc.storage, nc.versionStorage);
             request->setMegaFolderInfo(folderInfo.get());
 

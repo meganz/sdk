@@ -225,7 +225,7 @@ Node::~Node()
     {
         for (auto& childHandle : mChildrenInMemory)
         {
-            Node* child = client->nodebyhandleInRam(childHandle.as8byte());
+            Node* child = client->nodeByHandleInRam(childHandle);
             if (child)
             {
                 child->parent = nullptr;
@@ -1071,7 +1071,7 @@ bool Node::applykey()
     if (applied)
     {
         // If node in DB update if not we can wait until it will save in DB
-        if (client->sctable->isNodeInDB(nodehandle))
+        if (client->sctable->isNodeInDB(nodeHandle()))
         {
             client->sctable->put(this);
         }
@@ -1082,7 +1082,7 @@ bool Node::applykey()
 
 NodeCounter Node::subnodeCounts() const
 {
-    return client->getTreeInfoFromNode(nodehandle);
+    return client->getTreeInfoFromNode(nodeHandle());
 }
 
 // returns whether node was moved
@@ -2027,7 +2027,7 @@ node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
         nodes->push_back(static_cast<Node*>(*it));
     }
 
-    std::map<handle, NodeSerialized> nodeMap;
+    std::map<NodeHandle, NodeSerialized> nodeMap;
     if (mClient.sctable->getNodesByFingerprint(*fingerprint, nodeMap))
     {
         for (auto nodeIt : nodeMap)
@@ -2035,7 +2035,7 @@ node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
             bool found = false;
             for (int i = 0; i < nodes->size(); i++)
             {
-                if (nodes->at(i)->nodehandle == nodeIt.first)
+                if (nodes->at(i)->nodeHandle().eq(nodeIt.first))
                 {
                     found = true;
                     break;

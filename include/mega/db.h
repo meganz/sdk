@@ -63,21 +63,21 @@ public:
 
     virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
     virtual bool getNodes(std::vector<NodeSerialized>& nodes) = 0;
-    virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) = 0;
-    virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) = 0;
+    virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
+    virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
     virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node) = 0;
     virtual bool getNodesWithoutParent(std::vector<NodeSerialized>& nodes) = 0;
     virtual bool getNodesWithSharesOrLink(std::vector<NodeSerialized>& nodes, ShareType_t shareType) = 0;
     virtual bool getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
-    virtual bool getChildrenHandlesFromNode(handle node, std::vector<handle>& nodes) = 0;
-    virtual bool getNodesByName(const std::string& name, std::map<mega::handle, NodeSerialized>& nodes) = 0;
-    virtual NodeCounter getNodeCounter(handle node, bool isParentFile) = 0;
-    virtual uint32_t getNumberOfChildrenFromNode(handle parentHandle) = 0;
+    virtual bool getChildrenHandlesFromNode(NodeHandle node, std::vector<NodeHandle>& nodes) = 0;
+    virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
+    virtual NodeCounter getNodeCounter(NodeHandle node, bool isParentFile) = 0;
+    virtual uint32_t getNumberOfChildrenFromNode(NodeHandle parentHandle) = 0;
     virtual bool isNodesOnDemandDb() = 0;
     virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
-    virtual bool isNodeInDB(handle node) = 0;
-    virtual bool isAncestor(handle node, handle ancestror) = 0;
-    virtual bool isFileNode(handle node) = 0;
+    virtual bool isNodeInDB(NodeHandle node) = 0;
+    virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
+    virtual bool isFileNode(NodeHandle node) = 0;
     virtual uint64_t getNumberOfNodes() = 0;
 
     // update or add specific record

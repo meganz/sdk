@@ -892,10 +892,10 @@ public:
     node_list getChildren(Node *parent);
 
     // Get number of children from a node
-    size_t getNumberOfChildren(handle parentHandle);
+    size_t getNumberOfChildren(NodeHandle parentHandle);
 
     // Get sub tree info (files, folders, size, version)
-    NodeCounter getTreeInfoFromNode(handle node, bool isParentFileNode = false);
+    NodeCounter getTreeInfoFromNode(NodeHandle node, bool isParentFileNode = false);
 
     // use HTTPS for all communications
     bool usehttps;
@@ -1437,10 +1437,10 @@ public:
 
     Node* nodeByHandle(NodeHandle);
     Node* nodeByPath(const char* path, Node* node = nullptr);
+    Node* nodeByHandleInRam(NodeHandle);
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
-    Node* nodebyhandleInRam(handle);
 #ifdef ENABLE_SYNC
     Node* nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
