@@ -199,7 +199,7 @@ public:
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
 
-    PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root, LocalPath& rootPath);
+    PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root, const LocalPath& rootPath);
 
     ~PosixDirNotify();
 

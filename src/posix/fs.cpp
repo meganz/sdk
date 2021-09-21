@@ -1774,7 +1774,7 @@ void PosixFileSystemAccess::statsid(string *id) const
 
 #if defined(ENABLE_SYNC)
 
-PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root, LocalPath& rootPath)
+PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root, const LocalPath& rootPath)
   : DirNotify(rootPath)
   , fsaccess(&fsAccess)
 #ifdef __MACH__
