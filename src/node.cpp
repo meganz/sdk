@@ -2982,5 +2982,9 @@ CloudNode::CloudNode(const Node& n)
     , fingerprint(n.fingerprint())
 {}
 
+bool CloudNode::isIgnoreFile() const
+{
+    return type == FILENODE && name == IGNORE_FILE_NAME;
+}
 
 } // namespace

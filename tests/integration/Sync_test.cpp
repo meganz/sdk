@@ -11684,7 +11684,9 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedUpHierarchy)
 
     // Move 2/0/.megaignore to 2/.megaignore.
     localFS.movenode("2/0/.megaignore", "2");
-    remoteTree.movenode("2/0/.megaignore", "2");
+
+    // 2/0/.megaignore will remain where it is.
+    remoteTree.copynode("2/0/.megaignore", "2/.megaignore");
 
     fs::rename(root(*cu) / "root" / "2" / "0" / ".megaignore",
                root(*cu) / "root" / "2" / ".megaignore");

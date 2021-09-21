@@ -1465,6 +1465,13 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             assert(parentRow.syncNode);
             ProgressingMonitor monitor(syncs);
 
+            // Are we moving an ignore file?
+            if (row.isIgnoreFile() || sourceSyncNode->isIgnoreFile())
+            {
+                // Then it's not subject to move processing.
+                return false;
+            }
+
             if (!row.syncNode)
             {
                 resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
@@ -1942,12 +1949,19 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         rowResult = false;
         return true;
     }
-    else if (LocalNode* sourceSyncNode = syncs.findLocalNodeByNodeHandle(row.cloudNode->handle))
+
+    if (LocalNode* sourceSyncNode = syncs.findLocalNodeByNodeHandle(row.cloudNode->handle))
     {
         if (sourceSyncNode == row.syncNode) return false;
 
-        // It's a move or rename
+        // Are we moving an ignore file?
+        if (row.isIgnoreFile() || sourceSyncNode->isIgnoreFile())
+        {
+            // Then it's not subject to the usual move procesing.
+            return false;
+        }
 
+        // It's a move or rename
         if (isBackup())
         {
             // Backups must not change the local
@@ -6521,7 +6535,14 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
         MT_UNDERWAY
     }; // MoveType
 
-    auto isPossibleCloudMoveTarget = [&](string& path) {
+    auto isPossibleCloudMoveSource = [&](string& path) {
+        // Is the move source an ignore file?
+        if (row.syncNode->isIgnoreFile())
+        {
+            // Then it's not subject to move processing.
+            return MT_NONE;
+        }
+
         CloudNode cloudNode;
         bool active = false;
         bool found = false;
@@ -6537,6 +6558,13 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
         // Remote doesn't exist or isn't under an active sync.
         if (!found || !active)
             return MT_NONE;
+
+        // Does the remote represent an ignore file?
+        if (cloudNode.isIgnoreFile())
+        {
+            // Then we know it can't be a move target.
+            return MT_NONE;
+        }
 
         // Trim the rare fields.
         row.syncNode->trimRareFields();
@@ -6558,21 +6586,6 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 
         // Is there a sync node associated with the move target?
         node = syncs.localNodeByCloudPath(path, &parent, &remainderPath);
-
-        // Are we (re)moving an ignore file?
-        if (row.syncNode->isIgnoreFile())
-        {
-            // Is it a broken ignore file?
-            if (parentRow.syncNode->loadFailedHere())
-            {
-                // Is the move target a sibling or nephew?
-                if (parent->isBelow(*parentRow.syncNode))
-                {
-                    // Then the move target would never be processed.
-                    return MT_NONE;
-                }
-            }
-        }
 
         // A sync node exists and might be detected as a move target.
         if (node)
@@ -6597,7 +6610,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 
     string cloudPath;
 
-    if (auto mt = isPossibleCloudMoveTarget(cloudPath))
+    if (auto mt = isPossibleCloudMoveSource(cloudPath))
     {
         row.syncNode->setCheckMovesAgain(true, false, false);
 
@@ -6969,11 +6982,11 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         // Then make sure we process it exclusively.
         parentRow.ignoreFileChanging();
     }
-
-    if (!row.syncNode->fsidSyncedReused)
+    // Ignore files aren't subject to the usual move processing.
+    else if (!row.syncNode->fsidSyncedReused)
     {
         auto predicate = [&row](LocalNode* n) {
-            return n != row.syncNode;
+            return n != row.syncNode && !n->isIgnoreFile();
         };
 
         movedLocalNode =

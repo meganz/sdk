@@ -76,6 +76,9 @@ struct CloudNode
 
     CloudNode() {}
     CloudNode(const Node& n);
+
+    // Query whether this cloud node represents an ignore file.
+    bool isIgnoreFile() const;
 };
 
 struct SyncTransfer_inClient: public File
