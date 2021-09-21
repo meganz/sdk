@@ -3142,6 +3142,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
         if (!any_running_at_all)
         {
+            LOG_debug << " waitonsyncs finished since no non-stalled clients have any running syncs";
             return result;
         }
 
@@ -6846,7 +6847,12 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     const auto SyncStallState = [](bool state) {
         return [state](StandardClient& client) {
             SyncStallInfo dummy;
-            return client.client.syncs.syncStallDetected(dummy) == state;
+            bool result = client.client.syncs.syncStallDetected(dummy) == state;
+            if (result)
+            {
+                LOG_debug << "Sync stall state detected: " << (state ? "true" : "false");
+            }
+            return result;
         };
     };
 
@@ -6871,13 +6877,13 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     model2.findnode("d/file0_d")->content = "remoteFile";
     model2.ensureLocalDebrisTmpLock(""); // due to download temp location
 
-    // Wait for the sync to exit the stall state.
+    LOG_debug << "Wait for the sync to exit the stall state.";
     ASSERT_TRUE(c.waitFor(SyncStallState(false), TIMEOUT));
 
-    // Make sure the sync's completed its processing.
+    LOG_debug << "Make sure the sync's completed its processing.";
     waitonsyncs(TIMEOUT, &c);
 
-    // now the sync should have unstalled and resolved the stalled cases:
+    LOG_debug << "now the sync should have unstalled and resolved the stalled cases";
 
     // Confirm state
     ASSERT_TRUE(c.confirmModel_mainthread(model0.root.get(), id0));
