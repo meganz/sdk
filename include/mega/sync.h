@@ -499,12 +499,6 @@ public:
     bool syncEqual(const CloudNode&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
-    // Check if the node associated with this handle is excluded.
-    int isExcluded(const NodeHandle& handle, nodetype_t type);
-
-    // Check if the node associated with this remote path is excluded.
-    int isExcluded(const RemotePath& path, nodetype_t type);
-
     bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
     bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
 
