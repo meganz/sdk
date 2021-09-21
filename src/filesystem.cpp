@@ -344,22 +344,19 @@ void FileSystemAccess::captimestamp(m_time_t* t)
     else if (*t < 0) *t = 0;
 }
 
-int FileSystemAccess::decodeEscape(const char *s) const
+bool FileSystemAccess::decodeEscape(const char* s, char& escapedChar) const
 {
-    if (!isEscape(s))
+    // s must be part of a null terminated c-style string
+    if (s && *s == '%'
+        && islchex(s[1])
+        && islchex(s[2]))
     {
-        return -1;
+        escapedChar = char((hexval(s[1]) << 4) | hexval(s[2]));
+        return true;
     }
-
-    return hexval(s[1]) << 4 | hexval(s[2]);
+    return false;
 }
 
-bool FileSystemAccess::isEscape(const char* s) const
-{
-    return *s == '%'
-           && islchex(s[1])
-           && islchex(s[2]);
-}
 
 const char *FileSystemAccess::fstypetostring(FileSystemType type) const
 {
@@ -448,16 +445,9 @@ bool FileSystemAccess::islocalfscompatible(const int character, const FileSystem
         return false;
     }
 
-
-    // it turns out that escaping the escape character doesn't interact well with the
+    // it turns out that escaping the escape % character doesn't interact well with the
     // existing sync code, should an older megasync etc be running in the same account
     // so let's leave this aspect the same as the old system, for now at least.
-
-    //// Escape '%' if it is not encoding a control character.
-    //if (character == '%')
-    //{
-    //    return false;
-    //}
 
     // Filesystem-specific policies.
     switch (type)
@@ -533,21 +523,13 @@ void FileSystemAccess::unescapefsincompatible(string *name) const
 
     for (size_t i = 0; i < name->size(); ++i)
     {
-        // For convenience.
-        const char* s = &(*name)[i];
-
-        // Are we looking at a raw control character?
-        int character = static_cast<uint8_t>(*s);
-
-        // Are we processing an escape sequence?
-        if ((character = decodeEscape(s)) < 0)
+        char c;
+        if (decodeEscape(name->c_str() + i, c) && // it must be a null terminated c-style string passed here
+            !std::iscntrl(c))
         {
-            // Nope, continue.
-            continue;
+            // Substitute in the decoded character.
+            name->replace(i, 3, 1, static_cast<char>(c));
         }
-
-        // Substitute in the decoded character.
-        name->replace(i, 3, 1, static_cast<char>(character));
     }
 }
 
@@ -674,7 +656,7 @@ bool DirNotify::fsstableids() const
     return true;
 }
 
-DirNotify* FileSystemAccess::newdirnotify(LocalNode&, LocalPath& rootPath, Waiter*)
+DirNotify* FileSystemAccess::newdirnotify(LocalNode&, const LocalPath& rootPath, Waiter*)
 {
     return new DirNotify(rootPath);
 }

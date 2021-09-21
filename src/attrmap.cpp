@@ -165,7 +165,6 @@ void AttrMap::applyUpdates(const attr_map& updates)
     }
 }
 
-
 // generate JSON object containing attr_map
 void AttrMap::getjson(string* s) const
 {

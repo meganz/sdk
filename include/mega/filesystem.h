@@ -46,12 +46,6 @@ enum FileSystemType
     FS_XFS = 9
 };
 
-//// generic host filesystem node ID interface
-//struct MEGA_API FsNodeId
-//{
-//    virtual bool isequalto(FsNodeId*) = 0;
-//};
-
 typedef void (*asyncfscallback)(void *);
 
 struct MEGA_API AsyncIOContext;
@@ -513,15 +507,13 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 #ifdef ENABLE_SYNC
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
-    virtual DirNotify* newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter);
+    virtual DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter);
 #endif
 
-    // Returns the character encoded by the escape s.
-    // This function returns -1 if s is not a valid escape sequence.
-    int decodeEscape(const char* s) const;
-
-    // True if s is an escape of the format %xy.
-    bool isEscape(const char* s) const;
+    // Extracts the character encoded by the escape sequence %ab at s,
+    // if it is one,
+    // which must be part of a null terminated c-style string
+    bool decodeEscape(const char* s, char& escapedChar) const;
 
     bool islocalfscompatible(const int character, const FileSystemType type) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;

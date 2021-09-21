@@ -787,7 +787,7 @@ public:
 
         return result;
     }
-    
+
     bool match(const int32_t character)
     {
         if (peek() != character)
@@ -797,17 +797,6 @@ public:
 
         (void)get();
 
-        return true;
-    }
-
-    bool exactBinaryMatch(const UnicodeCodepointIterator& a, const UnicodeCodepointIterator b)
-    {
-        // optimization for comparing the initial portion of strings that are exactly the same up to a point
-
-        auto len = b.mCurrent - a.mCurrent;
-        if (len < 2 || mCurrent + len > mEnd) return false;
-        if (0 != memcmp(a.mCurrent, mCurrent, len * sizeof(CharT))) return false;
-        mCurrent += len;
         return true;
     }
 

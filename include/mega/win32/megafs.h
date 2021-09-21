@@ -58,7 +58,7 @@ public:
 
     DirAccess* newdiraccess() override;
 #ifdef ENABLE_SYNC
-    DirNotify* newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter) override;
+    DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter) override;
 #endif
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;

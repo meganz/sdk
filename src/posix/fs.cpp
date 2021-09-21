@@ -1950,7 +1950,7 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
 }
 
 #ifdef ENABLE_SYNC
-DirNotify* PosixFileSystemAccess::newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter*)
+DirNotify* PosixFileSystemAccess::newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter*)
 {
     return new PosixDirNotify(*this, root, rootPath);
 }

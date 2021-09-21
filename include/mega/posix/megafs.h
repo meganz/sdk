@@ -88,7 +88,7 @@ public:
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
 #ifdef ENABLE_SYNC
-    DirNotify* newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter) override;
+    DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter) override;
 #endif
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;

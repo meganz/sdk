@@ -1700,7 +1700,7 @@ DirAccess* WinFileSystemAccess::newdiraccess()
 }
 
 #ifdef ENABLE_SYNC
-DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root, LocalPath& rootPath, Waiter* waiter)
+DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter)
 {
     return new WinDirNotify(root, rootPath, this, waiter);
 }

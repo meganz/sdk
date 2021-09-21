@@ -1685,8 +1685,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             //    After all scanning is done, we need one clean tree traversal with no moves detected
             //    before we can be sure we can remove nodes or upload/download.
 
-            //todo: detach from Nodes ?
-
             CloudNode sourceCloudNode, targetCloudNode;
             string sourceCloudNodePath, targetCloudNodePath;
             bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, Syncs::LATEST_VERSION);
@@ -2109,11 +2107,6 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
         LocalPath sourcePath = sourceSyncNode->getLocalPath();
 
-        //todo: detach nodes?
-        Node* oldCloudParent = sourceSyncNode->parent ?
-                               syncs.mClient.nodeByHandle(sourceSyncNode->parent->syncedCloudNodeHandle) :
-                               nullptr;
-
         // True if the move-target exists and we're free to "overwrite" it.
         auto overwrite = false;
 
@@ -2124,7 +2117,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             SYNC_verbose << syncname << "Move detected by nodehandle, but something else with that name is already here locally. Type: " << row.fsNode->type
                 << " moved node: " << fullPath.cloudPath
-                << " old parent: " << (oldCloudParent ? oldCloudParent->displaypath() : "?")
+                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath(*syncs.fsaccess) : "<null>")
                 << logTriplet(row, fullPath);
 
             if (row.syncNode)
@@ -2148,11 +2141,11 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         {
             LOG_debug << syncname << "Move detected by nodehandle. Type: " << sourceSyncNode->type
                 << " moved node: " << fullPath.cloudPath
-                << " old parent: " << (oldCloudParent ? oldCloudParent->displaypath() : "?")
+                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath(*syncs.fsaccess) : "<null>")
                 << logTriplet(row, fullPath);
 
             LOG_debug << "Sync - remote move " << fullPath.cloudPath <<
-                " from " << (oldCloudParent ? oldCloudParent->displayname() : "?") <<
+                " from corresponding " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath(*syncs.fsaccess) : "<null>") <<
                 " to " << parentRow.cloudNode->name;
 
             sourceSyncNode->moveApplyingToLocal = true;

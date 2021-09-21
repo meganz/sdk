@@ -97,15 +97,6 @@ void TreeProcApplyKey::proc(MegaClient *client, Node *n)
 }
 
 #ifdef ENABLE_SYNC
-// stop sync get
-//void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
-//{
-//    if (n->syncget)
-//    {
-//        delete n->syncget;
-//        n->syncget = NULL;
-//    }
-//}
 
 LocalTreeProcMove::LocalTreeProcMove(Sync* sync, bool recreate)
 {
@@ -139,15 +130,6 @@ void LocalTreeProcUpdateTransfers::proc(FileSystemAccess& fsa, LocalNode *localn
 
     localnode->updateTransferLocalname();
 }
-
-//void LocalTreeProcUnlinkNodes::proc(MegaClient *, LocalNode *localnode)
-//{
-//    if (localnode->node)
-//    {
-//        localnode->node->localnode = NULL;
-//        localnode->node = NULL;
-//    }
-//}
 
 #endif
 } // namespace

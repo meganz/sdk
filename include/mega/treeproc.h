@@ -91,11 +91,6 @@ public:
 };
 
 #ifdef ENABLE_SYNC
-//class MEGA_API TreeProcDelSyncGet : public TreeProc
-//{
-//public:
-//    void proc(MegaClient*, Node*);
-//};
 
 class MEGA_API LocalTreeProc
 {
@@ -121,12 +116,6 @@ class MEGA_API LocalTreeProcUpdateTransfers : public LocalTreeProc
 public:
     void proc(FileSystemAccess&, LocalNode*);
 };
-
-//class MEGA_API LocalTreeProcUnlinkNodes : public LocalTreeProc
-//{
-//public:
-//    void proc(MegaClient*, LocalNode*);
-//};
 
 #endif
 } // namespace

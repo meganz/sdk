@@ -129,7 +129,6 @@ struct MEGA_API NewNode : public NodeCore
 
     //handle syncid = UNDEF;
 #ifdef ENABLE_SYNC
-//    crossref_ptr<LocalNode, NewNode> localnode; // non-owning
     weak_ptr<SyncUpload_inClient> syncUpload;
 #endif
     std::unique_ptr<string> fileattributes;
@@ -362,25 +361,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
-    // Retrieve the node's name.
-    //string name() const;
-
-#ifdef ENABLE_SYNC
-
-    //// Detach this remote from it's local associate.
-    //void detach(const bool recreate = false);
-
-    // True if this node is syncable.
-    //
-    // That is, the node must:
-    // - Be alive.
-    // - Be decrypted.
-    // - Be named.
-    // - Not be the debris folder.
-//    bool syncable(const LocalNode& parent) const;
-
-#endif /* ENABLE_SYNC */
-
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -484,9 +464,6 @@ struct MEGA_API LocalNode : public Cacheable
     // related cloud node, if any
     NodeHandle syncedCloudNodeHandle;
     nodehandle_localnode_map::iterator syncedCloudNodeHandle_it;
-
-    // related pending node creation or NULL
-    //crossref_ptr<NewNode, LocalNode> newnode;
 
     // FILENODE or FOLDERNODE
     nodetype_t type = TYPE_UNKNOWN;
@@ -710,9 +687,6 @@ struct MEGA_API LocalNode : public Cacheable
     //// Clears this node's conflict detection state.
     //void conflictsResolved();
 
-    //// Detach this node from it's remote associate.
-    //void detach(const bool recreate = false);
-
     // Are we above other?
     bool isAbove(const LocalNode& other) const;
 
@@ -750,9 +724,6 @@ private:
     WatchHandle mWatchHandle;
 #endif // USE_INOTIFY
 };
-
-//template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
-//template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode.ptr; }
 
 #endif
 
