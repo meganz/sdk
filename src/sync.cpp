@@ -988,9 +988,6 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         {
             addstatecachechildren(l->dbid, tmap, localpath, l, maxdepth - 1);
         }
-
-//        assert(l->localname.empty() || l->name.empty() || parent_dbid == UNDEF ||
-//            0 == compareUtf(l->localname, true, l->name, false, true));
     }
 }
 
@@ -1306,130 +1303,6 @@ void Sync::createDebrisTmpLockOnce()
     }
 }
 
-
-/// todo:   things to figure out where to put them in new system:
-///
-// no fsid change detected or overwrite with unknown file:
-//if (fa->mtime != l->mtime || fa->size != l->size)
-//{
-//    if (fa->fsidvalid && l->fsid != fa->fsid)
-//    {
-//        l->setfsid(fa->fsid, client->fsidnode);
-//    }
-//
-//    m_off_t dsize = l->size > 0 ? l->size : 0;
-//
-//    l->genfingerprint(fa.get());
-//
-//    client->app->syncupdate_local_file_change(this, l, path.c_str());
-//
-//    DBTableTransactionCommitter committer(client->tctable);
-//    client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
-//    l->bumpnagleds();
-//    l->deleted = false;
-//
-//    client->syncactivity = true;
-//
-//    statecacheadd(l);
-//
-//    fa.reset();
-//
-//    if (isnetwork && l->type == FILENODE)
-//    {
-//        LOG_debug << "Queueing extra fs notification for modified file";
-//        dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
-//    }
-//    return l;
-//}
-//    }
-//    else
-//    {
-//    // (we tolerate overwritten folders, because we do a
-//    // content scan anyway)
-//    if (fa->fsidvalid && fa->fsid != l->fsid)
-//    {
-//        l->setfsid(fa->fsid, client->fsidnode);
-//        newnode = true;
-//    }
-//    }
-
-//client->app->syncupdate_local_folder_addition(this, l, path.c_str());
-//                else
-//                {
-//                if (fa->fsidvalid && l->fsid != fa->fsid)
-//                {
-//                    l->setfsid(fa->fsid, client->fsidnode);
-//                }
-//
-//                if (l->genfingerprint(fa.get()))
-//                {
-//                    changed = true;
-//                    l->bumpnagleds();
-//                    l->deleted = false;
-//                }
-//
-//                if (newnode)
-//                {
-//                    client->app->syncupdate_local_file_addition(this, l, path.c_str());
-//                }
-//                else if (changed)
-//                {
-//                    client->app->syncupdate_local_file_change(this, l, path.c_str());
-//                    DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
-//                    client->stopxfer(l, &committer);
-//                }
-//
-//                if (newnode || changed)
-//                {
-//                    statecacheadd(l);
-//                }
-//                }
-//            }
-//        }
-//
-//        if (changed || newnode)
-//        {
-//            if (isnetwork && l->type == FILENODE)
-//            {
-//                LOG_debug << "Queueing extra fs notification for new file";
-//                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
-//            }
-//
-//            client->syncactivity = true;
-//        }
-//    }
-//    else
-//    {
-//    LOG_warn << "Error opening file";
-//    if (fa->retry)
-//    {
-//        // fopen() signals that the failure is potentially transient - do
-//        // nothing and request a recheck
-//        LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
-//        dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
-//        client->syncfslockretry = true;
-//        client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
-//        client->blockedfile = *localpathNew;
-//    }
-//    else if (l)
-//    {
-//        // immediately stop outgoing transfer, if any
-//        if (l->transfer)
-//        {
-//            DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
-//            client->stopxfer(l, &committer);
-//        }
-//
-//        client->syncactivity = true;
-//
-//        // in fullscan mode, missing files are handled in bulk in deletemissing()
-//        // rather than through setnotseen()
-//        if (!fullscan)
-//        {
-//            l->setnotseen(1);
-//        }
-//    }
-
 struct ProgressingMonitor
 {
     bool resolved = false;
@@ -1637,18 +1510,13 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     nameOverwritten = row.cloudNode->name;
                     // todo: record the old one as prior version?
                 }
-                else //if (row.syncNode->type != FILENODE)
+                else
                 {
                     row.syncNode->setCheckMovesAgain(false, true, false);
                     monitor.waitingLocal(fullPath.localPath, sourceSyncNode->getLocalPath(), fullPath.cloudPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
                     rowResult = false;
                     return true;
                 }
-                //else if (row.syncNode->type == FILENODE)
-                //{
-                //    rowResult = false;
-                //    return false;  // let the non-move code run for this node, it can resolve it by upload/download or user intervention
-                //}
             }
 
             row.suppressRecursion = true;   // wait until we have moved the other LocalNodes below this one
@@ -1690,16 +1558,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, Syncs::LATEST_VERSION);
             bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
-//todo:
-            //if (sourceCloudNode && !sourceCloudNode->mPendingChanges.empty())
-            //{
-            //    // come back again later when there isn't already a command in progress
-            //    SYNC_verbose << syncname << "Actions are already in progress for " << sourceCloudNode->displaypath() << logTriplet(row, fullPath);
-            //    if (parentRow.syncNode) parentRow.syncNode->setSyncAgain(false, true, false);
-            //    rowResult = false;
-            //    return true;
-            //}
-
             if (foundSourceCloudNode && foundTargetCloudNode)
             {
 
@@ -1716,52 +1574,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 }
                 else
                 {
-                    // Are we overwriting a directory?
-                    //if (row.cloudNode && row.cloudNode->type != FILENODE)
-                    //{
-                    //    // The source must be empty.
-                    //    assert(sourceSyncNode->children.empty());
-
-                    //    // Shouldn't be here if we're already unlinking the node.
-                    //    if (!sourceSyncNode->rareRO().unlinkHere.expired())
-                    //    {
-                    //        // Row isn't synced.
-                    //        rowResult = false;
-
-                    //        // "Move" isn't complete.
-                    //        return true;
-                    //    }
-
-                    //    // What node are we removing?
-                    //    auto handle = sourceCloudNode.handle;
-
-                    //    // So we can track the unlink-in-progress.
-                    //    auto unlinkPtr = std::make_shared<LocalNode::RareFields::UnlinkInProgress>();
-
-                    //    // Queue the unlink.
-                    //    syncs.queueClient([handle, unlinkPtr](MegaClient& client, DBTableTransactionCommitter&) {
-                    //        // Get our hands on the node.
-                    //        auto* node = client.nodeByHandle(handle);
-
-                    //        // Can't remove the node if it doesn't exist.
-                    //        if (!node) return;
-
-                    //        // Remove the node.
-                    //        client.unlink(node, false, 0, [unlinkPtr](NodeHandle, Error) {
-                    //            // unlinkPtr kept alive until the request is complete.
-                    //        });
-                    //    });
-
-                    //    // Track the unlink-in-progress.
-                    //    sourceSyncNode->rare().unlinkHere = unlinkPtr;
-
-                    //    // Row isn't synced.
-                    //    rowResult = false;
-
-                    //    // "Move" isn't complete.
-                    //    return true;
-                    //}
-
                     Syncs::QueuedClientFunc simultaneousMoveReplacedNodeToDebris = nullptr;
 
                     if (row.cloudNode && row.cloudNode->handle != sourceCloudNode.handle)
@@ -1857,7 +1669,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                 }
                             });
 
-                        //row.syncNode->moveTargetApplyingToCloud = true;
                         row.syncNode->rare().moveToHere = movePtr;
                         sourceSyncNode->rare().moveFromHere = movePtr;
 
@@ -1928,8 +1739,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                         LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath(*syncs.fsaccess) << " -> " << fullPath.localPath.toPath(*syncs.fsaccess);
 
-                        //assert(sourceSyncNode->moveSourceApplyingToCloud);
-                        //row.syncNode->moveTargetApplyingToCloud = true;
                         row.syncNode->rare().moveToHere = movePtr;
                         sourceSyncNode->rare().moveFromHere = movePtr;
 
@@ -1956,96 +1765,9 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 rowResult = false;
                 return true;
             }
-
-
-            // todo: adjust source sourceLocalNode so that it is treated as a deletion
-
-
-            //LOG_debug << "File move/overwrite detected";
-
-            //// delete existing LocalNode...
-            //delete row.syncNode;      // todo:  CAUTION:  this will queue commands to remove the cloud node
-            //row.syncNode = nullptr;
-
-            //// ...move remote node out of the way...
-            //client->execsyncdeletions();   // todo:  CAUTION:  this will send commands to remove the cloud node
-
-            //// ...and atomically replace with moved one
-            //client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
-
-            //// (in case of a move, this synchronously updates l->parent and l->node->parent)
-            //sourceLocalNode->setnameparent(parentRow.syncNode, &fullPath, client->fsaccess->fsShortname(fullPath), true);
-
-            //// mark as seen / undo possible deletion
-            //sourceLocalNode->setnotseen(0);  // todo: do we still need this?
-
-            //statecacheadd(sourceLocalNode);
-
-            //rowResult = false;
-            //return true;
         }
     }
-    //else
-    //{
-    //    // !row.syncNode
 
-    //    // rename or move of existing node?
-    //    if (row.fsNode->isSymlink)
-    //    {
-    //        LOG_debug << "checked path is a symlink, blocked: " << fullPath.toPath(*client->fsaccess);
-    //        row.syncNode->setUseBlocked();    // todo:   move earlier?  no syncnode here
-    //        rowResult = false;
-    //        return true;
-    //    }
-    //    else if (LocalNode* sourceLocalNode = client->findLocalNodeByFsid(*row.fsNode, *this))
-    //    {
-    //        LOG_debug << syncname << "Move detected by fsid. Type: " << sourceLocalNode->type << " new path: " << fullPath.toPath(*client->fsaccess) << " old localnode: " << sourceLocalNode->localnodedisplaypath(*client->fsaccess);
-
-    //        // logic to detect files being updated in the local computer moving the original file
-    //        // to another location as a temporary backup
-    //        if (sourceLocalNode->type == FILENODE &&
-    //            client->checkIfFileIsChanging(*row.fsNode, sourceLocalNode->getLocalPath(true)))
-    //        {
-    //            // if we revist here and the file is still the same after enough time, we'll move it
-    //            rowResult = false;
-    //            return true;
-    //        }
-
-    //        client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
-
-    //        // (in case of a move, this synchronously updates l->parent
-    //        // and l->node->parent)
-    //        sourceLocalNode->setnameparent(parentRow.syncNode, &fullPath, client->fsaccess->fsShortname(fullPath), false);
-
-              /*      // Has the move (rename) resulted in a filename anomaly?
-                    if (Node* node = it->second->node)
-                    {
-                        auto type = isFilenameAnomaly(*localpathNew, node);
-
-                        if (type != FILENAME_ANOMALY_NONE)
-                        {
-                            auto localPath = localpathNew->toPath();
-                            auto remotePath = node->displaypath();
-
-                            client->filenameAnomalyDetected(type, localPath, remotePath);
-                        }
-                    }*/
-
-    //        // make sure that active PUTs receive their updated filenames
-    //        client->updateputs();
-
-    //        statecacheadd(sourceLocalNode);
-
-    //        // unmark possible deletion
-    //        sourceLocalNode->setnotseen(0);    // todo: do we still need this?
-
-    //        // immediately scan folder to detect deviations from cached state
-    //        if (fullscan && sourceLocalNode->type == FOLDERNODE)
-    //        {
-    //            sourceLocalNode->setFutureScan(true, true);
-    //        }
-    //    }
-    //}
     return false;
  }
 
@@ -2254,6 +1976,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // that as a move source anymore
             sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname);
             sourceSyncNode->setSyncedNodeHandle(NodeHandle());
+            sourceSyncNode->sync->statecacheadd(sourceSyncNode);
 
             if (sourceSyncNode->type == FILENODE || !overwrite)
             {
@@ -2287,66 +2010,6 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     }
     return false;
 }
-
-
-
-//bool Sync::checkValidNotification(int q, Notification& notification)
-//{
-//    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so
-//
-//    if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
-//    {
-//        Notification next;
-//        while (dirnotify->notifyq[q].peekFront(next)
-//            && next.localnode == notification.localnode && next.path == notification.path)
-//        {
-//            dirnotify->notifyq[q].popFront(next);  // this is the only thread removing from the queue so it will be the same item
-//            if (!notification.timestamp || !next.timestamp)
-//            {
-//                notification.timestamp = 0;  // immediate
-//            }
-//            else
-//            {
-//                notification.timestamp = std::max(notification.timestamp, next.timestamp);
-//            }
-//            LOG_debug << "Next notification repeats, skipping duplicate";
-//        }
-//    }
-//
-//    if (notification.timestamp && /*!initializing &&*/ q == DirNotify::DIREVENTS)
-//    {
-//        LocalPath tmppath;
-
-//        if (notification.localnode)
-//        {
-//            if (node == (LocalNode*)~0) return false;
-//
-//            tmppath = notification.localnode->getLocalPath();
-//        }
-//
-//        if (!notification.path.empty())
-//        {
-//            tmppath.appendWithSeparator(notification.path, false, client->fsaccess->localseparator);
-//        }
-//
-//        attr_map::iterator ait;
-//        auto fa = client->fsaccess->newfileaccess(false);
-//        bool success = fa->fopen(tmppath, false, false);
-//        LocalNode *ll = localnodebypath(notification.localnode, notification.path);
-//        if ((!ll && !success && !fa->retry) // deleted file
-//            || (ll && success && ll->node && ll->node->localnode == ll
-//                && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
-//                && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
-//                && ait->second == ll->name
-//                && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
-//                && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
-//        {
-//            LOG_debug << "Self filesystem notification skipped";
-//            return false;
-//        }
-//    }
-//    return true;
-//}
 
 dstime Sync::procextraq()
 {
@@ -5128,13 +4791,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         recurseHere = false;
     }
 
-// todo:  (if we still need it)
-    //if (row.cloudNode && !row.cloudNode->mPendingChanges.empty())
-    //{
-    //    syncHere = false;
-    //    SYNC_verbose << syncname << "Skipping synchere due to pending cloudNode commands.  recurse flag: " << recurseHere;
-    //}
-
     bool folderSynced = syncHere; // todo: prob needs fixing
 
     auto originalCheckMovesAgain = row.syncNode->checkMovesAgain;
@@ -5200,9 +4856,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 }
                 childRow.rowSiblings = &childRows;
 
-                //assert(!row.syncNode || row.syncNode->localname.empty() || row.syncNode->name.empty() || !row.syncNode->parent ||
-                //       0 == compareUtf(row.syncNode->localname, true, row.syncNode->name, false, true));
-
                 if (childRow.fsNode && childRow.syncNode)
                 {
                     if (childRow.syncNode->fsid_asScanned != childRow.fsNode->fsid)
@@ -5228,8 +4881,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     if (childRow.syncNode->getLocalPath() != fullPath.localPath)
                     {
                         auto s = childRow.syncNode->getLocalPath();
-                        // todo: restore
-                        //assert(0 == compareUtf(childRow.syncNode->getLocalPath(), true, fullPath.localPath, true, false));
                     }
 
                     childRow.syncNode->reassignUnstableFsidsOnceOnly(childRow.fsNode);
@@ -5300,8 +4951,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             ||
                             (recurseHere &&
                             !childRow.suppressRecursion &&
-                            //!childRow.syncNode->moveSourceApplyingToCloud &&  // we may not have visited syncItem if !syncHere, but skip these if we determine they are being moved from or deleted already
-                            //!childRow.syncNode->moveTargetApplyingToCloud &&
                             //!childRow.syncNode->deletedFS &&   we should not check this one, or we won't remove the LocalNode
                             childRow.syncNode->rareRO().removeNodeHere.expired() &&
                             childRow.syncNode->rareRO().unlinkHere.expired() &&
@@ -5436,6 +5085,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
                      << " was " << (row.syncNode->slocalname ? row.syncNode->slocalname->toPath(*syncs.fsaccess) : "(null)")
                      << logTriplet(row, fullPath);
             row.syncNode->setnameparent(row.syncNode->parent, nullptr, row.fsNode->cloneShortname(), false);
+            statecacheadd(row.syncNode);
         }
     }
 
@@ -5574,6 +5224,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     {
                         row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
                         assert(row.syncNode->syncedFingerprint == row.cloudNode->fingerprint);
+                        statecacheadd(row.syncNode);
                     }
 
                     rowSynced = resolve_rowMatched(row, parentRow, fullPath);
@@ -5739,6 +5390,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                 // that as a move source anymore
                 sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname);
                 sourceSyncNode->setSyncedNodeHandle(NodeHandle());
+                sourceSyncNode->sync->statecacheadd(sourceSyncNode);
 
                 // Move all the LocalNodes under the source node to the new location
                 // We can't move the source node itself as the recursive callers may be using it
@@ -5888,70 +5540,42 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         return false;
     }
 
+    // local and cloud disappeared; remove sync item also
 
+    // todo: do we still need any of these flags?
+    if (row.syncNode->moveAppliedToLocal)
+    {
+        SYNC_verbose << syncname << "Deleting Localnode (moveAppliedToLocal)" << logTriplet(row, fullPath);
+    }
+    else if (row.syncNode->deletedFS)
+    {
+        SYNC_verbose << syncname << "Deleting Localnode (deletedFS)" << logTriplet(row, fullPath);
+    }
+    else if (syncs.mSyncFlags->movesWereComplete)
+    {
+        SYNC_verbose << syncname << "Deleting Localnode (movesWereComplete)" << logTriplet(row, fullPath);
+    }
+    else
+    {
+        SYNC_verbose << syncname << "Deleting Localnode" << logTriplet(row, fullPath);
+    }
 
-    //if (!row.fsNode && row.syncNode->scanAgain != TREESTATE_NONE)
-    //{
-    //    SYNC_verbose << syncname << "Clearing scan flag for no-fsNode resolve_delSyncNode. " << logTriplet(row, fullPath);
-    //    row.syncNode->scanAgain = TREESTATE_NONE;
-    //}
-
-
-        // local and cloud disappeared; remove sync item also
-        //if (row.syncNode->moveSourceAppliedToCloud)
-        //{
-        //    SYNC_verbose << syncname << "Deleting Localnode (moveSourceAppliedToCloud)" << logTriplet(row, fullPath);
-        //}
-        //else
-
-        // todo: do we still need any of these flags?
-
-        if (row.syncNode->moveAppliedToLocal)
+    if (row.syncNode->deletedFS)
+    {
+        if (row.syncNode->type == FOLDERNODE)
         {
-            SYNC_verbose << syncname << "Deleting Localnode (moveAppliedToLocal)" << logTriplet(row, fullPath);
-        }
-        else if (row.syncNode->deletedFS)
-        {
-            SYNC_verbose << syncname << "Deleting Localnode (deletedFS)" << logTriplet(row, fullPath);
-        }
-        else if (syncs.mSyncFlags->movesWereComplete)
-        {
-            SYNC_verbose << syncname << "Deleting Localnode (movesWereComplete)" << logTriplet(row, fullPath);
+            LOG_debug << syncname << "Sync - local folder deletion detected: " << fullPath.localPath.toPath(*syncs.fsaccess);
         }
         else
         {
-            SYNC_verbose << syncname << "Deleting Localnode" << logTriplet(row, fullPath);
+            LOG_debug << syncname << "Sync - local file deletion detected: " << fullPath.localPath.toPath(*syncs.fsaccess);
         }
+    }
 
-        if (row.syncNode->deletedFS)
-        {
-            if (row.syncNode->type == FOLDERNODE)
-            {
-                LOG_debug << syncname << "Sync - local folder deletion detected: " << fullPath.localPath.toPath(*syncs.fsaccess);
-            }
-            else
-            {
-                LOG_debug << syncname << "Sync - local file deletion detected: " << fullPath.localPath.toPath(*syncs.fsaccess);
-            }
-        }
+    // deletes itself and subtree, queues db record removal
+    delete row.syncNode;
+    row.syncNode = nullptr;
 
-        // deletes itself and subtree, queues db record removal
-        delete row.syncNode;
-        row.syncNode = nullptr; // todo: maybe could return true here?
-    //}
-    //else if (row.syncNode->moveSourceApplyingToCloud)
-    //{
-    //    // The logic for a move can detect when it's finished, and sets moveAppliedToCloud
-    //    LOG_verbose << syncname << "Cloud move still in progress" << logTriplet(row, fullPath);
-    //    row.syncNode->setSyncAgain(true, false, false); // visit again
-    //    row.suppressRecursion = true;
-    //}
-    //else
-    //{
-    //    // this case can occur, eg. when the user deletes some nodes that were an unresolved/stalled move, to resolve it.
-    //    LOG_debug << syncname << "resolve_delSyncNode not resolved yet, waiting for movesWereComplete flag: " << logTriplet(row, fullPath);
-    //    monitor.noResult();
-    //}
     return false;
 }
 
@@ -6350,6 +5974,8 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
             row.syncNode->setScanAgain(true, false, false, 0);
             row.syncNode->scanAgain = TREE_RESOLVED;
 
+            //todo: remove deletedFS flag, it should be sufficient to suppress recursion now, and parent scan will take care of the rest.
+
             // don't let revisits do anything until the tree is cleaned up
             row.syncNode->deletedFS = true;
         }
@@ -6396,14 +6022,7 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, 
         if (it->second->type != type) continue;
         if (it->second->fsidSyncedReused)   continue;
 
-        //todo: actually we do want to support moving files/folders between syncs
-        // in the same filesystem so, commented this
-
-        // make sure we are in the same filesystem (fsid comparison is not valid in other filesystems)
-        //if (it->second->sync != &filesystemSync)
-        //{
-        //    continue;
-        //}
+        //todo: make sure that when we compare fsids, they are from the same filesystem.  (eg on windows, same drive)
 
         if (filesystemSync)
         {
@@ -6460,14 +6079,7 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type,
         if (it->second->type != type) continue;
         if (it->second->fsidScannedReused)   continue;
 
-        //todo: actually we do want to support moving files/folders between syncs
-        // in the same filesystem so, commented this
-
-        // make sure we are in the same filesystem (fsid comparison is not valid in other filesystems)
-        //if (it->second->sync != &filesystemSync)
-        //{
-        //    continue;
-        //}
+        //todo: make sure that when we compare fsids, they are from the same filesystem.  (eg on windows, same drive)
 
         if (filesystemSync)
         {
@@ -7784,15 +7396,6 @@ void Syncs::syncLoop()
             }
         }
 
-
-        // process active syncs
-        // sync timer: full rescan in case of filesystem notification failures
-        //if (syncscanfailed && syncscanbt.armed())
-        //{
-        //    syncscanfailed = false;
-        //    //syncops = true;
-        //}
-
         //// sync timer: try to transition into monitoring mode.
         //if (mSyncMonitorRetry && mSyncMonitorTimer.armed())
         //{
@@ -7813,323 +7416,6 @@ void Syncs::syncLoop()
         //    syncops = true;
         //}
 
-        // halt all syncing while the local filesystem is pending a lock-blocked operation
-        // or while we are fetching nodes
-
-
-        // now we process notifications AND sync() on each exec()
-        //if (!syncdownretry && !syncadding && statecurrent && !anySyncNeedsTargetedSync() && !fetchingnodes)
-
-        //{
-        // process active syncs, stop doing so while transient local fs ops are pending
-        //if (!syncs.empty() || syncactivity)
-        //{
-        //bool prevpending = false;
-        //for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
-        //{
-        //    for (Sync* sync : syncs)
-        //    {
-        //        prevpending = prevpending || sync->dirnotify->notifyq[q].size();
-        //        if (prevpending)
-        //        {
-        //            break;
-        //        }
-        //    }
-        //    if (prevpending)
-        //    {
-        //        break;
-        //    }
-        //}
-
-        //dstime nds = NEVER;
-        //dstime mindelay = NEVER;
-        //for (Sync* sync : syncs)
-        //{
-        //    if (sync->isnetwork && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
-        //    {
-        //        Notification notification;
-        //        while (sync->dirnotify->notifyq[DirNotify::EXTRA].popFront(notification))
-        //        {
-        //            dstime dsmin = Waiter::ds - Sync::EXTRA_SCANNING_DELAY_DS;
-        //            if (notification.timestamp <= dsmin)
-        //            {
-        //                LOG_debug << "Processing extra fs notification: " << notification.path.toPath(*fsaccess);
-        //                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode, std::move(notification.path));
-        //            }
-        //            else
-        //            {
-        //                sync->dirnotify->notifyq[DirNotify::EXTRA].unpopFront(notification);
-        //                dstime delay = (notification.timestamp - dsmin) + 1;
-        //                if (delay < mindelay)
-        //                {
-        //                    mindelay = delay;
-        //                }
-        //                break;
-        //            }
-        //        }
-        //    }
-        //}
-        //if (EVER(mindelay))
-        //{
-        //    syncextrabt.backoff(mindelay);
-        //    syncextraretry = true;
-        //}
-        //else
-        //{
-        //    syncextraretry = false;
-        //}
-
-        //for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
-        //{
-        //    //if (!syncfsopsfailed)
-        //    {
-        //        syncfslockretry = false;
-
-        //        // not retrying local operations: process pending notifyqs
-        //        for (auto it = syncs.begin(); it != syncs.end(); )
-        //        {
-        //            Sync* sync = *it++;
-
-        //            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED || sync->state == SYNC_DISABLED)
-        //            {
-        //                delete sync;  // removes itself from the client's list that we are iterating
-        //                continue;
-        //            }
-        //            else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-        //            {
-        //                // process items from the notifyq until depleted
-        //                if (sync->dirnotify->notifyq[q].size())
-        //                {
-        //                    //dstime dsretry;
-
-        //                    syncops = true;
-
-        //                    sync->procscanq(q);
-        //                }
-
-        //                if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
-        //                {
-        //                    sync->changestate(SYNC_ACTIVE);
-
-        //                    // scan for items that were deleted while the sync was stopped
-        //                    // FIXME: defer this until RETRY queue is processed
-        //                    sync->scanseqno++;
-        //                    sync->deletemissing(sync->localroot.get());
-        //                }
-        //            }
-        //        }
-
-        //        if (syncadding)
-        //        {
-        //            break;
-        //        }
-        //    }
-        //}
-
-        //if (syncadding)
-        //{
-        //    // do not continue processing syncs while adding nodes
-        //    // just go to evaluate the main do-while loop
-        //    notifypurge();
-        //    continue;
-        //}
-
-        // delete files that were overwritten by folders in checkpath()
-        //    execsyncdeletions();
-
-        //if (synccreate.size())
-        //{
-        //    syncupdate();
-        //}
-
-
-        //if (prevpending && !totalpending)
-        //{
-        //    LOG_debug << "Scan queue processed, triggering a scan";
-        //    setAllSyncsNeedFullSyncdown();
-        //}
-
-        //     notifypurge();
-
-        //        if (!syncadding && (syncactivity || syncops))
-        //        {
-
-        //// perform aggregate ops that require all scanqs to be fully processed
-        //bool anyqueued = false;
-        //for (Sync* sync : syncs)
-        //{
-        //    if (sync->dirnotify->fsEventq.size())
-        //    {
-        //        if (!syncnagleretry)
-        //        {
-        //            syncactivity = true;
-        //        }
-
-        //        anyqueued = true;
-        //    }
-        //}
-
-        //                    if (!anyqueued)
-        //         {
-        //// execution of notified deletions - these are held in localsyncnotseen and
-        //// kept pending until all creations (that might reference them for the purpose of
-        //// copying) have completed and all notification queues have run empty (to ensure
-        //// that moves are not executed as deletions+additions.
-        //if (localsyncnotseen.size() && !synccreate.size())
-        //{
-        //    // ... execute all pending deletions
-        //    LocalPath path;
-        //    auto fa = fsaccess->newfileaccess();
-        //    while (localsyncnotseen.size())
-        //    {
-        //        LocalNode* l = *localsyncnotseen.begin();
-        //        unlinkifexists(l, fa.get(), path);
-        //        delete l;
-        //    }
-        //}
-
-        // process filesystem notifications for active syncs unless we
-        // are retrying local fs writes
-
-        //         {
-        //LOG_verbose << "syncops: " << syncactivity << syncnagleretry;
-        //            //<< synccreate.size();
-        //syncops = false;
-
-        //// FIXME: only syncup for subtrees that were actually
-        //// updated to reduce CPU load
-        //bool repeatsyncup = false;
-        //bool syncupdone = false;
-        //        for (Sync* sync : syncs)
-        //{
-        //    if ((sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-        //     && !syncadding && (sync->localroot->syncAgain != TREE_RESOLVED) && !syncnagleretry)
-        //    {
-        //        LOG_debug << "Running syncup on demand";
-        //        size_t numPending = 0;
-        //        repeatsyncup |= !(syncup(sync->localroot.get(), &nds, numPending, true) && numPending == 0);
-        //        syncupdone = true;
-        //        sync->cachenodes();
-        //          }
-        //}
-        //if (!syncupdone || repeatsyncup)
-        //{
-        //    setAllSyncsNeedFullSync();
-        //}
-
-        //if (EVER(nds))
-        //{
-        //    if (!syncnagleretry || (nds - Waiter::ds) < syncnaglebt.backoffdelta())
-        //    {
-        //        syncnaglebt.backoff(nds - Waiter::ds);
-        //    }
-
-        //    syncnagleretry = true;
-        //    setAllSyncsNeedFullSyncup();
-        //}
-
-        // delete files that were overwritten by folders in syncup()
-        //                            execsyncdeletions();
-
-        //if (synccreate.size())
-        //{
-        //    syncupdate();
-        //}
-
-        //unsigned totalnodes = 0;
-
-        // we have no sync-related operations pending - trigger processing if at least one
-        // filesystem item is notified or initiate a full rescan if there has been
-        // an event notification failure (or event notification is unavailable)
-        //bool scanfailed = false;
-        //bool noneSkipped = true;
-        //for (Sync* sync : syncs)
-        //{
-        //    totalnodes += sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
-
-        //    if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-        //    {
-        //        if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-        //         || sync->dirnotify->notifyq[DirNotify::RETRY].size())
-        //        {
-        //            noneSkipped = false;
-        //        }
-        //        else
-        //        {
-        //            if (sync->fullscan)
-        //            {
-        //                // recursively delete all LocalNodes that were deleted (not moved or renamed!)
-        //                sync->deletemissing(sync->localroot.get());
-        //                sync->cachenodes();
-        //            }
-
-        //            // if the directory events notification subsystem is permanently unavailable or
-        //            // has signaled a temporary error, initiate a full rescan
-        //            if (sync->state == SYNC_ACTIVE)
-        //            {
-        //                sync->fullscan = false;
-
-        //                string failedReason;
-        //                auto failed = sync->dirnotify->getFailed(failedReason);
-
-        //                if (syncscanbt.armed()
-        //                        && (failed || fsaccess->notifyfailed
-        //                            || sync->dirnotify->mErrorCount.load() || fsaccess->notifyerr))
-        //                {
-        //                    LOG_warn << "Sync scan failed " << failed
-        //                             << " " << fsaccess->notifyfailed
-        //                             << " " << sync->dirnotify->mErrorCount.load()
-        //                             << " " << fsaccess->notifyerr;
-        //                    if (failed)
-        //                    {
-        //                        LOG_warn << "The cause was: " << failedReason;
-        //                    }
-        //                    scanfailed = true;
-
-        //                    sync->scan(&sync->localroot->localname, NULL);
-        //                    sync->dirnotify->mErrorCount = 0;
-        //                    sync->fullscan = true;
-        //                    sync->scanseqno++;
-        //                }
-        //            }
-        //        }
-        //    }
-        //}
-
-        //if (scanfailed)
-        //{
-        //    fsaccess->notifyerr = false;
-        //    dstime backoff = 300 + totalnodes / 128;
-        //    syncscanbt.backoff(backoff);
-        //    syncscanfailed = true;
-        //    LOG_warn << "Next full scan in " << backoff << " ds";
-        //}
-
-        // clear pending global notification error flag if all syncs were marked
-        // to be rescanned
-        //if (fsaccess->notifyerr && noneSkipped)
-        //{
-        //    fsaccess->notifyerr = false;
-        //}
-
-        //execsyncdeletions();
-        //            }
-        //        }
-        //    }
-        //}
-
-        //}
-        //else
-        //{
-
-        //notifypurge();
-
-        // sync timer: retry syncdown() ops in case of local filesystem lock clashes
-        //if (syncdownretry && syncdownbt.armed())
-        //{
-        //    syncdownretry = false;
-        //    setAllSyncsNeedFullSyncdown();
-        //}
 
         // this loop adapted from the old notifypurge()
         for (auto& us : mSyncVec)
@@ -8178,8 +7464,6 @@ void Syncs::syncLoop()
         processTriggerHandles();
 
         waiter.bumpds();
-
-        //LOG_debug << clientname << " syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;
 
         // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
 
@@ -8336,9 +7620,6 @@ void Syncs::syncLoop()
                 syncStallState = stalled;
                 LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
             }
-
-            // best done on main thread
-            //execsyncdeletions();
         }
 
         bool anySyncScanning = isAnySyncScanning(false);

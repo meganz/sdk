@@ -1305,6 +1305,10 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
         ScopedLengthRestore restoreLen(fullPath);
         fullPath.appendWithSeparator(c->localname, true);
         c->setnameparent(ln, &fullPath, sync->syncs.fsaccess->fsShortname(fullPath), false);
+
+        // if moving between syncs, removal from old sync db is already done
+        ln->sync->statecacheadd(c);
+
         if (setScanAgain)
         {
             c->setScanAgain(false, true, true, 0);
@@ -2006,7 +2010,7 @@ LocalNode::~LocalNode()
         return;
     }
 
-    if (!sync->mDestructorRunning && (
+    if (!sync->mDestructorRunning && dbid && (
         sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN))
     {
         sync->statecachedel(this);
