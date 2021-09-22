@@ -6623,7 +6623,7 @@ void exec_mediainfo(autocomplete::ACState& s)
     }
     else if (!client->mediaFileInfo.mediaCodecsReceived)
     {
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
         cout << "Mediainfo lookups requested" << endl;
     }
 

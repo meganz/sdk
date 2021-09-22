@@ -478,10 +478,10 @@ void SyncFileGet::prepare()
             {
                 LOG_verbose << "Creating tmp folder";
                 transfer->localfilename = sync->localdebris;
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true);
+                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true, true);
 
                 transfer->localfilename.appendWithSeparator(tmpname, true);
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename);
+                sync->client->fsaccess->mkdirlocal(transfer->localfilename, false, true);
 
                 // lock it
                 LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess, sync->mFilesystemType);
