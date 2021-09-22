@@ -507,12 +507,12 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes)
+bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes)
 {
     return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes);
 }
 
-bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes)
+bool WinFileAccess::fopen_impl(const LocalPath& namePath_in, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
@@ -525,7 +525,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
     bool skipcasecheck = false;
 
-    ScopedLengthRestore restoreNamePath(namePath);
+    LocalPath namePath = namePath_in;
     sanitizedriveletter(namePath.localpath);
 
     if (write)
@@ -772,9 +772,11 @@ void WinFileSystemAccess::addevents(Waiter* w, int)
 // generate unique local filename in the same fs as relatedpath
 void WinFileSystemAccess::tmpnamelocal(LocalPath& localname) const
 {
+    static mutex staticMutex;
     static unsigned tmpindex;
     char buf[128];
 
+    lock_guard<mutex> g(staticMutex);
     sprintf(buf, ".getxfer.%lu.%u.mega", GetCurrentProcessId(), tmpindex++);
     localname = LocalPath::fromName(buf, *this, FS_UNKNOWN);
 }
@@ -874,7 +876,7 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     if (!rr)
     {
         DWORD e = GetLastError();
-        LOG_warn << "Unable to get short path name: " << namePath.toPath(gWfsa) << ". Error code: " << e;
+        LOG_warn << "Unable to get short path name: " << namePath.toPath(gWfsa).c_str() << ". Error code: " << e;
         sname.clear();
         return false;
     }
@@ -893,19 +895,19 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
 
 // FIXME: if a folder rename fails because the target exists, do a top-down
 // recursive copy/delete
-bool WinFileSystemAccess::renamelocal(LocalPath& oldnamePath, LocalPath& newnamePath, bool replace)
+bool WinFileSystemAccess::renamelocal(const LocalPath& oldnamePath, const LocalPath& newnamePath, bool replace)
 {
     bool r = !!MoveFileExW(oldnamePath.localpath.c_str(), newnamePath.localpath.c_str(), replace ? MOVEFILE_REPLACE_EXISTING : 0);
 
     if (!r)
     {
         DWORD e = GetLastError();
-        if (SimpleLogger::logCurrentLevel >= logWarning && !skip_errorreport)
+        transient_error = istransientorexists(e);
+        if (!target_exists || !skip_targetexists_errorreport)
         {
             LOG_warn << "Unable to move file: " << oldnamePath.toPath(gWfsa) <<
                         " to " << newnamePath.toPath(gWfsa) << ". Error code: " << e;
         }
-        transient_error = istransientorexists(e);
     }
 
     return r;
@@ -929,7 +931,7 @@ bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePa
     return r;
 }
 
-bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
+bool WinFileSystemAccess::rmdirlocal(const LocalPath& namePath)
 {
     bool r = !!RemoveDirectoryW(namePath.localpath.data());
     if (!r)
@@ -942,7 +944,7 @@ bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
     return r;
 }
 
-bool WinFileSystemAccess::unlinklocal(LocalPath& namePath)
+bool WinFileSystemAccess::unlinklocal(const LocalPath& namePath)
 {
     bool r = !!DeleteFileW(namePath.localpath.data());
 
@@ -958,8 +960,10 @@ bool WinFileSystemAccess::unlinklocal(LocalPath& namePath)
 
 // delete all files and folders contained in the specified folder
 // (does not recurse into mounted devices)
-void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
+void WinFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t basedev)
 {
+    LocalPath namePath = nameParam;
+
     HANDLE hDirectory, hFind;
     dev_t currentdev;
 
@@ -1070,7 +1074,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
     }
 }
 
-bool WinFileSystemAccess::mkdirlocal(LocalPath& namePath, bool hidden)
+bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, bool logAlreadyExistsError)
 {
     const std::wstring& name = namePath.localpath;
 
@@ -1079,8 +1083,12 @@ bool WinFileSystemAccess::mkdirlocal(LocalPath& namePath, bool hidden)
     if (!r)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to create folder. Error code: " << e;
         transient_error = istransientorexists(e);
+
+        if (!target_exists || logAlreadyExistsError)
+        {
+            LOG_debug << "Unable to create folder. Error code: " << e << " for: " << namePath.toPath();
+        }
     }
     else if (hidden)
     {
@@ -1332,7 +1340,6 @@ fsfp_t WinDirNotify::fsfingerprint() const
 #endif
 }
 
-
 bool WinDirNotify::fsstableids() const
 {
 #ifdef WINDOWS_PHONE
@@ -1419,46 +1426,10 @@ void WinDirNotify::process(DWORD dwBytes)
                     || (fni->FileNameLength > ignore.localpath.size()
                         && fni->FileName[ignore.localpath.size() - 1] == L'\\')))
             {
-                if (SimpleLogger::logCurrentLevel >= logDebug)
-                {
-#ifdef ENABLE_SYNC
-                    // Outputting this logging on the notification thread slows it down considerably, risking missing notifications.
-                    // Let's skip it and log the ones received on the notify queue
-
-                    //string local, path;
-                    //local.assign((char*)fni->FileName, fni->FileNameLength);
-                    //path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
-                    //path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
-                    //                                 int(local.size() / sizeof(wchar_t)),
-                    //                                 (char*)path.data(),
-                    //                                 int(path.size() + 1),
-                    //                                 NULL, NULL));
-
-                    //LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
-#endif
-                }
 #ifdef ENABLE_SYNC
                 notify(DIREVENTS, localrootnode, LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
 #endif
             }
-            else if (SimpleLogger::logCurrentLevel >= logDebug)
-            {
-#ifdef ENABLE_SYNC
-                // Outputting this logging on the notification thread slows it down considerably, risking missing notifications.
-                // Let's skip it and log the ones received on the notify queue
-
-                //string local, path;
-                //local.assign((char*)fni->FileName, fni->FileNameLength);
-                //path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
-                //path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
-                //                                 int(local.size() / sizeof(wchar_t)),
-                //                                 (char*)path.data(),
-                //                                 int(path.size() + 1),
-                //                                 NULL, NULL));
-                //LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
-#endif
-            }
-
 
             if (!fni->NextEntryOffset)
             {
@@ -1480,7 +1451,7 @@ void WinDirNotify::readchanges()
 #ifndef WINDOWS_PHONE
     if (notifybuf.size() != 65534)
     {
-        // Use 65534 for the buffer size becaues (from doco):
+        // Use 65534 for the buffer size because (from doco):
         // ReadDirectoryChangesW fails with ERROR_INVALID_PARAMETER when the buffer length is greater than 64 KB and the application is
         // monitoring a directory over the network. This is due to a packet size limitation with the underlying file sharing protocols.
         notifybuf.resize(65534);

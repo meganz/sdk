@@ -993,7 +993,7 @@ error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
     pd.appendWithSeparator(dotDir, false);
 
     // Try and create the backup configuration directory
-    if (!(fsaccess->mkdirlocal(pd) || fsaccess->target_exists))
+    if (!(fsaccess->mkdirlocal(pd, false, false) || fsaccess->target_exists))
     {
         LOG_err << "Unable to create config DB directory: " << pd.toPath(*fsaccess);
 
@@ -1957,7 +1957,7 @@ void MegaClient::exec()
                                 notifypurge();
                                 if (sctable && pendingsccommit && !reqs.cmdspending())
                                 {
-                                    LOG_debug << "Executing postponed DB commit";
+                                    LOG_debug << "Executing postponed DB commit 2";
                                     sctable->commit();
                                     sctable->begin();
                                     app->notify_dbcommit();
@@ -2194,7 +2194,8 @@ void MegaClient::exec()
                     }
                     LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
                 }
-                LOG_err << "Useralerts request failed, continuing without them";
+                LOG_warn << "Useralerts request failed, continuing without them";
+
                 if (useralerts.begincatchup)
                 {
                     useralerts.begincatchup = false;
@@ -14580,7 +14581,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
                     LOG_debug << "Creating local folder";
 
-                    if (fsaccess->mkdirlocal(localpath))
+                    if (fsaccess->mkdirlocal(localpath, false, true))
                     {
                         // create local path, add to LocalNodes and recurse
                         LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
@@ -15717,7 +15718,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
 
 #ifdef USE_MEDIAINFO
-            mediaFileInfo.requestCodecMappingsOneTime(this, &f->localname);
+            mediaFileInfo.requestCodecMappingsOneTime(this, f->localname);
 #endif
         }
         else

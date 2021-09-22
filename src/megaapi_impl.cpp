@@ -1053,7 +1053,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
     if (!api->client->mediaFileInfo.mediaCodecsReceived)
     {
         // the client app should already have requested these but just in case:
-        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, NULL);
+        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, LocalPath());
         return false;
     }
 
@@ -6546,7 +6546,7 @@ bool MegaApiImpl::createLocalFolder(const char *path)
     localpath.ensureWinExtendedPathLenPrefix();
 
     sdkMutex.lock();
-    bool success = client->fsaccess->mkdirlocal(localpath);
+    bool success = client->fsaccess->mkdirlocal(localpath, false, true);
     sdkMutex.unlock();
 
     return success;
@@ -9449,7 +9449,7 @@ bool MegaApiImpl::ensureMediaInfo()
     else
     {
         sdkMutex.lock();
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
         sdkMutex.unlock();
         return false;
     }
@@ -26553,7 +26553,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath&
     auto da = client->fsaccess->newfileaccess();
     if (!da->fopen(localpath, true, false))
     {
-        if (!client->fsaccess->mkdirlocal(localpath))
+        if (!client->fsaccess->mkdirlocal(localpath, false, true))
         {
             da.reset();
             LOG_err << "Unable to create folder: " << localpath.toPath(*client->fsaccess);
