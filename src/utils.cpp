@@ -658,7 +658,10 @@ bool TextChat::serialize(string *d)
     char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
     d->append((char *)&hasUnifiedKey, 1);
 
-    d->append("\0\0\0\0\0\0", 6); // additional bytes for backwards compatibility
+    char meetingRoom = meeting ? 1 : 0;
+    d->append((char*)&meetingRoom, 1);
+
+    d->append("\0\0\0\0\0", 5); // additional bytes for backwards compatibility
 
     if (hasAttachments)
     {
@@ -798,7 +801,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     char hasUnifiedKey = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    for (int i = 6; i--;)
+    char meetingRoom = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    for (int i = 5; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -901,6 +907,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->attachedNodes = attachedNodes;
     chat->publicchat = publicchat;
     chat->unifiedKey = unifiedKey;
+    chat->meeting = meetingRoom;
 
     memset(&chat->changed, 0, sizeof(chat->changed));
 

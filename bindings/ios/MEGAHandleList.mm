@@ -43,6 +43,17 @@ using namespace mega;
     return self;
 }
 
+- (instancetype)initWithMemoryOwn:(BOOL)cMemoryOwn {
+    self = [super init];
+    
+    if (self != nil) {
+        _megaHandleList = MegaHandleList::createInstance();
+        _cMemoryOwn = cMemoryOwn;
+    }
+    
+    return self;
+}
+
 - (instancetype)initWithMegaHandleList:(MegaHandleList *)megaHandleList cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
     
