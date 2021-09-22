@@ -575,8 +575,8 @@ TEST_F(SyncConfigIOContextTest, RemoveSlot)
     // Remove the slot.
     EXPECT_EQ(ioContext().remove(drive.path(), 0), API_OK);
 
-    // Removing a nonexistant slot shouldn't fail as it's already gone.
-    EXPECT_EQ(ioContext().remove(drive.path(), 0), API_OK);
+    // Remove should fail as the slot's already gone.
+    EXPECT_EQ(ioContext().remove(drive.path(), 0), API_EWRITE);
 }
 
 TEST_F(SyncConfigIOContextTest, RemoveSlots)
