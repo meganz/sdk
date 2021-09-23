@@ -1316,7 +1316,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         "MEGA_REAL_EMAIL, MEGA_REAL_PWD, MEGA_LINK_EXTRACT_SCRIPT env vars must all be defined";
 
     // Test that Python was installed
-    string pyExe = "Python";
+    string pyExe = "python";
     const string pyOpt = " -V";
     const string pyExpected = "Python 3.";
     string output = runProgram(pyExe + pyOpt);  // Python -V
