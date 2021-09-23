@@ -1041,10 +1041,11 @@ class MEGA_API CommandChatCreate : public Command
     bool mPublicChat;
     string mTitle;
     string mUnifiedKey;
+    bool mMeeting;
 public:
     bool procresult(Result) override;
 
-    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map *ukm = NULL, const char *title = NULL);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map *ukm = NULL, const char *title = NULL, bool meetingRoom = false);
 };
 
 class MEGA_API CommandChatInvite : public Command
@@ -1475,6 +1476,39 @@ public:
 
     CommandDismissBanner(MegaClient*, int id, m_time_t ts);
 };
+
+#ifdef ENABLE_CHAT
+typedef std::function<void(Error, std::string, handle)> CommandMeetingStartCompletion;
+class MEGA_API CommandMeetingStart : public Command
+{
+    CommandMeetingStartCompletion mCompletion;
+public:
+    bool procresult(Result) override;
+
+    CommandMeetingStart(MegaClient*, handle chatid, CommandMeetingStartCompletion completion);
+};
+
+typedef std::function<void(Error, std::string)> CommandMeetingJoinCompletion;
+class MEGA_API CommandMeetingJoin : public Command
+{
+    CommandMeetingJoinCompletion mCompletion;
+public:
+    bool procresult(Result) override;
+
+    CommandMeetingJoin(MegaClient*, handle chatid, handle callid, CommandMeetingJoinCompletion completion);
+};
+
+typedef std::function<void(Error)> CommandMeetingEndCompletion;
+class MEGA_API CommandMeetingEnd : public Command
+{
+    CommandMeetingEndCompletion mCompletion;
+public:
+    bool procresult(Result) override;
+
+    CommandMeetingEnd(MegaClient*, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion);
+};
+
+#endif
 
 } // namespace
 

@@ -2177,6 +2177,12 @@ public:
      * @return True if this chat is public
      */
     virtual bool isPublicChat() const;
+
+    /**
+     * @brief Returns whether this chat is a meeting room
+     * @return True if this chat is a meeting room
+     */
+    virtual bool isMeeting() const;
 };
 
 /**
@@ -3104,7 +3110,7 @@ class MegaRequest
             TYPE_GET_LOCAL_SSL_CERT                                         = 82,
             TYPE_SEND_SIGNUP_LINK                                           = 83,
             TYPE_QUERY_DNS                                                  = 84,
-            TYPE_QUERY_GELB                                                 = 85,
+            TYPE_QUERY_GELB                                                 = 85,   // (obsolete)
             TYPE_CHAT_STATS                                                 = 86,
             TYPE_DOWNLOAD_FILE                                              = 87,
             TYPE_QUERY_TRANSFER_QUOTA                                       = 88,
@@ -3161,7 +3167,10 @@ class MegaRequest
             TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS                                = 139,
             TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS                               = 140,
             TYPE_GET_DOWNLOAD_URLS                                          = 141,
-            TOTAL_OF_REQUEST_TYPES                                          = 142,
+            TYPE_START_CHAT_CALL                                            = 142,
+            TYPE_JOIN_CHAT_CALL                                             = 143,
+            TYPE_END_CHAT_CALL                                              = 144,
+            TOTAL_OF_REQUEST_TYPES                                          = 145,
         };
 
         virtual ~MegaRequest();
@@ -3256,6 +3265,7 @@ class MegaRequest
          * - MegaApi::setScheduledCopy - Returns the target node of the backup
          * - MegaApi::updateBackup - Returns the target node of the backup
          * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
+         * - MegaApi::getChatLinkURL - Returns the public handle
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3312,6 +3322,7 @@ class MegaRequest
          * - MegaApi::sendBackupHeartbeat - Returns the backupId
          * - MegaApi::syncFolder - Returns the backupId asociated with the sync
          * - MegaApi::copySyncDataToCache - Returns the backupId asociated with the sync
+         * - MegaApi::getChatLinkURL - Returns the chatid
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3562,6 +3573,8 @@ class MegaRequest
          * - MegaApi::setScheduledCopy - Returns the cron like time string to define period
          * - MegaApi::getUploadURL - Returns the upload IPv6
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv6 of the server in the URL(s)
+         * - MegaApi::startChatCall - Returns the url sfu
+         * - MegaApi::joinChatCall - Returns the url sfu
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3599,6 +3612,7 @@ class MegaRequest
          * - MegaApi::sendChatStats - Returns the connection port
          * - MegaApi::dismissBanner - Returns the timestamp of the request
          * - MegaApi::sendBackupHeartbeat - Returns the time associated with the request
+         * - MegaApi::createPublicChat - Returns if chat room is a meeting room
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3632,6 +3646,8 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns true (it means that it's an automatic move)
          * - MegaApi::moveTransferBefore - Returns false (it means that it's a manual move)
          * - MegaApi::moveTransferBeforeByTag - Returns false (it means that it's a manual move)
+         * - MegaApi::setBackup - Returns if backups that should have happen in the past should be taken care of
+         * - MegaApi::getChatLinkURL - Returns a vector with one element (callid), if call doesn't exit it will be NULL
          * - MegaApi::setScheduledCopy - Returns if backups that should have happen in the past should be taken care of
          *
          * This value is valid for these request in onRequestFinish when the
@@ -3924,6 +3940,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::getFavourites - A list of MegaHandle objects
+         * - MegaApi::getChatLinkURL - Returns a vector with the callid (if call exits in other case it will be NULL)
          *
          * @return MegaHandle list
          */
@@ -16406,25 +16423,6 @@ class MegaApi
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief queryGeLB Query the GeLB server for a given service
-         *
-         * The associated request type with this request is MegaRequest::TYPE_QUERY_GELB
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Return the HTTP status code from the GeLB server
-         * - MegaRequest::getText - Returns the JSON response from the GeLB server
-         * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
-         *
-         * @param service Service to check
-         * @param timeoutds Timeout for the request, including all possible retries (in deciseconds)
-         * A value <= 0 means no (or infinite) timeout.
-         * @param maxretries Maximum number of retries for the request
-         * @param listener MegaRequestListener to track this request
-         */
-        void queryGeLB(const char *service, int timeoutds = 40, int maxretries = 4, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Download a file using a HTTP GET request
          *
          * The associated request type with this request is MegaRequest::TYPE_DOWNLOAD_FILE
@@ -17751,6 +17749,7 @@ class MegaApi
          * - MegaChatRequest::getMegaChatPeerList - List of participants and their privilege level
          * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
          * - MegaRequest::getText - Returns the title of the chat.
+         * - MegaRequest::getNumber - Returns if chat room is a meeting room
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -17762,10 +17761,10 @@ class MegaApi
          * @param peers MegaChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
-         *
+         * @param meetingRoom Boolean indicating if room is a meeting room
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
@@ -18159,7 +18158,7 @@ class MegaApi
         /**
          * @brief Query if there is a chat link for this chatroom
          *
-         * This function can be called by a chat operator to check and retrieve the current
+         * This function can be called by any chat member to check and retrieve the current
          * public handle for the specified chat without creating it.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_HANDLE.
@@ -18241,12 +18240,15 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Returns the public hanle
          * - MegaRequest::getLink - Returns the URL to connect to chatd for the chat link
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getAccess - Returns the shard
          * - MegaRequest::getText - Returns the chat-topic (if any)
          * - MegaRequest::getNumDetails - Returns the current number of participants
          * - MegaRequest::getNumber - Returns the creation timestamp
+         * - MegaRequest::getFlag - Returns if chatRoom is a meeting Room
+         * - MegaRequest::getMegaHandleList - Returns a vector with one element (callid), if call doesn't exit it will be NULL
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - If the public handle is not valid or the chatroom does not exists.
@@ -18319,6 +18321,64 @@ class MegaApi
          * @return true if notification has to be created
          */
         bool isChatNotifiable(MegaHandle chatid);
+
+        /**
+         * @brief Allows to start chat call in a chat room
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the sfu url
+         * - MegaRequest::getNodeHandle - Returns the call identifier
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the chatid is invalid
+         * - MegaError::API_EEXIST - If there is a call in the chatroom
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Allow to join chat call
+         *
+         * * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the call identifier
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the sfu url
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the chatid or callid is invalid
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param callid MegaHandle that identifies the call
+         * @param listener MegaRequestListener to track this request
+         */
+        void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Allow to end chat call
+         *
+         * * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the call identifier
+         * - MegaRequest::getAccess - Returns the reason to end call
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the chatid or callid is invalid
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param callid MegaHandle that identifies the call
+         * @param reason Reason to end call
+         * @param listener MegaRequestListener to track this request
+         */
+        void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
 
 #endif
 
