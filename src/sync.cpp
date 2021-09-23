@@ -1208,14 +1208,25 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
         state() = newstate;
         fullscan = false;
 
+        bool wasActive = oldstate == SYNC_ACTIVE || oldstate == SYNC_INITIALSCAN;
+        bool nowActive = newstate == SYNC_ACTIVE;
+
         if (notifyApp)
         {
-            bool wasActive = oldstate == SYNC_ACTIVE || oldstate == SYNC_INITIALSCAN;
-            bool nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
                 mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
             }
+        }
+
+        if (wasActive && !nowActive)
+        {
+            assert(!config.getEnabled());
+            assert(statecachetable);
+
+            statecachetable->remove();
+            delete statecachetable;
+            statecachetable = NULL;
         }
     }
 
