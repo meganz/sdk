@@ -13331,8 +13331,9 @@ void MegaApiImpl::syncupdate_syncing(bool syncing)
     fireOnGlobalSyncStateChanged();
 }
 
-void MegaApiImpl::syncupdate_stalled(bool scanning)
+void MegaApiImpl::syncupdate_stalled(bool stalled)
 {
+    receivedStallFlag = stalled;
     fireOnGlobalSyncStateChanged();
 }
 
@@ -23116,7 +23117,7 @@ int MegaApiImpl::isWaiting()
             }
         });
 
-    if (found) return RETRY_LOCAL_LOCK;
+    if (receivedStallFlag || found) return RETRY_LOCAL_LOCK;
 #endif
 
     if (waitingRequest)
@@ -23124,11 +23125,6 @@ int MegaApiImpl::isWaiting()
         LOG_debug << "SDK waiting for a request. Reason: " << waitingRequest;
     }
     return waitingRequest;
-}
-
-int MegaApiImpl::areServersBusy()
-{
-    return isWaiting();
 }
 
 void MegaApiImpl::lockMutex()

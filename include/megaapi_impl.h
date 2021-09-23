@@ -2434,6 +2434,8 @@ class MegaApiImpl : public MegaApp
         bool isIndexing();
         bool isSyncing();
 
+        bool receivedStallFlag = false;
+
         MegaSync *getSyncByBackupId(mega::MegaHandle backupId);
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
@@ -2452,7 +2454,6 @@ class MegaApiImpl : public MegaApp
 
         void update();
         int isWaiting();
-        int areServersBusy();
 
         //Statistics
         int getNumPendingUploads();

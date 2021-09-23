@@ -1005,7 +1005,8 @@ enum class SyncWaitReason {
     MovingDownloadToTarget,
     MovingExistingDownloadTargetToDebris,
     LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
-    CouldNotMoveToLocalDebrisFolder
+    CouldNotMoveToLocalDebrisFolder,
+    LocalFolderNotScannable
 };
 
 string syncWaitReasonString(SyncWaitReason);

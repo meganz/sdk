@@ -4307,11 +4307,6 @@ int MegaApi::isWaiting()
     return pImpl->isWaiting();
 }
 
-int MegaApi::areServersBusy()
-{
-    return pImpl->areServersBusy();
-}
-
 void MegaApi::removeRecursively(const char *path)
 {
     MegaApiImpl::removeRecursively(path);

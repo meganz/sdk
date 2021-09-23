@@ -528,7 +528,7 @@ struct MEGA_API LocalNode : public Cacheable
     {
         unique_ptr<BackoffTimer> useBlockedTimer;
         unique_ptr<BackoffTimer> scanBlockedTimer;
-        shared_ptr<ScanService::Request> scanRequest;
+        shared_ptr<ScanService::ScanRequest> scanRequest;
 
         struct MoveInProgress
         {
@@ -652,7 +652,7 @@ struct MEGA_API LocalNode : public Cacheable
 
     void setSyncedNodeHandle(NodeHandle h);
 
-    void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>, bool applyToCloud);
+    void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
     void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain);
 
     LocalNode();

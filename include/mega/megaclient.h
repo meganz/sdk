@@ -1498,9 +1498,6 @@ public:
     //bool mSyncMonitorRetry;
     //BackoffTimer mSyncMonitorTimer;
 
-    //// vanished from a local synced folder
-    //localnode_set localsyncnotseen;
-
 
     // local nodes that need to be added remotely
 //    localnode_vector synccreate;

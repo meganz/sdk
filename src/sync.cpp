@@ -51,7 +51,7 @@ std::unique_ptr<ScanService::Worker> ScanService::mWorker;
 std::mutex ScanService::mWorkerLock;
 
 ScanService::ScanService(Waiter& waiter)
-  : mCookie(std::make_shared<Cookie>(waiter))
+  : mWaiter(waiter)
 {
     // Locking here, rather than in the if statement, ensures that the
     // worker is fully constructed when control leaves the constructor.
@@ -72,10 +72,10 @@ ScanService::~ScanService()
     }
 }
 
-auto ScanService::queueScan(LocalPath targetPath, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren) -> RequestPtr
+auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren) -> RequestPtr
 {
     // Create a request to represent the scan.
-    auto request = std::make_shared<ScanRequest>(mCookie, followSymlinks, targetPath, move(priorScanChildren));
+    auto request = std::make_shared<ScanRequest>(mWaiter, followSymlinks, targetPath, expectedFsid, move(priorScanChildren));
 
     // Queue request for processing.
     mWorker->queue(request);
@@ -83,16 +83,18 @@ auto ScanService::queueScan(LocalPath targetPath, bool followSymlinks, map<Local
     return request;
 }
 
-ScanService::ScanRequest::ScanRequest(std::shared_ptr<Cookie> cookie,
+ScanService::ScanRequest::ScanRequest(Waiter& waiter,
                                       bool followSymLinks,
                                       LocalPath targetPath,
+                                      handle expectedFsid,
                                       map<LocalPath, FSNode>&& priorScanChildren)
-  : mCookie(move(cookie))
-  , mComplete(false)
+  : mWaiter(waiter)
+  , mScanResult(SCAN_INPROGRESS)
   , mFollowSymLinks(followSymLinks)
   , mKnown(move(priorScanChildren))
   , mResults()
   , mTargetPath(std::move(targetPath))
+  , mExpectedFsid(expectedFsid)
 {
 }
 
@@ -192,27 +194,11 @@ void ScanService::Worker::loop()
         LOG_verbose << "Directory scan begins: " << targetPath;
 
         // Process the request.
-        scan(request);
+        auto result = scan(request);
+        LOG_verbose << "Directory scan ended (" << result << "): " << targetPath;
 
-        // Mark the request as complete.
-        request->mComplete = true;
-
-        LOG_verbose << "Directory scan ended: " << targetPath;
-
-        // Do we still have someone to notify?
-        auto cookie = request->mCookie.lock();
-
-        if (cookie)
-        {
-            // Yep, let them know the request is complete.
-            cookie->completed();
-        }
-        else
-        {
-            LOG_debug << "No waiter, discarding "
-                      << request->mResults.size()
-                      << " scan result(s).";
-        }
+        request->mScanResult = result;
+        request->mWaiter.notify();
     }
 }
 
@@ -296,7 +282,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
     // Warn about the blocked file.
     if (result.isBlocked)
     {
-        LOG_warn << "File blocked: " << path.toPath(*mFsAccess);
+        LOG_warn << "File/Folder blocked: " << path.toPath(*mFsAccess);
     }
 
     return result;
@@ -306,7 +292,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
 // regardless of multiple clients too - there is only one filesystem after all (but not singleton!!)
 CodeCounter::ScopeStats ScanService::syncScanTime = { "folderScan" };
 
-void ScanService::Worker::scan(ScanRequestPtr request)
+auto ScanService::Worker::scan(ScanRequestPtr request) -> ScanResult
 {
     CodeCounter::ScopeTimer rst(syncScanTime);
 
@@ -318,7 +304,7 @@ void ScanService::Worker::scan(ScanRequestPtr request)
     {
         LOG_debug << "Scan target does not exist: "
                   << path.toPath(*mFsAccess);
-        return;
+        return SCAN_INACCESSIBLE;
     }
 
     // Does the path denote a directory?
@@ -326,7 +312,14 @@ void ScanService::Worker::scan(ScanRequestPtr request)
     {
         LOG_debug << "Scan target is not a directory: "
                   << path.toPath(*mFsAccess);
-        return;
+        return SCAN_INACCESSIBLE;
+    }
+
+    if (fileAccess->fsid != request->mExpectedFsid)
+    {
+        LOG_debug << "Scan target at this path has been replaced, fsid is different: "
+            << path.toPath(*mFsAccess);
+        return SCAN_FSID_MISMATCH;
     }
 
     std::unique_ptr<DirAccess> dirAccess(mFsAccess->newdiraccess());
@@ -337,7 +330,7 @@ void ScanService::Worker::scan(ScanRequestPtr request)
     {
         LOG_debug << "Unable to iterate scan target: "
                   << path.toPath(*mFsAccess);
-        return;
+        return SCAN_INACCESSIBLE;
     }
 
     // Process each file in the target.
@@ -358,6 +351,7 @@ void ScanService::Worker::scan(ScanRequestPtr request)
 
     // Publish the results.
     request->mResults = std::move(results);
+    return SCAN_SUCCESS;
 }
 
 ScopedSyncPathRestore::ScopedSyncPathRestore(SyncPath& p)
@@ -5084,7 +5078,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
                      << " at " << fullPath.localPath_utf8()
                      << " was " << (row.syncNode->slocalname ? row.syncNode->slocalname->toPath(*syncs.fsaccess) : "(null)")
                      << logTriplet(row, fullPath);
-            row.syncNode->setnameparent(row.syncNode->parent, nullptr, row.fsNode->cloneShortname(), false);
+            row.syncNode->setnameparent(row.syncNode->parent, nullptr, row.fsNode->cloneShortname());
             statecacheadd(row.syncNode);
         }
     }
@@ -7516,7 +7510,8 @@ void Syncs::syncLoop()
 
                     if (!sync->syncPaused)
                     {
-                        if (sync->mActiveScanRequest && !sync->mActiveScanRequest->completed())
+                        if (sync->mActiveScanRequest &&
+                           !sync->mActiveScanRequest->completed())
                         {
                             // Save CPU by not starting another recurse of the LocalNode tree
                             // if a scan is not finished yet.  Scans can take a fair while for large

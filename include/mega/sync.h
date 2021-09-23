@@ -341,9 +341,6 @@ public:
     // helper for checking moves etc
     bool checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath);
 
-    //// recursively look for vanished child nodes and delete them
-    //void deletemissing(LocalNode*);
-
     unsigned localnodes[2]{};
 
     // look up LocalNode relative to localroot
@@ -441,7 +438,7 @@ public:
     bool isSyncPaused();
 
     // Asynchronous scan request / result.
-    std::shared_ptr<ScanService::Request> mActiveScanRequest;
+    std::shared_ptr<ScanService::ScanRequest> mActiveScanRequest;
 
     static const int SCANNING_DELAY_DS;
     static const int EXTRA_SCANNING_DELAY_DS;
@@ -737,7 +734,7 @@ struct Syncs
     void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, 
+    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
 	     bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat);
 
     // removes the sync from RAM; the config will be flushed to disk
@@ -1002,7 +999,7 @@ private:
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
-    void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, 
+    void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector,
 	     bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat);
     void purgeRunningSyncs_inThread();
 

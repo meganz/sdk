@@ -703,91 +703,56 @@ struct MEGA_API FSNode
 class MEGA_API ScanService
 {
 public:
-    // Represents an asynchronous scan request.
-    class Request
-    {
-    public:
-        virtual ~Request() = default;
-
-        MEGA_DISABLE_COPY_MOVE(Request);
-
-        // Whether the request is complete.
-        virtual bool completed() const = 0;
-
-        //// Whether this request is for the specified target.
-        //virtual bool matches(const LocalNode& target) const = 0;
-
-        // Retrieves the results of the request.
-        virtual std::vector<FSNode> results() = 0;
-
-    protected:
-        Request() = default;
-    }; // Request
-
-       // For convenience.
-    using RequestPtr = std::shared_ptr<Request>;
-
     ScanService(Waiter& waiter);
-
     ~ScanService();
 
-    // Issue a scan for the given target.
-    RequestPtr queueScan(LocalPath targetPath, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren);
+    enum ScanResult {
+        SCAN_INPROGRESS,
+        SCAN_SUCCESS,
+        SCAN_FSID_MISMATCH,
+        SCAN_INACCESSIBLE
+    };
 
-    // Track performance (debug only)
-    static CodeCounter::ScopeStats syncScanTime;
-
-private:
-    // State shared by the service and its requests.
-    class Cookie
-    {
-    public:
-        Cookie(Waiter& waiter)
-            : mWaiter(waiter)
-        {
-        }
-
-        MEGA_DISABLE_COPY_MOVE(Cookie);
-
-        // Inform our waiter that an operation has completed.
-        void completed()
-        {
-            mWaiter.notify();
-        }
-
-    private:
-        // Who should be notified when an operation completes.
-        Waiter& mWaiter;
-    }; // Cookie
-
-       // Concrete representation of a scan request.
-    friend class Sync; // prob a tidier way to do this
+    // Concrete representation of a scan request.
     class ScanRequest
-        : public Request
     {
     public:
-        ScanRequest(std::shared_ptr<Cookie> cookie,
+        ScanRequest(Waiter& waiter,
             bool followSymlinks,
             LocalPath targetPath,
+            handle expectedFsid,
             map<LocalPath, FSNode>&& priorScanChildren);
 
         MEGA_DISABLE_COPY_MOVE(ScanRequest);
 
-        bool completed() const override
+        bool completed() const
         {
-            return mComplete;
+            return mScanResult != SCAN_INPROGRESS;
         };
 
-        std::vector<FSNode> results() override
+        ScanResult completionResult() const
+        {
+            return mScanResult;
+        };
+
+        std::vector<FSNode>&& resultNodes()
         {
             return std::move(mResults);
         }
 
-        // Cookie from the originating service.
-        std::weak_ptr<Cookie> mCookie;
+        handle fsidScanned()
+        {
+            return mExpectedFsid;
+        }
+
+    private:
+        friend class ScanService;
+
+        // Waiter to notify when done
+        Waiter& mWaiter;
 
         // Whether the scan request is complete.
-        std::atomic<bool> mComplete;
+        std::atomic<ScanResult> mScanResult = SCAN_INPROGRESS;
 
         // Whether we should follow symbolic links.
         const bool mFollowSymLinks;
@@ -798,13 +763,24 @@ private:
         // Results of the scan.
         vector<FSNode> mResults;
 
-        //// Target of the scan.
-        //const LocalNode& mTarget;
-
         // Path to the target.
         const LocalPath mTargetPath;
+
+        // fsid that the target path should still referene
+        handle mExpectedFsid;
+
     }; // ScanRequest
 
+    // For convenience.
+    using RequestPtr = std::shared_ptr<ScanRequest>;
+
+    // Issue a scan for the given target.
+    RequestPtr queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren);
+
+    // Track performance (debug only)
+    static CodeCounter::ScopeStats syncScanTime;
+
+private:
        // Convenience.
     using ScanRequestPtr = std::shared_ptr<ScanRequest>;
 
@@ -832,7 +808,7 @@ private:
             ScanRequest& request);
 
         // Processes a scan request.
-        void scan(ScanRequestPtr request);
+        ScanResult scan(ScanRequestPtr request);
 
         // Filesystem access.
         std::unique_ptr<FileSystemAccess> mFsAccess;
@@ -848,8 +824,7 @@ private:
         std::vector<std::thread> mThreads;
     }; // Worker
 
-       // Cookie shared with requests.
-    std::shared_ptr<Cookie> mCookie;
+    Waiter& mWaiter;
 
     // How many services are currently active.
     static std::atomic<size_t> mNumServices;
