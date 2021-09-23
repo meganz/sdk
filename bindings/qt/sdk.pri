@@ -570,7 +570,12 @@ else {
                 LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.so.3
             }
             else {
-                LIBS += -lfreeimage
+                exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a) {
+                    LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
+                }
+                else {
+                    LIBS += -lfreeimage
+                }
             }
         }
     }
