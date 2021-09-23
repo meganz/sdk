@@ -72,14 +72,14 @@ MediaFileInfo::MediaFileInfo()
     LOG_debug << "MediaInfo version: " << GetMediaInfoVersion();
 }
 
-void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, LocalPath* ifSuitableFilename)
+void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, const LocalPath& ifSuitableFilename)
 {
     if (!mediaCodecsReceived && !mediaCodecsRequested)
     {
-        if (ifSuitableFilename)
+        if (!ifSuitableFilename.empty())
         {
             string ext;
-            if (!client->fsaccess->getextension(*ifSuitableFilename, ext)
+            if (!client->fsaccess->getextension(ifSuitableFilename, ext)
                 || !MediaProperties::isMediaFilenameExt(ext))
             {
                 return;
