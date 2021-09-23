@@ -1340,6 +1340,11 @@ struct StandardClient : public MegaApp
             thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
                 {
                     Node* parent = client.client.nodeByPath(parentPath.c_str(), nullptr);
+                    if (!parent)
+                    {
+                        LOG_warn << "nodeByPath found no node for parentPath " << parentPath << ", cannot call uploadFile";
+                        return pb->set_value(false);
+                    }
                     client.uploadFile(path, name, parent, pb);
                 });
 
