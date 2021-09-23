@@ -752,7 +752,7 @@ public:
         Waiter& mWaiter;
 
         // Whether the scan request is complete.
-        std::atomic<ScanResult> mScanResult = SCAN_INPROGRESS;
+        std::atomic<ScanResult> mScanResult; // SCAN_INPROGRESS;
 
         // Whether we should follow symbolic links.
         const bool mFollowSymLinks;
