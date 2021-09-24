@@ -8643,7 +8643,6 @@ CommandMeetingStart::CommandMeetingStart(MegaClient *client, handle chatid, Comm
 {
     cmd("mcms");
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
-    arg("force", 1);
     tag = client->reqtag;
 }
 
