@@ -1138,95 +1138,112 @@ bool PublicLink::isExpired()
 }
 
 #ifdef ENABLE_SYNC
-// set, change or remove LocalNode's parent and name/localname/slocalname.
-// newlocalpath must be a full path and must not point to an empty string.
+// set, change or remove LocalNode's parent and localname/slocalname.
+// newlocalpath must be a leaf name and must not point to an empty string (unless newparent == NULL).
 // no shortname allowed as the last path component.
-void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpath, std::unique_ptr<LocalPath> newshortname)
+void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpath, std::unique_ptr<LocalPath> newshortname)
 {
-    Node* todelete = NULL;
-    int nc = 0;
     Sync* oldsync = NULL;
+
+    if (newshortname && *newshortname == newlocalpath)
+    {
+        // if the short name is the same, don't bother storing it.
+        newshortname.reset();
+    }
+
+    bool parentChange = newparent != parent;
+    bool localnameChange = newlocalpath != localname;
+    bool shortnameChange = newshortname && !slocalname ||
+                           slocalname && !newshortname ||
+                           newshortname && slocalname && *newshortname != *slocalname;
 
     if (parent)
     {
-        // remove existing child linkage
-        parent->children.erase(&localname);
-
-        if (slocalname)
+        if (parentChange || localnameChange)
         {
+            // remove existing child linkage for localname
+            parent->children.erase(&localname);
+        }
+
+        if (slocalname && (
+            parentChange || shortnameChange))
+        {
+            // remove existing child linkage for slocalname
             parent->schildren.erase(slocalname.get());
             slocalname.reset();
         }
     }
 
-    if (newlocalpath)
+    if (localnameChange)
     {
-        // extract name component from localpath, check for rename unless newnode
-        size_t p = newlocalpath->getLeafnameByteIndex(*sync->syncs.fsaccess);
-
-        // has the name changed?
-        if (!newlocalpath->backEqual(p, localname))
-        {
-            // set new name
-            localname = newlocalpath->subpathFrom(p);
-        }
+        // set new name
+        localname = newlocalpath;
     }
 
-    if (parent && parent != newparent && !sync->mDestructorRunning)
+    if (shortnameChange)
     {
+        // set new shortname
+        slocalname = move(newshortname);
+    }
+
+    // reset treestate for old subtree (in case of just not syncing that subtree anymore - updates icon overlays)
+    if (parent && !newparent && !sync->mDestructorRunning)
+    {
+        // since we can't do it after the parent is updated
         treestate(TREESTATE_NONE);
     }
 
-    if (newparent)
+    if (parentChange)
     {
-        if (newparent != parent)
+        parent = newparent;
+
+        if (parent && sync != parent->sync)
         {
-            parent = newparent;
-
-            if (sync != parent->sync)
-            {
-                LOG_debug << "Moving files between different syncs";
-                oldsync = sync;
-            }
-
-            if (todelete || oldsync)
-            {
-                // prepare localnodes for a sync change or/and a copy operation
-                LocalTreeProcMove tp(parent->sync, todelete != NULL);
-                sync->syncs.proclocaltree(this, &tp);
-                nc = tp.nc;
-            }
+            oldsync = sync;
+            LOG_debug << "Moving files between different syncs";
         }
+    }
 
-#ifdef DEBUG
-        auto it = parent->children.find(&localname);
-        assert(it == parent->children.end());   // we are about to orphan the old one at this location... how did we get a clash in the first place?
-#endif
+    // add to parent map by localname
+    if (parent && (parentChange || localnameChange))
+    {
+        #ifdef DEBUG
+            auto it = parent->children.find(&localname);
+            assert(it == parent->children.end());   // check we are not about to orphan the old one at this location... if we do then how did we get a clash in the first place?
+        #endif
 
-        // (we don't construct a UTF-8 or sname for the root path)
         parent->children[&localname] = this;
-
-        if (newshortname && *newshortname != localname)
-        {
-            slocalname = std::move(newshortname);
-            parent->schildren[slocalname.get()] = this;
-        }
-        else
-        {
-            slocalname.reset();
-        }
-
-        treestate(TREESTATE_NONE);
-
-        if (oldsync)
-        {
-            // update local cache if there is a sync change
-            oldsync->cachenodes();
-            sync->cachenodes();
-        }
     }
 
-    if (newlocalpath)
+    // add to parent map by shortname
+    if (parent && slocalname && (parentChange || shortnameChange))
+    {
+#ifdef DEBUG
+// TODO: enable these checks after we're sure about the localname check above
+//        auto it = parent->schildren.find(&*slocalname);
+//        assert(it == parent->schildren.end());   // check we are not about to orphan the old one at this location... if we do then how did we get a clash in the first place?
+#endif
+        parent->schildren[&*slocalname] = this;
+    }
+
+    // reset treestate
+    if (parent && parentChange && !sync->mDestructorRunning)
+    {
+        treestate(TREESTATE_NONE);
+    }
+
+    if (oldsync)
+    {
+        // prepare localnodes for a sync change or/and a copy operation
+        LocalTreeProcMove tp(parent->sync);
+        sync->syncs.proclocaltree(this, &tp);
+
+        // add to new parent map by localname// update local cache if there is a sync change
+        oldsync->cachenodes();
+        sync->cachenodes();
+    }
+
+    if (parent && parentChange)
     {
         LocalTreeProcUpdateTransfers tput;
         sync->syncs.proclocaltree(this, &tput);
@@ -1242,7 +1259,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     {
         ScopedLengthRestore restoreLen(fullPath);
         fullPath.appendWithSeparator(c->localname, true);
-        c->setnameparent(ln, &fullPath, sync->syncs.fsaccess->fsShortname(fullPath));
+        c->setnameparent(ln, fullPath.leafName(), sync->syncs.fsaccess->fsShortname(fullPath));
 
         // if moving between syncs, removal from old sync db is already done
         ln->sync->statecacheadd(c);
@@ -1317,7 +1334,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     scanObsolete = false;
     useBlocked = TREE_RESOLVED;
     scanBlocked = TREE_RESOLVED;
-    //newnode.reset();
     parent_dbid = 0;
     slocalname = NULL;
 
@@ -1325,13 +1341,12 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     dts = TREESTATE_NONE;
 
     type = ctype;
-    //syncid = sync->client->nextsyncid();
 
     bumpnagleds();
 
     if (cparent)
     {
-        setnameparent(cparent, &cfullpath, std::move(shortname));
+        setnameparent(cparent, cfullpath.leafName(), std::move(shortname));
     }
     else
     {
@@ -1395,7 +1410,7 @@ void LocalNode::init(const FSNode& fsNode)
     scannedFingerprint = FileFingerprint();   // todo: was this fingerprint from a scan tho?
 
     // Update our FSID.
-    setSyncedFsid(fsNode.fsid, sync->syncs.localnodeBySyncedFsid, fsNode.localname);
+    setSyncedFsid(fsNode.fsid, sync->syncs.localnodeBySyncedFsid, fsNode.localname, nullptr); // TODO
     setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode.localname);
 
     // Update our type.
@@ -1445,6 +1460,15 @@ void LocalNode::trimRareFields()
         }
     }
 }
+
+unique_ptr<LocalPath> LocalNode::cloneShortname() const
+{
+    return unique_ptr<LocalPath>(
+        slocalname
+        ? new LocalPath(*slocalname)
+        : nullptr);
+}
+
 
 void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds)
 {
@@ -1569,7 +1593,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         // Have we recovered?
         if (type == TYPE_UNKNOWN && fsNode && fsNode->type != TYPE_UNKNOWN)
         {
-            LOG_verbose << "Recovered from being scan blocked: " << localnodedisplaypath(*sync->syncs.fsaccess);
+            LOG_verbose << sync->syncname << "Recovered from being scan blocked: " << localnodedisplaypath(*sync->syncs.fsaccess);
             init(*fsNode);
             scanBlocked = TREE_RESOLVED;
             rare().scanBlockedTimer->reset();
@@ -1579,14 +1603,14 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         // rescan if the timer is up
         if (rare().scanBlockedTimer->armed())
         {
-            LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan: "  << localnodedisplaypath(*sync->syncs.fsaccess);;
+            LOG_verbose << sync->syncname << "Scan blocked timer elapsed, trigger parent rescan: "  << localnodedisplaypath(*sync->syncs.fsaccess);;
             if (parent) parent->setScanAgain(false, true, false, 0);
             rare().scanBlockedTimer->backoff(); // wait increases exponentially
             return true;
         }
         else
         {
-            LOG_verbose << "Waiting on scan blocked timer, retry in ds: "
+            LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
                 << rare().scanBlockedTimer->retryin();
             return true;
         }
@@ -1596,7 +1620,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
     {
         // We were not able to get details of the filesystem item when scanning the directory.
         // Consider it a blocked file, and we'll rescan the folder from time to time.
-        LOG_verbose << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath(*sync->syncs.fsaccess);
+        LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath(*sync->syncs.fsaccess);
         setScanBlocked();
         return true;
     }
@@ -1695,7 +1719,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
         // we can start a single new request if we are still recursing and the last request from this sync completed already
         if (scanDelayUntil != 0 && Waiter::ds < scanDelayUntil)
         {
-            LOG_verbose << "Too soon to scan this folder, needs more ds: " << scanDelayUntil - Waiter::ds;
+            LOG_verbose << sync->syncname << "Too soon to scan this folder, needs more ds: " << scanDelayUntil - Waiter::ds;
         }
         else
         {
@@ -1731,20 +1755,20 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
         if (ScanService::SCAN_FSID_MISMATCH == ourScanRequest->completionResult())
         {
-            LOG_verbose << "Directory scan detected outdated fsid : " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Directory scan detected outdated fsid : " << fullPath.localPath_utf8();
             scanObsolete = true;
         }
 
         if (ScanService::SCAN_SUCCESS == ourScanRequest->completionResult()
             && ourScanRequest->fsidScanned() != row.fsNode->fsid)
         {
-            LOG_verbose << "Directory scan returned was for now outdated fsid : " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Directory scan returned was for now outdated fsid : " << fullPath.localPath_utf8();
             scanObsolete = true;
         }
 
         if (scanObsolete)   // TODO: also consider obsolete if the results are more than 10 seconds old - eg a folder scanned but stuck (unvisitable) behind something unresolvable for hours.  Or if fsid of the folder was not a match after the scan
         {
-            LOG_verbose << "Directory scan outdated for : " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Directory scan outdated for : " << fullPath.localPath_utf8();
             scanObsolete = false;
             scanDelayUntil = Waiter::ds + 10; // don't scan too frequently
         }
@@ -1753,7 +1777,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             lastFolderScan.reset(
                 new vector<FSNode>(ourScanRequest->resultNodes()));
 
-            LOG_verbose << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath_utf8();
 
             scanDelayUntil = Waiter::ds + 20; // don't scan too frequently
             scanAgain = TREE_RESOLVED;
@@ -1763,7 +1787,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
         else // SCAN_INACCESSIBLE
         {
             assert(false);  // currently thought to be pretty much impossible (except by race condition)- the parent scan entry would already have isBlocked set.  Please let us know if this gets hit
-            LOG_verbose << "Directory scan was inaccesible for path.  Deferring : " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Directory scan was inaccesible for path.  Deferring : " << fullPath.localPath_utf8();
             scanDelayUntil = Waiter::ds + 1200; // give it two minutes between retries (maybe we should expand this to a backoff system)
             setScanAgain(true, false, false, 50);  // rescan parent should resolve this, resulting in getting scan-blocked at that level
         }
@@ -1783,13 +1807,13 @@ void LocalNode::reassignUnstableFsidsOnceOnly(const FSNode* fsnode)
 
         if (fsnode && sync->syncEqual(*fsnode, *this))
         {
-            setSyncedFsid(fsnode->fsid, sync->syncs.localnodeBySyncedFsid, localname);
+            setSyncedFsid(fsnode->fsid, sync->syncs.localnodeBySyncedFsid, localname, fsnode->cloneShortname());
             sync->statecacheadd(this);
         }
         else if (fsid_lastSynced != UNDEF)
         {
             // this node was synced with something, but not the thing that's there now (or not there)
-            setSyncedFsid(UNDEF-1, sync->syncs.localnodeBySyncedFsid, localname);
+            setSyncedFsid(UNDEF-1, sync->syncs.localnodeBySyncedFsid, localname, fsnode->cloneShortname());
             sync->statecacheadd(this);
         }
         unstableFsidAssigned = true;
@@ -1863,7 +1887,7 @@ treestate_t LocalNode::checkstate()
 
 
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
-void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName)
+void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName, std::unique_ptr<LocalPath> newshortname)
 {
     if (fsid_lastSynced_it != fsidnodes.end())
     {
@@ -1879,7 +1903,13 @@ void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, con
     fsidSyncedReused = false;
 
     // if synced to fs, localname should match exactly (no differences in case/escaping etc)
-    localname = fsName;
+    if (localname != fsName ||
+            !!newshortname != !!slocalname ||
+            (newshortname && slocalname && *newshortname != *slocalname))
+    {
+        // localname must always be set by this function, to maintain parent's child maps
+        setnameparent(parent, fsName, move(newshortname));
+    }
 
     // LOG_verbose << "localnode " << this << " fsid " << toHandle(fsid_lastSynced) << " localname " << fsName.toPath() << " parent " << parent;
 
@@ -1975,8 +2005,6 @@ LocalNode::~LocalNode()
         resetTransfer(nullptr);
     }
 
-    //newnode.reset();
-
     if (sync->dirnotify.get())
     {
         // deactivate corresponding notifyq records
@@ -2008,7 +2036,7 @@ LocalNode::~LocalNode()
     // remove parent association
     if (parent)
     {
-        setnameparent(NULL, NULL, NULL);
+        setnameparent(nullptr, LocalPath(), nullptr);
     }
 
     for (localnode_map::iterator it = children.begin(); it != children.end(); )

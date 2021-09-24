@@ -144,7 +144,6 @@ public:
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
     size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
-    bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
     LocalPath subpathFrom(size_t bytePos) const;
     LocalPath subpathTo(size_t bytePos) const;
 
@@ -689,7 +688,7 @@ struct MEGA_API FSNode
             fingerprint == n.fingerprint;
     }
 
-    unique_ptr<LocalPath> cloneShortname()
+    unique_ptr<LocalPath> cloneShortname() const
     {
         return unique_ptr<LocalPath>(
             shortname

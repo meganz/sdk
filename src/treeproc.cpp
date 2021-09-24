@@ -98,10 +98,9 @@ void TreeProcApplyKey::proc(MegaClient *client, Node *n)
 
 #ifdef ENABLE_SYNC
 
-LocalTreeProcMove::LocalTreeProcMove(Sync* sync, bool recreate)
+LocalTreeProcMove::LocalTreeProcMove(Sync* sync)
 {
-    this->newsync = sync;
-    this->recreate = recreate;
+    newsync = sync;
     nc = 0;
 }
 
@@ -113,13 +112,6 @@ void LocalTreeProcMove::proc(FileSystemAccess&, LocalNode* localnode)
         localnode->sync = newsync;
         newsync->statecacheadd(localnode);
     }
-
-    if (recreate)
-    {
-        //localnode->created = false;
-        //localnode->node = NULL;
-    }
-
     nc++;
 }
 

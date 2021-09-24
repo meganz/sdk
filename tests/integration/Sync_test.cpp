@@ -3606,7 +3606,7 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
 }
 
-TEST_F(SyncTest, BasicSync_MoveLocalFolder)
+TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -3625,7 +3625,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolder)
     ASSERT_NE(backupId1, UNDEF);
     handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
     ASSERT_NE(backupId2, UNDEF);
-    waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
+    waitonsyncs(std::chrono::seconds(8), &clientA1, &clientA2);
     clientA1.logcb = clientA2.logcb = true;
 
     // check everything matches (model has expected state of remote and local)
@@ -3638,7 +3638,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolder)
     ASSERT_TRUE(!rename_error) << rename_error;
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
+    waitonsyncs(std::chrono::seconds(8), &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(model.movenode("f/f_2/f_2_1", "f"));

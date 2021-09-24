@@ -103,10 +103,9 @@ public:
 class MEGA_API LocalTreeProcMove : public LocalTreeProc
 {
     Sync *newsync;
-    bool recreate;
 
 public:
-    LocalTreeProcMove(Sync*, bool);
+    LocalTreeProcMove(Sync*);
     void proc(FileSystemAccess&, LocalNode*);
     int nc;
 };

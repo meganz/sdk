@@ -1162,12 +1162,6 @@ size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
     return p;
 }
 
-bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
-{
-    auto n = compareTo.localpath.size();
-    return bytePos + n == localpath.size() && !localpath.compare(bytePos, n, compareTo.localpath);
-}
-
 LocalPath LocalPath::subpathFrom(size_t bytePos) const
 {
     LocalPath result;

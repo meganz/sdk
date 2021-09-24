@@ -127,7 +127,6 @@ struct MEGA_API NewNode : public NodeCore
     UploadHandle uploadhandle;
     byte uploadtoken[UPLOADTOKENLEN]{};
 
-    //handle syncid = UNDEF;
 #ifdef ENABLE_SYNC
     weak_ptr<SyncUpload_inClient> syncUpload;
 #endif
@@ -431,6 +430,7 @@ struct MEGA_API LocalNode : public Cacheable
     // for botched filesystems with legacy secondary ("short") names
     // Filesystem notifications could arrive with long or short names, and we need to recognise which LocalNode corresponds.
     std::unique_ptr<LocalPath> slocalname;   // null means either the entry has no shortname or it's the same as the (normal) longname
+    unique_ptr<LocalPath> cloneShortname() const;
     localnode_map schildren;
 
     // The last scan of the folder (for folders).
@@ -647,12 +647,12 @@ struct MEGA_API LocalNode : public Cacheable
     shared_ptr<SyncTransfer_inClient> transferSP;
 
 
-    void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
+    void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName, std::unique_ptr<LocalPath> newshortname);
     void setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
 
     void setSyncedNodeHandle(NodeHandle h);
 
-    void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
+    void setnameparent(LocalNode*, const LocalPath& newlocalpath, std::unique_ptr<LocalPath>);
     void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain);
 
     LocalNode();
@@ -666,26 +666,8 @@ struct MEGA_API LocalNode : public Cacheable
 
     ~LocalNode();
 
-    //// Update this node's conflict state.
-    //void conflictDetected(const TREESTATE conflicts);
-
-    //// Signal that a name conflict has been detected in this node.
-    //void conflictDetected();
-
-    //// Propagate our conflict state to our parents.
-    //void conflictRefresh();
-
     //// True if any name conflicts have been detected in this subtree.
     bool conflictsDetected() const;
-
-    //// True if any conflicts have been detected in any of our children.
-    //bool conflictsDetectedBelow() const;
-
-    //// True if any conflicts have been detected by this node.
-    //bool conflictsDetectedHere() const;
-
-    //// Clears this node's conflict detection state.
-    //void conflictsResolved();
 
     // Are we above other?
     bool isAbove(const LocalNode& other) const;
