@@ -20,6 +20,7 @@ pushd src
 git checkout $COMMIT
 
 git apply ../../../../../patches/webRtcPatch.patch
+git apply ../../../../../patches/webRtcSocketIosPatch.patch
 
 mkdir lib
 pushd lib
