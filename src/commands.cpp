@@ -8708,6 +8708,7 @@ CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle c
     cmd("mcme");
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("mid", (byte*)&callid, MegaClient::CHATHANDLE);
+    // At meeting first version, only valid reason is 0x02 (REJECTED)
     arg("r", reason);
 
     tag = client->reqtag;
