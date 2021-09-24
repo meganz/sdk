@@ -858,6 +858,13 @@ Sync::~Sync()
 {
     assert(syncs.onSyncThread());
 
+    // Had this sync reported an ignore file load failure?
+    if (syncs.mIgnoreFileFailureContext.match(*this))
+    {
+        // Then clear the context as the sync's inactive.
+        syncs.mIgnoreFileFailureContext.reset();
+    }
+
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     mDestructorRunning = true;
 
@@ -1147,6 +1154,13 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     // Transitioning to a 'stopped' state...
     if (newstate < SYNC_INITIALSCAN)
     {
+        // Had this sync reported an ignore file failure?
+        if (syncs.mIgnoreFileFailureContext.match(*this))
+        {
+            // Then clear the context as the sync's no longer active.
+            syncs.mIgnoreFileFailureContext.reset();
+        }
+
         // Should "user-disable" external backups...
         newEnableFlag &= config.isInternal();
     }
@@ -1299,6 +1313,66 @@ void Sync::createDebrisTmpLockOnce()
     }
 }
 
+bool SyncStallInfo::waitingCloud(const string& cloudPath1,
+                                 const string& cloudPath2,
+                                 const LocalPath& localPath,
+                                 SyncWaitReason reason)
+{
+    for (auto i = cloud.begin(); i != cloud.end(); )
+    {
+        // No need to add a new entry as we've already reported some parent.
+        if (IsContainingCloudPathOf(i->first, cloudPath1))
+            return false;
+
+        // Remove entries that are below cloudPath1.
+        if (IsContainingCloudPathOf(cloudPath1, i->first))
+        {
+            i = cloud.erase(i);
+            continue;
+        }
+
+        // Check the next entry.
+        ++i;
+    }
+
+    // Add a new entry.
+    auto& entry = cloud[cloudPath1];
+
+    entry.involvedCloudPath = cloudPath2;
+    entry.involvedLocalPath = localPath;
+    entry.reason = reason;
+
+    return true;
+}
+
+bool SyncStallInfo::waitingLocal(const LocalPath& localPath1,
+                                 const LocalPath& localPath2,
+                                 const string& cloudPath,
+                                 SyncWaitReason reason)
+{
+    for (auto i = local.begin(); i != local.end(); )
+    {
+        if (i->first.isContainingPathOf(localPath1))
+            return false;
+
+        if (localPath1.isContainingPathOf(i->first))
+        {
+            i = local.erase(i);
+            continue;
+        }
+
+        ++i;
+    }
+
+    auto& entry = local[localPath1];
+
+    entry.involvedCloudPath = cloudPath;
+    entry.involvedLocalPath = localPath2;
+    entry.reason = reason;
+
+    return true;
+}
+
 struct ProgressingMonitor
 {
     bool resolved = false;
@@ -1322,23 +1396,7 @@ struct ProgressingMonitor
             sf.reachableNodesAllScannedThisPass &&
             sf.noProgressCount > 10)
         {
-            for (auto i = sf.stall.cloud.begin(); i != sf.stall.cloud.end(); )
-            {
-                if (IsContainingCloudPathOf(i->first, cloudPath))
-                {
-                    // we already have a parent or ancestor listed
-                    return;
-                }
-                else if (IsContainingCloudPathOf(cloudPath, i->first))
-                {
-                    // this new path is the parent or ancestor
-                    i = sf.stall.cloud.erase(i);
-                }
-                else ++i;
-            }
-            sf.stall.cloud[cloudPath].reason = r;
-            sf.stall.cloud[cloudPath].involvedCloudPath = cloudPath2;
-            sf.stall.cloud[cloudPath].involvedLocalPath = localpath;
+            sf.stall.waitingCloud(cloudPath, cloudPath2, localpath, r);
         }
     }
 
@@ -1352,23 +1410,7 @@ struct ProgressingMonitor
             sf.reachableNodesAllScannedThisPass &&
             sf.noProgressCount > 10)
         {
-            for (auto i = sf.stall.local.begin(); i != sf.stall.local.end(); )
-            {
-                if (i->first.isContainingPathOf(localPath))
-                {
-                    // we already have a parent or ancestor listed
-                    return;
-                }
-                else if (localPath.isContainingPathOf(i->first))
-                {
-                    // this new path is the parent or ancestor
-                    i = sf.stall.local.erase(i);
-                }
-                else ++i;
-            }
-            sf.stall.local[localPath].reason = r;
-            sf.stall.local[localPath].involvedLocalPath = localPath2;
-            sf.stall.local[localPath].involvedCloudPath = cloudPath;
+            sf.stall.waitingLocal(localPath, localPath2, cloudPath, r);
         }
     }
 
@@ -3998,14 +4040,44 @@ std::future<bool> Syncs::setSyncPausedByBackupId(handle id, bool pause)
         lock_guard<mutex> g(mSyncVecMutex);
 
         bool found = false;
+
         for (auto& us : mSyncVec)
         {
-            if (us && us->mSync)
+            // Skip syncs that aren't active.
+            if (!us || !us->mSync)
+                continue;
+
+            // Skip syncs that don't match the specified ID.
+            if (us->mConfig.mBackupId != id)
+                continue;
+
+            // Update the sync's pause state.
+            us->mSync->setSyncPaused(pause);
+
+            // Let the caller know we found the desired sync.
+            found = true;
+
+            // Are we unpausing the sync?
+            if (!pause)
             {
-                us->mSync->setSyncPaused(pause);
-                found = true;
+                // Make sure we re-examine the sync.
+                us->mSync->localroot->setSyncAgain(false, true, true);
+
+                // Let the engine know it has work to do.
+                waiter.notify();
+
+                // Nothing more to do.
+                break;
+            }
+
+            // Had this sync reported an ignore file load failure?
+            if (mIgnoreFileFailureContext.match(*us->mSync))
+            {
+                // Then clear the context as the sync's no longer active.
+                mIgnoreFileFailureContext.reset();
             }
         }
+
         promise->set_value(found);
     });
 
@@ -4574,28 +4646,6 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, 
             recursiveCollectNameConflicts(childRow, ncs, fullPath);
         }
     }
-}
-
-bool Sync::collectIgnoreFileFailures(list<LocalPath>& paths) const
-{
-    collectIgnoreFileFailures(*localroot, paths);
-
-    return !paths.empty();
-}
-
-void Sync::collectIgnoreFileFailures(const LocalNode& node, list<LocalPath>& paths) const
-{
-    // Did this node fail to load its ignore file?
-    if (node.loadFailedHere())
-        paths.emplace_back(node.getLocalPath());
-
-    // Did any of this node's children fail to load their ignore file?
-    if (!node.loadFailedBelow())
-        return;
-
-    // Report failures below this node.
-    for (auto& childIt : node.children)
-        collectIgnoreFileFailures(*childIt.second, paths);
 }
 
 bool Sync::collectScanBlocked(list<LocalPath>& paths) const
@@ -8197,10 +8247,15 @@ void Syncs::syncLoop()
 
             for (auto& us : mSyncVec)
             {
+                // Has an ignore file failure occured?
+                if (mIgnoreFileFailureContext.signalled())
+                {
+                    // Then don't perform any more processing until it's resolved.
+                    break;
+                }
+
                 Sync* sync = us->mSync.get();
-                if (sync && (
-                    sync->state() == SYNC_ACTIVE ||
-                    sync->state() == SYNC_INITIALSCAN))
+                if (sync && sync->state() >= SYNC_INITIALSCAN)
                 {
 
                     if (sync->dirnotify->mErrorCount.load())
@@ -8343,6 +8398,17 @@ void Syncs::syncLoop()
                 assert(onSyncThread());
                 mClient.app->syncupdate_syncing(anySyncBusy);
                 syncBusyState = anySyncBusy;
+            }
+
+            // Have any ignore file failures been reported?
+            if (mIgnoreFileFailureContext.signalled())
+            {
+                // Has the problem been resolved?
+                if (!mIgnoreFileFailureContext.resolve(*fsaccess))
+                {
+                    // Not resolved so report as a stall.
+                    mIgnoreFileFailureContext.report(mSyncFlags->stall);
+                }
             }
 
             bool stalled = syncStallState;
@@ -8561,50 +8627,6 @@ void Syncs::collectSyncScanUseBlockedPaths(handle backupId, std::function<void(l
         });
 }
 
-void Syncs::collectIgnoreFileFailures(handle id, std::function<void(list<LocalPath>&& names)> completion, bool inClient)
-{
-    assert(!onSyncThread());
-
-    // No need to perform any work if there's no one to receive the result.
-    if (!completion) return;
-
-    // Construct trampoline if necessary.
-    if (inClient)
-    {
-        completion = [completion, this](list<LocalPath>&& p) {
-            // Shared so it exists until used.
-            auto pptr = std::make_shared<list<LocalPath>>(std::move(p));
-
-            // Queue the completion function for a call from the client.
-            queueClient([completion, pptr](MegaClient&, DBTableTransactionCommitter&) {
-                // Hey, we're done!
-                completion(std::move(*pptr));
-            });
-        };
-    }
-
-    // Ask the core to gather our results.
-    queueSync([completion, id, this]() {
-        list<LocalPath> paths;
-
-        // Iterate over the syncs, gathering results where appropriate.
-        for (auto& us : mSyncVec)
-        {
-            // Skip syncs that aren't running.
-            if (!us->mSync) continue;
-
-            // Skip syncs we're not interested in.
-            if (id != UNDEF && us->mConfig.mBackupId != id) continue;
-
-            // Gather results.
-            us->mSync->collectIgnoreFileFailures(paths);
-        }
-
-        // Pass results to whoever's waiting.
-        completion(std::move(paths));
-    });
-}
-
 void Syncs::setSyncsNeedFullSync(bool andFullScan, handle backupId)
 {
     assert(!onSyncThread());
@@ -8787,6 +8809,19 @@ Sync* Syncs::syncContainingPath(const string& path, bool includePaused)
     };
 
     return syncMatching(std::move(predicate), includePaused);
+}
+
+void Syncs::ignoreFileLoadFailure(const Sync& sync, const LocalPath& path)
+{
+    // We should never be asked to report multiple ignore file failures.
+    assert(!mIgnoreFileFailureContext.mSync);
+
+    // Record the failure.
+    mIgnoreFileFailureContext.mPath = path;
+    mIgnoreFileFailureContext.mSync = &sync;
+
+    // Let the application know an ignore file has failed to load.
+    mClient.app->syncupdate_filter_error(sync.getConfig());
 }
 
 LocalNode* Syncs::localNodeByCloudPath(const RemotePath& path, LocalNode** outParent, RemotePath* outPath)

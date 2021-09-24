@@ -1288,16 +1288,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     tput.proc(*sync->syncs.fsaccess, ln);
 
     ln->mFilterChain = mFilterChain;
-    ln->mFilterFingerprint = mFilterFingerprint;
-    ln->mLoadFailed = mLoadFailed;
     ln->mLoadPending = mLoadPending;
-
-    // Did we or any of our children fail to load an ignore file?
-    if (mLoadFailed > 0)
-    {
-        // Yes so make sure our parents know.
-        ln->parent->setLoadFailedBelow();
-    }
 
     // Make sure our exclusion state is recomputed.
     ln->setRecomputeExclusionState();
@@ -1371,7 +1362,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 
     bumpnagleds();
 
-    mLoadFailed = TREE_RESOLVED;
     mLoadPending = false;
 
     if (cparent)
@@ -2577,11 +2567,7 @@ void LocalNode::clearFilters()
     // Purge all defined filter rules.
     mFilterChain.clear();
 
-    // No ignore file is loaded.
-    mFilterFingerprint = FileFingerprint();
-
     // Reset ignore file state.
-    setLoadFailed(false);
     setLoadPending(false);
 
     // Re-examine this subtree.
@@ -2594,30 +2580,27 @@ bool LocalNode::loadFilters(const LocalPath& path)
     // Only meaningful for directories.
     assert(type == FOLDERNODE);
 
-    // Assume we'll be unable to read the ignore file.
-    auto failed = true;
+    // Convenience.
+    auto& fsAccess = *sync->syncs.fsaccess;
 
-    // Create a file access so we can read from the local filesystem.
-    auto fileAccess = sync->syncs.fsaccess->newfileaccess(false);
+    // Try and load the ignore file.
+    auto result = mFilterChain.load(fsAccess, path);
 
-    // Open the ignore file for reading.
-    if (fileAccess->fopen(path, true, false))
+    // Ignore file hasn't changed.
+    if (result == FLR_SKIPPED)
+        return !mLoadPending;
+
+    auto failed = result == FLR_FAILED;
+
+    // Did the load fail?
+    if (failed)
     {
-        // Has the ignore file actually changed?
-        if (mFilterFingerprint.genfingerprint(fileAccess.get()))
-        {
-            // Changed so load the filters.
-            failed = !mFilterChain.load(*fileAccess);
-        }
-        else
-        {
-            // Hasn't changed so no need to update children.
-            return !mLoadPending;
-        }
+        // Let the engine know there's been a load failure.
+        sync->syncs.ignoreFileLoadFailure(*sync, path);
+        
+        // Clear the filter state.
+        mFilterChain.clear();
     }
-
-    // Let our parents know whether we could load our ignore file.
-    setLoadFailed(failed);
 
     // Update our load pending state.
     setLoadPending(failed);
@@ -2689,32 +2672,6 @@ bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
     return false;
 }
 
-bool LocalNode::setLoadFailed(bool failed)
-{
-    // Only meaningful for directories.
-    assert(type == FOLDERNODE);
-
-    // Is this node's fail state actually changing?
-    if (loadFailedHere() == failed)
-        return false;
-
-    // Clear the bit only if necessary.
-    if (!failed)
-    {
-        mLoadFailed &= ~TREE_ACTION_HERE;
-        return true;
-    }
-
-    mLoadFailed |= TREE_ACTION_HERE;
-
-    // Let our parent know we couldn't load our ignore file.
-    if (parent)
-        return parent->setLoadFailedBelow();
-
-    // Failure's new so inform the application.
-    sync->syncs.mClient.app->syncupdate_filter_error(sync->getConfig());
-}
-
 void LocalNode::setLoadPending(bool pending)
 {
     // Only meaningful for directories.
@@ -2730,27 +2687,6 @@ void LocalNode::setLoadPending(bool pending)
 
     // Apply new pending state.
     mLoadPending = pending;
-}
-
-bool LocalNode::setLoadFailedBelow()
-{
-    // Only meaningful for directories.
-    assert(type == FOLDERNODE);
-
-    for (auto* node = this; node; node = node->parent)
-    {
-        // No need to continue climbing as the state won't change.
-        if ((node->mLoadFailed & TREE_DESCENDANT_FLAGGED))
-            return false;
-
-        // Let the node know some child failed to load its ignore file.
-        node->mLoadFailed |= TREE_DESCENDANT_FLAGGED;
-    }
-
-    // Failure's new so alert the application.
-    sync->syncs.mClient.app->syncupdate_filter_error(sync->getConfig());
-
-    return true;
 }
 
 void LocalNode::setRecomputeExclusionState()
@@ -2810,7 +2746,7 @@ bool LocalNode::ignoreFileChanged(const FileFingerprint& fingerprint) const
     // Only meaningful for ignore files.
     assert(mIsIgnoreFile);
 
-    return parent->mFilterFingerprint != fingerprint;
+    return parent->mFilterChain.changed(fingerprint);
 }
 
 bool LocalNode::ignoreFileDownloading()
@@ -2864,16 +2800,6 @@ int LocalNode::isExcluded() const
 bool LocalNode::isIgnoreFile() const
 {
     return mIsIgnoreFile;
-}
-
-bool LocalNode::loadFailedBelow() const
-{
-    return mLoadFailed & TREE_DESCENDANT_FLAGGED;
-}
-
-bool LocalNode::loadFailedHere() const
-{
-    return mLoadFailed & TREE_ACTION_HERE;
 }
 
 bool LocalNode::recomputeExclusionState()

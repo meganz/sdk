@@ -2653,6 +2653,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::CouldNotMoveToLocalDebrisFolder:               return "CouldNotMoveToLocalDebrisFolder";
         case SyncWaitReason::LocalFolderNotScannable:                       return "LocalFolderNotScannable";
         case SyncWaitReason::UnknownExclusionState:                         return "UnknownExclusionState";        
+        case SyncWaitReason::UnableToLoadIgnoreFile:                        return "UnableToLoadIgnoreFile";
     }
     return "<out of range>";
 }

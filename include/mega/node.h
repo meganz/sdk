@@ -685,16 +685,10 @@ private:
     // Filter rules applicable below this node.
     FilterChain mFilterChain;
     
-    // Fingerprint of the last loaded ignore file.
-    FileFingerprint mFilterFingerprint;
-
     struct
     {
         // Whether this node is excluded.
         bool mExcluded : 1;
-
-        // Did we or one of our children fail to load an ignore file?
-        unsigned mLoadFailed : 2;
 
         // Whether we need to reload this node's ignore file.
         bool mLoadPending : 1;
@@ -718,14 +712,8 @@ private:
     // Query whether a file is excluded by a size filter.
     bool isExcluded(const RemotePathPair& namePath, m_off_t size) const;
 
-    // Signal whether this node failed to load its ignore file.
-    bool setLoadFailed(bool failed);
-
     // Signal whether this node needs to load its ignore file.
     void setLoadPending(bool pending);
-
-    // Signal that an ignore file failed to load below this node.
-    bool setLoadFailedBelow();
 
     // Signal that this node and its children must recompute their exclusion state.
     void setRecomputeExclusionState();
@@ -842,12 +830,6 @@ public:
 
     // Query whether this node represents an ignore file.
     bool isIgnoreFile() const;
-
-    // Query whether a child of this node failed to load an ignore file.
-    bool loadFailedBelow() const;
-
-    // Query whether this node failed to load an ignore file.
-    bool loadFailedHere() const;
 
     // Recompute this node's exclusion state.
     bool recomputeExclusionState();

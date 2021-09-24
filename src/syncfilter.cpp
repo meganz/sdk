@@ -194,7 +194,7 @@ static bool add(const string& text, StringFilterPtrVector& filters);
 static bool isEmpty(const char* m, const char* n);
 
 // Logs a normalization error and return false.
-static bool normalizationError(const string& text);
+static FilterLoadResult normalizationError(const string& text);
 
 // Returns appropriate regex flags.
 static std::regex::flag_type regexFlags(const bool caseSensitive);
@@ -292,7 +292,8 @@ FilterResult::FilterResult(const bool included)
 }
 
 FilterChain::FilterChain()
-  : mStringFilters()
+  : mFingerprint()
+  , mStringFilters()
   , mSizeFilter()
 {
 }
@@ -307,19 +308,44 @@ FilterChain& FilterChain::operator=(const FilterChain& rhs) = default;
 
 FilterChain& FilterChain::operator=(FilterChain&& rhs) = default;
 
+bool FilterChain::changed(const FileFingerprint& fingerprint) const
+{
+    return mFingerprint != fingerprint;
+}
+
 void FilterChain::clear()
 {
+    mFingerprint = FileFingerprint();
     mSizeFilter.reset();
     mStringFilters.clear();
 }
 
-bool FilterChain::empty() const
+FilterLoadResult FilterChain::load(FileSystemAccess& fsAccess, const LocalPath& path)
 {
-    return !mSizeFilter && mStringFilters.empty();
+    // Create a file access so we can access the filesystem.
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    // Open the ignore file for reading.
+    if (!fileAccess->fopen(path, true, false)
+        || fileAccess->type != FILENODE)
+    {
+        // Couldn't open the file. Assume it's been deleted.
+        return FLR_DELETED;
+    }
+
+    // Ignore file exists so try and load it.
+    return load(*fileAccess);
 }
 
-bool FilterChain::load(FileAccess& fileAccess)
+FilterLoadResult FilterChain::load(FileAccess& fileAccess)
 {
+    // Has the ignore file changed?
+    if (!mFingerprint.genfingerprint(&fileAccess))
+    {
+        // No point trying to load the file as it hasn't changed.
+        return FLR_SKIPPED;
+    }
+
     // Convenience.
     using FSA = FileSystemAccess;
 
@@ -329,7 +355,7 @@ bool FilterChain::load(FileAccess& fileAccess)
     // Empty lines are omitted by readLines(...).
     if (!readLines(fileAccess, lines))
     {
-        return false;
+        return FLR_FAILED;
     }
 
     // Temporay storage for newly loaded filters.
@@ -364,12 +390,12 @@ bool FilterChain::load(FileAccess& fileAccess)
             if (!add(l, sizeFilter))
             {
                 // Changes are not committed.
-                return false;
+                return FLR_FAILED;
             }
         }
         else if (!add(l, stringFilters))
         {
-            return false;
+            return FLR_FAILED;
         }
     }
 
@@ -378,7 +404,7 @@ bool FilterChain::load(FileAccess& fileAccess)
     mSizeFilter = std::move(sizeFilter);
 
     // Changes are committed.
-    return true;
+    return FLR_SUCCESS;
 }
 
 FilterResult FilterChain::match(const RemotePathPair& p,
@@ -918,11 +944,11 @@ bool isEmpty(const char* m, const char* n)
     return n == w;
 }
 
-bool normalizationError(const string& text)
+FilterLoadResult normalizationError(const string& text)
 {
     LOG_verbose << "Normalization error parsing: " << text;
 
-    return false;
+    return FLR_FAILED;
 }
 
 std::regex::flag_type regexFlags(const bool caseSensitive)

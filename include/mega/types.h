@@ -1014,7 +1014,8 @@ enum class SyncWaitReason {
     LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
     CouldNotMoveToLocalDebrisFolder,
     LocalFolderNotScannable,
-    UnknownExclusionState
+    UnknownExclusionState,
+    UnableToLoadIgnoreFile
 };
 
 string syncWaitReasonString(SyncWaitReason);

@@ -70,6 +70,18 @@ public:
     bool matched;
 }; /* FilterResult */
 
+enum FilterLoadResult
+{
+    // The ignore file is no longer present.
+    FLR_DELETED,
+    // The ignore file failed to load.
+    FLR_FAILED,
+    // The ignore file was not loaded as it has not changed.
+    FLR_SKIPPED,
+    // The ignore file was loaded successfully.
+    FLR_SUCCESS
+}; // FilterLoadResult
+
 class MEGA_API FilterChain
 {
 public:
@@ -85,14 +97,15 @@ public:
 
     FilterChain& operator=(FilterChain&& rhs);
 
+    // Query whether the ignore file has changed.
+    bool changed(const FileFingerprint& fingerprint) const;
+
     // Removes all filters in this chain.
     void clear();
 
-    // True if this chain contains no filters.
-    bool empty() const;
-
     // Loads filters from a file.
-    bool load(FileAccess& fileAccess);
+    FilterLoadResult load(FileSystemAccess& fsAccess, const LocalPath& path);
+    FilterLoadResult load(FileAccess& fileAccess);
 
     // Attempts to locate a match for the path pair p.
     FilterResult match(const RemotePathPair& p,
@@ -103,6 +116,9 @@ public:
     FilterResult match(const m_off_t s) const;
 
 private:
+    // Fingerprint of the last loaded ignore file.
+    FileFingerprint mFingerprint;
+
     // Name and/or path filters.
     StringFilterPtrVector mStringFilters;
 

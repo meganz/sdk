@@ -513,7 +513,7 @@ public:
 
     bool collectUseBlocked(list<LocalPath>& paths) const;
     void collectUseBlocked(const LocalNode& node, list<LocalPath>& paths) const;
-
+    
     // debris path component relative to the base path
     string debris;
     LocalPath localdebris;
@@ -788,6 +788,16 @@ struct SyncStallInfo
     typedef map<string, CloudStallInfo> CloudStallInfoMap;
     typedef map<LocalPath, LocalStallInfo> LocalStallInfoMap;
 
+    bool waitingCloud(const string& cloudPath1,
+                      const string& cloudPath2,
+                      const LocalPath& localPath,
+                      SyncWaitReason reason);
+
+    bool waitingLocal(const LocalPath& localPath1,
+                      const LocalPath& localPath2,
+                      const string& cloudPath,
+                      SyncWaitReason reason);
+
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
 };
@@ -1013,9 +1023,6 @@ public:
     // Get scan and use blocked paths - pass UNDEF to collect for all syncs.
     void collectSyncScanUseBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked)>, bool completionInClient);
 
-    // Get ignore file failures - pass UNDEF to collect for all syncs.
-    void collectIgnoreFileFailures(handle id, std::function<void(list<LocalPath>&& names)> completion, bool inClient);
-
     // waiter for sync loop on thread
     WAIT_CLASS waiter;
 
@@ -1175,6 +1182,75 @@ private:
 
     Sync* syncContainingPath(const LocalPath& path, bool includePaused);
     Sync* syncContainingPath(const string& path, bool includePaused);
+
+    // Signal that an ignore file failed to load.
+    void ignoreFileLoadFailure(const Sync& sync, const LocalPath& path);
+
+    // Records which ignore file failed to load and under which sync.
+    struct IgnoreFileFailureContext
+    {
+        // Did this sync report the failure?
+        bool match(const Sync& sync) const
+        {
+            return mSync == &sync;
+        }
+
+        // Clear the context.
+        void reset()
+        {
+            mFilterChain.clear();
+            mPath.clear();
+            mSync = nullptr;
+        }
+
+        // Report the load failure as a stall.
+        void report(SyncStallInfo& stallInfo)
+        {
+            stallInfo.waitingLocal(mPath,
+                                   LocalPath(),
+                                   string(),
+                                   SyncWaitReason::UnableToLoadIgnoreFile);
+        }
+
+        // Has the ignore file failure been resolved?
+        bool resolve(FileSystemAccess& fsAccess)
+        {
+            // No failures to resolve so we're all good.
+            if (!mSync)
+                return true;
+
+            // Try and load the ignore file.
+            auto result = mFilterChain.load(fsAccess, mPath);
+
+            // Resolved if the file's been deleted or corrected.
+            if (result == FLR_FAILED || result == FLR_SKIPPED)
+                return false;
+
+            // Clear the failure condition.
+            reset();
+
+            // Let the caller know the situation's resolved.
+            return true;
+        }
+
+        // Has an ignore file failure been signalled?
+        bool signalled() const
+        {
+            return mSync != nullptr;
+        }
+
+        // Used to load the ignore file specified below.
+        FilterChain mFilterChain;
+
+        // What ignore file failed to load?
+        LocalPath mPath;
+
+        // What sync contained the broken ignore file?
+        const Sync* mSync = nullptr;
+    }; // IgnoreFileFailureContext
+
+    // Tracks the last recorded ignore file failure.
+    IgnoreFileFailureContext mIgnoreFileFailureContext;
 
 public:
     LocalNode* localNodeByCloudPath(const RemotePath& path, LocalNode** parent = nullptr, RemotePath* remainderPath = nullptr);
