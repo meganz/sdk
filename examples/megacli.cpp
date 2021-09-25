@@ -23,6 +23,8 @@
 #include "megacli.h"
 #include <fstream>
 #include <bitset>
+#include <map>
+#include <algorithm>
 
 #if defined(_WIN32) && defined(_DEBUG)
 // so we can delete a secret internal CrytpoPP singleton
@@ -1791,6 +1793,93 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
     }
 }
 
+namespace
+{
+
+struct ft_info_t
+{
+public:
+    string const    ft_name;
+
+    uint32_t        ft_count = 0;
+    uint64_t        ft_bytes = 0;
+
+    ft_info_t(const string& name) : ft_name(name)
+    {}
+};
+
+struct ftstat_cb_t
+{
+public: 
+    std::map<std::string, ft_info_t> data;
+};
+
+string find_type_name(const char* displayname)
+{
+    if (displayname == nullptr)
+    {
+        return "";
+    }
+
+    const char* p = strrchr(displayname, '.');
+    if (p == nullptr)
+    {
+        return "";
+    }
+
+    return p + 1;
+}
+
+void ftstat_collect(ftstat_cb_t& cb, const Node* node)
+{
+    if (node == nullptr)
+    {
+        return;
+    }
+
+    if (node->type == FILENODE)
+    {
+        const string ft_name = find_type_name(node->displayname());
+
+        auto it = cb.data.find(ft_name);
+        if (it == cb.data.end())
+        {
+            cb.data.emplace(ft_name, ft_name);
+            it = cb.data.find(ft_name);
+        }
+
+        it->second.ft_count += 1;
+        it->second.ft_bytes += node->size;
+    }
+    else
+    {
+        for (const auto& child : node->children)
+        {
+            ftstat_collect(cb, child);
+        }
+    }
+}
+
+void ftstat_print(const ftstat_cb_t& cb)
+{
+    for (const auto& duo : cb.data)
+    {
+        cout << "file-type: ";
+        if (!duo.first.empty())
+        {
+            cout << "\"" << duo.first << "\"";
+        }
+        else
+        {
+            cout << "(empty)";
+        }
+        cout << "; \tcount: " << duo.second.ft_count
+                << "; \ttotal-bytes: " << duo.second.ft_bytes << endl;
+    }
+}
+
+} // anonymous namespace
+
 #ifdef USE_FILESYSTEM
 static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 {
@@ -3043,6 +3132,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
     p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_ftstat, sequence(text("ftstat")));
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
@@ -3595,6 +3685,14 @@ void exec_ls(autocomplete::ACState& s)
     {
         dumptree(n, recursive, 0, NULL, toFileFlag ? &toFile : nullptr);
     }
+}
+
+void exec_ftstat(autocomplete::ACState& s)
+{
+    Node* node = client->nodeByHandle(cwd);
+    ftstat_cb_t cb;
+    ftstat_collect(cb, node);
+    ftstat_print(cb);
 }
 
 void exec_cd(autocomplete::ACState& s)
