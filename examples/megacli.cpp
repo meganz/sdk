@@ -3134,6 +3134,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_ftstat, sequence(text("ftstat")));
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_dirs, sequence(text("dirs")));
+    p->Add(exec_pushd, sequence(text("pushd"), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_popd, sequence(text("popd")));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
 #ifdef USE_FILESYSTEM
@@ -3719,6 +3722,103 @@ void exec_cd(autocomplete::ACState& s)
     {
         cwd = NodeHandle().set6byte(client->rootnodes[0]);
     }
+}
+
+
+namespace
+{
+
+vector<string> s_dir_stack;
+
+Node* verify_pushd_dir(const string& dir)
+{
+    Node* node = nodebypath(dir.c_str());
+    if (node == nullptr)
+    {
+        cout << "pushd: " << dir << ": No such file or directory" << endl;
+        return nullptr;
+    }
+    else if (node->type == FILENODE)
+    {
+        cout << "pushd: " << dir << ": Not a directory" << endl;
+        return nullptr;
+    }
+
+    return node;
+}
+
+} // anonymous namespace
+
+void exec_dirs(autocomplete::ACState& s)
+{
+    string path;
+    nodepath(cwd, &path);
+    cout << " -- " << path << endl;
+
+    for (size_t x = s_dir_stack.size(); x > 0; --x)
+    {
+        cout << "    " << s_dir_stack[x-1] << endl;
+    }
+}
+
+void exec_pushd(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1)
+    {
+        Node* node = verify_pushd_dir(s.words[1].s);
+        if (node)
+        {
+            string dir;
+            nodepath(cwd, &dir);
+            s_dir_stack.push_back(dir);
+
+            cwd = node->nodeHandle();
+        }
+    }
+    else
+    {
+        if (s_dir_stack.empty())
+        {
+            cout << "pushd: no other directory" << endl;
+            return;
+        }
+
+        Node* node = verify_pushd_dir(s_dir_stack.back());
+        if (node)
+        {
+            string dir;
+            nodepath(cwd, &dir);
+            s_dir_stack.pop_back();
+            s_dir_stack.push_back(dir);
+
+            cwd = node->nodeHandle();
+        }
+    }
+}
+
+void exec_popd(autocomplete::ACState& s)
+{
+    if (s_dir_stack.empty())
+    {
+        cout << "popd: directory stack empty" << endl;
+        return;
+    }
+
+    string dir = s_dir_stack.back();
+    Node* node = nodebypath(dir.c_str());
+    if (node == nullptr)
+    {
+        cout << "popd: " << dir << ":  No such file or directory" << endl;
+        return;
+    }
+    if (node->type != FOLDERNODE)
+    {
+        cout << "popd: " << dir << ":  Not a directory" << endl;
+        return;
+    }
+
+    s_dir_stack.pop_back();
+    cwd = node->nodeHandle();
 }
 
 void exec_rm(autocomplete::ACState& s)
