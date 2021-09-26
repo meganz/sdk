@@ -3730,17 +3730,17 @@ namespace
 
 vector<string> s_dir_stack;
 
-Node* verify_pushd_dir(const string& dir)
+Node* fetch_dir_node(const string& tag, const string& dir)
 {
     Node* node = nodebypath(dir.c_str());
     if (node == nullptr)
     {
-        cout << "pushd: " << dir << ": No such file or directory" << endl;
+        cout << tag << ": " << dir << ": No such file or directory" << endl;
         return nullptr;
     }
     else if (node->type == FILENODE)
     {
-        cout << "pushd: " << dir << ": Not a directory" << endl;
+        cout << tag << ": " << dir << ": Not a directory" << endl;
         return nullptr;
     }
 
@@ -3765,7 +3765,7 @@ void exec_pushd(autocomplete::ACState& s)
 {
     if (s.words.size() > 1)
     {
-        Node* node = verify_pushd_dir(s.words[1].s);
+        Node* node = fetch_dir_node(s.words[0].s, s.words[1].s);
         if (node)
         {
             string dir;
@@ -3783,7 +3783,7 @@ void exec_pushd(autocomplete::ACState& s)
             return;
         }
 
-        Node* node = verify_pushd_dir(s_dir_stack.back());
+        Node* node = fetch_dir_node(s.words[0].s, s_dir_stack.back());
         if (node)
         {
             string dir;
@@ -3804,21 +3804,12 @@ void exec_popd(autocomplete::ACState& s)
         return;
     }
 
-    string dir = s_dir_stack.back();
-    Node* node = nodebypath(dir.c_str());
-    if (node == nullptr)
+    Node* node = fetch_dir_node(s.words[0].s, s_dir_stack.back());
+    if (node)
     {
-        cout << "popd: " << dir << ":  No such file or directory" << endl;
-        return;
+        s_dir_stack.pop_back();
+        cwd = node->nodeHandle();
     }
-    if (node->type != FOLDERNODE)
-    {
-        cout << "popd: " << dir << ":  Not a directory" << endl;
-        return;
-    }
-
-    s_dir_stack.pop_back();
-    cwd = node->nodeHandle();
 }
 
 void exec_rm(autocomplete::ACState& s)
