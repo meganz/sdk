@@ -540,6 +540,7 @@ struct MEGA_API LocalNode : public Cacheable
             nodetype_t sourceType = FILENODE;
             FileFingerprint sourceFingerprint;
             LocalNode* sourcePtr = nullptr;
+            map<LocalPath, LocalNode*> priorChildrenToRemove;
         };
 
         struct CreateFolderInProgress

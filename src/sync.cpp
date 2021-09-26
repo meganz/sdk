@@ -1555,7 +1555,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             if (foundSourceCloudNode && foundTargetCloudNode)
             {
-
                 LOG_debug << syncname << "Move detected by fsid " << toHandle(row.fsNode->fsid) << ". Type: " << sourceSyncNode->type
                     << " new path: " << fullPath.localPath_utf8()
                     << " old localnode: " << sourceSyncNode->localnodedisplaypath(*syncs.fsaccess)
@@ -1569,6 +1568,13 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 }
                 else
                 {
+                    // movePtr stays alive until the move completes
+                    // if it's all successful, we will detect the completed move in resolve_rowMatches
+                    // and the details from this shared_ptr will help move sub-LocalNodes.
+                    // In the meantime, the shared_ptr reminds us not to start another move
+                    auto movePtr = std::make_shared<LocalNode::RareFields::MoveInProgress>();
+
+
                     Syncs::QueuedClientFunc simultaneousMoveReplacedNodeToDebris = nullptr;
 
                     if (row.cloudNode && row.cloudNode->handle != sourceCloudNode.handle)
@@ -1591,13 +1597,17 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                             };
 
                         syncs.queueClient(move(simultaneousMoveReplacedNodeToDebris));
+
+                        // For the normal move case, we would have made this (empty) row.syncNode specifically for the move
+                        // But for this case we are reusing this existing LocalNode and it may be a folder with children
+                        // Those children should be removed, should this whole operation succeed.  Make a list
+                        // and remove them if the cloud actions succeed.
+                        for (auto& c : row.syncNode->children)
+                        {
+                            movePtr->priorChildrenToRemove[c.second->localname] = c.second;
+                        }
                     }
 
-                    // movePtr stays alive until the move completes
-                    // if it's all successful, we will detect the completed move in resolve_rowMatches
-                    // and the details from this shared_ptr will help move sub-LocalNodes.
-                    // In the meantime, the shared_ptr reminds us not to start another move
-                    auto movePtr = std::make_shared<LocalNode::RareFields::MoveInProgress>();
 
                     // record details so we can look up the source LocalNode again after the move completes:
                     movePtr->sourceFsid = row.fsNode->fsid;
@@ -1784,7 +1794,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     // if this cloud move was a sync decision, don't look to make it locally too
     if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().moveToHere)
     {
-        SYNC_verbose << "Node was a cloud move so skip possible matching local move. " << logTriplet(row, fullPath);
+        SYNC_verbose << "Node was our own cloud move so skip possible matching local move. " << logTriplet(row, fullPath);
         rowResult = false;
         return false;  // we need to progress to resolve_rowMatched at this node
     }
@@ -5374,7 +5384,6 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                 LOG_debug << syncname << "Sync cloud move/rename from : " << sourceSyncNode->getCloudPath() << " resolved here! " << logTriplet(row, fullPath);
 
                 assert(sourceSyncNode == movePtr->sourcePtr);
-                assert(row.syncNode->children.empty());  // we should not have been making nodes under here since we will move them from the old location
 
                 // remove fsid (and handle) from source node, so we don't detect
                 // that as a move source anymore
@@ -5392,6 +5401,21 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                 sourceSyncNode->rare().moveFromHere->syncCodeProcessedResult = true;
                 sourceSyncNode->rare().moveFromHere.reset();
                 sourceSyncNode->trimRareFields();
+
+                // If this node was repurposed for the move, rather than the normal case of creating a fresh one, we remove the old content if it was a folder
+                // We have to do this after all processing of sourceSyncNode, in case the source was (through multiple operations) one of the subnodes about to be removed.
+                for (auto& oldc : movePtr->priorChildrenToRemove)
+                {
+                    for (auto& c : row.syncNode->children)
+                    {
+                        if (*c.first == oldc.first && c.second == oldc.second)
+                        {
+                            delete c.second; // removes itself from the parent map
+                            break;
+                        }
+                    }
+                }
+
             }
             else
             {
@@ -6308,7 +6332,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         }
         else if (row.syncNode->moveApplyingToLocal)
         {
-            SYNC_verbose << syncname << "Node was a cloud move source, move is propagating: " << logTriplet(row, fullPath);
+            SYNC_verbose << syncname << "Node was our own cloud move source, move is propagating: " << logTriplet(row, fullPath);
         }
         else
         {
