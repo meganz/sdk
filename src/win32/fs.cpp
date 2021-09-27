@@ -1410,18 +1410,15 @@ void WinDirNotify::process(DWORD dwBytes)
             FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
 
 #ifdef ENABLE_SYNC
-            // We skip the old name in case of renames
-            if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME)
-            {
-                // Sometimes it's useful to uncomment this for debugging
-                //LOG_verbose << "FS notification: " << fni->Action << " " << LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))).toPath(gWfsa);
+            //LOG_verbose << "FS notification: " << fni->Action << " " << LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))).toPath(gWfsa);
 
-                auto scanRequirement = fni->Action == FILE_ACTION_MODIFIED
-                    ? Notification::FOLDER_NEEDS_SELF_SCAN
-                    : Notification::NEEDS_PARENT_SCAN;
-                notify(fsEventq, localrootnode, scanRequirement,
-                    LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
-            }
+            //FILE_ACTION_RENAMED_OLD_NAME: we let this one through now.  Eg for move of folder out of the sync.  Though, we should also get FILE_ACTION_MODIFIED for its containing folder.  Belt & braces.
+
+            auto scanRequirement = fni->Action == FILE_ACTION_MODIFIED  // FILE_ACTION_MODIFIED: for directories, if an entry was added or removed.  Or if accessibilty permissions of this folder changed.
+                ? Notification::FOLDER_NEEDS_SELF_SCAN
+                : Notification::NEEDS_PARENT_SCAN;
+            notify(fsEventq, localrootnode, scanRequirement,
+                LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
 #endif
 
             if (!fni->NextEntryOffset)
@@ -1455,7 +1452,8 @@ void WinDirNotify::readchanges()
                             | FILE_NOTIFY_CHANGE_DIR_NAME
                             | FILE_NOTIFY_CHANGE_LAST_WRITE
                             | FILE_NOTIFY_CHANGE_SIZE
-                            | FILE_NOTIFY_CHANGE_CREATION,
+                            | FILE_NOTIFY_CHANGE_CREATION
+                            | FILE_NOTIFY_CHANGE_SECURITY,  // so we can know if we lose/gain access to a scan-blocked folder
                               &dwBytes, &overlapped, completion);
 
     if (readRet)

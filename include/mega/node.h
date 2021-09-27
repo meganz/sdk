@@ -659,9 +659,6 @@ struct MEGA_API LocalNode : public Cacheable
     LocalNode();
     void init(Sync*, nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
-    // Reinitialize an UNKNOWN node.
-    void init(const FSNode& fsNode);
-
     bool serialize(string*) override;
     static unique_ptr<LocalNode> unserialize( Sync* sync, const string* sData );
 

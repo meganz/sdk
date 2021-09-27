@@ -274,7 +274,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
     }
 
     // Couldn't open the file.
-    LOG_warn << "Error opening file: " << path.toPath(*mFsAccess);
+    LOG_warn << "Error opening directory scan entry: " << path.toPath(*mFsAccess);
 
     // File's blocked if the error is transient.
     result.isBlocked = fileAccess->retry;
@@ -282,7 +282,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
     // Warn about the blocked file.
     if (result.isBlocked)
     {
-        LOG_warn << "File/Folder blocked: " << path.toPath(*mFsAccess);
+        LOG_warn << "File/Folder blocked during directory scan: " << path.toPath(*mFsAccess);
     }
 
     return result;
@@ -302,7 +302,7 @@ auto ScanService::Worker::scan(ScanRequestPtr request) -> ScanResult
 
     if (!fileAccess->fopen(path, true, false))
     {
-        LOG_debug << "Scan target does not exist: "
+        LOG_debug << "Scan target does not exist or is not openable: "
                   << path.toPath(*mFsAccess);
         return SCAN_INACCESSIBLE;
     }
@@ -328,7 +328,7 @@ auto ScanService::Worker::scan(ScanRequestPtr request) -> ScanResult
     // Can we open the directory?
     if (!dirAccess->dopen(&path, fileAccess.get(), false))
     {
-        LOG_debug << "Unable to iterate scan target: "
+        LOG_debug << "Scan target is not iteratable: "
                   << path.toPath(*mFsAccess);
         return SCAN_INACCESSIBLE;
     }
@@ -1115,6 +1115,7 @@ void Sync::cachenodes()
             {
                 if ((*it)->type == TYPE_UNKNOWN)
                 {
+                    SYNC_verbose << syncname << "Leaving unknown type node out of DB, (likely scan blocked): " << (*it)->getLocalPath().toPath();
                     insertq.erase(it++);
                 }
                 else if ((*it)->parent->dbid || (*it)->parent == localroot.get())
@@ -2190,6 +2191,13 @@ dstime Sync::procscanq()
 #endif
 
         nearest->setScanAgain(false, true, scanDescendants, SCANNING_DELAY_DS);
+
+        if (nearest->rareRO().scanBlockedTimer)
+        {
+            // in case permissions changed on a scan-blocked folder
+            // retry straight away, but don't reset the backoff delta/base should it still be inaccessible
+            nearest->rare().scanBlockedTimer->set(syncs.waiter.ds);
+        }
 
         // Queue an extra notification if we're a network sync.
         if (isnetwork)

@@ -1379,47 +1379,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     }
 }
 
-void LocalNode::init(const FSNode& fsNode)
-{
-    // Must have been previously initialized.
-    assert(sync);
-
-    // Node we're initializing from must not be unknown.
-    assert(fsNode.type != TYPE_UNKNOWN);
-
-    // Must have been created to represent a blocked node.
-    assert(type == TYPE_UNKNOWN);
-
-    // Have we gained a shortname?
-    if (fsNode.shortname && fsNode.localname != *fsNode.shortname)
-    {
-        // Unknown nodes shouldn't have a prior shortname.
-        assert(!slocalname);
-
-        slocalname.reset(new LocalPath(*fsNode.shortname));
-
-        // Unknown nodes should never be the root.
-        assert(parent);
-
-        // Link us to our parent.
-        parent->schildren[slocalname.get()] = this;
-    }
-
-    // Update our fingerprint.
-    syncedFingerprint = fsNode.fingerprint;
-    scannedFingerprint = FileFingerprint();   // todo: was this fingerprint from a scan tho?
-
-    // Update our FSID.
-    setSyncedFsid(fsNode.fsid, sync->syncs.localnodeBySyncedFsid, fsNode.localname, nullptr); // TODO
-    setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode.localname);
-
-    // Update our type.
-    type = fsNode.type;
-
-    // Update node counts.
-    ++sync->localnodes[type];
-}
-
 auto LocalNode::rare() -> RareFields&
 {
     if (!rareFields)
@@ -1591,12 +1550,16 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
     if (scanBlocked >= TREE_ACTION_HERE)
     {
         // Have we recovered?
-        if (type == TYPE_UNKNOWN && fsNode && fsNode->type != TYPE_UNKNOWN)
+        if (fsNode && fsNode->type != TYPE_UNKNOWN && !fsNode->isBlocked)
         {
             LOG_verbose << sync->syncname << "Recovered from being scan blocked: " << localnodedisplaypath(*sync->syncs.fsaccess);
-            init(*fsNode);
+
+            type = fsNode->type; // original scan may not have been able to discern type, fix it now
+            setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode->localname);
+            sync->statecacheadd(this);
+
             scanBlocked = TREE_RESOLVED;
-            rare().scanBlockedTimer->reset();
+            rare().scanBlockedTimer.reset();
             return false;
         }
 
@@ -1611,7 +1574,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         else
         {
             LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
-                << rare().scanBlockedTimer->retryin();
+                << rare().scanBlockedTimer->retryin() << " for " << getLocalPath().toPath();
             return true;
         }
     }
@@ -1639,6 +1602,13 @@ void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath)
     if (lastFolderScan &&
         lastFolderScan->size() == children.size())
     {
+        // check for scan-blocked entries, those are not regeneratable
+        for (auto& c : *lastFolderScan)
+        {
+            if (c.type == TYPE_UNKNOWN) return;
+            if (c.isBlocked) return;
+        }
+
 #ifdef DEBUG
         // Double check we really can recreate the filesystem entries correctly
         vector<FSNode> generated;
@@ -1786,10 +1756,14 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
         }
         else // SCAN_INACCESSIBLE
         {
-            assert(false);  // currently thought to be pretty much impossible (except by race condition)- the parent scan entry would already have isBlocked set.  Please let us know if this gets hit
-            LOG_verbose << sync->syncname << "Directory scan was inaccesible for path.  Deferring : " << fullPath.localPath_utf8();
-            scanDelayUntil = Waiter::ds + 1200; // give it two minutes between retries (maybe we should expand this to a backoff system)
-            setScanAgain(true, false, false, 50);  // rescan parent should resolve this, resulting in getting scan-blocked at that level
+            // we were previously able to scan this node, but now we can't.
+            row.fsNode->isBlocked = true;
+            if (!checkForScanBlocked(row.fsNode))
+            {
+                // start a timer to retry, since we haven't already
+                LOG_verbose << sync->syncname << "Directory scan has become inaccesible for path: " << fullPath.localPath_utf8();
+                setScanBlocked();
+            }
         }
     }
 
