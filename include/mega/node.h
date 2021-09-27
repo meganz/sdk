@@ -438,7 +438,7 @@ struct MEGA_API LocalNode : public Cacheable
     std::unique_ptr<vector<FSNode>> lastFolderScan;
 
     // If we can regenerate the filsystem data at this node, no need to store it, save some RAM
-    void clearRegeneratableFolderScan(SyncPath& fullPath);
+    void clearRegeneratableFolderScan(SyncPath& fullPath, vector<syncRow>& childRows);
 
     // The exact name of the file we are synced with, if synced
     // If not synced then it's the to-local (escaped) version of the CloudNode's name

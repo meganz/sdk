@@ -1569,14 +1569,13 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
             LOG_verbose << sync->syncname << "Scan blocked timer elapsed, trigger parent rescan: "  << localnodedisplaypath(*sync->syncs.fsaccess);;
             if (parent) parent->setScanAgain(false, true, false, 0);
             rare().scanBlockedTimer->backoff(); // wait increases exponentially
-            return true;
         }
         else
         {
             LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
                 << rare().scanBlockedTimer->retryin() << " for " << getLocalPath().toPath();
-            return true;
         }
+        return true;
     }
 
     if (fsNode && (fsNode->type == TYPE_UNKNOWN || fsNode->isBlocked))
@@ -1597,7 +1596,7 @@ bool LocalNode::scanRequired() const
     return scanAgain != TREE_RESOLVED;
 }
 
-void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath)
+void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath, vector<syncRow>& childRows)
 {
     if (lastFolderScan &&
         lastFolderScan->size() == children.size())
@@ -1609,35 +1608,25 @@ void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath)
             if (c.isBlocked) return;
         }
 
-#ifdef DEBUG
-        // Double check we really can recreate the filesystem entries correctly
-        vector<FSNode> generated;
-        for (auto& childIt : children)
+        // check that generating the fsNodes results in the same set
+        unsigned nChecked = 0;
+        for (auto& row : childRows)
         {
-            if (childIt.second->fsid_asScanned != UNDEF)
+            if (!!row.syncNode != !!row.fsNode) return;
+            if (row.syncNode && row.fsNode)
             {
-                generated.emplace_back(childIt.second->getScannedFSDetails());
+                ++nChecked;
+                auto generated = row.syncNode->getScannedFSDetails();
+                if (!generated.equivalentTo(*row.fsNode)) return;
             }
         }
-        assert(generated.size() == lastFolderScan->size());
-        sort(generated.begin(), generated.end(), [](FSNode& a, FSNode& b) { return a.localname < b.localname; });
-        sort(lastFolderScan->begin(), lastFolderScan->end(), [](FSNode& a, FSNode& b) { return a.localname < b.localname; });
-        for (size_t i = generated.size(); i--; )
-        {
-            assert(generated[i].type == (*lastFolderScan)[i].type);
-            if (generated[i].type == FILENODE)
-            {
-                if (!(generated[i].equivalentTo((*lastFolderScan)[i])))
-                {
-                    assert(generated[i].equivalentTo((*lastFolderScan)[i]));
-                }
-            }
-        }
-#endif
 
-        // LocalNodes are now consistent with the last scan.
-        LOG_debug << sync->syncname << "Clearing regeneratable folder scan records (" << lastFolderScan->size() << ") at " << fullPath.localPath_utf8();
-        lastFolderScan.reset();
+        if (nChecked == children.size())
+        {
+            // LocalNodes are now consistent with the last scan.
+            LOG_debug << sync->syncname << "Clearing regeneratable folder scan records (" << lastFolderScan->size() << ") at " << fullPath.localPath_utf8();
+            lastFolderScan.reset();
+        }
     }
 }
 
@@ -2113,7 +2102,6 @@ FSNode LocalNode::getLastSyncedFSDetails()
 
     FSNode n;
     n.localname = localname;
-    //n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_lastSynced;
@@ -2127,7 +2115,6 @@ FSNode LocalNode::getScannedFSDetails()
 {
     FSNode n;
     n.localname = localname;
-    //n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_asScanned;

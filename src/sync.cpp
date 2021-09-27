@@ -4789,7 +4789,13 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         // this will be restored at the end of the function if any nodes below in the tree need it
         row.syncNode->scanAgain = TREE_RESOLVED;
     }
-    //SYNC_verbose << syncname << "sync/recurse here after scan logic: " << syncHere << recurseHere;
+
+    // report via stall system?
+    //if (row.syncNode->scanBlocked >= TREE_ACTION_HERE)
+    //{
+    //    ProgressingMonitor pm(syncs);
+    //    pm.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
+    //}
 
     if (row.syncNode->scanAgain >= TREE_ACTION_HERE)
     {
@@ -4801,10 +4807,10 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         recurseHere = false;
     }
 
-    bool folderSynced = syncHere; // todo: prob needs fixing
-
     auto originalCheckMovesAgain = row.syncNode->checkMovesAgain;
     auto originalConflicsFlag = row.syncNode->conflicts;
+
+    bool earlyExit = false;
 
     if (syncHere || recurseHere)
     {
@@ -4817,7 +4823,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
             row.syncNode->checkMovesAgain = TREE_RESOLVED;
         }
         row.syncNode->conflicts = TREE_RESOLVED;
-        bool subfoldersSynced = true;
 
         // Get sync triplets.
         vector<syncRow> childRows;
@@ -4909,7 +4914,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         {
                             if (childRow.itemProcessed)
                             {
-                                folderSynced = false;
                                 row.syncNode->setSyncAgain(false, true, false);
                             }
                         }
@@ -4943,7 +4947,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         // normal case: consider all the combinations
                         if (!syncItem(childRow, row, fullPath))
                         {
-                            folderSynced = false;
                             row.syncNode->setSyncAgain(false, true, false);
                         }
                     }
@@ -4974,7 +4977,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
                         if (!recursiveSync(childRow, fullPath, belowRemovedCloudNode || childRow.recurseBelowRemovedCloudNode, belowRemovedFsNode || childRow.recurseBelowRemovedFsNode, depth+1))
                         {
-                            subfoldersSynced = false;
+                            earlyExit = true;
                         }
                     }
                     break;
@@ -4998,14 +5001,11 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
             }
         }
 
-        if (syncHere && folderSynced && !anyNameConflicts && !belowRemovedCloudNode)
+        if (!anyNameConflicts)
         {
-            row.syncNode->clearRegeneratableFolderScan(fullPath);
+            row.syncNode->clearRegeneratableFolderScan(fullPath, childRows);
         }
-
-        if (!subfoldersSynced) folderSynced = false;
     }
-
 
     // Recompute our LocalNode flags from children
     // Flags for this row could have been set during calls to the node
@@ -5038,7 +5038,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 << row.syncNode->conflicts << ") at "
                 << fullPath.syncPath;
 
-    return folderSynced;
+    return !earlyExit;
 }
 
 string Sync::logTriplet(syncRow& row, SyncPath& fullPath)
@@ -5103,22 +5103,19 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
     if (!row.syncNode && row.fsNode && (
         row.fsNode->isBlocked || row.fsNode->type == TYPE_UNKNOWN))
     {
+        // so that we can checkForScanBlocked() immediately below
         resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
-        if (row.syncNode->checkForScanBlocked(row.fsNode))
-        {
-            row.suppressRecursion = true;
-            row.itemProcessed = true;
-            return false;
-        }
     }
-    else if (row.syncNode &&
-             row.syncNode->checkForScanBlocked(row.fsNode))
+    if (row.syncNode &&
+        row.syncNode->checkForScanBlocked(row.fsNode))
     {
+        // TODO: maybe report these via stalled paths mechanism?  Need to resolve stall flip-flopping though.
+        //ProgressingMonitor pm(syncs);
+        //pm.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
         row.suppressRecursion = true;
         row.itemProcessed = true;
         return false;
     }
-
 
     // First deal with detecting local moves/renames and propagating correspondingly
     // Independent of the 8 combos below so we don't have duplicate checks in those.
@@ -7490,6 +7487,7 @@ void Syncs::syncLoop()
         // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
 
         bool tooSoon = syncStallState && (waiter.ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) && (waiter.ds > mSyncFlags->recursiveSyncLastCompletedDs);
+        bool earlyExit = false;
 
         if (mClient.actionpacketsCurrent && (isAnySyncSyncing(true) || syncStallState) && !tooSoon)
         {
@@ -7503,8 +7501,6 @@ void Syncs::syncLoop()
             mSyncFlags->reachableNodesAllScannedThisPass = true;
             mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves(false); // paused syncs do not participate in move detection
             mSyncFlags->noProgress = true;
-            mSyncFlags->stall.cloud.clear();
-            mSyncFlags->stall.local.clear();
 
             unsigned skippedForScanning = 0;
 
@@ -7565,8 +7561,10 @@ void Syncs::syncLoop()
                             std::lock_guard<std::timed_mutex> g(mLocalNodeChangeMutex);
 
                             //bool allNodesSynced =
-                            sync->recursiveSync(row, pathBuffer, false, false, 0);
-
+                            if (!sync->recursiveSync(row, pathBuffer, false, false, 0))
+                            {
+                                earlyExit = true;
+                            }
                         }
                         //{
                         //    // a local filesystem item was locked - schedule periodic retry
@@ -7601,7 +7599,6 @@ void Syncs::syncLoop()
             }
 
             mSyncFlags->earlyRecurseExitRequested = false;
-            mSyncFlags->isInitialPass = false;
 
             lastRecurseMs = unsigned(std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::high_resolution_clock::now() - recurseStart).count());
@@ -7613,27 +7610,67 @@ void Syncs::syncLoop()
 #endif
             mSyncFlags->recursiveSyncLastCompletedDs = waiter.ds;
 
-            if (mSyncFlags->noProgress)
-            {
-                ++mSyncFlags->noProgressCount;
-            }
 
-            bool conflictsNow = conflictsFlagged();
-            if (conflictsNow != syncConflictState)
+            if (earlyExit)
+            {
+                mSyncFlags->scanningWasComplete = false;
+                mSyncFlags->reachableNodesAllScannedThisPass = false;
+            }
+            else
+            {
+                mSyncFlags->isInitialPass = false;
+
+                if (mSyncFlags->noProgress)
+                {
+                    ++mSyncFlags->noProgressCount;
+                }
+
+                bool conflictsNow = conflictsFlagged();
+                if (conflictsNow != syncConflictState)
+                {
+                    assert(onSyncThread());
+                    mClient.app->syncupdate_conflicts(conflictsNow);
+                    syncConflictState = conflictsNow;
+                    LOG_info << mClient.clientname << "Sync conflicting paths state app notified: " << conflictsNow;
+                }
+            }
+        }
+
+        if (!earlyExit)
+        {
+            bool anySyncScanning = isAnySyncScanning(false);
+            if (anySyncScanning != syncscanstate)
             {
                 assert(onSyncThread());
-                mClient.app->syncupdate_conflicts(conflictsNow);
-                syncConflictState = conflictsNow;
-                LOG_info << mClient.clientname << "Sync conflicting paths state app notified: " << conflictsNow;
+                mClient.app->syncupdate_scanning(anySyncScanning);
+                syncscanstate = anySyncScanning;
             }
 
-            bool stalled = !mSyncFlags->stall.cloud.empty() ||
-                !mSyncFlags->stall.local.empty();
-            if (stalled)
+            bool anySyncBusy = isAnySyncSyncing(false);
+            if (anySyncBusy != syncBusyState)
             {
-                LOG_warn << mClient.clientname << "Stall detected!";
-                for (auto& p : mSyncFlags->stall.cloud) LOG_warn << "stalled node path: " << p.first;
-                for (auto& p : mSyncFlags->stall.local) LOG_warn << "stalled local path: " << p.first.toPath(*fsaccess);
+                assert(onSyncThread());
+                mClient.app->syncupdate_syncing(anySyncBusy);
+                syncBusyState = anySyncBusy;
+            }
+
+            bool stalled = syncStallState;
+
+            {
+                lock_guard<mutex> g(stallMutex);
+                stall.cloud.swap(mSyncFlags->stall.cloud);
+                stall.local.swap(mSyncFlags->stall.local);
+                mSyncFlags->stall.cloud.clear();
+                mSyncFlags->stall.local.clear();
+
+                stalled = !stall.cloud.empty() ||
+                    !stall.local.empty();
+                if (stalled)
+                {
+                    LOG_warn << mClient.clientname << "Stall detected!";
+                    for (auto& p : mSyncFlags->stall.cloud) LOG_warn << "stalled node path: " << p.first;
+                    for (auto& p : mSyncFlags->stall.local) LOG_warn << "stalled local path: " << p.first.toPath(*fsaccess);
+                }
             }
 
             if (stalled != syncStallState)
@@ -7645,31 +7682,8 @@ void Syncs::syncLoop()
             }
         }
 
-        bool anySyncScanning = isAnySyncScanning(false);
-        if (anySyncScanning != syncscanstate)
-        {
-            assert(onSyncThread());
-            mClient.app->syncupdate_scanning(anySyncScanning);
-            syncscanstate = anySyncScanning;
-        }
-
-        bool anySyncBusy = isAnySyncSyncing(false);
-        if (anySyncBusy != syncBusyState)
-        {
-            assert(onSyncThread());
-            mClient.app->syncupdate_syncing(anySyncBusy);
-            syncBusyState = anySyncBusy;
-        }
-
-        {
-            lock_guard<mutex> g(stallMutex);
-            stall.cloud.swap(mSyncFlags->stall.cloud);
-            stall.local.swap(mSyncFlags->stall.local);
-        }
-
         // Flush changes made to internal configs.
         syncConfigStoreFlush();
-
 
         if (btheartbeat.armed())
         {

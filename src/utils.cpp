@@ -2549,6 +2549,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::MovingExistingDownloadTargetToDebris:          return "MovingExistingDownloadTargetToDebris";
         case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
         case SyncWaitReason::CouldNotMoveToLocalDebrisFolder:               return "CouldNotMoveToLocalDebrisFolder";
+        case SyncWaitReason::LocalFolderNotScannable:                       return "LocalFolderNotScannable";
     }
     return "<out of range>";
 }
