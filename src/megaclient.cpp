@@ -10306,8 +10306,8 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                            case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
-                               //assert(readingPublicChats);
-                               meeting = j->getbool();
+                                meeting = j->getbool();
+                                assert(readingPublicChats || !meeting); // public chats can be meetings or not. Private chats cannot be meetings
                                break;
 
                             case EOO:
