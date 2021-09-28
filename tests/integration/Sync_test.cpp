@@ -3201,6 +3201,31 @@ struct StandardClient : public MegaApp
     }
 };
 
+using SyncWaitPredicate = std::function<bool(StandardClient&)>;
+
+// Useful predicates.
+SyncWaitPredicate SyncDisabled(handle id)
+{
+    return [id](StandardClient& client) {
+        return client.syncByBackupId(id) == nullptr;
+    };
+}
+
+SyncWaitPredicate SyncMonitoring(handle id)
+{
+    return [id](StandardClient& client) {
+        const auto* sync = client.syncByBackupId(id);
+        return sync && sync->isBackupMonitoring();
+    };
+}
+
+SyncWaitPredicate SyncStallState(bool state)
+{
+    return [state](StandardClient& client) {
+        return client.mStallDetected == state;
+    };
+}
+
 struct SyncWaitResult
 {
     bool syncStalled = false;
@@ -6920,12 +6945,6 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
 }
 
-const auto SyncStallState = [](bool state) {
-    return [state](StandardClient& client) {
-        return client.mStallDetected == state;
-    };
-};
-
 TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
 {
     const auto TESTROOT = makeNewTestRoot();
@@ -8979,20 +8998,6 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     // Were the changes propagated?
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
-
-// Useful predicates.
-const auto SyncDisabled = [](handle id) {
-    return [id](StandardClient& client) {
-        return client.syncByBackupId(id) == nullptr;
-    };
-};
-
-const auto SyncMonitoring = [](handle id) {
-    return [id](StandardClient& client) {
-        const auto* sync = client.syncByBackupId(id);
-        return sync && sync->isBackupMonitoring();
-    };
-};
 
 TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
 {
