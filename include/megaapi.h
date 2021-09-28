@@ -3266,6 +3266,7 @@ class MegaRequest
          * - MegaApi::updateBackup - Returns the target node of the backup
          * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
          * - MegaApi::getChatLinkURL - Returns the public handle
+         * - MegaApi::sendChatLogs - Returns the user handle
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3323,6 +3324,7 @@ class MegaRequest
          * - MegaApi::syncFolder - Returns the backupId asociated with the sync
          * - MegaApi::copySyncDataToCache - Returns the backupId asociated with the sync
          * - MegaApi::getChatLinkURL - Returns the chatid
+         * - MegaApi::sendChatLogs - Returns the callid (if exits)
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -18043,7 +18045,8 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CHAT_STATS
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the data provided.
-         * - MegaRequest::getSessionKey - Returns the aid provided
+         * - MegaRequest::getNodeHandle - Returns the userid
+         * - MegaRequest::getParentHandle - Returns the provided callid
          * - MegaRequest::getParamType - Returns number 2
          * - MegaRequest::getNumber - Returns the connection port
          *
@@ -18054,11 +18057,12 @@ class MegaApi
          * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
          *
          * @param data JSON data to send to the logs server
-         * @param aid User's anonymous identifier for logging
+         * @param userid handle of the user
+         * @param callid handle of the call
          * @param port Server port to connect
          * @param listener MegaRequestListener to track this request
          */
-        void sendChatLogs(const char *data, const char *aid, int port = 0, MegaRequestListener *listener = NULL);
+        void sendChatLogs(const char *data, MegaHandle userid, MegaHandle callid = INVALID_HANDLE, int port = 0, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the list of chatrooms for this account
@@ -18325,6 +18329,8 @@ class MegaApi
         /**
          * @brief Allows to start chat call in a chat room
          *
+         * The associated request type with this request is MegaRequest::TYPE_START_CHAT_CALL
+         *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          *
@@ -18344,6 +18350,8 @@ class MegaApi
 
         /**
          * @brief Allow to join chat call
+         *
+         * The associated request type with this request is MegaRequest::TYPE_JOIN_CHAT_CALL
          *
          * * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
@@ -18365,7 +18373,9 @@ class MegaApi
         /**
          * @brief Allow to end chat call
          *
-         * * Valid data in the MegaRequest object received on all callbacks:
+         * The associated request type with this request is MegaRequest::TYPE_END_CHAT_CALL
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getParentHandle - Returns the call identifier
          * - MegaRequest::getAccess - Returns the reason to end call
@@ -18375,7 +18385,7 @@ class MegaApi
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param callid MegaHandle that identifies the call
-         * @param reason Reason to end call
+         * @param reason Reason to end call (Valid value END_CALL_REASON_REJECTED)
          * @param listener MegaRequestListener to track this request
          */
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);

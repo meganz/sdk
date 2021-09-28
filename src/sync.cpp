@@ -1089,6 +1089,7 @@ void Sync::cachenodes()
     {
         deleteq.clear();
         insertq.clear();
+        return;
     }
 
     if ((state() == SYNC_ACTIVE ||
@@ -1149,6 +1150,16 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     {
         // Should "user-disable" external backups...
         newEnableFlag &= config.isInternal();
+    }
+
+    if (!newEnableFlag && statecachetable)
+    {
+        // make sure db is up to date before we close it.
+        cachenodes();
+
+        // remove the LocalNode database files on sync disablement (historic behaviour; sync re-enable with LocalNode state from non-matching SCSN is not supported (yet))
+        statecachetable->remove();
+        statecachetable.reset();
     }
 
     config.setError(newSyncError);
@@ -4062,15 +4073,7 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
             syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-
-            if (syncPtr->statecachetable)
-            {
-                if (removeSyncDb)
-                {
-                    syncPtr->statecachetable->remove();
-                }
-                syncPtr->statecachetable.reset();
-            }
+            assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
 
@@ -4112,13 +4115,7 @@ void Syncs::unloadSyncByIndex(size_t index)
             // if it was running, the app gets a callback saying it's no longer active
             // SYNC_CANCELED is a special value that means we are shutting it down without changing config
             syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-
-            if (syncPtr->statecachetable)
-            {
-                // sync LocalNode database (if any) will be closed
-                // deletion of the sync object won't affect the database
-                syncPtr->statecachetable.reset();
-            }
+            assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
 
