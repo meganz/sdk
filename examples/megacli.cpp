@@ -3133,7 +3133,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_syncblock,
            sequence(text("sync"),
                     text("block"),
-                    either(text("scan"), text("use")),
+                    either(text("scan")),
                     localFSPath()));
 
     p->Add(exec_syncclosedrive,
@@ -8852,7 +8852,7 @@ void exec_syncadd(autocomplete::ACState& s)
 // For debugging.
 void exec_syncblock(autocomplete::ACState& s)
 {
-    // sync block (scan|use) path
+    // sync block (scan) path
 
     // Make sure we're logged in.
     if (client->loggedin() != FULLACCOUNT)
@@ -8884,10 +8884,6 @@ void exec_syncblock(autocomplete::ACState& s)
     if (s.words[2].s == "scan")
     {
         node->setScanBlocked();
-    }
-    else
-    {
-        node->setUseBlocked();
     }
 }
 
@@ -9132,24 +9128,18 @@ void exec_synclist(autocomplete::ACState& s)
         synchronous.get_future().get();
 
         std::promise<bool> synchronous2;
-        client->syncs.collectSyncScanUseBlockedPaths(config.mBackupId, [&synchronous2](list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked){
+        client->syncs.collectSyncScanBlockedPaths(config.mBackupId, [&synchronous2](list<LocalPath>&& scanBlocked){
 
-            cout << "  Scan Blocked:\n";
-
-            while (!scanBlocked.empty())
+            if (!scanBlocked.empty())
             {
-                cout << "    " << scanBlocked.front().toPath() << "\n";
-                scanBlocked.pop_front();
+                cout << "  Scan Blocked:\n";
+
+                while (!scanBlocked.empty())
+                {
+                    cout << "    " << scanBlocked.front().toPath() << "\n";
+                    scanBlocked.pop_front();
+                }
             }
-
-            cout << "  Use Blocked:\n";
-
-            while (!useBlocked.empty())
-            {
-                cout << "    " << useBlocked.front().toPath() << "\n";
-                useBlocked.pop_front();
-            }
-
             cout << std::endl;
             synchronous2.set_value(true);
         }, false);  // false so executes on sync thread - we are blocked here on client thread in single-threaded megacli.

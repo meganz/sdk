@@ -507,9 +507,6 @@ public:
     bool collectScanBlocked(list<LocalPath>& paths) const;
     void collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) const;
 
-    bool collectUseBlocked(list<LocalPath>& paths) const;
-    void collectUseBlocked(const LocalNode& node, list<LocalPath>& paths) const;
-    
     // debris path component relative to the base path
     string debris;
     LocalPath localdebris;
@@ -1016,8 +1013,8 @@ public:
     // Get name conficts - pass UNDEF to collect for all syncs.
     void collectSyncNameConflicts(handle backupId, std::function<void(list<NameConflict>&& nc)>, bool completionInClient);
 
-    // Get scan and use blocked paths - pass UNDEF to collect for all syncs.
-    void collectSyncScanUseBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked)>, bool completionInClient);
+    // Get scan blocked paths - pass UNDEF to collect for all syncs.
+    void collectSyncScanBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& scanBlocked)>, bool completionInClient);
 
     // waiter for sync loop on thread
     WAIT_CLASS waiter;

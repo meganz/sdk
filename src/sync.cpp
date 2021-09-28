@@ -1096,6 +1096,7 @@ void Sync::cachenodes()
     {
         deleteq.clear();
         insertq.clear();
+        return;
     }
 
     if ((state() == SYNC_ACTIVE ||
@@ -1163,6 +1164,16 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
 
         // Should "user-disable" external backups...
         newEnableFlag &= config.isInternal();
+    }
+
+    if (!newEnableFlag && statecachetable)
+    {
+        // make sure db is up to date before we close it.
+        cachenodes();
+
+        // remove the LocalNode database files on sync disablement (historic behaviour; sync re-enable with LocalNode state from non-matching SCSN is not supported (yet))
+        statecachetable->remove();
+        statecachetable.reset();
     }
 
     config.setError(newSyncError);
@@ -1441,14 +1452,20 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     if (row.fsNode->isSymlink)
     {
         LOG_debug << syncname << "checked path is a symlink, blocked: " << fullPath.localPath_utf8();
-        row.syncNode->setUseBlocked();    // todo:   move earlier?  no syncnode here
+
+        ProgressingMonitor monitor(syncs);
+        monitor.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::SymlinksNotSupported);
+
         rowResult = false;
         return true;
     }
     else if (row.syncNode && row.syncNode->type != row.fsNode->type)
     {
         LOG_debug << syncname << "checked path does not have the same type, blocked: " << fullPath.localPath_utf8();
-        row.syncNode->setUseBlocked();
+
+        ProgressingMonitor monitor(syncs);
+        monitor.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::FolderMatchedAgainstFile);
+
         rowResult = false;
         return true;
     }
@@ -1877,10 +1894,14 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
     SYNC_verbose << syncname << "checking localnodes for synced handle " << row.cloudNode->handle;
 
+    ProgressingMonitor monitor(syncs);
+
     if (row.syncNode && row.syncNode->type != row.cloudNode->type)
     {
         LOG_debug << syncname << "checked node does not have the same type, blocked: " << fullPath.cloudPath;
-        row.syncNode->setUseBlocked();
+
+        monitor.waitingCloud(fullPath.cloudPath, string(), LocalPath(), SyncWaitReason::FolderMatchedAgainstFile);
+
         row.suppressRecursion = true;
         rowResult = false;
         return true;
@@ -1912,8 +1933,6 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             rowResult = false;
             return true;
         }
-
-        ProgressingMonitor monitor(syncs);
 
         assert(parentRow.syncNode);
         if (parentRow.syncNode) parentRow.syncNode->setCheckMovesAgain(false, true, false);
@@ -2050,8 +2069,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 // Sanity: Must exist for overwrite to be true.
                 assert(row.syncNode);
 
-                // Mark subtree as blocked.
-                row.syncNode->setUseBlocked();
+                monitor.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::CouldNotMoveToLocalDebrisFolder);
 
                 // Don't recurse as the subtree's fubar.
                 row.suppressRecursion = true;
@@ -2108,7 +2126,9 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         else if (syncs.fsaccess->transient_error)
         {
             LOG_warn << "transient error moving folder: " << sourcePath.toPath(*syncs.fsaccess) << logTriplet(row, fullPath);
-            row.syncNode->setUseBlocked();   // todo: any interaction with checkMovesAgain ? might we stall if the transient error never resovles?
+
+            monitor.waitingLocal(fullPath.localPath, sourceSyncNode->getLocalPath(), sourceSyncNode->getCloudPath(), SyncWaitReason::MoveOrRenameFailed);
+
             row.suppressRecursion = true;
             sourceSyncNode->moveApplyingToLocal = false;
             rowResult = false;
@@ -4188,15 +4208,7 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
             syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-
-            if (syncPtr->statecachetable)
-            {
-                if (removeSyncDb)
-                {
-                    syncPtr->statecachetable->remove();
-                }
-                syncPtr->statecachetable.reset();
-            }
+            assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
 
@@ -4238,13 +4250,7 @@ void Syncs::unloadSyncByIndex(size_t index)
             // if it was running, the app gets a callback saying it's no longer active
             // SYNC_CANCELED is a special value that means we are shutting it down without changing config
             syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-
-            if (syncPtr->statecachetable)
-            {
-                // sync LocalNode database (if any) will be closed
-                // deletion of the sync object won't affect the database
-                syncPtr->statecachetable.reset();
-            }
+            assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
 
@@ -4509,29 +4515,6 @@ void Sync::collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) con
         if (child.second->type != FOLDERNODE) continue;
 
         collectScanBlocked(*child.second, paths);
-    }
-}
-
-bool Sync::collectUseBlocked(list<LocalPath>& paths) const
-{
-    collectUseBlocked(*localroot, paths);
-
-    return !paths.empty();
-}
-
-void Sync::collectUseBlocked(const LocalNode& node, list<LocalPath>& paths) const
-{
-    if (node.useBlocked == TREE_RESOLVED) return;
-
-    if (node.useBlocked > TREE_DESCENDANT_FLAGGED)
-    {
-        paths.emplace_back(node.getLocalPath());
-        return;
-    }
-
-    for (auto& child : node.children)
-    {
-        collectUseBlocked(*child.second, paths);
     }
 }
 
@@ -6372,18 +6355,12 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     row.syncNode->setScanAgain(true, false, false, 50);
                 }
             }
-            else if (syncs.fsaccess->transient_error)
-            {
-                LOG_warn << syncname << "Transient error creating folder, marking as blocked " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
-                assert(row.syncNode);
-                row.syncNode->setUseBlocked();
-            }
-            else // !transient_error
+            else
             {
                 // let's consider this case as blocked too, alert the user
-                LOG_warn << syncname << "Non transient error creating folder, marking as blocked " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
+                LOG_warn << syncname << "Error creating folder, marking as blocked " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
                 assert(row.syncNode);
-                row.syncNode->setUseBlocked();
+                monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::CreateFolderFailed);
             }
         }
         else
@@ -8453,17 +8430,16 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
 }
 
 // Get scan and use blocked paths - pass UNDEF to collect for all syncs.
-void Syncs::collectSyncScanUseBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked)> completion, bool completionInClient)
+void Syncs::collectSyncScanBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& scanBlocked)> completion, bool completionInClient)
 {
     assert(!onSyncThread());
 
-    auto clientCompletion = [this, completion](list<LocalPath>&& useBlocked, list<LocalPath>&& scanBlocked)
+    auto clientCompletion = [this, completion](list<LocalPath>&& scanBlocked)
     {
-        shared_ptr<list<LocalPath>> b1(new list<LocalPath>(move(useBlocked)));
         shared_ptr<list<LocalPath>> b2(new list<LocalPath>(move(scanBlocked)));
-        queueClient([completion, b1, b2](MegaClient& mc, DBTableTransactionCommitter& committer)
+        queueClient([completion, b2](MegaClient& mc, DBTableTransactionCommitter& committer)
             {
-                if (completion) completion(move(*b1), move(*b2));
+                if (completion) completion(move(*b2));
             });
     };
 
@@ -8471,17 +8447,15 @@ void Syncs::collectSyncScanUseBlockedPaths(handle backupId, std::function<void(l
 
     queueSync([=]()
         {
-            list<LocalPath> b1;
             list<LocalPath> b2;
             for (auto& us : mSyncVec)
             {
                 if (us->mSync && (us->mConfig.mBackupId == backupId || backupId == UNDEF))
                 {
-                    us->mSync->collectScanBlocked(b1);
-                    us->mSync->collectUseBlocked(b2);
+                    us->mSync->collectScanBlocked(b2);
                 }
             }
-            finalcompletion(move(b1), move(b2));
+            finalcompletion(move(b2));
         });
 }
 

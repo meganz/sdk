@@ -1014,6 +1014,10 @@ enum class SyncWaitReason {
     LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
     CouldNotMoveToLocalDebrisFolder,
     LocalFolderNotScannable,
+    SymlinksNotSupported,
+    FolderMatchedAgainstFile,
+    MoveOrRenameFailed,
+    CreateFolderFailed,
     UnknownExclusionState,
     UnableToLoadIgnoreFile
 };
