@@ -18036,7 +18036,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the data provided.
          * - MegaRequest::getNodeHandle - Returns the userid
-         * - MegaRequest::getParentHandle - Returns the callid (if exits)
+         * - MegaRequest::getParentHandle - Returns the provided callid
          * - MegaRequest::getParamType - Returns number 2
          * - MegaRequest::getNumber - Returns the connection port
          *
