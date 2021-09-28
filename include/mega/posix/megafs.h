@@ -92,7 +92,7 @@ public:
 #endif
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
-    bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning);
+    bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning) override;
 
     void tmpnamelocal(LocalPath&) const override;
 
