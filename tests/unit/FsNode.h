@@ -131,7 +131,7 @@ private:
     public:
         explicit FileAccess(const FsNode& fsNode);
 
-        bool fopen(mega::LocalPath& path, bool, bool, mega::DirAccess* iteratingDir = nullptr, bool = false) override;
+        bool fopen(const mega::LocalPath& path, bool, bool, mega::DirAccess* iteratingDir = nullptr, bool = false) override;
 
         bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override;
 

@@ -1053,7 +1053,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
     if (!api->client->mediaFileInfo.mediaCodecsReceived)
     {
         // the client app should already have requested these but just in case:
-        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, NULL);
+        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, LocalPath());
         return false;
     }
 
@@ -3263,10 +3263,12 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT)
     {
         this->megaPricing = new MegaPricingPrivate();
+        megaCurrency = new MegaCurrencyPrivate();
     }
     else
     {
         megaPricing = NULL;
+        megaCurrency = nullptr;
     }
 
 #ifdef ENABLE_CHAT
@@ -3337,6 +3339,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 
     this->backupListener = request->getBackupListener();
     this->megaPricing = (MegaPricingPrivate *)request->getPricing();
+    this->megaCurrency = (MegaCurrencyPrivate *)request->getCurrency();
 
     this->accountDetails = NULL;
     if(request->getAccountDetails())
@@ -3563,6 +3566,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete [] file;
     delete accountDetails;
     delete megaPricing;
+    delete megaCurrency;
     delete achievementsDetails;
     delete [] text;
     delete stringMap;
@@ -3686,6 +3690,11 @@ int MegaRequestPrivate::getTag() const
 MegaPricing *MegaRequestPrivate::getPricing() const
 {
     return megaPricing ? megaPricing->copy() : NULL;
+}
+
+MegaCurrency *MegaRequestPrivate::getCurrency() const
+{
+    return megaCurrency ? megaCurrency->copy() : nullptr;
 }
 
 void MegaRequestPrivate::setNumDetails(int numDetails)
@@ -3830,11 +3839,24 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth, const char *currency, const char* description, const char* iosid, const char* androidid)
+void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
+                                    int months, int amount, int amountMonth, int localPrice,
+                                    const char* description, const char* iosid, const char* androidid,
+                                    std::unique_ptr<BusinessPlan> bizPlan)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer, months, amount, amountMonth, currency, description, iosid, androidid);
+        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer,
+                                months, amount, amountMonth, localPrice,
+                                description, iosid, androidid, move(bizPlan));
+    }
+}
+
+void MegaRequestPrivate::setCurrency(std::unique_ptr<CurrencyData> currencyData)
+{
+    if (megaCurrency)
+    {
+        megaCurrency->setCurrency(move(currencyData));
     }
 }
 
@@ -3984,7 +4006,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_LOCAL_SSL_CERT: return "GET_LOCAL_SSL_CERT";
         case TYPE_SEND_SIGNUP_LINK: return "SEND_SIGNUP_LINK";
         case TYPE_QUERY_DNS: return "QUERY_DNS";
-        case TYPE_QUERY_GELB: return "QUERY_GELB";
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
@@ -4038,6 +4059,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
         case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
+        case TYPE_START_CHAT_CALL: return "START_CHAT_CALL";
+        case TYPE_JOIN_CHAT_CALL: return "JOIN_CHAT_CALL";
+        case TYPE_END_CHAT_CALL: return "END_CHAT_CALL";
         case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
@@ -6524,7 +6548,7 @@ bool MegaApiImpl::createLocalFolder(const char *path)
     localpath.ensureWinExtendedPathLenPrefix();
 
     sdkMutex.lock();
-    bool success = client->fsaccess->mkdirlocal(localpath);
+    bool success = client->fsaccess->mkdirlocal(localpath, false, true);
     sdkMutex.unlock();
 
     return success;
@@ -9427,7 +9451,7 @@ bool MegaApiImpl::ensureMediaInfo()
     else
     {
         sdkMutex.lock();
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
         sdkMutex.unlock();
         return false;
     }
@@ -10179,7 +10203,7 @@ void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, unique
 
 #ifdef ENABLE_CHAT
 
-void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
@@ -10187,6 +10211,7 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *
     request->setMegaTextChatPeerList(peers);
     request->setText(title);
     request->setMegaStringMap(userKeyMap);
+    request->setNumber(meetingRoom);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10308,11 +10333,12 @@ void MegaApiImpl::sendChatStats(const char *data, int port, MegaRequestListener 
     waiter->notify();
 }
 
-void MegaApiImpl::sendChatLogs(const char *data, const char* aid, int port, MegaRequestListener *listener)
+void MegaApiImpl::sendChatLogs(const char *data, MegaHandle userid, MegaHandle callid, int port, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
-    request->setSessionKey(aid);
+    request->setNodeHandle(userid);
+    request->setParentHandle(callid);
     request->setParamType(2);
     request->setNumber(port);
     requestQueue.push(request);
@@ -10538,6 +10564,33 @@ bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
     }
 
     return true;
+}
+
+void MegaApiImpl::startChatCall(MegaHandle chatid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_START_CHAT_CALL, listener);
+    request->setNodeHandle(chatid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_JOIN_CHAT_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(callid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_END_CHAT_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(callid);
+    request->setAccess(reason);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 #endif
@@ -11435,16 +11488,6 @@ void MegaApiImpl::queryDNS(const char *hostname, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_DNS, listener);
     request->setName(hostname);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GELB, listener);
-    request->setName(service);
-    request->setNumber(timeoutds);
-    request->setNumRetry(maxretries);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13166,7 +13209,7 @@ void MegaApiImpl::chatlink_result(handle h, error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts, error e)
+void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts, bool meetingRoom, handle callid, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13180,6 +13223,13 @@ void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, str
         request->setText(ct->c_str());
         request->setNumDetails(numPeers);
         request->setNumber(ts);
+        request->setFlag(meetingRoom);
+        if (callid != INVALID_HANDLE)
+        {
+            std::vector<MegaHandle> handleList;
+            handleList.push_back(callid);
+            request->setMegaHandleList(handleList);
+        }
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -14008,7 +14058,7 @@ void MegaApiImpl::putfa_result(handle h, fatype, error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid)
+void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -14019,7 +14069,21 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
         return;
     }
 
-    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, currency, description, iosid, androidid);
+    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, localPrice, description, iosid, androidid, move(bizPlan));
+}
+
+void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyData)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
+                    (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)))
+    {
+        return;
+    }
+
+    request->setCurrency(move(currencyData));
 }
 
 void MegaApiImpl::enumeratequotaitems_result(error e)
@@ -14040,6 +14104,7 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
     else
     {
         MegaPricing *pricing = request->getPricing();
+        MegaCurrency *currency = request->getCurrency();
         int i;
         for(i = 0; i < pricing->getNumProducts(); i++)
         {
@@ -14052,7 +14117,7 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
                 request->setTag(nextTag);
                 requestMap[nextTag]=request;
                 client->purchase_additem(0, request->getNodeHandle(), pricing->getAmount(i),
-                                         pricing->getCurrency(i), 0, NULL, request->getParentHandle(),
+                                         currency->getCurrencySymbol(), 0, NULL, request->getParentHandle(),
                                          phtype, ts);
                 break;
             }
@@ -14062,7 +14127,9 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
         }
+
         delete pricing;
+        delete currency;
     }
 }
 
@@ -14291,7 +14358,6 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
 
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_QUERY_DNS
-                    && request->getType() != MegaRequest::TYPE_QUERY_GELB
                     && request->getType() != MegaRequest::TYPE_CHAT_STATS
                     && request->getType() != MegaRequest::TYPE_DOWNLOAD_FILE))
     {
@@ -14300,8 +14366,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
 
     request->setNumber(httpCode);
     request->setTotalBytes(size);
-    if (request->getType() == MegaRequest::TYPE_QUERY_GELB
-            || request->getType() == MegaRequest::TYPE_CHAT_STATS
+    if (request->getType() == MegaRequest::TYPE_CHAT_STATS
             || request->getType() == MegaRequest::TYPE_QUERY_DNS)
     {
         string result;
@@ -20135,7 +20200,14 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, bu ? bu->nodecipher(client) : node->nodecipher(), nextTag, std::move(attributedata));
+                SymmCipher *cipher = bu ? bu->nodecipher(client) : node->nodecipher();
+                if (!cipher)
+                {
+                    e = API_EKEY;
+                    break;
+                }
+
+                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, cipher, nextTag, std::move(attributedata));
             }
             break;
         }
@@ -22043,20 +22115,6 @@ void MegaApiImpl::sendPendingRequests()
             client->dnsrequest(hostname);
             break;
         }
-        case MegaRequest::TYPE_QUERY_GELB:
-        {
-            const char *service = request->getName();
-            int timeoutds = int(request->getNumber());
-            int maxretries = request->getNumRetry();
-            if (!service)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            client->gelbrequest(service, timeoutds, maxretries);
-            break;
-        }
         case MegaRequest::TYPE_DOWNLOAD_FILE:
         {
             const char *url = request->getLink();
@@ -22107,6 +22165,8 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
+            bool meetingRoom = static_cast<bool>(request->getNumber());
+
             const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
 
             // if 1:1 chat, peer is enforced to be moderator too
@@ -22115,7 +22175,7 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, uhkeymap, title);
+            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom);
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
@@ -22412,14 +22472,16 @@ void MegaApiImpl::sendPendingRequests()
             }
             else if (type == 2)
             {
-                const char *aid = request->getSessionKey();
-                if (!aid)
+                handle userid = request->getNodeHandle();
+                if (userid == UNDEF)
                 {
                     e = API_EARGS;
                     break;
                 }
 
-                client->sendchatlogs(json, aid, port);
+                handle callid = request->getParentHandle();
+
+                client->sendchatlogs(json, userid, callid, port);
             }
             else
             {
@@ -22971,6 +23033,68 @@ void MegaApiImpl::sendPendingRequests()
             e = API_EEXPIRED;
             break;
         }
+#ifdef ENABLE_CHAT
+        case MegaRequest::TYPE_START_CHAT_CALL:
+        {
+            handle chatid = request->getNodeHandle();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+               break;
+            }
+
+            client->reqs.add(new CommandMeetingStart(client, chatid, [request, this](Error e, std::string sfuUrl, handle callid)
+            {
+                if (e == API_OK)
+                {
+                    request->setParentHandle(callid);
+                    request->setText(sfuUrl.c_str());
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+        case MegaRequest::TYPE_JOIN_CHAT_CALL:
+        {
+            handle chatid = request->getNodeHandle();
+            handle callid = request->getParentHandle();
+            if (chatid == INVALID_HANDLE || callid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandMeetingJoin(client, chatid, callid, [request, this](Error e, std::string sfuUrl)
+            {
+                if (e == API_OK)
+                {
+                    request->setText(sfuUrl.c_str());
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+        case MegaRequest::TYPE_END_CHAT_CALL:
+        {
+            handle chatid = request->getNodeHandle();
+            handle callid = request->getParentHandle();
+            int reason = request->getAccess();
+            if (chatid == INVALID_HANDLE || callid == INVALID_HANDLE || reason != END_CALL_REASON_REJECTED)
+            {
+                // for the moment just REJECTED(0x02) reason is valid
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandMeetingEnd(client, chatid, callid, reason, [request, this](Error e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+#endif
         default:
         {
             e = API_EINTERNAL;
@@ -24105,11 +24229,6 @@ vector<handle> &PendingOutShareProcessor::getHandles()
 
 MegaPricingPrivate::~MegaPricingPrivate()
 {
-    for(unsigned i = 0; i < currency.size(); i++)
-    {
-        delete[] currency[i];
-    }
-
     for(unsigned i = 0; i < description.size(); i++)
     {
         delete[] description[i];
@@ -24183,12 +24302,12 @@ int MegaPricingPrivate::getAmount(int productIndex)
     return 0;
 }
 
-const char *MegaPricingPrivate::getCurrency(int productIndex)
+int mega::MegaPricingPrivate::getLocalPrice(int productIndex)
 {
-    if((unsigned)productIndex < currency.size())
-        return currency[productIndex];
+    if((unsigned)productIndex < mLocalPrice.size())
+        return mLocalPrice[productIndex];
 
-    return NULL;
+    return 0;
 }
 
 const char *MegaPricingPrivate::getDescription(int productIndex)
@@ -24236,15 +24355,20 @@ MegaPricing *MegaPricingPrivate::copy()
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
     for(unsigned i=0; i<handles.size(); i++)
     {
+        std::unique_ptr<BusinessPlan> bizPlan(mBizPlan[i] ? new BusinessPlan(*mBizPlan[i]) : nullptr);
+
         megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], amountMonth[i], currency[i], description[i], iosId[i], androidId[i]);
+                                months[i], amount[i], amountMonth[i],
+                                mLocalPrice[i],
+                                description[i], iosId[i], androidId[i],
+                                move(bizPlan));
     }
 
     return megaPricing;
 }
 
 void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
-                                    const char *currency, const char* description, const char* iosid, const char* androidid)
+                                    unsigned localPrice, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan)
 {
     this->type.push_back(type);
     this->handles.push_back(product);
@@ -24254,10 +24378,157 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
     this->months.push_back(months);
     this->amount.push_back(amount);
     this->amountMonth.push_back(amountMonth);
-    this->currency.push_back(MegaApi::strdup(currency));
+    mLocalPrice.push_back(localPrice);
     this->description.push_back(MegaApi::strdup(description));
     this->iosId.push_back(MegaApi::strdup(iosid));
     this->androidId.push_back(MegaApi::strdup(androidid));
+    mBizPlan.push_back(move(bizPlan));
+}
+
+
+int MegaPricingPrivate::getGBStoragePerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbStoragePerUser;
+    }
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBTransferPerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbTransferPerUser;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getMinUsers(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->minUsers;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getPricePerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->pricePerUser;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getLocalPricePerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->localPricePerUser;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getPricePerStorage(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->pricePerStorage;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getLocalPricePerStorage(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->localPricePerStorage;
+    }
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBPerStorage(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbPerStorage;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getPricePerTransfer(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->pricePerTransfer;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getLocalPricePerTransfer(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->localPricePerTransfer;
+    }
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBPerTransfer(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbPerTransfer;
+    }
+
+    return 0;
+}
+
+MegaCurrencyPrivate::~MegaCurrencyPrivate()
+{
+}
+
+MegaCurrency *MegaCurrencyPrivate::copy()
+{
+    return new MegaCurrencyPrivate(*this);
+}
+
+const char *MegaCurrencyPrivate::getCurrencySymbol()
+{
+    return mCurrencyData.currencySymbol.c_str();
+}
+
+const char *MegaCurrencyPrivate::getCurrencyName()
+{
+    return mCurrencyData.currencyName.c_str();
+}
+
+const char *MegaCurrencyPrivate::getLocalCurrencySymbol()
+{
+    return mCurrencyData.localCurrencySymbol.c_str();
+}
+
+const char *MegaCurrencyPrivate::getLocalCurrencyName()
+{
+    return mCurrencyData.localCurrencyName.c_str();
+}
+
+void MegaCurrencyPrivate::setCurrency(std::unique_ptr<CurrencyData> data)
+{
+    assert(data);
+    mCurrencyData = *data;
 }
 
 #ifdef ENABLE_SYNC
@@ -26360,7 +26631,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath&
     auto da = client->fsaccess->newfileaccess();
     if (!da->fopen(localpath, true, false))
     {
-        if (!client->fsaccess->mkdirlocal(localpath))
+        if (!client->fsaccess->mkdirlocal(localpath, false, true))
         {
             da.reset();
             LOG_err << "Unable to create folder: " << localpath.toPath(*client->fsaccess);
@@ -32261,6 +32532,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->tag = chat->isOwnChange();
     this->changed = chat->getChanges();
     this->unifiedKey = chat->getUnifiedKey() ? chat->getUnifiedKey() : "";
+    this->meeting = chat->isMeeting();
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -32277,6 +32549,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
     this->publicchat = chat->publicchat;
     this->unifiedKey = chat->unifiedKey;
+    this->meeting = chat->meeting;
     this->changed = 0;
 
     if (chat->changed.attachments)
@@ -32370,6 +32643,11 @@ bool MegaTextChatPrivate::isArchived() const
 bool MegaTextChatPrivate::isPublicChat() const
 {
     return publicchat;
+}
+
+bool MegaTextChatPrivate::isMeeting() const
+{
+    return meeting;
 }
 
 bool MegaTextChatPrivate::hasChanged(int changeType) const

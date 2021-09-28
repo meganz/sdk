@@ -1,8 +1,8 @@
 /**
- * @file MEGAHandleList+init
- * @brief Private functions of MEGAHandleList
+ * @file MEGACurrency+init.h
+ * @brief Private functions of MEGACurrency
  *
- * (c) 2013-2017 by Mega Limited, Auckland, New Zealand
+ * (c) 2021- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -18,14 +18,12 @@
  * You should have received a copy of the license along with this
  * program.
  */
-
-#import "MEGAHandleList.h"
+#import "MEGACurrency.h"
 #import "megaapi.h"
 
-@interface MEGAHandleList (init)
+@interface MEGACurrency (init)
 
-- (instancetype)initWithMemoryOwn:(BOOL)cMemoryOwn;
-- (instancetype)initWithMegaHandleList:(mega::MegaHandleList *)megaHandleList cMemoryOwn:(BOOL)cMemoryOwn;
-- (mega::MegaHandleList *)getCPtr;
+- (instancetype)initWithMegaCurrency:(mega::MegaCurrency *)currency cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaCurrency *)getCPtr;
 
 @end

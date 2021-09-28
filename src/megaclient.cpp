@@ -46,13 +46,9 @@ bool g_disablepkp_default = false;
 std::mutex g_APIURL_default_mutex;
 string g_APIURL_default = "https://g.api.mega.co.nz/";
 
-// root URL for GeLB requests
-// MegaClient statics must be const or we get threading problems
-const string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
-
 // root URL for chat stats
 // MegaClient statics must be const or we get threading problems
-const string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
+const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
 
 // root URL for Website
 // MegaClient statics must be const or we get threading problems
@@ -993,7 +989,7 @@ error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
     pd.appendWithSeparator(dotDir, false);
 
     // Try and create the backup configuration directory
-    if (!(fsaccess->mkdirlocal(pd) || fsaccess->target_exists))
+    if (!(fsaccess->mkdirlocal(pd, false, false) || fsaccess->target_exists))
     {
         LOG_err << "Unable to create config DB directory: " << pd.toPath(*fsaccess);
 
@@ -1957,7 +1953,7 @@ void MegaClient::exec()
                                 notifypurge();
                                 if (sctable && pendingsccommit && !reqs.cmdspending())
                                 {
-                                    LOG_debug << "Executing postponed DB commit";
+                                    LOG_debug << "Executing postponed DB commit 2";
                                     sctable->commit();
                                     sctable->begin();
                                     app->notify_dbcommit();
@@ -2194,7 +2190,8 @@ void MegaClient::exec()
                     }
                     LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
                 }
-                LOG_err << "Useralerts request failed, continuing without them";
+                LOG_warn << "Useralerts request failed, continuing without them";
+
                 if (useralerts.begincatchup)
                 {
                     useralerts.begincatchup = false;
@@ -4504,8 +4501,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
         if (sync->statecachetable)
         {
             sync->statecachetable->remove();
-            delete sync->statecachetable;
-            sync->statecachetable = NULL;
+            sync->statecachetable.reset();
         }
     });
 
@@ -4551,30 +4547,13 @@ void MegaClient::dnsrequest(const char *hostname)
     req->dns(this);
 }
 
-void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
-{
-    GenericHttpReq *req = new GenericHttpReq(rng);
-    req->tag = reqtag;
-    req->maxretries = retries;
-    if (timeoutds > 0)
-    {
-        req->maxbt.backoff(timeoutds);
-    }
-    pendinghttp[reqtag] = req;
-    req->posturl = GELBURL;
-    req->posturl.append("?service=");
-    req->posturl.append(service);
-    req->protect = true;
-    req->get(this);
-}
-
 void MegaClient::sendchatstats(const char *json, int port)
 {
     GenericHttpReq *req = new GenericHttpReq(rng);
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = CHATSTATSURL;
+    req->posturl = SFUSTATSURL;
     if (port > 0)
     {
         req->posturl.append(":");
@@ -4588,13 +4567,13 @@ void MegaClient::sendchatstats(const char *json, int port)
     req->post(this);
 }
 
-void MegaClient::sendchatlogs(const char *json, const char *aid, int port)
+void MegaClient::sendchatlogs(const char *json, handle userid, handle callid, int port)
 {
     GenericHttpReq *req = new GenericHttpReq(rng);
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = CHATSTATSURL;
+    req->posturl = SFUSTATSURL;
     if (port > 0)
     {
         req->posturl.append(":");
@@ -4602,9 +4581,18 @@ void MegaClient::sendchatlogs(const char *json, const char *aid, int port)
         sprintf(stringPort, "%d", port);
         req->posturl.append(stringPort);
     }
-    req->posturl.append("/msglog?aid=");
-    req->posturl.append(aid);
+
+    Base64Str<MegaClient::USERHANDLE> uid(userid);
+    req->posturl.append("/msglog?userid=");
+    req->posturl.append(uid);
     req->posturl.append("&t=e");
+    if (callid != UNDEF)
+    {
+    Base64Str<MegaClient::USERHANDLE> cid(callid);
+        req->posturl.append("&callid=");
+        req->posturl.append(cid);
+    }
+
     req->protect = true;
     req->out->assign(json);
     req->post(this);
@@ -6792,6 +6780,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     m_time_t ts = -1;
     bool publicchat = false;
     string unifiedkey;
+    bool meeting = false;
 
     bool done = false;
     while (!done)
@@ -6840,6 +6829,11 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 jsonsc.storeobject(&unifiedkey);
                 break;
 
+            case MAKENAMEID2('m', 'r'):
+                assert(readingPublicChat);
+                meeting = jsonsc.getbool();
+                break;
+
             case EOO:
                 done = true;
 
@@ -6881,6 +6875,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                     {
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
                     }
+                    chat->meeting = meeting;
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -8378,8 +8373,7 @@ SymmCipher *MegaClient::getRecycledTemporaryTransferCipher(const byte *key, int 
 
 SymmCipher *MegaClient::getRecycledTemporaryNodeCipher(const string *key)
 {
-    tmpnodecipher.setkey(key);
-    return &tmpnodecipher;
+    return tmpnodecipher.setkey(key) ? &tmpnodecipher : nullptr;
 }
 
 SymmCipher *MegaClient::getRecycledTemporaryNodeCipher(const byte *key)
@@ -11029,6 +11023,7 @@ void MegaClient::procmcf(JSON *j)
                         string unifiedKey;
                         m_time_t ts = -1;
                         bool publicchat = false;
+                        bool meeting = false;
 
                         bool readingChat = true;
                         while(readingChat) // read the chat information
@@ -11073,6 +11068,11 @@ void MegaClient::procmcf(JSON *j)
                                 publicchat = j->getint();
                                 break;
 
+                           case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
+                                meeting = j->getbool();
+                                assert(readingPublicChats || !meeting); // public chats can be meetings or not. Private chats cannot be meetings
+                                break;
+
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
@@ -11088,6 +11088,7 @@ void MegaClient::procmcf(JSON *j)
                                     chat->group = group;
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
+                                    chat->meeting = meeting;
 
                                     if (readingPublicChats)
                                     {
@@ -14581,7 +14582,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
                     LOG_debug << "Creating local folder";
 
-                    if (fsaccess->mkdirlocal(localpath))
+                    if (fsaccess->mkdirlocal(localpath, false, true))
                     {
                         // create local path, add to LocalNodes and recurse
                         LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
@@ -15718,7 +15719,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
 
 #ifdef USE_MEDIAINFO
-            mediaFileInfo.requestCodecMappingsOneTime(this, &f->localname);
+            mediaFileInfo.requestCodecMappingsOneTime(this, f->localname);
 #endif
         }
         else
@@ -16509,9 +16510,9 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title)
+void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title, bool meetingRoom)
 {
-    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title));
+    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)

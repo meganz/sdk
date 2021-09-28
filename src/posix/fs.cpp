@@ -506,7 +506,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool)
+bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool)
 {
     struct stat statbuf;
 
@@ -1158,7 +1158,7 @@ bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
     return false;
 }
 
-bool PosixFileSystemAccess::renamelocal(LocalPath& oldname, LocalPath& newname, bool override)
+bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPath& newname, bool override)
 {
 #ifdef USE_IOS
     const string oldnamestr = adjustBasePath(oldname);
@@ -1180,7 +1180,7 @@ bool PosixFileSystemAccess::renamelocal(LocalPath& oldname, LocalPath& newname, 
     transient_error = !existingandcare && (errno == ETXTBSY || errno == EBUSY);
 
     int e = errno;
-    if (!skip_errorreport)
+    if (e != EEXIST  || !skip_targetexists_errorreport)
     {
         LOG_warn << "Unable to move file: " << oldnamestr << " to " << newnamestr << ". Error code: " << e;
     }
@@ -1256,7 +1256,7 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
     return !t;
 }
 
-bool PosixFileSystemAccess::unlinklocal(LocalPath& name)
+bool PosixFileSystemAccess::unlinklocal(const LocalPath& name)
 {
     if (!unlink(adjustBasePath(name).c_str()))
     {
@@ -1270,8 +1270,10 @@ bool PosixFileSystemAccess::unlinklocal(LocalPath& name)
 
 // delete all files, folders and symlinks contained in the specified folder
 // (does not recurse into mounted devices)
-void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
+void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t basedev)
 {
+    LocalPath name = nameParam;
+
     DIR* dp;
     dirent* d;
     int removed;
@@ -1364,7 +1366,7 @@ void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
     defaultfolderpermissions = permissions | 0700;
 }
 
-bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
+bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
 {
     emptydirlocal(name);
 
@@ -1378,7 +1380,7 @@ bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
     return false;
 }
 
-bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
+bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlreadyExistsError)
 {
 #ifdef USE_IOS
     const string nameStr = adjustBasePath(name);
@@ -1396,7 +1398,10 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
         target_exists = errno == EEXIST;
         if (target_exists)
         {
-            LOG_debug << "Failed to create local directory: " << nameStr << " (already exists)";
+            if (logAlreadyExistsError)
+            {
+                LOG_debug << "Failed to create local directory: " << nameStr << " (already exists)";
+            }
         }
         else
         {

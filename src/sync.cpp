@@ -804,7 +804,6 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     localnodes[FOLDERNODE] = 0;
 
     state() = SYNC_INITIALSCAN;
-    statecachetable = NULL;
 
     fullscan = true;
     scanseqno = 0;
@@ -913,7 +912,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable = client->dbaccess->open(client->rng, *client->fsaccess, dbname);
+            statecachetable.reset(client->dbaccess->open(client->rng, *client->fsaccess, dbname));
 
             readstatecache();
         }
@@ -938,8 +937,8 @@ Sync::~Sync()
         client->proctree(localroot->node, &tdsg);
     }
 
-    // The database is closed; deleting localnodes will not remove them
-    delete statecachetable;
+    // Close the database so that deleting localnodes will not remove them
+    statecachetable.reset();
 
     client->syncactivity = true;
 
@@ -1145,6 +1144,7 @@ void Sync::cachenodes()
     {
         deleteq.clear();
         insertq.clear();
+        return;
     }
 
     if ((state() == SYNC_ACTIVE ||
@@ -1197,6 +1197,16 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     {
         // Should "user-disable" external backups...
         newEnableFlag &= config.isInternal();
+    }
+
+    if (!newEnableFlag && statecachetable)
+    {
+        // make sure db is up to date before we close it.
+        cachenodes();
+
+        // remove the LocalNode database files on sync disablement (historic behaviour; sync re-enable with LocalNode state from non-matching SCSN is not supported (yet))
+        statecachetable->remove();
+        statecachetable.reset();
     }
 
     config.setError(newSyncError);
@@ -2214,7 +2224,7 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
         if (i == -2 || i > 95)
         {
             LOG_verbose << "Creating local debris folder";
-            client->fsaccess->mkdirlocal(localdebris, true);
+            client->fsaccess->mkdirlocal(localdebris, true, false);
         }
 
         sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
@@ -2230,18 +2240,18 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
         if (i > -3)
         {
             LOG_verbose << "Creating daily local debris folder";
-            havedir = client->fsaccess->mkdirlocal(localdebris, false) || client->fsaccess->target_exists;
+            havedir = client->fsaccess->mkdirlocal(localdebris, false, false) || client->fsaccess->target_exists;
         }
 
         localdebris.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex(*client->fsaccess)), true);
 
-        client->fsaccess->skip_errorreport = i == -3;  // we expect a problem on the first one when the debris folders or debris day folders don't exist yet
+        client->fsaccess->skip_targetexists_errorreport = i == -3;  // we expect a problem on the first one when the debris folders or debris day folders don't exist yet
         if (client->fsaccess->renamelocal(localpath, localdebris, false))
         {
-            client->fsaccess->skip_errorreport = false;
+            client->fsaccess->skip_targetexists_errorreport = false;
             return true;
         }
-        client->fsaccess->skip_errorreport = false;
+        client->fsaccess->skip_targetexists_errorreport = false;
 
         if (client->fsaccess->transient_error)
         {
@@ -3623,13 +3633,7 @@ void Syncs::removeSyncByIndex(size_t index)
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
             syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-
-            if (syncPtr->statecachetable)
-            {
-                syncPtr->statecachetable->remove();
-                delete syncPtr->statecachetable;
-                syncPtr->statecachetable = NULL;
-            }
+            assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
 
@@ -3658,14 +3662,7 @@ void Syncs::unloadSyncByIndex(size_t index)
             // if it was running, the app gets a callback saying it's no longer active
             // SYNC_CANCELED is a special value that means we are shutting it down without changing config
             syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-
-            if (syncPtr->statecachetable)
-            {
-                // sync LocalNode database (if any) will be closed
-                // deletion of the sync object won't affect the database
-                delete syncPtr->statecachetable;
-                syncPtr->statecachetable = NULL;
-            }
+            assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
 
@@ -3701,36 +3698,6 @@ void Syncs::saveSyncConfig(const SyncConfig& config)
     if (auto* store = syncConfigStore())
     {
         store->markDriveDirty(config.mExternalDrivePath);
-    }
-}
-
-// restore all configured syncs that were in a temporary error state (not manually disabled)
-void Syncs::enableResumeableSyncs()
-{
-    bool anySyncRestored = false;
-
-    for (auto& unifiedSync : mSyncVec)
-    {
-        if (!unifiedSync->mSync)
-        {
-            if (unifiedSync->mConfig.getEnabled())
-            {
-                SyncError syncError = unifiedSync->mConfig.getError();
-                LOG_debug << "Restoring sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
-
-                anySyncRestored |= unifiedSync->enableSync(false, true) == API_OK;
-            }
-            else
-            {
-                LOG_verbose << "Skipping restoring sync: " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess)
-                    << " enabled=" << unifiedSync->mConfig.getEnabled() << " error=" << unifiedSync->mConfig.getError();
-            }
-        }
-    }
-
-    if (anySyncRestored)
-    {
-        mClient.app->syncs_restored();
     }
 }
 
@@ -3798,6 +3765,8 @@ void Syncs::resumeResumableSyncsOnStartup()
             }
         }
     }
+
+    mClient.app->syncs_restored();
 }
 
 
@@ -4359,7 +4328,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
               << slot;
 
     // Try and create the backup configuration directory.
-    if (!(mFsAccess.mkdirlocal(path) || mFsAccess.target_exists))
+    if (!(mFsAccess.mkdirlocal(path, false, true) || mFsAccess.target_exists))
     {
         LOG_err << "Unable to create config DB directory: "
                 << dbPath.toPath(mFsAccess);
