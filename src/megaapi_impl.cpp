@@ -23185,7 +23185,7 @@ int MegaApiImpl::isWaiting()
 
     bool found = false;
     client->syncs.forEachRunningSync(false, [&](Sync* sync) {
-            if (sync->localroot->useBlocked || sync->localroot->scanBlocked)
+            if (sync->localroot->scanBlocked)
             {
                 LOG_debug << "SDK waiting for one or more a blocked files.";
                 found = true;

@@ -2550,6 +2550,10 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
         case SyncWaitReason::CouldNotMoveToLocalDebrisFolder:               return "CouldNotMoveToLocalDebrisFolder";
         case SyncWaitReason::LocalFolderNotScannable:                       return "LocalFolderNotScannable";
+        case SyncWaitReason::SymlinksNotSupported:                          return "SymlinksNotSupported";
+        case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
+        case SyncWaitReason::MoveOrRenameFailed:                            return "MoveOrRenameFailed";
+        case SyncWaitReason::CreateFolderFailed:                            return "CreateFolderFailed";
     }
     return "<out of range>";
 }

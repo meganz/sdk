@@ -1306,7 +1306,6 @@ LocalNode::LocalNode()
 , fsidScannedReused(false)
 , scanInProgress(false)
 , scanObsolete(false)
-, useBlocked(TREE_RESOLVED)
 , scanBlocked(TREE_RESOLVED)
 {}
 
@@ -1332,7 +1331,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     fsidScannedReused = false;
     scanInProgress = false;
     scanObsolete = false;
-    useBlocked = TREE_RESOLVED;
     scanBlocked = TREE_RESOLVED;
     parent_dbid = 0;
     slocalname = NULL;
@@ -1402,12 +1400,10 @@ void LocalNode::trimRareFields()
 {
     if (rareFields)
     {
-        if (useBlocked < TREE_ACTION_HERE) rareFields->useBlockedTimer.reset();
         if (scanBlocked < TREE_ACTION_HERE) rareFields->scanBlockedTimer.reset();
         if (!scanInProgress) rareFields->scanRequest.reset();
 
-        if (!rareFields->useBlockedTimer &&
-            !rareFields->scanBlockedTimer &&
+        if (!rareFields->scanBlockedTimer &&
             !rareFields->scanRequest &&
             !rareFields->moveFromHere &&
             !rareFields->moveToHere &&
@@ -1505,25 +1501,6 @@ void LocalNode::setContainsConflicts(bool doParent, bool doHere, bool doBelow)
     }
 
     parentSetContainsConflicts = parentSetContainsConflicts || doParent;
-}
-
-void LocalNode::setUseBlocked()
-{
-    useBlocked = std::max<unsigned>(useBlocked, TREE_ACTION_HERE);
-
-    if (!rare().useBlockedTimer)
-    {
-        rare().useBlockedTimer.reset(new BackoffTimer(sync->syncs.rng));
-    }
-    if (rare().useBlockedTimer->armed())
-    {
-        rare().useBlockedTimer->backoff(Sync::SCANNING_DELAY_DS);
-    }
-
-    for (auto p = parent; p != NULL; p = p->parent)
-    {
-        p->useBlocked = std::max<unsigned>(p->useBlocked, TREE_DESCENDANT_FLAGGED);
-    }
 }
 
 void LocalNode::setScanBlocked()

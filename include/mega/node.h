@@ -503,7 +503,6 @@ struct MEGA_API LocalNode : public Cacheable
         unsigned scanObsolete : 1;
 
         // whether this file/folder is blocked - now we can have many at once
-        unsigned useBlocked : 2;    // TREESTATE
         unsigned scanBlocked : 2;    // TREESTATE
 
 
@@ -526,7 +525,6 @@ struct MEGA_API LocalNode : public Cacheable
     // We keep the average memory use by only alloating these when used.
     struct RareFields
     {
-        unique_ptr<BackoffTimer> useBlockedTimer;
         unique_ptr<BackoffTimer> scanBlockedTimer;
         shared_ptr<ScanService::ScanRequest> scanRequest;
 
@@ -583,7 +581,6 @@ struct MEGA_API LocalNode : public Cacheable
     void setCheckMovesAgain(bool doParent, bool doHere, bool doBelow);
     void setSyncAgain(bool doParent, bool doHere, bool doBelow);
 
-    void setUseBlocked();
     void setScanBlocked();
 
     void setContainsConflicts(bool doParent, bool doHere, bool doBelow);
