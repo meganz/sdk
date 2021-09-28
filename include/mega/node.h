@@ -608,7 +608,6 @@ struct MEGA_API LocalNode : public Cacheable
 
     void reassignUnstableFsidsOnceOnly(const FSNode* fsnode);
 
-
     // current subtree sync state: current and displayed
     treestate_t ts = TREESTATE_NONE;
     treestate_t dts = TREESTATE_NONE;
@@ -637,7 +636,7 @@ struct MEGA_API LocalNode : public Cacheable
     FSNode getLastSyncedFSDetails();
     FSNode getScannedFSDetails();
 
-    // Each node can be either uploading or downloading a file.
+    // Each LocalNode can be either uploading or downloading a file.
     // These functions manage that
     void queueClientUpload(shared_ptr<SyncUpload_inClient> upload);
     void queueClientDownload(shared_ptr<SyncDownload_inClient> upload);
@@ -661,6 +660,8 @@ struct MEGA_API LocalNode : public Cacheable
 
     bool serialize(string*) override;
     static unique_ptr<LocalNode> unserialize( Sync* sync, const string* sData );
+
+    void deleteChildren();
 
     ~LocalNode();
 

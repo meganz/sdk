@@ -1725,7 +1725,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             scanObsolete = true;
         }
 
-        if (scanObsolete)   // TODO: also consider obsolete if the results are more than 10 seconds old - eg a folder scanned but stuck (unvisitable) behind something unresolvable for hours.  Or if fsid of the folder was not a match after the scan
+        if (scanObsolete)
         {
             LOG_verbose << sync->syncname << "Directory scan outdated for : " << fullPath.localPath_utf8();
             scanObsolete = false;
@@ -2002,11 +2002,19 @@ LocalNode::~LocalNode()
         setnameparent(nullptr, LocalPath(), nullptr);
     }
 
+    deleteChildren();
+}
+
+void LocalNode::deleteChildren()
+{
     for (localnode_map::iterator it = children.begin(); it != children.end(); )
     {
+        // the destructor removes the child from our `children` map
         delete it++->second;
     }
+    assert(children.empty());
 }
+
 
 bool LocalNode::conflictsDetected() const
 {

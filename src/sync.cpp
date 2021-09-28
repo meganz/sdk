@@ -1493,7 +1493,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     << " old localnode: " << sourceSyncNode->localnodedisplaypath(*syncs.fsaccess)
                     << logTriplet(row, fullPath);
 
-                // but, is is ok to overwrite that thing?  If that's what happened locally to a synced file, and the cloud item was also synced and is still there, then it's legit
+                // but, is it ok to overwrite that thing?  If that's what happened locally to a synced file, and the cloud item was also synced and is still there, then it's legit
                 // overwriting a folder like that is not possible so far as I know
                 // Note that the original algorithm would overwrite a file or folder, moving the old one to cloud debris
                 bool legitOverwrite = //row.syncNode->type == FILENODE &&
@@ -1961,11 +1961,17 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             }
 
             LOG_debug << syncname << "Move-target moved to local debris: " << path;
+
+            // Therefore there is nothing in the local subfolder anymore
+            // Keep our data structure up to date:
+            row.syncNode->deleteChildren();
         }
 
         if (syncs.fsaccess->renamelocal(sourcePath, fullPath.localPath))
         {
             // todo: move anything at this path to sync debris first?  Old algo didn't though
+            // todo: additional consideration: what if there is something here, and it should be moved/renamed to elsewhere in the sync (not the debris) first?
+            // todo: additional consideration: what if things to be renamed/moved form a cycle?
 
             // check filesystem is not changing fsids as a result of rename
             assert(overwrite || sourceSyncNode->fsid_lastSynced == debug_getfsid(fullPath.localPath, *syncs.fsaccess));
@@ -5409,6 +5415,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
                 // If this node was repurposed for the move, rather than the normal case of creating a fresh one, we remove the old content if it was a folder
                 // We have to do this after all processing of sourceSyncNode, in case the source was (through multiple operations) one of the subnodes about to be removed.
+                // TODO: however, there is a risk of name collisions - probably we should use a multimap for LocalNode::children.
                 for (auto& oldc : movePtr->priorChildrenToRemove)
                 {
                     for (auto& c : row.syncNode->children)
@@ -7668,8 +7675,8 @@ void Syncs::syncLoop()
                 if (stalled)
                 {
                     LOG_warn << mClient.clientname << "Stall detected!";
-                    for (auto& p : mSyncFlags->stall.cloud) LOG_warn << "stalled node path: " << p.first;
-                    for (auto& p : mSyncFlags->stall.local) LOG_warn << "stalled local path: " << p.first.toPath(*fsaccess);
+                    for (auto& p : stall.cloud) LOG_warn << "stalled node path (" << syncWaitReasonString(p.second.reason) << "): " << p.first;
+                    for (auto& p : stall.local) LOG_warn << "stalled local path (" << syncWaitReasonString(p.second.reason) << "): " << p.first.toPath(*fsaccess);
                 }
             }
 
