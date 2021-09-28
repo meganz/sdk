@@ -142,6 +142,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->videocodecid = np->videocodecid;
         this->mFavourite = np->mFavourite;
         this->mLabel = np->mLabel;
+        this->mDeviceId = np->mDeviceId;
     }
     else
     {
@@ -1052,7 +1053,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
     if (!api->client->mediaFileInfo.mediaCodecsReceived)
     {
         // the client app should already have requested these but just in case:
-        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, NULL);
+        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, LocalPath());
         return false;
     }
 
@@ -3262,10 +3263,12 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT)
     {
         this->megaPricing = new MegaPricingPrivate();
+        megaCurrency = new MegaCurrencyPrivate();
     }
     else
     {
         megaPricing = NULL;
+        megaCurrency = nullptr;
     }
 
 #ifdef ENABLE_CHAT
@@ -3336,6 +3339,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 
     this->backupListener = request->getBackupListener();
     this->megaPricing = (MegaPricingPrivate *)request->getPricing();
+    this->megaCurrency = (MegaCurrencyPrivate *)request->getCurrency();
 
     this->accountDetails = NULL;
     if(request->getAccountDetails())
@@ -3562,6 +3566,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete [] file;
     delete accountDetails;
     delete megaPricing;
+    delete megaCurrency;
     delete achievementsDetails;
     delete [] text;
     delete stringMap;
@@ -3685,6 +3690,11 @@ int MegaRequestPrivate::getTag() const
 MegaPricing *MegaRequestPrivate::getPricing() const
 {
     return megaPricing ? megaPricing->copy() : NULL;
+}
+
+MegaCurrency *MegaRequestPrivate::getCurrency() const
+{
+    return megaCurrency ? megaCurrency->copy() : nullptr;
 }
 
 void MegaRequestPrivate::setNumDetails(int numDetails)
@@ -3829,11 +3839,24 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth, const char *currency, const char* description, const char* iosid, const char* androidid)
+void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
+                                    int months, int amount, int amountMonth, int localPrice,
+                                    const char* description, const char* iosid, const char* androidid,
+                                    std::unique_ptr<BusinessPlan> bizPlan)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer, months, amount, amountMonth, currency, description, iosid, androidid);
+        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer,
+                                months, amount, amountMonth, localPrice,
+                                description, iosid, androidid, move(bizPlan));
+    }
+}
+
+void MegaRequestPrivate::setCurrency(std::unique_ptr<CurrencyData> currencyData)
+{
+    if (megaCurrency)
+    {
+        megaCurrency->setCurrency(move(currencyData));
     }
 }
 
@@ -6525,7 +6548,7 @@ bool MegaApiImpl::createLocalFolder(const char *path)
     localpath.ensureWinExtendedPathLenPrefix();
 
     sdkMutex.lock();
-    bool success = client->fsaccess->mkdirlocal(localpath);
+    bool success = client->fsaccess->mkdirlocal(localpath, false, true);
     sdkMutex.unlock();
 
     return success;
@@ -9428,7 +9451,7 @@ bool MegaApiImpl::ensureMediaInfo()
     else
     {
         sdkMutex.lock();
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
         sdkMutex.unlock();
         return false;
     }
@@ -14035,7 +14058,7 @@ void MegaApiImpl::putfa_result(handle h, fatype, error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid)
+void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -14046,7 +14069,21 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
         return;
     }
 
-    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, currency, description, iosid, androidid);
+    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, localPrice, description, iosid, androidid, move(bizPlan));
+}
+
+void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyData)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
+                    (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)))
+    {
+        return;
+    }
+
+    request->setCurrency(move(currencyData));
 }
 
 void MegaApiImpl::enumeratequotaitems_result(error e)
@@ -14067,6 +14104,7 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
     else
     {
         MegaPricing *pricing = request->getPricing();
+        MegaCurrency *currency = request->getCurrency();
         int i;
         for(i = 0; i < pricing->getNumProducts(); i++)
         {
@@ -14079,7 +14117,7 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
                 request->setTag(nextTag);
                 requestMap[nextTag]=request;
                 client->purchase_additem(0, request->getNodeHandle(), pricing->getAmount(i),
-                                         pricing->getCurrency(i), 0, NULL, request->getParentHandle(),
+                                         currency->getCurrencySymbol(), 0, NULL, request->getParentHandle(),
                                          phtype, ts);
                 break;
             }
@@ -14089,7 +14127,9 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
         }
+
         delete pricing;
+        delete currency;
     }
 }
 
@@ -20160,7 +20200,14 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, bu ? bu->nodecipher(client) : node->nodecipher(), nextTag, std::move(attributedata));
+                SymmCipher *cipher = bu ? bu->nodecipher(client) : node->nodecipher();
+                if (!cipher)
+                {
+                    e = API_EKEY;
+                    break;
+                }
+
+                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, cipher, nextTag, std::move(attributedata));
             }
             break;
         }
@@ -24182,11 +24229,6 @@ vector<handle> &PendingOutShareProcessor::getHandles()
 
 MegaPricingPrivate::~MegaPricingPrivate()
 {
-    for(unsigned i = 0; i < currency.size(); i++)
-    {
-        delete[] currency[i];
-    }
-
     for(unsigned i = 0; i < description.size(); i++)
     {
         delete[] description[i];
@@ -24260,12 +24302,12 @@ int MegaPricingPrivate::getAmount(int productIndex)
     return 0;
 }
 
-const char *MegaPricingPrivate::getCurrency(int productIndex)
+int mega::MegaPricingPrivate::getLocalPrice(int productIndex)
 {
-    if((unsigned)productIndex < currency.size())
-        return currency[productIndex];
+    if((unsigned)productIndex < mLocalPrice.size())
+        return mLocalPrice[productIndex];
 
-    return NULL;
+    return 0;
 }
 
 const char *MegaPricingPrivate::getDescription(int productIndex)
@@ -24313,15 +24355,20 @@ MegaPricing *MegaPricingPrivate::copy()
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
     for(unsigned i=0; i<handles.size(); i++)
     {
+        std::unique_ptr<BusinessPlan> bizPlan(mBizPlan[i] ? new BusinessPlan(*mBizPlan[i]) : nullptr);
+
         megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], amountMonth[i], currency[i], description[i], iosId[i], androidId[i]);
+                                months[i], amount[i], amountMonth[i],
+                                mLocalPrice[i],
+                                description[i], iosId[i], androidId[i],
+                                move(bizPlan));
     }
 
     return megaPricing;
 }
 
 void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
-                                    const char *currency, const char* description, const char* iosid, const char* androidid)
+                                    unsigned localPrice, const char* description, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan)
 {
     this->type.push_back(type);
     this->handles.push_back(product);
@@ -24331,10 +24378,157 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
     this->months.push_back(months);
     this->amount.push_back(amount);
     this->amountMonth.push_back(amountMonth);
-    this->currency.push_back(MegaApi::strdup(currency));
+    mLocalPrice.push_back(localPrice);
     this->description.push_back(MegaApi::strdup(description));
     this->iosId.push_back(MegaApi::strdup(iosid));
     this->androidId.push_back(MegaApi::strdup(androidid));
+    mBizPlan.push_back(move(bizPlan));
+}
+
+
+int MegaPricingPrivate::getGBStoragePerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbStoragePerUser;
+    }
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBTransferPerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbTransferPerUser;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getMinUsers(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->minUsers;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getPricePerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->pricePerUser;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getLocalPricePerUser(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->localPricePerUser;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getPricePerStorage(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->pricePerStorage;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getLocalPricePerStorage(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->localPricePerStorage;
+    }
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBPerStorage(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbPerStorage;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getPricePerTransfer(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->pricePerTransfer;
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getLocalPricePerTransfer(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->localPricePerTransfer;
+    }
+
+    return 0;
+}
+
+int MegaPricingPrivate::getGBPerTransfer(int productIndex)
+{
+    if ((unsigned)productIndex < mBizPlan.size() && mBizPlan.at(productIndex)) // some Pro plans don't have a valid pointer, only business plans
+    {
+        return mBizPlan[productIndex]->gbPerTransfer;
+    }
+
+    return 0;
+}
+
+MegaCurrencyPrivate::~MegaCurrencyPrivate()
+{
+}
+
+MegaCurrency *MegaCurrencyPrivate::copy()
+{
+    return new MegaCurrencyPrivate(*this);
+}
+
+const char *MegaCurrencyPrivate::getCurrencySymbol()
+{
+    return mCurrencyData.currencySymbol.c_str();
+}
+
+const char *MegaCurrencyPrivate::getCurrencyName()
+{
+    return mCurrencyData.currencyName.c_str();
+}
+
+const char *MegaCurrencyPrivate::getLocalCurrencySymbol()
+{
+    return mCurrencyData.localCurrencySymbol.c_str();
+}
+
+const char *MegaCurrencyPrivate::getLocalCurrencyName()
+{
+    return mCurrencyData.localCurrencyName.c_str();
+}
+
+void MegaCurrencyPrivate::setCurrency(std::unique_ptr<CurrencyData> data)
+{
+    assert(data);
+    mCurrencyData = *data;
 }
 
 #ifdef ENABLE_SYNC
@@ -26437,7 +26631,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath&
     auto da = client->fsaccess->newfileaccess();
     if (!da->fopen(localpath, true, false))
     {
-        if (!client->fsaccess->mkdirlocal(localpath))
+        if (!client->fsaccess->mkdirlocal(localpath, false, true))
         {
             da.reset();
             LOG_err << "Unable to create folder: " << localpath.toPath(*client->fsaccess);

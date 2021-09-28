@@ -270,11 +270,11 @@ public:
     #endif
     void tmpnamelocal(LocalPath&) const override {}
     bool getsname(const LocalPath& , LocalPath& ) const override { return false; }
-    bool renamelocal(LocalPath&, LocalPath&, bool = true) override { return false; }
+    bool renamelocal(const LocalPath&, const LocalPath&, bool = true) override { return false; }
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override { return false; }
-    bool unlinklocal(LocalPath&) override { return false; }
-    bool rmdirlocal(LocalPath&) override { return false; }
-    bool mkdirlocal(LocalPath&, bool = false) override { return false; }
+    bool unlinklocal(const LocalPath&) override { return false; }
+    bool rmdirlocal(const LocalPath&) override { return false; }
+    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override { return false; }
     bool setmtimelocal(LocalPath&, m_time_t) override { return false; }
     bool chdirlocal(LocalPath&) const override { return false; }
     bool getextension(const LocalPath&, string&) const override { return false; }
