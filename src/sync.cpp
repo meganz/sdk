@@ -1574,8 +1574,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 // Note that the original algorithm would overwrite a file or folder, moving the old one to cloud debris
                 bool legitOverwrite = //row.syncNode->type == FILENODE &&
                                       //row.syncNode->fsid_lastSynced != UNDEF &&
-                                      row.syncNode->isExcluded() < 0
-                                      || row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle;
+                                      row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle;
 
                 if (legitOverwrite)
                 {
