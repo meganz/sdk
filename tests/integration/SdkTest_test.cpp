@@ -1274,7 +1274,7 @@ string getUniqueAlias()
     int n = 4;
     string alias;
     auto t = std::time(nullptr);
-    srand(t);
+    srand((unsigned int)t);
     for (int i = 0; i < n; ++i)
     {
         alias += 'a' + rand() % 26;
