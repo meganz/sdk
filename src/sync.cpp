@@ -1514,6 +1514,13 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 return false;
             }
 
+            // Is the move target excluded?
+            if (parentRow.isExcluded(*row.fsNode) < 1)
+            {
+                // Then don't perform the move.
+                return false;
+            }
+
             if (!row.syncNode)
             {
                 resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
@@ -1538,6 +1545,9 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 // Attempt the move later.
                 return rowResult = false, true;
             }
+
+            // Sanity.
+            assert(sourceSyncNode->isExcluded() > 0);
 
             // logic to detect files being updated in the local computer moving the original file
             // to another location as a temporary backup
@@ -1608,122 +1618,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 sourceRow->syncNode->setSyncAgain(true, false, false);
             }
 
-            // Is the source (effectively) excluded?
-            if (sourceSyncNode->isExcluded() < 1)
-            {
-                auto& ms = *sourceSyncNode;
-                auto& mt = *row.syncNode;
-
-                // Are we below a removed cloud node?
-                if (belowRemovedCloudNode)
-                {
-                    // Then revisit later.
-                    mt.setSyncAgain(true, false, false);
-
-                    return false;
-                }
-
-                // Source is no longer associated with this file.
-                ms.setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, ms.localname, nullptr);
-                ms.setSyncedNodeHandle(NodeHandle());
-
-                // Move children to move target.
-                ms.moveContentTo(&mt, fullPath.localPath, true);
-
-                // Re-scan source and target.
-                ms.setScanAgain(true, false, false, 0);
-                mt.setScanAgain(false, true, true, 0);
-
-                // Persist above changes.
-                statecacheadd(&ms);
-                statecacheadd(&mt);
-
-                // Tell caller row isn't synced.
-                return rowResult = false, true;
-            }
-
-            CloudNode sourceCloudNode;
-            string sourceCloudNodePath;
-            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, Syncs::LATEST_VERSION);
-
-            // Is the move target (effectively) excluded?
-            if (row.syncNode->isExcluded() < 1)
-            {
-                // Are we below a removed cloud node?
-                if (belowRemovedCloudNode)
-                {
-                    // Then come back later.
-                    row.syncNode->setSyncAgain(true, false, false);
-
-                    return false;
-                }
-
-                // Does the move source exist in the cloud?
-                if (foundSourceCloudNode)
-                {
-                    // Then we need to move it into the cloud debris.
-
-                    // Create a MoveInProgress to track the "move."
-                    auto movePtr = std::make_shared<LocalNode::RareFields::MoveInProgress>();
-
-                    // Identifying characteristics of the move source.
-                    movePtr->sourceFingerprint = row.fsNode->fingerprint;
-                    movePtr->sourceFsid = row.fsNode->fsid;
-                    movePtr->sourceType = row.fsNode->type;
-                    movePtr->sourcePtr = sourceSyncNode;
-
-                    // Let the engine know a move is in progress.
-                    sourceSyncNode->rare().moveFromHere = movePtr;
-                    row.syncNode->rare().moveToHere = movePtr;
-
-                    // Move the source cloud node into the cloud debris.
-                    auto inShare = inshare;
-                    auto sourceHandle = sourceCloudNode.handle;
-
-                    syncs.queueClient([=](MegaClient& client, DBTableTransactionCommitter&) {
-                        // Try and get our hands on the soure node.
-                        auto* node = client.nodeByHandle(sourceHandle);
-
-                        // Has the source been deleted?
-                        if (!node)
-                        {
-                            // Then consider the request complete.
-                            movePtr->failed = false;
-                            movePtr->succeeded = true;
-                            return;
-                        }
-
-                        // Node still exists: move it into the cloud debris.
-                        client.movetosyncdebris(node, inShare, [=](NodeHandle, Error result) {
-                            movePtr->failed = result != API_OK;
-                            movePtr->succeeded = !movePtr->failed;
-                        });
-                    });
-                }
-                else
-                {
-                    // Source doesn't exist in the cloud.
-
-                    // Source is no longer associated with any file.
-                    sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, nullptr);
-                    sourceSyncNode->setSyncedNodeHandle(NodeHandle());
-
-                    // Move children (and filters) to the move target.
-                    sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
-
-                    // Re-scan source and target.
-                    sourceSyncNode->setScanAgain(true, false, false, 0);
-                    row.syncNode->setScanAgain(false, true, true, 0);
-
-                    // Persist above changes.
-                    statecacheadd(sourceSyncNode);
-                    statecacheadd(row.syncNode);
-                }
-
-                // Tell the caller that this row isn't synced.
-                return rowResult = false, true;
-            }
-
             // Although we have detected a move locally, there's no guarantee the cloud side
             // is complete, the corresponding parent folders in the cloud may not match yet.
             // ie, either of sourceCloudNode or targetCloudNode could be null here.
@@ -1731,8 +1625,9 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             //    If any scan flags anywhere are set then we can't be sure a missing fs node isn't a move
             //    After all scanning is done, we need one clean tree traversal with no moves detected
             //    before we can be sure we can remove nodes or upload/download.
-            CloudNode targetCloudNode;
-            string targetCloudNodePath;
+            CloudNode sourceCloudNode, targetCloudNode;
+            string sourceCloudNodePath, targetCloudNodePath;
+            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, Syncs::LATEST_VERSION);
             bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
             if (foundSourceCloudNode && foundTargetCloudNode)
@@ -2003,6 +1898,13 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             return false;
         }
 
+        // Is the move target excluded?
+        if (parentRow.isExcluded(*row.cloudNode) < 1)
+        {
+            // Then don't perform the move.
+            return false;
+        }
+
         // It's a move or rename
         if (isBackup())
         {
@@ -2042,9 +1944,6 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         // True if the move-target exists and we're free to "overwrite" it.
         auto overwrite = false;
 
-        // What's the move target's exclusion state?
-        auto isExcluded = row.isExcluded(parentRow);
-
         // is there already something else at the target location though?
         if (row.fsNode)
         {
@@ -2055,30 +1954,21 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath(*syncs.fsaccess) : "<null>")
                 << logTriplet(row, fullPath);
 
-            if (isExcluded < 0)
+            if (row.syncNode)
             {
-                SYNC_verbose << syncname
-                             << "Move is not an overwrite case as the target is excluded: "
-                             << logTriplet(row, fullPath);
+                overwrite |= row.syncNode->type == row.fsNode->type;
+                overwrite &= row.syncNode->fsid_lastSynced == row.fsNode->fsid;
             }
-            else
+
+            if (!overwrite)
             {
-                if (row.syncNode)
-                {
-                    overwrite |= row.syncNode->type == row.fsNode->type;
-                    overwrite &= row.syncNode->fsid_lastSynced == row.fsNode->fsid;
-                }
-
-                if (!overwrite)
-                {
-                    row.syncNode->setCheckMovesAgain(false, true, false);
-                    monitor.waitingCloud(fullPath.cloudPath, sourceSyncNode->getCloudPath(), fullPath.localPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
-                    rowResult = false;
-                    return true;
-                }
-
-                SYNC_verbose << syncname << "Move is a legit overwrite of a synced file, so we overwrite that locally too." << logTriplet(row, fullPath);
+                row.syncNode->setCheckMovesAgain(false, true, false);
+                monitor.waitingCloud(fullPath.cloudPath, sourceSyncNode->getCloudPath(), fullPath.localPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
+                rowResult = false;
+                return true;
             }
+
+            SYNC_verbose << syncname << "Move is a legit overwrite of a synced file, so we overwrite that locally too." << logTriplet(row, fullPath);
         }
 
         if (!sourceSyncNode->moveApplyingToLocal && !belowRemovedFsNode && parentRow.cloudNode)
@@ -2146,58 +2036,6 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
         // check filesystem is not changing fsids as a result of rename
         assert(sourceSyncNode->fsid_lastSynced == debug_getfsid(sourcePath, *syncs.fsaccess));
-
-        // Is the move source excluded?
-        if (sourceSyncNode->isExcluded() < 1)
-        {
-            // Source is no longer associated with any file.
-            sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, nullptr);
-            sourceSyncNode->setSyncedNodeHandle(NodeHandle());
-
-            // Persist above changes.
-            statecacheadd(sourceSyncNode);
-
-            // Let the caller know the row isn't synced.
-            return rowResult = false, true;
-        }
-
-        if (isExcluded < 1)
-        {
-            // Move will be completed directly.
-            sourceSyncNode->moveApplyingToLocal = false;
-
-            // Cloud move into exclusion is treated as a local remove.
-            if (!movetolocaldebris(sourcePath))
-            {
-                // Couldn't move the source into the local debris.
-                LOG_err << syncname
-                        << "Failed to move to local debris: "
-                        << sourcePath.toPath();
-
-                // Let the monitor know why we can't proceed.
-                monitor.waitingLocal(sourcePath, LocalPath(), "", SyncWaitReason::CouldNotMoveToLocalDebrisFolder);
-
-                // Tell the caller the row's not synced yet.
-                return rowResult = false, true;
-            }
-
-            // Let the engine know the source has been deleted.
-            sourceSyncNode->deletedFS = true;
-
-            // Source is no longer associated with any file.
-            sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, nullptr);
-            sourceSyncNode->setSyncedNodeHandle(NodeHandle());
-
-            // Re-scan source.
-            sourceSyncNode->scanAgain = TREE_RESOLVED;
-            sourceSyncNode->setScanAgain(true, false, false, 0);
-
-            // Persist above changes.
-            statecacheadd(sourceSyncNode);
-
-            // Tell the caller the row's not synced yet.
-            return rowResult = false, true;
-        }
 
         if (overwrite)
         {
@@ -4754,24 +4592,32 @@ bool syncRow::ignoreFileStable() const
            && !syncNode->hasPendingLoad();
 }
 
-int syncRow::isExcluded(const syncRow& parentRow) const
+int syncRow::isExcluded(const CloudNode& node) const
 {
-    // Exclusion state's already been computed.
-    if (mExcluded > INT_MIN)
-        return mExcluded;
+    assert(syncNode);
+    assert(syncNode->type != FILENODE);
 
-    if (auto* s = syncNode)
-        return mExcluded = s->isExcluded();
+    return syncNode->isExcluded(node.name,
+                                node.type,
+                                node.fingerprint.size);
+}
 
-    auto& p = *parentRow.syncNode;
+int syncRow::isExcluded(const FSNode& node) const
+{
+    assert(syncNode);
+    assert(syncNode->type != FILENODE);
 
-    if (auto* f = fsNode)
-        return mExcluded = p.isExcluded(f->localname, f->type);
+    return syncNode->isExcluded(node.localname,
+                                node.type,
+                                node.fingerprint.size);
+}
 
-    if (auto* c = cloudNode)
-        return mExcluded = p.isExcluded(c->name, c->type);
+int syncRow::isExcluded(const LocalPath& name, nodetype_t type) const
+{
+    assert(syncNode);
+    assert(syncNode->type != FILENODE);
 
-    return mExcluded = 0;
+    return syncNode->isExcluded(name, type);
 }
 
 bool syncRow::isIgnoreFile() const
@@ -5349,7 +5195,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // when syncing/scanning below a removed cloud node, we just want to collect up scan fsids
                             // and make syncNodes to visit, so we can be sure of detecting all the moves,
                             // in particular contradictroy moves.
-                            if (childRow.type() == SRT_XXF && childRow.isExcluded(row) > 0)
+                            if (childRow.type() == SRT_XXF && row.isExcluded(*childRow.fsNode) > 0)
                             {
                                 resolve_makeSyncNode_fromFS(childRow, row, fullPath);
                             }
@@ -5359,7 +5205,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // when syncing/scanning below a removed local node, we just want to
                             // and make syncNodes to visit, so we can be sure of detecting all the moves,
                             // in particular contradictroy moves.
-                            if (childRow.type() == SRT_CXX && childRow.isExcluded(row) > 0)
+                            if (childRow.type() == SRT_CXX && row.isExcluded(*childRow.cloudNode) > 0)
                             {
                                 resolve_makeSyncNode_fromCloud(childRow, row, fullPath);
                             }
@@ -5548,21 +5394,21 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         return false;
     }
 
-    // Don't perform any moves until we know the row's exclusion state.
-    if (!row.isExcluded(parentRow))
-    {
-        row.itemProcessed = true;
-        row.suppressRecursion = true;
-
-        return true;
-    }
-
     // First deal with detecting local moves/renames and propagating correspondingly
     // Independent of the 8 combos below so we don't have duplicate checks in those.
 
     if (row.fsNode && (!row.syncNode || row.syncNode->fsid_lastSynced == UNDEF ||
                                         row.syncNode->fsid_lastSynced != row.fsNode->fsid))
     {
+        // Don't perform any moves until we know the row's exclusion state.
+        if (!parentRow.isExcluded(*row.fsNode))
+        {
+            row.itemProcessed = true;
+            row.suppressRecursion = true;
+
+            return true;
+        }
+
         bool rowResult;
         if (checkLocalPathForMovesRenames(row, parentRow, fullPath, rowResult, belowRemovedCloudNode))
         {
@@ -5574,6 +5420,15 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
     if (row.cloudNode && (!row.syncNode || row.syncNode->syncedCloudNodeHandle.isUndef() ||
         row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle))
     {
+        // Don't perform any moves until we know the row's exclusion state.
+        if (!parentRow.isExcluded(*row.cloudNode))
+        {
+            row.itemProcessed = true;
+            row.suppressRecursion = true;
+
+            return true;
+        }
+
         bool rowResult;
         if (checkCloudPathForMovesRenames(row, parentRow, fullPath, rowResult, belowRemovedFsNode))
         {
@@ -5744,7 +5599,7 @@ bool Sync::syncItem_XXF(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     }
 
     // Don't create a sync node for this file unless we know that it's included.
-    if (row.isExcluded(parentRow) < 0)
+    if (parentRow.isExcluded(*row.fsNode) < 1)
         return true;
 
     // Item exists locally only. Check if it was moved/renamed here, or Create
@@ -5793,7 +5648,7 @@ bool Sync::syncItem_CXX(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXX);
 
     // Don't create sync nodes unless we know the row is included.
-    if (row.isExcluded(parentRow) < 1)
+    if (parentRow.isExcluded(*row.cloudNode) < 1)
         return true;
 
     // Are we creating a node for an ignore file?
@@ -5812,7 +5667,7 @@ bool Sync::syncItem_CXF(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXF);
 
     // Don't create a node for this file unless we know it's included.
-    if (row.isExcluded(parentRow) < 1)
+    if (parentRow.isExcluded(row.fsNode->localname, row.fsNode->type) < 1)
         return true;
 
     // Item exists locally and remotely but we haven't synced them previously
@@ -6325,7 +6180,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
     ProgressingMonitor monitor(syncs);
 
     // Don't do anything unless we know the row's included.
-    if (row.isExcluded(parentRow) < 1)
+    if (parentRow.isExcluded(*row.cloudNode) < 1)
     {
         // But only if we weren't already downloading.
         if (!row.syncNode->transferSP)
@@ -6636,6 +6491,10 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 
         // Is there a sync node associated with the move target?
         node = syncs.localNodeByCloudPath(path, &parent, &remainderPath);
+
+        // We found ourself so we can't be a move source.
+        if (node == row.syncNode)
+            return MT_NONE;
 
         // A sync node exists and might be detected as a move target.
         if (node)

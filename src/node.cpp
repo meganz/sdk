@@ -2650,8 +2650,9 @@ bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
     // Specialization only meaningful for directories.
     assert(type == FOLDERNODE);
 
-    // We should never be called if the size is unknown.
-    assert(size >= 0);
+    // Consider files of unknown size included.
+    if (size < 0)
+        return false;
 
     // Check whether this file is excluded by any size filters.
     for (auto* node = this; node; node = node->parent)
@@ -2774,7 +2775,7 @@ void LocalNode::ignoreFileRemoved()
     parent->clearFilters();
 }
 
-int LocalNode::isExcluded(const string& name, nodetype_t type) const
+int LocalNode::isExcluded(const string& name, nodetype_t type, m_off_t size) const
 {
     assert(this->type == FOLDERNODE);
 
@@ -2783,7 +2784,7 @@ int LocalNode::isExcluded(const string& name, nodetype_t type) const
     auto fsType = sync->mFilesystemType;
     auto localname = LocalPath::fromName(name, *fsAccess, fsType);
 
-    return isExcluded(localname, type);
+    return isExcluded(localname, type, size);
 }
 
 int LocalNode::isExcluded() const

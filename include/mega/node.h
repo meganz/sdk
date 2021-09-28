@@ -740,7 +740,7 @@ public:
     // Query whether a file is excluded by this node or one of its parents.
     template<typename PathType>
     typename std::enable_if<IsPath<PathType>::value, int>::type
-    isExcluded(const PathType& path, nodetype_t type) const
+    isExcluded(const PathType& path, nodetype_t type, m_off_t size = -1) const
     {
         // This specialization is only meaningful for directories.
         assert(this->type == FOLDERNODE);
@@ -812,6 +812,10 @@ public:
                 if (!node)
                     return 1;
             }
+
+            // Is the file excluded by any size filters?
+            if (node->isExcluded(namePath, size))
+                return -1;
         }
 
         // Is the file excluded by any name filters?
@@ -823,7 +827,7 @@ public:
     }
 
     // Specialization of above intended for cloud name queries.
-    int isExcluded(const string& name, nodetype_t type) const;
+    int isExcluded(const string& name, nodetype_t type, m_off_t size = -1) const;
 
     // Query this node's exclusion state.
     int isExcluded() const;

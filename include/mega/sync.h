@@ -263,16 +263,15 @@ struct syncRow
     // Can our ignore file be processed alongside other rows?
     bool ignoreFileStable() const;
 
-    // What is this row's exclusion state?
-    int isExcluded(const syncRow& parentRow) const;
+    // Convenience specializations.
+    int isExcluded(const CloudNode& node) const;
+    int isExcluded(const FSNode& node) const;
+    int isExcluded(const LocalPath& name, nodetype_t type) const;
 
     // Does this row represent an ignore file?
     bool isIgnoreFile() const;
 
 private:
-    // Cached exclusion state.
-    mutable int mExcluded = INT_MIN;
-
     // Whether our ignore file requires exclusive processing.
     bool mIgnoreFileChanged = false;
 };
