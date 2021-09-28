@@ -122,7 +122,7 @@ struct MEGA_API MediaFileInfo
     std::map<UploadHandle, queuedvp> uploadFileAttributes;
 
     // request MediaCodecs from Mega.  Only do this the first time we know we will need them.
-    void requestCodecMappingsOneTime(MegaClient* client, LocalPath* ifSuitableFilename);
+    void requestCodecMappingsOneTime(MegaClient* client, const LocalPath& ifSuitableFilename);
     static void onCodecMappingsReceiptStatic(MegaClient* client, int codecListVersion);
     void onCodecMappingsReceipt(MegaClient* client, int codecListVersion);
     void ReadIdRecords(std::map<std::string, unsigned>&  data, JSON& json);
