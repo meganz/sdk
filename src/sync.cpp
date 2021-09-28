@@ -5474,7 +5474,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
     assert(syncs.onSyncThread());
 
-    auto isIgnoreFile = row.isIgnoreFile();
+    //auto isIgnoreFile = row.isIgnoreFile();
 
     // check for cases in progress that we shouldn't be re-evaluating yet
     if (auto* s = row.syncNode)

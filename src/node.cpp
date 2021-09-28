@@ -2750,7 +2750,7 @@ bool LocalNode::ignoreFileChanged(const FileFingerprint& fingerprint) const
     return parent->mFilterChain.changed(fingerprint);
 }
 
-bool LocalNode::ignoreFileDownloading()
+void LocalNode::ignoreFileDownloading()
 {
     // Only meaningful for ignore files.
     assert(mIsIgnoreFile);
