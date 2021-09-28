@@ -18319,6 +18319,8 @@ class MegaApi
         /**
          * @brief Allows to start chat call in a chat room
          *
+         * The associated request type with this request is MegaRequest::TYPE_START_CHAT_CALL
+         *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          *
@@ -18338,6 +18340,8 @@ class MegaApi
 
         /**
          * @brief Allow to join chat call
+         *
+         * The associated request type with this request is MegaRequest::TYPE_JOIN_CHAT_CALL
          *
          * * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
@@ -18359,7 +18363,9 @@ class MegaApi
         /**
          * @brief Allow to end chat call
          *
-         * * Valid data in the MegaRequest object received on all callbacks:
+         * The associated request type with this request is MegaRequest::TYPE_END_CHAT_CALL
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getParentHandle - Returns the call identifier
          * - MegaRequest::getAccess - Returns the reason to end call
@@ -18369,7 +18375,7 @@ class MegaApi
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param callid MegaHandle that identifies the call
-         * @param reason Reason to end call
+         * @param reason Reason to end call (Valid value END_CALL_REASON_REJECTED)
          * @param listener MegaRequestListener to track this request
          */
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
