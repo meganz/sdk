@@ -4504,8 +4504,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
         if (sync->statecachetable)
         {
             sync->statecachetable->remove();
-            delete sync->statecachetable;
-            sync->statecachetable = NULL;
+            sync->statecachetable.reset();
         }
     });
 

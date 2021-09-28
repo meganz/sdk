@@ -304,10 +304,10 @@ public:
     LocalPath localdebris;
 
     // permanent lock on the debris/tmp folder
-    std::unique_ptr<FileAccess> tmpfa;
+    unique_ptr<FileAccess> tmpfa;
 
     // state cache table
-    DbTable* statecachetable = nullptr;
+    unique_ptr<DbTable> statecachetable;
 
     // move file or folder to localdebris
     bool movetolocaldebris(LocalPath& localpath);

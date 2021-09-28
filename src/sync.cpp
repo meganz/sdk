@@ -804,7 +804,6 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     localnodes[FOLDERNODE] = 0;
 
     state() = SYNC_INITIALSCAN;
-    statecachetable = NULL;
 
     fullscan = true;
     scanseqno = 0;
@@ -913,7 +912,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable = client->dbaccess->open(client->rng, *client->fsaccess, dbname);
+            statecachetable.reset(client->dbaccess->open(client->rng, *client->fsaccess, dbname));
 
             readstatecache();
         }
@@ -938,8 +937,8 @@ Sync::~Sync()
         client->proctree(localroot->node, &tdsg);
     }
 
-    // The database is closed; deleting localnodes will not remove them
-    delete statecachetable;
+    // Close the database so that deleting localnodes will not remove them
+    statecachetable.reset();
 
     client->syncactivity = true;
 
@@ -1145,6 +1144,7 @@ void Sync::cachenodes()
     {
         deleteq.clear();
         insertq.clear();
+        return;
     }
 
     if ((state() == SYNC_ACTIVE ||
@@ -1197,6 +1197,16 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     {
         // Should "user-disable" external backups...
         newEnableFlag &= config.isInternal();
+    }
+
+    if (!newEnableFlag && statecachetable)
+    {
+        // make sure db is up to date before we close it.
+        cachenodes();
+
+        // remove the LocalNode database files on sync disablement (historic behaviour; sync re-enable with LocalNode state from non-matching SCSN is not supported (yet))
+        statecachetable->remove();
+        statecachetable.reset();
     }
 
     config.setError(newSyncError);
@@ -3623,13 +3633,7 @@ void Syncs::removeSyncByIndex(size_t index)
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
             syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-
-            if (syncPtr->statecachetable)
-            {
-                syncPtr->statecachetable->remove();
-                delete syncPtr->statecachetable;
-                syncPtr->statecachetable = NULL;
-            }
+            assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
 
@@ -3658,14 +3662,7 @@ void Syncs::unloadSyncByIndex(size_t index)
             // if it was running, the app gets a callback saying it's no longer active
             // SYNC_CANCELED is a special value that means we are shutting it down without changing config
             syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-
-            if (syncPtr->statecachetable)
-            {
-                // sync LocalNode database (if any) will be closed
-                // deletion of the sync object won't affect the database
-                delete syncPtr->statecachetable;
-                syncPtr->statecachetable = NULL;
-            }
+            assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
 
