@@ -504,9 +504,6 @@ public:
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
-    bool collectIgnoreFileFailures(list<LocalPath>& paths) const;
-    void collectIgnoreFileFailures(const LocalNode& node, list<LocalPath>& paths) const;
-
     bool collectScanBlocked(list<LocalPath>& paths) const;
     void collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) const;
 
