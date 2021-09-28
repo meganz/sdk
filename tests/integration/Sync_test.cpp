@@ -903,6 +903,33 @@ struct StandardClient : public MegaApp
         received_syncs_restored = true;
     }
 
+    bool received_node_actionpackets = false;
+    std::condition_variable nodes_updated_cv;
+
+    void nodes_updated(Node** nodes, int numNodes) override
+    {
+        if (!nodes)
+        {
+            out() << clientname << "nodes_updated: total reset.  total node count now: " << numNodes;
+            return;
+        }
+        if (logcb)
+        {
+            lock_guard<mutex> g(om);
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();
+        }
+        received_node_actionpackets = true;
+        nodes_updated_cv.notify_all();
+    }
+
+    bool waitForNodesUpdated(unsigned numSeconds)
+    {
+        mutex nodes_updated_cv_mutex;
+        std::unique_lock<mutex> g(nodes_updated_cv_mutex);
+        nodes_updated_cv.wait_for(g, std::chrono::seconds(numSeconds),
+                                  [&](){ return received_node_actionpackets; });
+        return received_node_actionpackets;
+    }
 
     void syncupdate_stateconfig(const SyncConfig& config) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << "syncupdate_stateconfig() " << toHandle(config.mBackupId); } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_scanning()" << b; } }
@@ -3632,13 +3659,22 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
+    LOG_debug << "----- making sync change to test, now -----";
+    clientA1.received_node_actionpackets = false;
+    clientA2.received_node_actionpackets = false;
+
     // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
     error_code rename_error;
     fs::rename(clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1", clientA1.syncSet(backupId1).localpath / "f_2_1", rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
 
-    // let them catch up
-    waitonsyncs(std::chrono::seconds(8), &clientA1, &clientA2);
+    // client1 should send a rename command to the API
+    // both client1 and client2 should receive the corresponding actionpacket
+    ASSERT_TRUE(clientA1.waitForNodesUpdated(30)) << " no actionpacket received in clientA1 for rename";
+    ASSERT_TRUE(clientA2.waitForNodesUpdated(30)) << " no actionpacket received in clientA2 for rename";
+
+    // sync activity should not take much longer after that.
+    waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(model.movenode("f/f_2/f_2_1", "f"));
@@ -3682,12 +3718,23 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_2"), backupId22));
     ASSERT_TRUE(clientA3.confirmModel_mainthread(model.findnode("f"), backupId31));
 
+    LOG_debug << "----- making sync change to test, now -----";
+    clientA1.received_node_actionpackets = false;
+    clientA2.received_node_actionpackets = false;
+    clientA3.received_node_actionpackets = false;
+
     // move a folder form one local synced folder to another local synced folder and see if we sync correctly and catch up in A2 and A3 (mover and observer syncs)
     error_code rename_error;
     fs::path path1 = clientA1.syncSet(backupId11).localpath / "f_0_1";
     fs::path path2 = clientA1.syncSet(backupId12).localpath / "f_2_1" / "f_2_1_0" / "f_0_1";
     fs::rename(path1, path2, rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
+
+    // client1 should send a rename command to the API
+    // both client1 and client2 should receive the corresponding actionpacket
+    ASSERT_TRUE(clientA1.waitForNodesUpdated(30)) << " no actionpacket received in clientA1 for rename";
+    ASSERT_TRUE(clientA2.waitForNodesUpdated(30)) << " no actionpacket received in clientA2 for rename";
+    ASSERT_TRUE(clientA3.waitForNodesUpdated(30)) << " no actionpacket received in clientA3 for rename";
 
     // let them catch up
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2, &clientA3);
