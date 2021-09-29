@@ -5504,7 +5504,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         }
 
         s->checkTransferCompleted();
-        
+
         // Is the row excluded?
         if (s->isExcluded() < 0)
         {
@@ -5525,214 +5525,186 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 assert(!s->rareRO().moveFromHere);
                 assert(!s->rareRO().moveToHere);
 
-                return syncItem_XSX(row, parentRow, fullPath);
+                return resolve_delSyncNode(row, parentRow, fullPath);
             }
         }
     }
 
     switch (row.type())
     {
-    case SRT_XXX:
-        break;
-    case SRT_XXF:
-        return syncItem_XXF(row, parentRow, fullPath);
-    case SRT_XSX:
-        return syncItem_XSX(row, parentRow, fullPath);
-    case SRT_XSF:
-        return syncItem_XSF(row, parentRow, fullPath);
-    case SRT_CXX:
-        return syncItem_CXX(row, parentRow, fullPath);
-    case SRT_CXF:
-        return syncItem_CXF(row, parentRow, fullPath);
-    case SRT_CSX:
-        return syncItem_CSX(row, parentRow, fullPath);
     case SRT_CSF:
-        return syncItem_CSF(row, parentRow, fullPath);
-    }
-
-    return syncItem_XXX(row, parentRow, fullPath);
-}
-
-bool Sync::syncItem_XXX(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
-{
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXXX);
-
-    // no entries - can occur when names clash, but should be caught above
-    assert(false);
-
-    return false;
-}
-
-bool Sync::syncItem_XXF(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
-{
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXXF);
-
-    // Have we detected a new ignore file?
-    if (row.isIgnoreFile())
     {
-        // Don't process any other rows.
-        parentRow.ignoreFileChanging();
+        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSF);
 
-        // Create a sync node to represent the ignore file.
-        //
-        // This is necessary even when the ignore file itself is excluded as
-        // we still need to load the filters it defines.
-        return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
-    }
+        // all three exist; compare
+        bool fsCloudEqual = syncEqual(*row.cloudNode, *row.fsNode);
+        bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
+        bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
 
-    // Don't create a sync node for this file unless we know that it's included.
-    if (parentRow.isExcluded(*row.fsNode) < 1)
-        return true;
-
-    // Item exists locally only. Check if it was moved/renamed here, or Create
-    // If creating, next run through will upload it
-    return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
-}
-
-bool Sync::syncItem_XSX(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
-{
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSX);
-
-    // local and cloud disappeared; remove sync item also
-    return resolve_delSyncNode(row, parentRow, fullPath);
-}
-
-bool Sync::syncItem_XSF(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
-{
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSF);
-
-    // cloud item absent
-    if (isBackupAndMirroring())
-    {
-        // for backups, we only change the cloud
-        return resolve_upsync(row, parentRow, fullPath);
-    }
-    
-    if (!row.syncNode->syncedCloudNodeHandle.isUndef()
-        && row.syncNode->fsid_lastSynced != UNDEF
-        && row.syncNode->fsid_lastSynced == row.fsNode->fsid
-        // on disk, content could be changed without an fsid change
-        && syncEqual(*row.fsNode, *row.syncNode))
-    {
-        // used to be fully synced and the fs side still has that version
-        // remove in the fs (if not part of a move)
-        return resolve_cloudNodeGone(row, parentRow, fullPath);
-    }
-    
-    // either
-    //  - cloud item did not exist before; upsync
-    //  - the fs item has changed too; upsync (this lets users recover from the both sides changed state - user deletes the one they don't want anymore)
-    return resolve_upsync(row, parentRow, fullPath);
-}
-
-bool Sync::syncItem_CXX(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
-{
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXX);
-
-    // Don't create sync nodes unless we know the row is included.
-    if (parentRow.isExcluded(*row.cloudNode) < 1)
-        return true;
-
-    // Are we creating a node for an ignore file?
-    if (row.isIgnoreFile())
-    {
-        // Then let the parent know we want to process it exclusively.
-        parentRow.ignoreFileChanging();
-    }
-
-    // item exists remotely only
-    return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
-}
-
-bool Sync::syncItem_CXF(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
-{
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXF);
-
-    // Don't create a node for this file unless we know it's included.
-    if (parentRow.isExcluded(row.fsNode->localname, row.fsNode->type) < 1)
-        return true;
-
-    // Item exists locally and remotely but we haven't synced them previously
-    // If they are equal then join them with a Localnode. Othewise report or choose greater mtime.
-    if (row.fsNode->type != row.cloudNode->type)
-    {
-        return resolve_userIntervention(row, parentRow, fullPath);
-    }
-
-    if (row.fsNode->type != FILENODE || row.fsNode->fingerprint == row.cloudNode->fingerprint)
-    {
-        return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
-    }
-
-    // When initially joining two trees together, use the old rules (pick most recent)
-    // Todo: evaluate that against asking the user as we would do for the existing-sync case
-    return resolve_pickWinner(row, parentRow, fullPath);
-}
-
-bool Sync::syncItem_CSX(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
-{
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSX);
-
-    // local item not present
-    if (isBackupAndMirroring())
-    {
-        // in mirror mode, make the cloud the same as local
-        // if backing up and not mirroring, the resolve_downsync branch will cancel the sync
-        return resolve_fsNodeGone(row, parentRow, fullPath);
-    }
-
-    if (row.syncNode->fsid_lastSynced != UNDEF
-        && !row.syncNode->syncedCloudNodeHandle.isUndef()
-        // for cloud nodes, same handle must be same content        
-        && row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle)
-    {
-        // used to be fully synced and the cloud side still has that version
-        // remove in the cloud (if not part of a move)
-        return resolve_fsNodeGone(row, parentRow, fullPath);
-    }
-    
-    // either
-    //  - fs item did not exist before; downsync
-    //  - the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
-    return resolve_downsync(row, parentRow, fullPath, false);
-}
-
-bool Sync::syncItem_CSF(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
-{
-    CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSF);
-
-    // all three exist; compare
-    bool fsCloudEqual = syncEqual(*row.cloudNode, *row.fsNode);
-    bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
-    bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
-
-    if (fsCloudEqual)
-    {
-        // success! this row is synced
-        if (!cloudEqual || !fsEqual)
+        if (fsCloudEqual)
         {
-            row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
-            assert(row.syncNode->syncedFingerprint == row.cloudNode->fingerprint);
-            statecacheadd(row.syncNode);
+            // success! this row is synced
+            if (!cloudEqual || !fsEqual)
+            {
+                row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
+                assert(row.syncNode->syncedFingerprint == row.cloudNode->fingerprint);
+                statecacheadd(row.syncNode);
+            }
+
+            return resolve_rowMatched(row, parentRow, fullPath);
         }
 
-        return resolve_rowMatched(row, parentRow, fullPath);
-    }
+        if (cloudEqual || isBackupAndMirroring())
+        {
+            // filesystem changed, put the change
+            return resolve_upsync(row, parentRow, fullPath);
+        }
 
-    if (cloudEqual || isBackupAndMirroring())
+        if (fsEqual)
+        {
+            // cloud has changed, get the change
+            return resolve_downsync(row, parentRow, fullPath, true);
+        }
+
+        // both changed, so we can't decide without the user's help
+        return resolve_userIntervention(row, parentRow, fullPath);
+    }
+    case SRT_XSF:
     {
-        // filesystem changed, put the change
+        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSF);
+
+        // cloud item absent
+        if (isBackupAndMirroring())
+        {
+            // for backups, we only change the cloud
+            return resolve_upsync(row, parentRow, fullPath);
+        }
+
+        if (!row.syncNode->syncedCloudNodeHandle.isUndef()
+            && row.syncNode->fsid_lastSynced != UNDEF
+            && row.syncNode->fsid_lastSynced == row.fsNode->fsid
+            // on disk, content could be changed without an fsid change
+            && syncEqual(*row.fsNode, *row.syncNode))
+        {
+            // used to be fully synced and the fs side still has that version
+            // remove in the fs (if not part of a move)
+            return resolve_cloudNodeGone(row, parentRow, fullPath);
+        }
+
+        // either
+        //  - cloud item did not exist before; upsync
+        //  - the fs item has changed too; upsync (this lets users recover from the both sides changed state - user deletes the one they don't want anymore)
         return resolve_upsync(row, parentRow, fullPath);
     }
-
-    if (fsEqual)
+    case SRT_CSX:
     {
-        // cloud has changed, get the change
-        return resolve_downsync(row, parentRow, fullPath, true);
-    }
+        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSX);
 
-    // both changed, so we can't decide without the user's help
-    return resolve_userIntervention(row, parentRow, fullPath);
+        // local item not present
+        if (isBackupAndMirroring())
+        {
+            // in mirror mode, make the cloud the same as local
+            // if backing up and not mirroring, the resolve_downsync branch will cancel the sync
+            return resolve_fsNodeGone(row, parentRow, fullPath);
+        }
+
+        if (row.syncNode->fsid_lastSynced != UNDEF
+            && !row.syncNode->syncedCloudNodeHandle.isUndef()
+            // for cloud nodes, same handle must be same content
+            && row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle)
+        {
+            // used to be fully synced and the cloud side still has that version
+            // remove in the cloud (if not part of a move)
+            return resolve_fsNodeGone(row, parentRow, fullPath);
+        }
+
+        // either
+        //  - fs item did not exist before; downsync
+        //  - the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
+        return resolve_downsync(row, parentRow, fullPath, false);
+    }
+    case SRT_XSX:
+    {
+        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSX);
+
+        // local and cloud disappeared; remove sync item also
+        return resolve_delSyncNode(row, parentRow, fullPath);
+    }
+    case SRT_CXF:
+    {
+        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXF);
+
+        // Don't create a node for this file unless we know it's included.
+        if (parentRow.isExcluded(row.fsNode->localname, row.fsNode->type) < 1)
+            return true;
+
+        // Item exists locally and remotely but we haven't synced them previously
+        // If they are equal then join them with a Localnode. Othewise report or choose greater mtime.
+        if (row.fsNode->type != row.cloudNode->type)
+        {
+            return resolve_userIntervention(row, parentRow, fullPath);
+        }
+
+        if (row.fsNode->type != FILENODE || row.fsNode->fingerprint == row.cloudNode->fingerprint)
+        {
+            return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+        }
+
+        // When initially joining two trees together, use the old rules (pick most recent)
+        // Todo: evaluate that against asking the user as we would do for the existing-sync case
+        return resolve_pickWinner(row, parentRow, fullPath);
+    }
+    case SRT_XXF:
+    {
+        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXXF);
+
+        // Have we detected a new ignore file?
+        if (row.isIgnoreFile())
+        {
+            // Don't process any other rows.
+            parentRow.ignoreFileChanging();
+
+            // Create a sync node to represent the ignore file.
+            //
+            // This is necessary even when the ignore file itself is excluded as
+            // we still need to load the filters it defines.
+            return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+        }
+
+        // Don't create a sync node for this file unless we know that it's included.
+        if (parentRow.isExcluded(*row.fsNode) < 1)
+            return true;
+
+        // Item exists locally only. Check if it was moved/renamed here, or Create
+        // If creating, next run through will upload it
+        return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+    }
+    case SRT_CXX:
+    {
+        CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXX);
+
+        // Don't create sync nodes unless we know the row is included.
+        if (parentRow.isExcluded(*row.cloudNode) < 1)
+            return true;
+
+        // Are we creating a node for an ignore file?
+        if (row.isIgnoreFile())
+        {
+            // Then let the parent know we want to process it exclusively.
+            parentRow.ignoreFileChanging();
+        }
+
+        // item exists remotely only
+        return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
+    }
+    } // switch
+
+    // SRT_XXX  (should not occur)
+    // no entries - can occur when names clash, but should be caught above
+    CodeCounter::ScopeTimer rstXXX(syncs.mClient.performanceStats.syncItemXXX);
+    assert(false);
+    return false;
+
 }
 
 bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
@@ -6042,7 +6014,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 // We'll revisit later if needed.
                 return true;
             }
-            
+
             // Sanity.
             assert(row.syncNode->parent);
             assert(row.syncNode->parent == parentRow.syncNode);
