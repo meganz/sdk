@@ -704,7 +704,7 @@ public:
             fsAccess.rmdirlocal(rootPath);
 
             // Create root path.
-            result = fsAccess.mkdirlocal(rootPath, false);
+            result = fsAccess.mkdirlocal(rootPath, false, true);
             assert(result);
         }
 
