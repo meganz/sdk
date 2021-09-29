@@ -681,7 +681,7 @@ struct MEGA_API LocalNode : public Cacheable
 private:
     // Filter rules applicable below this node.
     FilterChain mFilterChain;
-    
+
     struct
     {
         // Whether this node is excluded.
@@ -729,7 +729,7 @@ public:
     bool ignoreFileLoad(const LocalPath& path);
 
     // Signal that this ignore file is downloading.
-    bool ignoreFileDownloading();
+    void ignoreFileDownloading();
 
     // Signal that this ignore file has been removed.
     void ignoreFileRemoved();
