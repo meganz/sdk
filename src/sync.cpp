@@ -407,7 +407,8 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     {
         cloudPath += row.cloudNode->name;
     }
-    else if (row.syncNode && syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, cn, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
+    else if (row.syncNode && syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, cn,
+        nullptr, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
     {
         cloudPath += cn.name;
     }
@@ -762,7 +763,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     assert(cdebris.empty() || clocaldebris.empty());
     assert(!cdebris.empty() || !clocaldebris.empty());
 
-    syncs.lookupCloudNode(rootNodeHandle, cloudRoot, &cloudRootPath, nullptr, nullptr, Syncs::FOLDER_ONLY);
+    syncs.lookupCloudNode(rootNodeHandle, cloudRoot, &cloudRootPath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
     isnetwork = false;
     inshare = cinshare;
@@ -1643,8 +1644,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             //    before we can be sure we can remove nodes or upload/download.
             CloudNode sourceCloudNode, targetCloudNode;
             string sourceCloudNodePath, targetCloudNodePath;
-            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, Syncs::LATEST_VERSION);
-            bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, Syncs::FOLDER_ONLY);
+            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION);
+            bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
             if (foundSourceCloudNode && foundTargetCloudNode)
             {
@@ -4326,7 +4327,7 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 
                 CloudNode cloudNode;
                 string cloudNodePath;
-                bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, nullptr, nullptr, Syncs::FOLDER_ONLY);
+                bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
                 updateSyncRemoteLocation(*unifiedSync, foundCloudNode, cloudNodePath); //updates cache & notice app of this change
             }
@@ -6388,7 +6389,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
         MT_UNDERWAY
     }; // MoveType
 
-    auto isPossibleCloudMoveSource = [&](string& path) {
+    auto isPossibleCloudMoveSource = [&](string& cloudPath) {
         // Is the move source an ignore file?
         if (row.syncNode->isIgnoreFile())
         {
@@ -6398,18 +6399,20 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
 
         CloudNode cloudNode;
         bool active = false;
+        bool nodeIsDefinitelyExcluded = false;
         bool found = false;
 
         // Does the remote associated with this row exist elsewhere?
         found = syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle,
                                       cloudNode,
-                                      &path,
+                                      &cloudPath,
                                       nullptr,
                                       &active,
+                                      &nodeIsDefinitelyExcluded,
                                       Syncs::LATEST_VERSION);
 
         // Remote doesn't exist or isn't under an active sync.
-        if (!found || !active)
+        if (!found || !active || nodeIsDefinitelyExcluded)
             return MT_NONE;
 
         // Does the remote represent an ignore file?
@@ -6433,33 +6436,8 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
             }
         }
 
-        LocalNode* node = nullptr;
-        LocalNode* parent = nullptr;
-        RemotePath remainderPath;
-
-        // Is there a sync node associated with the move target?
-        node = syncs.localNodeByCloudPath(path, &parent, &remainderPath);
-
-        // We found ourself so we can't be a move source.
-        if (node == row.syncNode)
-            return MT_NONE;
-
-        // A sync node exists and might be detected as a move target.
-        if (node)
-            return MT_PENDING;
-
-        // Sync node doesn't exist yet. Would it ever be created?
-        auto isExcluded = parent->isExcluded(remainderPath, cloudNode.type);
-
-        // Sync node would be undefined or included.
-        if (isExcluded >= 0)
-        {
-            // So it could be created if we gave the engine time.
-            return MT_PENDING;
-        }
-
-        // Sync node would never be created so it can't be a move target.
-        return MT_NONE;
+        // It's in an active, unpaused sync, and not excluded
+        return MT_PENDING;
     };
 
     assert(syncs.onSyncThread());
@@ -7048,7 +7026,7 @@ void Syncs::processTriggerHandles()
                 CloudNode cloudNode;
                 string cloudNodePath;
                 bool isInTrash = false;
-                bool found = lookupCloudNode(h, cloudNode, &cloudNodePath, &isInTrash, nullptr, Syncs::EXACT_VERSION);
+                bool found = lookupCloudNode(h, cloudNode, &cloudNodePath, &isInTrash, nullptr, nullptr, Syncs::EXACT_VERSION);
                 if (found && !isInTrash)
                 {
                     // if the parent is a file, then it's just old versions being mentioned in the actionpackets, ignore
@@ -7953,7 +7931,7 @@ void Syncs::syncLoop()
                     }
                 }
 
-                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle, sync->cloudRoot, &sync->cloudRootPath, nullptr, nullptr, Syncs::FOLDER_ONLY);
+                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle, sync->cloudRoot, &sync->cloudRootPath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
                 if (!foundRootNode && sync->state() != SYNC_FAILED)
                 {
@@ -7990,7 +7968,7 @@ void Syncs::syncLoop()
             CloudNode cloudNode;
             string cloudNodePath;
             bool inTrash = false;
-            bool foundCloudNode = lookupCloudNode(us->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, &inTrash, nullptr, Syncs::FOLDER_ONLY);
+            bool foundCloudNode = lookupCloudNode(us->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, &inTrash, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
             // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
             bool pathChanged = updateSyncRemoteLocation(*us, foundCloudNode, cloudNodePath);
@@ -8470,16 +8448,18 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     tp->proc(*n->sync->syncs.fsaccess, n);
 }
 
-bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveUnpausedSyncQuery, WhichCloudVersion whichVersion)
+bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
+        bool* nodeIsInActiveUnpausedSyncQuery, bool* nodeIsDefinitelyExcluded, WhichCloudVersion whichVersion)
 {
     // we have to avoid doing these lookups when the client thread might be changing the Node tree
     // so we use the mutex to prevent access during that time - which is only actionpacket processing.
     assert(onSyncThread());
+    assert(!nodeIsDefinitelyExcluded || nodeIsInActiveUnpausedSyncQuery); // if you ask if it's excluded, you must ask if it's in sync too
 
     if (h.isUndef()) return false;
 
-    std::vector<NodeHandle> activeSyncHandles;
-    std::vector<Node*> activeSyncRoots;
+    vector<pair<NodeHandle, Sync*>> activeSyncHandles;
+    vector<pair<Node*, Sync*>> activeSyncRoots;
 
     if (nodeIsInActiveUnpausedSyncQuery)
     {
@@ -8489,7 +8469,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         {
             if (us->mSync && us->mSync->active() && !us->mSync->syncPaused)
             {
-                activeSyncHandles.push_back(us->mConfig.mRemoteNode);
+                activeSyncHandles.emplace_back(us->mConfig.mRemoteNode, us->mSync.get());
             }
         }
     }
@@ -8500,9 +8480,9 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     {
         for (auto & rh : activeSyncHandles)
         {
-            if (Node* rn = mClient.nodeByHandle(rh, true))
+            if (Node* rn = mClient.nodeByHandle(rh.first, true))
             {
-                activeSyncRoots.push_back(rn);
+                activeSyncRoots.emplace_back(rn, rh.second);
             }
         }
     }
@@ -8543,9 +8523,54 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         {
             for (auto & rn : activeSyncRoots)
             {
-                if (n->isbelow(rn))
+                if (n->isbelow(rn.first) &&
+                    !rn.second->syncPaused)
                 {
                     *nodeIsInActiveUnpausedSyncQuery = true;
+
+                    if (nodeIsDefinitelyExcluded)
+                    {
+                        // get the parent handles back to sync root
+                        vector<std::pair<NodeHandle, string>> parents;
+                        for (const Node* nptr = n->parent;
+                            nptr->nodeHandle() != rn.second->cloudRoot.handle;
+                            nptr = nptr->parent)
+                        {
+                            parents.emplace_back(nptr->nodeHandle(), nptr->displayname());
+                        }
+
+                        // trace those down from LocalNode sync root to determine exclusion
+                        *nodeIsDefinitelyExcluded = false;
+                        LocalNode* ln = rn.second->localroot.get();
+                        while (!parents.empty())
+                        {
+                            if (LocalNode* child = ln->findChildWithSyncedNodeHandle(parents.back().first))
+                            {
+                                parents.pop_back();
+                                ln = child;
+                                auto e =  ln->isExcluded();
+                                if (e < 0)
+                                {
+                                    *nodeIsDefinitelyExcluded = true;
+                                    break;
+                                }
+                                else if (e == 0)
+                                {
+                                    // indeterminate - so, not for-sure excluded
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                // we might not have created this level yet, or the node might be excluded
+                                // best estimate is by checking exclusion by name
+                                // perhaps one day we might reuse syncedNodeHandle for excluded nodes so the lookup above would work either way
+                                *nodeIsDefinitelyExcluded = 0 > ln->isExcluded(RemotePath(parents.back().second), n->type, n->size);
+                                // we can't reliably delve further either way
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -8626,94 +8651,6 @@ void Syncs::ignoreFileLoadFailure(const Sync& sync, const LocalPath& path)
 
     // Let the application know an ignore file has failed to load.
     mClient.app->syncupdate_filter_error(sync.getConfig());
-}
-
-LocalNode* Syncs::localNodeByCloudPath(const RemotePath& path, LocalNode** outParent, RemotePath* outPath)
-{
-    // Sanity.
-    assert(!outParent || !*outParent);
-    assert(!outPath || outPath->empty());
-
-    // For simplicity.
-    LocalNode* dummyParent = nullptr;
-    RemotePath dummyPath;
-
-    if (!outParent)
-        outParent = &dummyParent;
-
-    if (!outPath)
-        outPath = &dummyPath;
-
-    // What sync contains the path?
-    auto* sync = syncContainingPath(path, true);
-
-    // No sync contains the path.
-    if (!sync)
-        return *outPath = path, nullptr;
-
-    // Make sure we have exclusive access to the remote node tree.
-    lock_guard<mutex> guard(mClient.nodeTreeMutex);
-
-    // Convenience.
-    const auto& config = sync->getConfig();
-    const auto& rootHandle = config.mRemoteNode;
-    const auto& rootPath = config.mOriginalPathOfRemoteRootNode;
-
-    // Get our hands on the root node.
-    Node* m = mClient.nodeByHandle(rootHandle);
-    Node* n = nullptr;
-
-    // Local nodes corresponding to the above.
-    LocalNode* lm = findLocalNodeByNodeHandle(rootHandle);
-    LocalNode* ln = nullptr;
-
-    // Shouldn't be possible but check anyway.
-    if (!(m || lm))
-        return *outPath = path, nullptr;
-
-    // Current path component.
-    RemotePath component;
-
-    // Position in remote path.
-    size_t i = rootPath.size();
-    size_t j = i;
-
-    while (path.nextPathComponent(i, component))
-    {
-        // Remember the last node we visited.
-        n = m;
-        ln = lm;
-
-        // Try and locate the next node in the chain.
-        if (!(m = m->childbyname(component)))
-            break;
-
-        // Search for the corresponding local node.
-        auto* t = findLocalNodeByNodeHandle(m->nodeHandle());
-
-        // Did we find a suitable local node?
-        if (!t || t->parent != ln)
-            break;
-
-        // Found a suitable local node.
-        lm = t;
-
-        // Remember where we were in the path.
-        j = i;
-    }
-
-    // Tell the caller what the closest node was to our target.
-    *outParent = ln;
-
-    // Did we find the node we were looking for?
-    if (lm && !path.hasNextPathComponent(j))
-        return lm;
-
-    // Let the caller know how much of the path we couldn't traverse.
-    *outPath = path.subpathFrom(j);
-
-    // Couldn't find the target.
-    return nullptr;
 }
 
 void Syncs::queueSync(std::function<void()>&& f)

@@ -1377,7 +1377,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
-    
+
         mExcluded = false;
         mRecomputeExclusionState = false;
     }
@@ -2084,7 +2084,8 @@ string LocalNode::getCloudPath() const
 
         CloudNode cn;
         string fullpath;
-        if (sync->syncs.lookupCloudNode(l->syncedCloudNodeHandle, cn, l->parent ? nullptr : &fullpath, nullptr, nullptr, Syncs::LATEST_VERSION))
+        if (sync->syncs.lookupCloudNode(l->syncedCloudNodeHandle, cn, l->parent ? nullptr : &fullpath,
+            nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
         {
             name = cn.name;
         }
@@ -2110,6 +2111,18 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
     }
 
     return it->second;
+}
+
+LocalNode* LocalNode::findChildWithSyncedNodeHandle(NodeHandle h)
+{
+    for (auto& c : children)
+    {
+        if (c.second->syncedCloudNodeHandle == h)
+        {
+            return c.second;
+        }
+    }
+    return nullptr;
 }
 
 FSNode LocalNode::getLastSyncedFSDetails()
@@ -2574,7 +2587,7 @@ bool LocalNode::loadFilters(const LocalPath& path)
     {
         // Let the engine know there's been a load failure.
         sync->syncs.ignoreFileLoadFailure(*sync, path);
-        
+
         // Clear the filter state.
         mFilterChain.clear();
     }
@@ -2640,7 +2653,7 @@ bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
 
         // Check for a filter match.
         auto result = node->mFilterChain.match(size);
-        
+
         // Was the file matched by any filters?
         if (result.matched)
             return !result.included;

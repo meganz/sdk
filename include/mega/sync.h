@@ -1056,7 +1056,8 @@ private:
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
     enum WhichCloudVersion { EXACT_VERSION, LATEST_VERSION, FOLDER_ONLY };
-    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveSync, WhichCloudVersion);
+    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
+            bool* nodeIsInActiveSync, bool* nodeIsDefinitelyExcluded, WhichCloudVersion);
 
     // Compute the path of the node associated with this handle.
     RemotePath lookupCloudNodePath(NodeHandle handle);
@@ -1162,8 +1163,6 @@ private:
     // Tracks the last recorded ignore file failure.
     IgnoreFileFailureContext mIgnoreFileFailureContext;
 
-public:
-    LocalNode* localNodeByCloudPath(const RemotePath& path, LocalNode** parent = nullptr, RemotePath* remainderPath = nullptr);
 };
 
 } // namespace

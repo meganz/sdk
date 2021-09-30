@@ -252,7 +252,7 @@ private:
     string mPath;
 }; // RemotePath
 
-// For convenience.
+// For convenience.  first = leaf name only   second = relative path
 using RemotePathPair = pair<RemotePath, RemotePath>;
 
 // For metaprogramming.

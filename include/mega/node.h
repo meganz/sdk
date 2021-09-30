@@ -631,8 +631,10 @@ struct MEGA_API LocalNode : public Cacheable
     // build full remote path to this node (might not exist anymore, of course)
     string getCloudPath() const;
 
-    // return child node by name
+    // return child node by name   (TODO: could this be ambiguous, especially with case insensitive filesystems)
     LocalNode* childbyname(LocalPath*);
+
+    LocalNode* findChildWithSyncedNodeHandle(NodeHandle h);
 
     FSNode getLastSyncedFSDetails();
     FSNode getScannedFSDetails();
