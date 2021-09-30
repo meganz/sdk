@@ -20356,7 +20356,8 @@ void MegaApiImpl::sendPendingRequests()
 
             if (type == MegaApi::NODE_ATTR_FAV)
             {
-                int count = request->getNumDetails();
+                // TODO nodes on Demand implement FavouriteProcessor
+                //int count = request->getNumDetails();
                 MegaHandle folderHandle = request->getNodeHandle();
                 Node *node = nullptr;
                 if (!ISUNDEF(folderHandle))
