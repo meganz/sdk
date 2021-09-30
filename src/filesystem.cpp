@@ -342,7 +342,7 @@ bool RemotePath::nextPathComponent(size_t& index, RemotePath& component) const
 
     // Extract component.
     component.mPath.assign(mPath, i, index - i);
-    
+
     return true;
 }
 
@@ -365,7 +365,7 @@ RemotePath RemotePath::subpathFrom(size_t index) const
 {
     RemotePath path;
 
-    path.mPath.assign(mPath, index);
+    path.mPath = mPath.substr(index, string::npos);
 
     return path;
 }
