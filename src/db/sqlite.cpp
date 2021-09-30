@@ -679,7 +679,7 @@ bool SqliteDbTable::getNodesByName(const std::string &name, std::map<mega::NodeH
     return result == SQLITE_DONE ? true : false;
 }
 
-uint32_t SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
+int SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
     if (!db)
     {
@@ -689,7 +689,7 @@ uint32_t SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     checkTransaction();
 
     sqlite3_stmt *stmt;
-    uint32_t numChildren = 0;
+    int numChildren = 0;
     if (sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, parentHandle.as8byte()) == SQLITE_OK)
@@ -697,7 +697,7 @@ uint32_t SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
             int result;
             if ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
-               numChildren = static_cast<uint32_t>(sqlite3_column_int(stmt, 0));
+               numChildren = sqlite3_column_int(stmt, 0);
             }
         }
     }

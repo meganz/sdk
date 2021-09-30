@@ -16650,7 +16650,7 @@ node_list MegaClient::getChildren(Node* parent)
     return childrenList;
 }
 
-size_t MegaClient::getNumberOfChildren(NodeHandle parentHandle)
+int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
 {
     return sctable->getNumberOfChildrenFromNode(parentHandle);
 }
