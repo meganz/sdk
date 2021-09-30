@@ -22641,7 +22641,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             NodeCounter nc = client->getTreeInfoFromNode(node->nodeHandle(), false);
-            std::unique_ptr<MegaFolderInfo> folderInfo = make_unique<MegaFolderInfoPrivate>(nc.files, nc.folders - 1, nc.versions, nc.storage, nc.versionStorage);
+            std::unique_ptr<MegaFolderInfo> folderInfo = make_unique<MegaFolderInfoPrivate>((int)nc.files, (int)nc.folders - 1, (int)nc.versions, nc.storage, nc.versionStorage);
             request->setMegaFolderInfo(folderInfo.get());
 
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));

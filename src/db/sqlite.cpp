@@ -415,7 +415,7 @@ bool SqliteDbTable::getNodesByFingerprint(const FileFingerprint &fingerprint, st
     {
         string fp;
         fingerprint.serializefingerprint(&fp);
-        if (sqlite3_bind_blob(stmt, 1, fp.data(), fp.size(), SQLITE_STATIC) == SQLITE_OK)
+        if (sqlite3_bind_blob(stmt, 1, fp.data(), (int)fp.size(), SQLITE_STATIC) == SQLITE_OK)
         {
             while ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
@@ -451,7 +451,7 @@ bool SqliteDbTable::getNodesByOrigFingerprint(const std::string &fingerprint, st
     int result = SQLITE_ERROR;
     if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE origFingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_blob(stmt, 1, fingerprint.data(), fingerprint.size(), SQLITE_STATIC) == SQLITE_OK)
+        if (sqlite3_bind_blob(stmt, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC) == SQLITE_OK)
         {
             while ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
@@ -492,7 +492,7 @@ bool SqliteDbTable::getNodeByFingerprint(const FileFingerprint &fingerprint, Nod
     {
         string fp;
         fingerprint.serializefingerprint(&fp);
-        if (sqlite3_bind_blob(stmt, 1, fp.data(), fp.size(), SQLITE_STATIC) == SQLITE_OK)
+        if (sqlite3_bind_blob(stmt, 1, fp.data(), (int)fp.size(), SQLITE_STATIC) == SQLITE_OK)
         {
             if ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
@@ -1178,7 +1178,7 @@ std::string SqliteDbTable::getVar(const std::string& name)
     sqlite3_stmt *stmt;
     if (sqlite3_prepare(db, "SELECT value FROM vars WHERE name = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_text(stmt, 1, name.c_str(), name.length(), SQLITE_STATIC) == SQLITE_OK)
+        if (sqlite3_bind_text(stmt, 1, name.c_str(), (int)name.length(), SQLITE_STATIC) == SQLITE_OK)
         {
             if((sqlite3_step(stmt) == SQLITE_ROW))
             {
@@ -1210,9 +1210,9 @@ bool SqliteDbTable::setVar(const std::string& name, const std::string& value)
 
     if (sqlite3_prepare(db, "INSERT OR REPLACE INTO vars (name, value) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
     {
-        if (sqlite3_bind_text(stmt, 1, name.c_str(), name.length(), SQLITE_STATIC) == SQLITE_OK)
+        if (sqlite3_bind_text(stmt, 1, name.c_str(), (int)name.length(), SQLITE_STATIC) == SQLITE_OK)
         {
-            if (sqlite3_bind_blob(stmt, 2, value.data(), value.size(), SQLITE_STATIC) == SQLITE_OK)
+            if (sqlite3_bind_blob(stmt, 2, value.data(), (int)value.size(), SQLITE_STATIC) == SQLITE_OK)
             {
                 if (sqlite3_step(stmt) == SQLITE_DONE)
                 {
