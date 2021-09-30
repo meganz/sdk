@@ -88,7 +88,7 @@ public:
 
     // delete specific record
     virtual bool del(uint32_t) = 0;
-    virtual bool del(handle nodehandle) = 0;
+    virtual bool del(NodeHandle nodehandle) = 0;
     virtual bool removeNodes() = 0;
 
     // delete all records

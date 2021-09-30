@@ -59,7 +59,7 @@ public:
     bool put(uint32_t, char*, unsigned);
     bool put(Node* node) override;
     bool del(uint32_t) override;
-    bool del(handle nodehandle) override;
+    bool del(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
     void truncate() override;
     void begin() override;

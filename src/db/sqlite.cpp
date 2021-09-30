@@ -1042,7 +1042,7 @@ bool SqliteDbTable::del(uint32_t index)
     return true;
 }
 
-bool SqliteDbTable::del(handle nodehandle)
+bool SqliteDbTable::del(NodeHandle nodehandle)
 {
     if (!db)
     {
@@ -1053,7 +1053,7 @@ bool SqliteDbTable::del(handle nodehandle)
 
     char buf[64];
 
-    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle);
+    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
 
     return !sqlite3_exec(db, buf, 0, 0, NULL);
 }

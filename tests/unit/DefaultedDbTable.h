@@ -148,7 +148,7 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    bool del(mega::handle) override
+    bool del(mega::NodeHandle) override
     {
         return false;
         //throw NotImplemented{__func__};
