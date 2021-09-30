@@ -1170,7 +1170,6 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
         {
             // remove existing child linkage for slocalname
             parent->schildren.erase(slocalname.get());
-            slocalname.reset();
         }
     }
 
