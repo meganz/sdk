@@ -8841,7 +8841,6 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
-#endif
 GTEST_TEST(Sync, MoveExistingIntoNewDirectoryWhilePaused)
 {
     auto TESTROOT = makeNewTestRoot();
@@ -8906,3 +8905,4 @@ GTEST_TEST(Sync, MoveExistingIntoNewDirectoryWhilePaused)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
+#endif
