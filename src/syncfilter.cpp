@@ -264,8 +264,10 @@ void DefaultFilterChain::excludedNames(const string_vector& names)
     mExcludedNames.clear();
 
     // Translate UTF8 paths into cloud format.
-    for (auto& name : names)
+    for (auto& name : normalize(names))
     {
+        LOG_debug << "Excluded name: " << name;
+
         mExcludedNames.emplace_back(name);
         mFsAccess.unescapefsincompatible(&mExcludedNames.back());
     }
@@ -278,9 +280,14 @@ void DefaultFilterChain::excludedPaths(const string_vector& paths)
     mExcludedPaths.clear();
 
     // Translate UTF8 paths to local format.
-    for (auto& path : paths)
+    for (auto& path : normalize(paths))
     {
         LocalPath localPath = LocalPath::fromPath(path, mFsAccess);
+
+        localPath.ensureWinExtendedPathLenPrefix();
+
+        LOG_debug << "Excluded path: " << localPath.toPath();
+
         mExcludedPaths.emplace_back(std::move(localPath));
     }
 }
@@ -299,9 +306,15 @@ void DefaultFilterChain::upperLimit(std::uint64_t limit)
     mUpperLimit = limit;
 }
 
-vector<LocalPath> DefaultFilterChain::applicablePaths(const LocalPath& targetPath) const
+vector<LocalPath> DefaultFilterChain::applicablePaths(LocalPath targetPath) const
 {
     vector<LocalPath> paths;
+
+    // Make sure the namespace prefix is present.
+    //
+    // This is necessary so that we can correctly determine whether a given
+    // sync root contains some path.
+    targetPath.ensureWinExtendedPathLenPrefix();
 
     // Determine which path exclusions are applicable to the target.
     for (auto& path : mExcludedPaths)
@@ -346,6 +359,23 @@ string DefaultFilterChain::generate(const LocalPath& targetPath) const
         ostream << "-p:" << path.toName(mFsAccess) << "\n";
 
     return ostream.str();
+}
+
+string_vector DefaultFilterChain::normalize(const string_vector& strings) const
+{
+    string_vector result;
+
+    for (auto& string : strings)
+    {
+        auto temp = string;
+
+        mFsAccess.normalize(&temp);
+
+        if (!temp.empty())
+            result.emplace_back(std::move(temp));
+    }
+
+    return result;
 }
 
 RemotePath DefaultFilterChain::toRemotePath(const LocalPath& path) const

@@ -87,10 +87,16 @@ private:
     // it excludes must be contained by that target.
     //
     // Note that the paths returned by this function are relative to target.
-    vector<LocalPath> applicablePaths(const LocalPath& targetPath) const;
+    vector<LocalPath> applicablePaths(LocalPath targetPath) const;
 
     // Generates the content for an ignore file.
     string generate(const LocalPath& targetPath) const;
+
+    // Returns a copy of strings where each individual string has been
+    // normalized.
+    //
+    // Strings that can not be normalized are not included in the result.
+    string_vector normalize(const string_vector& strings) const;
 
     // Converts a relative local path to remote format.
     //
