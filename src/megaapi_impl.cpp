@@ -1173,113 +1173,6 @@ byte *EncryptFilePieceByChunks::nextbuffer(unsigned bufsize)
 
 #ifdef ENABLE_SYNC
 
-bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpath)
-{
-    // Is this path excluded by any path filters?
-    if (!excludedPaths.empty())
-    {
-        // Translate current path into something we can match.
-        auto temp = localpath.toPath(*fsAccess);
-
-        // Is this path excluded by any path filters?
-        for (const auto& xpath : excludedPaths)
-        {
-            auto xp = LocalPath::fromPath(xpath, *fsAccess);
-
-            if (xp.isContainingPathOf(localpath))
-            {
-                return false;
-            }
-
-            if (wildcardMatch(temp, xpath))
-            {
-                return false;
-            }
-        }
-    }
-
-    // Check whether any path components are excluded.
-    auto path = localpath;
-
-    // Convenience.
-    const auto& root = sync->localroot->localname;
-
-    while (root.isContainingPathOf(path) && path != root)
-    {
-        // Where does this component's name start?
-        auto nameIndex = path.getLeafnameByteIndex(*fsAccess);
-
-        // Extract component's name.
-        auto name = path.subpathFrom(nameIndex).toPath(*fsAccess);
-
-        // Skip these system files on OS X.
-        if (name == "Icon\x0d")
-        {
-            return false;
-        }
-
-        // Is this component's name excluded by any filename filters?
-        for (const auto& xname : excludedNames)
-        {
-            if (wildcardMatch(name, xname))
-            {
-                return false;
-            }
-        }
-
-        // Climb to the next component.
-        path.truncate(nameIndex - 1);
-    }
-
-    return true;
-}
-
-bool MegaApiImpl::is_syncable(long long size)
-{
-    if (!syncLowerSizeLimit)
-    {
-        // No lower limit. Check upper limit only
-        if (syncUpperSizeLimit && size > syncUpperSizeLimit)
-        {
-            return false;
-        }
-    }
-    else if (!syncUpperSizeLimit)
-    {
-        // No upper limit. Check lower limit only
-        if (syncLowerSizeLimit && size < syncLowerSizeLimit)
-        {
-            return false;
-        }
-    }
-    else
-    {
-        //Upper and lower limit
-        if(syncLowerSizeLimit < syncUpperSizeLimit)
-        {
-            // Normal use case:
-            // Exclude files with a size lower than the lower limit
-            // or greater than the upper limit
-            if(size < syncLowerSizeLimit || size > syncUpperSizeLimit)
-            {
-                return false;
-            }
-        }
-        else
-        {
-            // Special use case:
-            // Exclude files with a size lower than the lower limit
-            // AND greater than the upper limit
-            if(size < syncLowerSizeLimit && size > syncUpperSizeLimit)
-            {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
 int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
 {
     if (!megaNode)
@@ -5312,8 +5205,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     activeError = NULL;
     activeNodes = NULL;
     activeUsers = NULL;
-    syncLowerSizeLimit = 0;
-    syncUpperSizeLimit = 0;
 
 #ifdef HAVE_LIBUV
     httpServer = NULL;
@@ -8652,8 +8543,34 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     return client->syncs.moveToLocalDebris(localPath).get();
 }
 
-int MegaApiImpl::syncPathState(string* path)
+int MegaApiImpl::syncPathState(string*)
 {
+    // TODO: We'll restore this functionality later.
+    //  
+    //       It's not as simple as it might seem from the surface as there
+    //       are a lot of threading issues to consider.
+    //
+    //       To truly perform this query, we need exclusive access to
+    //       several things.
+    //
+    //       First, we need exclusive access to the list of syncs. This is
+    //       necessary so that we can determine which sync contains the
+    //       specified path. An implicit requirement is that we have
+    //       exclusive access to the sync objects themselves in addition to
+    //       the list that contains them since the objects must stay alive
+    //       while we perform our query.
+    //
+    //       Second, we need exclusive access to the local node tree. This
+    //       is necessary so that we can traverse it safely and retrieve the
+    //       information we require.
+    //
+    //       Access to the local node tree is also required in order for us
+    //       to determine whether a given path is excluded. This is because
+    //       filter rules are defined per directory and can be inherited.
+    return MegaApi::STATE_IGNORED;
+
+#if 0
+
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     string prefix("\\\\?\\");
     string localPrefix;
@@ -8740,6 +8657,8 @@ int MegaApiImpl::syncPathState(string* path)
         }
     });
     return state;
+
+#endif
 }
 
 
@@ -8958,76 +8877,34 @@ bool MegaApiImpl::isSynced(MegaNode *n)
     return false;
 }
 
-void MegaApiImpl::setExcludedNames(vector<string> *excludedNames)
+void MegaApiImpl::setDefaultExcludedNames(vector<string> *excludedNames)
 {
-    sdkMutex.lock();
-    if (!excludedNames)
-    {
-        this->excludedNames.clear();
-        sdkMutex.unlock();
-        return;
-    }
+    SdkMutexGuard guard(sdkMutex);
 
-    this->excludedNames.clear();
-    for (unsigned int i = 0; i < excludedNames->size(); i++)
-    {
-        string name = excludedNames->at(i);
-        fsAccess->normalize(&name);
-        if (name.size())
-        {
-            this->excludedNames.push_back(name);
-            LOG_debug << "Excluded name: " << name;
-        }
-        else
-        {
-            LOG_warn << "Invalid excluded name: " << excludedNames->at(i);
-        }
-    }
-    sdkMutex.unlock();
+    client->syncs.mDefaultFilterChain.excludedNames(
+      excludedNames ? *excludedNames : string_vector());
 }
 
-void MegaApiImpl::setExcludedPaths(vector<string> *excludedPaths)
+void MegaApiImpl::setDefaultExcludedPaths(vector<string> *excludedPaths)
 {
-    sdkMutex.lock();
-    if (!excludedPaths)
-    {
-        this->excludedPaths.clear();
-        sdkMutex.unlock();
-        return;
-    }
+    SdkMutexGuard guard(sdkMutex);
 
-    this->excludedPaths.clear();
-    for (unsigned int i = 0; i < excludedPaths->size(); i++)
-    {
-        string path = excludedPaths->at(i);
-        fsAccess->normalize(&path);
-        if (path.size())
-        {
-    #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-            if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
-            {
-                path.insert(0, "\\\\?\\");
-            }
-    #endif
-            this->excludedPaths.push_back(path);
-            LOG_debug << "Excluded path: " << path;
-        }
-        else
-        {
-            LOG_warn << "Invalid excluded path: " << excludedPaths->at(i);
-        }
-    }
-    sdkMutex.unlock();
+    client->syncs.mDefaultFilterChain.excludedPaths(
+      excludedPaths ? *excludedPaths : string_vector());
 }
 
-void MegaApiImpl::setExclusionLowerSizeLimit(long long limit)
+void MegaApiImpl::setDefaultExclusionLowerSizeLimit(unsigned long long limit)
 {
-    syncLowerSizeLimit = limit;
+    SdkMutexGuard guard(sdkMutex);
+
+    client->syncs.mDefaultFilterChain.lowerLimit(limit);
 }
 
-void MegaApiImpl::setExclusionUpperSizeLimit(long long limit)
+void MegaApiImpl::setDefaultExclusionUpperSizeLimit(unsigned long long limit)
 {
-    syncUpperSizeLimit = limit;
+    SdkMutexGuard guard(sdkMutex);
+
+    client->syncs.mDefaultFilterChain.upperLimit(limit);
 }
 
 string MegaApiImpl::getLocalPath(MegaNode *n)
@@ -9049,50 +8926,6 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
 long long MegaApiImpl::getNumLocalNodes()
 {
     return client->syncs.totalLocalNodes;
-}
-
-bool MegaApiImpl::isSyncable(const char *path, long long size)
-{
-    if (!path)
-    {
-        return false;
-    }
-
-    string utf8path = path;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    if (!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
-    {
-        utf8path.insert(0, "\\\\?\\");
-    }
-#endif
-
-    LocalNode *parent = NULL;
-    auto localpath = LocalPath::fromPath(utf8path, *fsAccess);
-
-    bool result = false;
-    SdkMutexGuard g(sdkMutex);
-    if (size >= 0)
-    {
-        if (!is_syncable(size))
-        {
-            return false;
-        }
-    }
-
-    // todo: thread safety.  Need to sort out is_syncable first though
-    client->syncs.forEachRunningSync(true, [&](Sync* sync) {
-
-        if (sync->localnodebypath(NULL, localpath, &parent) || parent)
-        {
-            if (!sync->localdebris.isContainingPathOf(localpath))
-            {
-                auto temp = localpath.leafName();
-                auto name = temp.toName(*fsAccess);
-                result = is_syncable(sync, name.c_str(), localpath);
-            }
-        }
-    });
-    return result;
 }
 
 bool MegaApiImpl::isInsideSync(MegaNode *node)
@@ -14609,10 +14442,6 @@ void MegaApiImpl::logout_result(error e)
         totalUploads = 0;
         totalDownloads = 0;
         waitingRequest = RETRY_NONE;
-        excludedNames.clear();
-        excludedPaths.clear();
-        syncLowerSizeLimit = 0;
-        syncUpperSizeLimit = 0;
 
         delete mPushSettings;
         mPushSettings = NULL;

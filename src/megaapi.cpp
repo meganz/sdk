@@ -3515,9 +3515,9 @@ bool MegaApi::isSynced(MegaNode *n)
     return pImpl->isSynced(n);
 }
 
-bool MegaApi::isSyncable(const char *path, long long size)
+bool MegaApi::isSyncable(const char *, long long)
 {
-    return pImpl->isSyncable(path, size);
+    return false;
 }
 
 int MegaApi::isNodeSyncable(MegaNode *node)
@@ -3525,24 +3525,24 @@ int MegaApi::isNodeSyncable(MegaNode *node)
     return pImpl->isNodeSyncable(node);
 }
 
-void MegaApi::setExcludedNames(vector<string> *excludedNames)
+void MegaApi::setDefaultExcludedNames(vector<string> *excludedNames)
 {
-    pImpl->setExcludedNames(excludedNames);
+    pImpl->setDefaultExcludedNames(excludedNames);
 }
 
-void MegaApi::setExcludedPaths(vector<string> *excludedPaths)
+void MegaApi::setDefaultExcludedPaths(vector<string> *excludedPaths)
 {
-    pImpl->setExcludedPaths(excludedPaths);
+    pImpl->setDefaultExcludedPaths(excludedPaths);
 }
 
-void MegaApi::setExclusionLowerSizeLimit(long long limit)
+void MegaApi::setDefaultExclusionLowerSizeLimit(unsigned long long limit)
 {
-    pImpl->setExclusionLowerSizeLimit(limit);
+    pImpl->setDefaultExclusionLowerSizeLimit(limit);
 }
 
-void MegaApi::setExclusionUpperSizeLimit(long long limit)
+void MegaApi::setDefaultExclusionUpperSizeLimit(unsigned long long limit)
 {
-    pImpl->setExclusionUpperSizeLimit(limit);
+    pImpl->setDefaultExclusionUpperSizeLimit(limit);
 }
 #endif
 

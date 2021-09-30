@@ -14079,7 +14079,7 @@ class MegaApi
          * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
          * function will be removed in future updates
          */
-        void setExcludedNames(std::vector<std::string> *excludedNames);
+        void setDefaultExcludedNames(std::vector<std::string> *excludedNames);
 
         /**
          * @brief Set a list of excluded paths
@@ -14090,7 +14090,7 @@ class MegaApi
          * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
          * function will be removed in future updates
          */
-        void setExcludedPaths(std::vector<std::string> *excludedPaths);
+        void setDefaultExcludedPaths(std::vector<std::string> *excludedPaths);
 
         /**
          * @brief Set a lower limit for synchronized files
@@ -14103,7 +14103,7 @@ class MegaApi
          *
          * @param limit Lower limit for synchronized files
          */
-        void setExclusionLowerSizeLimit(long long limit);
+        void setDefaultExclusionLowerSizeLimit(unsigned long long limit);
 
         /**
          * @brief Set an upper limit for synchronized files
@@ -14116,7 +14116,7 @@ class MegaApi
          *
          * @param limit Upper limit for synchronized files
          */
-        void setExclusionUpperSizeLimit(long long limit);
+        void setDefaultExclusionUpperSizeLimit(unsigned long long limit);
 
         /**
          * @brief Move a local file to the local "Debris" folder
@@ -14133,7 +14133,10 @@ class MegaApi
          * @param name Path to check
          * @param size Size of the file or -1 to ignore the size
          * @return true if the path is syncable, otherwise false
+         *
+         * @deprecated This function should no longer be used.
          */
+        MEGA_DEPRECATED
         bool isSyncable(const char *path, long long size);
 
         /**
