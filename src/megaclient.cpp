@@ -5218,7 +5218,7 @@ void MegaClient::updatesc()
                 if ((*it)->changed.removed)
                 {
                     LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->del((*it)->nodehandle)))
+                    if (!(complete = sctable->del((*it)->nodeHandle())))
                     {
                         NodeHandle firstValidAntecestor = sctable->getFirstAncestor(NodeHandle().set6byte((*it)->parenthandle));
                         assert(firstValidAntecestor != UNDEF);
@@ -16650,7 +16650,7 @@ node_list MegaClient::getChildren(Node* parent)
     return childrenList;
 }
 
-size_t MegaClient::getNumberOfChildren(NodeHandle parentHandle)
+int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
 {
     return sctable->getNumberOfChildrenFromNode(parentHandle);
 }

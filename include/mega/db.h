@@ -72,7 +72,7 @@ public:
     virtual bool getChildrenHandlesFromNode(NodeHandle node, std::vector<NodeHandle>& nodes) = 0;
     virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
     virtual NodeCounter getNodeCounter(NodeHandle node, bool isParentFile) = 0;
-    virtual uint32_t getNumberOfChildrenFromNode(NodeHandle parentHandle) = 0;
+    virtual int getNumberOfChildrenFromNode(NodeHandle parentHandle) = 0;
     virtual bool isNodesOnDemandDb() = 0;
     virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
     virtual bool isNodeInDB(NodeHandle node) = 0;
@@ -88,7 +88,7 @@ public:
 
     // delete specific record
     virtual bool del(uint32_t) = 0;
-    virtual bool del(handle nodehandle) = 0;
+    virtual bool del(NodeHandle nodehandle) = 0;
     virtual bool removeNodes() = 0;
 
     // delete all records

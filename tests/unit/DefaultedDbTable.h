@@ -101,7 +101,7 @@ public:
         return nc;
         //throw NotImplemented(__func__);
     }
-    uint32_t getNumberOfChildrenFromNode(mega::NodeHandle) override
+    int getNumberOfChildrenFromNode(mega::NodeHandle) override
     {
         return 0;
         //throw NotImplemented(__func__);
@@ -148,7 +148,7 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    bool del(mega::handle) override
+    bool del(mega::NodeHandle) override
     {
         return false;
         //throw NotImplemented{__func__};

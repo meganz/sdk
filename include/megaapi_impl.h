@@ -2455,12 +2455,11 @@ class MegaApiImpl : public MegaApp
 
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
 
-        node_vector searchWithDB(MegaHandle nodeHandle, const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
+        node_vector searchWithDB(MegaHandle nodeHandle, const char* searchString, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
         MegaNodeList* search(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL);
         bool isValidTypeNode(Node *node, int type);
 
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);

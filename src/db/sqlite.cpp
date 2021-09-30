@@ -496,7 +496,6 @@ bool SqliteDbTable::getNodeByFingerprint(const FileFingerprint &fingerprint, Nod
         {
             if ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
-                NodeSerialized node;
                 node.mDecrypted = sqlite3_column_int(stmt, 0);
                 const void* data = sqlite3_column_blob(stmt, 1);
                 int size = sqlite3_column_bytes(stmt, 1);
@@ -679,7 +678,7 @@ bool SqliteDbTable::getNodesByName(const std::string &name, std::map<mega::NodeH
     return result == SQLITE_DONE ? true : false;
 }
 
-uint32_t SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
+int SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
     if (!db)
     {
@@ -689,7 +688,7 @@ uint32_t SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     checkTransaction();
 
     sqlite3_stmt *stmt;
-    uint32_t numChildren = 0;
+    int numChildren = 0;
     if (sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, parentHandle.as8byte()) == SQLITE_OK)
@@ -697,7 +696,7 @@ uint32_t SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
             int result;
             if ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
-               numChildren = static_cast<uint32_t>(sqlite3_column_int(stmt, 0));
+               numChildren = sqlite3_column_int(stmt, 0);
             }
         }
     }
@@ -1042,7 +1041,7 @@ bool SqliteDbTable::del(uint32_t index)
     return true;
 }
 
-bool SqliteDbTable::del(handle nodehandle)
+bool SqliteDbTable::del(NodeHandle nodehandle)
 {
     if (!db)
     {
@@ -1053,7 +1052,7 @@ bool SqliteDbTable::del(handle nodehandle)
 
     char buf[64];
 
-    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle);
+    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
 
     return !sqlite3_exec(db, buf, 0, 0, NULL);
 }

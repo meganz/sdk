@@ -11757,7 +11757,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-node_vector MegaApiImpl::searchWithDB(MegaHandle nodeHandle, const char *searchString, MegaCancelToken *cancelToken, int order, int type)
+node_vector MegaApiImpl::searchWithDB(MegaHandle nodeHandle, const char *searchString, int order, int type)
 {
     node_vector nodeVector;
     if (!searchString)
@@ -11765,17 +11765,7 @@ node_vector MegaApiImpl::searchWithDB(MegaHandle nodeHandle, const char *searchS
         return nodeVector;
     }
 
-    if (cancelToken && cancelToken->isCancelled())
-    {
-        return nodeVector;
-    }
-
     SdkMutexGuard g(sdkMutex);
-
-    if (cancelToken && cancelToken->isCancelled())
-    {
-        return nodeVector;
-    }
 
     std::map<mega::NodeHandle, NodeSerialized> nodeMap;
     client->sctable->getNodesByName(searchString, nodeMap);
@@ -11869,11 +11859,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
     SdkMutexGuard g(sdkMutex);
 
-    if (cancelToken && cancelToken->isCancelled())
-    {
-        return new MegaNodeListPrivate();
-    }
-
     MegaNodeList *nodeList = nullptr;
     if (n)
     {
@@ -11888,7 +11873,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         node_vector nodeVector;
         if (recursive)
         {
-            nodeVector = searchWithDB(n->getHandle(), searchString, cancelToken, order, type);
+            nodeVector = searchWithDB(n->getHandle(), searchString, order, type);
         }
         else
         {
@@ -11924,7 +11909,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             node = client->nodeByHandle(client->rootnodes[0]);
             if (recursive)
             {
-                node_vector nodeVector = searchWithDB(node->nodehandle, searchString, cancelToken, MegaApi::ORDER_NONE, type);
+                node_vector nodeVector = searchWithDB(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
             else
@@ -11945,7 +11930,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchWithDB(node->nodehandle, searchString, cancelToken, MegaApi::ORDER_NONE, type);
+                    node_vector nodeVector = searchWithDB(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -11975,7 +11960,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchWithDB(node->nodehandle, searchString, cancelToken, MegaApi::ORDER_NONE, type);
+                    node_vector nodeVector = searchWithDB(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -11995,7 +11980,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {
                 node = client->nodebyhandle(it->first);
-                node_vector nodeVector = searchWithDB(node->nodehandle, searchString, cancelToken, MegaApi::ORDER_NONE, type);
+                node_vector nodeVector = searchWithDB(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
@@ -20371,7 +20356,8 @@ void MegaApiImpl::sendPendingRequests()
 
             if (type == MegaApi::NODE_ATTR_FAV)
             {
-                int count = request->getNumDetails();
+                // TODO nodes on Demand implement FavouriteProcessor
+                //int count = request->getNumDetails();
                 MegaHandle folderHandle = request->getNodeHandle();
                 Node *node = nullptr;
                 if (!ISUNDEF(folderHandle))

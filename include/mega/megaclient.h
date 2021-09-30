@@ -892,7 +892,7 @@ public:
     node_list getChildren(Node *parent);
 
     // Get number of children from a node
-    size_t getNumberOfChildren(NodeHandle parentHandle);
+    int getNumberOfChildren(NodeHandle parentHandle);
 
     // Get sub tree info (files, folders, size, version)
     NodeCounter getTreeInfoFromNode(NodeHandle node, bool isParentFileNode = false);
