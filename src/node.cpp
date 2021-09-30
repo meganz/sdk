@@ -2765,6 +2765,100 @@ void LocalNode::ignoreFileRemoved()
     parent->clearFilters();
 }
 
+// Query whether a file is excluded by this node or one of its parents.
+template<typename PathType>
+typename std::enable_if<IsPath<PathType>::value, int>::type
+LocalNode::isExcluded(const PathType& path, nodetype_t type, m_off_t size) const
+{
+    // This specialization is only meaningful for directories.
+    assert(this->type == FOLDERNODE);
+
+    // We can't determine our child's exclusion state if we don't know our own.
+    if (mRecomputeExclusionState)
+        return 0;
+
+    // Our children are excluded if we are.
+    if (mExcluded)
+        return -1;
+
+    // Children of unknown type are considered excluded.
+    if (type == TYPE_UNKNOWN)
+        return -1;
+
+    // Tracks whether the child is our own ignore file.
+    auto isIgnoreFile = false;
+
+    // Is the child a file?
+    if (type == FILENODE)
+    {
+        // Is the child our ignore file?
+        isIgnoreFile = path == IGNORE_FILE_NAME;
+    }
+
+    // We can't know the child's state unless our filters are current.
+    if (mLoadPending && !isIgnoreFile)
+        return 0;
+
+    // Computed cloud name and relative cloud path.
+    RemotePathPair namePath;
+
+    // Current path component.
+    PathType component;
+
+    // Check if any intermediary path components are excluded.
+    for (size_t index = 0; path.nextPathComponent(index, component); )
+    {
+        // Compute cloud name.
+        namePath.first = component.toName(*sync->syncs.fsaccess);
+
+        // Compute relative cloud path.
+        namePath.second.appendWithSeparator(namePath.first, false);
+
+        // Have we hit the final path component?
+        if (!path.hasNextPathComponent(index))
+            break;
+
+        // Is this path component excluded?
+        if (isExcluded(namePath, FOLDERNODE, false))
+            return -1;
+    }
+
+    // Which node we should start our search from.
+    auto* node = this;
+
+    // Does the final path component represent a file?
+    if (type == FILENODE)
+    {
+        // Does it represent this node's ignore file?
+        if (namePath.second == IGNORE_FILE_NAME)
+        {
+            // Then start the lookup from our parent so that the ignore file
+            // isn't subject to its own rules.
+            node = parent;
+
+            // If we're the root then the ignore file must be included.
+            if (!node)
+                return 1;
+        }
+
+        // Is the file excluded by any size filters?
+        if (node->isExcluded(namePath, size))
+            return -1;
+    }
+
+    // Is the file excluded by any name filters?
+    if (node->isExcluded(namePath, type, node != this))
+        return -1;
+
+    // File's included.
+    return 1;
+}
+
+// Make sure we instantiate the two types.  Jenkins gcc can't handle this in the header.
+template int LocalNode::isExcluded(const LocalPath& path, nodetype_t type, m_off_t size) const;
+template int LocalNode::isExcluded(const RemotePath& path, nodetype_t type, m_off_t size) const;
+
+
 int LocalNode::isExcluded(const string& name, nodetype_t type, m_off_t size) const
 {
     assert(this->type == FOLDERNODE);
