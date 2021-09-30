@@ -1163,6 +1163,17 @@ private:
     // Tracks the last recorded ignore file failure.
     IgnoreFileFailureContext mIgnoreFileFailureContext;
 
+    // Check if the sync described by config contains an ignore file.
+    bool hasIgnoreFile(const SyncConfig& config);
+
+public:
+    // Default filter rules.
+    //
+    // These rules are used to generate ignore files for newly added syncs.
+    //
+    // It's safe to access this member from multiple threads as the class
+    // manages its own synchronization.
+    DefaultFilterChain mDefaultFilterChain;
 };
 
 } // namespace

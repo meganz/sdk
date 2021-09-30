@@ -46,14 +46,93 @@ using StringFilterPtrVector = std::vector<StringFilterPtr>;
 class MEGA_API DefaultFilterChain
 {
 public:
-    bool empty() const;
+    explicit DefaultFilterChain(FileSystemAccess& fsAccess);
 
-    bool write(FileSystemAccess& fsAccess, const LocalPath& rootPath) const;
+    MEGA_DISABLE_COPY_MOVE(DefaultFilterChain);
 
-    string_vector excludedNames = {};
-    string_vector excludedPaths = {};
-    std::uint64_t lowerSizeLimit = 0;
-    std::uint64_t upperSizeLimit = 0;
+    // Creates a new ignore file in the target directory.
+    //
+    // Note that this function only writes an ignore file if one does not
+    // already exist in the target directory.
+    //
+    // Returns true if:
+    // - An ignore file already exists in the target directory.
+    // - We successfully created an ignore file in the target directory.
+    //
+    // Returns false otherwise.
+    bool create(const LocalPath& targetPath);
+
+    // Specify what names should be excluded.
+    //
+    // Wildcard patterns are valid.
+    void excludedNames(const string_vector& names);
+
+    // Specify what paths should be excluded.
+    void excludedPaths(const string_vector& paths);
+
+    // Specify the lower size limit.
+    //
+    // Zero is valid and represents "no lower limit."
+    void lowerLimit(std::uint64_t lower);
+
+    // Specify the upper size limit.
+    //
+    // Zero is valid and represents "no upper limit."
+    void upperLimit(std::uint64_t upper);
+
+private:
+    // Computes a list of path exclusions applicable to targetPath.
+    //
+    // In order for an exclusion to be applicable to some target, the path
+    // it excludes must be contained by that target.
+    //
+    // Note that the paths returned by this function are relative to target.
+    vector<LocalPath> applicablePaths(const LocalPath& targetPath) const;
+
+    // Generates the content for an ignore file.
+    string generate(const LocalPath& targetPath) const;
+
+    // Converts a relative local path to remote format.
+    //
+    // Path components are unescaped and are separated by '/'.
+    RemotePath toRemotePath(const LocalPath& path) const;
+
+    // Converts a list of relative local paths to remote format.
+    vector<RemotePath> toRemotePaths(const vector<LocalPath>& localPaths) const;
+
+    // Predefined name exclusions.
+    static const string_vector mPredefinedNameExclusions;
+
+    // Names that should be excluded.
+    //
+    // These names are stored in "cloud" format.
+    //
+    // Wildcard patterns are valid.
+    vector<string> mExcludedNames;
+
+    // Absolute paths that should be excluded.
+    //
+    // These names are stored in "local" format.
+    //
+    // These names are translated into "cloud" format as necessary when
+    // writing an ignore file for a specific sync root.
+    vector<LocalPath> mExcludedPaths;
+
+    // How we access the local filesystem.
+    FileSystemAccess& mFsAccess;
+
+    // How we synchronize access to instances of this class.
+    mutable mutex mLock;
+
+    // Lower size limit.
+    //
+    // Zero is a sentinel for "no limit."
+    std::uint64_t mLowerLimit;
+
+    // Upper size limit.
+    //
+    // Zero is a sentinel for "no limit."
+    std::uint64_t mUpperLimit;
 }; // DefaultFilterChain
 
 class MEGA_API FilterResult

@@ -176,6 +176,17 @@ Node* Node::childbyname(const string& name)
     return nullptr;
 }
 
+bool Node::hasChildWithName(const string& name) const
+{
+    for (auto* child : children)
+    {
+        if (child->hasName(name))
+            return true;
+    }
+
+    return false;
+}
+
 /// it's a nice idea but too simple - what about cases where the key is missing or just not available yet (and hence attrs not decrypted yet), etc
 //string Node::name() const
 //{

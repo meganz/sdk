@@ -210,6 +210,7 @@ public:
 
     // Add a component to the end of this path.
     void appendWithSeparator(const RemotePath& component, bool always);
+    void appendWithSeparator(const string& component, bool always);
 
     // Query whether the path begins with a separator.
     bool beginsWithSeparator() const;

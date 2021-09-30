@@ -282,14 +282,29 @@ RemotePath::operator const string&() const
 
 void RemotePath::appendWithSeparator(const RemotePath& component, bool always)
 {
-    if (always || !mPath.empty())
+    appendWithSeparator(component.mPath, always);
+}
+
+void RemotePath::appendWithSeparator(const string& component, bool always)
+{
+    // Only add a separator if necessary.
+    while (always || !mPath.empty())
     {
-        // Add a separator only if necessary.
-        if (!(endsInSeparator() || !component.beginsWithSeparator()))
-            mPath.append(1, '/');
+        // Does the path already end with a separator?
+        if (endsInSeparator())
+            break;
+
+        // Does the component begin with a separator?
+        if (component.empty() || component.front() != '/')
+            break;
+
+        // Add the separator.
+        mPath.append(1, '/');
+        break;
     }
 
-    mPath.append(component.mPath);
+    // Add the component.
+    mPath.append(component);
 }
 
 bool RemotePath::beginsWithSeparator() const

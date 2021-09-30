@@ -668,6 +668,10 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Backup source path not below drive path.";
     case SYNC_CONFIG_WRITE_FAILURE:
         return "Unable to write sync config to disk.";
+    case COULD_NOT_MOVE_CLOUD_NODES:
+        return "Unable to move cloud nodes.";
+    case COULD_NOT_CREATE_IGNORE_FILE:
+        return "Unable to create initial ignore file.";
     default:
         return "Undefined error";
     }
@@ -2606,6 +2610,24 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint
         return;
     }
 
+    // Does this sync contain an ignore file?
+    if (!hasIgnoreFile(us.mConfig))
+    {
+        // Try and create the missing ignore file.
+        if (!mDefaultFilterChain.create(us.mConfig.mLocalPath))
+        {
+            us.mConfig.mError = COULD_NOT_CREATE_IGNORE_FILE;
+            us.mConfig.mEnabled = false;
+
+            us.changedConfigState(notifyApp);
+
+            if (completion)
+                completion(API_EWRITE, us.mConfig.mError, backupId);
+
+            return;
+        }
+    }
+
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mEnabled = true;
 
@@ -2732,6 +2754,7 @@ Syncs::Syncs(MegaClient& mc)
   , mSyncFlags(new SyncFlags)
   , mScanService(new ScanService(waiter))
   , btheartbeat(rng)
+  , mDefaultFilterChain(*fsaccess)
 {
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
     syncThread = std::thread([this]() { syncLoop(); });
@@ -8661,7 +8684,6 @@ void Syncs::queueSync(std::function<void()>&& f)
     waiter.notify();
 }
 
-
 void Syncs::queueClient(std::function<void(MegaClient&, DBTableTransactionCommitter&)>&& f)
 {
     assert(onSyncThread());
@@ -8669,6 +8691,36 @@ void Syncs::queueClient(std::function<void(MegaClient&, DBTableTransactionCommit
     mClient.waiter->notify();
 }
 
+bool Syncs::hasIgnoreFile(const SyncConfig& config)
+{
+    // Should only be run from the sync thread.
+    assert(onSyncThread());
+
+    // Is there an ignore file present in the cloud?
+    {
+        // Ensure we have exclusive access to the remote node tree.
+        lock_guard<mutex> guard(mClient.nodeTreeMutex);
+
+        // Get our hands on the sync root.
+        auto* root = mClient.nodeByHandle(config.mRemoteNode);
+
+        // The root can't contain anything if it doesn't exist.
+        if (!root)
+            return false;
+
+        // Does the root contain an ignore file?
+        if (root->hasChildWithName(IGNORE_FILE_NAME))
+            return true;
+    }
+
+    // Does the ignore file already exist on disk?
+    auto fileAccess = fsaccess->newfileaccess(false);
+    auto filePath = config.mLocalPath;
+
+    filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
+
+    return fileAccess->isfile(filePath);
+}
 
 } // namespace
 

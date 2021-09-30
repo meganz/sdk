@@ -46,6 +46,9 @@ public:
     bool inclusion() const;
 
     // True if this filter is inheritable.
+    //
+    // I.e. Is the rule in effect in directories below the one where
+    // it was defined?
     bool inheritable() const;
 
     // True if this filter matches the string pair p.
@@ -208,75 +211,171 @@ static string toUpper(string text);
 // Logs an unrepresentable limit error and returns false.
 static bool unrepresentableLimitError(const string& text);
 
-bool DefaultFilterChain::empty() const
+// Predefined name exclusions.
+//
+// Extracted from MEGASync.
+const string_vector DefaultFilterChain::mPredefinedNameExclusions = {
+    "Thumbs.db",
+    "desktop.ini",
+    "~*",
+    ".*",
+    "*~.*",
+    // Avoid trigraph interpretation: ??- is ~.
+    "*.sb-????????""-??????",
+    "*.tmp"
+};
+
+DefaultFilterChain::DefaultFilterChain(FileSystemAccess& fsAccess)
+  : mExcludedNames(mPredefinedNameExclusions)
+  , mExcludedPaths()
+  , mFsAccess(fsAccess)
+  , mLock()
+  , mLowerLimit(0u)
+  , mUpperLimit(0u)
 {
-    return excludedNames.empty()
-           && excludedPaths.empty()
-           && !lowerSizeLimit
-           && !upperSizeLimit;
 }
 
-bool DefaultFilterChain::write(FileSystemAccess& fsAccess,
-                               const LocalPath& rootPath) const
+bool DefaultFilterChain::create(const LocalPath& targetPath)
 {
-    // Don't write anything unless we really need to.
-    if (empty())
-    {
-        return true;
-    }
-
-    // Compute path of ignore file.
-    auto filePath = rootPath;
+    // Compute the path for the target's ignore file.
+    auto filePath = targetPath;
     filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
 
-    auto fileAccess = fsAccess.newfileaccess(false);
+    // Get access to the filesystem.
+    auto fileAccess = mFsAccess.newfileaccess(false);
 
-    // Don't write anything if an ignore file already exists.
-    if (fileAccess->isfile(filePath))
-    {
-        return true;
-    }
+    // Try and open the file for writing.
+    if (!fileAccess->fopen(filePath, false, true))
+        return false;
 
     // Generate the ignore file's content.
-    std::ostringstream ostream;
-
-    // Let the user know where this file came from.
-    ostream << "# Automatically generated from defaults.\n";
-
-    for (auto& name : excludedNames)
-    {
-        ostream << "-:" << name << "\n";
-    }
-
-    for (auto& path : excludedPaths)
-    {
-        // Assume that paths are relative.
-        ostream << "-d:" << path << "\n";
-    }
-
-    if (lowerSizeLimit)
-    {
-        ostream << "minsize:" << lowerSizeLimit << "\n";
-    }
-
-    if (upperSizeLimit)
-    {
-        ostream << "maxsize:" << upperSizeLimit << "\n";
-    }
-    
-    // Open the ignore file for writing.
-    if (!fileAccess->fopen(filePath, false, true))
-    {
-        // Couldn't open the file for writing.
-        return false;
-    }
+    auto content = generate(targetPath);
 
     // Write the content to disk.
-    auto content = ostream.str();
-
     return fileAccess->fwrite((const byte*)content.data(),
                               (unsigned)content.size(),
                               0);
+}
+
+void DefaultFilterChain::excludedNames(const string_vector& names)
+{
+    lock_guard<mutex> guard(mLock);
+
+    mExcludedNames.clear();
+
+    // Translate UTF8 paths into cloud format.
+    for (auto& name : names)
+    {
+        mExcludedNames.emplace_back(name);
+        mFsAccess.unescapefsincompatible(&mExcludedNames.back());
+    }
+}
+
+void DefaultFilterChain::excludedPaths(const string_vector& paths)
+{
+    lock_guard<mutex> guard(mLock);
+
+    mExcludedPaths.clear();
+
+    // Translate UTF8 paths to local format.
+    for (auto& path : paths)
+    {
+        LocalPath localPath = LocalPath::fromPath(path, mFsAccess);
+        mExcludedPaths.emplace_back(std::move(localPath));
+    }
+}
+
+void DefaultFilterChain::lowerLimit(std::uint64_t lower)
+{
+    lock_guard<mutex> guard(mLock);
+
+    mLowerLimit = lower;
+}
+
+void DefaultFilterChain::upperLimit(std::uint64_t limit)
+{
+    lock_guard<mutex> guard(mLock);
+
+    mUpperLimit = limit;
+}
+
+vector<LocalPath> DefaultFilterChain::applicablePaths(const LocalPath& targetPath) const
+{
+    vector<LocalPath> paths;
+
+    // Determine which path exclusions are applicable to the target.
+    for (auto& path : mExcludedPaths)
+    {
+        size_t index;
+
+        // Does the path identify something below the target?
+        if (!targetPath.isContainingPathOf(path, &index))
+            continue;
+        
+        // Path exclusions should be relative to the target.
+        paths.emplace_back(path.subpathFrom(index));
+    }
+
+    return paths;
+}
+
+string DefaultFilterChain::generate(const LocalPath& targetPath) const
+{
+    lock_guard<mutex> guard(mLock);
+
+    ostringstream ostream;
+
+    // Size filters.
+    if (mLowerLimit)
+        ostream << "minsize: " << mLowerLimit << "\n";
+
+    if (mUpperLimit)
+        ostream << "maxsize: " << mUpperLimit << "\n";
+
+    // Name filters.
+    for (auto& name : mExcludedNames)
+            ostream << "-:" << name << "\n";
+
+    // Path filters.
+    if (mExcludedPaths.empty())
+        return ostream.str();
+
+    auto paths = applicablePaths(targetPath);
+
+    for (auto& path : toRemotePaths(paths))
+        ostream << "-p:" << path.toName(mFsAccess) << "\n";
+
+    return ostream.str();
+}
+
+RemotePath DefaultFilterChain::toRemotePath(const LocalPath& path) const
+{
+    LocalPath component;
+    RemotePath result;
+    size_t index = 0u;
+
+    // Translate each component into remote form.
+    while (path.nextPathComponent(index, component))
+        result.appendWithSeparator(component.toName(mFsAccess), false);
+
+    return result;
+}
+
+vector<RemotePath> DefaultFilterChain::toRemotePaths(const vector<LocalPath>& paths) const
+{
+    vector<RemotePath> result;
+
+    // Translate each path into remote form.
+    for (auto& path : paths)
+    {
+        auto temp = toRemotePath(path);
+
+        // Skip empty paths.
+        if (!temp.empty())
+            result.emplace_back(std::move(temp));
+    }
+
+    return result;
 }
 
 FilterResult::FilterResult()

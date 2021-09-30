@@ -366,6 +366,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     Node* childbyname(const string& name);
 
+    // Returns true if this node has a child with the given name.
+    bool hasChildWithName(const string& name) const;
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
