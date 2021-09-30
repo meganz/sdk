@@ -5340,6 +5340,11 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     ftpServerMaxBufferSize = 0;
     ftpServerMaxOutputSize = 0;
     ftpServerRestrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    const char *uvversion = uv_version_string();
+    if (uvversion)
+    {
+        LOG_debug << "libuv version: " <<uvversion;
+    }
 #endif
 
     mPushSettings = NULL;
