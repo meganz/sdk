@@ -496,7 +496,6 @@ bool SqliteDbTable::getNodeByFingerprint(const FileFingerprint &fingerprint, Nod
         {
             if ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
-                NodeSerialized node;
                 node.mDecrypted = sqlite3_column_int(stmt, 0);
                 const void* data = sqlite3_column_blob(stmt, 1);
                 int size = sqlite3_column_bytes(stmt, 1);
