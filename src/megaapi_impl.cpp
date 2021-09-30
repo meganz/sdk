@@ -11833,6 +11833,32 @@ bool MegaApiImpl::isValidTypeNode(Node *node, int type)
 }
 
 
+#if defined(_WIN32) || defined(__APPLE__)
+
+char* strcasestr(const char* string, const char* substring)
+{
+    int i, j;
+    for (i = 0; string[i]; i++)
+    {
+        for (j = 0; substring[j]; j++)
+        {
+            unsigned char c1 = string[i + j];
+            if (!c1)
+                return NULL;
+
+            unsigned char c2 = substring[j];
+            if (toupper(c1) != toupper(c2))
+                break;
+        }
+
+        if (!substring[j])
+            return (char*)string + i;
+    }
+    return NULL;
+}
+
+#endif
+
 MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
 {
     if (!n && !searchString && (type < MegaApi::FILE_TYPE_PHOTO || type > MegaApi::FILE_TYPE_DOCUMENT))
@@ -12305,32 +12331,6 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     sdkMutex.unlock();
     return NULL;
 }
-
-#if defined(_WIN32) || defined(__APPLE__)
-
-char *strcasestr(const char *string, const char *substring)
-{
-    int i, j;
-    for (i = 0; string[i]; i++)
-    {
-        for (j = 0; substring[j]; j++)
-        {
-            unsigned char c1 = string[i + j];
-            if (!c1)
-                return NULL;
-
-            unsigned char c2 = substring[j];
-            if (toupper(c1) != toupper(c2))
-                break;
-        }
-
-        if (!substring[j])
-            return (char *)string + i;
-    }
-    return NULL;
-}
-
-#endif
 
 void MegaApiImpl::file_added(File *f)
 {
