@@ -3127,8 +3127,11 @@ autocomplete::ACN autocompleteSyntax()
                     text("add"),
                     opt(flag("-backup")),
                     opt(sequence(flag("-external"), param("drivePath"))),
+                    opt(sequence(flag("-name"), param("syncname"))),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
+
+    p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
 
     p->Add(exec_syncblock,
            sequence(text("sync"),
@@ -8786,9 +8789,10 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
-    string drive;
+    string drive, syncname;
     bool backup = s.extractflag("-backup");
     bool external = s.extractflagparam("-external", drive);
+    bool named = s.extractflagparam("-name", syncname);
 
     // sync add source target
     LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
@@ -8812,7 +8816,7 @@ void exec_syncadd(autocomplete::ACState& s)
     // Create a suitable sync config.
     auto config =
       SyncConfig(sourcePath,
-                 sourcePath.leafName().toPath(*client->fsaccess),
+                 named ? syncname : sourcePath.leafName().toPath(*client->fsaccess),
                  NodeHandle().set6byte(targetNode->nodehandle),
                  targetNode->displaypath(),
                  0,
@@ -8848,6 +8852,31 @@ void exec_syncadd(autocomplete::ACState& s)
 	// All validation is performed in this function.
     client->addsync(config, false, sync_completion, "");
 }
+
+void exec_syncrename(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate backup syncs."
+            << endl;
+        return;
+    }
+
+    // get id
+    handle backupId = 0;
+    Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
+
+    string newname = s.words[3].s;
+
+    client->syncs.renameSync(backupId, newname,
+        [&](Error e)
+        {
+            if (!e) cout << "Rename succeeded";
+            else cout << "Rename failed: " << e;
+        });
+}
+
 
 // For debugging.
 void exec_syncblock(autocomplete::ACState& s)
@@ -9055,11 +9084,15 @@ void exec_synclist(autocomplete::ACState& s)
             << config.mName
             << "\n";
 
+        auto cloudnode = client->nodeByHandle(config.getRemoteNode());
+        string cloudpath = cloudnode ? cloudnode->displaypath() : "<null>";
+
         // Display source/target mapping.
         cout << "  Mapping: "
             << config.mLocalPath.toPath(*client->fsaccess)
             << " -> "
-            << config.mOriginalPathOfRemoteRootNode
+            << cloudpath
+            << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")
             << "\n";
 
         //if (sync)

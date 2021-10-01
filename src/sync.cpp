@@ -3895,6 +3895,50 @@ void Syncs::purgeRunningSyncs_inThread()
     }
 }
 
+void Syncs::renameSync(handle backupId, const string& newname, std::function<void(Error e)> completion)
+{
+    assert(!onSyncThread());
+    assert(completion);
+
+    auto clientCompletion = [this, completion](Error e)
+    {
+        queueClient([completion, e](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                completion(e);
+            });
+    };
+    queueSync([this, backupId, newname, clientCompletion]()
+        {
+            renameSync_inThread(backupId, newname, clientCompletion);
+        });
+}
+
+void Syncs::renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> completion)
+{
+    assert(onSyncThread());
+
+    lock_guard<mutex> g(mSyncVecMutex);
+
+    for (auto &i : mSyncVec)
+    {
+        if (i->mConfig.mBackupId == backupId)
+        {
+            i->mConfig.mName = newname;
+
+            // cause an immediate `sp` command to update the backup/sync heartbeat master record
+            mHeartBeatMonitor->updateOrRegisterSync(*i);
+
+            // queue saving the change locally
+            if (mSyncConfigStore) mSyncConfigStore->markDriveDirty(i->mConfig.mExternalDrivePath);
+
+            completion(API_OK);
+            return;
+        }
+    }
+
+    completion(API_EEXIST);
+}
+
 void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
 {
     assert(!onSyncThread());

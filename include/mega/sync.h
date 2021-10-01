@@ -737,6 +737,9 @@ struct Syncs
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
 
+    // async, callback on client thread
+    void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
+
     void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
     SyncConfigVector configsForDrive(const LocalPath& drive) const;
@@ -999,6 +1002,8 @@ private:
     void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector,
 	     bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat);
     void purgeRunningSyncs_inThread();
+    void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
+
 
     bool mExecutingLocallogout = false;
 
