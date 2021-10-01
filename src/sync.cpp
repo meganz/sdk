@@ -1185,6 +1185,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     if (newstate != SYNC_CANCELED)
     {
         mUnifiedSync.changedConfigState(notifyApp);
+        mUnifiedSync.mNextHeartbeat->updateStatus(mUnifiedSync);
     }
 }
 
@@ -2526,6 +2527,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
     startSync_inThread(us, debris, localdebris, us.mConfig.mRemoteNode, rootNodeName, inshare, isnetwork, rootpath, completion, logname);
+    us.mNextHeartbeat->updateStatus(us);
 }
 
 bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, bool exists, string cloudPath)

@@ -141,30 +141,25 @@ void HeartBeatSyncInfo::updateStatus(UnifiedSync& us)
 
     if (us.mSync)
     {
-        switch(us.mSync->localroot->ts)
+        if (us.mSync->active() &&
+           !us.mSync->syncPaused)
         {
-        case TREESTATE_SYNCED:
-            status = HeartBeatSyncInfo::Status::UPTODATE;
-            break;
-        case TREESTATE_PENDING:
-            status = HeartBeatSyncInfo::Status::PENDING;
-            break;
-        case TREESTATE_SYNCING:
-            status = HeartBeatSyncInfo::Status::SYNCING;
-            break;
-        default:
-            status = HeartBeatSyncInfo::Status::UNKNOWN;
-            break;
+            if (us.mSync->localroot->scanRequired() ||
+                us.mSync->localroot->mightHaveMoves() ||
+                us.mSync->localroot->syncRequired())
+            {
+                status = HeartBeatSyncInfo::Status::SYNCING;
+            }
+            else
+            {
+                status = HeartBeatSyncInfo::Status::UPTODATE;
+            }
         }
     }
 
     setStatus(status);
 }
 
-#endif
-
-
-#ifdef ENABLE_SYNC
 BackupInfoSync::BackupInfoSync(const SyncConfig& config, const string& device, handle drive, int calculatedState)
 {
     backupId = config.mBackupId;
