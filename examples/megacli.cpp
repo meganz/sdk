@@ -8872,8 +8872,8 @@ void exec_syncrename(autocomplete::ACState& s)
     client->syncs.renameSync(backupId, newname,
         [&](Error e)
         {
-            if (!e) cout << "Rename succeeded";
-            else cout << "Rename failed: " << e;
+            if (!e) cout << "Rename succeeded" << endl;
+            else cout << "Rename failed: " << e << endl;
         });
 }
 
