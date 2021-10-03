@@ -863,19 +863,11 @@ Sync::~Sync()
 {
     assert(syncs.onSyncThread());
 
-    // Had this sync reported an ignore file load failure?
-    if (syncs.mIgnoreFileFailureContext.match(*this))
-    {
-        // Then clear the context as the sync's inactive.
-        syncs.mIgnoreFileFailureContext.reset();
-    }
-
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     mDestructorRunning = true;
 
     // unlock tmp lock
     tmpfa.reset();
-
 
     // The database is closed; deleting localnodes will not remove them
     statecachetable.reset();
@@ -1160,13 +1152,6 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     // Transitioning to a 'stopped' state...
     if (newstate < SYNC_INITIALSCAN)
     {
-        // Had this sync reported an ignore file failure?
-        if (syncs.mIgnoreFileFailureContext.match(*this))
-        {
-            // Then clear the context as the sync's no longer active.
-            syncs.mIgnoreFileFailureContext.reset();
-        }
-
         // Should "user-disable" external backups...
         newEnableFlag &= config.isInternal();
     }
@@ -3946,16 +3931,6 @@ std::future<bool> Syncs::setSyncPausedByBackupId(handle id, bool pause)
 
                 // Let the engine know it has work to do.
                 waiter.notify();
-
-                // Nothing more to do.
-                break;
-            }
-
-            // Had this sync reported an ignore file load failure?
-            if (mIgnoreFileFailureContext.match(*us->mSync))
-            {
-                // Then clear the context as the sync's no longer active.
-                mIgnoreFileFailureContext.reset();
             }
         }
 
@@ -5658,9 +5633,31 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     {
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXF);
 
-        // Don't create a node for this file unless we know it's included.
-        if (parentRow.isExcluded(row.fsNode->localname, row.fsNode->type) < 1)
+        // Are we dealing with an ignore file?
+        auto isIgnoreFile = row.isIgnoreFile();
+
+        // If we are, make sure we process it exclusively.
+        if (isIgnoreFile)
+            parentRow.ignoreFileChanging();
+
+        // Is the row excluded?
+        auto isExcluded =
+          parentRow.isExcluded(row.fsNode->localname,
+                               row.fsNode->type);
+
+        // Come back later if the exclusion state is undefined.
+        if (!isExcluded)
             return true;
+
+        // Don't create a node for this row unless it's included.
+        if (isExcluded < 1)
+        {
+            // Unless we're dealing with an ignore file.
+            if (isIgnoreFile)
+                return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+
+            return true;
+        }
 
         // Item exists locally and remotely but we haven't synced them previously
         // If they are equal then join them with a Localnode. Othewise report or choose greater mtime.
@@ -8055,6 +8052,9 @@ void Syncs::syncLoop()
 
         stopCancelledFailedDisabled();
 
+        // Clear the context if the associated sync is no longer active.
+        mIgnoreFileFailureContext.reset(*this);
+
         waiter.bumpds();
 
         for (auto& us : mSyncVec)
@@ -8703,11 +8703,11 @@ Sync* Syncs::syncContainingPath(const string& path, bool includePaused)
 void Syncs::ignoreFileLoadFailure(const Sync& sync, const LocalPath& path)
 {
     // We should never be asked to report multiple ignore file failures.
-    assert(!mIgnoreFileFailureContext.mSync);
+    assert(mIgnoreFileFailureContext.mBackupID == UNDEF);
 
     // Record the failure.
+    mIgnoreFileFailureContext.mBackupID = sync.getConfig().mBackupId;
     mIgnoreFileFailureContext.mPath = path;
-    mIgnoreFileFailureContext.mSync = &sync;
 
     // Let the application know an ignore file has failed to load.
     mClient.app->syncupdate_filter_error(sync.getConfig());

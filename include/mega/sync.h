@@ -1100,18 +1100,32 @@ private:
     // Records which ignore file failed to load and under which sync.
     struct IgnoreFileFailureContext
     {
-        // Did this sync report the failure?
-        bool match(const Sync& sync) const
+        // Clear the context if the associated sync:
+        // - Is disabled (or failed.)
+        // - Is paused.
+        // - No longer exists.
+        void reset(Syncs& syncs)
         {
-            return mSync == &sync;
+            if (mBackupID == UNDEF)
+                return;
+
+            auto predicate = [&](const UnifiedSync& us) {
+                return us.mConfig.mBackupId == mBackupID
+                       && us.mConfig.mRunningState >= SYNC_INITIALSCAN;
+            };
+
+            if (syncs.syncMatching(std::move(predicate), false))
+                return;
+
+            reset();
         }
 
         // Clear the context.
         void reset()
         {
+            mBackupID = UNDEF;
             mFilterChain.clear();
             mPath.clear();
-            mSync = nullptr;
         }
 
         // Report the load failure as a stall.
@@ -1127,7 +1141,7 @@ private:
         bool resolve(FileSystemAccess& fsAccess)
         {
             // No failures to resolve so we're all good.
-            if (!mSync)
+            if (mBackupID == UNDEF)
                 return true;
 
             // Try and load the ignore file.
@@ -1147,7 +1161,7 @@ private:
         // Has an ignore file failure been signalled?
         bool signalled() const
         {
-            return mSync != nullptr;
+            return mBackupID != UNDEF;
         }
 
         // Used to load the ignore file specified below.
@@ -1157,7 +1171,7 @@ private:
         LocalPath mPath;
 
         // What sync contained the broken ignore file?
-        const Sync* mSync = nullptr;
+        handle mBackupID = UNDEF;
     }; // IgnoreFileFailureContext
 
     // Tracks the last recorded ignore file failure.

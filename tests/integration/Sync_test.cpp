@@ -10490,6 +10490,7 @@ TEST_F(FilterFailureFixture, ResolveBrokenIgnoreFile)
     model0.addfile(".megaignore", "#");
     model0.generate(root(*cdu) / "s0");
 
+    model1.addfile(".megaignore", "#");
     model1.addfile("f0");
     model1.generate(root(*cdu) / "s1");
 
