@@ -1545,7 +1545,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             if (!row.syncNode)
             {
-                resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+                resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
                 assert(row.syncNode);
             }
 
@@ -2108,7 +2108,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             if (!row.syncNode)
             {
-                resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
+                resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
                 assert(row.syncNode);
             }
 
@@ -5203,7 +5203,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // in particular contradictroy moves.
                             if (childRow.type() == SRT_XXF && row.isExcluded(*childRow.fsNode) > 0)
                             {
-                                resolve_makeSyncNode_fromFS(childRow, row, fullPath);
+                                resolve_makeSyncNode_fromFS(childRow, row, fullPath, false);
                             }
                         }
                         else if (belowRemovedFsNode)
@@ -5213,7 +5213,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // in particular contradictroy moves.
                             if (childRow.type() == SRT_CXX && row.isExcluded(*childRow.cloudNode) > 0)
                             {
-                                resolve_makeSyncNode_fromCloud(childRow, row, fullPath);
+                                resolve_makeSyncNode_fromCloud(childRow, row, fullPath, false);
                             }
                         }
                         else if (syncHere && !childRow.itemProcessed)
@@ -5387,7 +5387,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         row.fsNode->isBlocked || row.fsNode->type == TYPE_UNKNOWN))
     {
         // so that we can checkForScanBlocked() immediately below
-        resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+        resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
     }
     if (row.syncNode &&
         row.syncNode->checkForScanBlocked(row.fsNode))
@@ -5671,7 +5671,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
         if (row.fsNode->type != FILENODE || row.fsNode->fingerprint == row.cloudNode->fingerprint)
         {
-            return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+            return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
         }
 
         // When initially joining two trees together, use the old rules (pick most recent)
@@ -5692,7 +5692,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             //
             // This is necessary even when the ignore file itself is excluded as
             // we still need to load the filters it defines.
-            return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+            return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
         }
 
         // Don't create a sync node for this file unless we know that it's included.
@@ -5701,7 +5701,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
         // Item exists locally only. Check if it was moved/renamed here, or Create
         // If creating, next run through will upload it
-        return resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+        return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
     }
     case SRT_CXX:
     {
@@ -5719,7 +5719,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         }
 
         // item exists remotely only
-        return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
+        return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
     }
     } // switch
 
@@ -5861,7 +5861,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 }
 
 
-bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
@@ -5881,7 +5881,15 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
         row.syncNode->scannedFingerprint = row.fsNode->fingerprint;
     }
 
-    row.syncNode->treestate(TREESTATE_PENDING);
+    if (considerSynced)
+    {
+        row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
+        row.syncNode->treestate(TREESTATE_SYNCED);
+    }
+    else
+    {
+        row.syncNode->treestate(TREESTATE_PENDING);
+    }
 
     if (row.syncNode->type != FILENODE)
     {
@@ -5895,7 +5903,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
     return false;
 }
 
-bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
@@ -5910,8 +5918,15 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
         row.syncNode->syncedFingerprint = row.cloudNode->fingerprint;
     }
     row.syncNode->init(this, row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
-    row.syncNode->treestate(TREESTATE_PENDING);
-
+    if (considerSynced)
+    {
+        row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+        row.syncNode->treestate(TREESTATE_SYNCED);
+    }
+    else
+    {
+        row.syncNode->treestate(TREESTATE_PENDING);
+    }
     if (row.syncNode->type != FILENODE)
     {
         row.syncNode->setSyncAgain(false, true, true);
@@ -6397,8 +6412,8 @@ bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                       && (fs.size > cloud.size
                           || (fs.size == cloud.size && fs.crc > cloud.crc)));
 
-    return fromFS ? resolve_makeSyncNode_fromFS(row, parentRow, fullPath)
-                  : resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
+    return fromFS ? resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false)
+                  : resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
 }
 
 bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
