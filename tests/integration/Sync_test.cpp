@@ -2971,6 +2971,8 @@ struct StandardClient : public MegaApp
         auto total = std::chrono::milliseconds(0);
         auto sleepIncrement = std::chrono::milliseconds(500);
 
+        out() << "Waiting for predicate to match...";
+
         do
         {
             if (predicate(*this))
@@ -2979,8 +2981,6 @@ struct StandardClient : public MegaApp
 
                 return true;
             }
-
-            out() << "Waiting for predicate to match...";
 
             std::this_thread::sleep_for(sleepIncrement);
             total += sleepIncrement;
@@ -3109,6 +3109,15 @@ struct SyncWaitResult
     bool syncStalled = false;
     SyncStallInfo stall;
 };
+
+bool noSyncStalled(vector<SyncWaitResult>& v)
+{
+    for (auto& e : v)
+    {
+        if (e.syncStalled) return false;
+    }
+    return true;
+}
 
 vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity, int64_t millisecNoSyncing)> endCondition, StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
 {
@@ -6862,7 +6871,8 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     model2.root->addkid(model2.buildModelSubdirs("d", 1, 1, 2));
     model2.generate(SYNC2.localpath, true);
 
-    waitonsyncs(TIMEOUT, &c);
+    auto waitResult = waitonsyncs(TIMEOUT, &c);
+    ASSERT_TRUE(noSyncStalled(waitResult));
 
     c.setSyncPausedByBackupId(id0, true);
     c.setSyncPausedByBackupId(id1, true);
@@ -6908,11 +6918,8 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
         };
     };
 
-    // Wait for sync activity to complete (as far as stall.)
-    waitonsyncs(TIMEOUT, &c);
-
     // Be absolutely sure we've stalled. (stall is across all syncs - todo: figure out if each one contains a stall)
-    ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+    ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(20)));
 
     // resolve case 0: Make it possible for the sync to resolve the stall.
     fs::rename(
@@ -6933,7 +6940,8 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     ASSERT_TRUE(c.waitFor(SyncStallState(false), TIMEOUT));
 
     LOG_debug << "Make sure the sync's completed its processing.";
-    waitonsyncs(TIMEOUT, &c);
+    waitResult = waitonsyncs(TIMEOUT, &c);
+    ASSERT_TRUE(noSyncStalled(waitResult));
 
     LOG_debug << "now the sync should have unstalled and resolved the stalled cases";
 

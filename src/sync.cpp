@@ -2038,6 +2038,10 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             return true;
         }
     }
+    else
+    {
+        monitor.noResult();
+    }
     return false;
 }
 
@@ -7635,7 +7639,7 @@ void Syncs::syncLoop()
 #ifdef MEGA_MEASURE_CODE
 
             LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
-                        << " skipped for scanning: " << skippedForScanning;
+                        << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "");
             rst.complete();
 #endif
             mSyncFlags->recursiveSyncLastCompletedDs = waiter.ds;
