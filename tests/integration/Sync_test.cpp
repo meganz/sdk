@@ -66,6 +66,25 @@ typedef ::mega::byte byte;
 
 #define NO_SIZE_FILTER 1
 
+bool adjustLastModificationTime(const fs::path& path, int adjustment)
+{
+    using std::chrono::seconds;
+
+    std::error_code ec;
+
+    // Retrieve the file's current modification time.
+    auto current = fs::last_write_time(path, ec);
+
+    // Bail if we couldn't retrieve the time.
+    if (ec) return false;
+
+    // Update the modification time.
+    fs::last_write_time(path, current + seconds(adjustment), ec);
+
+    // Let the caller know whether we succeeded.
+    return !ec;
+}
+
 // Creates a temporary directory in the current path
 fs::path makeTmpDir(const int maxTries = 1000)
 {
@@ -13461,68 +13480,62 @@ TEST_F(CloudToLocalFilterFixture, RenameToIgnoredRubbishesRemote)
     ASSERT_TRUE(confirm(*cdu, id, remoteTree));
 }
 
-#endif
-GTEST_TEST(Sync, MoveExistingIntoNewDirectoryWhilePaused)
+TEST_F(SyncTest, CorrectlyHandlePreviouslySyncedFiles)
 {
     auto TESTROOT = makeNewTestRoot();
-    auto TIMEOUT  = chrono::seconds(4);
+    auto TIMEOUT  = std::chrono::seconds(4);
 
-    Model model;
-    fs::path root;
-    string session;
-    handle id;
-
-    // Initial setup.
-    {
-        StandardClient c(TESTROOT, "c");
-
-        // Log in client.
-        ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
-
-        // Add and start sync.
-        id = c.setupSync_mainthread("s", "s");
-        ASSERT_NE(id, UNDEF);
-
-        // Squirrel away for later use.
-        root = c.syncSet(id).localpath.u8string();
-
-        // Populate filesystem.
-        model.addfolder("a");
-        model.addfolder("c");
-        model.generate(root);
-
-        // Wait for initial sync to complete.
-        waitonsyncs(TIMEOUT, &c);
-
-        // Make sure everything arrived safely.
-        ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
-
-        // Save the session so we can resume later.
-        c.client.dumpsession(session);
-
-        // Log out client, taking care to keep caches.
-        c.localLogout();
-    }
-
+    // Sync client.
     StandardClient c(TESTROOT, "c");
 
-    // Add a new hierarchy to be scanned.
-    model.addfolder("b");
-    model.generate(root);
+    // Log callbacks.
+    c.logcb = true;
 
-    // Move c under b.
-    fs::rename(root / "c", root / "b" / "c");
+    // Log in the client.
+    ASSERT_TRUE(c.login_reset("MEGA_EMAIL", "MEGA_PWD"));
 
-    // Update the model.
-    model.movenode("c", "b");
+    // Convenience.
+    auto lRoot = c.fsBasePath / "s";
 
-    // Log in client resuming prior session.
-    ASSERT_TRUE(c.login_fetchnodes(session));
+    // Prepare the local filesystem.
+    Model model;
 
-    // Wait for the sync to catch up.
+    model.addfile("d/f0");
+    model.addfile("d/f1");
+    model.generate(lRoot);
+
+    // Prepare the cloud.
+    {
+        auto rRoot = c.gettestbasenode();
+
+        ASSERT_TRUE(c.uploadFolderTree(lRoot, rRoot));
+        ASSERT_TRUE(c.uploadFilesInTree(lRoot, rRoot));
+    }
+
+    // Tweak the file's modification times.
+
+    // Local d/f0 is more recent.
+    ASSERT_TRUE(adjustLastModificationTime(lRoot / "d" / "f0", 1000));
+
+    // Cloud d/f1 is more recent.
+    ASSERT_TRUE(adjustLastModificationTime(lRoot / "d" / "f1", -1000));
+
+    // Add and start a sync.
+    auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+    
+    // Wait for the sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
-    // Were the changes propagated?
+    // Local d/f1 should've been moved to the local debris.
+    model.movetosynctrash("d/f1", "");
+
+    // File still exists, though.
+    model.addfile("d/f1");
+
+    // Check everything was synced correctly.
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
+
+#endif
 

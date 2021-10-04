@@ -6412,8 +6412,30 @@ bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                       && (fs.size > cloud.size
                           || (fs.size == cloud.size && fs.crc > cloud.crc)));
 
-    return fromFS ? resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false)
-                  : resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
+    // File on disk is newer than in the cloud.
+    if (fromFS)
+    {
+        resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+        row.syncNode->syncedFingerprint = cloud;
+    }
+    else
+    {
+        resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
+        row.syncNode->syncedFingerprint = fs;
+    }
+    
+    // Consider us previously synced.
+    row.syncNode->setSyncedFsid(row.fsNode->fsid,
+                                syncs.localnodeBySyncedFsid,
+                                row.fsNode->localname,
+                                row.fsNode->cloneShortname());
+
+    row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+
+    // Persist changes.
+    statecacheadd(row.syncNode);
+
+    return false;
 }
 
 bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
