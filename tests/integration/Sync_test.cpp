@@ -7617,7 +7617,8 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
         ASSERT_NE(id, UNDEF);
 
         // Build model and populate filesystem.
-        model.addfolder("0/1");
+        model.addfolder("0/1/2/3");
+        model.addfolder("4/5/6/7");
         model.generate(c.syncSet(id).localpath);
 
         // Wait for the sync to complete.
@@ -7638,16 +7639,39 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
     // Log callbacks.
     c.logcb = true;
 
-    // Replace 0 with 1.
-    model.removenode("0/1");
+    // Locally replace 0 with 0/1/2/3.
+    {
+        model.removenode("0");
+        model.addfolder("0");
 
-    fs::rename(c.fsBasePath / "s" / "0" / "1",
-               c.fsBasePath / "s" / "1");
+        fs::rename(c.fsBasePath / "s" / "0" / "1" / "2" / "3",
+                   c.fsBasePath / "s" / "3");
 
-    fs::remove_all(c.fsBasePath / "s" / "0");
+        fs::remove_all(c.fsBasePath / "s" / "0");
 
-    fs::rename(c.fsBasePath / "s" / "1",
-               c.fsBasePath / "s" / "0");
+        fs::rename(c.fsBasePath / "s" / "3",
+                   c.fsBasePath / "s" / "0");
+    }
+
+    // Remotely replace 4 with 4/5/6/7.
+    {
+        model.movetosynctrash("4", "");
+        model.addfolder("4");
+
+        // New client so we can alter the cloud without resuming syncs.
+        StandardClient cr(TESTROOT, "cr");
+
+        // Log callbacks.
+        cr.logcb = true;
+
+        // Log in client.
+        ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+        // Replace 4 with 4/5/6/7.
+        ASSERT_TRUE(cr.movenode("s/4/5/6/7", "s"));
+        ASSERT_TRUE(cr.deleteremote("s/4"));
+        ASSERT_TRUE(cr.rename("s/7", "4"));
+    }
 
     // Hook resume callbacks.
     promise<void> notify;

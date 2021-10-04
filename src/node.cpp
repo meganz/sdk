@@ -2912,7 +2912,7 @@ bool LocalNode::recomputeExclusionState()
     mExcluded = excluded < 0;
     mRecomputeExclusionState = excluded == 0;
 
-    return true;
+    return !mRecomputeExclusionState;
 }
 
 #endif // ENABLE_SYNC

@@ -1546,7 +1546,15 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                      SyncWaitReason::UnknownExclusionState);
 
 
-                // Don't recurse below this node.
+                // In some cases the move source may be below the target.
+                //
+                // This flag is necessary so that we continue to descend down
+                // from the move target to the source such that we recompute
+                // the source's exclusion state.
+                //
+                // TODO: Should we only set this flag if the source is below
+                //       the target?
+                row.recurseBelowRemovedFsNode = true;
                 row.suppressRecursion = true;
 
                 // Attempt the move later.
@@ -1937,7 +1945,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                  string(),
                                  SyncWaitReason::UnknownExclusionState);
 
-            // Don't recurse below this node.
+            row.recurseBelowRemovedCloudNode = true;
             row.suppressRecursion = true;
 
             // Complete the move later.
@@ -5126,8 +5134,15 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             }
                         }
 
-                        // Make sure this node's exclusion state is current.
-                        s->recomputeExclusionState();
+                        // Recompute this row's exclusion state.
+                        if (s->recomputeExclusionState())
+                        {
+                            // Make sure we visit this node's children if its filter state
+                            // has changed and we're currently recursing below a removed
+                            // node.
+                            childRow.recurseBelowRemovedCloudNode |= belowRemovedCloudNode;
+                            childRow.recurseBelowRemovedFsNode |= belowRemovedFsNode;
+                        }
                     }
 
                     ScopedSyncPathRestore syncPathRestore(fullPath);
