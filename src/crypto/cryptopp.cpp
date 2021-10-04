@@ -250,7 +250,7 @@ bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
             aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
             StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
         }
-    } catch (HashVerificationFilter::HashVerificationFailed e)
+    } catch (HashVerificationFilter::HashVerificationFailed& e)
     {
         result->clear();
         LOG_err << "Failed AES-CCM decryption: " << e.GetWhat();
@@ -305,7 +305,7 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     aesgcm_d.Resynchronize(iv, ivlen);
     try {
         StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
-    } catch (HashVerificationFilter::HashVerificationFailed e)
+    } catch (HashVerificationFilter::HashVerificationFailed& e)
     {
         result->clear();
         LOG_err << "Failed AES-GCM decryption: " << e.GetWhat();

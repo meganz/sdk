@@ -57,8 +57,8 @@ struct TransferTracker : public ::mega::MegaTransferListener
     std::atomic<bool> finished = { false };
     std::atomic<int> result = { INT_MAX };
     std::promise<int> promiseResult;
-    std::future<int> futureResult;
     MegaApi *mApi;
+    std::future<int> futureResult;
     std::shared_ptr<TransferTracker> selfDeleteOnFinalCallback;
 
     TransferTracker(MegaApi *api): mApi(api), futureResult(promiseResult.get_future())

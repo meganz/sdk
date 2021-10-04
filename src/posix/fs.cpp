@@ -847,7 +847,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     if (MEGA_FD_ISSET(notifyfd, &pw->rfds))
     {
         char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
-        int p, l;
+        ssize_t p, l;
         inotify_event* in;
         wdlocalnode_map::iterator it;
         string localpath;
@@ -908,7 +908,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 lastcookie = 0;
 
                                 ignore = &it->second->sync->dirnotify->ignore.localpath;
-                                unsigned int insize = strlen(in->name);
+                                size_t insize = strlen(in->name);
 
                                 if (insize < ignore->size()
                                  || memcmp(in->name, ignore->data(), ignore->size())
@@ -1798,7 +1798,7 @@ void PosixFileSystemAccess::statsid(string *id) const
     }
 
     char buff[512];
-    int len = read(fd, buff, 512);
+    ssize_t len = read(fd, buff, 512);
     close(fd);
 
     if (len <= 0)
@@ -1869,7 +1869,7 @@ fsfp_t PosixDirNotify::fsfingerprint() const
 {
     struct statfs statfsbuf;
 
-    // FIXME: statfs() does not really do what we want.
+    // @TODO: FIXME. statfs() does not really do what we want.
     if (statfs(localbasepath.localpath.c_str(), &statfsbuf))
     {
         return 0;

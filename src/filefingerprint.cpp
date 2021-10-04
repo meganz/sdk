@@ -360,7 +360,7 @@ void FileFingerprint::serializefingerprint(string* d) const
     l = Serialize64::serialize(buf + sizeof crc, mtime);
 
     d->resize((sizeof crc + l) * 4 / 3 + 4);
-    d->resize(Base64::btoa(buf, sizeof crc + l, (char*)d->c_str()));
+    d->resize(Base64::btoa(buf, static_cast<int>(sizeof crc + l), (char*)d->c_str()));
 }
 
 // decode and set base64-encoded fingerprint
@@ -375,7 +375,7 @@ int FileFingerprint::unserializefingerprint(string* d)
         return 0;
     }
 
-    if (Serialize64::unserialize(buf + sizeof crc, l - sizeof crc, &t) < 0)
+    if (Serialize64::unserialize(buf + sizeof crc, static_cast<int>(l - sizeof crc), &t) < 0)
     {
         return 0;
     }
