@@ -23248,7 +23248,7 @@ void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* l
     request->setTotalBytes(backupType);
     request->setNodeHandle(targetNode);
     request->setFile(localFolder);
-    request->setName(backupName ? Base64::btoa(backupName).c_str() : nullptr);
+    request->setName(backupName);
     request->setAccess(state);
     request->setNumDetails(subState);
     request->setFlag(true); // indicates it's a new backup
