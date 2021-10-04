@@ -1299,7 +1299,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     tput.proc(*sync->syncs.fsaccess, ln);
 
     ln->mFilterChain = mFilterChain;
-    ln->mLoadPending = mLoadPending;
+    ln->mWaitingForIgnoreFileLoad = mWaitingForIgnoreFileLoad;
 
     // Make sure our exclusion state is recomputed.
     ln->setRecomputeExclusionState();
@@ -1371,7 +1371,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 
     bumpnagleds();
 
-    mLoadPending = false;
+    mWaitingForIgnoreFileLoad = false;
 
     if (cparent)
     {
@@ -2569,7 +2569,7 @@ void LocalNode::clearFilters()
     mFilterChain.clear();
 
     // Reset ignore file state.
-    setLoadPending(false);
+    setWaitingForIgnoreFileLoad(false);
 
     // Re-examine this subtree.
     setScanAgain(false, true, true, 0);
@@ -2589,7 +2589,7 @@ bool LocalNode::loadFilters(const LocalPath& path)
 
     // Ignore file hasn't changed.
     if (result == FLR_SKIPPED)
-        return !mLoadPending;
+        return !mWaitingForIgnoreFileLoad;
 
     auto failed = result == FLR_FAILED;
 
@@ -2604,7 +2604,7 @@ bool LocalNode::loadFilters(const LocalPath& path)
     }
 
     // Update our load pending state.
-    setLoadPending(failed);
+    setWaitingForIgnoreFileLoad(failed);
 
     // Re-examine this subtree.
     setScanAgain(false, true, true, 0);
@@ -2674,13 +2674,13 @@ bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
     return false;
 }
 
-void LocalNode::setLoadPending(bool pending)
+void LocalNode::setWaitingForIgnoreFileLoad(bool pending)
 {
     // Only meaningful for directories.
     assert(type == FOLDERNODE);
 
     // Do we really need to update our children?
-    if (!mLoadPending)
+    if (!mWaitingForIgnoreFileLoad)
     {
         // Tell our children they need to recompute their state.
         for (auto& childIt : children)
@@ -2688,7 +2688,7 @@ void LocalNode::setLoadPending(bool pending)
     }
 
     // Apply new pending state.
-    mLoadPending = pending;
+    mWaitingForIgnoreFileLoad = pending;
 }
 
 void LocalNode::setRecomputeExclusionState()
@@ -2726,11 +2726,11 @@ void LocalNode::setRecomputeExclusionState()
     }
 }
 
-bool LocalNode::hasPendingLoad() const
+bool LocalNode::waitingForIgnoreFileLoad() const
 {
     for (auto* node = this; node; node = node->parent)
     {
-        if (node->mLoadPending)
+        if (node->mWaitingForIgnoreFileLoad)
             return true;
     }
 
@@ -2751,7 +2751,7 @@ void LocalNode::ignoreFileDownloading()
     assert(mIsIgnoreFile);
 
     // Let the parent know it has a pending load.
-    parent->setLoadPending(true);
+    parent->setWaitingForIgnoreFileLoad(true);
 }
 
 bool LocalNode::ignoreFileLoad(const LocalPath& path)
@@ -2801,7 +2801,7 @@ LocalNode::isExcluded(const PathType& path, nodetype_t type, m_off_t size) const
     }
 
     // We can't know the child's state unless our filters are current.
-    if (mLoadPending && !isIgnoreFile)
+    if (mWaitingForIgnoreFileLoad && !isIgnoreFile)
         return 0;
 
     // Computed cloud name and relative cloud path.

@@ -4578,7 +4578,7 @@ bool syncRow::ignoreFileStable() const
     assert(syncNode->type == FOLDERNODE);
 
     return !mIgnoreFileChanged
-           && !syncNode->hasPendingLoad();
+           && !syncNode->waitingForIgnoreFileLoad();
 }
 
 int syncRow::isExcluded(const CloudNode& node) const
@@ -5255,7 +5255,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 break;
 
             // We need to load our ignore file.
-            if (row.syncNode->hasPendingLoad())
+            if (row.syncNode->waitingForIgnoreFileLoad())
                 break;
         }
 

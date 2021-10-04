@@ -692,14 +692,14 @@ private:
         // Whether this node is excluded.
         bool mExcluded : 1;
 
-        // Whether we need to reload this node's ignore file.
-        bool mLoadPending : 1;
-
         // Whether we're an ignore file.
         bool mIsIgnoreFile : 1;
 
         // Whether we need to recompute this node's exclusion state.
         bool mRecomputeExclusionState : 1;
+
+        // Whether we need to reload this node's ignore file.
+        bool mWaitingForIgnoreFileLoad : 1;
     };
 
     // Clears the filters defined by this node.
@@ -714,15 +714,15 @@ private:
     // Query whether a file is excluded by a size filter.
     bool isExcluded(const RemotePathPair& namePath, m_off_t size) const;
 
-    // Signal whether this node needs to load its ignore file.
-    void setLoadPending(bool pending);
-
     // Signal that this node and its children must recompute their exclusion state.
     void setRecomputeExclusionState();
 
+    // Signal whether this node needs to load its ignore file.
+    void setWaitingForIgnoreFileLoad(bool waiting);
+
 public:
-    // Query whether this node or a parent has a pending load.
-    bool hasPendingLoad() const;
+    // Query whether this node needs to load its ignore file.
+    bool waitingForIgnoreFileLoad() const;
 
     // Has this ignore file changed?
     bool ignoreFileChanged(const FileFingerprint& fingerprint) const;
