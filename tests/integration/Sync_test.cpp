@@ -1959,7 +1959,7 @@ struct StandardClient : public MegaApp
         }
     }; // CloudNameLess
 
-    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail)
+    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)
     {
         // top level names can differ so we don't check those
         if (!mn || !n) return false;
@@ -1989,11 +1989,19 @@ struct StandardClient : public MegaApp
         multimap<string, Node*, CloudNameLess> ns;
         for (auto& m : mn->kids)
         {
-            if (!m->fsOnly)
+            if (m->fsOnly)
+                continue;
+
+            if (skipIgnoreFile && m->cloudName() == IGNORE_FILE_NAME)
+                continue;
+
             ms.emplace(m->cloudName(), m.get());
         }
         for (auto& n2 : n->children)
         {
+            if (skipIgnoreFile && n2->displayname() == IGNORE_FILE_NAME)
+                continue;
+
             ns.emplace(n2->displayname(), n2);
         }
 
@@ -2014,7 +2022,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0;
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported, expectFail))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported, expectFail, skipIgnoreFile))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -2067,7 +2075,7 @@ struct StandardClient : public MegaApp
         return {iter1, iter2};
     }
 
-    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail)
+    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)
     {
         // top level names can differ so we don't check those
         if (!mn || !n) return false;
@@ -2130,11 +2138,19 @@ struct StandardClient : public MegaApp
         multimap<string, LocalNode*, CloudNameLess> ns;
         for (auto& m : mn->kids)
         {
-            if (!m->fsOnly)
+            if (m->fsOnly)
+                continue;
+
+            if (skipIgnoreFile && m->fsName() == IGNORE_FILE_NAME)
+                continue;
+
             ms.emplace(m->fsName(), m.get());
         }
         for (auto& n2 : n->children)
         {
+            if (skipIgnoreFile && n2.second->isIgnoreFile())
+                continue;
+
             ns.emplace(n2.second->localname.toPath(), n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
         }
 
@@ -2156,7 +2172,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0;
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported, expectFail))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported, expectFail, skipIgnoreFile))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -2194,7 +2210,7 @@ struct StandardClient : public MegaApp
     }
 
 
-    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported, bool expectFail)
+    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported, bool expectFail, bool skipIgnoreFile)
     {
         struct Comparator
         {
@@ -2252,12 +2268,20 @@ struct StandardClient : public MegaApp
 
         for (auto& m : mn->kids)
         {
+            if (skipIgnoreFile && m->fsName() == IGNORE_FILE_NAME)
+                continue;
+
             ms.emplace(m->fsName(), m.get());
         }
 
         for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
         {
-            ps.emplace(pi->path().filename().u8string(), pi->path());
+            auto name = pi->path().filename().u8string();
+
+            if (skipIgnoreFile && name == IGNORE_FILE_NAME)
+                continue;
+
+            ps.emplace(std::move(name), pi->path());
         }
 
         if (ignoreDebris && depth == 0)
@@ -2282,7 +2306,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0;
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris, firstreported, expectFail))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris, firstreported, expectFail, skipIgnoreFile))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -2388,49 +2412,49 @@ struct StandardClient : public MegaApp
         CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
     };
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail)
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail, bool skipIgnoreFile)
     {
         auto result =
           thread_do<bool>(
             [=](StandardClient& client, PromiseBoolSP result)
             {
-                result->set_value(client.confirmModel(id, mRoot, rRoot, expectFail));
+                result->set_value(client.confirmModel(id, mRoot, rRoot, expectFail, skipIgnoreFile));
             });
 
         return result.get();
     }
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot, bool expectFail)
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot, bool expectFail, bool skipIgnoreFile)
     {
         auto result =
           thread_do<bool>(
             [=](StandardClient& client, PromiseBoolSP result)
             {
-                result->set_value(client.confirmModel(id, mRoot, lRoot, expectFail));
+                result->set_value(client.confirmModel(id, mRoot, lRoot, expectFail, skipIgnoreFile));
             });
 
         return result.get();
     }
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, bool ignoreDebris, bool expectFail)
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, bool ignoreDebris, bool expectFail, bool skipIgnoreFile)
     {
         auto result =
           thread_do<bool>(
             [=](StandardClient& client, PromiseBoolSP result)
             {
-                result->set_value(client.confirmModel(id, mRoot, lRoot, ignoreDebris, expectFail));
+                result->set_value(client.confirmModel(id, mRoot, lRoot, ignoreDebris, expectFail, skipIgnoreFile));
             });
 
         return result.get();
     }
 
-    bool confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail)
+    bool confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail, bool skipIgnoreFile)
     {
         string name = "Sync " + toHandle(id);
         int descendents = 0;
         bool reported = false;
 
-        if (!recursiveConfirm(mRoot, rRoot, descendents, name, 0, reported, expectFail))
+        if (!recursiveConfirm(mRoot, rRoot, descendents, name, 0, reported, expectFail, skipIgnoreFile))
         {
             out() << clientname << " syncid " << toHandle(id) << " comparison against remote nodes failed";
             return false;
@@ -2439,13 +2463,13 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot, bool expectFail)
+    bool confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot, bool expectFail, bool skipIgnoreFile)
     {
         string name = "Sync " + toHandle(id);
         int descendents = 0;
         bool reported = false;
 
-        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, reported, expectFail))
+        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, reported, expectFail, skipIgnoreFile))
         {
             out() << clientname << " syncid " << toHandle(id) << " comparison against LocalNodes failed";
             return false;
@@ -2454,13 +2478,13 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, bool ignoreDebris, bool expectFail)
+    bool confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, bool ignoreDebris, bool expectFail, bool skipIgnoreFile)
     {
         string name = "Sync " + toHandle(id);
         int descendents = 0;
         bool reported = false;
 
-        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, ignoreDebris, reported, expectFail))
+        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, ignoreDebris, reported, expectFail, skipIgnoreFile))
         {
             out() << clientname << " syncid " << toHandle(id) << " comparison against local filesystem failed";
             return false;
@@ -2469,7 +2493,7 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris, bool expectFail)
+    bool confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris, bool expectFail, bool skipIgnoreFile)
     {
         SyncInfo si;
 
@@ -2480,7 +2504,7 @@ struct StandardClient : public MegaApp
         }
 
         // compare model against nodes representing remote state
-        if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodeByHandle(si.h), expectFail))
+        if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodeByHandle(si.h), expectFail, skipIgnoreFile))
         {
             return false;
         }
@@ -2488,14 +2512,14 @@ struct StandardClient : public MegaApp
         // compare model against LocalNodes
         if (Sync* sync = syncByBackupId(backupId))
         {
-            if ((confirm & CONFIRM_LOCALNODE) && !confirmModel(backupId, mnode, sync->localroot.get(), expectFail))
+            if ((confirm & CONFIRM_LOCALNODE) && !confirmModel(backupId, mnode, sync->localroot.get(), expectFail, skipIgnoreFile))
             {
                 return false;
             }
         }
 
         // compare model against local filesystem
-        if ((confirm & CONFIRM_LOCALFS) && !confirmModel(backupId, mnode, si.localpath, ignoreDebris, expectFail))
+        if ((confirm & CONFIRM_LOCALFS) && !confirmModel(backupId, mnode, si.localpath, ignoreDebris, expectFail, skipIgnoreFile))
         {
             return false;
         }
@@ -3030,11 +3054,11 @@ struct StandardClient : public MegaApp
         return fb.get();
     }
 
-    bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false)
+    bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false, bool skipIgnoreFile = true)
     {
-        future<bool> fb;
-        fb = thread_do<bool>([backupId, mnode, ignoreDebris, confirm, expectFail](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris, expectFail)); });
-        return fb.get();
+        return thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
+            pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris, expectFail, skipIgnoreFile));
+        }).get();
     }
 
     bool match(handle id, const Model::ModelNode* source)
@@ -8502,9 +8526,9 @@ struct TwoWaySyncSymmetryCase
         if (!initial) out() << "Checking setup state (should be no changes in twoway sync source): "<< name();
 
         // confirm source is unchanged after setup  (Two-way is not sending changes to the wrong side)
-        bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false); // todo: later enable debris checks
-        bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false); // todo: later enable debris checks
-        bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true, false); // todo: later enable debris checks
+        bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false, true); // todo: later enable debris checks
+        bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false, true); // todo: later enable debris checks
+        bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true, false, true); // todo: later enable debris checks
         EXPECT_EQ(localfs, localnode);
         EXPECT_EQ(localnode, remote);
         EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
@@ -8542,8 +8566,8 @@ struct TwoWaySyncSymmetryCase
 
         if (shouldDisableSync())
         {
-            bool lfs = client1().confirmModel(backupId, localModel.findnode("f"), localSyncRootPath(), true, false);
-            bool rnt = client1().confirmModel(backupId, remoteModel.findnode("f"), remoteSyncRoot(), false);
+            bool lfs = client1().confirmModel(backupId, localModel.findnode("f"), localSyncRootPath(), true, false, true);
+            bool rnt = client1().confirmModel(backupId, remoteModel.findnode("f"), remoteSyncRoot(), false, true);
 
             EXPECT_EQ(sync, nullptr) << "Sync isn't disabled: " << name();
             EXPECT_TRUE(lfs) << "Couldn't confirm LFS: " << name();
@@ -8558,9 +8582,9 @@ struct TwoWaySyncSymmetryCase
             EXPECT_NE(sync, (Sync*)nullptr);
             EXPECT_TRUE(sync && sync->state() == SYNC_ACTIVE);
 
-            bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false); // todo: later enable debris checks
-            bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false); // todo: later enable debris checks
-            bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true, false); // todo: later enable debris checks
+            bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false, true); // todo: later enable debris checks
+            bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false, true); // todo: later enable debris checks
+            bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true, false, true); // todo: later enable debris checks
             EXPECT_EQ(localfs, localnode);
             EXPECT_EQ(localnode, remote);
             EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
@@ -9862,7 +9886,9 @@ public:
                  model.root.get(),
                  id,
                  ignoreDebris,
-                 StandardClient::CONFIRM_LOCALFS);
+                 StandardClient::CONFIRM_LOCALFS,
+                 false,
+                 false);
     }
 
     bool confirm(Client& client,
@@ -9874,7 +9900,9 @@ public:
                  model.root.get(),
                  id,
                  ignoreDebris,
-                 StandardClient::CONFIRM_LOCALNODE);
+                 StandardClient::CONFIRM_LOCALNODE,
+                 false,
+                 false);
     }
 
     bool confirm(Client& client,
@@ -9886,7 +9914,9 @@ public:
                  model.root.get(),
                  id,
                  ignoreDebris,
-                 StandardClient::CONFIRM_ALL);
+                 StandardClient::CONFIRM_ALL,
+                 false,
+                 false);
     }
 
     bool confirm(Client& client,
@@ -9898,7 +9928,9 @@ public:
                  model.root.get(),
                  id,
                  ignoreDebris,
-                 StandardClient::CONFIRM_REMOTE);
+                 StandardClient::CONFIRM_REMOTE,
+                 false,
+                 false);
     }
 
     string debrisFilePath(const string& debrisName,
