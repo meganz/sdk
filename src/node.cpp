@@ -2726,9 +2726,9 @@ void LocalNode::setRecomputeExclusionState()
     }
 }
 
-bool LocalNode::hasParentWithPendingLoad() const
+bool LocalNode::hasPendingLoad() const
 {
-    for (auto* node = parent; node; node = node->parent)
+    for (auto* node = this; node; node = node->parent)
     {
         if (node->mLoadPending)
             return true;
@@ -2736,12 +2736,6 @@ bool LocalNode::hasParentWithPendingLoad() const
 
     return false;
 }
-
-bool LocalNode::hasPendingLoad() const
-{
-    return mLoadPending || hasParentWithPendingLoad();
-}
-
 
 bool LocalNode::ignoreFileChanged(const FileFingerprint& fingerprint) const
 {

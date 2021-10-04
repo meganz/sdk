@@ -721,9 +721,6 @@ private:
     void setRecomputeExclusionState();
 
 public:
-    // Query whether we have a parent with a pending load.
-    bool hasParentWithPendingLoad() const;
-
     // Query whether this node or a parent has a pending load.
     bool hasPendingLoad() const;
 
