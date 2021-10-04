@@ -7667,14 +7667,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Check if the SDK is waiting for the server
-     * @return true if the SDK is waiting for the server to complete a request
-     */
-    public int areServersBusy(){
-        return megaApi.areServersBusy();
-    }
-
-    /**
      * Get the number of pending uploads
      *
      * @return Pending uploads
@@ -8602,7 +8594,7 @@ public class MegaApiJava {
 
     /**
      * Check if a node does NOT belong to your own cloud
-     * 
+     *
      * In example, nodes from incoming shared folders do not belong to your cloud.
      *
      * @param handle Node to check
