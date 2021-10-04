@@ -191,8 +191,8 @@ void PosixWaiter::notify()
     std::lock_guard<std::mutex> g(mMutex);
     if (!alreadyNotified)
     {
-        alreadyNotified = write(m_pipe[1], "0", 1) > 0;
-        alreadyNotified = true; // @TODO: Removed warning. Kept the existing logic.
+        write(m_pipe[1], "0", 1);
+        alreadyNotified = true;
     }
 }
 } // namespace

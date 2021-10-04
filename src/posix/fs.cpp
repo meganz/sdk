@@ -1869,7 +1869,7 @@ fsfp_t PosixDirNotify::fsfingerprint() const
 {
     struct statfs statfsbuf;
 
-    // @TODO: FIXME. statfs() does not really do what we want.
+    // FIXME. statfs() does not really do what we want.
     if (statfs(localbasepath.localpath.c_str(), &statfsbuf))
     {
         return 0;

@@ -1480,7 +1480,6 @@ TEST_F(SdkTest, SdkTestKillSession)
 
         auto h = session->getHandle();
         auto hstr = Base64Str<sizeof(handle)>(h);
-        ASSERT_TRUE(hstr.size()>0);
 
         if (session->isAlive() && session->isCurrent())
         {

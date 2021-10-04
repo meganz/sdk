@@ -15215,7 +15215,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 break;
             }
         }
-        //fall through
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
