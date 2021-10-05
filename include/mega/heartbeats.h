@@ -29,6 +29,7 @@
 namespace mega
 {
 
+#ifdef ENABLE_SYNC
 struct UnifiedSync;
 struct Syncs;
 
@@ -70,7 +71,6 @@ protected:
     double mProgress = 0;
     bool mProgressInvalid = true;
 
-    friend class BackupMonitor;
     int32_t mPendingUps = 0;
     int32_t mPendingDowns = 0;
 
@@ -80,6 +80,8 @@ protected:
     m_time_t mLastBeat = -1;     //timestamps of the last beat
 
     void updateLastActionTime();
+
+    friend class BackupMonitor;
 };
 
 /**
@@ -101,7 +103,6 @@ private:
     long long mTransferredBytes = 0;
 };
 
-#ifdef ENABLE_SYNC
 class HeartBeatSyncInfo : public HeartBeatTransferProgressedInfo
 {
 public:
@@ -113,9 +114,7 @@ public:
 private:
     SPHBStatus mSPHBStatus = CommandBackupPutHeartBeat::STATE_NOT_INITIALIZED;
 };
-#endif
 
-#ifdef ENABLE_SYNC
 class BackupInfoSync : public CommandBackupPut::BackupInfo
 {
 public:
@@ -135,7 +134,7 @@ public:
 private:
     static HeartBeatBackupInfo::SPState calculatePauseActiveState(bool pauseDown, bool pauseUp);
 };
-#endif
+
 
 class BackupMonitor
 {
@@ -150,11 +149,12 @@ private:
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
     Syncs& syncs;
-    mega::MegaClient *mClient = nullptr;
+    MegaClient *mClient = nullptr;
 
-#ifdef ENABLE_SYNC
     void beatBackupInfo(UnifiedSync& us);
-#endif
 };
+
+#endif
+
 }
 

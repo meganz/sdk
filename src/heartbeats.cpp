@@ -26,6 +26,8 @@
 
 namespace mega {
 
+#ifdef ENABLE_SYNC
+
 HeartBeatBackupInfo::HeartBeatBackupInfo()
 {
 }
@@ -122,8 +124,6 @@ void HeartBeatTransferProgressedInfo::adjustTransferCounts(int32_t upcount, int3
     mTransferredBytes += transferBytes;
     updateLastActionTime();
 }
-
-#ifdef ENABLE_SYNC
 
 void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 {
@@ -284,16 +284,10 @@ BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
     }
 }
 
-
-#endif
-
-////////////// MegaBackupMonitor ////////////////
 BackupMonitor::BackupMonitor(Syncs& s)
     : syncs(s), mClient(&syncs.mClient)
 {
 }
-
-#ifdef ENABLE_SYNC
 
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
@@ -375,11 +369,8 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
     }
 }
 
-#endif
-
 void BackupMonitor::beat()
 {
-#ifdef ENABLE_SYNC
     // Only send heartbeats for enabled active syncs.
     for (auto& us : syncs.mSyncVec)
     {
@@ -388,7 +379,8 @@ void BackupMonitor::beat()
             beatBackupInfo(*us);
         }
     };
-#endif
 }
+
+#endif
 
 }
