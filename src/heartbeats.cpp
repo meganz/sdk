@@ -297,8 +297,9 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 #endif
 
     auto currentInfo = BackupInfoSync(us, syncs.mDownloadsPaused, syncs.mUploadsPaused);
-    if (us.mBackupInfo && currentInfo != *us.mBackupInfo)
+    if (!us.mBackupInfo || currentInfo != *us.mBackupInfo)
     {
+        // Send if anything changed, or it's the first time we're considering for this sync (gets around Backup Centre continuing to show Disabled even though we sent sphb)
         syncs.mClient.reqs.add(new CommandBackupPut(&syncs.mClient, currentInfo, nullptr));
     }
     us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(currentInfo);
