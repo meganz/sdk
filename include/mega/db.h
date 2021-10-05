@@ -28,6 +28,7 @@ namespace mega {
 // generic host transactional database access interface
 class DBTableTransactionCommitter;
 
+// Class to load serialized node from data base
 class NodeSerialized
 {
 public:
@@ -61,6 +62,7 @@ public:
     // get specific record by key
     virtual bool get(uint32_t, string*) = 0;
 
+    // get nodes and queries about nodes
     virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
     virtual bool getNodes(std::vector<NodeSerialized>& nodes) = 0;
     virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
@@ -71,7 +73,7 @@ public:
     virtual bool getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
     virtual bool getChildrenHandlesFromNode(NodeHandle node, std::vector<NodeHandle>& nodes) = 0;
     virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
-    virtual NodeCounter getNodeCounter(NodeHandle node, bool isParentFile) = 0;
+    virtual NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile) = 0;
     virtual int getNumberOfChildrenFromNode(NodeHandle parentHandle) = 0;
     virtual bool isNodesOnDemandDb() = 0;
     virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
@@ -82,12 +84,14 @@ public:
 
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;
-    virtual bool put(Node* node) = 0;
     bool put(uint32_t, string*);
     bool put(uint32_t, Cacheable *, SymmCipher*);
+    // update or add a node
+    virtual bool put(Node* node) = 0;
 
     // delete specific record
     virtual bool del(uint32_t) = 0;
+    // Remove nodes
     virtual bool del(NodeHandle nodehandle) = 0;
     virtual bool removeNodes() = 0;
 
@@ -106,6 +110,7 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
+    // Get/Set values in data base with string as key
     virtual std::string getVar(const std::string& name) = 0;
     virtual bool setVar(const std::string& name, const std::string& value) = 0;
 

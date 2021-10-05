@@ -705,7 +705,7 @@ int SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     return numChildren;
 }
 
-NodeCounter SqliteDbTable::getNodeCounter(NodeHandle node, bool isParentFile)
+NodeCounter SqliteDbTable::getNodeCounter(NodeHandle node, bool parentIsFile)
 {
     NodeCounter nodeCounter;
     if (!db)
@@ -736,7 +736,7 @@ NodeCounter SqliteDbTable::getNodeCounter(NodeHandle node, bool isParentFile)
     {
         nodeCounter.files = 1;
         nodeCounter.storage = size;
-        if (isParentFile)
+        if (parentIsFile) // the child has to be a version
         {
             nodeCounter.versions = 1;
             nodeCounter.versionStorage = size;
@@ -745,7 +745,7 @@ NodeCounter SqliteDbTable::getNodeCounter(NodeHandle node, bool isParentFile)
     else
     {
         nodeCounter.folders = 1;
-        assert(!isParentFile);
+        assert(!parentIsFile);
     }
 
     return nodeCounter;
