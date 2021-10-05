@@ -16175,7 +16175,7 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
     return mFingerprints.nodebyfingerprint(fingerprint);
 }
 
-Node* MegaClient::nodeByHandleInRam(NodeHandle h)
+Node* MegaClient::nodeByHandleInRam(NodeHandle h) const
 {
     if (h == UNDEF)
     {

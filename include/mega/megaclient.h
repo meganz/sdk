@@ -1432,9 +1432,10 @@ public:
     // remove node subtree
     void deltree(handle);
 
+    // If it's necessary, load nodes from data base
     Node* nodeByHandle(NodeHandle);
     Node* nodeByPath(const char* path, Node* node = nullptr);
-    Node* nodeByHandleInRam(NodeHandle);
+    Node* nodeByHandleInRam(NodeHandle) const;
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
