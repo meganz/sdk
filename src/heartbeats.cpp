@@ -356,7 +356,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         int8_t progress = (hbs->progress(inflightProgress) < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress(inflightProgress)*100.0));
 
         hbs->mSending = true;
-        auto newCommand = new CommandBackupPutHeartBeat(0, us.mConfig.getBackupId(),  hbs->sphbStatus(),
+        auto newCommand = new CommandBackupPutHeartBeat(mClient, us.mConfig.getBackupId(),  hbs->sphbStatus(),
                           progress, hbs->mPendingUps, hbs->mPendingDowns,
                           hbs->lastAction(), hbs->lastItemUpdated(),
                           [hbs](Error){
