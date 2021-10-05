@@ -857,6 +857,67 @@ struct StandardClient : public MegaApp
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
+    std::function<void(const SyncConfig&, bool, bool)> onAutoResumeResult;
+
+    void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override
+    {
+        onCallback();
+
+        if (logcb)
+        {
+            lock_guard<mutex> guard(om);
+
+            out() << clientname
+                  << "sync_auto_resume_result(): id: "
+                  << toHandle(config.mBackupId)
+                  << ", attempted: "
+                  << attempted
+                  << ", hadAnError: "
+                  << hadAnError;
+        }
+
+        if (onAutoResumeResult)
+        {
+            onAutoResumeResult(config, attempted, hadAnError);
+        }
+    }
+
+    bool received_syncs_restored = false;
+    void syncs_restored() override
+    {
+        lock_guard<mutex> g(om);
+        out() << clientname << "sync restore complete";
+        received_syncs_restored = true;
+    }
+
+    bool received_node_actionpackets = false;
+    std::condition_variable nodes_updated_cv;
+
+    void nodes_updated(Node** nodes, int numNodes) override
+    {
+        if (!nodes)
+        {
+            out() << clientname << "nodes_updated: total reset.  total node count now: " << numNodes;
+            return;
+        }
+        if (logcb)
+        {
+            lock_guard<mutex> g(om);
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();
+        }
+        received_node_actionpackets = true;
+        nodes_updated_cv.notify_all();
+    }
+
+    bool waitForNodesUpdated(unsigned numSeconds)
+    {
+        mutex nodes_updated_cv_mutex;
+        std::unique_lock<mutex> g(nodes_updated_cv_mutex);
+        nodes_updated_cv.wait_for(g, std::chrono::seconds(numSeconds),
+                                  [&](){ return received_node_actionpackets; });
+        return received_node_actionpackets;
+    }
+	
     void syncupdate_stateconfig(const SyncConfig& config) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << config.mBackupId; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
@@ -3399,7 +3460,7 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
 }
 
-TEST_F(SyncTest, BasicSync_MoveLocalFolder)
+TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -3425,12 +3486,21 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolder)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
+    LOG_debug << "----- making sync change to test, now -----";
+    clientA1.received_node_actionpackets = false;
+    clientA2.received_node_actionpackets = false;
+
     // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
     error_code rename_error;
     fs::rename(clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1", clientA1.syncSet(backupId1).localpath / "f_2_1", rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
 
-    // let them catch up
+    // client1 should send a rename command to the API
+    // both client1 and client2 should receive the corresponding actionpacket
+    ASSERT_TRUE(clientA1.waitForNodesUpdated(30)) << " no actionpacket received in clientA1 for rename";
+    ASSERT_TRUE(clientA2.waitForNodesUpdated(30)) << " no actionpacket received in clientA2 for rename";
+
+    // sync activity should not take much longer after that.
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
