@@ -67,9 +67,9 @@ const int MegaClient::MAXQUEUEDFA = 30;
 const int MegaClient::MAXPUTFA = 10;
 
 // Key in DB table `var`
-string MegaClient::STORAGE_NAME = "STORAGE";
-string MegaClient::FOLDERS_NAME = "FOLDERS";
-string MegaClient::FILES_NAME = "FILES";
+string MegaClient::STORAGE_SIZE = "STORAGE";
+string MegaClient::FOLDERS_COUNT = "FOLDERS";
+string MegaClient::FILES_COUNT = "FILES";
 
 #ifdef ENABLE_SYNC
 // hearbeat frequency
@@ -5246,9 +5246,9 @@ void MegaClient::updatesc()
                 }
             }
 
-            sctable->setVar(STORAGE_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
-            sctable->setVar(FILES_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
-            sctable->setVar(FOLDERS_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
+            sctable->setVar(STORAGE_SIZE, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
+            sctable->setVar(FILES_COUNT, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
+            sctable->setVar(FOLDERS_COUNT, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
         }
 
         if (complete)
@@ -8829,9 +8829,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
     if (!notify)
     {
-        sctable->setVar(STORAGE_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
-        sctable->setVar(FILES_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
-        sctable->setVar(FOLDERS_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
+        sctable->setVar(STORAGE_SIZE, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
+        sctable->setVar(FILES_COUNT, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
+        sctable->setVar(FOLDERS_COUNT, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
     }
 
     mergenewshares(notify);
@@ -9272,6 +9272,7 @@ void MegaClient::procph(JSON *j)
                         if (n)
                         {
                             n->setpubliclink(ph, cts, ets, takendown, authKey);
+                            // In this, case we update a node in data base (no new nodes is added)
                             sctable->put(n);
                         }
                         else
@@ -11530,6 +11531,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                     }
                 }
 
+                // In this, case we update a node in data base (No new nodes is added)
                 sctable->put(n);
             }
             else
@@ -12220,9 +12222,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
         }
 
         //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
-        std::string storageString = sctable->getVar(STORAGE_NAME);
-        std::string filesString = sctable->getVar(FILES_NAME);
-        std::string foldersString = sctable->getVar(FOLDERS_NAME);
+        std::string storageString = sctable->getVar(STORAGE_SIZE);
+        std::string filesString = sctable->getVar(FILES_COUNT);
+        std::string foldersString = sctable->getVar(FOLDERS_COUNT);
         mNodeCounters[rootnodes[ROOTNODE]].storage = atoll(storageString.c_str());
         mNodeCounters[rootnodes[ROOTNODE]].files = atoi(filesString.c_str());
         mNodeCounters[rootnodes[ROOTNODE]].folders = atoi(foldersString.c_str());
@@ -12253,6 +12255,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 if ((n = Node::unserialize(this, &data, &dp)))
                 {
                    necessaryCommit = true;
+                   // Add nodes from old data base structure to nodes on demand structure
+                   // When all nodes are loaded we force a commit
                    sctable->put(n);
                    sctable->del(id);
                 }

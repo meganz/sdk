@@ -888,7 +888,7 @@ public:
     // get the handle of the older version for a NewNode
     handle getovhandle(Node *parent, string *name);
 
-    // Load from db node children
+    // Load from db node children at first level
     node_list getChildren(Node *parent);
 
     // Get number of children from a node
@@ -974,9 +974,9 @@ public:
     // stats id
     std::string statsid;
 
-    static string STORAGE_NAME;
-    static string FOLDERS_NAME;
-    static string FILES_NAME;
+    static string STORAGE_SIZE;
+    static string FOLDERS_COUNT;
+    static string FILES_COUNT;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
