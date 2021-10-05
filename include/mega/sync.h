@@ -697,13 +697,14 @@ struct Syncs
 {
     void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
 
-    shared_ptr<UnifiedSync> lookupUnifiedSync(handle backupId);
 
     // only for use in tests; not really thread safe
     Sync* runningSyncByBackupIdForTests(handle backupId) const;
 
     // Pause/unpause a sync. Returns a future for async operation.
     std::future<bool> setSyncPausedByBackupId(handle id, bool pause);
+
+    void transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused);
 
     // returns a copy of the config, for thread safety
     bool syncConfigByBackupId(handle backupId, SyncConfig&) const;
@@ -1006,6 +1007,9 @@ private:
 
 
     bool mExecutingLocallogout = false;
+
+    bool mDownloadsPaused = false;
+    bool mUploadsPaused = false;
 
     std::thread syncThread;
     std::thread::id syncThreadId;
