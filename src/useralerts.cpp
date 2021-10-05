@@ -69,7 +69,7 @@ nameid UserAlertRaw::getnameid(nameid nid, nameid default_value) const
     nameid id = 0;
     while (*j.pos)
     {
-        id = (id << 8) + *((const unsigned char*&)j.pos)++;
+        id = (id << 8) + static_cast<unsigned char>(*j.pos++);
     }
 
     return id ? id : default_value;

@@ -569,11 +569,11 @@ bool Node::serialize(string* d)
         numshares = 0;
         if (outshares)
         {
-            numshares += (short)outshares->size();
+            numshares = static_cast<short int>(numshares + outshares->size());
         }
         if (pendingshares)
         {
-            numshares += (short)pendingshares->size();
+            numshares = static_cast<short int>(numshares + pendingshares->size());
         }
     }
 
