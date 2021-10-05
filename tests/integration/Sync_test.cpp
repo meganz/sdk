@@ -917,7 +917,7 @@ struct StandardClient : public MegaApp
                                   [&](){ return received_node_actionpackets; });
         return received_node_actionpackets;
     }
-	
+
     void syncupdate_stateconfig(const SyncConfig& config) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << config.mBackupId; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
@@ -8231,7 +8231,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     }
 
     out() << "Waiting for remote changes to make it to clients...";
-    EXPECT_TRUE(WaitForRemoteMatch(cases, chrono::seconds(16)));
+    EXPECT_TRUE(WaitForRemoteMatch(cases, chrono::seconds(64)));  // 64 because the jenkins machines can be slow
 
     out() << "Letting all " << cases.size() << " Two-way syncs run";
 
