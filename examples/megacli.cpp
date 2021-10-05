@@ -2917,6 +2917,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                     cout << "  sync state: " << d.syncState << endl;
                     cout << "  sync substate: " << d.syncSubstate << endl;
                     cout << "  extra: " << d.extra << endl;
+                    cout << "    backup name: " << d.backupName << endl;
                     cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
                     cout << "  heartbeat status: " << d.hbStatus << endl;
                     cout << "  heartbeat progress: " << d.hbProgress << endl;
