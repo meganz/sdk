@@ -144,7 +144,7 @@ int DbTable::getShareType(Node *node)
         }
         if (node->pendingshares && node->pendingshares->size())
         {
-            shareType |= ShareType_t::PENDING_SHARES;
+            shareType |= ShareType_t::PENDING_OUTSHARES;
         }
         if (node->plink)
         {

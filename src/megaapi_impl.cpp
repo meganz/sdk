@@ -10999,7 +10999,7 @@ MegaShareList *MegaApiImpl::getOutSharesOrPending(int order, bool pending)
 
     vector<Share *> shares;
     std::vector<NodeSerialized> nodesSerialized;
-    client->sctable->getNodesWithSharesOrLink(nodesSerialized, pending ? DbTable::ShareType_t::PENDING_SHARES : DbTable::ShareType_t::OUT_SHARES);
+    client->sctable->getNodesWithSharesOrLink(nodesSerialized, pending ? DbTable::ShareType_t::PENDING_OUTSHARES : DbTable::ShareType_t::OUT_SHARES);
     node_vector dp;
     node_vector nodes;
     for (const NodeSerialized& node : nodesSerialized)

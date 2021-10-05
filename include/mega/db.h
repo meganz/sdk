@@ -49,7 +49,7 @@ protected:
     void resetCommitter();
 
 public:
-    typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_SHARES = 0x04, LINK = 0x08} ShareType_t;
+    typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
 
     // for a full sequential get: rewind to first record
     virtual void rewind() = 0;
