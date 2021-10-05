@@ -428,7 +428,7 @@ int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, siz
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    int n = 0;
+    size_t n = 0;
     for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
     {
         if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
@@ -1692,7 +1692,7 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
                 if ((utf8cp1 == 0xC2 || utf8cp1 == 0xC3) && utf8cp2 >= 0x80 && utf8cp2 <= 0xBF)
                 {
                     unicodecp = ((utf8cp1 & 0x1F) <<  6) + (utf8cp2 & 0x3F);
-                    res[rescount++] = unicodecp & 0xFF;
+                    res[rescount++] = static_cast<byte>(unicodecp & 0xFF);
                 }
                 else
                 {

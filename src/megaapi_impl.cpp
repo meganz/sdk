@@ -4146,7 +4146,7 @@ MegaBannerListPrivate* MegaBannerListPrivate::copy() const
 
 const MegaBanner* MegaBannerListPrivate::get(int i) const
 {
-    return (i >= 0 && i < mVector.size()) ? &(mVector[i]) : nullptr;
+    return (i >= 0 && static_cast<size_t>(i) < mVector.size()) ? &(mVector[i]) : nullptr;
 }
 
 int MegaBannerListPrivate::size() const
@@ -4260,7 +4260,7 @@ MegaStringList *MegaStringListPrivate::copy() const
 
 const char *MegaStringListPrivate::get(int i) const
 {
-    if((i < 0) || (i >= mList.size()))
+    if((i < 0) || (static_cast<size_t>(i) >= mList.size()))
         return nullptr;
 
     return mList[i].c_str();
@@ -7609,7 +7609,7 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
         "#880E4F"
     };
 
-    int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
+    auto index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
 
     return MegaApi::strdup(colors[index].c_str());
 }
@@ -7634,7 +7634,7 @@ char *MegaApiImpl::getAvatarSecondaryColor(handle userhandle)
         "#BC2086"
     };
 
-    int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
+    auto index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
 
     return MegaApi::strdup(colors[index].c_str());
 }
@@ -23249,7 +23249,7 @@ void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* l
     request->setTotalBytes(backupType);
     request->setNodeHandle(targetNode);
     request->setFile(localFolder);
-    request->setName(backupName ? Base64::btoa(backupName).c_str() : nullptr);
+    request->setName(backupName);
     request->setAccess(state);
     request->setNumDetails(subState);
     request->setFlag(true); // indicates it's a new backup

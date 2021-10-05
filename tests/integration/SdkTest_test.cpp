@@ -3043,7 +3043,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             m_time_t mtime = 2;
             handle fsid = 3;
             bool fsidvalid = false;
-            nodetype_t type = (nodetype_t)-9;
+            nodetype_t type = (nodetype_t)-9; // @TODO: Do we need a distinct state other than known/unknown? 
             bool mIsSymLink = false;
             bool retry = false;
             int errorcode = -998;
@@ -4076,7 +4076,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
             ofstream ofs(name.c_str(), ios::binary);
             char s[8192];
             ofs.rdbuf()->pubsetbuf(s, sizeof s);
-            for (int j = filesizes[i] / sizeof(value); j-- ; ) ofs.write((char*)&value, sizeof(value));
+            for (auto j = filesizes[i] / sizeof(value); j-- ; ) ofs.write((char*)&value, sizeof(value));
             ofs.write((char*)&value, filesizes[i] % sizeof(value));
         }
 
@@ -4113,11 +4113,11 @@ static void incrementFilename(string& s)
         }
         else
         {
-            s[s.size() - 1] += 1;
+            s[s.size() - 1] = static_cast<string::value_type>(s[s.size()-1] + 1);
             if (s[s.size() - 1] > '9')
             {
-                s[s.size() - 1] -= 1;
-                s[s.size() - 2] += 1;
+                s[s.size() - 1] = static_cast<string::value_type>(s[s.size()-1] - 1);
+                s[s.size() - 2] = static_cast<string::value_type>(s[s.size()-2] + 1);
             }
         }
     }

@@ -32,7 +32,7 @@ HeartBeatBackupInfo::HeartBeatBackupInfo()
 
 double HeartBeatBackupInfo::progress(m_off_t inflightProgress) const
 {
-    return mProgress + inflightProgress;
+    return mProgress + static_cast<double>(inflightProgress);
 }
 
 void HeartBeatBackupInfo::invalidateProgress()
