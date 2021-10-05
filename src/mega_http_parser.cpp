@@ -853,7 +853,7 @@ reexecute:
           goto error;
         }
 
-        parser->http_minor = static_cast<short unsigned>(10 * parser->http_minor * 10);
+        parser->http_minor = static_cast<short unsigned>(10 * parser->http_minor);
         parser->http_minor = static_cast<short unsigned>(parser->http_minor + (ch - '0'));
 
         if (UNLIKELY(parser->http_minor > 999)) {
