@@ -270,11 +270,11 @@ public:
     #endif
     void tmpnamelocal(LocalPath&) const override {}
     bool getsname(const LocalPath& , LocalPath& ) const override { return false; }
-    bool renamelocal(LocalPath&, LocalPath&, bool = true) override { return false; }
+    bool renamelocal(const LocalPath&, const LocalPath&, bool = true) override { return false; }
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override { return false; }
-    bool unlinklocal(LocalPath&) override { return false; }
-    bool rmdirlocal(LocalPath&) override { return false; }
-    bool mkdirlocal(LocalPath&, bool = false) override { return false; }
+    bool unlinklocal(const LocalPath&) override { return false; }
+    bool rmdirlocal(const LocalPath&) override { return false; }
+    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override { return false; }
     bool setmtimelocal(LocalPath&, m_time_t) override { return false; }
     bool chdirlocal(LocalPath&) const override { return false; }
     bool getextension(const LocalPath&, string&) const override { return false; }
@@ -315,54 +315,3 @@ public:
     }
 };
 
-
-TEST(Commands, CommandCommandFetchGoogleAds)
-{
-    FileSystemAccessMockup fileSystem;
-    HttpIOMockup httpIO;
-    MegaAppMockup megaApp;
-    ClientMockup client(megaApp, httpIO, fileSystem);
-    client.json.pos = R"({"id": "wphl","iu": "/22060108601/wph/wph_l"},{"id":"wphr","iu": "/22060108601/wph/wph_r"},{"id":"wpht","iu": "/22060108601/wph/wph_t"})";
-    std::vector<std::string> v;
-    handle h = UNDEF;
-    int adFlags = 512;
-
-    ::mega::CommandFetchGoogleAds command(&client, adFlags, v, h, [](::mega::Error e, ::mega::string_map value)
-    {
-        ASSERT_EQ(e, API_OK);
-        ASSERT_EQ(value.size(), 3);
-        ASSERT_NE(value.find("wphl"), value.end());
-        ASSERT_EQ(value["wphl"], "/22060108601/wph/wph_l");
-        ASSERT_NE(value.find("wphr"), value.end());
-        ASSERT_EQ(value["wphr"], "/22060108601/wph/wph_r");
-        ASSERT_NE(value.find("wpht"), value.end());
-        ASSERT_EQ(value["wpht"], "/22060108601/wph/wph_t");
-    });
-
-    command.client = &client;
-
-    ::mega::Command::Result r(::mega::Command::Outcome::CmdArray);
-    command.procresult(r);
-}
-
-TEST(Commands, CommandQueryGoogleAds)
-{
-    FileSystemAccessMockup fileSystem;
-    HttpIOMockup httpIO;
-    MegaAppMockup megaApp;
-    ClientMockup client(megaApp, httpIO, fileSystem);
-    client.json.pos = R"(1)";
-    handle h = UNDEF;
-    int adFlags = 512;
-
-    ::mega::CommandQueryGoogleAds command(&client, adFlags, h, [](::mega::Error e, int value)
-    {
-        ASSERT_EQ(e, API_OK);
-        ASSERT_EQ(value, 1);
-    });
-
-    command.client = &client;
-
-    ::mega::Command::Result r(::mega::Command::Outcome::CmdArray);
-    command.procresult(r);
-}

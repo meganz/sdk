@@ -33,8 +33,9 @@
 #define PREFER_STDARG
 
 #ifndef NO_READLINE
-    #include <readline/readline.h>
-    #include <readline/history.h>
+#include <signal.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 #endif
 
 #if (__cplusplus >= 201703L)
@@ -380,37 +381,37 @@ void DemoApp::transfer_prepare(Transfer* t)
 
 #ifdef ENABLE_SYNC
 
-void DemoApp::syncupdate_stateconfig(handle backupId)
+void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 {
-    cout << "Sync config updated: " << toHandle(backupId) << endl;
+    cout << "Sync config updated: " << toHandle(config.mBackupId) << endl;
 }
 
 
-void DemoApp::syncupdate_active(handle backupId, bool active)
+void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
 {
     cout << "Sync is now active: " << active << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted, bool hadAnError)
+void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
 {
-    handle backupId = s.mConfig.getBackupId();
+    handle backupId = config.getBackupId();
     if (attempted)
     {
-        cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
-             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError()
-             << " hadAnErrorBefore: " << hadAnError << " Running: " << !!s.mSync << endl;
+        cout << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
+             << config.getEnabled()  << " syncError: " << config.getError()
+             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
     else
     {
-        cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess) << " enabled: "
-            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError()
-            << " hadAnErrorBefore: " << hadAnError << " Running: " << !!s.mSync << endl;
+        cout << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess) << " enabled: "
+            << config.getEnabled() << " syncError: " << config.getError()
+            << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
 }
 
-void DemoApp::sync_removed(handle backupId)
+void DemoApp::sync_removed(const SyncConfig& config)
 {
-    cout << "Sync - removed: " << toHandle(backupId) << endl;
+    cout << "Sync - removed: " << toHandle(config.mBackupId) << endl;
 
 }
 
@@ -418,13 +419,18 @@ void DemoApp::syncupdate_scanning(bool active)
 {
     if (active)
     {
-        cout << "Sync - scanning files and folders" << endl;
+        cout << "Sync - scanning local files and folders" << endl;
     }
     else
     {
         cout << "Sync - scan completed" << endl;
     }
 }
+// flags to turn off cout output that can be too volumnous/time consuming
+bool syncout_local_change_detection = true;
+bool syncout_remote_change_detection = true;
+bool syncout_transfer_activity = true;
+bool syncout_folder_sync_state = false;
 
 void DemoApp::syncupdate_local_lockretry(bool locked)
 {
@@ -455,9 +461,15 @@ static const char* treestatename(treestate_t ts)
     return "UNKNOWN";
 }
 
-void DemoApp::syncupdate_treestate(LocalNode* l)
+void DemoApp::syncupdate_treestate(const SyncConfig &, const LocalPath& lp, treestate_t ts, nodetype_t type)
 {
-    cout << "Sync - state change of node " << l->name << " to " << treestatename(l->ts) << endl;
+    if (syncout_folder_sync_state)
+    {
+        if (type != FILENODE)
+        {
+            cout << "Sync - state change of folder " << lp.toPath() << " to " << treestatename(ts) << endl;
+        }
+    }
 }
 
 // generic name filter
@@ -760,7 +772,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
 {
     if (e)
     {
@@ -821,31 +833,15 @@ void DemoApp::printChatInformation(TextChat *chat)
     cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
     cout << "\tCreation ts: " << chat->ts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
-    if (chat->group)
-    {
-        cout << "\tGroup chat: yes" << endl;
-    }
-    else
-    {
-        cout << "\tGroup chat: no" << endl;
-    }
-    if (chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE))
-    {
-        cout << "\tArchived chat: yes" << endl;
-    }
-    else
-    {
-        cout << "\tArchived chat: no" << endl;
-    }
+    cout << "\tGroup chat: " << ((chat->group) ? "yes" : "no") << endl;
+    cout << "\tArchived chat: " << ((chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE)) ? "yes" : "no") << endl;
+    cout << "\tPublic chat: " << ((chat->publicchat) ? "yes" : "no") << endl;
     if (chat->publicchat)
     {
-        cout << "\tPublic chat: yes" << endl;
         cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
+        cout << "\tMeeting room: " << ((chat->meeting) ? "yes" : "no") << endl;
     }
-    else
-    {
-        cout << "\tPublic chat: no" << endl;
-    }
+
     cout << "\tPeers:";
 
     if (chat->userpriv)
@@ -862,14 +858,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     {
         cout << " no peers (only you as participant)" << endl;
     }
-    if (chat->tag)
-    {
-        cout << "\tIs own change: yes" << endl;
-    }
-    else
-    {
-        cout << "\tIs own change: no" << endl;
-    }
+    cout << "\tIs own change: " << ((chat->tag) ? "yes" : "no") << endl;
     if (!chat->title.empty())
     {
         cout << "\tTitle: " << chat->title.c_str() << endl;
@@ -941,7 +930,7 @@ void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
     }
 }
 
-void DemoApp::setattr_result(handle, Error e)
+static void setattr_result(NodeHandle, Error e)
 {
     if (e)
     {
@@ -949,7 +938,7 @@ void DemoApp::setattr_result(handle, Error e)
     }
 }
 
-void DemoApp::rename_result(handle, error e)
+static void rename_result(NodeHandle, error e)
 {
     if (e)
     {
@@ -1767,6 +1756,18 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                 {
                     stream << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
                 }
+
+                if (showattrs && n->attrs.map.size())
+                {
+                    stream << ", has attrs";
+                    for (auto& a : n->attrs.map)
+                    {
+                        char namebuf[100]{};
+                        AttrMap::nameid2string(a.first, namebuf);
+                        stream << " " << namebuf << "=" << a.second;
+                    }
+                }
+
                 break;
 
             default:
@@ -2329,7 +2330,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
             if (moveToTrash)
             {
                 cout << "moving to trash: " << c->displaypath() << endl;
-                client->rename(c, trash);
+                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
             }
             else
             {
@@ -2916,6 +2917,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                     cout << "  sync state: " << d.syncState << endl;
                     cout << "  sync substate: " << d.syncSubstate << endl;
                     cout << "  extra: " << d.extra << endl;
+                    cout << "    backup name: " << d.backupName << endl;
                     cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
                     cout << "  heartbeat status: " << d.hbStatus << endl;
                     cout << "  heartbeat progress: " << d.hbProgress << endl;
@@ -2987,6 +2989,37 @@ void exec_logFilenameAnomalies(autocomplete::ACState& s)
 
     client->mFilenameAnomalyReporter = std::move(reporter);
 }
+
+#ifdef ENABLE_SYNC
+void exec_syncoutput(autocomplete::ACState& s)
+{
+    bool onOff = s.words[3].s == "on";
+
+    if (s.words[2].s == "local_change_detection")
+    {
+        syncout_local_change_detection = onOff;
+    }
+    else if (s.words[2].s == "remote_change_detection")
+    {
+        syncout_remote_change_detection = onOff;
+    }
+    else if (s.words[2].s == "transfer_activity")
+    {
+        syncout_transfer_activity = onOff;
+    }
+    else if (s.words[2].s == "folder_sync_state")
+    {
+        syncout_transfer_activity = onOff;
+    }
+    else if (s.words[2].s == "all")
+    {
+        syncout_local_change_detection = onOff;
+        syncout_remote_change_detection = onOff;
+        syncout_transfer_activity = onOff;
+        syncout_transfer_activity = onOff;
+    }
+}
+#endif
 
 MegaCLILogger gLogger;
 
@@ -3093,6 +3126,16 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(param("error"))),
                            sequence(text("enable"),
                                     param("id")))));
+
+    p->Add(exec_syncoutput, sequence(text("sync"), text("output"),
+        either(text("local_change_detection"),
+            text("remote_change_detection"),
+            text("transfer_activity"),
+            text("folder_sync_state"),
+            text("detail_log"),
+            text("all")),
+        either(text("on"), text("off"))));
+
 #endif
 
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
@@ -3144,10 +3187,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_test, sequence(text("test"), opt(param("data"))));
     p->Add(exec_fingerprint, sequence(text("fingerprint"), localFSFile("localfile")));
 #ifdef ENABLE_CHAT
-    p->Add(exec_chats, sequence(text("chats")));
+    p->Add(exec_chats, sequence(text("chats"), opt(param("chatid"))));
     p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
     p->Add(exec_chati, sequence(text("chati"), param("chatid"), contactEmail(client), either(text("ro"), text("sta"), text("mod"))));
-    p->Add(exec_chatcp, sequence(text("chatcp"), param("mownkey"), opt(sequence(text("t"), param("title64"))), repeat(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod"))))));
+    p->Add(exec_chatcp, sequence(text("chatcp"), flag("-meeting"), param("mownkey"), opt(sequence(text("t"), param("title64"))),
+                                 repeat(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod"))))));
     p->Add(exec_chatr, sequence(text("chatr"), param("chatid"), opt(contactEmail(client))));
     p->Add(exec_chatu, sequence(text("chatu"), param("chatid")));
     p->Add(exec_chatup, sequence(text("chatup"), param("chatid"), param("userhandle"), either(text("ro"), text("sta"), text("mod"))));
@@ -3668,7 +3712,7 @@ void exec_mv(autocomplete::ACState& s)
                             // rename
                             client->fsaccess->normalize(&newname);
 
-                            if ((e = client->setattr(n, attr_map('n', newname), gNextClientTag++, nullptr)))
+                            if ((e = client->setattr(n, attr_map('n', newname), 0, nullptr, setattr_result)))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -3699,7 +3743,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), gNextClientTag++, nullptr);
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), 0, nullptr, setattr_result);
 
                             if (e)
                             {
@@ -3731,7 +3775,7 @@ void exec_mv(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        e = client->rename(n, tn);
+                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
 
                         if (e)
                         {
@@ -3894,7 +3938,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodehandle, move(tc.nn), nullptr, gNextClientTag++);
+                client->putnodes(tn->nodeHandle(), move(tc.nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -4008,7 +4052,56 @@ void exec_get(autocomplete::ACState& s)
         if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, false) == API_OK)
         {
             cout << "Checking link..." << endl;
-            client->openfilelink(ph, key, 0);
+
+            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
+                [key, ph](const Error &e, m_off_t size, m_time_t ts, m_time_t tm, dstime /*timeleft*/,
+                   std::string* filename, std::string* fingerprint, std::string* fileattrstring,
+                   const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
+                {
+                    if (!fingerprint) // failed processing the command
+                    {
+                        if (e == API_ETOOMANY && e.hasExtraInfo())
+                        {
+                             cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e) << endl;
+                        }
+                        else
+                        {
+                            cout << "Link check failed: " << errorstring(e) << endl;
+                        }
+                        return true;
+                    }
+
+                    cout << "Name: " << *filename << ", size: " << size;
+
+                    if (fingerprint->size())
+                    {
+                        cout << ", fingerprint available";
+                    }
+
+                    if (fileattrstring->size())
+                    {
+                        cout << ", has attributes";
+                    }
+
+                    cout << endl;
+
+                    if (e)
+                    {
+                        cout << "Not available: " << errorstring(e) << endl;
+                    }
+                    else
+                    {
+                        cout << "Initiating download..." << endl;
+
+                        DBTableTransactionCommitter committer(client->tctable);
+                        AppFileGet* f = new AppFileGet(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+                        client->startxfer(GET, f, committer);
+                    }
+
+                    return true;
+                }));
+
             return;
         }
 
@@ -4186,7 +4279,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
                 uploadLocalFolderContent(tmp, parent);
             };
 
-            client->putnodes(parent->nodehandle, move(nn), nullptr, gNextClientTag++);
+            client->putnodes(parent->nodeHandle(), move(nn), nullptr, gNextClientTag++);
         }
     }
 }
@@ -4816,7 +4909,7 @@ void exec_mkdir(autocomplete::ACState& s)
             {
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], newname);
-                client->putnodes(n->nodehandle, move(nn), nullptr, gNextClientTag++);
+                client->putnodes(n->nodeHandle(), move(nn), nullptr, gNextClientTag++);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -4826,7 +4919,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], leafname);
-                client->putnodes(n->parent->nodehandle, move(nn), nullptr, gNextClientTag++);
+                client->putnodes(n->parent->nodeHandle(), move(nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -5866,7 +5959,7 @@ void exec_import(autocomplete::ACState& s)
     if (e == API_OK)
     {
         cout << "Opening link..." << endl;
-        client->openfilelink(ph, key, 1);
+        client->openfilelink(ph, key);
     }
     else
     {
@@ -6031,6 +6124,7 @@ void exec_chatlj(autocomplete::ACState& s)
 
 void exec_chatcp(autocomplete::ACState& s)
 {
+    bool meeting = s.extractflag("-meeting");
     size_t wordscount = s.words.size();
     userpriv_vector *userpriv = new userpriv_vector;
     string_map *userkeymap = new string_map;
@@ -6109,7 +6203,7 @@ void exec_chatcp(autocomplete::ACState& s)
     Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
     ownHandleB64[11] = '\0';
     userkeymap->insert(std::pair<string, string>(ownHandleB64, mownkey));
-    client->createChat(true, true, userpriv, userkeymap, title);
+    client->createChat(true, true, userpriv, userkeymap, title, meeting);
     delete userpriv;
     delete userkeymap;
 }
@@ -6509,7 +6603,7 @@ void exec_mediainfo(autocomplete::ACState& s)
     }
     else if (!client->mediaFileInfo.mediaCodecsReceived)
     {
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
         cout << "Mediainfo lookups requested" << endl;
     }
 
@@ -7460,7 +7554,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodehandle, move(nn), nullptr, client->restag);
+        client->putnodes(n->nodeHandle(), move(nn), nullptr, client->restag);
     }
     else
     {
@@ -7537,50 +7631,6 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     }
 
     publiclink.clear();
-}
-
-void DemoApp::checkfile_result(handle /*h*/, const Error& e)
-{
-    if (e == API_ETOOMANY && e.hasExtraInfo())
-    {
-         cout << "Link check failed: " << getExtraInfoErrorString(e) << endl;
-    }
-    else
-    {
-        cout << "Link check failed: " << errorstring(e) << endl;
-    }
-}
-
-void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t /*ts*/, m_time_t tm, string* filename,
-                               string* fingerprint, string* fileattrstring)
-{
-    cout << "Name: " << *filename << ", size: " << size;
-
-    if (fingerprint->size())
-    {
-        cout << ", fingerprint available";
-    }
-
-    if (fileattrstring->size())
-    {
-        cout << ", has attributes";
-    }
-
-    cout << endl;
-
-    if (e)
-    {
-        cout << "Not available: " << errorstring(e) << endl;
-    }
-    else
-    {
-        cout << "Initiating download..." << endl;
-
-        DBTableTransactionCommitter committer(client->tctable);
-        AppFileGet* f = new AppFileGet(NULL, NodeHandle().set6byte(h), filekey, size, tm, filename, fingerprint);
-        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-        client->startxfer(GET, f, committer);
-    }
 }
 
 bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* /*appdata*/)
@@ -7719,9 +7769,21 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
+void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, std::unique_ptr<BusinessPlan>)
 {
     // FIXME: implement
+}
+
+void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
+{
+    cout << "Currency data: " << endl;
+    cout << "\tName: " << data->currencyName;
+    cout << "\tSymbol: " << Base64::atob(data->currencySymbol);
+    if (data->localCurrencyName.size())
+    {
+        cout << "\tName (local): " << data->localCurrencyName;
+        cout << "\tSymbol (local): " << Base64::atob(data->localCurrencySymbol);
+    }
 }
 
 void DemoApp::enumeratequotaitems_result(error)
@@ -8308,11 +8370,55 @@ void megacli()
     }
 }
 
+#ifndef NO_READLINE
+
+static void onFatalSignal(int signum)
+{
+    // Restore the terminal's settings.
+    rl_callback_handler_remove();
+
+    // Re-trigger the signal.
+    raise(signum);
+}
+
+static void registerSignalHandlers()
+{
+    std::vector<int> signals = {
+        SIGABRT,
+        SIGBUS,
+        SIGILL,
+        SIGKILL,
+        SIGSEGV,
+        SIGTERM
+    }; // signals
+
+    struct sigaction action;
+
+    action.sa_handler = &onFatalSignal;
+
+    // Restore default signal handler after invoking our own.
+    action.sa_flags = SA_NODEFER | SA_RESETHAND;
+
+    // Don't ignore any signals.
+    sigemptyset(&action.sa_mask);
+
+    for (int signal : signals)
+    {
+        (void)sigaction(signal, &action, nullptr);
+    }
+}
+
+#endif // ! NO_READLINE
+
 int main()
 {
 #if defined(_WIN32) && defined(_DEBUG)
     _CrtSetBreakAlloc(124);  // set this to an allocation number to hunt leaks.  Prior to 124 and prior are from globals/statics so won't be detected by this
 #endif
+
+#ifndef NO_READLINE
+    registerSignalHandlers();
+#endif // NO_READLINE
 
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
@@ -8811,7 +8917,7 @@ void exec_synclist(autocomplete::ACState& s)
     {
         cout << "No syncs configured yet" << endl;
         return;
-     }
+    }
 
     client->syncs.forEachUnifiedSync(
       [](UnifiedSync& us)
@@ -8838,7 +8944,7 @@ void exec_synclist(autocomplete::ACState& s)
           {
               // Display status info.
               cout << "  State: "
-                   << SyncConfig::syncstatename(sync->state)
+                   << SyncConfig::syncstatename(sync->state())
                    << "\n";
 
               // Display some usage stats.
@@ -8955,30 +9061,31 @@ void exec_syncxable(autocomplete::ACState& s)
     // Disable or fail?
     if (command == "fail")
     {
-        // Find the specified sync.
-        auto* sync = client->syncs.runningSyncByBackupId(backupId);
-
-        // Have we found the backup sync?
-        if (!sync)
-        {
-            cerr << "No sync found with the id "
-                 << Base64Str<sizeof(handle)>(backupId)
-                 << endl;
-            return;
-        }
-
-        client->failSync(sync, static_cast<SyncError>(error));
-        return;
+        client->syncs.disableSelectedSyncs(
+            [backupId](SyncConfig& config, Sync*)
+            {
+                return config.getBackupId() == backupId;
+            },
+            true, // disable is fail
+                static_cast<SyncError>(error),
+                false,
+                [](size_t nFailed){
+                cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
+            });
     }
     else    // command == "disable"
     {
         client->syncs.disableSelectedSyncs(
-          [&backupId](SyncConfig& config, Sync*)
-          {
-              return config.getBackupId() == backupId;
-          },
-          static_cast<SyncError>(error),
-          false);
+            [backupId](SyncConfig& config, Sync*)
+            {
+                return config.getBackupId() == backupId;
+            },
+            false,
+                static_cast<SyncError>(error),
+                false,
+                [](size_t nDisabled){
+                cout << "disablement complete. Count disabled: " << nDisabled << endl;
+            });
     }
 }
 

@@ -60,11 +60,17 @@ std::string SimpleLogger::getTime()
 {
     char ts[50];
     time_t t = std::time(NULL);
+    std::tm tm{};
 
-    if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::gmtime(&t))) {
-        ts[0] = '\0';
-    }
-    return ts;
+#ifdef WIN32
+    gmtime_s(&tm, &t);
+#else
+    gmtime_r(&t, &tm);
+#endif
+
+    if (std::strftime(ts, sizeof(ts), "%H:%M:%S", &tm)) return ts;
+
+    return {};
 }
 
 void SimpleLogger::flush()

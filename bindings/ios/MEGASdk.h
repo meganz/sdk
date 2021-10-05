@@ -1289,6 +1289,36 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (nullable NSString *)sequenceNumber;
 
 /**
+ * @brief Get an authentication token that can be used to identify the user account
+ *
+ * If this MEGASdk object is not logged into an account, this function will return nil
+ *
+ * The value returned by this function can be used in other instances of MEGASdk
+ * thanks to the function [MEGASdk setAccountAuth].
+ *
+ * @return Authentication token
+ */
+- (nullable NSString *)accountAuth;
+
+/**
+ * @brief Use an authentication token to identify an account while accessing public folders
+ *
+ * This function is useful to preserve the PRO status when a public folder is being
+ * used. The identifier will be sent in all API requests made after the call to this function.
+ *
+ * To stop using the current authentication token, it's needed to explicitly call
+ * this function with nil as parameter. Otherwise, the value set would continue
+ * being used despite this MEGASdk object is logged in or logged out.
+ *
+ * It's recommended to call this function before the usage of [MEGASdk loginToFolder]
+ *
+ * @param auth Authentication token used to identify the account of the user.
+ * You can get it using [MEGASdk accountAuth] with an instance of MEGASdk logged into
+ * an account.
+ */
+- (void)setAccountAuth:(nullable NSString *)accountAuth;
+
+/**
  * @brief Check if the MEGASdk object is logged in.
  * @return 0 if not logged in, Otherwise, a number >= 0.
  */
@@ -1468,6 +1498,60 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 
 #pragma mark - Create account and confirm account Requests
 
+/**
+ * @brief Resume a registration process for an Ephemeral++ account
+ *
+ * When a user begins the account registration process by calling
+ * [MEGASdk createEphemeralAccountPlusPlus] an ephemeral++ account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see [MEGASdk sendSignupLink] and also to receive notifications in case the
+ * user confirms the account using another client ([MegaGlobalListener onAccountUpdate] or
+ * [MEGADelegate onAccountUpdate]. It is also possible to cancel the registration process by
+ * [MEGASdk cancelCreateAccount], which invalidates the signup link associated to the ephemeral
+ * session (the session will be still valid).
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MegaRequest getSessionKey] - Returns the session id to resume the process
+ * - [MegaRequest getParamType] - Returns the value 4
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MEGAErrorTypeApiEArgs.
+ *
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ */
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname;
+
+/**
+ * @brief Resume a registration process for an Ephemeral++ account
+ *
+ * When a user begins the account registration process by calling
+ * [MEGASdk createEphemeralAccountPlusPlus] an ephemeral++ account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see [MEGASdk sendSignupLink] and also to receive notifications in case the
+ * user confirms the account using another client ([MegaGlobalListener onAccountUpdate] or
+ * [MEGADelegate onAccountUpdate]. It is also possible to cancel the registration process by
+ * [MEGASdk cancelCreateAccount], which invalidates the signup link associated to the ephemeral
+ * session (the session will be still valid).
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MegaRequest getSessionKey] - Returns the session id to resume the process
+ * - [MegaRequest getParamType] - Returns the value 4
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MEGAErrorTypeApiEArgs
+ *
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ * @param delegate Delegate to track this request.
+ */
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate;
 /**
  * @brief Initialize the creation of a new MEGA account.
  *
@@ -4500,6 +4584,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
+ * - [MEGARequest currency] - MEGACurrency object with currency data related to prices
  *
  * @param delegate Delegate to track this request.
  *
@@ -4518,6 +4603,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
+ * - [MEGARequest currency] - MEGACurrency object with currency data related to prices 
  *
  * @see [MEGASdk getPaymentIdForProductHandle:].
  */
@@ -5274,6 +5360,40 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
  */
 - (void)getCameraUploadsFolder;
+
+/**
+ * @brief Gets My Backups target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
+ * - [MEGARequest flag] - Returns NO
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
+ *
+ * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets My Backups target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
+ * - [MEGARequest flag] - Returns NO
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
+ *
+ * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
+ */
+- (void)getMyBackupsFolder;
 
 /**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
@@ -8925,6 +9045,34 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate MEGARequestDelegate to track this request
 */
 - (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(NSDate *)lastActionDate lastBackupNode:(MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Returns the name set for this device
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the request object received on callbacks:
+ * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - name - Returns device name.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Sets device name
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ * - name - Returns device name.
+ *
+ * @param name String with device name
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Cookie Dialog
 

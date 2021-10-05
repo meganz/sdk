@@ -78,8 +78,6 @@ public:
 // symmetric cryptography: AES-128
 class MEGA_API SymmCipher
 {
-public:
-
 private:
     CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aesecb_e;
     CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesecb_d;
@@ -106,7 +104,9 @@ public:
 
     typedef uint64_t ctr_iv;
 
-    void setkey(const byte*, int = 1);
+    // type != 1 will enatil xoring the second KEYLENGTH bytes into the first ones
+    // otherwise only first KEYLENGTH raw bytes will be used.
+    void setkey(const byte*, int type = 1);
     bool setkey(const std::string*);
 
     /**
@@ -260,6 +260,22 @@ public:
     void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
+     * @brief Authenticated symmetric encryption using AES in GCM mode with additional authenticated data.
+     *
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     *
+     * @param data Data to be encrypted.
+     * @param additionalData Additional data for extra authentication
+     * @param additionalDatalen Length of additional data
+     * @param iv Initialisation vector or nonce to use for encryption. Choose randomly
+     * and never re-use. See note on size above.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag
+     * @param result Encrypted data, including the additional data, and the authentication tag.
+     */
+    bool gcm_encrypt_aad(const unsigned char *data, size_t datasize, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, byte *result, size_t resultSize);
+
+    /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
@@ -273,6 +289,24 @@ public:
      * @param result Decrypted data, not including the authentication tag.
      */
     bool gcm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
+
+    /**
+     * @brief Authenticated symmetric decryption using AES in GCM mode with additional authenticated data.
+     *
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     *
+     * @param data Data to be decrypted.
+     * @param additionalData Additional data for extra authentication
+     * @param additionalDatalen Length of additional data
+     * @param iv Initialisation vector or nonce.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
+     * @param result Decrypted data, not including the authentication tag.
+     */
+    bool gcm_decrypt_aad(const byte *data, unsigned datalen,
+                         const byte *additionalData, unsigned additionalDatalen,
+                         const byte *tag, unsigned taglen,
+                         const byte *iv, unsigned ivlen, byte *result, size_t resultSize);
 
     /**
      * @brief Serialize key for compatibility with the webclient

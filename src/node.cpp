@@ -74,7 +74,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     Node* p;
 
-    client->nodes[h] = this;
+    client->nodes[NodeHandle().set6byte(h)] = this;
 
     if (t >= ROOTNODE && t <= RUBBISHNODE)
     {
@@ -569,11 +569,11 @@ bool Node::serialize(string* d)
         numshares = 0;
         if (outshares)
         {
-            numshares += (short)outshares->size();
+            numshares = static_cast<short int>(numshares + outshares->size());
         }
         if (pendingshares)
         {
-            numshares += (short)pendingshares->size();
+            numshares = static_cast<short int>(numshares + pendingshares->size());
         }
     }
 
@@ -696,12 +696,7 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
-    if (client->tmpnodecipher.setkey(&nodekeydata))
-    {
-        return &client->tmpnodecipher;
-    }
-
-    return NULL;
+    return client->getRecycledTemporaryNodeCipher(&nodekeydata);
 }
 
 // decrypt attributes and build attribute hash
@@ -1059,6 +1054,7 @@ bool Node::setparent(Node* p)
 
         if (!p || p->type == FILENODE)
         {
+            DBTableTransactionCommitter committer(client->tctable); // potentially stopping many transfers here
             TreeProcDelSyncGet tdsg;
             client->proctree(this, &tdsg);
         }
@@ -1096,6 +1092,26 @@ bool Node::isbelow(Node* p) const
         }
 
         if (n == p)
+        {
+            return true;
+        }
+
+        n = n->parent;
+    }
+}
+
+bool Node::isbelow(NodeHandle p) const
+{
+    const Node* n = this;
+
+    for (;;)
+    {
+        if (!n)
+        {
+            return false;
+        }
+
+        if (n->nodeHandle() == p)
         {
             return true;
         }
@@ -1207,13 +1223,13 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     }
                     else
                     {
-                        sync->client->app->syncupdate_treestate(this);
+                        sync->client->app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
                     }
 
                     string prevname = node->attrs.map['n'];
 
                     // set new name
-                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str());
+                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr);
                 }
             }
         }
@@ -1234,7 +1250,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             {
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, nullptr) == API_EACCESS
                         && sync != parent->sync)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
@@ -1400,7 +1416,7 @@ void LocalNode::treestate(treestate_t newts)
 
     if (ts != dts)
     {
-        sync->client->app->syncupdate_treestate(this);
+        sync->client->app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
     }
 
     if (parent && ((newts == TREESTATE_NONE && ts != TREESTATE_NONE)
@@ -1533,7 +1549,7 @@ LocalNode::~LocalNode()
     }
 
     if (!sync->mDestructorRunning && (
-        sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
+        sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN))
     {
         sync->statecachedel(this);
 
@@ -1597,7 +1613,7 @@ LocalNode::~LocalNode()
     {
         // move associated node to SyncDebris unless the sync is currently
         // shutting down
-        if (sync->state >= SYNC_INITIALSCAN)
+        if (sync->state() >= SYNC_INITIALSCAN)
         {
             sync->client->movetosyncdebris(node, sync->inshare);
         }

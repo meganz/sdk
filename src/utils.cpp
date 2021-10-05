@@ -67,6 +67,24 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
     return s << toNodeHandle(h);
 }
 
+SimpleLogger& operator<<(SimpleLogger& s, UploadHandle h)
+{
+    return s << toHandle(h.h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
+{
+    if (h.isNodeHandle())
+    {
+        return s << "nh:" << h.nodeHandle();
+    }
+    else
+    {
+        return s << "uh:" << h.uploadHandle();
+    }
+}
+
+
 string backupTypeToStr(BackupType type)
 {
     switch (type)
@@ -410,7 +428,7 @@ int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, siz
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    int n = 0;
+    size_t n = 0;
     for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
     {
         if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
@@ -640,7 +658,10 @@ bool TextChat::serialize(string *d)
     char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
     d->append((char *)&hasUnifiedKey, 1);
 
-    d->append("\0\0\0\0\0\0", 6); // additional bytes for backwards compatibility
+    char meetingRoom = meeting ? 1 : 0;
+    d->append((char*)&meetingRoom, 1);
+
+    d->append("\0\0\0\0\0", 5); // additional bytes for backwards compatibility
 
     if (hasAttachments)
     {
@@ -780,7 +801,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     char hasUnifiedKey = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    for (int i = 6; i--;)
+    char meetingRoom = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    for (int i = 5; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -883,6 +907,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->attachedNodes = attachedNodes;
     chat->publicchat = publicchat;
     chat->unifiedKey = unifiedKey;
+    chat->meeting = meetingRoom;
 
     memset(&chat->changed, 0, sizeof(chat->changed));
 
@@ -1667,7 +1692,7 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
                 if ((utf8cp1 == 0xC2 || utf8cp1 == 0xC3) && utf8cp2 >= 0x80 && utf8cp2 <= 0xBF)
                 {
                     unicodecp = ((utf8cp1 & 0x1F) <<  6) + (utf8cp2 & 0x3F);
-                    res[rescount++] = unicodecp & 0xFF;
+                    res[rescount++] = static_cast<byte>(unicodecp & 0xFF);
                 }
                 else
                 {
@@ -2505,6 +2530,24 @@ std::string getSafeUrl(const std::string &posturl)
         memset((char *)safeurl.data() + authKey, 'X', end - authKey);
     }
     return safeurl;
+}
+
+UploadHandle UploadHandle::next()
+{
+    do
+    {
+        // Since we start with UNDEF, the first update would overwrite the whole handle and at least 1 byte further, causing data corruption
+        if (h == UNDEF) h = 0;
+
+        byte* ptr = (byte*)(&h + 1);
+
+        while (!++*--ptr);
+    }
+    while ((h & 0xFFFF000000000000) == 0 || // if the top two bytes were all 0 then it could clash with NodeHandles
+            h == UNDEF);
+
+
+    return *this;
 }
 
 } // namespace

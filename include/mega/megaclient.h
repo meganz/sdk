@@ -411,7 +411,7 @@ public:
     error folderaccess(const char*folderlink, const char* authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
-    void openfilelink(handle ph, const byte *key, int op);
+    void openfilelink(handle ph, const byte *key);
 
     // decrypt password-protected public link
     // the caller takes the ownership of the returned value in decryptedLink parameter
@@ -467,7 +467,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
@@ -482,13 +482,13 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(handle, error)> resultFunction = nullptr);
+    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
+    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(Node* n, int tag);
@@ -536,27 +536,30 @@ public:
     // number of parallel connections per transfer (PUT/GET)
     unsigned char connections[2];
 
-    // generate & return next upload handle
-    handle uploadhandle(int);
+    // helpfer function for preparing a putnodes call for new node
+    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const std::string &binaryUploadToken,
+                                  byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                  std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
+                                  std::function<error(std::string *)> addFileAttrsFunc = nullptr);
 
     // helper function for preparing a putnodes call for new folders
     void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, const char *, int tag);
+    void putnodes(NodeHandle, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag);
 
     // attach file attribute to upload or node handle
-    void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
+    void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
 
     // notify delayed upload completion subsystem about new file attribute
-    void checkfacompletion(handle, Transfer* = NULL);
+    void checkfacompletion(UploadHandle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
     void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0,
@@ -681,17 +684,9 @@ private:
 
 public:
 
-    ////// sync config updating & persisting ////
-
-    // transition the cache to failed
-    void failSync(Sync* sync, SyncError syncerror);
-
     // disable synchronization. syncError specifies why we are disabling it.
     // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
-    void disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag);
-
-    // fail all active syncs
-    void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
+    void disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag);
 
 #endif  // ENABLE_SYNC
 
@@ -737,7 +732,7 @@ public:
     void sendchatstats(const char*, int port);
 
     // send chat logs with user's annonymous id
-    void sendchatlogs(const char*, const char*, int port);
+    void sendchatlogs(const char*, mega::handle userid, mega::handle callid, int port);
 
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
@@ -809,7 +804,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const string_map *userkeymap = NULL, const char *title = NULL);
+    void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const string_map *userkeymap = NULL, const char *title = NULL, bool meetingRoom = false);
 
     // invite a user to a chat
     void inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey = NULL, const char *title = NULL);
@@ -958,11 +953,8 @@ public:
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
 
-    // root URL for GeLB requests
-    static const string GELBURL;
-
     // root URL for chat stats
-    static const string CHATSTATSURL;
+    static const string SFUSTATSURL;
 
     // root URL for Website
     static const string MEGAURL;
@@ -1064,8 +1056,8 @@ private:
     BackoffTimer btpfa;
     bool faretrying;
 
-    // next internal upload handle
-    handle nextuh;
+    // next internal upload handle (call UploadHandle::next() to update value)
+    UploadHandle mUploadHandle;
 
     // just one notification after fetchnodes and catch-up actionpackets
     bool notifyStorageChangeOnStateCurrent = false;
@@ -1131,6 +1123,7 @@ private:
     void sc_uac();
     void sc_la();
     void sc_ub();
+    void sc_sqac();
 
     void init();
 
@@ -1306,13 +1299,13 @@ public:
     fa_map pendingfa;
 
     // upload waiting for file attributes
-    handletransfer_map faputcompletion;
+    uploadhandletransfer_map faputcompletion;
 
     // file attribute fetch channels
     fafc_map fafcs;
 
     // generate attribute string based on the pending attributes for this upload
-    void pendingattrstring(handle, string*);
+    void pendingattrstring(UploadHandle, string*);
 
     // active/pending direct reads
     handledrn_map hdrns;   // DirectReadNodes, main ownership.  One per file, each with one DirectRead per client request.
@@ -1458,9 +1451,6 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
-
-    // generate & return upload handle
-    handle getuploadhandle();
 
     // maps node handle to public handle
     std::map<handle, handle> mPublicLinks;
@@ -1611,7 +1601,7 @@ public:
     bool isFetchingNodesPendingCS();
 
     // upload handle -> node handle map (filled by upload completion)
-    handlepair_set uhnh;
+    set<pair<UploadHandle, NodeHandle>> uhnh;
 
     // transfer chunk failed
     void setchunkfailed(string*);
@@ -1657,6 +1647,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
     Node* childnodebyattribute(Node*, nameid, const char*);
     void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
@@ -1792,9 +1783,14 @@ public:
     // hash password
     error pw_key(const char*, byte*) const;
 
-    // Since it's quite expensive to create a SymmCipher, these are provided to use for quick operations - just set the key and use.
-    SymmCipher tmpnodecipher;
-    SymmCipher tmptransfercipher;
+    // returns a pointer to tmptransfercipher setting its key to the one provided
+    // tmptransfercipher key will change: to be used right away: this is not a dedicated SymmCipher for the transfer!
+    SymmCipher *getRecycledTemporaryTransferCipher(const byte *key, int type = 1);
+
+    // returns a pointer to tmpnodecipher setting its key to the one provided
+    // tmpnodecipher key will change: to be used right away: this is not a dedicated SymmCipher for the node!
+    SymmCipher *getRecycledTemporaryNodeCipher(const string *key);
+    SymmCipher *getRecycledTemporaryNodeCipher(const byte *key);
 
     // request a link to recover account
     void getrecoverylink(const char *email, bool hasMasterkey);
@@ -1911,8 +1907,6 @@ public:
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
-    std::string getDeviceid();
-
     std::string getDeviceidHash();
 
     // generate a new drive id
@@ -1930,6 +1924,13 @@ public:
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
     unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
+
+private:
+    // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
+    SymmCipher tmpnodecipher;
+
+    // Since it's quite expensive to create a SymmCipher, this is provided to use for quick operation - just set the key and use.
+    SymmCipher tmptransfercipher;
 };
 } // namespace
 

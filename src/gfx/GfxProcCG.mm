@@ -20,7 +20,6 @@
  */
 
 #include "mega.h"
-#include "GfxProcCG.h"
 #include <CoreGraphics/CGBitmapContext.h>
 #include <ImageIO/CGImageDestination.h>
 #include <MobileCoreServices/UTCoreTypes.h>
@@ -31,6 +30,8 @@
 #import <MobileCoreServices/UTType.h>
 
 using namespace mega;
+
+#ifndef USE_FREEIMAGE
 
 GfxProcCG::GfxProcCG()
     : GfxProc()
@@ -222,6 +223,8 @@ void GfxProcCG::freebitmap() {
     }
     w = h = 0;
 }
+
+#endif
 
 void ios_statsid(std::string *statsid) {
     NSMutableDictionary *queryDictionary = [[NSMutableDictionary alloc] init];

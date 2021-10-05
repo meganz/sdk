@@ -80,12 +80,6 @@ struct MEGA_API MegaApp
     // sessionid is undef if all sessions except the current were killed
     virtual void sessions_killed(handle /*sessionid*/, error) { }
 
-    // node attribute update failed (not invoked unless error != API_OK)
-    virtual void setattr_result(handle, Error) { }
-
-    // move node failed (not invoked unless error != API_OK)
-    virtual void rename_result(handle, error) { }
-
     // node deletion failed (not invoked unless error != API_OK)
     virtual void unlink_result(handle, error) { }
 
@@ -144,7 +138,10 @@ struct MEGA_API MegaApp
     virtual void putfa_result(handle, fatype, error) { }
 
     // purchase transactions
-    virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) { }
+    virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
+                                            unsigned, unsigned, const char*, const char*, const char*,
+                                            unique_ptr<BusinessPlan>) { }
+    virtual void enumeratequotaitems_result(unique_ptr<CurrencyData>) {}
     virtual void enumeratequotaitems_result(error) { }
     virtual void additem_result(error) { }
     virtual void checkout_result(const char*, error) { }
@@ -178,13 +175,6 @@ struct MEGA_API MegaApp
     // exported link access result
     virtual void openfilelink_result(const Error&) { }
     virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) { }
-
-    // node opening result
-    virtual void checkfile_result(handle, const Error&) { }
-    virtual void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) { }
-
-    // URL suitable for iOS (or other system) background upload feature
-    virtual void backgrounduploadurl_result(error, string*) { }
 
     // pread result
     virtual dstime pread_failure(const Error&, int, void*, dstime) { return ~(dstime)0; }
@@ -252,7 +242,7 @@ struct MEGA_API MegaApp
     virtual void chats_updated(textchat_map *, int) { }
     virtual void richlinkrequest_result(string*, error) { }
     virtual void chatlink_result(handle, error) { }
-    virtual void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error) { }
+    virtual void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, handle, error) { }
     virtual void chatlinkclose_result(error) { }
     virtual void chatlinkjoin_result(error) { }
 #endif
@@ -280,11 +270,11 @@ struct MEGA_API MegaApp
     virtual void transfer_complete(Transfer*) { }
 
     // sync status updates and events
-    virtual void syncupdate_stateconfig(handle) { }
-    virtual void syncupdate_active(handle, bool) { }
+    virtual void syncupdate_stateconfig(const SyncConfig& config) { }
+    virtual void syncupdate_active(const SyncConfig& config, bool) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_local_lockretry(bool) { }
-    virtual void syncupdate_treestate(LocalNode*) { }
+    virtual void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) { }
 
     // sync filename filter
     virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)
@@ -300,17 +290,17 @@ struct MEGA_API MegaApp
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
 
-    // after all syncs have been restored
+    // after all (enabled) syncs have been restored on startup
     virtual void syncs_restored() { }
 
-    // after all syncs have been disabled
+    // after all syncs have been disabled, eg due to overquota
     virtual void syncs_disabled(SyncError) { }
 
     // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted, bool hadAnError) { }
+    virtual void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) { }
 
     // after a sync has been removed
-    virtual void sync_removed(handle backupId) { }
+    virtual void sync_removed(const SyncConfig& config) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }

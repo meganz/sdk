@@ -191,6 +191,16 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getOwner() : ::mega::INVALID_HANDLE;
 }
 
+- (NSString *)deviceId {
+    if (self.megaNode) {
+        const char *val = self.megaNode->getDeviceId();
+        if (val) {
+            return [NSString stringWithUTF8String:val];
+        }
+    }
+    return nil;
+}
+
 - (BOOL)isFile {
     return self.megaNode ? self.megaNode->isFile() : NO;
 }

@@ -26,6 +26,8 @@
 
 #include "megafs.h"
 
+#include <cassert>
+
 namespace mega {
 
 namespace detail {
@@ -254,15 +256,10 @@ LocalPath NormalizeRelative(const LocalPath& path)
 }
 
 FileSystemAccess::FileSystemAccess()
-    : waiter(NULL)
-    , skip_errorreport(false)
-    , transient_error(false)
 #ifdef ENABLE_SYNC
-    , notifyerr(false)
+    : notifyerr(false)
     , notifyfailed(false)
 #endif
-    , target_exists(false)
-    , client(NULL)
 {
 }
 
@@ -495,6 +492,7 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
 // default DirNotify: no notification available
 DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore, Sync* s)
 {
+    assert(!clocalbasepath.empty());
     localbasepath = clocalbasepath;
     ignore = cignore;
 
@@ -1182,6 +1180,12 @@ LocalPath LocalPath::fromPlatformEncoded(wstring&& wpath)
     LocalPath p;
     p.localpath = std::move(wpath);
     return p;
+}
+
+wchar_t LocalPath::driveLetter()
+{
+    auto drivepos = localpath.find(L':');
+    return drivepos == wstring::npos || drivepos < 1 ? 0 : localpath[drivepos-1];
 }
 #endif
 

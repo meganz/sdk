@@ -87,8 +87,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     failure = false;
     retrying = false;
 
-    fileattrsmutable = 0;
-
     connections = 0;
     asyncIO = NULL;
     pendingcmd = NULL;
@@ -248,8 +246,8 @@ TransferSlot::~TransferSlot()
                 {
                     if (!outputPiece->finalized)
                     {
-                        transfer->client->tmptransfercipher.setkey(transfer->transferkey.data());
-                        outputPiece->finalize(true, transfer->size, transfer->ctriv, &transfer->client->tmptransfercipher, &transfer->chunkmacs);
+                        SymmCipher *cipher = transfer->client->getRecycledTemporaryTransferCipher(transfer->transferkey.data());
+                        outputPiece->finalize(true, transfer->size, transfer->ctriv, cipher, &transfer->chunkmacs);
                     }
                     anyData = true;
                     if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
@@ -376,7 +374,6 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
             {
                 LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " from " << end;
                 auto correctMac = macsmac(&transfer->chunkmacs);
-                transfer->currentmetamac = correctMac;
                 transfer->metamac = correctMac;
                 // TODO: update the Node's key to be correct (needs some API additions before enabling)
                 return true;
@@ -400,7 +397,6 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
                     {
                         LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " " << start2 << " " << len2 << " from " << end;
                         auto correctMac = macsmac(&transfer->chunkmacs);
-                        transfer->currentmetamac = correctMac;
                         transfer->metamac = correctMac;
                         // TODO: update the Node's key to be correct (needs some API additions before enabling)
                         return true;
@@ -416,15 +412,9 @@ bool TransferSlot::checkDownloadTransferFinished(DBTableTransactionCommitter& co
 {
     if (transfer->progresscompleted == transfer->size)
     {
-        if (transfer->progresscompleted)
-        {
-            transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-            transfer->hascurrentmetamac = true;
-        }
-
         // verify meta MAC
         if (!transfer->size
-            || (transfer->currentmetamac == transfer->metamac)
+            || (macsmac(&transfer->chunkmacs) == transfer->metamac)
             || checkMetaMacWithMissingLateEntries())
         {
             client->transfercacheadd(transfer, &committer);
@@ -518,11 +508,8 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             if (fa && transfer->type == GET)
             {
                 LOG_debug << "Verifying cached download";
-                transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-                transfer->hascurrentmetamac = true;
-
                 // verify meta MAC
-                if (transfer->currentmetamac == transfer->metamac)
+                if (macsmac(&transfer->chunkmacs) == transfer->metamac)
                 {
                     return transfer->complete(committer);
                 }
@@ -768,7 +755,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         bool earliestInFlight = true;
                         for (int j = connections; j--; )
                         {
-                            if (j != i && reqs[j] && 
+                            if (j != i && reqs[j] &&
                                (reqs[j]->status == REQ_INFLIGHT || reqs[j]->status == REQ_SUCCESS) &&
                                (reqs[j]->pos < reqs[i]->pos))
                             {

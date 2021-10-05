@@ -31,8 +31,13 @@
 #define HAVE_FILESYSTEM
 
 #if (__cplusplus >= 201700L)
-    #include <filesystem>
-    namespace fs = std::filesystem;
+    #if __has_include(<filesystem>)
+        #include <filesystem>
+        namespace fs = std::filesystem;
+    #else
+        #include <experimental/filesystem>
+        namespace fs = std::experimental::filesystem;
+    #endif
 #else
 #ifdef WIN32
     #include <filesystem>
@@ -1143,7 +1148,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
         if (!s.unixStyle)
         {
             int index = ((!forwards && s.lastAppliedIndex == -1) ? -1 : (s.lastAppliedIndex + (forwards ? 1 : -1))) + (int)s.completions.size();
-            index %= s.completions.size();
+            index = static_cast<int>(index % s.completions.size());
 
             // restore quotes if it had them already
             auto& c = s.completions[index];
