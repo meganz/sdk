@@ -127,23 +127,23 @@ void HeartBeatTransferProgressedInfo::adjustTransferCounts(int32_t upcount, int3
 
 void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 {
-    SPHBStatus status = INACTIVE;
+    SPHBStatus status = CommandBackupPutHeartBeat::INACTIVE;
 
     if (us.mSync)
     {
         switch(us.mSync->localroot->ts)
         {
         case TREESTATE_SYNCED:
-            status = UPTODATE;
+            status = CommandBackupPutHeartBeat::UPTODATE;
             break;
         case TREESTATE_PENDING:
-            status = PENDING;
+            status = CommandBackupPutHeartBeat::PENDING;
             break;
         case TREESTATE_SYNCING:
-            status = SYNCING;
+            status = CommandBackupPutHeartBeat::SYNCING;
             break;
         default:
-            status = UNKNOWN;
+            status = CommandBackupPutHeartBeat::UNKNOWN;
             break;
         }
     }
@@ -153,14 +153,9 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
         mSPHBStatus = status;
         updateLastActionTime();
     }
-
 }
 
-#endif
-
-
-#ifdef ENABLE_SYNC
-BackupInfoSync::BackupInfoSync(const SyncConfig& config, const string& device, handle drive, int calculatedState)
+BackupInfoSync::BackupInfoSync(const SyncConfig& config, const string& device, handle drive, CommandBackupPut::SPState calculatedState)
 {
     backupId = config.mBackupId;
     type = getSyncType(config);
@@ -173,93 +168,90 @@ BackupInfoSync::BackupInfoSync(const SyncConfig& config, const string& device, h
     driveId = drive;
 }
 
-BackupInfoSync::BackupInfoSync(const UnifiedSync &us)
+BackupInfoSync::BackupInfoSync(const UnifiedSync &us, bool pauseDown, bool pauseUp)
 {
     backupId = us.mConfig.mBackupId;
     type = getSyncType(us.mConfig);
     backupName = us.mConfig.mName,
     nodeHandle = us.mConfig.getRemoteNode();
     localFolder = us.mConfig.getLocalPath();
-    state = BackupInfoSync::getSyncState(us);
+    state = BackupInfoSync::getSyncState(us, pauseDown, pauseUp);
     subState = us.mConfig.getError();
-    deviceId = us.mClient.getDeviceidHash();
+    deviceId = us.syncs.mClient.getDeviceidHash();
     driveId = BackupInfoSync::getDriveId(us);
     assert(!(us.mConfig.isBackup() && us.mConfig.isExternal())  // not an external backup...
            || !ISUNDEF(driveId));  // ... or it must have a valid drive-id
 }
 
-HeartBeatBackupInfo::SPState BackupInfoSync::calculatePauseActiveState(MegaClient *client)
+HeartBeatBackupInfo::SPState BackupInfoSync::calculatePauseActiveState(bool pauseDown, bool pauseUp)
 {
-    auto pauseDown = client->xferpaused[GET];
-    auto pauseUp = client->xferpaused[PUT];
     if (pauseDown && pauseUp)
     {
-        return HeartBeatBackupInfo::PAUSE_FULL;
+        return CommandBackupPut::PAUSE_FULL;
     }
     else if (pauseDown)
     {
-        return HeartBeatBackupInfo::PAUSE_DOWN;
+        return CommandBackupPut::PAUSE_DOWN;
     }
     else if (pauseUp)
     {
-        return HeartBeatBackupInfo::PAUSE_UP;
+        return CommandBackupPut::PAUSE_UP;
     }
 
-    return HeartBeatBackupInfo::ACTIVE;
+    return CommandBackupPut::ACTIVE;
 }
 
-
-HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(const UnifiedSync& us)
+HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(const UnifiedSync& us, bool pauseDown, bool pauseUp)
 {
     SyncError error = us.mConfig.getError();
     syncstate_t state = us.mSync ? us.mSync->state() : SYNC_FAILED;
 
-    return getSyncState(error, state, &us.mClient);
+    return getSyncState(error, state, pauseDown, pauseUp);
 }
 
-HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient *client)
+HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(SyncError error, syncstate_t state, bool pauseDown, bool pauseUp)
 {
     if (state == SYNC_DISABLED && error != NO_SYNC_ERROR)
     {
-        return HeartBeatBackupInfo::TEMPORARY_DISABLED;
+        return CommandBackupPut::TEMPORARY_DISABLED;
     }
     else if (state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED)
     {
-        return calculatePauseActiveState(client);
+        return calculatePauseActiveState(pauseDown, pauseUp);
     }
     else if (!(state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_SYNC_ERROR)))
     {
-        return HeartBeatBackupInfo::DISABLED;
+        return CommandBackupPut::DISABLED;
     }
     else
     {
-        return HeartBeatBackupInfo::FAILED;
+        return CommandBackupPut::FAILED;
     }
 }
 
-HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
+HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp)
 {
     auto error = config.getError();
     if (!error)
     {
         if (config.getEnabled())
         {
-            return calculatePauseActiveState(client);
+            return calculatePauseActiveState(pauseDown, pauseUp);
         }
         else
         {
-            return HeartBeatBackupInfo::DISABLED;
+            return CommandBackupPut::DISABLED;
         }
     }
     else //error
     {
         if (config.getEnabled())
         {
-            return HeartBeatBackupInfo::TEMPORARY_DISABLED;
+            return CommandBackupPut::TEMPORARY_DISABLED;
         }
         else
         {
-            return HeartBeatBackupInfo::DISABLED;
+            return CommandBackupPut::DISABLED;
         }
     }
 }
@@ -296,8 +288,8 @@ BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
 #endif
 
 ////////////// MegaBackupMonitor ////////////////
-BackupMonitor::BackupMonitor(MegaClient *client)
-    : mClient(client)
+BackupMonitor::BackupMonitor(Syncs& s)
+    : syncs(s), mClient(&syncs.mClient)
 {
 }
 
@@ -310,12 +302,12 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
     assert(!ISUNDEF(backupId)); // syncs are registered before adding them
 #endif
 
-    auto currentInfo = ::mega::make_unique<BackupInfoSync>(us);
-    if (us.mBackupInfo && *currentInfo != *us.mBackupInfo)
+    auto currentInfo = BackupInfoSync(us, syncs.mDownloadsPaused, syncs.mUploadsPaused);
+    if (us.mBackupInfo && currentInfo != *us.mBackupInfo)
     {
-        mClient->reqs.add(new CommandBackupPut(mClient, *currentInfo, nullptr));
+        syncs.mClient.reqs.add(new CommandBackupPut(&syncs.mClient, currentInfo, nullptr));
     }
-    us.mBackupInfo = move(currentInfo);
+    us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(currentInfo);
 }
 
 bool BackupInfoSync::operator==(const BackupInfoSync& o) const
@@ -334,13 +326,6 @@ bool BackupInfoSync::operator==(const BackupInfoSync& o) const
 bool BackupInfoSync::operator!=(const BackupInfoSync &o) const
 {
     return !(*this == o);
-}
-
-void BackupMonitor::onSyncConfigChanged()
-{
-    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
-        updateOrRegisterSync(us);
-    });
 }
 
 void BackupMonitor::beatBackupInfo(UnifiedSync& us)
@@ -371,7 +356,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         int8_t progress = (hbs->progress(inflightProgress) < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress(inflightProgress)*100.0));
 
         hbs->mSending = true;
-        auto newCommand = new CommandBackupPutHeartBeat(mClient, us.mConfig.getBackupId(),  static_cast<uint8_t>(hbs->sphbStatus()),
+        auto newCommand = new CommandBackupPutHeartBeat(0, us.mConfig.getBackupId(),  hbs->sphbStatus(),
                           progress, hbs->mPendingUps, hbs->mPendingDowns,
                           hbs->lastAction(), hbs->lastItemUpdated(),
                           [hbs](Error){
@@ -379,7 +364,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
                           });
 
 #ifdef ENABLE_SYNC
-        if (hbs->sphbStatus() == HeartBeatSyncInfo::UPTODATE && progress >= 100)
+        if (hbs->sphbStatus() == CommandBackupPutHeartBeat::UPTODATE && progress >= 100)
         {
             hbs->invalidateProgress(); // we invalidate progress, so as not to keep on reporting 100% progress after reached up to date
             // note: new transfer updates will modify the progress and make it valid again
@@ -396,12 +381,13 @@ void BackupMonitor::beat()
 {
 #ifdef ENABLE_SYNC
     // Only send heartbeats for enabled active syncs.
-    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
-        if (us.mSync && us.mConfig.getEnabled())
+    for (auto& us : syncs.mSyncVec)
+    {
+        if (us->mSync && us->mConfig.getEnabled())
         {
-            beatBackupInfo(us);
+            beatBackupInfo(*us);
         }
-    });
+    };
 #endif
 }
 

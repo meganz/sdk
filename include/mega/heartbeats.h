@@ -30,6 +30,7 @@ namespace mega
 {
 
 struct UnifiedSync;
+struct Syncs;
 
 /**
  * @brief The HeartBeatBackupInfo class
@@ -60,23 +61,12 @@ public:
     bool mModified = false;
     bool mSending = false;
 
-    enum SPState
-    {
-        STATE_NOT_INITIALIZED,
-        ACTIVE = 1,             // Working fine (enabled)
-        FAILED = 2,             // Failed (permanently disabled)
-        TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
-        DISABLED = 4,           // Disabled by the user
-        PAUSE_UP = 5,           // Active but upload transfers paused in the SDK
-        PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
-        PAUSE_FULL = 7,         // Active but transfers paused in the SDK
-    };
-
+    using SPState = CommandBackupPut::SPState;
     SPState spState() const { return mSPState; }
     void setSPState(SPState state);
 
 protected:
-    SPState mSPState = STATE_NOT_INITIALIZED;
+    SPState mSPState = CommandBackupPut::STATE_NOT_INITIALIZED;
     double mProgress = 0;
     bool mProgressInvalid = true;
 
@@ -115,21 +105,13 @@ private:
 class HeartBeatSyncInfo : public HeartBeatTransferProgressedInfo
 {
 public:
-    enum SPHBStatus
-    {
-        STATE_NOT_INITIALIZED,
-        UPTODATE = 1, // Up to date: local and remote paths are in sync
-        SYNCING = 2, // The sync engine is working, transfers are in progress
-        PENDING = 3, // The sync engine is working, e.g: scanning local folders
-        INACTIVE = 4, // Sync is not active. A state != ACTIVE should have been sent through '''sp'''
-        UNKNOWN = 5, // Unknown status
-    };
-
     void updateSPHBStatus(UnifiedSync& us);
+
+    using SPHBStatus = CommandBackupPutHeartBeat::SPHBStatus;
     SPHBStatus sphbStatus() { return mSPHBStatus; }
 
 private:
-    SPHBStatus mSPHBStatus = STATE_NOT_INITIALIZED;
+    SPHBStatus mSPHBStatus = CommandBackupPutHeartBeat::STATE_NOT_INITIALIZED;
 };
 #endif
 
@@ -138,36 +120,36 @@ class BackupInfoSync : public CommandBackupPut::BackupInfo
 {
 public:
 
-    BackupInfoSync(const SyncConfig& config, const string& device, handle drive, int calculatedState);
-    BackupInfoSync(const UnifiedSync& us);
+    BackupInfoSync(const SyncConfig& config, const string& device, handle drive, CommandBackupPut::SPState calculatedState);
+    BackupInfoSync(const UnifiedSync& us, bool pauseDown, bool pauseUp);
 
     static BackupType getSyncType(const SyncConfig& config);
-    static HeartBeatBackupInfo::SPState getSyncState (const UnifiedSync &);
-    static HeartBeatBackupInfo::SPState getSyncState(SyncError error, syncstate_t state, MegaClient *client);
-    static HeartBeatBackupInfo::SPState getSyncState(const SyncConfig& config, MegaClient *client);
+    static HeartBeatBackupInfo::SPState getSyncState (const UnifiedSync &, bool pauseDown, bool pauseUp);
+    static HeartBeatBackupInfo::SPState getSyncState(SyncError error, syncstate_t state, bool pauseDown, bool pauseUp);
+    static HeartBeatBackupInfo::SPState getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp);
     static handle getDriveId(const UnifiedSync&);
 
     bool operator==(const BackupInfoSync& o) const;
     bool operator!=(const BackupInfoSync& o) const;
 
 private:
-    static HeartBeatBackupInfo::SPState calculatePauseActiveState(MegaClient *client);
+    static HeartBeatBackupInfo::SPState calculatePauseActiveState(bool pauseDown, bool pauseUp);
 };
 #endif
 
 class BackupMonitor
 {
 public:
-    explicit BackupMonitor(MegaClient * client);
+    explicit BackupMonitor(Syncs&);
 
     void beat(); // produce heartbeats!
 
-    void onSyncConfigChanged();
     void updateOrRegisterSync(UnifiedSync&);
 
 private:
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
+    Syncs& syncs;
     mega::MegaClient *mClient = nullptr;
 
 #ifdef ENABLE_SYNC

@@ -177,12 +177,14 @@ private:
 
 // Convenience.
 using SyncConfigVector = vector<SyncConfig>;
+struct Syncs;
 
 struct UnifiedSync
 {
-    // Reference to client
+    // Reference to containing Syncs object
+    Syncs& syncs;
     MegaClient& mClient;
-
+	
     // We always have a config
     SyncConfig mConfig;
 
@@ -196,7 +198,7 @@ struct UnifiedSync
     std::shared_ptr<HeartBeatSyncInfo> mNextHeartbeat;
 
     // ctor/dtor
-    UnifiedSync(MegaClient&, const SyncConfig&);
+    UnifiedSync(Syncs&, const SyncConfig&);
 
     // Try to create and start the Sync
     error enableSync(bool resetFingerprint, bool notifyApp);
@@ -547,6 +549,9 @@ struct Syncs
     unsigned numSyncs();    // includes non-running syncs, but configured
     Sync* firstRunningSync();
     Sync* runningSyncByBackupId(handle backupId) const;
+
+    void transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused);
+
     // returns a copy of the config, for thread safety
     bool syncConfigByBackupId(handle backupId, SyncConfig&) const;
 
@@ -670,6 +675,10 @@ struct Syncs
     void importSyncConfigs(const char* data, std::function<void(error)> completion);
 
 private:
+    friend class Sync;
+    friend struct UnifiedSync;
+    friend class BackupInfoSync;
+    friend class BackupMonitor;
     void exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const;
 
     bool importSyncConfig(JSON& reader, SyncConfig& config);
@@ -694,6 +703,10 @@ private:
     void unloadSyncByIndex(size_t index);
 
     MegaClient& mClient;
+
+    bool mDownloadsPaused = false;
+    bool mUploadsPaused = false;
+
 };
 
 } // namespace

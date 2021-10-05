@@ -13936,7 +13936,7 @@ void MegaClient::ensureSyncUserAttributesCompleted(Error e)
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
 {
     string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config, this));
+    BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add( new CommandBackupPut(this, info,
                                   [this, config, completion](Error e, handle backupId) {
@@ -14052,7 +14052,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
     // Add the sync.
     string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, this));
+    BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add( new CommandBackupPut(this, info,
                                    [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
@@ -15964,7 +15964,6 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 // pause/unpause transfers
 void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransactionCommitter& committer)
 {
-    bool changed{xferpaused[d] != pause};
     xferpaused[d] = pause;
 
     if (!pause || hard)
@@ -15995,12 +15994,9 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransac
         }
     }
 
-    if (changed)
-    {
 #ifdef ENABLE_SYNC
-        syncs.mHeartBeatMonitor->onSyncConfigChanged();
+    syncs.transferPauseFlagsUpdated(xferpaused[GET], xferpaused[PUT]);
 #endif
-    }
 }
 
 void MegaClient::setmaxconnections(direction_t d, int num)

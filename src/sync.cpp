@@ -2296,8 +2296,8 @@ m_off_t Sync::getInflightProgress()
 }
 
 
-UnifiedSync::UnifiedSync(MegaClient& mc, const SyncConfig& c)
-    : mClient(mc), mConfig(c)
+UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
+    : syncs(s), mClient(s.mClient), mConfig(c)
 {
     mNextHeartbeat.reset(new HeartBeatSyncInfo());
 }
@@ -2456,7 +2456,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
 Syncs::Syncs(MegaClient& mc)
   : mClient(mc)
 {
-    mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
+    mHeartBeatMonitor.reset(new BackupMonitor(*this));
 }
 
 SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
@@ -2595,7 +2595,7 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
             if (!skip)
             {
                 // Create the unified sync.
-                mSyncVec.emplace_back(new UnifiedSync(mClient, config));
+                mSyncVec.emplace_back(new UnifiedSync(*this, config));
 
                 // Track how many configs we've restored.
                 ++numRestored;
@@ -2842,7 +2842,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
             auto& deviceHash = context->mDeviceHash;
 
             // Backup Info.
-            auto state = BackupInfoSync::getSyncState(config, &client);
+            auto state = BackupInfoSync::getSyncState(config, context->mSyncs->mDownloadsPaused, context->mSyncs->mUploadsPaused);
             auto info  = BackupInfoSync(config, deviceHash, UNDEF, state);
 
             LOG_debug << "Generating backup ID for config "
@@ -3366,7 +3366,7 @@ vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
 {
     isEmpty = false;
-    mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mc, c)));
+    mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
 
     saveSyncConfig(c);
 
@@ -3417,6 +3417,19 @@ void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
     for (auto& s : mSyncVec)
     {
         f(*s);
+    }
+}
+
+void Syncs::transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused)
+{
+    lock_guard<mutex> g(mSyncVecMutex);
+
+    mDownloadsPaused = downloadsPaused;
+    mUploadsPaused = uploadsPaused;
+
+    for (auto& us : mSyncVec)
+    {
+        mHeartBeatMonitor->updateOrRegisterSync(*us);
     }
 }
 
@@ -3735,7 +3748,7 @@ void Syncs::resumeResumableSyncsOnStartup()
 
     for (auto& config : configs)
     {
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, config)));
+        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
         isEmpty = false;
     }
 

@@ -22973,7 +22973,7 @@ void MegaApiImpl::sendPendingRequests()
             info.nodeHandle = remoteNode;
             info.localFolder = localFolder ? LocalPath::fromPath(localFolder, *client->fsaccess) : LocalPath();
             info.deviceId = client->getDeviceidHash();
-            info.state = request->getAccess();
+            info.state = CommandBackupPut::SPState(request->getAccess());
             info.subState = request->getNumDetails();
 
             bool isNew = request->getFlag();
@@ -23016,7 +23016,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             client->reqs.add(new CommandBackupPutHeartBeat(client,
                                                            (MegaHandle)request->getParentHandle(),
-                                                           (uint8_t)request->getAccess(),
+                                                           CommandBackupPutHeartBeat::SPHBStatus(request->getAccess()),
                                                            (uint8_t)request->getNumDetails(),
                                                            (uint32_t)request->getParamType(),
                                                            (uint32_t)request->getTransferTag(),
