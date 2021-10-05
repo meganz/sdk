@@ -8905,3 +8905,4 @@ GTEST_TEST(Sync, MoveExistingIntoNewDirectoryWhilePaused)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
+#endif
