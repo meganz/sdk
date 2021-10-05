@@ -1410,6 +1410,7 @@ public:
         int syncState = 0;
         int syncSubstate = 0;
         string extra;
+        string backupName;
         uint64_t hbTimestamp = 0;
         int hbStatus = 0;
         int hbProgress = 0;
