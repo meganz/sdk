@@ -1629,7 +1629,7 @@ public:
     // process object arrays by the API server
     //int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
-    void cleanNodesFromBd();
+    void cleanNodesFromDb();
 
     void readok(JSON*);
     void readokelement(JSON*);

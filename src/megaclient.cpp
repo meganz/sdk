@@ -8839,7 +8839,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     return j->leavearray();
 }
 
-void MegaClient::cleanNodesFromBd()
+void MegaClient::cleanNodesFromDb()
 {
     sctable->removeNodes();
 }

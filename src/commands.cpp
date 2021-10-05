@@ -5692,7 +5692,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromBd();
+                    client->cleanNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5703,7 +5703,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromBd();
+                    client->cleanNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5726,7 +5726,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readusers(&client->json, false))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromBd();
+                    client->cleanNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5747,7 +5747,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->scsn.setScsn(&client->json))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromBd();
+                    client->cleanNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5785,7 +5785,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->scsn.ready())
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromBd();
+                    client->cleanNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5805,7 +5805,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->json.storeobject())
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromBd();
+                    client->cleanNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
