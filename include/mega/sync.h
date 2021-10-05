@@ -206,12 +206,11 @@ struct UnifiedSync
 private:
     friend class Sync;
     friend struct Syncs;
-    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, bool isNetwork, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
+    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris,
+                    NodeHandle rootNodeHandle, bool inshare, bool isNetwork, LocalPath& rootpath,
+                    std::unique_ptr<FileAccess>& openedLocalFolder);
     void changedConfigState(bool notifyApp);
 };
-
-using SyncCompletionFunction =
-  std::function<void(UnifiedSync*, const SyncError&, error)>;
 
 class MEGA_API Sync
 {
@@ -548,7 +547,8 @@ struct Syncs
     unsigned numSyncs();    // includes non-running syncs, but configured
     Sync* firstRunningSync();
     Sync* runningSyncByBackupId(handle backupId) const;
-    SyncConfig* syncConfigByBackupId(handle backupId) const;
+    // returns a copy of the config, for thread safety
+    bool syncConfigByBackupId(handle backupId, SyncConfig&) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
@@ -575,6 +575,9 @@ struct Syncs
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+
+    // async, callback on client thread
+    void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
     // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
     void purgeSyncs();
@@ -681,6 +684,7 @@ private:
     // Responsible for securely writing config databases to disk.
     unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
 
+    mutable mutex mSyncVecMutex;  // will be relevant for sync rework
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed

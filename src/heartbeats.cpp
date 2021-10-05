@@ -30,11 +30,6 @@ HeartBeatBackupInfo::HeartBeatBackupInfo()
 {
 }
 
-int HeartBeatBackupInfo::status() const
-{
-    return mStatus;
-}
-
 double HeartBeatBackupInfo::progress(m_off_t inflightProgress) const
 {
     return mProgress + inflightProgress;
@@ -64,11 +59,11 @@ void HeartBeatBackupInfo::setLastSyncedItem(const handle &lastSyncedItem)
     }
 }
 
-void HeartBeatBackupInfo::setStatus(const int &status)
+void HeartBeatBackupInfo::setSPState(SPState state)
 {
-    if (mStatus != status)
+    if (mSPState != state)
     {
-        mStatus = status;
+        mSPState = state;
         updateLastActionTime();
     }
 }
@@ -129,36 +124,36 @@ void HeartBeatTransferProgressedInfo::adjustTransferCounts(int32_t upcount, int3
 }
 
 #ifdef ENABLE_SYNC
-////////////// HeartBeatSyncInfo ////////////////
-HeartBeatSyncInfo::HeartBeatSyncInfo()
-{
-    mStatus = HeartBeatSyncInfo::Status::UNKNOWN;
-}
 
-void HeartBeatSyncInfo::updateStatus(UnifiedSync& us)
+void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 {
-    HeartBeatSyncInfo::Status status = HeartBeatSyncInfo::Status::INACTIVE;
+    SPHBStatus status = INACTIVE;
 
     if (us.mSync)
     {
         switch(us.mSync->localroot->ts)
         {
         case TREESTATE_SYNCED:
-            status = HeartBeatSyncInfo::Status::UPTODATE;
+            status = UPTODATE;
             break;
         case TREESTATE_PENDING:
-            status = HeartBeatSyncInfo::Status::PENDING;
+            status = PENDING;
             break;
         case TREESTATE_SYNCING:
-            status = HeartBeatSyncInfo::Status::SYNCING;
+            status = SYNCING;
             break;
         default:
-            status = HeartBeatSyncInfo::Status::UNKNOWN;
+            status = UNKNOWN;
             break;
         }
     }
 
-    setStatus(status);
+    if (mSPHBStatus != status)
+    {
+        mSPHBStatus = status;
+        updateLastActionTime();
+    }
+
 }
 
 #endif
@@ -193,28 +188,28 @@ BackupInfoSync::BackupInfoSync(const UnifiedSync &us)
            || !ISUNDEF(driveId));  // ... or it must have a valid drive-id
 }
 
-int BackupInfoSync::calculatePauseActiveState(MegaClient *client)
+HeartBeatBackupInfo::SPState BackupInfoSync::calculatePauseActiveState(MegaClient *client)
 {
     auto pauseDown = client->xferpaused[GET];
     auto pauseUp = client->xferpaused[PUT];
     if (pauseDown && pauseUp)
     {
-        return State::PAUSE_FULL;
+        return HeartBeatBackupInfo::PAUSE_FULL;
     }
     else if (pauseDown)
     {
-        return State::PAUSE_DOWN;
+        return HeartBeatBackupInfo::PAUSE_DOWN;
     }
     else if (pauseUp)
     {
-        return State::PAUSE_UP;
+        return HeartBeatBackupInfo::PAUSE_UP;
     }
 
-    return State::ACTIVE;
+    return HeartBeatBackupInfo::ACTIVE;
 }
 
 
-int BackupInfoSync::getSyncState(const UnifiedSync& us)
+HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(const UnifiedSync& us)
 {
     SyncError error = us.mConfig.getError();
     syncstate_t state = us.mSync ? us.mSync->state() : SYNC_FAILED;
@@ -222,11 +217,11 @@ int BackupInfoSync::getSyncState(const UnifiedSync& us)
     return getSyncState(error, state, &us.mClient);
 }
 
-int BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient *client)
+HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient *client)
 {
     if (state == SYNC_DISABLED && error != NO_SYNC_ERROR)
     {
-        return State::TEMPORARY_DISABLED;
+        return HeartBeatBackupInfo::TEMPORARY_DISABLED;
     }
     else if (state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED)
     {
@@ -234,15 +229,15 @@ int BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient 
     }
     else if (!(state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_SYNC_ERROR)))
     {
-        return State::DISABLED;
+        return HeartBeatBackupInfo::DISABLED;
     }
     else
     {
-        return State::FAILED;
+        return HeartBeatBackupInfo::FAILED;
     }
 }
 
-int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
+HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
 {
     auto error = config.getError();
     if (!error)
@@ -253,18 +248,18 @@ int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
         }
         else
         {
-            return State::DISABLED;
+            return HeartBeatBackupInfo::DISABLED;
         }
     }
     else //error
     {
         if (config.getEnabled())
         {
-            return State::TEMPORARY_DISABLED;
+            return HeartBeatBackupInfo::TEMPORARY_DISABLED;
         }
         else
         {
-            return State::DISABLED;
+            return HeartBeatBackupInfo::DISABLED;
         }
     }
 }
@@ -364,7 +359,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
     if ( !hbs->mSending && (hbs->mModified
          || m_time(nullptr) - hbs->lastBeat() > MAX_HEARBEAT_SECS_DELAY))
     {
-        hbs->updateStatus(us);  //we asume this is costly: only do it when beating
+        hbs->updateSPHBStatus(us);
         hbs->setLastBeat(m_time(nullptr));
 
         m_off_t inflightProgress = 0;
@@ -376,7 +371,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         int8_t progress = (hbs->progress(inflightProgress) < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress(inflightProgress)*100.0));
 
         hbs->mSending = true;
-        auto newCommand = new CommandBackupPutHeartBeat(mClient, us.mConfig.getBackupId(),  static_cast<uint8_t>(hbs->status()),
+        auto newCommand = new CommandBackupPutHeartBeat(mClient, us.mConfig.getBackupId(),  static_cast<uint8_t>(hbs->sphbStatus()),
                           progress, hbs->mPendingUps, hbs->mPendingDowns,
                           hbs->lastAction(), hbs->lastItemUpdated(),
                           [hbs](Error){
@@ -384,7 +379,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
                           });
 
 #ifdef ENABLE_SYNC
-        if (hbs->status() == HeartBeatSyncInfo::Status::UPTODATE && progress >= 100)
+        if (hbs->sphbStatus() == HeartBeatSyncInfo::UPTODATE && progress >= 100)
         {
             hbs->invalidateProgress(); // we invalidate progress, so as not to keep on reporting 100% progress after reached up to date
             // note: new transfer updates will modify the progress and make it valid again

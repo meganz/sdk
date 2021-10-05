@@ -44,10 +44,6 @@ public:
     HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = default;
     virtual ~HeartBeatBackupInfo() = default;
 
-    MEGA_DISABLE_COPY(HeartBeatBackupInfo)
-
-    virtual int status() const;
-
     virtual double progress(m_off_t inflightProgress) const;
     virtual void invalidateProgress();
 
@@ -58,17 +54,29 @@ public:
     virtual m_time_t lastBeat() const;
     virtual void setLastBeat(const m_time_t &lastBeat);
     virtual void setLastAction(const m_time_t &lastAction);
-    virtual void setStatus(const int &status);
     virtual void setProgress(const double &progress);
     virtual void setLastSyncedItem(const handle &lastItemUpdated);
-
-    virtual void updateStatus(UnifiedSync& us) {}
 
     bool mModified = false;
     bool mSending = false;
 
+    enum SPState
+    {
+        STATE_NOT_INITIALIZED,
+        ACTIVE = 1,             // Working fine (enabled)
+        FAILED = 2,             // Failed (permanently disabled)
+        TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
+        DISABLED = 4,           // Disabled by the user
+        PAUSE_UP = 5,           // Active but upload transfers paused in the SDK
+        PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
+        PAUSE_FULL = 7,         // Active but transfers paused in the SDK
+    };
+
+    SPState spState() const { return mSPState; }
+    void setSPState(SPState state);
+
 protected:
-    int mStatus = 0;
+    SPState mSPState = STATE_NOT_INITIALIZED;
     double mProgress = 0;
     bool mProgressInvalid = true;
 
@@ -107,8 +115,9 @@ private:
 class HeartBeatSyncInfo : public HeartBeatTransferProgressedInfo
 {
 public:
-    enum Status
+    enum SPHBStatus
     {
+        STATE_NOT_INITIALIZED,
         UPTODATE = 1, // Up to date: local and remote paths are in sync
         SYNCING = 2, // The sync engine is working, transfers are in progress
         PENDING = 3, // The sync engine is working, e.g: scanning local folders
@@ -116,10 +125,11 @@ public:
         UNKNOWN = 5, // Unknown status
     };
 
-    HeartBeatSyncInfo();
-    MEGA_DISABLE_COPY(HeartBeatSyncInfo)
+    void updateSPHBStatus(UnifiedSync& us);
+    SPHBStatus sphbStatus() { return mSPHBStatus; }
 
-    virtual void updateStatus(UnifiedSync& us) override;
+private:
+    SPHBStatus mSPHBStatus = STATE_NOT_INITIALIZED;
 };
 #endif
 
@@ -127,31 +137,21 @@ public:
 class BackupInfoSync : public CommandBackupPut::BackupInfo
 {
 public:
-    enum State
-    {
-        ACTIVE = 1,             // Working fine (enabled)
-        FAILED = 2,             // Failed (permanently disabled)
-        TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
-        DISABLED = 4,           // Disabled by the user
-        PAUSE_UP = 5,           // Active but upload transfers paused in the SDK
-        PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
-        PAUSE_FULL = 7,         // Active but transfers paused in the SDK
-    };
 
     BackupInfoSync(const SyncConfig& config, const string& device, handle drive, int calculatedState);
     BackupInfoSync(const UnifiedSync& us);
 
     static BackupType getSyncType(const SyncConfig& config);
-    static int getSyncState (const UnifiedSync &);
-    static int getSyncState(SyncError error, syncstate_t state, MegaClient *client);
-    static int getSyncState(const SyncConfig& config, MegaClient *client);
+    static HeartBeatBackupInfo::SPState getSyncState (const UnifiedSync &);
+    static HeartBeatBackupInfo::SPState getSyncState(SyncError error, syncstate_t state, MegaClient *client);
+    static HeartBeatBackupInfo::SPState getSyncState(const SyncConfig& config, MegaClient *client);
     static handle getDriveId(const UnifiedSync&);
 
     bool operator==(const BackupInfoSync& o) const;
     bool operator!=(const BackupInfoSync& o) const;
 
 private:
-    static int calculatePauseActiveState(MegaClient *client);
+    static HeartBeatBackupInfo::SPState calculatePauseActiveState(MegaClient *client);
 };
 #endif
 
