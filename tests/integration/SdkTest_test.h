@@ -240,6 +240,19 @@ public:
     std::mutex lastEventMutex;
     std::unique_ptr<MegaEvent> lastEvent;
 
+    void resetlastEvent()
+    {
+        lock_guard<mutex> g(lastEventMutex);
+        lastEvent.reset();
+    }
+
+    bool lastEventWas(int type)
+    {
+        lock_guard<mutex> g(lastEventMutex);
+        return lastEvent && lastEvent->getType() == type;
+    }
+
+
     MegaHandle mBackupId = UNDEF;
     unique_ptr<MegaHandleList> mMegaFavNodeList;
 
