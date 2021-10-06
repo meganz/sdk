@@ -578,12 +578,8 @@ public:
  * @return null terminator
  */
 constexpr const char* strEnd(const char* str){
-  return *str ? strEnd(str+1) : str;
+  return *str ? strEnd(str + 1) : str;
 }
-
-// Unixes and Windows FS path separators
-constexpr const char kUnixPathSeparator = '/';
-constexpr const char kWindowsPathSeparator = '\\';
 
 /**
  * Is there a file terminator in the passed string?
@@ -592,8 +588,7 @@ constexpr const char kWindowsPathSeparator = '\\';
  * @return true if there is a FS in the string, false otherwise
  */
 constexpr bool isThereASeparator(const char* str) {
-  return (*str == kUnixPathSeparator || *str == kWindowsPathSeparator ) ?
-    true : ( *str ? isThereASeparator(str+1) : false );
+  return (*str == '/' || *str == '\\' ) ? true : ( *str ? isThereASeparator(str+1) : false );
 }
 
 /**
@@ -603,8 +598,7 @@ constexpr bool isThereASeparator(const char* str) {
  * @return C-style null terminated string pointer
  */
 constexpr const char* getLastPathComponent(const char* str){
-  return (*str == kUnixPathSeparator || *str == kWindowsPathSeparator )
-    ? ( str+1 ) : getLastPathComponent( str-1 );
+  return (*str == '/' || *str == '\\' ) ? ( str+1 ) : getLastPathComponent( str-1 );
 }
 
 /**
@@ -614,7 +608,7 @@ constexpr const char* getLastPathComponent(const char* str){
  * @return C-style null terminated string. Last component of a full path
  */
 constexpr const char* log_file_leafname(const char* fullPath){
-  return isThereASeparator(fullPath) ? getLastPathComponent(fullPath) : fullPath;
+  return isThereASeparator(fullPath) ? getLastPathComponent( strEnd(fullPath) ) : fullPath;
 }
 
 #define LOG_verbose \
