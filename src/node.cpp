@@ -1167,15 +1167,14 @@ bool Node::setparent(Node* p)
 
 const Node* Node::firstancestor() const
 {
-    if (parenthandle == UNDEF)
+    const Node* n = this;
+    while (n->parent != NULL)
     {
+        n = n->parent;
         return this;
     }
 
-    NodeHandle ancestorhandle = client->sctable->getFirstAncestor(NodeHandle().set6byte(parenthandle));
-
-    Node* node = client->nodeByHandle(ancestorhandle);
-    return (node != nullptr) ? node : this;
+    return n;
 }
 
 // returns 1 if n is under p, 0 otherwise
