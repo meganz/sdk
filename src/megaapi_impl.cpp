@@ -4179,7 +4179,7 @@ MegaBannerListPrivate* MegaBannerListPrivate::copy() const
 
 const MegaBanner* MegaBannerListPrivate::get(int i) const
 {
-    return (i >= 0 && i < mVector.size()) ? &(mVector[i]) : nullptr;
+    return (i >= 0 && static_cast<size_t>(i) < mVector.size()) ? &(mVector[i]) : nullptr;
 }
 
 int MegaBannerListPrivate::size() const
@@ -4291,9 +4291,9 @@ MegaStringList *MegaStringListPrivate::copy() const
     return new MegaStringListPrivate(*this);
 }
 
-const char* MegaStringListPrivate::get(int i) const
+const char *MegaStringListPrivate::get(int i) const
 {
-    if ((i < 0) || (i >= mList.size()))
+    if((i < 0) || (static_cast<size_t>(i) >= mList.size()))
         return nullptr;
 
     return mList[i].c_str();
@@ -5374,6 +5374,11 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     ftpServerMaxBufferSize = 0;
     ftpServerMaxOutputSize = 0;
     ftpServerRestrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    const char *uvversion = uv_version_string();
+    if (uvversion)
+    {
+        LOG_debug << "libuv version: " <<uvversion;
+    }
 #endif
 
     mPushSettings = NULL;
@@ -7643,7 +7648,7 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
         "#880E4F"
     };
 
-    int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
+    auto index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
 
     return MegaApi::strdup(colors[index].c_str());
 }
@@ -7668,7 +7673,7 @@ char *MegaApiImpl::getAvatarSecondaryColor(handle userhandle)
         "#BC2086"
     };
 
-    int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
+    auto index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
 
     return MegaApi::strdup(colors[index].c_str());
 }
@@ -16577,6 +16582,8 @@ void MegaApiImpl::fireOnReloadNeeded()
 
 void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 {
+    LOG_debug << "Sending EVENT " << event->getType() << " to app: " << event->getText();
+
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
         (*it++)->onEvent(api, event);
@@ -23245,7 +23252,7 @@ void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* l
     request->setTotalBytes(backupType);
     request->setNodeHandle(targetNode);
     request->setFile(localFolder);
-    request->setName(backupName ? Base64::btoa(backupName).c_str() : nullptr);
+    request->setName(backupName);
     request->setAccess(state);
     request->setNumDetails(subState);
     request->setFlag(true); // indicates it's a new backup

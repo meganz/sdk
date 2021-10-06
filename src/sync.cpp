@@ -2783,6 +2783,7 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
                 // Make sure there aren't any syncs with this backup id.
                 if (config.mBackupId == us->mConfig.mBackupId)
                 {
+				    skip = true;
                     LOG_err << "Skipping restore of backup "
                             << config.mLocalPath.toPath(fsAccess)
                             << " on "

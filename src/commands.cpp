@@ -8737,10 +8737,11 @@ bool CommandBackupSyncFetch::procresult(Result r)
                 case MAKENAMEID1('s'):          d.syncState = client->json.getint32(); break;
                 case MAKENAMEID2('s', 's'):     d.syncSubstate = client->json.getint32(); break;
                 case MAKENAMEID1('e'):          client->json.storeobject(&d.extra);
-                                                d.extra = client->decypherTLVTextWithMasterKey("ed", d.extra);
+                                                d.backupName = client->decypherTLVTextWithMasterKey("bn", d.extra);
                                                 break;
                 case MAKENAMEID2('h', 'b'):
                 {
+
                     if (client->json.enterobject())
                     {
                         for (;;)

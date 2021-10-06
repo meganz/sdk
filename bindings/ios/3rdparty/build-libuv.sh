@@ -1,12 +1,12 @@
 #!/bin/sh
 
-UV_VERSION="1.23.0"
+UV_VERSION="1.42.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
 CURRENTPATH=`pwd`
 OPENSSL_PREFIX="${CURRENTPATH}"
-ARCHS="i386 x86_64 armv7 armv7s arm64"
+ARCHS="x86_64 arm64"
 DEVELOPER=`xcode-select -print-path`
 
 if [ ! -d "$DEVELOPER" ]; then
@@ -41,7 +41,7 @@ fi
 
 for ARCH in ${ARCHS}
 do
-if [[ "${ARCH}" == "i386" || "${ARCH}" == "x86_64" ]];
+if [ "${ARCH}" == "x86_64" ];
 then
 PLATFORM="iPhoneSimulator"
 else
@@ -60,9 +60,9 @@ export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
 mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
-export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=9.0 -L${BUILD_SDKROOT}/usr/lib"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=9.0 -DNDEBUG"
-export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
+export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=12.0 -L${BUILD_SDKROOT}/usr/lib"
+export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=12.0 -DNDEBUG"
+export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include -fembed-bitcode"
 export CXXFLAGS="${CPPFLAGS}"
 
 sh autogen.sh
@@ -83,7 +83,7 @@ done
 
 
 mkdir lib || true
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libuv.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libuv.a -output ${CURRENTPATH}/lib/libuv.a
+lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libuv.a -output ${CURRENTPATH}/lib/libuv.a
 
 mkdir -p include || true
 cp -f -R libuv-v${UV_VERSION}/include/ include/

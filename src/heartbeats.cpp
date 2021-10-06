@@ -26,13 +26,15 @@
 
 namespace mega {
 
+#ifdef ENABLE_SYNC
+
 HeartBeatBackupInfo::HeartBeatBackupInfo()
 {
 }
 
 double HeartBeatBackupInfo::progress(m_off_t inflightProgress) const
 {
-    return mProgress + inflightProgress;
+    return mProgress + static_cast<double>(inflightProgress);
 }
 
 void HeartBeatBackupInfo::invalidateProgress()
@@ -122,8 +124,6 @@ void HeartBeatTransferProgressedInfo::adjustTransferCounts(int32_t upcount, int3
     mTransferredBytes += transferBytes;
     updateLastActionTime();
 }
-
-#ifdef ENABLE_SYNC
 
 void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 {
@@ -283,16 +283,11 @@ BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
     }
 }
 
-
-#endif
-
 ////////////// MegaBackupMonitor ////////////////
 BackupMonitor::BackupMonitor(Syncs& s)
     : syncs(s)
 {
 }
-
-#ifdef ENABLE_SYNC
 
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
@@ -304,7 +299,7 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 #endif
 
     auto currentInfo = BackupInfoSync(us, syncs.mDownloadsPaused, syncs.mUploadsPaused);
-    if (us.mBackupInfo && currentInfo != *us.mBackupInfo)
+    if (!us.mBackupInfo || currentInfo != *us.mBackupInfo)
     {
         syncs.queueClient([currentInfo](MegaClient& mc, DBTableTransactionCommitter& committer)
             {
@@ -392,11 +387,8 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
     }
 }
 
-#endif
-
 void BackupMonitor::beat()
 {
-#ifdef ENABLE_SYNC
     assert(syncs.onSyncThread());
 
     // Only send heartbeats for enabled active syncs.
@@ -407,7 +399,8 @@ void BackupMonitor::beat()
             beatBackupInfo(*us);
         }
     };
-#endif
 }
+
+#endif
 
 }

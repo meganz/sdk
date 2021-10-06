@@ -1651,22 +1651,22 @@ struct StandardClient : public MegaApp
 
     SyncConfig syncConfigByBackupID(handle backupID) const
     {
-        SyncConfig config;
-        bool found = client.syncs.syncConfigByBackupId(backupID, config);
+        SyncConfig c;
+        bool found = client.syncs.syncConfigByBackupId(backupID, c);
 
         assert(found);
 
-        return config;
+        return c;
     }
 
     bool syncSet(handle backupId, SyncInfo& info) const
     {
-        SyncConfig config;
-        if (client.syncs.syncConfigByBackupId(backupId, config))
+        SyncConfig c;
+        if (client.syncs.syncConfigByBackupId(backupId, c))
         {
-            info.h = config.getRemoteNode();
-            info.localpath = config.getLocalPath().toPath(*client.fsaccess);
-            info.remotepath = config.mOriginalPathOfRemoteRootNode; // bit of a hack
+            info.h = c.getRemoteNode();
+            info.localpath = c.getLocalPath().toPath(*client.fsaccess);
+            info.remotepath = c.mOriginalPathOfRemoteRootNode; // bit of a hack
 
             return true;
         }
@@ -8805,7 +8805,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     }
 
     out() << "Waiting for remote changes to make it to clients...";
-    EXPECT_TRUE(WaitForRemoteMatch(cases, chrono::seconds(16)));
+    EXPECT_TRUE(WaitForRemoteMatch(cases, chrono::seconds(64)));  // 64 because the jenkins machines can be slow
 
     out() << "Letting all " << cases.size() << " Two-way syncs run";
 
@@ -9651,68 +9651,5 @@ TEST_F(SyncTest, RemoteReplaceFile)
     ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
 }
 
+
 #endif
-GTEST_TEST(Sync, MoveExistingIntoNewDirectoryWhilePaused)
-{
-    auto TESTROOT = makeNewTestRoot();
-    auto TIMEOUT  = chrono::seconds(4);
-
-    Model model;
-    fs::path root;
-    string session;
-    handle id;
-
-    // Initial setup.
-    {
-        StandardClient c(TESTROOT, "c");
-
-        // Log in client.
-        ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
-
-        // Add and start sync.
-        id = c.setupSync_mainthread("s", "s");
-        ASSERT_NE(id, UNDEF);
-
-        // Squirrel away for later use.
-        root = c.syncSet(id).localpath.u8string();
-
-        // Populate filesystem.
-        model.addfolder("a");
-        model.addfolder("c");
-        model.generate(root);
-
-        // Wait for initial sync to complete.
-        waitonsyncs(TIMEOUT, &c);
-
-        // Make sure everything arrived safely.
-        ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
-
-        // Save the session so we can resume later.
-        c.client.dumpsession(session);
-
-        // Log out client, taking care to keep caches.
-        c.localLogout();
-    }
-
-    StandardClient c(TESTROOT, "c");
-
-    // Add a new hierarchy to be scanned.
-    model.addfolder("b");
-    model.generate(root);
-
-    // Move c under b.
-    fs::rename(root / "c", root / "b" / "c");
-
-    // Update the model.
-    model.movenode("c", "b");
-
-    // Log in client resuming prior session.
-    ASSERT_TRUE(c.login_fetchnodes(session));
-
-    // Wait for the sync to catch up.
-    waitonsyncs(TIMEOUT, &c);
-
-    // Were the changes propagated?
-    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
-}
-

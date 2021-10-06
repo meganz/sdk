@@ -43,7 +43,7 @@ int AttrMap::nameid2string(nameid id, char* buf)
 
     for (int i = 64; (i -= 8) >= 0;)
     {
-        if ((*ptr = ((id >> i) & 0xff)))
+        if ((*ptr = static_cast<char>( (id >> i) & 0xff)))
         {
             ptr++;
         }

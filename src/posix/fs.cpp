@@ -844,7 +844,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     if (MEGA_FD_ISSET(notifyfd, &pw->rfds))
     {
         char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
-        int p, l;
+        ssize_t p, l;
         inotify_event* in;
         WatchMapIterator it;
         string localpath;
@@ -1752,7 +1752,7 @@ void PosixFileSystemAccess::statsid(string *id) const
     }
 
     char buff[512];
-    int len = read(fd, buff, 512);
+    ssize_t len = read(fd, buff, 512);
     close(fd);
 
     if (len <= 0)
