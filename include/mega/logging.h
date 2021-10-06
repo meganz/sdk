@@ -570,11 +570,51 @@ public:
 #endif
 };
 
-// source file leaf name - maybe to be compile time calculated one day
-template<std::size_t N> inline const char* log_file_leafname(const char(&fullpath)[N])
-{
-    for (auto i = N; i--; ) if (fullpath[i] == '/' || fullpath[i] == '\\') return &fullpath[i+1];
-    return fullpath;
+// To extract the file name from its path at compile time (C++11 onward)
+/**
+ * Find the end of the string passed
+ *
+ * @param str pointer to C-style null terminated string
+ * @return null terminator
+ */
+constexpr const char* strEnd(const char* str){
+  return *str ? strEnd(str+1) : str;
+}
+
+// Unixes and Windows FS path separators
+constexpr const char kUnixPathSeparator = '/';
+constexpr const char kWindowsPathSeparator = '\\';
+
+/**
+ * Is there a file terminator in the passed string?
+ *
+ * @param str pointer to a C-style null terminated string
+ * @return true if there is a FS in the string, false otherwise
+ */
+constexpr bool isThereASeparator(const char* str) {
+  return (*str == kUnixPathSeparator || *str == kWindowsPathSeparator ) ?
+    true : ( *str ? isThereASeparator(str+1) : false );
+}
+
+/**
+ * Get a pointer to a C-style null terminated string. The last component of a path
+ *
+ * @param str C style null terminated string
+ * @return C-style null terminated string pointer
+ */
+constexpr const char* getLastPathComponent(const char* str){
+  return (*str == kUnixPathSeparator || *str == kWindowsPathSeparator )
+    ? ( str+1 ) : getLastPathComponent( str-1 );
+}
+
+/**
+ * Extract the last component of a C-style null terminated string containing a path
+ *
+ * @param fulPath C-style null terminated string representing a full path
+ * @return C-style null terminated string. Last component of a full path
+ */
+constexpr const char* log_file_leafname(const char* fullPath){
+  return isThereASeparator(fullPath) ? getLastPathComponent(fullPath) : fullPath;
 }
 
 #define LOG_verbose \
