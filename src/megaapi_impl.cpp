@@ -16576,6 +16576,8 @@ void MegaApiImpl::fireOnReloadNeeded()
 
 void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 {
+    LOG_debug << "Sending EVENT " << event->getType() << " to app: " << event->getText();
+
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
         (*it++)->onEvent(api, event);

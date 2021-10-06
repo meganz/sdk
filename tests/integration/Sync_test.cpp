@@ -142,6 +142,8 @@ bool createFile(const fs::path &path, const void *data, const size_t data_length
     ofstream ostream(path.u8string(), ios::binary);
 #endif
 
+    LOG_verbose << "Creating local data file at " << path.u8string() << ", length " << data_length;
+
     ostream.write(reinterpret_cast<const char *>(data), data_length);
 
     return ostream.good();
@@ -190,6 +192,7 @@ struct Model
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
         bool changed = false;
+        bool fsOnly = false;
 
         ModelNode() = default;
 
@@ -257,6 +260,14 @@ struct Model
             string s;
             for (auto p = this; p; p = p->parent)
                 s = "/" + p->name + s;
+            return s;
+        }
+
+        string fsPath()
+        {
+            string s;
+            for (auto p = this; p; p = p->parent)
+                s = "/" + p->fsName() + s;
             return s;
         }
 
@@ -548,6 +559,7 @@ struct Model
             {
                 auto uniqueptr = makeModelSubfolder(DEBRISFOLDER);
                 trash = uniqueptr.get();
+                trash->fsOnly = true;
                 syncroot->addkid(move(uniqueptr));
             }
 
@@ -1019,6 +1031,10 @@ struct StandardClient : public MegaApp
                 client.exec();
             }
         }
+
+        // shut down on the same thread, otherwise any ongoing async I/O fails to complete (on windows)
+        client.locallogout(false, true);
+
         out() << clientname << " thread exiting naturally";
     }
     catch (std::exception& e)
@@ -1913,6 +1929,7 @@ struct StandardClient : public MegaApp
         multimap<string, Node*, CloudNameLess> ns;
         for (auto& m : mn->kids)
         {
+            if (!m->fsOnly)
             ms.emplace(m->cloudName(), m.get());
         }
         for (auto& n2 : n->children)
@@ -2529,8 +2546,6 @@ struct StandardClient : public MegaApp
 
     bool movenode(string path, string newParentPath)
     {
-        using std::future_status;
-
         auto promise = newPromiseBoolSP();
         auto future = promise->get_future();
 
@@ -2863,6 +2878,8 @@ struct StandardClient : public MegaApp
         auto total = std::chrono::milliseconds(0);
         auto sleepIncrement = std::chrono::milliseconds(500);
 
+        out() << "Waiting for predicate to match...";
+
         do
         {
             if (predicate(*this))
@@ -2871,8 +2888,6 @@ struct StandardClient : public MegaApp
 
                 return true;
             }
-
-            out() << "Waiting for predicate to match...";
 
             std::this_thread::sleep_for(sleepIncrement);
             total += sleepIncrement;
@@ -3545,12 +3560,23 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_2"), backupId22));
     ASSERT_TRUE(clientA3.confirmModel_mainthread(model.findnode("f"), backupId31));
 
+    LOG_debug << "----- making sync change to test, now -----";
+    clientA1.received_node_actionpackets = false;
+    clientA2.received_node_actionpackets = false;
+    clientA3.received_node_actionpackets = false;
+
     // move a folder form one local synced folder to another local synced folder and see if we sync correctly and catch up in A2 and A3 (mover and observer syncs)
     error_code rename_error;
     fs::path path1 = clientA1.syncSet(backupId11).localpath / "f_0_1";
     fs::path path2 = clientA1.syncSet(backupId12).localpath / "f_2_1" / "f_2_1_0" / "f_0_1";
     fs::rename(path1, path2, rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
+
+    // client1 should send a rename command to the API
+    // both client1 and client2 should receive the corresponding actionpacket
+    ASSERT_TRUE(clientA1.waitForNodesUpdated(30)) << " no actionpacket received in clientA1 for rename";
+    ASSERT_TRUE(clientA2.waitForNodesUpdated(30)) << " no actionpacket received in clientA2 for rename";
+    ASSERT_TRUE(clientA3.waitForNodesUpdated(30)) << " no actionpacket received in clientA3 for rename";
 
     // let them catch up
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2, &clientA3);
@@ -3716,6 +3742,8 @@ TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
 
     Model model;
     model.root->addkid(model.buildModelSubdirs("initial", 0, 0, 16000));
+
+    clientA1.waitFor([&](StandardClient&){ return clientA1.transfersAdded.load() > 0; }, std::chrono::seconds(60));  // give it a chance to create all the nodes.
 
     // check everything matches (just local since it'll still be uploading files)
     clientA1.localNodesMustHaveNodes = false;
@@ -4935,8 +4963,35 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     auto id1 = c1.copySyncConfig(config1);
     ASSERT_NE(id1, UNDEF);
 
+    // So we can wait until the syncs are resumed.
+    promise<void> notify;
+
+    // Hook onAutoResumeResult callback.
+    c1.onAutoResumeResult = ([id0, id1, &notify]() {
+        auto waiting = std::make_shared<set<handle>>();
+
+        // Track the syncs we're waiting for.
+        waiting->emplace(id0);
+        waiting->emplace(id1);
+
+        // Return effective callback.
+        return [&notify, waiting](const SyncConfig& config, bool, bool) {
+            // This sync's been resumed.
+            waiting->erase(config.mBackupId);
+
+            // Are we still waiting for any syncs to resume?
+            if (!waiting->empty()) return;
+
+            // Let the waiter know the syncs are up.
+            notify.set_value();
+        };
+    })();
+
     // Fetch nodes (and resume syncs.)
     ASSERT_TRUE(c1.fetchnodes());
+
+    // Wait for the syncs to be resumed.
+    notify.get_future().get();
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c1);
@@ -5912,7 +5967,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     }
     reporter->mAnomalies.clear();
 
-    // Move f -> d/g:0.
+    // Move f -> d/g:0.    (which overwrites the file that is already there)
     model.findnode("d/g:0")->content = "f";
     model.removenode("f");
     fs::rename(root / "f", root / "d" / "g%3a0");
@@ -6617,9 +6672,21 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         // Logout (taking care to preserve the caches.)
         c->localLogout();
 
-        // Resume session.
+        // Recreate client.
         c.reset(new StandardClient(TESTROOT, "c"));
+
+        // Hook onAutoResumeResult callback.
+        promise<void> notify;
+
+        c->onAutoResumeResult = [&](const SyncConfig&, bool, bool) {
+            notify.set_value();
+        };
+
+        // Resume session.
         ASSERT_TRUE(c->login_fetchnodes(session));
+
+        // Wait for the sync to be resumed.
+        notify.get_future().get();
 
         // Wait for sync to complete.
         waitonsyncs(TIMEOUT, c.get());
@@ -6797,6 +6864,7 @@ TEST_F(SyncTest, DISABLED_DeleteReplaceReplacementHasFilesystemWatch)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
     // Add a file in the new directory so we trigger a notification.
+    out() << "creating file dx/g";
     model.addfile("dx/g", "g");
 
     ASSERT_TRUE(createDataFile(ROOT / "dx" / "g", "g"));
@@ -8196,11 +8264,16 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     clientA1Resume.client.dumpsession(session);
     clientA1Resume.localLogout();
 
+    auto remainingResumeSyncs = clientA1Resume.client.syncs.allConfigs();
+    ASSERT_EQ(0u, remainingResumeSyncs.size());
+
     if (paused)
     {
         out() << "Paused " << paused << " Two-way syncs";
         WaitMillisec(1000);
     }
+
+    clientA1Steady.logcb = clientA1Resume.logcb = clientA2.logcb = true;
 
     out() << "Performing action ";
     for (auto& testcase : cases)
@@ -8212,9 +8285,14 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA2);   // leave out clientA1Resume as it's 'paused' (locallogout'd) for now
 
     // resume A1R session (with sync), see if A2 nodes and localnodes get in sync again
+    clientA1Resume.received_syncs_restored = false;
     ASSERT_TRUE(clientA1Resume.login_fetchnodes(session));
     ASSERT_EQ(clientA1Resume.basefolderhandle, clientA2.basefolderhandle);
 
+    // wait for normal sync resumes to complete
+    clientA1Resume.waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
+
+    // now resume remainder - some are external syncs
     int resumed = 0;
     for (auto& testcase : cases)
     {
@@ -8319,8 +8397,18 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     // Update the model.
     model.movenode("c", "b");
 
+    // Hook onAutoResumeResult callback.
+    promise<void> notify;
+
+    c.onAutoResumeResult = [&notify](const SyncConfig&, bool, bool) {
+        notify.set_value();
+    };
+
     // Log in client resuming prior session.
     ASSERT_TRUE(c.login_fetchnodes(session));
+
+    // Wait for the sync to be resumed.
+    notify.get_future().get();
 
     // Wait for the sync to catch up.
     waitonsyncs(TIMEOUT, &c);
@@ -8746,6 +8834,8 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     // Log in client, resuming prior session.
     ASSERT_TRUE(cb.login_fetchnodes(sessionID));
 
+    WaitMillisec(3000);
+
     // Check config has been resumed.
     ASSERT_TRUE(cb.syncByBackupId(id));
 
@@ -8883,8 +8973,18 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     // Log callbacks.
     cb.logcb = true;
 
+    // Hook onAutoResumeResult callback.
+    promise<void> notify;
+
+    cb.onAutoResumeResult = [&notify](const SyncConfig&, bool, bool) {
+        notify.set_value();
+    };
+
     // Log in the client.
     ASSERT_TRUE(cb.login_fetchnodes(sessionID));
+
+    // Wait for the sync to be resumed.
+    notify.get_future().get();
 
     // Give the sync some time to think.
     waitonsyncs(TIMEOUT, &cb);
@@ -8911,68 +9011,5 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
-GTEST_TEST(Sync, MoveExistingIntoNewDirectoryWhilePaused)
-{
-    auto TESTROOT = makeNewTestRoot();
-    auto TIMEOUT  = chrono::seconds(4);
-
-    Model model;
-    fs::path root;
-    string session;
-    handle id;
-
-    // Initial setup.
-    {
-        StandardClient c(TESTROOT, "c");
-
-        // Log in client.
-        ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
-
-        // Add and start sync.
-        id = c.setupSync_mainthread("s", "s");
-        ASSERT_NE(id, UNDEF);
-
-        // Squirrel away for later use.
-        root = c.syncSet(id).localpath.u8string();
-
-        // Populate filesystem.
-        model.addfolder("a");
-        model.addfolder("c");
-        model.generate(root);
-
-        // Wait for initial sync to complete.
-        waitonsyncs(TIMEOUT, &c);
-
-        // Make sure everything arrived safely.
-        ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
-
-        // Save the session so we can resume later.
-        c.client.dumpsession(session);
-
-        // Log out client, taking care to keep caches.
-        c.localLogout();
-    }
-
-    StandardClient c(TESTROOT, "c");
-
-    // Add a new hierarchy to be scanned.
-    model.addfolder("b");
-    model.generate(root);
-
-    // Move c under b.
-    fs::rename(root / "c", root / "b" / "c");
-
-    // Update the model.
-    model.movenode("c", "b");
-
-    // Log in client resuming prior session.
-    ASSERT_TRUE(c.login_fetchnodes(session));
-
-    // Wait for the sync to catch up.
-    waitonsyncs(TIMEOUT, &c);
-
-    // Were the changes propagated?
-    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
-}
 
 #endif
