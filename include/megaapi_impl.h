@@ -2401,7 +2401,6 @@ class MegaApiImpl : public MegaApp
         MegaShareList *getInSharesList(int order);
         MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
         bool isPendingShare(MegaNode *node);
-        MegaShareList *getOutSharesOrPending(int order, bool pending);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
@@ -2455,9 +2454,7 @@ class MegaApiImpl : public MegaApp
 
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
 
-        node_vector searchWithDB(MegaHandle nodeHandle, const char* searchString, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
         MegaNodeList* search(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL);
-        bool isValidTypeNode(Node *node, int type);
 
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
@@ -2779,6 +2776,12 @@ protected:
         void processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer);
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
+
+        // Generic method to get outShares nodes or pending outShares
+        // pending is true if we want receive pending outShares, false for outShares
+        MegaShareList *getOutSharesOrPending(int order, bool pending);
+        node_vector searchWithDB(MegaHandle nodeHandle, const char* searchString, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
+        bool isValidTypeNode(Node *node, int type);
 
         MegaApi *api;
         MegaThread thread;
