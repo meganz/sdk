@@ -239,17 +239,19 @@ public:
 
     std::mutex lastEventMutex;
     std::unique_ptr<MegaEvent> lastEvent;
+    std::set<int> lastEvents;
 
     void resetlastEvent()
     {
         lock_guard<mutex> g(lastEventMutex);
         lastEvent.reset();
+        lastEvents.clear();
     }
 
-    bool lastEventWas(int type)
+    bool lastEventsContains(int type)
     {
         lock_guard<mutex> g(lastEventMutex);
-        return lastEvent && lastEvent->getType() == type;
+        return lastEvents.find(type) != lastEvents.end();
     }
 
 

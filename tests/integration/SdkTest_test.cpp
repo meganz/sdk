@@ -722,6 +722,7 @@ void SdkTest::onEvent(MegaApi*, MegaEvent *event)
 {
     std::lock_guard<std::mutex> lock{lastEventMutex};
     lastEvent.reset(event->copy());
+    lastEvents.insert(event->getType());
 }
 
 
@@ -6213,11 +6214,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     fs::create_directories(sync3Path);
     fs::create_directories(sync4Path);
 
-    {
-        std::lock_guard<std::mutex> lock{lastEventMutex};
-        lastEvent.reset();
-        // we're assuming we're not getting any unrelated db commits while the transfer is running
-    }
+    resetlastEvent();
 
     // transfer the folder and its subfolders
     TransferTracker uploadListener(megaApi[0].get());
@@ -6225,18 +6222,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     // loop until we get a commit to the sctable to ensure we cached the new remote nodes
-    for (;;)
-    {
-        {
-            std::lock_guard<std::mutex> lock{lastEventMutex};
-            if (lastEvent && lastEvent->getType() == MegaEvent::EVENT_COMMIT_DB)
-            {
-                // we're assuming this event is the event for the whole batch of nodes
-                break;
-            }
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds{100});
-    }
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 10000));
 
     auto megaNode = [this, &basePath](const std::string& p)
     {
@@ -6639,7 +6625,7 @@ TEST_F(SdkTest, SyncPersistence)
     // make sure there are no outstanding cs requests in case
     // "Postponing DB commit until cs requests finish"
     // means our Sync's cloud Node is not in the db
-    ASSERT_TRUE(WaitFor([&](){ return lastEventWas(MegaEvent::EVENT_COMMIT_DB); }, 10000));
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 10000));
 
 
     LOG_verbose << "SyncPersistence :  Enabling sync";
@@ -6659,7 +6645,7 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     // wait for the event that says all syncs (if any) have been reloaded
-    ASSERT_TRUE(WaitFor([&](){ return lastEventWas(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
 
     sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
