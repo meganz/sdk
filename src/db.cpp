@@ -155,7 +155,7 @@ int DbTable::getShareType(Node *node)
     return shareType;
 }
 
-const int DbAccess::LEGACY_DB_VERSION = 11;
+const int DbAccess::LEGACY_DB_VERSION = 12;
 const int DbAccess::DB_VERSION = DbAccess::LEGACY_DB_VERSION + 1;
 
 DbAccess::DbAccess()
