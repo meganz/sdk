@@ -570,19 +570,19 @@ public:
 #endif
 };
 
-// To extract the file name from its path at compile time (C++11 onward)
+// To extract the file name from its path at compile time (C++11 onwards)
 /**
- * Find the end of the string passed
+ * Find the end of the C-style null terminated string passed
  *
  * @param str pointer to C-style null terminated string
- * @return null terminator
+ * @return char pointer to null terminator
  */
 constexpr const char* strEnd(const char* str){
   return *str ? strEnd(str + 1) : str;
 }
 
 /**
- * Is there a file terminator in the passed string?
+ * Is there a any FS path delimiter in the passed string?
  *
  * @param str pointer to a C-style null terminated string
  * @return true if there is a FS in the string, false otherwise
@@ -592,7 +592,7 @@ constexpr bool isThereASeparator(const char* str) {
 }
 
 /**
- * Get a pointer to a C-style null terminated string. The last component of a path
+ * Get a C-style null terminated string to the last component of a FS path
  *
  * @param str C style null terminated string
  * @return C-style null terminated string pointer
