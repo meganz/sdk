@@ -2906,7 +2906,6 @@ protected:
         // sc requests to close existing wsc and immediately retrieve pending actionpackets
         RequestQueue scRequestQueue;
 
-        std::unique_ptr<BackupMonitor> mHeartBeatMonitor;
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
@@ -2921,6 +2920,7 @@ protected:
         set<MegaScheduledCopyListener *> backupListeners;
 
 #ifdef ENABLE_SYNC
+        std::unique_ptr<BackupMonitor> mHeartBeatMonitor;
         MegaSyncPrivate* cachedMegaSyncPrivateByBackupId(const SyncConfig&);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
 #endif

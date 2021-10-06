@@ -857,6 +857,67 @@ struct StandardClient : public MegaApp
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
+    std::function<void(const SyncConfig&, bool, bool)> onAutoResumeResult;
+
+    void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override
+    {
+        onCallback();
+
+        if (logcb)
+        {
+            lock_guard<mutex> guard(om);
+
+            out() << clientname
+                  << "sync_auto_resume_result(): id: "
+                  << toHandle(config.mBackupId)
+                  << ", attempted: "
+                  << attempted
+                  << ", hadAnError: "
+                  << hadAnError;
+        }
+
+        if (onAutoResumeResult)
+        {
+            onAutoResumeResult(config, attempted, hadAnError);
+        }
+    }
+
+    bool received_syncs_restored = false;
+    void syncs_restored() override
+    {
+        lock_guard<mutex> g(om);
+        out() << clientname << "sync restore complete";
+        received_syncs_restored = true;
+    }
+
+    bool received_node_actionpackets = false;
+    std::condition_variable nodes_updated_cv;
+
+    void nodes_updated(Node** nodes, int numNodes) override
+    {
+        if (!nodes)
+        {
+            out() << clientname << "nodes_updated: total reset.  total node count now: " << numNodes;
+            return;
+        }
+        if (logcb)
+        {
+            lock_guard<mutex> g(om);
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();
+        }
+        received_node_actionpackets = true;
+        nodes_updated_cv.notify_all();
+    }
+
+    bool waitForNodesUpdated(unsigned numSeconds)
+    {
+        mutex nodes_updated_cv_mutex;
+        std::unique_lock<mutex> g(nodes_updated_cv_mutex);
+        nodes_updated_cv.wait_for(g, std::chrono::seconds(numSeconds),
+                                  [&](){ return received_node_actionpackets; });
+        return received_node_actionpackets;
+    }
+
     void syncupdate_stateconfig(const SyncConfig& config) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << config.mBackupId; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
@@ -1554,19 +1615,21 @@ struct StandardClient : public MegaApp
 
     SyncConfig syncConfigByBackupID(handle backupID) const
     {
-        auto* config = client.syncs.syncConfigByBackupId(backupID);
+        SyncConfig c;
+        bool found = client.syncs.syncConfigByBackupId(backupID, c);
 
-        assert(config);
+        assert(found);
 
-        return *config;
+        return c;
     }
 
     bool syncSet(handle backupId, SyncInfo& info) const
     {
-        if (auto* config = client.syncs.syncConfigByBackupId(backupId))
+        SyncConfig c;
+        if (client.syncs.syncConfigByBackupId(backupId, c))
         {
-            info.h = config->getRemoteNode();
-            info.localpath = config->getLocalPath().toPath(*client.fsaccess);
+            info.h = c.getRemoteNode();
+            info.localpath = c.getLocalPath().toPath(*client.fsaccess);
 
             return true;
         }
@@ -1647,7 +1710,8 @@ struct StandardClient : public MegaApp
     bool backupAdd_inthread(const string& drivePath,
                             string sourcePath,
                             const string& targetPath,
-                            SyncCompletionFunction completion)
+                            std::function<void(error, SyncError, handle)> completion,
+                            const string& logname)
     {
         auto* rootNode = client.nodebyhandle(basefolderhandle);
 
@@ -1677,7 +1741,7 @@ struct StandardClient : public MegaApp
 
         if (result != API_OK)
         {
-            completion(nullptr, NO_SYNC_ERROR, result);
+            completion(result, NO_SYNC_ERROR, UNDEF);
             return false;
         }
 
@@ -1685,7 +1749,7 @@ struct StandardClient : public MegaApp
           SyncConfig(LocalPath::fromPath(sourcePath, *client.fsaccess),
                      sourcePath,
                      targetNode->nodeHandle(),
-                     targetPath,
+                     targetNode->displaypath(),
                      0,
                      LocalPath::fromPath(drivePath, *client.fsaccess),
                      //string_vector(),
@@ -1693,12 +1757,13 @@ struct StandardClient : public MegaApp
                      SyncConfig::TYPE_BACKUP);
 
         // Try and add the backup.
-        return client.addsync(config, true, completion) == API_OK;
+        return client.addsync(config, true, completion, logname) == API_OK;
     }
 
     handle backupAdd_mainthread(const string& drivePath,
                                 const string& sourcePath,
-                                const string& targetPath)
+                                const string& targetPath,
+                                const string& logname)
     {
         const fs::path dp = fsBasePath / fs::u8path(drivePath);
         const fs::path sp = fsBasePath / fs::u8path(sourcePath);
@@ -1711,23 +1776,23 @@ struct StandardClient : public MegaApp
             [&](StandardClient& client, PromiseHandleSP result)
             {
                 auto completion =
-                  [=](UnifiedSync* us, const SyncError& se, error e)
+                  [=](error e, SyncError, handle backupId)
                   {
-                    auto success = !!us && !se && !e;
-                    result->set_value(success ? us->mConfig.mBackupId : UNDEF);
+                    result->set_value(backupId);
                   };
 
                   client.backupAdd_inthread(dp.u8string(),
                                             sp.u8string(),
                                             targetPath,
-                                            std::move(completion));
+                                            std::move(completion),
+                                            logname);
             });
 
         return result.get();
     }
 
     bool setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
-                            SyncCompletionFunction addSyncCompletion)
+        std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
         {
@@ -1738,14 +1803,14 @@ struct StandardClient : public MegaApp
                     SyncConfig(LocalPath::fromPath(localpath.u8string(), *client.fsaccess),
                                localpath.u8string(),
                                NodeHandle().set6byte(m->nodehandle),
-                               subfoldername,
+                               m->displaypath(),
                                0,
                                LocalPath(),
                                //string_vector(),
                                true,
                                isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
-                error e = client.addsync(syncConfig, true, addSyncCompletion);
+                error e = client.addsync(syncConfig, true, addSyncCompletion, logname);
                 return !e;
             }
         }
@@ -2746,10 +2811,10 @@ struct StandardClient : public MegaApp
         auto fb = thread_do<handle>([=](StandardClient& mc, PromiseHandleSP pb)
             {
                 mc.setupSync_inthread(remotesyncrootfolder, syncdir, isBackup,
-                    [pb](UnifiedSync* us, const SyncError& se, error e)
+                    [pb](error e, SyncError, handle backupId)
                     {
-                        pb->set_value(us != nullptr && !e && !se ? us->mConfig.getBackupId() : UNDEF);
-                    });
+                        pb->set_value(backupId);
+                    }, localsyncrootfolder + " ");
             });
         return fb.get();
     }
@@ -3395,7 +3460,7 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
 }
 
-TEST_F(SyncTest, BasicSync_MoveLocalFolder)
+TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -3421,12 +3486,21 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolder)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
+    LOG_debug << "----- making sync change to test, now -----";
+    clientA1.received_node_actionpackets = false;
+    clientA2.received_node_actionpackets = false;
+
     // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
     error_code rename_error;
     fs::rename(clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1", clientA1.syncSet(backupId1).localpath / "f_2_1", rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
 
-    // let them catch up
+    // client1 should send a rename command to the API
+    // both client1 and client2 should receive the corresponding actionpacket
+    ASSERT_TRUE(clientA1.waitForNodesUpdated(30)) << " no actionpacket received in clientA1 for rename";
+    ASSERT_TRUE(clientA2.waitForNodesUpdated(30)) << " no actionpacket received in clientA2 for rename";
+
+    // sync activity should not take much longer after that.
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
@@ -7243,9 +7317,9 @@ struct TwoWaySyncSymmetryCase
         return nullptr;
     }
 
-    handle BackupAdd(const string& drivePath, const string& sourcePath, const string& targetPath)
+    handle BackupAdd(const string& drivePath, const string& sourcePath, const string& targetPath, const string& logname)
     {
-        return client1().backupAdd_mainthread(drivePath, sourcePath, targetPath);
+        return client1().backupAdd_mainthread(drivePath, sourcePath, targetPath, logname);
     }
 
     handle SetupSync(const string& sourcePath, const string& targetPath)
@@ -7267,7 +7341,7 @@ struct TwoWaySyncSymmetryCase
 
         if (isExternalBackup())
         {
-            backupId = BackupAdd(drivePath, sourcePath, targetPath);
+            backupId = BackupAdd(drivePath, sourcePath, targetPath, "");
         }
         else
         {
@@ -8157,7 +8231,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     }
 
     out() << "Waiting for remote changes to make it to clients...";
-    EXPECT_TRUE(WaitForRemoteMatch(cases, chrono::seconds(16)));
+    EXPECT_TRUE(WaitForRemoteMatch(cases, chrono::seconds(64)));  // 64 because the jenkins machines can be slow
 
     out() << "Letting all " << cases.size() << " Two-way syncs run";
 
@@ -8390,7 +8464,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
             ASSERT_EQ(result, API_OK);
 
             // Add sync.
-            id = cb.backupAdd_mainthread("", "s", "s");
+            id = cb.backupAdd_mainthread("", "s", "s", "");
             ASSERT_NE(id, UNDEF);
         }
 
@@ -8438,7 +8512,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
     // Wait for the mirror to complete.
     waitonsyncs(TIMEOUT, &cb);
 
-    // Cloud should mirror the local disk.
+    // Cloud should mirror the local disk. (ie, g should be gone in the cloud)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
@@ -8475,7 +8549,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
         ASSERT_EQ(result, API_OK);
 
         // Add sync.
-        id = cb.backupAdd_mainthread("", "s", "s");
+        id = cb.backupAdd_mainthread("", "s", "s", "");
         ASSERT_NE(id, UNDEF);
     }
 
@@ -8837,7 +8911,6 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
-#endif
 GTEST_TEST(Sync, MoveExistingIntoNewDirectoryWhilePaused)
 {
     auto TESTROOT = makeNewTestRoot();
@@ -8902,3 +8975,4 @@ GTEST_TEST(Sync, MoveExistingIntoNewDirectoryWhilePaused)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
+#endif

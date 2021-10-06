@@ -3088,8 +3088,11 @@ autocomplete::ACN autocompleteSyntax()
                     text("add"),
                     opt(flag("-backup")),
                     opt(sequence(flag("-external"), param("drivePath"))),
+                    opt(sequence(flag("-name"), param("syncname"))),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
+
+    p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
 
     p->Add(exec_syncclosedrive,
            sequence(text("sync"),
@@ -8669,18 +8672,18 @@ void exec_banner(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
-void sync_completion(UnifiedSync* us, const SyncError&, error result)
+void sync_completion(error result, const SyncError& se, handle backupId)
 {
-    if (!us)
+    if (backupId == UNDEF)
     {
         cerr << "Sync could not be added: "
              << errorstring(result)
              << endl;
     }
-    else if (us->mSync)
+    else if (result == API_OK && se == NO_SYNC_ERROR)
     {
         cerr << "Sync added and running: "
-             << toHandle(us->mConfig.mBackupId)
+             << toHandle(backupId)
              << endl;
     }
     else
@@ -8700,9 +8703,10 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
-    string drive;
+    string drive, syncname;
     bool backup = s.extractflag("-backup");
     bool external = s.extractflagparam("-external", drive);
+    bool named = s.extractflagparam("-name", syncname);
 
     // sync add source target
     LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
@@ -8726,9 +8730,9 @@ void exec_syncadd(autocomplete::ACState& s)
     // Create a suitable sync config.
     auto config =
       SyncConfig(sourcePath,
-                 sourcePath.leafName().toPath(*client->fsaccess),
+                 named ? syncname : sourcePath.leafName().toPath(*client->fsaccess),
                  NodeHandle().set6byte(targetNode->nodehandle),
-                 targetPath,
+                 targetNode->displaypath(),
                  0,
                  external ? std::move(drivePath) : LocalPath(),
                  true,
@@ -8760,7 +8764,31 @@ void exec_syncadd(autocomplete::ACState& s)
 
     // Try and add the new sync.
 	// All validation is performed in this function.
-    client->addsync(config, false, sync_completion);
+    client->addsync(config, false, sync_completion, "");
+}
+
+void exec_syncrename(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate backup syncs."
+            << endl;
+        return;
+    }
+
+    // get id
+    handle backupId = 0;
+    Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
+
+    string newname = s.words[3].s;
+
+    client->syncs.renameSync(backupId, newname,
+        [&](Error e)
+        {
+            if (!e) cout << "Rename succeeded" << endl;
+            else cout << "Rename failed: " << e << endl;
+        });
 }
 
 void exec_syncclosedrive(autocomplete::ACState& s)
@@ -8913,69 +8941,73 @@ void exec_synclist(autocomplete::ACState& s)
         return;
     }
 
-    if (client->syncs.numSyncs() == 0)
+    SyncConfigVector configs = client->syncs.allConfigs();
+
+    if (configs.empty())
     {
         cout << "No syncs configured yet" << endl;
         return;
     }
 
-    client->syncs.forEachUnifiedSync(
-      [](UnifiedSync& us)
-      {
-          // Convenience.
-          auto& config = us.mConfig;
-          auto& sync = us.mSync;
+    for (SyncConfig& config : configs)
+    {
 
-          // Display name.
-          cout << "Sync "
-               << toHandle(config.mBackupId)
-               << ": "
-               << config.mName
-               << "\n";
+        // Display name.
+        cout << "Sync "
+            << toHandle(config.mBackupId)
+            << ": "
+            << config.mName
+            << "\n";
 
-          // Display source/target mapping.
-          cout << "  Mapping: "
-               << config.mLocalPath.toPath(*client->fsaccess)
-               << " -> "
-               << config.mOriginalPathOfRemoteRootNode
-               << "\n";
+        auto cloudnode = client->nodeByHandle(config.getRemoteNode());
+        string cloudpath = cloudnode ? cloudnode->displaypath() : "<null>";
 
-          if (sync)
-          {
-              // Display status info.
-              cout << "  State: "
-                   << SyncConfig::syncstatename(sync->state())
-                   << "\n";
+        // Display source/target mapping.
+        cout << "  Mapping: "
+            << config.mLocalPath.toPath(*client->fsaccess)
+            << " -> "
+            << cloudpath
+            << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")
+            << "\n";
 
-              // Display some usage stats.
-              cout << "  Statistics: "
-                   << sync->localbytes
-                   << " byte(s) across "
-                   << sync->localnodes[FILENODE]
-                   << " file(s) and "
-                   << sync->localnodes[FOLDERNODE]
-                   << " folder(s).\n";
-          }
-          else
-          {
-              // Display what status info we can.
-              auto msg = config.syncErrorToStr();
-              cout << "  Enabled: "
-                   << config.getEnabled()
-                   << "\n"
-                   << "  Last Error: "
-                   << msg
-                   << "\n";
-          }
+        //if (sync)
+        //{
+        //    // Display status info.
+        //    cout << "  State: "
+        //        << SyncConfig::syncstatename(sync->state)
+        //        << (sync->isSyncPaused() ? " (paused)" : "")
+        //        << "\n";
 
-          // Display sync type.
-          cout << "  Type: "
-               << (config.isExternal() ? "EX" : "IN")
-               << "TERNAL "
-               << SyncConfig::synctypename(config.getType())
-               << "\n"
-               << endl;
-      });
+        //    // Display some usage stats.
+        //    cout << "  Statistics: "
+        //         //<< sync->localbytes
+        //         //<< " byte(s) across "
+        //         << sync->localnodes[FILENODE]
+        //         << " file(s) and "
+        //         << sync->localnodes[FOLDERNODE]
+        //         << " folder(s).\n";
+        //}
+        //else
+        {
+            // Display what status info we can.
+            auto msg = config.syncErrorToStr();
+            cout << "  Enabled: "
+                << config.getEnabled()
+                << "\n"
+                << "  Last Error: "
+                << msg
+                << "\n";
+        }
+
+        // Display sync type.
+
+        cout << "  Type: "
+            << (config.isExternal() ? "EX" : "IN")
+            << "TERNAL "
+            << SyncConfig::synctypename(config.getType())
+            << "\n"
+            << endl;
+      }
 }
 
 void exec_syncremove(autocomplete::ACState& s)
@@ -9067,25 +9099,25 @@ void exec_syncxable(autocomplete::ACState& s)
                 return config.getBackupId() == backupId;
             },
             true, // disable is fail
-                static_cast<SyncError>(error),
-                false,
-                [](size_t nFailed){
-                cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
-            });
+            static_cast<SyncError>(error),
+            false,
+            [](size_t nFailed){
+            cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
+        });
     }
     else    // command == "disable"
     {
         client->syncs.disableSelectedSyncs(
-            [backupId](SyncConfig& config, Sync*)
-            {
-                return config.getBackupId() == backupId;
-            },
-            false,
-                static_cast<SyncError>(error),
-                false,
-                [](size_t nDisabled){
-                cout << "disablement complete. Count disabled: " << nDisabled << endl;
-            });
+          [backupId](SyncConfig& config, Sync*)
+          {
+              return config.getBackupId() == backupId;
+          },
+          false,
+          static_cast<SyncError>(error),
+          false,
+          [](size_t nDisabled){
+            cout << "disablement complete. Count disabled: " << nDisabled << endl;
+          });
     }
 }
 
