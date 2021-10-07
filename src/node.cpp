@@ -1083,7 +1083,14 @@ bool Node::applykey()
 
 NodeCounter Node::subnodeCounts() const
 {
-    return client->getTreeInfoFromNode(nodeHandle());
+    if (type == FILENODE)
+    {
+        return client->getTreeInfoFromFile(nodeHandle());
+    }
+    else
+    {
+        return client->getTreeInfoFromFolder(nodeHandle());
+    }
 }
 
 // returns whether node was moved

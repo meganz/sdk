@@ -12236,6 +12236,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     WAIT_CLASS::bumpds();
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
+    // Used to update to nodes on demand cache
     bool necessaryCommit = false;
 
     while (hasNext)
@@ -16659,7 +16660,7 @@ int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
     return sctable->getNumberOfChildrenFromNode(parentHandle);
 }
 
-NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle, bool isParentFileNode)
+NodeCounter MegaClient::getTreeInfoFromFile(NodeHandle nodehandle)
 {
     Node* node = nodeByHandleInRam(nodehandle);
     bool isFileNode = node ? (node->type == FILENODE) : sctable->isFileNode(nodehandle);
@@ -16668,7 +16669,15 @@ NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle, bool isParent
     NodeCounter nc;
     for (const NodeHandle &h : children)
     {
-        nc += getTreeInfoFromNode(h, isFileNode);
+        if (isFileNode)
+        {
+            nc += getTreeInfoFromFile(h);
+        }
+        else
+        {
+            // parent is file its children have to be files
+            assert(false);
+        }
     }
 
     if (node)
@@ -16677,21 +16686,51 @@ NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle, bool isParent
         {
             nc.files ++;
             nc.storage += node->size;
-            if (isParentFileNode)
-            {
-                nc.versions ++;
-                nc.versionStorage += node->size;
-            }
+            nc.versions ++;
+            nc.versionStorage += node->size;
         }
         else
         {
-            nc.folders ++;
-            assert(!isParentFileNode);
+           assert(false);
         }
     }
     else
     {
-        nc += sctable->getNodeCounter(nodehandle, isParentFileNode);
+        nc += sctable->getNodeCounter(nodehandle, true);
+    }
+
+    return nc;
+}
+
+NodeCounter MegaClient::getTreeInfoFromFolder(NodeHandle nodehandle)
+{
+    Node* node = nodeByHandleInRam(nodehandle);
+    bool isFileNode = node ? (node->type == FILENODE) : sctable->isFileNode(nodehandle);
+    std::vector<NodeHandle> children;
+    sctable->getChildrenHandlesFromNode(nodehandle, children);
+    NodeCounter nc;
+    for (const NodeHandle &h : children)
+    {
+        if (isFileNode)
+        {
+            nc += getTreeInfoFromFile(h);
+        }
+        else
+        {
+            nc += getTreeInfoFromFolder(h);
+        }
+    }
+
+    if (node)
+    {
+        if (node->type == FOLDERNODE)
+        {
+            nc.folders ++;
+        }
+    }
+    else
+    {
+        nc += sctable->getNodeCounter(nodehandle, false);
     }
 
     return nc;
