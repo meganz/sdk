@@ -7,7 +7,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the rules set forth in the Terms of Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -1230,14 +1230,26 @@ void MegaClient::init()
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
-    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng), btheartbeat(rng)
-    , mAsyncQueue(*w, workerThreadCount)
+   : mAsyncQueue(*w, workerThreadCount)
+   , mCachedStatus(this)
+   , useralerts(*this)
+   , btugexpiration(rng)
+   , btcs(rng)
+   , btbadhost(rng)
+   , btworkinglock(rng)
+   , btheartbeat(rng)
+   , btsc(rng)
+   , btpfa(rng)
 #ifdef ENABLE_SYNC
     , syncs(*this)
-    , syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
-    , mSyncMonitorRetry(false), mSyncMonitorTimer(rng)
+    , syncfslockretrybt(rng)
+    , syncdownbt(rng)
+    , syncnaglebt(rng)
+    , syncextrabt(rng)
+    , syncscanbt(rng)
+    , mSyncMonitorRetry(false)
+    , mSyncMonitorTimer(rng)
 #endif
-    , mCachedStatus(this)
 {
     sctable = NULL;
     pendingsccommit = false;
