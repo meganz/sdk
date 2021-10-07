@@ -1189,6 +1189,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     if (newstate != SYNC_CANCELED)
     {
         mUnifiedSync.changedConfigState(notifyApp);
+        mUnifiedSync.mNextHeartbeat->updateSPHBStatus(mUnifiedSync);
     }
 }
 
@@ -2140,6 +2141,10 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             return true;
         }
     }
+    else
+    {
+        monitor.noResult();
+    }
     return false;
 }
 
@@ -2647,6 +2652,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
     startSync_inThread(us, debris, localdebris, us.mConfig.mRemoteNode, rootNodeName, inshare, isnetwork, rootpath, completion, logname);
+    us.mNextHeartbeat->updateSPHBStatus(us);
 }
 
 bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, bool exists, string cloudPath)
@@ -2899,6 +2905,7 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
                 // Make sure there aren't any syncs with this backup id.
                 if (config.mBackupId == us->mConfig.mBackupId)
                 {
+				    skip = true;
                     LOG_err << "Skipping restore of backup "
                             << config.mLocalPath.toPath(fsAccess)
                             << " on "
@@ -3207,7 +3214,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
             auto& deviceHash = context->mDeviceHash;
 
             // Backup Info.
-            auto state = BackupInfoSync::getSyncState(config);
+            auto state = BackupInfoSync::getSyncState(config, context->mSyncs->mDownloadsPaused, context->mSyncs->mUploadsPaused);
             auto info  = BackupInfoSync(config, deviceHash, UNDEF, state);
 
             LOG_debug << "Generating backup ID for config "
@@ -3753,23 +3760,6 @@ void Syncs::clear_inThread()
     totalLocalNodes = 0;
 }
 
-shared_ptr<UnifiedSync> Syncs::lookupUnifiedSync(handle backupId)
-{
-    assert(!onSyncThread());
-
-    lock_guard<mutex> g(mSyncVecMutex);
-
-    for (auto& s : mSyncVec)
-    {
-        if (s->mConfig.getBackupId() == backupId)
-        {
-            return s;
-        }
-    }
-    return nullptr;
-}
-
-
 vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
 {
     assert(!onSyncThread() || onSyncThread());  // still called via checkSyncConfig, currently
@@ -3891,6 +3881,16 @@ bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
         if (s->mConfig.getBackupId() == backupId)
         {
             c = s->mConfig;
+
+            // double check we updated fsfp_t
+            if (s->mSync)
+            {
+                assert(c.mLocalFingerprint == s->mSync->fsfp);
+
+                // just in case, for now
+                c.mLocalFingerprint = s->mSync->fsfp;
+            }
+
             return true;
         }
     }
@@ -3946,6 +3946,25 @@ std::future<bool> Syncs::setSyncPausedByBackupId(handle id, bool pause)
     });
 
     return future;
+}
+
+void Syncs::transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused)
+{
+    assert(!onSyncThread());
+
+    queueSync([this, downloadsPaused, uploadsPaused]() {
+
+        assert(onSyncThread());
+        lock_guard<mutex> g(mSyncVecMutex);
+
+        mDownloadsPaused = downloadsPaused;
+        mUploadsPaused = uploadsPaused;
+
+        for (auto& us : mSyncVec)
+        {
+            mHeartBeatMonitor->updateOrRegisterSync(*us);
+        }
+    });
 }
 
 void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
@@ -4035,6 +4054,50 @@ void Syncs::purgeRunningSyncs_inThread()
             s->mSync.reset();
         }
     }
+}
+
+void Syncs::renameSync(handle backupId, const string& newname, std::function<void(Error e)> completion)
+{
+    assert(!onSyncThread());
+    assert(completion);
+
+    auto clientCompletion = [this, completion](Error e)
+    {
+        queueClient([completion, e](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                completion(e);
+            });
+    };
+    queueSync([this, backupId, newname, clientCompletion]()
+        {
+            renameSync_inThread(backupId, newname, clientCompletion);
+        });
+}
+
+void Syncs::renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> completion)
+{
+    assert(onSyncThread());
+
+    lock_guard<mutex> g(mSyncVecMutex);
+
+    for (auto &i : mSyncVec)
+    {
+        if (i->mConfig.mBackupId == backupId)
+        {
+            i->mConfig.mName = newname;
+
+            // cause an immediate `sp` command to update the backup/sync heartbeat master record
+            mHeartBeatMonitor->updateOrRegisterSync(*i);
+
+            // queue saving the change locally
+            if (mSyncConfigStore) mSyncConfigStore->markDriveDirty(i->mConfig.mExternalDrivePath);
+
+            completion(API_OK);
+            return;
+        }
+    }
+
+    completion(API_EEXIST);
 }
 
 void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
@@ -8211,7 +8274,7 @@ void Syncs::syncLoop()
 #ifdef MEGA_MEASURE_CODE
 
             LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
-                        << " skipped for scanning: " << skippedForScanning;
+                        << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "");
             rst.complete();
 #endif
             mSyncFlags->recursiveSyncLastCompletedDs = waiter.ds;

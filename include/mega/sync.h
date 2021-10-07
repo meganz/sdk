@@ -744,13 +744,14 @@ struct Syncs
 {
     void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
 
-    shared_ptr<UnifiedSync> lookupUnifiedSync(handle backupId);
 
     // only for use in tests; not really thread safe
     Sync* runningSyncByBackupIdForTests(handle backupId) const;
 
     // Pause/unpause a sync. Returns a future for async operation.
     std::future<bool> setSyncPausedByBackupId(handle id, bool pause);
+
+    void transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused);
 
     // returns a copy of the config, for thread safety
     bool syncConfigByBackupId(handle backupId, SyncConfig&) const;
@@ -783,6 +784,9 @@ struct Syncs
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+
+    // async, callback on client thread
+    void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
     void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
@@ -1046,8 +1050,13 @@ private:
     void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector,
 	     bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat);
     void purgeRunningSyncs_inThread();
+    void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
+
 
     bool mExecutingLocallogout = false;
+
+    bool mDownloadsPaused = false;
+    bool mUploadsPaused = false;
 
     std::thread syncThread;
     std::thread::id syncThreadId;

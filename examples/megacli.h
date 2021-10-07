@@ -305,7 +305,6 @@ void exec_rm(autocomplete::ACState& s);
 void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
-void exec_rescan(autocomplete::ACState& s);
 void exec_syncpause(autocomplete::ACState& s);
 void exec_syncresume(autocomplete::ACState& s);
 void exec_syncrescan(autocomplete::ACState& s);
@@ -385,6 +384,7 @@ void exec_driveid(autocomplete::ACState& s);
 #ifdef ENABLE_SYNC
 
 void exec_syncadd(autocomplete::ACState& s);
+void exec_syncrename(autocomplete::ACState& s);
 void exec_syncblock(autocomplete::ACState& s);
 void exec_syncclosedrive(autocomplete::ACState& s);
 void exec_syncexport(autocomplete::ACState& s);

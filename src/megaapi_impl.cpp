@@ -4027,7 +4027,7 @@ MegaBannerListPrivate* MegaBannerListPrivate::copy() const
 
 const MegaBanner* MegaBannerListPrivate::get(int i) const
 {
-    return (i >= 0 && i < mVector.size()) ? &(mVector[i]) : nullptr;
+    return (i >= 0 && static_cast<size_t>(i) < mVector.size()) ? &(mVector[i]) : nullptr;
 }
 
 int MegaBannerListPrivate::size() const
@@ -4139,9 +4139,9 @@ MegaStringList *MegaStringListPrivate::copy() const
     return new MegaStringListPrivate(*this);
 }
 
-const char* MegaStringListPrivate::get(int i) const
+const char *MegaStringListPrivate::get(int i) const
 {
-    if ((i < 0) || (i >= mList.size()))
+    if((i < 0) || (static_cast<size_t>(i) >= mList.size()))
         return nullptr;
 
     return mList[i].c_str();
@@ -5220,6 +5220,11 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     ftpServerMaxBufferSize = 0;
     ftpServerMaxOutputSize = 0;
     ftpServerRestrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    const char *uvversion = uv_version_string();
+    if (uvversion)
+    {
+        LOG_debug << "libuv version: " <<uvversion;
+    }
 #endif
 
     mPushSettings = NULL;
@@ -7489,7 +7494,7 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
         "#880E4F"
     };
 
-    int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
+    auto index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
 
     return MegaApi::strdup(colors[index].c_str());
 }
@@ -7514,7 +7519,7 @@ char *MegaApiImpl::getAvatarSecondaryColor(handle userhandle)
         "#BC2086"
     };
 
-    int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
+    auto index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
 
     return MegaApi::strdup(colors[index].c_str());
 }
@@ -13675,26 +13680,23 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             client->addsync(syncConfig, false,
                                 [this, request](error e, SyncError se, handle backupId)
             {
-                auto unifiedSync = client->syncs.lookupUnifiedSync(backupId);
+                SyncConfig createdConfig;
+                bool found = client->syncs.syncConfigByBackupId(backupId, createdConfig);
 
                 request->setNumDetails(se);
 
-                if (!e && !unifiedSync)
+                if (!e && !found)
                 {
                     e = API_ENOENT;
                 }
 
-                if (unifiedSync)
+                if (found)
                 {
-                    if (unifiedSync->mSync)
-                    {
-                        fsfp_t fsfp = unifiedSync->mSync->fsfp;
-                        request->setNumber(fsfp);
-                    }
+                    request->setNumber(createdConfig.mLocalFingerprint);
                     request->setParentHandle(backupId);
 
-                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig,
-                        unifiedSync->mSync && unifiedSync->mConfig.mRunningState >= 0,
+                    auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig,
+                        createdConfig.mRunningState >= 0,
                         client);
 
                     fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
@@ -16364,6 +16366,8 @@ void MegaApiImpl::fireOnReloadNeeded()
 
 void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 {
+    LOG_debug << "Sending EVENT " << event->getType() << " to app: " << event->getText();
+
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
         (*it++)->onEvent(api, event);
@@ -21258,26 +21262,23 @@ void MegaApiImpl::sendPendingRequests()
             client->addsync(syncConfig, false,
                                 [this, request](error e, SyncError se, handle backupId)
             {
-                auto unifiedSync = client->syncs.lookupUnifiedSync(backupId);
+                SyncConfig createdConfig;
+                bool found = client->syncs.syncConfigByBackupId(backupId, createdConfig);
 
                 request->setNumDetails(se);
 
-                if (!e && !unifiedSync)
+                if (!e && !found)
                 {
                     e = API_ENOENT;
                 }
 
-                if (unifiedSync)
+                if (found)
                 {
-                    if (unifiedSync->mSync)
-                    {
-                        fsfp_t fsfp = unifiedSync->mSync->fsfp;
-                        request->setNumber(fsfp);
-                    }
+                    request->setNumber(createdConfig.mLocalFingerprint);
                     request->setParentHandle(backupId);
 
-                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig,
-                            unifiedSync->mSync && unifiedSync->mConfig.mRunningState >= 0, client);
+                    auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig,
+                        createdConfig.mRunningState >= 0, client);
 
                     fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
                 }
@@ -21291,8 +21292,10 @@ void MegaApiImpl::sendPendingRequests()
 
             client->syncs.enableSyncByBackupId(backupId, true, true, [=](error e)
                 {
-                    auto us = client->syncs.lookupUnifiedSync(backupId);
-                    request->setNumDetails(us ? us->mConfig.getError() : UNKNOWN_ERROR);
+                    SyncConfig c;
+                    bool found = client->syncs.syncConfigByBackupId(backupId, c);
+
+                    request->setNumDetails(found ? c.getError() : UNKNOWN_ERROR);
 
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 }, "");
@@ -22763,7 +22766,7 @@ void MegaApiImpl::sendPendingRequests()
             info.nodeHandle = remoteNode;
             info.localFolder = localFolder ? LocalPath::fromPath(localFolder, *client->fsaccess) : LocalPath();
             info.deviceId = client->getDeviceidHash();
-            info.state = request->getAccess();
+            info.state = CommandBackupPut::SPState(request->getAccess());
             info.subState = request->getNumDetails();
 
             bool isNew = request->getFlag();
@@ -22806,7 +22809,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             client->reqs.add(new CommandBackupPutHeartBeat(client,
                                                            (MegaHandle)request->getParentHandle(),
-                                                           (uint8_t)request->getAccess(),
+                                                           CommandBackupPutHeartBeat::SPHBStatus(request->getAccess()),
                                                            (uint8_t)request->getNumDetails(),
                                                            (uint32_t)request->getParamType(),
                                                            (uint32_t)request->getTransferTag(),
@@ -23033,7 +23036,7 @@ void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* l
     request->setTotalBytes(backupType);
     request->setNodeHandle(targetNode);
     request->setFile(localFolder);
-    request->setName(backupName ? Base64::btoa(backupName).c_str() : nullptr);
+    request->setName(backupName);
     request->setAccess(state);
     request->setNumDetails(subState);
     request->setFlag(true); // indicates it's a new backup

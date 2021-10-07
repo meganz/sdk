@@ -3842,7 +3842,7 @@ void MegaClient::sendchatstats(const char *json, int port)
     {
         req->posturl.append(":");
         char stringPort[6];
-        sprintf(stringPort, "%d", port);
+        snprintf(stringPort, sizeof(stringPort), "%d", static_cast<uint16_t>(port));
         req->posturl.append(stringPort);
     }
     req->posturl.append("/stats");
@@ -3862,7 +3862,7 @@ void MegaClient::sendchatlogs(const char *json, handle userid, handle callid, in
     {
         req->posturl.append(":");
         char stringPort[6];
-        sprintf(stringPort, "%d", port);
+        snprintf(stringPort, sizeof(stringPort), "%d", static_cast<uint16_t>(port));
         req->posturl.append(stringPort);
     }
 
@@ -5981,7 +5981,6 @@ void MegaClient::sc_ph()
     m_time_t cts = 0;
     Node *n;
     std::string authKey;
-    bool hasAuthKey = false;
 
     bool done = false;
     while (!done)
@@ -5995,7 +5994,7 @@ void MegaClient::sc_ph()
             ph = jsonsc.gethandle(MegaClient::NODEHANDLE);
             break;
         case 'w':
-            hasAuthKey = jsonsc.storeobject(&authKey);
+            static_cast<void>(jsonsc.storeobject(&authKey));
             break;
         case 'd':
             deleted = (jsonsc.getint() == 1);
@@ -7571,7 +7570,7 @@ char* MegaClient::utf8_to_a32forjs(const char* str, int* len)
 
     while (i < t)
     {
-        char c = str[i++] & 0xff;
+        char c = static_cast<char>(str[i++] & 0xff);
 
         if (!(c & 0x80))
         {
@@ -7699,7 +7698,7 @@ void MegaClient::stringhash(const char* s, byte* hash, SymmCipher* cipher)
 {
     int t;
 
-    t = strlen(s) & - SymmCipher::BLOCKSIZE;
+    t = static_cast<int>(strlen(s) & - SymmCipher::BLOCKSIZE);
 
     strncpy((char*)hash, s + t, SymmCipher::BLOCKSIZE);
 
@@ -10945,7 +10944,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
         byte key[FILENODEKEYLENGTH];
         for (unsigned int i = 0; i < encKeyLen; i++)
         {
-            key[i] = encKey[i] ^ derivedKey[i];
+            key[i] = static_cast<byte>(encKey[i] ^ derivedKey[i]);
         }
 
         Base64Str<FILENODEKEYLENGTH> keyStr(key);
@@ -13179,7 +13178,7 @@ void MegaClient::ensureSyncUserAttributesCompleted(Error e)
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
 {
     string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config));
+    BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add( new CommandBackupPut(this, info,
                                   [this, config, completion](Error e, handle backupId) {
@@ -13224,6 +13223,8 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
 
 error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
+    assert(completion);
+
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
     string remotenodename;
@@ -13232,7 +13233,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
     if (e)
     {
-        if (completion) completion(e, config.mError, UNDEF);
+        completion(e, config.mError, UNDEF);
         return e;
     }
 
@@ -13250,14 +13251,14 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
         e = readDriveId(p.c_str(), driveId);
         if (e != API_OK)
         {
-            if (completion) completion(e, config.mError, UNDEF);
+            completion(e, config.mError, UNDEF);
             return e;
         }
     }
 
     // Add the sync.
     string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config));
+    BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add( new CommandBackupPut(this, info,
                                    [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
@@ -13268,7 +13269,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
         if (e)
         {
-            if (completion) completion(e, config.mError, backupId);
+            completion(e, config.mError, backupId);
         }
         else
         {
@@ -14881,6 +14882,10 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransac
             }
         }
     }
+
+#ifdef ENABLE_SYNC
+    syncs.transferPauseFlagsUpdated(xferpaused[GET], xferpaused[PUT]);
+#endif
 }
 
 void MegaClient::setmaxconnections(direction_t d, int num)
