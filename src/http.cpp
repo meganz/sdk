@@ -724,7 +724,8 @@ void EncryptByChunks::updateCRC(byte* data, unsigned size, unsigned offset)
         size -= ll;
         while (ll--)
         {
-            crc[ol++] ^= *data++;
+            crc[ol++] ^= *data;
+            ++data;
         }
     }
 
