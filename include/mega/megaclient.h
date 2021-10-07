@@ -1627,7 +1627,6 @@ public:
     dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    //int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
     void cleanNodesFromDb();
 

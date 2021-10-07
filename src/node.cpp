@@ -451,6 +451,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
             break;
         }
 
+        // Recovering nodes from DB, 'updateDb' is false. Nodes are updated and it isn't necessary to update in Db
         client->mergenewshare(newShare, false, n, false);
         if (numshares > 0)  // outshare/s
         {
