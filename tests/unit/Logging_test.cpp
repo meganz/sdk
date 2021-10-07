@@ -510,6 +510,7 @@ TEST(Logging, macroFatal)
 
 #endif
 
+#ifdef __GNUC__
 TEST(Logging_constexpr, Extract_file_name_from_full_path)
 {
 
@@ -544,3 +545,4 @@ TEST(Logging_constexpr, Extract_file_name_from_full_path)
         ASSERT_EQ( 0, strncmp(extracted, test.expected, strlen(test.expected)));
     }
 }
+#endif

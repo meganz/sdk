@@ -570,6 +570,7 @@ public:
 #endif
 };
 
+#ifdef __GNUC__
 // To extract the file name from its path at compile time (C++11 onwards)
 /**
  * Find the end of the C-style null terminated string passed
@@ -610,6 +611,14 @@ constexpr const char* getLastPathComponent(const char* str){
 constexpr const char* log_file_leafname(const char* fullPath){
   return isThereASeparator(fullPath) ? getLastPathComponent( strEnd(fullPath) ) : fullPath;
 }
+
+#else
+// source file leaf name - maybe to be compile time calculated one day
+template<std::size_t N> inline const char* log_file_leafname( const char (&fullpath)[N]) {
+    for (auto i = N; --i; ) if (fullpath[i] == '/' || fullpath[i] == '\\') return &fullpath[i+1];
+    return fullpath;
+}
+#endif
 
 #define LOG_verbose \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
