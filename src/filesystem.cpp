@@ -295,7 +295,7 @@ void RemotePath::appendWithSeparator(const string& component, bool always)
             break;
 
         // Does the component begin with a separator?
-        if (component.empty() || component.front() != '/')
+        if (component.empty() || component.front() == '/')
             break;
 
         // Add the separator.
