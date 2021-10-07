@@ -428,7 +428,7 @@ int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, siz
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    int n = 0;
+    size_t n = 0;
     for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
     {
         if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
@@ -658,7 +658,10 @@ bool TextChat::serialize(string *d)
     char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
     d->append((char *)&hasUnifiedKey, 1);
 
-    d->append("\0\0\0\0\0\0", 6); // additional bytes for backwards compatibility
+    char meetingRoom = meeting ? 1 : 0;
+    d->append((char*)&meetingRoom, 1);
+
+    d->append("\0\0\0\0\0", 5); // additional bytes for backwards compatibility
 
     if (hasAttachments)
     {
@@ -798,7 +801,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     char hasUnifiedKey = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    for (int i = 6; i--;)
+    char meetingRoom = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    for (int i = 5; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -901,6 +907,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->attachedNodes = attachedNodes;
     chat->publicchat = publicchat;
     chat->unifiedKey = unifiedKey;
+    chat->meeting = meetingRoom;
 
     memset(&chat->changed, 0, sizeof(chat->changed));
 
@@ -1685,7 +1692,7 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
                 if ((utf8cp1 == 0xC2 || utf8cp1 == 0xC3) && utf8cp2 >= 0x80 && utf8cp2 <= 0xBF)
                 {
                     unicodecp = ((utf8cp1 & 0x1F) <<  6) + (utf8cp2 & 0x3F);
-                    res[rescount++] = unicodecp & 0xFF;
+                    res[rescount++] = static_cast<byte>(unicodecp & 0xFF);
                 }
                 else
                 {

@@ -772,7 +772,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
 {
     if (e)
     {
@@ -833,31 +833,15 @@ void DemoApp::printChatInformation(TextChat *chat)
     cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
     cout << "\tCreation ts: " << chat->ts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
-    if (chat->group)
-    {
-        cout << "\tGroup chat: yes" << endl;
-    }
-    else
-    {
-        cout << "\tGroup chat: no" << endl;
-    }
-    if (chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE))
-    {
-        cout << "\tArchived chat: yes" << endl;
-    }
-    else
-    {
-        cout << "\tArchived chat: no" << endl;
-    }
+    cout << "\tGroup chat: " << ((chat->group) ? "yes" : "no") << endl;
+    cout << "\tArchived chat: " << ((chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE)) ? "yes" : "no") << endl;
+    cout << "\tPublic chat: " << ((chat->publicchat) ? "yes" : "no") << endl;
     if (chat->publicchat)
     {
-        cout << "\tPublic chat: yes" << endl;
         cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
+        cout << "\tMeeting room: " << ((chat->meeting) ? "yes" : "no") << endl;
     }
-    else
-    {
-        cout << "\tPublic chat: no" << endl;
-    }
+
     cout << "\tPeers:";
 
     if (chat->userpriv)
@@ -874,14 +858,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     {
         cout << " no peers (only you as participant)" << endl;
     }
-    if (chat->tag)
-    {
-        cout << "\tIs own change: yes" << endl;
-    }
-    else
-    {
-        cout << "\tIs own change: no" << endl;
-    }
+    cout << "\tIs own change: " << ((chat->tag) ? "yes" : "no") << endl;
     if (!chat->title.empty())
     {
         cout << "\tTitle: " << chat->title.c_str() << endl;
@@ -2940,6 +2917,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                     cout << "  sync state: " << d.syncState << endl;
                     cout << "  sync substate: " << d.syncSubstate << endl;
                     cout << "  extra: " << d.extra << endl;
+                    cout << "    backup name: " << d.backupName << endl;
                     cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
                     cout << "  heartbeat status: " << d.hbStatus << endl;
                     cout << "  heartbeat progress: " << d.hbProgress << endl;
@@ -3110,8 +3088,11 @@ autocomplete::ACN autocompleteSyntax()
                     text("add"),
                     opt(flag("-backup")),
                     opt(sequence(flag("-external"), param("drivePath"))),
+                    opt(sequence(flag("-name"), param("syncname"))),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
+
+    p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
 
     p->Add(exec_syncclosedrive,
            sequence(text("sync"),
@@ -3209,10 +3190,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_test, sequence(text("test"), opt(param("data"))));
     p->Add(exec_fingerprint, sequence(text("fingerprint"), localFSFile("localfile")));
 #ifdef ENABLE_CHAT
-    p->Add(exec_chats, sequence(text("chats")));
+    p->Add(exec_chats, sequence(text("chats"), opt(param("chatid"))));
     p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
     p->Add(exec_chati, sequence(text("chati"), param("chatid"), contactEmail(client), either(text("ro"), text("sta"), text("mod"))));
-    p->Add(exec_chatcp, sequence(text("chatcp"), param("mownkey"), opt(sequence(text("t"), param("title64"))), repeat(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod"))))));
+    p->Add(exec_chatcp, sequence(text("chatcp"), flag("-meeting"), param("mownkey"), opt(sequence(text("t"), param("title64"))),
+                                 repeat(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod"))))));
     p->Add(exec_chatr, sequence(text("chatr"), param("chatid"), opt(contactEmail(client))));
     p->Add(exec_chatu, sequence(text("chatu"), param("chatid")));
     p->Add(exec_chatup, sequence(text("chatup"), param("chatid"), param("userhandle"), either(text("ro"), text("sta"), text("mod"))));
@@ -6145,6 +6127,7 @@ void exec_chatlj(autocomplete::ACState& s)
 
 void exec_chatcp(autocomplete::ACState& s)
 {
+    bool meeting = s.extractflag("-meeting");
     size_t wordscount = s.words.size();
     userpriv_vector *userpriv = new userpriv_vector;
     string_map *userkeymap = new string_map;
@@ -6223,7 +6206,7 @@ void exec_chatcp(autocomplete::ACState& s)
     Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
     ownHandleB64[11] = '\0';
     userkeymap->insert(std::pair<string, string>(ownHandleB64, mownkey));
-    client->createChat(true, true, userpriv, userkeymap, title);
+    client->createChat(true, true, userpriv, userkeymap, title, meeting);
     delete userpriv;
     delete userkeymap;
 }
@@ -6623,7 +6606,7 @@ void exec_mediainfo(autocomplete::ACState& s)
     }
     else if (!client->mediaFileInfo.mediaCodecsReceived)
     {
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
         cout << "Mediainfo lookups requested" << endl;
     }
 
@@ -7789,9 +7772,21 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
+void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, std::unique_ptr<BusinessPlan>)
 {
     // FIXME: implement
+}
+
+void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
+{
+    cout << "Currency data: " << endl;
+    cout << "\tName: " << data->currencyName;
+    cout << "\tSymbol: " << Base64::atob(data->currencySymbol);
+    if (data->localCurrencyName.size())
+    {
+        cout << "\tName (local): " << data->localCurrencyName;
+        cout << "\tSymbol (local): " << Base64::atob(data->localCurrencySymbol);
+    }
 }
 
 void DemoApp::enumeratequotaitems_result(error)
@@ -8677,18 +8672,18 @@ void exec_banner(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
-void sync_completion(UnifiedSync* us, const SyncError&, error result)
+void sync_completion(error result, const SyncError& se, handle backupId)
 {
-    if (!us)
+    if (backupId == UNDEF)
     {
         cerr << "Sync could not be added: "
              << errorstring(result)
              << endl;
     }
-    else if (us->mSync)
+    else if (result == API_OK && se == NO_SYNC_ERROR)
     {
         cerr << "Sync added and running: "
-             << toHandle(us->mConfig.mBackupId)
+             << toHandle(backupId)
              << endl;
     }
     else
@@ -8708,9 +8703,10 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
-    string drive;
+    string drive, syncname;
     bool backup = s.extractflag("-backup");
     bool external = s.extractflagparam("-external", drive);
+    bool named = s.extractflagparam("-name", syncname);
 
     // sync add source target
     LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
@@ -8734,9 +8730,9 @@ void exec_syncadd(autocomplete::ACState& s)
     // Create a suitable sync config.
     auto config =
       SyncConfig(sourcePath,
-                 sourcePath.leafName().toPath(*client->fsaccess),
+                 named ? syncname : sourcePath.leafName().toPath(*client->fsaccess),
                  NodeHandle().set6byte(targetNode->nodehandle),
-                 targetPath,
+                 targetNode->displaypath(),
                  0,
                  external ? std::move(drivePath) : LocalPath(),
                  true,
@@ -8768,7 +8764,31 @@ void exec_syncadd(autocomplete::ACState& s)
 
     // Try and add the new sync.
 	// All validation is performed in this function.
-    client->addsync(config, false, sync_completion);
+    client->addsync(config, false, sync_completion, "");
+}
+
+void exec_syncrename(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate backup syncs."
+            << endl;
+        return;
+    }
+
+    // get id
+    handle backupId = 0;
+    Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
+
+    string newname = s.words[3].s;
+
+    client->syncs.renameSync(backupId, newname,
+        [&](Error e)
+        {
+            if (!e) cout << "Rename succeeded" << endl;
+            else cout << "Rename failed: " << e << endl;
+        });
 }
 
 void exec_syncclosedrive(autocomplete::ACState& s)
@@ -8921,69 +8941,73 @@ void exec_synclist(autocomplete::ACState& s)
         return;
     }
 
-    if (client->syncs.numSyncs() == 0)
+    SyncConfigVector configs = client->syncs.allConfigs();
+
+    if (configs.empty())
     {
         cout << "No syncs configured yet" << endl;
         return;
     }
 
-    client->syncs.forEachUnifiedSync(
-      [](UnifiedSync& us)
-      {
-          // Convenience.
-          auto& config = us.mConfig;
-          auto& sync = us.mSync;
+    for (SyncConfig& config : configs)
+    {
 
-          // Display name.
-          cout << "Sync "
-               << toHandle(config.mBackupId)
-               << ": "
-               << config.mName
-               << "\n";
+        // Display name.
+        cout << "Sync "
+            << toHandle(config.mBackupId)
+            << ": "
+            << config.mName
+            << "\n";
 
-          // Display source/target mapping.
-          cout << "  Mapping: "
-               << config.mLocalPath.toPath(*client->fsaccess)
-               << " -> "
-               << config.mOriginalPathOfRemoteRootNode
-               << "\n";
+        auto cloudnode = client->nodeByHandle(config.getRemoteNode());
+        string cloudpath = cloudnode ? cloudnode->displaypath() : "<null>";
 
-          if (sync)
-          {
-              // Display status info.
-              cout << "  State: "
-                   << SyncConfig::syncstatename(sync->state())
-                   << "\n";
+        // Display source/target mapping.
+        cout << "  Mapping: "
+            << config.mLocalPath.toPath(*client->fsaccess)
+            << " -> "
+            << cloudpath
+            << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")
+            << "\n";
 
-              // Display some usage stats.
-              cout << "  Statistics: "
-                   << sync->localbytes
-                   << " byte(s) across "
-                   << sync->localnodes[FILENODE]
-                   << " file(s) and "
-                   << sync->localnodes[FOLDERNODE]
-                   << " folder(s).\n";
-          }
-          else
-          {
-              // Display what status info we can.
-              auto msg = config.syncErrorToStr();
-              cout << "  Enabled: "
-                   << config.getEnabled()
-                   << "\n"
-                   << "  Last Error: "
-                   << msg
-                   << "\n";
-          }
+        //if (sync)
+        //{
+        //    // Display status info.
+        //    cout << "  State: "
+        //        << SyncConfig::syncstatename(sync->state)
+        //        << (sync->isSyncPaused() ? " (paused)" : "")
+        //        << "\n";
 
-          // Display sync type.
-          cout << "  Type: "
-               << (config.isExternal() ? "EX" : "IN")
-               << "TERNAL "
-               << SyncConfig::synctypename(config.getType())
-               << "\n"
-               << endl;
-      });
+        //    // Display some usage stats.
+        //    cout << "  Statistics: "
+        //         //<< sync->localbytes
+        //         //<< " byte(s) across "
+        //         << sync->localnodes[FILENODE]
+        //         << " file(s) and "
+        //         << sync->localnodes[FOLDERNODE]
+        //         << " folder(s).\n";
+        //}
+        //else
+        {
+            // Display what status info we can.
+            auto msg = config.syncErrorToStr();
+            cout << "  Enabled: "
+                << config.getEnabled()
+                << "\n"
+                << "  Last Error: "
+                << msg
+                << "\n";
+        }
+
+        // Display sync type.
+
+        cout << "  Type: "
+            << (config.isExternal() ? "EX" : "IN")
+            << "TERNAL "
+            << SyncConfig::synctypename(config.getType())
+            << "\n"
+            << endl;
+      }
 }
 
 void exec_syncremove(autocomplete::ACState& s)
@@ -9075,25 +9099,25 @@ void exec_syncxable(autocomplete::ACState& s)
                 return config.getBackupId() == backupId;
             },
             true, // disable is fail
-                static_cast<SyncError>(error),
-                false,
-                [](size_t nFailed){
-                cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
-            });
+            static_cast<SyncError>(error),
+            false,
+            [](size_t nFailed){
+            cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
+        });
     }
     else    // command == "disable"
     {
         client->syncs.disableSelectedSyncs(
-            [backupId](SyncConfig& config, Sync*)
-            {
-                return config.getBackupId() == backupId;
-            },
-            false,
-                static_cast<SyncError>(error),
-                false,
-                [](size_t nDisabled){
-                cout << "disablement complete. Count disabled: " << nDisabled << endl;
-            });
+          [backupId](SyncConfig& config, Sync*)
+          {
+              return config.getBackupId() == backupId;
+          },
+          false,
+          static_cast<SyncError>(error),
+          false,
+          [](size_t nDisabled){
+            cout << "disablement complete. Count disabled: " << nDisabled << endl;
+          });
     }
 }
 

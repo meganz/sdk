@@ -2279,7 +2279,7 @@ bool CommandUpdatePendingContact::procresult(Result r)
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
-    arg("nf", 1);
+    arg("nf", 3);
     arg("b", 1);
     tag = client->reqtag;
 }
@@ -2292,27 +2292,89 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
         return true;
     }
 
+    string currency; // common for all plans, populated from `l` object
+
     while (client->json.enterobject())
     {
         handle product = UNDEF;
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
-        unsigned amount = 0, amountMonth = 0;
-        const char* amountStr = nullptr;
-        const char* amountMonthStr = nullptr;
-        const char* curr = nullptr;
-        const char* desc = nullptr;
-        const char* ios = nullptr;
-        const char* android = nullptr;
-        string currency;
+        unsigned amount = 0, amountMonth = 0, localPrice = 0;
         string description;
         string ios_id;
         string android_id;
+
+        unique_ptr<BusinessPlan> bizPlan;
+        unique_ptr<CurrencyData> currencyData;
+
         bool finished = false;
+        bool readingL = false;
+        const char* buf = nullptr;
         while (!finished)
         {
+            buf = nullptr;
+
             switch (client->json.getnameid())
             {
-                case MAKENAMEID2('i', 't'):
+                case MAKENAMEID1('l'):  // currency localization
+                {
+                    if (!client->json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, `l` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    currencyData = mega::make_unique<CurrencyData>();
+                    readingL = true;
+
+                    while (!finished)
+                    {
+                        buf = nullptr;
+
+                        switch(client->json.getnameid())
+                        {
+                            case MAKENAMEID1('c'):  // currency, ie. EUR
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->currencyName, buf);
+                                currency = currencyData->currencyName;
+                                break;
+                            case MAKENAMEID2('c', 's'): // currency symbol, ie. €
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->currencySymbol, buf);
+                                break;
+                            case MAKENAMEID2('l', 'c'):  // local currency, ie. NZD
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->localCurrencyName, buf);
+                                break;
+                            case MAKENAMEID3('l', 'c', 's'):    // local currency symbol, ie. $
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->localCurrencySymbol, buf);
+                                break;
+                            case EOO:
+                                // sanity checks for received data
+                                if (currencyData->currencyName.empty() || currencyData->currencySymbol.empty())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `l` data";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return true;
+                                }
+
+                                finished = true;    // exits from the outer loop too
+                                client->json.leaveobject(); // 'l' object
+                                break;
+                            default:
+                                if (!client->json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, store `l` data";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+                    break;
+                }
+                case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan
                     type = static_cast<int>(client->json.getint());
                     break;
                 case MAKENAMEID2('i', 'd'):
@@ -2330,37 +2392,228 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                 case 'm':
                     months = static_cast<int>(client->json.getint());
                     break;
-                case 'p':
-                    amountStr = client->json.getvalue();
-                    break;
-                case 'c':
-                    curr = client->json.getvalue();
+                case 'p':   // price (in cents)
+                    amount = static_cast<unsigned>(client->json.getint());
                     break;
                 case 'd':
-                    desc = client->json.getvalue();
+                    buf = client->json.getvalue();
+                    JSON::copystring(&description, buf);
                     break;
                 case MAKENAMEID3('i', 'o', 's'):
-                    ios = client->json.getvalue();
+                    buf = client->json.getvalue();
+                    JSON::copystring(&ios_id, buf);
                     break;
                 case MAKENAMEID6('g', 'o', 'o', 'g', 'l', 'e'):
-                    android = client->json.getvalue();
+                    buf = client->json.getvalue();
+                    JSON::copystring(&android_id, buf);
                     break;
-                case MAKENAMEID3('m', 'b', 'p'):
-                    amountMonthStr = client->json.getvalue();
+                case MAKENAMEID3('m', 'b', 'p'):    // monthly price (in cents)
+                    amountMonth = static_cast<unsigned>(client->json.getint());
                     break;
+                case MAKENAMEID2('l', 'p'): // local price (in cents)
+                    localPrice = static_cast<unsigned>(client->json.getint());
+                    break;
+                case MAKENAMEID2('b', 'd'): // BusinessPlan
+                {
+                    if (!client->json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, `bd` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    bizPlan = mega::make_unique<BusinessPlan>();
+
+                    bool readingBd = true;
+                    while (readingBd)
+                    {
+                        switch (client->json.getnameid())
+                        {
+                            case MAKENAMEID2('b', 'a'): // base (-1 means unlimited storage or transfer)
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `ba` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingBa = true;
+                                while (readingBa)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 's':
+                                            bizPlan->gbStoragePerUser = static_cast<int>(client->json.getint());
+                                            break;
+                                        case 't':
+                                            bizPlan->gbTransferPerUser = static_cast<int>(client->json.getint());
+                                            break;
+                                        case EOO:
+                                            readingBa = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `ba` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID2('u', 's'):   // price per user
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `us` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingUs = true;
+                                while (readingUs)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 'p':
+                                            bizPlan->pricePerUser = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case MAKENAMEID2('l', 'p'):
+                                            bizPlan->localPricePerUser = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case EOO:
+                                            readingUs = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `us` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID3('s', 't', 'o'):   // storage block
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `sto` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingSto = true;
+                                while (readingSto)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 's':
+                                            bizPlan->gbPerStorage = static_cast<int>(client->json.getint());
+                                            break;
+                                        case 'p':
+                                            bizPlan->pricePerStorage = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case MAKENAMEID2('l', 'p'):
+                                            bizPlan->localPricePerStorage = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case EOO:
+                                            readingSto = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `sto` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID4('t', 'r', 'n', 's'):   // transfer block
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `trns` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingTrns = true;
+                                while (readingTrns)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 't':
+                                            bizPlan->gbPerTransfer = static_cast<int>(client->json.getint());
+                                            break;
+                                        case 'p':
+                                            bizPlan->pricePerTransfer = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case MAKENAMEID2('l', 'p'):
+                                            bizPlan->localPricePerTransfer = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case EOO:
+                                            readingTrns = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `sto` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID4('m', 'i', 'n', 'u'):   // minimum number of user required to purchase
+                                bizPlan->minUsers = static_cast<int>(client->json.getint());
+                                break;
+                            case EOO:
+                                readingBd = false;
+                                break;
+                            default:
+                                if (!client->json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `bd` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+                    client->json.leaveobject();
+                    break;
+                }
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
                             || (prolevel < 0)
+                            || (months < 0)
+                            || currency.empty()
+                            || description.empty()
+                            // only available for Pro plans, not for Business
                             || (!type && gbstorage < 0)
                             || (!type && gbtransfer < 0)
-                            || (months < 0)
-                            || !amountStr
-                            || !curr
-                            || !desc
-                            || !amountMonthStr
-                            || (!type && !ios)
-                            || (!type && !android))
+                            || (!type && !amount)
+                            || (!type && !amountMonth)
+                            || (!type && ios_id.empty())
+                            || (!type && android_id.empty())
+                            // only available for Business plan(s)
+                            || (type == 1 && !bizPlan))
                     {
                         client->app->enumeratequotaitems_result(API_EINTERNAL);
                         return true;
@@ -2369,51 +2622,32 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                     finished = true;
                     break;
                 default:
-                    client->app->enumeratequotaitems_result(API_EINTERNAL);
-                    return false;
+                    if (!client->json.storeobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    break;
             }
-        }
+        }   // end while(!finished)
 
         client->json.leaveobject();
-        JSON::copystring(&currency, curr);
-        JSON::copystring(&description, desc);
-        JSON::copystring(&ios_id, ios);
-        JSON::copystring(&android_id, android);
 
-        amount = atoi(amountStr) * 100;
-        if ((curr = strchr(amountStr, '.')))
+        if (readingL)
         {
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amount += (*curr - '0') * 10;
-            }
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amount += *curr - '0';
-            }
+            // just read currency data, keep reading objects for each pro/business plan
+            readingL = false;
+            client->app->enumeratequotaitems_result(move(currencyData));
+            continue;
         }
-
-        amountMonth = atoi(amountMonthStr) * 100;
-        if ((curr = strchr(amountMonthStr, '.')))
+        else
         {
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amountMonth += (*curr - '0') * 10;
-            }
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amountMonth += *curr - '0';
-            }
+            client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
+                                                    gbtransfer, months, amount, amountMonth, localPrice,
+                                                    description.c_str(), ios_id.c_str(), android_id.c_str(),
+                                                    move(bizPlan));
         }
-
-        client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
-                                                gbtransfer, months, amount, amountMonth,
-                                                currency.c_str(), description.c_str(),
-                                                ios_id.c_str(), android_id.c_str());
     }
 
     client->app->enumeratequotaitems_result(API_OK);
@@ -6310,13 +6544,14 @@ bool CommandGetLocalSSLCertificate::procresult(Result r)
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title)
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title, bool meetingRoom)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
     this->mTitle = title ? string(title) : "";
     this->mUnifiedKey = "";
+    mMeeting = meetingRoom;
 
     cmd("mcc");
     arg("g", (group) ? 1 : 0);
@@ -6340,6 +6575,11 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
             mUnifiedKey = it->second;
             arg("ck", mUnifiedKey.c_str());
         }
+    }
+
+    if (meetingRoom)
+    {
+        arg("mr", 1);
     }
 
     beginarray("u");
@@ -6430,6 +6670,7 @@ bool CommandChatCreate::procresult(Result r)
                         chat->group = group;
                         chat->ts = (ts != -1) ? ts : 0;
                         chat->publicchat = mPublicChat;
+                        chat->meeting = mMeeting;
                         chat->setTag(tag ? tag : -1);
                         if (chat->group && !mTitle.empty())
                         {
@@ -7110,7 +7351,7 @@ bool CommandChatLinkURL::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, r.errorOrOK());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, r.errorOrOK());
         return true;
     }
     else
@@ -7121,6 +7362,8 @@ bool CommandChatLinkURL::procresult(Result r)
         string url;
         string ct;
         m_time_t ts = 0;
+        bool meetingRoom = false;
+        handle callid = UNDEF;
 
         for (;;)
         {
@@ -7150,21 +7393,29 @@ bool CommandChatLinkURL::procresult(Result r)
                     ts = client->json.getint();
                     break;
 
+                case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'):
+                    callid = client->json.gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case MAKENAMEID2('m', 'r'):
+                    meetingRoom = client->json.getbool();
+                    break;
+
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom, callid, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, API_EINTERNAL);
                     }
                     return true;
 
                 default:
                     if (!client->json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, API_EINTERNAL);
                         return false;
                     }
             }
@@ -8326,13 +8577,13 @@ bool CommandBackupPut::procresult(Result r)
     return r.wasStrictlyError() || r.hasJsonItem();
 }
 
-CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, SPHBStatus status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
     : mCompletion(f)
 {
     cmd("sphb");
 
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
-    arg("s", status);
+    arg("s", uint8_t(status));
     if (progress != -1)
     {
         arg("p", progress);
@@ -8425,10 +8676,11 @@ bool CommandBackupSyncFetch::procresult(Result r)
                 case MAKENAMEID1('s'):          d.syncState = client->json.getint32(); break;
                 case MAKENAMEID2('s', 's'):     d.syncSubstate = client->json.getint32(); break;
                 case MAKENAMEID1('e'):          client->json.storeobject(&d.extra);
-                                                d.extra = client->decypherTLVTextWithMasterKey("ed", d.extra);
+                                                d.backupName = client->decypherTLVTextWithMasterKey("bn", d.extra);
                                                 break;
                 case MAKENAMEID2('h', 'b'):
                 {
+
                     if (client->json.enterobject())
                     {
                         for (;;)
@@ -8580,5 +8832,121 @@ bool CommandDismissBanner::procresult(Result r)
     client->app->dismissbanner_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
+
+#ifdef ENABLE_CHAT
+
+bool CommandMeetingStart::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK(), "", UNDEF);
+        return true;
+    }
+
+    handle callid = UNDEF;
+    string sfuUrl;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'):
+                callid = client->json.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case MAKENAMEID3('s', 'f', 'u'):
+                client->json.storeobject(&sfuUrl);
+                break;
+
+            case EOO:
+                mCompletion(API_OK, sfuUrl, callid);
+                return true;
+                break;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    mCompletion(API_EINTERNAL, "", UNDEF);
+                    return false;
+                }
+        }
+    }
+}
+
+CommandMeetingStart::CommandMeetingStart(MegaClient *client, handle chatid, CommandMeetingStartCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("mcms");
+    arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+    tag = client->reqtag;
+}
+
+bool CommandMeetingJoin::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK(), "");
+        return true;
+    }
+
+    string sfuUrl;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID3('u', 'r', 'l'):
+                client->json.storeobject(&sfuUrl);
+                break;
+
+            case EOO:
+                mCompletion(API_OK, sfuUrl);
+                return true;
+                break;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    mCompletion(API_EINTERNAL, "");
+                    return false;
+                }
+        }
+    }
+}
+
+CommandMeetingJoin::CommandMeetingJoin(MegaClient *client, handle chatid, handle callid, CommandMeetingJoinCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("mcmj");
+    arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("mid", (byte*)&callid, MegaClient::CHATHANDLE);
+
+    tag = client->reqtag;
+}
+
+bool CommandMeetingEnd::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK());
+        return true;
+    }
+
+    mCompletion(API_EINTERNAL);
+    return false;
+}
+
+CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("mcme");
+    arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("mid", (byte*)&callid, MegaClient::CHATHANDLE);
+    // At meeting first version, only valid reason is 0x02 (REJECTED)
+    arg("r", reason);
+
+    tag = client->reqtag;
+}
+#endif
 
 } // namespace

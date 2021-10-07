@@ -827,6 +827,17 @@ using namespace mega;
 
 #pragma mark - Create account and confirm account Requests
 
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname {
+    if (self.megaApi) {
+        self.megaApi->createEphemeralAccountPlusPlus(firstname.UTF8String, lastname.UTF8String);
+    }
+}
+
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->createEphemeralAccountPlusPlus(firstname.UTF8String, lastname.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname {
     if (self.megaApi) {
@@ -2008,6 +2019,18 @@ using namespace mega;
 - (void)getCameraUploadsFolder {
     if (self.megaApi) {
         self.megaApi->getCameraUploadsFolder();
+    }
+}
+
+- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getMyBackupsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)getMyBackupsFolder {
+    if (self.megaApi) {
+        self.megaApi->getMyBackupsFolder();
     }
 }
 

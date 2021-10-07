@@ -1092,6 +1092,7 @@ class MegaSyncListPrivate : public MegaSyncList
 
 
 class MegaPricingPrivate;
+class MegaCurrencyPrivate;
 class MegaBannerListPrivate;
 class MegaRequestPrivate : public MegaRequest
 {
@@ -1126,7 +1127,10 @@ class MegaRequestPrivate : public MegaRequest
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
         void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
-                        int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid);
+                        int months, int amount, int amountMonth, int localPrice,
+                        const char *description, const char *iosid, const char *androidid,
+                        std::unique_ptr<BusinessPlan>);
+        void setCurrency(std::unique_ptr<CurrencyData> currencyData);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
         void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
@@ -1162,6 +1166,7 @@ class MegaRequestPrivate : public MegaRequest
         int getNumDetails() const override;
         int getTag() const override;
         MegaPricing *getPricing() const override;
+        MegaCurrency *getCurrency() const override;
         AccountDetails * getAccountDetails() const;
         MegaAchievementsDetails *getMegaAchievementsDetails() const override;
         AchievementsDetails *getAchievementsDetails() const;
@@ -1199,6 +1204,7 @@ class MegaRequestPrivate : public MegaRequest
 protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
+        MegaCurrencyPrivate *megaCurrency;
         AchievementsDetails *achievementsDetails;
         MegaTimeZoneDetails *timeZoneDetails;
         int type;
@@ -1395,27 +1401,58 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         AccountDetails details;
 };
 
+class MegaCurrencyPrivate : public MegaCurrency
+{
+public:
+    ~MegaCurrencyPrivate() override;
+    MegaCurrency *copy() override;
+
+    const char *getCurrencySymbol() override;
+    const char *getCurrencyName() override;
+    const char *getLocalCurrencySymbol() override;
+    const char *getLocalCurrencyName() override;
+
+    void setCurrency(std::unique_ptr<CurrencyData>);    // common for all products
+
+private:
+    CurrencyData mCurrencyData;   // reused for all plans
+};
+
 class MegaPricingPrivate : public MegaPricing
 {
 public:
-    virtual ~MegaPricingPrivate();
-    virtual int getNumProducts();
-    virtual MegaHandle getHandle(int productIndex);
-    virtual int getProLevel(int productIndex);
-    virtual int getGBStorage(int productIndex);
-    virtual int getGBTransfer(int productIndex);
-    virtual int getMonths(int productIndex);
-    virtual int getAmount(int productIndex);
-    virtual const char* getCurrency(int productIndex);
-    virtual const char* getDescription(int productIndex);
-    virtual const char* getIosID(int productIndex);
-    virtual const char* getAndroidID(int productIndex);
-    virtual bool isBusinessType(int productIndex);
-    virtual int getAmountMonth(int productIndex);
-    virtual MegaPricing *copy();
+    ~MegaPricingPrivate() override;
+    int getNumProducts() override;
+    MegaHandle getHandle(int productIndex) override;
+    int getProLevel(int productIndex) override;
+    int getGBStorage(int productIndex) override;
+    int getGBTransfer(int productIndex) override;
+    int getMonths(int productIndex) override;
+    int getAmount(int productIndex) override;
+    int getLocalPrice(int productIndex) override;
+    const char* getDescription(int productIndex) override;
+    const char* getIosID(int productIndex) override;
+    const char* getAndroidID(int productIndex) override;
+    bool isBusinessType(int productIndex) override;
+    int getAmountMonth(int productIndex) override;
+    MegaPricing *copy() override;
+    int getGBStoragePerUser(int productIndex) override;
+    int getGBTransferPerUser(int productIndex) override;
+    unsigned int getMinUsers(int productIndex) override;
+    unsigned int getPricePerUser(int productIndex) override;
+    unsigned int getLocalPricePerUser(int productIndex) override;
+    unsigned int getPricePerStorage(int productIndex) override;
+    unsigned int getLocalPricePerStorage(int productIndex) override;
+    int getGBPerStorage(int productIndex) override;
+    unsigned int getPricePerTransfer(int productIndex) override;
+    unsigned int getLocalPricePerTransfer(int productIndex) override;
+    int getGBPerTransfer(int productIndex) override;
 
     void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
-                    int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid);
+                    int months, int amount, int amountMonth, unsigned localPrice,
+                    const char *description, const char *iosid, const char *androidid,
+                    std::unique_ptr<BusinessPlan>);
+
 private:
     vector<unsigned int> type;
     vector<handle> handles;
@@ -1425,10 +1462,12 @@ private:
     vector<int> months;
     vector<int> amount;
     vector<int> amountMonth;
-    vector<const char *> currency;
+    vector<int> mLocalPrice;
     vector<const char *> description;
     vector<const char *> iosId;
     vector<const char *> androidId;
+
+    std::vector<std::unique_ptr<BusinessPlan>> mBizPlan;
 };
 
 class MegaAchievementsDetailsPrivate : public MegaAchievementsDetails
@@ -1509,24 +1548,25 @@ public:
     MegaTextChatPrivate(const TextChat *);
 
     virtual ~MegaTextChatPrivate();
-    virtual MegaTextChat *copy() const;
+    MegaTextChat *copy() const override;
 
-    virtual MegaHandle getHandle() const;
-    virtual int getOwnPrivilege() const;
-    virtual int getShard() const;
-    virtual const MegaTextChatPeerList *getPeerList() const;
-    virtual void setPeerList(const MegaTextChatPeerList *peers);
-    virtual bool isGroup() const;
-    virtual MegaHandle getOriginatingUser() const;
-    virtual const char *getTitle() const;
-    virtual const char *getUnifiedKey() const;
-    virtual int64_t getCreationTime() const;
-    virtual bool isArchived() const;
-    virtual bool isPublicChat() const;
+    MegaHandle getHandle() const override;
+    int getOwnPrivilege() const override;
+    int getShard() const override;
+    const MegaTextChatPeerList *getPeerList() const override;
+    void setPeerList(const MegaTextChatPeerList *peers) override;
+    bool isGroup() const override;
+    MegaHandle getOriginatingUser() const override;
+    const char *getTitle() const override;
+    const char *getUnifiedKey() const override;
+    int64_t getCreationTime() const override;
+    bool isArchived() const override;
+    bool isPublicChat() const override;
+    bool isMeeting() const override;
 
-    virtual bool hasChanged(int changeType) const;
-    virtual int getChanges() const;
-    virtual int isOwnChange() const;
+    bool hasChanged(int changeType) const override;
+    int getChanges() const override;
+    int isOwnChange() const override;
 
 private:
     handle id;
@@ -1543,6 +1583,7 @@ private:
     bool archived;
     bool publicchat;
     int64_t ts;
+    bool meeting;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -2522,7 +2563,6 @@ class MegaApiImpl : public MegaApp
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
-        void queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener = NULL);
         void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
@@ -2674,7 +2714,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
@@ -2687,7 +2727,7 @@ class MegaApiImpl : public MegaApp
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         void sendChatStats(const char *data, int port, MegaRequestListener *listener = NULL);
-        void sendChatLogs(const char *data, const char *aid, int port, MegaRequestListener *listener = NULL);
+         void sendChatLogs(const char *data, MegaHandle userid, MegaHandle callid = INVALID_HANDLE, int port = 0, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
@@ -2706,6 +2746,9 @@ class MegaApiImpl : public MegaApp
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
         bool isChatNotifiable(MegaHandle chatid);
+        void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
+        void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
+        void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
@@ -2863,7 +2906,6 @@ protected:
         // sc requests to close existing wsc and immediately retrieve pending actionpackets
         RequestQueue scRequestQueue;
 
-        std::unique_ptr<BackupMonitor> mHeartBeatMonitor;
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
@@ -2878,6 +2920,7 @@ protected:
         set<MegaScheduledCopyListener *> backupListeners;
 
 #ifdef ENABLE_SYNC
+        std::unique_ptr<BackupMonitor> mHeartBeatMonitor;
         MegaSyncPrivate* cachedMegaSyncPrivateByBackupId(const SyncConfig&);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
 #endif
@@ -3013,7 +3056,10 @@ protected:
 
         // purchase transactions
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,
-                                                unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid) override;
+                                        unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice,
+                                        const char* description, const char* iosid, const char* androidid,
+                                        std::unique_ptr<BusinessPlan>) override;
+        void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;
         void checkout_result(const char*, error) override;
@@ -3109,7 +3155,7 @@ protected:
         void chats_updated(textchat_map *, int) override;
         void richlinkrequest_result(string*, error) override;
         void chatlink_result(handle, error) override;
-        void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error) override;
+        void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, handle, error) override;
         void chatlinkclose_result(error) override;
         void chatlinkjoin_result(error) override;
 #endif

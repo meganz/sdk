@@ -632,7 +632,7 @@ public:
      * @return And error code if there are problems serious enough with the syncconfig that it should not be added.
      *         Otherwise, API_OK
      */
-    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork);
+    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork);
 
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
@@ -642,7 +642,7 @@ public:
      * @param completion Completion function
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion);
+    error addsync(SyncConfig& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
@@ -732,7 +732,7 @@ public:
     void sendchatstats(const char*, int port);
 
     // send chat logs with user's annonymous id
-    void sendchatlogs(const char*, const char*, int port);
+    void sendchatlogs(const char*, mega::handle userid, mega::handle callid, int port);
 
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
@@ -804,7 +804,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const string_map *userkeymap = NULL, const char *title = NULL);
+    void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const string_map *userkeymap = NULL, const char *title = NULL, bool meetingRoom = false);
 
     // invite a user to a chat
     void inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey = NULL, const char *title = NULL);
@@ -953,11 +953,8 @@ public:
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
 
-    // root URL for GeLB requests
-    static const string GELBURL;
-
     // root URL for chat stats
-    static const string CHATSTATSURL;
+    static const string SFUSTATSURL;
 
     // root URL for Website
     static const string MEGAURL;

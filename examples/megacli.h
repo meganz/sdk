@@ -144,7 +144,7 @@ struct DemoApp : public MegaApp
     virtual void chatpresenceurl_result(string *, error) override;
     void chatlink_result(handle, error) override;
     void chatlinkclose_result(error) override;
-    void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error) override;
+    void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, handle, error) override;
     void chatlinkjoin_result(error) override;
 
     void chats_updated(textchat_map*, int) override;
@@ -221,7 +221,10 @@ struct DemoApp : public MegaApp
     void userattr_update(User*, int, const char*) override;
     void resetSmsVerifiedPhoneNumber_result(error e) override;
 
-    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) override;
+    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
+                                    unsigned, unsigned, const char*, const char*, const char*,
+                                    std::unique_ptr<BusinessPlan>) override;
+    void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
     void checkout_result(const char*, error) override;
@@ -375,6 +378,7 @@ void exec_driveid(autocomplete::ACState& s);
 #ifdef ENABLE_SYNC
 
 void exec_syncadd(autocomplete::ACState& s);
+void exec_syncrename(autocomplete::ACState& s);
 void exec_syncclosedrive(autocomplete::ACState& s);
 void exec_syncexport(autocomplete::ACState& s);
 void exec_syncimport(autocomplete::ACState& s);

@@ -610,8 +610,8 @@ void RaidBufferManager::combineLastRaidLine(byte* dest, size_t remainingbytes)
                     {
                         FilePiece* xs = raidinputparts[j].front();
                         for (size_t x = std::min(n, xs->buf.datalen()); x--; )
-                        {
-                            dest[x] ^= xs->buf.datastart()[x];
+                        { // Integer promotion with bitwise operators
+                            dest[x] = static_cast<byte>(dest[x] ^ xs->buf.datastart()[x]);
                         }
                     }
                 }
@@ -938,7 +938,7 @@ void DirectReadBufferManager::finalize(FilePiece& fp)
     if (r)
     {
         byte buf[SymmCipher::BLOCKSIZE];
-        l = sizeof buf - r;
+        l = static_cast<int>(sizeof buf - r);
 
         if (l > t)
         {
