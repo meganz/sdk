@@ -1378,18 +1378,14 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 
         mIsIgnoreFile = type == FILENODE && localname == IGNORE_FILE_NAME;
 
-        auto excluded = parent->isExcluded(localname, type);
-
-        mExcluded = excluded < 0;
-        mRecomputeExclusionState = excluded == 0;
+        mExclusionState = parent->exclusionState(localname, type);
     }
     else
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
 
-        mExcluded = false;
-        mRecomputeExclusionState = false;
+        mExclusionState = ES_INCLUDED;
     }
 
 
@@ -2625,9 +2621,7 @@ bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inheri
     // Check whether the file is excluded by any filters.
     for (auto* node = this; node; node = node->parent)
     {
-        // Sanity: We should never have been called if either of these are true.
-        assert(!node->mExcluded);
-        assert(!node->mRecomputeExclusionState);
+        assert(node->mExclusionState == ES_INCLUDED);
 
         // Should we only consider inheritable filter rules?
         inherited = inherited || node != this;
@@ -2663,8 +2657,7 @@ bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
     for (auto* node = this; node; node = node->parent)
     {
         // Sanity: We should never be called if either of these is true.
-        assert(!node->mExcluded);
-        assert(!node->mRecomputeExclusionState);
+        assert(node->mExclusionState == ES_INCLUDED);
 
         // Check for a filter match.
         auto result = node->mFilterChain.match(size);
@@ -2697,11 +2690,10 @@ void LocalNode::setWaitingForIgnoreFileLoad(bool pending)
 
 void LocalNode::setRecomputeExclusionState()
 {
-    if (mRecomputeExclusionState)
+    if (mExclusionState == ES_UNKNOWN)
         return;
 
-    mExcluded = false;
-    mRecomputeExclusionState = true;
+    mExclusionState = ES_UNKNOWN;
 
     if (type == FILENODE)
         return;
@@ -2716,11 +2708,10 @@ void LocalNode::setRecomputeExclusionState()
         {
             auto& child = *childIt.second;
 
-            if (child.mRecomputeExclusionState)
+            if (child.mExclusionState == ES_UNKNOWN)
                 continue;
 
-            child.mExcluded = false;
-            child.mRecomputeExclusionState = true;
+            child.mExclusionState = ES_UNKNOWN;
 
             if (child.type == FOLDERNODE)
                 pending.emplace_back(&child);
@@ -2776,23 +2767,20 @@ void LocalNode::ignoreFileRemoved()
 
 // Query whether a file is excluded by this node or one of its parents.
 template<typename PathType>
-typename std::enable_if<IsPath<PathType>::value, int>::type
-LocalNode::isExcluded(const PathType& path, nodetype_t type, m_off_t size) const
+typename std::enable_if<IsPath<PathType>::value, ExclusionState>::type
+LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) const
 {
     // This specialization is only meaningful for directories.
     assert(this->type == FOLDERNODE);
 
     // We can't determine our child's exclusion state if we don't know our own.
-    if (mRecomputeExclusionState)
-        return 0;
-
     // Our children are excluded if we are.
-    if (mExcluded)
-        return -1;
+    if (mExclusionState != ES_INCLUDED)
+        return mExclusionState;
 
     // Children of unknown type are considered excluded.
     if (type == TYPE_UNKNOWN)
-        return -1;
+        return ES_EXCLUDED;
 
     // Tracks whether the child is our own ignore file.
     auto isIgnoreFile = false;
@@ -2806,7 +2794,7 @@ LocalNode::isExcluded(const PathType& path, nodetype_t type, m_off_t size) const
 
     // We can't know the child's state unless our filters are current.
     if (mWaitingForIgnoreFileLoad && !isIgnoreFile)
-        return 0;
+        return ES_UNKNOWN;
 
     // Computed cloud name and relative cloud path.
     RemotePathPair namePath;
@@ -2829,7 +2817,7 @@ LocalNode::isExcluded(const PathType& path, nodetype_t type, m_off_t size) const
 
         // Is this path component excluded?
         if (isExcluded(namePath, FOLDERNODE, false))
-            return -1;
+            return ES_EXCLUDED;
     }
 
     // Which node we should start our search from.
@@ -2847,28 +2835,27 @@ LocalNode::isExcluded(const PathType& path, nodetype_t type, m_off_t size) const
 
             // If we're the root then the ignore file must be included.
             if (!node)
-                return 1;
+                return ES_INCLUDED;
         }
 
         // Is the file excluded by any size filters?
         if (node->isExcluded(namePath, size))
-            return -1;
+            return ES_EXCLUDED;
     }
 
     // Is the file excluded by any name filters?
     if (node->isExcluded(namePath, type, node != this))
-        return -1;
+        return ES_EXCLUDED;
 
     // File's included.
-    return 1;
+    return ES_INCLUDED;
 }
 
 // Make sure we instantiate the two types.  Jenkins gcc can't handle this in the header.
-template int LocalNode::isExcluded(const LocalPath& path, nodetype_t type, m_off_t size) const;
-template int LocalNode::isExcluded(const RemotePath& path, nodetype_t type, m_off_t size) const;
+template ExclusionState LocalNode::exclusionState(const LocalPath& path, nodetype_t type, m_off_t size) const;
+template ExclusionState LocalNode::exclusionState(const RemotePath& path, nodetype_t type, m_off_t size) const;
 
-
-int LocalNode::isExcluded(const string& name, nodetype_t type, m_off_t size) const
+ExclusionState LocalNode::exclusionState(const string& name, nodetype_t type, m_off_t size) const
 {
     assert(this->type == FOLDERNODE);
 
@@ -2877,18 +2864,12 @@ int LocalNode::isExcluded(const string& name, nodetype_t type, m_off_t size) con
     auto fsType = sync->mFilesystemType;
     auto localname = LocalPath::fromName(name, *fsAccess, fsType);
 
-    return isExcluded(localname, type, size);
+    return exclusionState(localname, type, size);
 }
 
-int LocalNode::isExcluded() const
+ExclusionState LocalNode::exclusionState() const
 {
-    if (mRecomputeExclusionState)
-        return 0;
-
-    if (mExcluded)
-        return -1;
-
-    return 1;
+    return mExclusionState;
 }
 
 bool LocalNode::isIgnoreFile() const
@@ -2902,15 +2883,12 @@ bool LocalNode::recomputeExclusionState()
     assert(parent);
 
     // Only recompute the state if it's necessary.
-    if (!mRecomputeExclusionState)
+    if (mExclusionState != ES_UNKNOWN)
         return false;
 
-    auto excluded = parent->isExcluded(localname, type);
+    mExclusionState = parent->exclusionState(localname, type);
 
-    mExcluded = excluded < 0;
-    mRecomputeExclusionState = excluded == 0;
-
-    return !mRecomputeExclusionState;
+    return mExclusionState != ES_UNKNOWN;
 }
 
 #endif // ENABLE_SYNC

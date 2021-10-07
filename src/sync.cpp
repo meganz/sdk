@@ -1523,7 +1523,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             }
 
             // Is the move target excluded?
-            if (parentRow.isExcluded(*row.fsNode) < 1)
+            if (parentRow.exclusionState(*row.fsNode) != ES_INCLUDED)
             {
                 // Then don't perform the move.
                 return false;
@@ -1538,7 +1538,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             row.syncNode->setCheckMovesAgain(true, false, false);
 
             // Is the source's exclusion state well-defined?
-            if (!sourceSyncNode->isExcluded())
+            if (sourceSyncNode->exclusionState() == ES_UNKNOWN)
             {
                 // Let the engine know why we can't perform the move.
                 monitor.waitingLocal(sourceSyncNode->getLocalPath(),
@@ -1563,7 +1563,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             }
 
             // Sanity.
-            assert(sourceSyncNode->isExcluded() > 0);
+            assert(sourceSyncNode->exclusionState() == ES_INCLUDED);
 
             // logic to detect files being updated in the local computer moving the original file
             // to another location as a temporary backup
@@ -1918,7 +1918,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         }
 
         // Is the move target excluded?
-        if (parentRow.isExcluded(*row.cloudNode) < 1)
+        if (parentRow.exclusionState(*row.cloudNode) != ES_INCLUDED)
         {
             // Then don't perform the move.
             return false;
@@ -1938,7 +1938,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         if (row.syncNode) row.syncNode->setCheckMovesAgain(true, false, false);
 
         // Is the source's exclusion state well defined?
-        if (!sourceSyncNode->isExcluded())
+        if (sourceSyncNode->exclusionState() == ES_UNKNOWN)
         {
             // Let the engine know why we couldn't process this move.
             monitor.waitingLocal(sourceSyncNode->getLocalPath(),
@@ -4644,32 +4644,32 @@ bool syncRow::ignoreFileStable() const
            && !syncNode->waitingForIgnoreFileLoad();
 }
 
-int syncRow::isExcluded(const CloudNode& node) const
+ExclusionState syncRow::exclusionState(const CloudNode& node) const
 {
     assert(syncNode);
     assert(syncNode->type != FILENODE);
 
-    return syncNode->isExcluded(node.name,
-                                node.type,
-                                node.fingerprint.size);
+    return syncNode->exclusionState(node.name,
+                                    node.type,
+                                    node.fingerprint.size);
 }
 
-int syncRow::isExcluded(const FSNode& node) const
+ExclusionState syncRow::exclusionState(const FSNode& node) const
 {
     assert(syncNode);
     assert(syncNode->type != FILENODE);
 
-    return syncNode->isExcluded(node.localname,
-                                node.type,
-                                node.fingerprint.size);
+    return syncNode->exclusionState(node.localname,
+                                    node.type,
+                                    node.fingerprint.size);
 }
 
-int syncRow::isExcluded(const LocalPath& name, nodetype_t type) const
+ExclusionState syncRow::exclusionState(const LocalPath& name, nodetype_t type) const
 {
     assert(syncNode);
     assert(syncNode->type != FILENODE);
 
-    return syncNode->isExcluded(name, type);
+    return syncNode->exclusionState(name, type);
 }
 
 bool syncRow::isIgnoreFile() const
@@ -5254,7 +5254,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // when syncing/scanning below a removed cloud node, we just want to collect up scan fsids
                             // and make syncNodes to visit, so we can be sure of detecting all the moves,
                             // in particular contradictroy moves.
-                            if (childRow.type() == SRT_XXF && row.isExcluded(*childRow.fsNode) > 0)
+                            if (childRow.type() == SRT_XXF && row.exclusionState(*childRow.fsNode) == ES_INCLUDED)
                             {
                                 resolve_makeSyncNode_fromFS(childRow, row, fullPath, false);
                             }
@@ -5264,7 +5264,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // when syncing/scanning below a removed local node, we just want to
                             // and make syncNodes to visit, so we can be sure of detecting all the moves,
                             // in particular contradictroy moves.
-                            if (childRow.type() == SRT_CXX && row.isExcluded(*childRow.cloudNode) > 0)
+                            if (childRow.type() == SRT_CXX && row.exclusionState(*childRow.cloudNode) == ES_INCLUDED)
                             {
                                 resolve_makeSyncNode_fromCloud(childRow, row, fullPath, false);
                             }
@@ -5460,7 +5460,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
                                         row.syncNode->fsid_lastSynced != row.fsNode->fsid))
     {
         // Don't perform any moves until we know the row's exclusion state.
-        if (!parentRow.isExcluded(*row.fsNode))
+        if (parentRow.exclusionState(*row.fsNode) == ES_UNKNOWN)
         {
             row.itemProcessed = true;
             row.suppressRecursion = true;
@@ -5480,7 +5480,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle))
     {
         // Don't perform any moves until we know the row's exclusion state.
-        if (!parentRow.isExcluded(*row.cloudNode))
+        if (!parentRow.exclusionState(*row.cloudNode) == ES_UNKNOWN)
         {
             row.itemProcessed = true;
             row.suppressRecursion = true;
@@ -5558,7 +5558,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             }
 
             // Is this row (effectively) excluded?
-            if (s->isExcluded() < 1)
+            if (s->exclusionState() != ES_INCLUDED)
             {
                 // Is it a move target?
                 if (auto& moveToHere = s->rare().moveToHere)
@@ -5583,7 +5583,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         s->checkTransferCompleted();
 
         // Is the row excluded?
-        if (s->isExcluded() < 0)
+        if (s->exclusionState() == ES_EXCLUDED)
         {
             // Can we remove the node from memory?
             auto removable = true;
@@ -5719,16 +5719,16 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             parentRow.ignoreFileChanging();
 
         // Is the row excluded?
-        auto isExcluded =
-          parentRow.isExcluded(row.fsNode->localname,
-                               row.fsNode->type);
+        auto exclusionState =
+          parentRow.exclusionState(row.fsNode->localname,
+                                   row.fsNode->type);
 
         // Come back later if the exclusion state is undefined.
-        if (!isExcluded)
+        if (exclusionState == ES_UNKNOWN)
             return true;
 
         // Don't create a node for this row unless it's included.
-        if (isExcluded < 1)
+        if (exclusionState == ES_EXCLUDED)
         {
             // Unless we're dealing with an ignore file.
             if (isIgnoreFile)
@@ -5771,7 +5771,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         }
 
         // Don't create a sync node for this file unless we know that it's included.
-        if (parentRow.isExcluded(*row.fsNode) < 1)
+        if (parentRow.exclusionState(*row.fsNode) != ES_INCLUDED)
             return true;
 
         // Item exists locally only. Check if it was moved/renamed here, or Create
@@ -5783,7 +5783,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXX);
 
         // Don't create sync nodes unless we know the row is included.
-        if (parentRow.isExcluded(*row.cloudNode) < 1)
+        if (parentRow.exclusionState(*row.cloudNode) != ES_INCLUDED)
             return true;
 
         // Are we creating a node for an ignore file?
@@ -6099,7 +6099,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     }
 
     // Don't do anything unless we know the node's included.
-    if (row.syncNode->isExcluded() < 1)
+    if (row.syncNode->exclusionState() != ES_INCLUDED)
     {
         // Unless the node was already uploading.
         if (!row.syncNode->transferSP)
@@ -6123,7 +6123,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         if (!row.syncNode->transferSP)
         {
             // Don't bother restarting the upload if we're excluded.
-            if (row.syncNode->isExcluded() < 1)
+            if (row.syncNode->exclusionState() != ES_INCLUDED)
             {
                 // We'll revisit later if needed.
                 return true;
@@ -6248,7 +6248,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
     ProgressingMonitor monitor(syncs);
 
     // Don't do anything unless we know the row's included.
-    if (parentRow.isExcluded(*row.cloudNode) < 1)
+    if (parentRow.exclusionState(*row.cloudNode) != ES_INCLUDED)
     {
         // But only if we weren't already downloading.
         if (!row.syncNode->transferSP)
@@ -6293,7 +6293,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
         if (!row.syncNode->transferSP)
         {
             // Don't bother restarting the download if we're effectively excluded.
-            if (row.syncNode->isExcluded() < 1)
+            if (row.syncNode->exclusionState() != ES_INCLUDED)
             {
                 // We'll revisit this node later if necessary.
                 return true;
@@ -7001,9 +7001,9 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
             if (timeToBeSure)
             {
                 // What's this node's exclusion state?
-                auto isExcluded = row.syncNode->isExcluded();
+                auto exclusionState = row.syncNode->exclusionState();
 
-                if (isExcluded > 0)
+                if (exclusionState == ES_INCLUDED)
                 {
                     // Row's included.
                     LOG_debug << syncname << "Moving cloud item to cloud sync debris: " << fullPath.cloudPath << logTriplet(row, fullPath);
@@ -7027,7 +7027,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                         });
                     row.syncNode->rare().removeNodeHere = deletePtr;
                 }
-                else if (isExcluded < 0)
+                else if (exclusionState == ES_EXCLUDED)
                 {
                     // Row's excluded.
                     auto& s = *row.syncNode;
@@ -8732,11 +8732,11 @@ bool Syncs::isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* chi
             break;
 
         // Children are definitely excluded if their parent is.
-        if (node->isExcluded() < 0)
+        if (node->exclusionState() == ES_EXCLUDED)
             return true;
 
         // Children are considered included if their parent's state is indeterminate.
-        if (node->isExcluded() < 1)
+        if (node->exclusionState() == ES_UNKNOWN)
             return false;
 
         // Node's included so check the next step along the trail.
@@ -8750,7 +8750,7 @@ bool Syncs::isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* chi
         cloudPath.appendWithSeparator(i->second, false);
 
     // Would the child definitely be excluded?
-    return parent->isExcluded(cloudPath, child->type, child->size) < 0;
+    return parent->exclusionState(cloudPath, child->type, child->size) == ES_EXCLUDED;
 }
 
 Sync* Syncs::syncContainingPath(const LocalPath& path, bool includePaused)

@@ -402,6 +402,16 @@ enum TREESTATE : unsigned
     TREE_ACTION_SUBTREE = 3         // overrides any children so the whole subtree is processed
 };
 
+enum ExclusionState : unsigned char
+{
+    // Node's definitely excluded.
+    ES_EXCLUDED,
+    // Node's definitely included.
+    ES_INCLUDED,
+    // Node has an indeterminate exclusion state.
+    ES_UNKNOWN
+}; // ExclusionState
+
 inline unsigned updateTreestateFromChild(unsigned oldFlag, unsigned childFlag)
 {
     return oldFlag == TREE_RESOLVED && childFlag != TREE_RESOLVED ? TREE_DESCENDANT_FLAGGED : oldFlag;
@@ -692,14 +702,11 @@ private:
 
     struct
     {
-        // Whether this node is excluded.
-        bool mExcluded : 1;
+        // The node's exclusion state.
+        ExclusionState mExclusionState;
 
         // Whether we're an ignore file.
         bool mIsIgnoreFile : 1;
-
-        // Whether we need to recompute this node's exclusion state.
-        bool mRecomputeExclusionState : 1;
 
         // Whether we need to reload this node's ignore file.
         bool mWaitingForIgnoreFileLoad : 1;
@@ -741,14 +748,14 @@ public:
 
     // Query whether a file is excluded by this node or one of its parents.
     template<typename PathType>
-    typename std::enable_if<IsPath<PathType>::value, int>::type
-    isExcluded(const PathType& path, nodetype_t type, m_off_t size = -1) const;
+    typename std::enable_if<IsPath<PathType>::value, ExclusionState>::type
+    exclusionState(const PathType& path, nodetype_t type, m_off_t size = -1) const;
 
     // Specialization of above intended for cloud name queries.
-    int isExcluded(const string& name, nodetype_t type, m_off_t size = -1) const;
+    ExclusionState exclusionState(const string& name, nodetype_t type, m_off_t size = -1) const;
 
     // Query this node's exclusion state.
-    int isExcluded() const;
+    ExclusionState exclusionState() const;
 
     // Query whether this node represents an ignore file.
     bool isIgnoreFile() const;

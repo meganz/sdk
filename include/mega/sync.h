@@ -264,9 +264,9 @@ struct syncRow
     bool ignoreFileStable() const;
 
     // Convenience specializations.
-    int isExcluded(const CloudNode& node) const;
-    int isExcluded(const FSNode& node) const;
-    int isExcluded(const LocalPath& name, nodetype_t type) const;
+    ExclusionState exclusionState(const CloudNode& node) const;
+    ExclusionState exclusionState(const FSNode& node) const;
+    ExclusionState exclusionState(const LocalPath& name, nodetype_t type) const;
 
     // Does this row represent an ignore file?
     bool isIgnoreFile() const;
