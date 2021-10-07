@@ -1772,6 +1772,10 @@ struct StandardClient : public MegaApp
                      true,
                      SyncConfig::TYPE_BACKUP);
 
+        EXPECT_TRUE(!config.mOriginalPathOfRemoteRootNode.empty() &&
+            config.mOriginalPathOfRemoteRootNode.front() == '/')
+            << "config.mOriginalPathOfRemoteRootNode: " << config.mOriginalPathOfRemoteRootNode.c_str();
+
         // Try and add the backup.
         return client.addsync(config, true, completion, logname) == API_OK;
     }
@@ -1825,6 +1829,9 @@ struct StandardClient : public MegaApp
                                //string_vector(),
                                true,
                                isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
+                EXPECT_TRUE(!syncConfig.mOriginalPathOfRemoteRootNode.empty() &&
+                            syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
+                    << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
 
                 error e = client.addsync(syncConfig, true, addSyncCompletion, logname);
                 return !e;
