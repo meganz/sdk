@@ -1570,6 +1570,7 @@ void MegaClient::exec()
                         break;
                     }
                     // no retry -> fall through
+                    // fall through
                 case REQ_SUCCESS:
                     restag = it->first;
                     app->http_result(req->httpstatus ? API_OK : API_EFAILED,
@@ -1600,6 +1601,7 @@ void MegaClient::exec()
                         break;
                     }
                     // no retry -> fall through
+                    // fall through
                 case REQ_INFLIGHT:
                     if (req->maxbt.nextset() && req->maxbt.armed())
                     {
@@ -1610,6 +1612,7 @@ void MegaClient::exec()
                         pendinghttp.erase(it++);
                         break;
                     }
+                    // fall through
                 default:
                     it++;
                 }
@@ -1838,7 +1841,8 @@ void MegaClient::exec()
                         if (!fc->timeout.armed()) break;
 
                         LOG_warn << "Timeout getting file attr";
-                        // timeout! fall through...
+                        // timeout!
+                        // fall through
                     case REQ_FAILURE:
                         LOG_warn << "Error getting file attr";
 
