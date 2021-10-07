@@ -910,7 +910,7 @@ public:
     void setSyncedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
     void setScannedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
 
-    // maps nodehanlde to corresponding LocalNode* (s)
+    // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
     LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
 
@@ -1059,10 +1059,19 @@ private:
     bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
             bool* nodeIsInActiveSync, bool* nodeIsDefinitelyExcluded, WhichCloudVersion);
 
-    // Compute the path of the node associated with this handle.
-    RemotePath lookupCloudNodePath(NodeHandle handle);
-
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
+
+    // Query whether a specified child is definitely excluded.
+    //
+    // A node is definitely excluded if:
+    // - The node itself is excluded.
+    // - One of the node's parents are definitely excluded.
+    //
+    // It is the caller's responsibility to ensure that:
+    // - Necessary locks are acquired such that this function has exclusive
+    //   access to both the local and remote node trees.
+    // - The node specified by child is below root.
+    bool isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* child);
 
     template<typename Predicate>
     Sync* syncMatching(Predicate&& predicate, bool includePaused)

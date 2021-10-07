@@ -6483,7 +6483,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
                                       &nodeIsDefinitelyExcluded,
                                       Syncs::LATEST_VERSION);
 
-        // Remote doesn't exist or isn't under an active sync.
+        // Remote doesn't exist under an active sync or is excluded.
         if (!found || !active || nodeIsDefinitelyExcluded)
             return MT_NONE;
 
@@ -8598,54 +8598,12 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         {
             for (auto & rn : activeSyncRoots)
             {
-                if (n->isbelow(rn.first) &&
-                    !rn.second->syncPaused)
+                if (n->isbelow(rn.first) && !rn.second->syncPaused)
                 {
                     *nodeIsInActiveUnpausedSyncQuery = true;
 
                     if (nodeIsDefinitelyExcluded)
-                    {
-                        // get the parent handles back to sync root
-                        vector<std::pair<NodeHandle, string>> parents;
-                        for (const Node* nptr = n->parent;
-                            nptr->nodeHandle() != rn.second->cloudRoot.handle;
-                            nptr = nptr->parent)
-                        {
-                            parents.emplace_back(nptr->nodeHandle(), nptr->displayname());
-                        }
-
-                        // trace those down from LocalNode sync root to determine exclusion
-                        *nodeIsDefinitelyExcluded = false;
-                        LocalNode* ln = rn.second->localroot.get();
-                        while (!parents.empty())
-                        {
-                            if (LocalNode* child = ln->findChildWithSyncedNodeHandle(parents.back().first))
-                            {
-                                parents.pop_back();
-                                ln = child;
-                                auto e =  ln->isExcluded();
-                                if (e < 0)
-                                {
-                                    *nodeIsDefinitelyExcluded = true;
-                                    break;
-                                }
-                                else if (e == 0)
-                                {
-                                    // indeterminate - so, not for-sure excluded
-                                    break;
-                                }
-                            }
-                            else
-                            {
-                                // we might not have created this level yet, or the node might be excluded
-                                // best estimate is by checking exclusion by name
-                                // perhaps one day we might reuse syncedNodeHandle for excluded nodes so the lookup above would work either way
-                                *nodeIsDefinitelyExcluded = 0 > ln->isExcluded(RemotePath(parents.back().second), n->type, n->size);
-                                // we can't reliably delve further either way
-                                break;
-                            }
-                        }
-                    }
+                        *nodeIsDefinitelyExcluded = isDefinitelyExcluded(rn, n);
                 }
             }
         }
@@ -8653,26 +8611,6 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         return true;
     }
     return false;
-}
-
-RemotePath Syncs::lookupCloudNodePath(NodeHandle handle)
-{
-    // Sanity.
-    assert(onSyncThread());
-
-    // No need to look up an undefined handle.
-    if (handle.isUndef())
-        return RemotePath();
-
-    // Gain exclusive access to the remote node tree.
-    lock_guard<mutex> guard(mClient.nodeTreeMutex);
-
-    // Locate the node corresponding to this handle.
-    if (const auto* node = mClient.nodeByHandle(handle))
-        return node->displaypath();
-
-    // Couldn't locate the node.
-    return RemotePath();
 }
 
 bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
@@ -8693,6 +8631,63 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
         return true;
     }
     return false;
+}
+
+bool Syncs::isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* child)
+{
+    // Make sure we're on the sync thread.
+    assert(onSyncThread());
+
+    // Make sure we're looking at the latest version of child.
+    child = child->latestFileVersion();
+
+    // Sanity.
+    assert(child->isbelow(root.first));
+
+    // Determine the trail from root to child.
+    vector<pair<NodeHandle, string>> trail;
+
+    for (auto* node = child; node != root.first; node = node->parent)
+        trail.emplace_back(node->nodeHandle(), node->displayname());
+
+    // Determine whether any step from root to child is definitely excluded.
+    auto* parent = root.second->localroot.get();
+    auto i = trail.crbegin();
+    auto j = trail.crend();
+
+    for ( ; i != j; ++i)
+    {
+        // Does this node on the trail have a local node?
+        auto* node = parent->findChildWithSyncedNodeHandle(i->first);
+
+        // No node so we'll have to check by remote path.
+        if (!node)
+            break;
+
+        // Name doesn't match so we'll have to check by remote path.
+        if (node->getCloudName() != i->second)
+            break;
+
+        // Children are definitely excluded if their parent is.
+        if (node->isExcluded() < 0)
+            return true;
+
+        // Children are considered included if their parent's state is indeterminate.
+        if (node->isExcluded() < 1)
+            return false;
+
+        // Node's included so check the next step along the trail.
+        parent = node;
+    }
+
+    // Compute relative path from last parent to child.
+    RemotePath cloudPath;
+
+    for ( ; i != j; ++i)
+        cloudPath.appendWithSeparator(i->second, false);
+
+    // Would the child definitely be excluded?
+    return parent->isExcluded(cloudPath, child->type, child->size) < 0;
 }
 
 Sync* Syncs::syncContainingPath(const LocalPath& path, bool includePaused)

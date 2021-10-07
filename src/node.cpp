@@ -2111,6 +2111,11 @@ string LocalNode::getCloudPath() const
     return path;
 }
 
+string LocalNode::getCloudName() const
+{
+    return localname.toName(*sync->syncs.fsaccess);
+}
+
 // locate child by localname or slocalname
 LocalNode* LocalNode::childbyname(LocalPath* localname)
 {
