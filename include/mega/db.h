@@ -74,6 +74,7 @@ public:
     virtual bool getChildrenHandlesFromNode(NodeHandle node, std::vector<NodeHandle>& nodes) = 0;
     virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
     virtual NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile) = 0;
+    virtual bool getFavouritesNodeHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
     virtual int getNumberOfChildrenFromNode(NodeHandle parentHandle) = 0;
     virtual bool isNodesOnDemandDb() = 0;
     virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;

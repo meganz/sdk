@@ -5372,7 +5372,8 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(nh));
     ASSERT_TRUE(!!folderA);
 
-    nh = createFolder(0, "sub-folder-A", folderA.get());
+    std::string subFolder = "sub-folder-A";
+    nh = createFolder(0, subFolder.c_str(), folderA.get());
     ASSERT_NE(nh, UNDEF);
     unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(nh));
     ASSERT_TRUE(!!subFolderA);
@@ -5394,7 +5395,7 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     err = synchronousGetFavourites(0, nullptr, 1);
     ASSERT_EQ(mMegaFavNodeList->size(), 1u) << "synchronousGetFavourites failed...";
     unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
-    ASSERT_EQ(favNode->getName(), UPFILE) << "synchronousGetFavourites failed with node passed nullptr";
+    ASSERT_EQ(favNode->getName(), subFolder) << "synchronousGetFavourites failed with node passed nullptr";
 }
 
 TEST_F(SdkTest, DISABLED_SdkDeviceNames)

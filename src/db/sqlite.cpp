@@ -148,7 +148,7 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
         return nullptr;
     }
 
-    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, type int, size int64, share int, decrypted int, node BLOB NOT NULL)";
+    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, type int, size int64, share int, decrypted int, fav int, node BLOB NOT NULL)";
     result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -678,6 +678,37 @@ bool SqliteDbTable::getNodesByName(const std::string &name, std::map<mega::NodeH
     return result == SQLITE_DONE ? true : false;
 }
 
+
+bool SqliteDbTable::getFavouritesNodeHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle> &nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    sqlite3_stmt *stmt;
+    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle, fav) AS (SELECT nodehandle, parenthandle, fav "
+                           "FROM nodes WHERE parenthandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle, A.fav "
+                           "FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.parenthandle = E.nodehandle)) SELECT * "
+                           "FROM nodesCTE where fav = 1;";
+
+    if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
+        {
+            while (sqlite3_step(stmt) == SQLITE_ROW && (nodes.size() < count || count == 0))
+            {
+                nodes.push_back(NodeHandle().set6byte(sqlite3_column_int64(stmt, 0)));
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
 int SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
     if (!db)
@@ -972,7 +1003,7 @@ bool SqliteDbTable::put(Node *node)
     checkTransaction();
 
     sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, name, fingerprint, origFingerprint, type, size, share, decrypted, node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, name, fingerprint, origFingerprint, type, size, share, decrypted, fav, node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         string nodeSerialized;
@@ -1003,7 +1034,10 @@ bool SqliteDbTable::put(Node *node)
         sqlite3_bind_int(stmt, 8, shareType);
 
         sqlite3_bind_int(stmt, 9, !node->attrstring);
-        sqlite3_bind_blob(stmt, 10, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        nameid favId = AttrMap::string2nameid("fav");
+        bool fav = (node->attrs.map.find(favId) != node->attrs.map.end());
+        sqlite3_bind_int(stmt, 10, fav);
+        sqlite3_bind_blob(stmt, 11, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
 
         if (sqlite3_step(stmt) == SQLITE_DONE)
         {

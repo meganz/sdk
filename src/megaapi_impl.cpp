@@ -20356,8 +20356,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (type == MegaApi::NODE_ATTR_FAV)
             {
-                // TODO nodes on Demand implement FavouriteProcessor
-                //int count = request->getNumDetails();
+                int count = request->getNumDetails();
                 MegaHandle folderHandle = request->getNodeHandle();
                 Node *node = nullptr;
                 if (!ISUNDEF(folderHandle))
@@ -20379,10 +20378,23 @@ void MegaApiImpl::sendPendingRequests()
                     node = client->nodeByHandle(client->rootnodes[0]);
                 }
 
-                // TODO nodes on Demand implement FavouriteProcessor
-//                FavouriteProcessor processor(count);
-//                processTree(node, &processor);
-//                request->setMegaHandleList(processor.getHandles());
+                // Check if 'node' is favourite, DB query starts at 'node' children
+                std::vector<NodeHandle> favouriteNodes;
+                nameid nid = AttrMap::string2nameid("fav");
+                auto attrMapIterator = node->attrs.map.find(nid);
+                if (attrMapIterator != node->attrs.map.end() && attrMapIterator->second == "1")
+                {
+                    favouriteNodes.push_back(node->nodeHandle());
+                }
+
+                client->sctable->getFavouritesNodeHandles(node->nodeHandle(), count, favouriteNodes);
+                std::vector<handle> handles;
+                for (const NodeHandle& nodeHandle : favouriteNodes)
+                {
+                    handles.push_back(nodeHandle.as8byte());
+                }
+
+                request->setMegaHandleList(handles);
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
