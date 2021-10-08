@@ -8390,9 +8390,10 @@ void MegaClient::stringhash(const char* s, byte* hash, SymmCipher* cipher)
 {
     int t;
 
-    t = static_cast<int>(strlen(s) & - SymmCipher::BLOCKSIZE);
+    const size_t strLen = strlen(s);
+    t = static_cast<int>(strLen & - SymmCipher::BLOCKSIZE);
 
-    strncpy((char*)hash, s + t, SymmCipher::BLOCKSIZE);
+    memcpy(hash, s + t, std::min<size_t>(strLen,SymmCipher::BLOCKSIZE));
 
     while (t)
     {
@@ -8411,7 +8412,7 @@ void MegaClient::stringhash(const char* s, byte* hash, SymmCipher* cipher)
 // (transforms s to lowercase)
 uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 {
-    byte hash[SymmCipher::KEYLENGTH];
+    byte hash[SymmCipher::KEYLENGTH]={};
 
     tolower_string(*s);
     stringhash(s->c_str(), hash, c);
