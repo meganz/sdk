@@ -3874,6 +3874,19 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_TRUE(clientA3.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
+    // Avoid races between clients.
+    {
+        auto path = clientA1.fsBasePath / ".megaignore";
+
+        // Create bare ignore file.
+        ASSERT_TRUE(createDataFile(path, "#"));
+
+        // Upload ignore file to each sync root.
+        ASSERT_TRUE(clientA1.uploadFile(path, "/mega_test_sync/f"));
+        ASSERT_TRUE(clientA1.uploadFile(path, "/mega_test_sync/f/f_0"));
+        ASSERT_TRUE(clientA1.uploadFile(path, "/mega_test_sync/f/f_2"));
+    }
+
     // set up sync for A1 and A2, it should build matching local folders
     handle backupId11 = clientA1.setupSync_mainthread("sync1", "f/f_0");
     ASSERT_NE(backupId11, UNDEF);
@@ -3888,14 +3901,29 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2, &clientA3);
     clientA1.logcb = clientA2.logcb = clientA3.logcb = true;
 
+    // Create models.
+    Model modelF;
+    Model modelF0;
+    Model modelF2;
+
+    // f
+    modelF.root->addkid(modelF.buildModelSubdirs("f", 3, 3, 0));
+    modelF.ensureLocalDebrisTmpLock("f");
+
+    // f_0
+    modelF0.root->addkid(modelF.findnode("f/f_0")->clone());
+    modelF0.ensureLocalDebrisTmpLock("f_0");
+
+    // f_2
+    modelF2.root->addkid(modelF.findnode("f/f_2")->clone());
+    modelF2.ensureLocalDebrisTmpLock("f_2");
+
     // check everything matches (model has expected state of remote and local)
-    Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f/f_0"), backupId11));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f/f_2"), backupId12));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_0"), backupId21));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_2"), backupId22));
-    ASSERT_TRUE(clientA3.confirmModel_mainthread(model.findnode("f"), backupId31));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(modelF0.findnode("f_0"), backupId11));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(modelF2.findnode("f_2"), backupId12));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(modelF0.findnode("f_0"), backupId21));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(modelF2.findnode("f_2"), backupId22));
+    ASSERT_TRUE(clientA3.confirmModel_mainthread(modelF.findnode("f"), backupId31));
 
     LOG_debug << "----- making sync change to test, now -----";
     clientA1.received_node_actionpackets = false;
@@ -3918,13 +3946,16 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     // let them catch up
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2, &clientA3);
 
+    // Update models.
+    modelF.movenode("f/f_0/f_0_1", "f/f_2/f_2_1/f_2_1_0");
+    modelF2.findnode("f_2/f_2_1/f_2_1_0")->addkid(modelF0.removenode("f_0/f_0_1"));
+
     // check everything matches (model has expected state of remote and local)
-    ASSERT_TRUE(model.movenode("f/f_0/f_0_1", "f/f_2/f_2_1/f_2_1_0"));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f/f_0"), backupId11));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f/f_2"), backupId12));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_0"), backupId21));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_2"), backupId22));
-    ASSERT_TRUE(clientA3.confirmModel_mainthread(model.findnode("f"), backupId31));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(modelF0.findnode("f_0"), backupId11));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(modelF2.findnode("f_2"), backupId12));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(modelF0.findnode("f_0"), backupId21));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(modelF2.findnode("f_2"), backupId22));
+    ASSERT_TRUE(clientA3.confirmModel_mainthread(modelF.findnode("f"), backupId31));
 }
 
 TEST_F(SyncTest, BasicSync_RenameLocalFile)
@@ -8763,6 +8794,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     static set<string> tests = {
         // investigating why this one fails sometimes in jenkins MR jobs
         //"internal_backup_delete_down_self_file_steady"
+        "external_backup_delete_down_other_file_steady"
     }; // tests
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
@@ -11206,20 +11238,20 @@ TEST_F(LocalToCloudFilterFixture, ExcludedIgnoreFile)
     RemoteNodeModel remoteTree;
 
     // Populate local filesystem.
-    localFS.addfile(".megaignore", "-:.megaignore");
+    localFS.addfile(".megaignore", "-N:f\n-:.megaignore");
     localFS.addfile("d/.megaignore", "-:f");
     localFS.addfile("d/f");
     localFS.addfile("d/g");
     localFS.addfile("e/.megaignore", "-:g");
     localFS.addfile("e/f");
     localFS.addfile("e/g");
+    localFS.addfile("f/.megaignore", "#");
     localFS.generate(root(*cu) / "root");
 
     remoteTree = localFS;
 
     // Excluded by /.megaignore.
-    remoteTree.removenode("d/.megaignore");
-    remoteTree.removenode("e/.megaignore");
+    remoteTree.removenode("f");
 
     // Excluded by /d/.megaignore.
     remoteTree.removenode("d/f");
@@ -11248,8 +11280,7 @@ TEST_F(LocalToCloudFilterFixture, ExcludedIgnoreFile)
     fs::remove(root(*cu) / "root" / ".megaignore");
 
     // Which will cause these to be uploaded.
-    remoteTree.addfile("d/.megaignore", "-:f");
-    remoteTree.addfile("e/.megaignore", "-:g");
+    remoteTree.addfile("f/.megaignore", "#");
 
     // Wait for the sync to complete.
     waitOnSyncs(cu.get());
@@ -11797,9 +11828,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedUpHierarchy)
 
     // Move 2/0/.megaignore to 2/.megaignore.
     localFS.movenode("2/0/.megaignore", "2");
-
-    // 2/0/.megaignore will remain where it is.
-    remoteTree.copynode("2/0/.megaignore", "2/.megaignore");
+    remoteTree.movenode("2/0/.megaignore", "2");
 
     fs::rename(root(*cu) / "root" / "2" / "0" / ".megaignore",
                root(*cu) / "root" / "2" / ".megaignore");
@@ -12625,7 +12654,8 @@ TEST_F(CloudToLocalFilterFixture, ExcludedIgnoreFile)
         // Populate filesystem.
         model.addfile("0/.megaignore", "-:f");
         model.addfile("0/f");
-        model.addfile(".megaignore", "-:.megaignore");
+        model.addfile("1/.megaignore", "#");
+        model.addfile(".megaignore", "-:1\n-:.megaignore");
         model.generate(lRoot);
 
         // Create directories.
@@ -12641,9 +12671,10 @@ TEST_F(CloudToLocalFilterFixture, ExcludedIgnoreFile)
     LocalFSModel localFS;
     RemoteNodeModel remoteTree;
 
-    // Local model should exclude 0/.megaignore.
+    // Local model should exclude /0/f and /1.
     localFS = model;
-    localFS.removenode("0/.megaignore");
+    localFS.removenode("0/f");
+    localFS.removenode("1");
 
     // Remote model should be unchanged.
     remoteTree = model;
@@ -12669,17 +12700,14 @@ TEST_F(CloudToLocalFilterFixture, ExcludedIgnoreFile)
     {
         ASSERT_TRUE(cd->login_fetchnodes());
 
-        // Should allow download of 0/.megaignore.
+        // Should allow download of 1.
         localFS.removenode(".megaignore");
-        localFS.addfile("0/.megaignore", "-:f");
         remoteTree.removenode(".megaignore");
 
         ASSERT_TRUE(cd->deleteremote("x/.megaignore"));
 
-        // Shouldn't be propagated due to above.
-        remoteTree.removenode("0/f");
+        localFS.addfile("1/.megaignore", "#");
 
-        ASSERT_TRUE(cd->deleteremote("x/0/f"));
         cd.reset();
     }
 

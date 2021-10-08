@@ -2782,18 +2782,12 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
     if (type == TYPE_UNKNOWN)
         return ES_EXCLUDED;
 
-    // Tracks whether the child is our own ignore file.
-    auto isIgnoreFile = false;
-
-    // Is the child a file?
-    if (type == FILENODE)
-    {
-        // Is the child our ignore file?
-        isIgnoreFile = path == IGNORE_FILE_NAME;
-    }
+    // Ignore files are only excluded if one of their parents is.
+    if (type == FILENODE && path == IGNORE_FILE_NAME)
+        return ES_INCLUDED;
 
     // We can't know the child's state unless our filters are current.
-    if (mWaitingForIgnoreFileLoad && !isIgnoreFile)
+    if (mWaitingForIgnoreFileLoad)
         return ES_UNKNOWN;
 
     // Computed cloud name and relative cloud path.
@@ -2826,17 +2820,9 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
     // Does the final path component represent a file?
     if (type == FILENODE)
     {
-        // Does it represent this node's ignore file?
-        if (namePath.second == IGNORE_FILE_NAME)
-        {
-            // Then start the lookup from our parent so that the ignore file
-            // isn't subject to its own rules.
-            node = parent;
-
-            // If we're the root then the ignore file must be included.
-            if (!node)
-                return ES_INCLUDED;
-        }
+        // Ignore files are only exluded if one of their parents is.
+        if (namePath.first == IGNORE_FILE_NAME)
+            return ES_INCLUDED;
 
         // Is the file excluded by any size filters?
         if (node->isExcluded(namePath, size))
