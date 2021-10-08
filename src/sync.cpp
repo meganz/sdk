@@ -5923,11 +5923,11 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         return true;
 
     // Has it changed?
-    if (!row.syncNode->ignoreFileChanged(row.fsNode->fingerprint))
+    if (!parentRow.syncNode->mFilterChain.changed(row.fsNode->fingerprint))
         return true;
 
     // If so, make sure we load its filters.
-    row.syncNode->ignoreFileLoad(fullPath.localPath);
+    parentRow.syncNode->loadFilters(fullPath.localPath);
 
     // Let the parent know its rules have changed.
     parentRow.ignoreFileChanging();
@@ -6069,7 +6069,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     if (row.syncNode->isIgnoreFile())
     {
         // Then make sure the parent's filters are cleared.
-        row.syncNode->ignoreFileRemoved();
+        parentRow.syncNode->clearFilters();
     }
 
     // deletes itself and subtree, queues db record removal
@@ -6088,10 +6088,10 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     if (row.syncNode->isIgnoreFile())
     {
         // Has the ignore file changed?
-        if (row.syncNode->ignoreFileChanged(row.fsNode->fingerprint))
+        if (parentRow.syncNode->mFilterChain.changed(row.fsNode->fingerprint))
         {
             // Then reload the filters.
-            row.syncNode->ignoreFileLoad(fullPath.localPath);
+            parentRow.syncNode->loadFilters(fullPath.localPath);
 
             // Make sure the ignore file is processed before other rows.
             parentRow.ignoreFileChanging();
@@ -6323,7 +6323,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 if (row.syncNode->isIgnoreFile())
                 {
                     // Then signal that it's downloading.
-                    row.syncNode->ignoreFileDownloading();
+                    parentRow.syncNode->setWaitingForIgnoreFileLoad(true);
                 }
             }
             else if (row.syncNode->transferSP->wasTerminated)
@@ -6356,7 +6356,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     if (row.syncNode->isIgnoreFile())
                     {
                         // Then load the filters.
-                        row.syncNode->ignoreFileLoad(fullPath.localPath);
+                        parentRow.syncNode->loadFilters(fullPath.localPath);
                     }
                 }
                 else if (fsAccess.transient_error)

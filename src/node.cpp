@@ -2732,39 +2732,6 @@ bool LocalNode::waitingForIgnoreFileLoad() const
     return false;
 }
 
-bool LocalNode::ignoreFileChanged(const FileFingerprint& fingerprint) const
-{
-    // Only meaningful for ignore files.
-    assert(mIsIgnoreFile);
-
-    return parent->mFilterChain.changed(fingerprint);
-}
-
-void LocalNode::ignoreFileDownloading()
-{
-    // Only meaningful for ignore files.
-    assert(mIsIgnoreFile);
-
-    // Let the parent know it has a pending load.
-    parent->setWaitingForIgnoreFileLoad(true);
-}
-
-bool LocalNode::ignoreFileLoad(const LocalPath& path)
-{
-    // Only meaningful for ignore files.
-    assert(mIsIgnoreFile);
-
-    return parent->loadFilters(path);
-}
-
-void LocalNode::ignoreFileRemoved()
-{
-    // Only meaningful for ignore files.
-    assert(mIsIgnoreFile);
-
-    parent->clearFilters();
-}
-
 // Query whether a file is excluded by this node or one of its parents.
 template<typename PathType>
 typename std::enable_if<IsPath<PathType>::value, ExclusionState>::type

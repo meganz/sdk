@@ -696,10 +696,10 @@ struct MEGA_API LocalNode : public Cacheable
     // Create a watch for this node if necessary.
     bool watch(const LocalPath& path, handle fsid);
 
-private:
     // Filter rules applicable below this node.
     FilterChain mFilterChain;
 
+private:
     struct
     {
         // The node's exclusion state.
@@ -712,12 +712,6 @@ private:
         bool mWaitingForIgnoreFileLoad : 1;
     };
 
-    // Clears the filters defined by this node.
-    void clearFilters();
-
-    // Load filters from the ignore file identified by path.
-    bool loadFilters(const LocalPath& path);
-
     // Query whether a file is excluded by a name filter.
     bool isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const;
 
@@ -727,24 +721,18 @@ private:
     // Signal that this node and its children must recompute their exclusion state.
     void setRecomputeExclusionState();
 
+public:
+    // Clears the filters defined by this node.
+    void clearFilters();
+
+    // Load filters from the ignore file identified by path.
+    bool loadFilters(const LocalPath& path);
+
     // Signal whether this node needs to load its ignore file.
     void setWaitingForIgnoreFileLoad(bool waiting);
 
-public:
     // Query whether this node needs to load its ignore file.
     bool waitingForIgnoreFileLoad() const;
-
-    // Has this ignore file changed?
-    bool ignoreFileChanged(const FileFingerprint& fingerprint) const;
-
-    // Load this ignore file.
-    bool ignoreFileLoad(const LocalPath& path);
-
-    // Signal that this ignore file is downloading.
-    void ignoreFileDownloading();
-
-    // Signal that this ignore file has been removed.
-    void ignoreFileRemoved();
 
     // Query whether a file is excluded by this node or one of its parents.
     template<typename PathType>
