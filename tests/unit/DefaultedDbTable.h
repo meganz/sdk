@@ -95,6 +95,10 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
+    bool getFavouritesNodeHandles(mega::NodeHandle, uint32_t, std::vector<mega::NodeHandle>&) override
+    {
+        return false;
+    }
     mega::NodeCounter getNodeCounter(mega::NodeHandle, bool) override
     {
         mega::NodeCounter nc;

@@ -559,59 +559,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
-class node_map
-{
-public:
-    typedef map<NodeHandle, Node*>::iterator iterator;
-    typedef map<NodeHandle, Node*>::const_iterator const_iterator;
-    Node*& operator[](NodeHandle h)
-    {
-        return mNodes[h];
-    }
-
-    iterator begin() noexcept
-    {
-        return mNodes.begin();
-    }
-
-    const_iterator begin() const noexcept
-    {
-        return mNodes.begin();
-    }
-
-    iterator end() noexcept
-    {
-        return mNodes.end();
-    }
-
-    const_iterator end() const noexcept
-    {
-        return mNodes.end();
-    }
-
-    size_t size() const
-    {
-        return mNodes.size();
-    }
-
-    const_iterator find(NodeHandle h) const
-    {
-        return mNodes.find(h);
-    }
-
-    void clear()
-    {
-        mNodes.clear();
-    }
-
-    void erase(NodeHandle h)
-    {
-        mNodes.erase(h);
-    }
-
-private:
-    map<NodeHandle, Node*> mNodes;
-};
+typedef map<NodeHandle, Node*> node_map;
 
 struct NodeCounter
 {

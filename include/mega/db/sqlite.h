@@ -35,9 +35,18 @@ class MEGA_API SqliteDbTable : public DbTable
     FileSystemAccess *fsaccess;
 
 public:
-    void rewind();
-    bool next(uint32_t*, string*);
-    bool get(uint32_t, string*);
+    void rewind() override;
+    bool next(uint32_t*, string*) override;
+    bool get(uint32_t, string*) override;
+    bool put(uint32_t, char*, unsigned) override;
+    bool del(uint32_t) override;
+    void truncate() override;
+    void begin() override;
+    void commit() override;
+    void abort() override;
+    void remove() override;
+
+    // Access to table `nodes`
     bool getNode(mega::NodeHandle nodehandle, NodeSerialized& nodeSerialized) override;
     bool getNodes(std::vector<NodeSerialized>& nodes) override;
     bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
@@ -48,24 +57,20 @@ public:
     bool getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) override;
     bool getChildrenHandlesFromNode(mega::NodeHandle parentHandle, std::vector<mega::NodeHandle> &children) override;
     bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
+    bool getFavouritesNodeHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     int getNumberOfChildrenFromNode(mega::NodeHandle parentHandle) override;
-    NodeCounter getNodeCounter(mega::NodeHandle node, bool isParentFile) override;
+    NodeCounter getNodeCounter(mega::NodeHandle node, bool parentIsFile) override;
     bool isNodesOnDemandDb() override;
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor) override;
     bool isFileNode(NodeHandle node) override;
     mega::NodeHandle getFirstAncestor(mega::NodeHandle node) override;
     bool isNodeInDB(mega::NodeHandle node) override;
     uint64_t getNumberOfNodes() override;
-    bool put(uint32_t, char*, unsigned);
     bool put(Node* node) override;
-    bool del(uint32_t) override;
     bool del(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
-    void truncate() override;
-    void begin() override;
-    void commit() override;
-    void abort() override;
-    void remove() override;
+
+    // Access to table `vars`
     std::string getVar(const std::string& name) override;
     bool setVar(const std::string& name, const std::string& value) override;
 

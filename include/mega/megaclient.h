@@ -888,14 +888,17 @@ public:
     // get the handle of the older version for a NewNode
     handle getovhandle(Node *parent, string *name);
 
-    // Load from db node children
+    // Load from db node children at first level
     node_list getChildren(Node *parent);
 
     // Get number of children from a node
     int getNumberOfChildren(NodeHandle parentHandle);
 
-    // Get sub tree info (files, folders, size, version)
-    NodeCounter getTreeInfoFromNode(NodeHandle node, bool isParentFileNode = false);
+    // Get sub tree info from a file (size and version)
+    NodeCounter getTreeInfoFromFile(NodeHandle nodehandle);
+
+    // Get sub tree info from a folder (folders, files and size)
+    NodeCounter getTreeInfoFromFolder(NodeHandle nodehandle);
 
     // use HTTPS for all communications
     bool usehttps;
@@ -974,9 +977,9 @@ public:
     // stats id
     std::string statsid;
 
-    static string STORAGE_NAME;
-    static string FOLDERS_NAME;
-    static string FILES_NAME;
+    static string STORAGE_SIZE;
+    static string FOLDERS_COUNT;
+    static string FILES_COUNT;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
@@ -1432,9 +1435,10 @@ public:
     // remove node subtree
     void deltree(handle);
 
+    // If it's necessary, load nodes from data base
     Node* nodeByHandle(NodeHandle);
     Node* nodeByPath(const char* path, Node* node = nullptr);
-    Node* nodeByHandleInRam(NodeHandle);
+    Node* nodeByHandleInRam(NodeHandle) const;
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
@@ -1626,9 +1630,8 @@ public:
     dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    //int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
-    void cleanNodesFromBd();
+    void cleanNodesFromDb();
 
     void readok(JSON*);
     void readokelement(JSON*);

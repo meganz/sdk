@@ -67,9 +67,9 @@ const int MegaClient::MAXQUEUEDFA = 30;
 const int MegaClient::MAXPUTFA = 10;
 
 // Key in DB table `var`
-string MegaClient::STORAGE_NAME = "STORAGE";
-string MegaClient::FOLDERS_NAME = "FOLDERS";
-string MegaClient::FILES_NAME = "FILES";
+string MegaClient::STORAGE_SIZE = "STORAGE";
+string MegaClient::FOLDERS_COUNT = "FOLDERS";
+string MegaClient::FILES_COUNT = "FILES";
 
 #ifdef ENABLE_SYNC
 // hearbeat frequency
@@ -5246,9 +5246,9 @@ void MegaClient::updatesc()
                 }
             }
 
-            sctable->setVar(STORAGE_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
-            sctable->setVar(FILES_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
-            sctable->setVar(FOLDERS_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
+            sctable->setVar(STORAGE_SIZE, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
+            sctable->setVar(FILES_COUNT, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
+            sctable->setVar(FOLDERS_COUNT, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
         }
 
         if (complete)
@@ -8829,9 +8829,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
     if (!notify)
     {
-        sctable->setVar(STORAGE_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
-        sctable->setVar(FILES_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
-        sctable->setVar(FOLDERS_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
+        sctable->setVar(STORAGE_SIZE, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
+        sctable->setVar(FILES_COUNT, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
+        sctable->setVar(FOLDERS_COUNT, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
     }
 
     mergenewshares(notify);
@@ -8839,7 +8839,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     return j->leavearray();
 }
 
-void MegaClient::cleanNodesFromBd()
+void MegaClient::cleanNodesFromDb()
 {
     sctable->removeNodes();
 }
@@ -9272,6 +9272,7 @@ void MegaClient::procph(JSON *j)
                         if (n)
                         {
                             n->setpubliclink(ph, cts, ets, takendown, authKey);
+                            // In this, case we update a node in data base (no new nodes is added)
                             sctable->put(n);
                         }
                         else
@@ -11530,6 +11531,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                     }
                 }
 
+                // In this, case we update a node in data base (No new nodes is added)
                 sctable->put(n);
             }
             else
@@ -12220,9 +12222,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
         }
 
         //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
-        std::string storageString = sctable->getVar(STORAGE_NAME);
-        std::string filesString = sctable->getVar(FILES_NAME);
-        std::string foldersString = sctable->getVar(FOLDERS_NAME);
+        std::string storageString = sctable->getVar(STORAGE_SIZE);
+        std::string filesString = sctable->getVar(FILES_COUNT);
+        std::string foldersString = sctable->getVar(FOLDERS_COUNT);
         mNodeCounters[rootnodes[ROOTNODE]].storage = atoll(storageString.c_str());
         mNodeCounters[rootnodes[ROOTNODE]].files = atoi(filesString.c_str());
         mNodeCounters[rootnodes[ROOTNODE]].folders = atoi(foldersString.c_str());
@@ -12234,6 +12236,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     WAIT_CLASS::bumpds();
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
+    // Used to update to nodes on demand cache
     bool necessaryCommit = false;
 
     while (hasNext)
@@ -12253,6 +12256,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 if ((n = Node::unserialize(this, &data, &dp)))
                 {
                    necessaryCommit = true;
+                   // Add nodes from old data base structure to nodes on demand structure
+                   // When all nodes are loaded we force a commit
                    sctable->put(n);
                    sctable->del(id);
                 }
@@ -16175,7 +16180,7 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
     return mFingerprints.nodebyfingerprint(fingerprint);
 }
 
-Node* MegaClient::nodeByHandleInRam(NodeHandle h)
+Node* MegaClient::nodeByHandleInRam(NodeHandle h) const
 {
     if (h == UNDEF)
     {
@@ -16655,7 +16660,7 @@ int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
     return sctable->getNumberOfChildrenFromNode(parentHandle);
 }
 
-NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle, bool isParentFileNode)
+NodeCounter MegaClient::getTreeInfoFromFile(NodeHandle nodehandle)
 {
     Node* node = nodeByHandleInRam(nodehandle);
     bool isFileNode = node ? (node->type == FILENODE) : sctable->isFileNode(nodehandle);
@@ -16664,7 +16669,15 @@ NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle, bool isParent
     NodeCounter nc;
     for (const NodeHandle &h : children)
     {
-        nc += getTreeInfoFromNode(h, isFileNode);
+        if (isFileNode)
+        {
+            nc += getTreeInfoFromFile(h);
+        }
+        else
+        {
+            // parent is file its children have to be files
+            assert(false);
+        }
     }
 
     if (node)
@@ -16673,21 +16686,51 @@ NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle, bool isParent
         {
             nc.files ++;
             nc.storage += node->size;
-            if (isParentFileNode)
-            {
-                nc.versions ++;
-                nc.versionStorage += node->size;
-            }
+            nc.versions ++;
+            nc.versionStorage += node->size;
         }
         else
         {
-            nc.folders ++;
-            assert(!isParentFileNode);
+           assert(false);
         }
     }
     else
     {
-        nc += sctable->getNodeCounter(nodehandle, isParentFileNode);
+        nc += sctable->getNodeCounter(nodehandle, true);
+    }
+
+    return nc;
+}
+
+NodeCounter MegaClient::getTreeInfoFromFolder(NodeHandle nodehandle)
+{
+    Node* node = nodeByHandleInRam(nodehandle);
+    bool isFileNode = node ? (node->type == FILENODE) : sctable->isFileNode(nodehandle);
+    std::vector<NodeHandle> children;
+    sctable->getChildrenHandlesFromNode(nodehandle, children);
+    NodeCounter nc;
+    for (const NodeHandle &h : children)
+    {
+        if (isFileNode)
+        {
+            nc += getTreeInfoFromFile(h);
+        }
+        else
+        {
+            nc += getTreeInfoFromFolder(h);
+        }
+    }
+
+    if (node)
+    {
+        if (node->type == FOLDERNODE)
+        {
+            nc.folders ++;
+        }
+    }
+    else
+    {
+        nc += sctable->getNodeCounter(nodehandle, false);
     }
 
     return nc;

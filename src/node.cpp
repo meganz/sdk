@@ -451,6 +451,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
             break;
         }
 
+        // Recovering nodes from DB, 'updateDb' is false. Nodes are updated and it isn't necessary to update in Db
         client->mergenewshare(newShare, false, n, false);
         if (numshares > 0)  // outshare/s
         {
@@ -1082,7 +1083,14 @@ bool Node::applykey()
 
 NodeCounter Node::subnodeCounts() const
 {
-    return client->getTreeInfoFromNode(nodeHandle());
+    if (type == FILENODE)
+    {
+        return client->getTreeInfoFromFile(nodeHandle());
+    }
+    else
+    {
+        return client->getTreeInfoFromFolder(nodeHandle());
+    }
 }
 
 // returns whether node was moved
@@ -1167,15 +1175,14 @@ bool Node::setparent(Node* p)
 
 const Node* Node::firstancestor() const
 {
-    if (parenthandle == UNDEF)
+    const Node* n = this;
+    while (n->parent != NULL)
     {
+        n = n->parent;
         return this;
     }
 
-    NodeHandle ancestorhandle = client->sctable->getFirstAncestor(NodeHandle().set6byte(parenthandle));
-
-    Node* node = client->nodeByHandle(ancestorhandle);
-    return (node != nullptr) ? node : this;
+    return n;
 }
 
 // returns 1 if n is under p, 0 otherwise

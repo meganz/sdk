@@ -10999,7 +10999,7 @@ MegaShareList *MegaApiImpl::getOutSharesOrPending(int order, bool pending)
 
     vector<Share *> shares;
     std::vector<NodeSerialized> nodesSerialized;
-    client->sctable->getNodesWithSharesOrLink(nodesSerialized, pending ? DbTable::ShareType_t::PENDING_SHARES : DbTable::ShareType_t::OUT_SHARES);
+    client->sctable->getNodesWithSharesOrLink(nodesSerialized, pending ? DbTable::ShareType_t::PENDING_OUTSHARES : DbTable::ShareType_t::OUT_SHARES);
     node_vector dp;
     node_vector nodes;
     for (const NodeSerialized& node : nodesSerialized)
@@ -12043,7 +12043,7 @@ long long MegaApiImpl::getSize(MegaNode *n)
         return 0;
     }
 
-    NodeCounter nodeCounter = client->getTreeInfoFromNode(NodeHandle().set6byte(n->getHandle()));
+    NodeCounter nodeCounter = client->getTreeInfoFromFolder(NodeHandle().set6byte(n->getHandle()));
     sdkMutex.unlock();
 
     return nodeCounter.storage;
@@ -20356,8 +20356,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (type == MegaApi::NODE_ATTR_FAV)
             {
-                // TODO nodes on Demand implement FavouriteProcessor
-                //int count = request->getNumDetails();
+                int count = request->getNumDetails();
                 MegaHandle folderHandle = request->getNodeHandle();
                 Node *node = nullptr;
                 if (!ISUNDEF(folderHandle))
@@ -20379,10 +20378,23 @@ void MegaApiImpl::sendPendingRequests()
                     node = client->nodeByHandle(client->rootnodes[0]);
                 }
 
-                // TODO nodes on Demand implement FavouriteProcessor
-//                FavouriteProcessor processor(count);
-//                processTree(node, &processor);
-//                request->setMegaHandleList(processor.getHandles());
+                // Check if 'node' is favourite, DB query starts at 'node' children
+                std::vector<NodeHandle> favouriteNodes;
+                nameid nid = AttrMap::string2nameid("fav");
+                auto attrMapIterator = node->attrs.map.find(nid);
+                if (attrMapIterator != node->attrs.map.end() && attrMapIterator->second == "1")
+                {
+                    favouriteNodes.push_back(node->nodeHandle());
+                }
+
+                client->sctable->getFavouritesNodeHandles(node->nodeHandle(), count, favouriteNodes);
+                std::vector<handle> handles;
+                for (const NodeHandle& nodeHandle : favouriteNodes)
+                {
+                    handles.push_back(nodeHandle.as8byte());
+                }
+
+                request->setMegaHandleList(handles);
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
@@ -22640,7 +22652,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            NodeCounter nc = client->getTreeInfoFromNode(node->nodeHandle(), false);
+            NodeCounter nc = client->getTreeInfoFromFolder(node->nodeHandle());
             std::unique_ptr<MegaFolderInfo> folderInfo = make_unique<MegaFolderInfoPrivate>((int)nc.files, (int)nc.folders - 1, (int)nc.versions, nc.storage, nc.versionStorage);
             request->setMegaFolderInfo(folderInfo.get());
 
