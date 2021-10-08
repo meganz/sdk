@@ -1006,6 +1006,7 @@ enum class SyncWaitReason {
     MoveNeedsDestinationNodeProcessing,           // stuck at move source node
     UpsyncNeedsTargetFolder,
     DownsyncNeedsTargetFolder,
+    DeleteOrMoveWaitingOnScanning,
     DeleteWaitingOnMoves,
     WatiingForFileToStopChanging,
     MovingDownloadToTarget,

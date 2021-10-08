@@ -1447,6 +1447,9 @@ public:
         PENDING = 3, // The sync engine is working, e.g: scanning local folders
         INACTIVE = 4, // Sync is not active. A state != ACTIVE should have been sent through '''sp'''
         UNKNOWN = 5, // Unknown status
+
+        // TODO: can this be added to the Backup Centre
+        STALLED = 6, // a folder is scan-blocked, or some contradictory changes occured between local and remote folders, user must pick one
     };
 
     CommandBackupPutHeartBeat(MegaClient* client, handle backupId, SPHBStatus status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)>);

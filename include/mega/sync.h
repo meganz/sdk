@@ -920,7 +920,6 @@ public:
 private:
 
     // for heartbeats
-    BackoffTimer btheartbeat;
     unique_ptr<BackupMonitor> mHeartBeatMonitor;
 
     // functions for internal use on-thread only
@@ -945,8 +944,8 @@ private:
     SymmCipher syncKey;
 
     // data structure with mutex to interchange stall info
-    SyncStallInfo stall;
-    mutable mutex stallMutex;
+    SyncStallInfo stallReport;
+    mutable mutex stallReportMutex;
 
     // When the node tree changes, this structure lets the sync code know which LocalNodes need to be flagged
     map<NodeHandle, bool> triggerHandles;
