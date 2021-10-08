@@ -7844,11 +7844,7 @@ bool Syncs::syncStallDetected(SyncStallInfo& si) const
     assert(!onSyncThread());
     lock_guard<mutex> g(stallReportMutex);
 
-    bool stalled =
-        !stallReport.cloud.empty() ||
-        !stallReport.local.empty();
-
-    if (stalled)
+    if (syncStallState)
     {
         si = stallReport;
         return true;
