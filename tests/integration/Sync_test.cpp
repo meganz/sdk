@@ -7982,6 +7982,7 @@ struct TwoWaySyncSymmetryCase
         {
             localModel.root->addkid(localModel.buildModelSubdirs("f", 2, 2, 2));
             localModel.root->addkid(localModel.buildModelSubdirs("outside", 2, 1, 1));
+            localModel.addfile("f/.megaignore", "#");
             localModel.addfile("f/file_older_1", "file_older_1");
             localModel.addfile("f/file_older_2", "file_older_2");
             localModel.addfile("f/file_newer_1", "file_newer_1");
@@ -8613,9 +8614,9 @@ struct TwoWaySyncSymmetryCase
         if (!initial) out() << "Checking setup state (should be no changes in twoway sync source): "<< name();
 
         // confirm source is unchanged after setup  (Two-way is not sending changes to the wrong side)
-        bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false, true); // todo: later enable debris checks
-        bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false, true); // todo: later enable debris checks
-        bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true, false, true); // todo: later enable debris checks
+        bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false, false); // todo: later enable debris checks
+        bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false, false); // todo: later enable debris checks
+        bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true, false, false); // todo: later enable debris checks
         EXPECT_EQ(localfs, localnode);
         EXPECT_EQ(localnode, remote);
         EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
@@ -8653,8 +8654,8 @@ struct TwoWaySyncSymmetryCase
 
         if (shouldDisableSync())
         {
-            bool lfs = client1().confirmModel(backupId, localModel.findnode("f"), localSyncRootPath(), true, false, true);
-            bool rnt = client1().confirmModel(backupId, remoteModel.findnode("f"), remoteSyncRoot(), false, true);
+            bool lfs = client1().confirmModel(backupId, localModel.findnode("f"), localSyncRootPath(), true, false, false);
+            bool rnt = client1().confirmModel(backupId, remoteModel.findnode("f"), remoteSyncRoot(), false, false);
 
             EXPECT_EQ(sync, nullptr) << "Sync isn't disabled: " << name();
             EXPECT_TRUE(lfs) << "Couldn't confirm LFS: " << name();
@@ -8669,9 +8670,9 @@ struct TwoWaySyncSymmetryCase
             EXPECT_NE(sync, (Sync*)nullptr);
             EXPECT_TRUE(sync && sync->state() == SYNC_ACTIVE);
 
-            bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false, true); // todo: later enable debris checks
-            bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false, true); // todo: later enable debris checks
-            bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true, false, true); // todo: later enable debris checks
+            bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false, false); // todo: later enable debris checks
+            bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false, false); // todo: later enable debris checks
+            bool remote = client1().confirmModel(backupId, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true, false, false); // todo: later enable debris checks
             EXPECT_EQ(localfs, localnode);
             EXPECT_EQ(localnode, remote);
             EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
@@ -8708,6 +8709,12 @@ void PrepareForSync(StandardClient& client)
 
     constexpr auto delta = std::chrono::seconds(3600);
 
+    // Initial ignore file.
+    auto ignoreFilePath = local / "f" / ".megaignore";
+
+    ASSERT_TRUE(createDataFile(ignoreFilePath, "#"));
+
+    ASSERT_TRUE(createDataFile(local / "f" / ".megaignore", "#"));
     ASSERT_TRUE(createDataFile(local / "f" / "file_older_1", "file_older_1", -delta));
     ASSERT_TRUE(createDataFile(local / "f" / "file_older_2", "file_older_2", -delta));
     ASSERT_TRUE(createDataFile(local / "f" / "file_newer_1", "file_newer_1", delta));
@@ -8716,6 +8723,10 @@ void PrepareForSync(StandardClient& client)
     auto* remote = client.drillchildnodebyname(client.gettestbasenode(), "twoway");
     ASSERT_NE(remote, nullptr);
 
+    // Upload initial ignore file.
+    ASSERT_TRUE(client.uploadFile(ignoreFilePath, remote));
+
+    // Upload initial sync contents.
     ASSERT_TRUE(client.uploadFolderTree(local, remote));
     ASSERT_TRUE(client.uploadFilesInTree(local, remote));
 }
@@ -8794,7 +8805,6 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     static set<string> tests = {
         // investigating why this one fails sometimes in jenkins MR jobs
         //"internal_backup_delete_down_self_file_steady"
-        "external_backup_delete_down_other_file_steady"
     }; // tests
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
