@@ -220,6 +220,7 @@ const string_vector DefaultFilterChain::mPredefinedNameExclusions = {
     "~*",
     ".*",
     "*~.*",
+    "*.crdownload",
     // Avoid trigraph interpretation: ??- is ~.
     "*.sb-????????""-??????",
     "*.tmp"
