@@ -7,7 +7,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the rules set forth in the Terms of Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -250,7 +250,7 @@ bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
             aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
             StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
         }
-    } catch (HashVerificationFilter::HashVerificationFailed e)
+    } catch (HashVerificationFilter::HashVerificationFailed const &e)
     {
         result->clear();
         LOG_err << "Failed AES-CCM decryption: " << e.GetWhat();
@@ -286,7 +286,7 @@ bool SymmCipher::gcm_encrypt_aad(const unsigned char *data, size_t datasize, con
         ef.ChannelPut(DEFAULT_CHANNEL, reinterpret_cast<const byte*>(data), datasize, true);
         ef.ChannelMessageEnd(DEFAULT_CHANNEL);
     }
-    catch (CryptoPP::Exception &e)
+    catch (CryptoPP::Exception const &e)
     {
         LOG_err << "Failed AES-GCM encryption with additional authenticated data: " << e.GetWhat();
         return false;
@@ -305,7 +305,7 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     aesgcm_d.Resynchronize(iv, ivlen);
     try {
         StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
-    } catch (HashVerificationFilter::HashVerificationFailed e)
+    } catch (HashVerificationFilter::HashVerificationFailed const &e)
     {
         result->clear();
         LOG_err << "Failed AES-GCM decryption: " << e.GetWhat();
@@ -369,7 +369,7 @@ bool SymmCipher::gcm_decrypt_aad(const byte *data, unsigned datalen,
         }
         df.Get((byte*)result, maxRetrievable);
     }
-    catch (CryptoPP::Exception &e)
+    catch (CryptoPP::Exception const &e)
     {
         LOG_err << "Failed AES-GCM decryption with additional authenticated data: " << e.GetWhat();
         return false;
