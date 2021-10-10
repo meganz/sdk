@@ -48,7 +48,7 @@ std::string getCurrentTimestamp()
     tt = system_clock::to_time_t ( currentTime );
     auto timeinfo = localtime (&tt);
     size_t timeStrSz = strftime (buffer, buffSz,"%H:%M:%S",timeinfo);
-    snprintf(buffer + timeStrSz , buffSz, ":%03d",(int)millis);
+    snprintf(buffer + timeStrSz , buffSz - timeStrSz, ":%03d",(int)millis);
 
     return std::string(buffer);
 }
