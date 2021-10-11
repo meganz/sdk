@@ -28,6 +28,8 @@ namespace mega {
 
 #ifdef ENABLE_SYNC
 
+static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
+
 HeartBeatBackupInfo::HeartBeatBackupInfo()
 {
 }
@@ -57,15 +59,6 @@ void HeartBeatBackupInfo::setLastSyncedItem(const handle &lastSyncedItem)
     if (mLastItemUpdated != lastSyncedItem)
     {
         mLastItemUpdated = lastSyncedItem;
-        updateLastActionTime();
-    }
-}
-
-void HeartBeatBackupInfo::setSPState(SPState state)
-{
-    if (mSPState != state)
-    {
-        mSPState = state;
         updateLastActionTime();
     }
 }
@@ -134,9 +127,17 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
         if (us.mSync->active() &&
            !us.mSync->syncPaused)
         {
-            if (us.mSync->localroot->scanRequired() ||
-                us.mSync->localroot->mightHaveMoves() ||
-                us.mSync->localroot->syncRequired())
+            if (us.syncs.syncStallState ||
+                us.mSync->localroot->scanBlocked >= TREE_DESCENDANT_FLAGGED)
+            {
+                status = CommandBackupPutHeartBeat::STALLED;
+            }
+            else if (us.mSync->localroot->scanRequired())
+            {
+                status = CommandBackupPutHeartBeat::PENDING; // = scanning
+            }
+            else if (us.mSync->localroot->mightHaveMoves() ||
+                     us.mSync->localroot->syncRequired())
             {
                 status = CommandBackupPutHeartBeat::SYNCING;
             }
@@ -182,7 +183,7 @@ BackupInfoSync::BackupInfoSync(const UnifiedSync &us, bool pauseDown, bool pause
            || !ISUNDEF(driveId));  // ... or it must have a valid drive-id
 }
 
-HeartBeatBackupInfo::SPState BackupInfoSync::calculatePauseActiveState(bool pauseDown, bool pauseUp)
+CommandBackupPut::SPState BackupInfoSync::calculatePauseActiveState(bool pauseDown, bool pauseUp)
 {
     if (pauseDown && pauseUp)
     {
@@ -200,15 +201,14 @@ HeartBeatBackupInfo::SPState BackupInfoSync::calculatePauseActiveState(bool paus
     return CommandBackupPut::ACTIVE;
 }
 
-HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(const UnifiedSync& us, bool pauseDown, bool pauseUp)
+CommandBackupPut::SPState BackupInfoSync::getSyncState(const UnifiedSync& us, bool pauseDown, bool pauseUp)
 {
-    SyncError error = us.mConfig.getError();
-    syncstate_t state = us.mSync ? us.mConfig.mRunningState : SYNC_FAILED;
-
-    return getSyncState(error, state, pauseDown, pauseUp);
+    return getSyncState(us.mConfig.getError(),
+                        us.mConfig.mRunningState,
+                        pauseDown, pauseUp);
 }
 
-HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(SyncError error, syncstate_t state, bool pauseDown, bool pauseUp)
+CommandBackupPut::SPState BackupInfoSync::getSyncState(SyncError error, syncstate_t state, bool pauseDown, bool pauseUp)
 {
     if (state == SYNC_DISABLED && error != NO_SYNC_ERROR)
     {
@@ -228,7 +228,7 @@ HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(SyncError error, syncs
     }
 }
 
-HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp)
+CommandBackupPut::SPState BackupInfoSync::getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp)
 {
     auto error = config.getError();
     if (!error)
@@ -342,10 +342,14 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 
     std::shared_ptr<HeartBeatSyncInfo> hbs = us.mNextHeartbeat;
 
-    if ( !hbs->mSending && (hbs->mModified
-         || m_time(nullptr) - hbs->lastBeat() > MAX_HEARBEAT_SECS_DELAY))
+    hbs->updateSPHBStatus(us); // might set mModified
+    auto elapsedSec = m_time(nullptr) - hbs->lastBeat();
+
+    if ( !hbs->mSending &&
+        (elapsedSec >= MAX_HEARBEAT_SECS_DELAY ||
+         (elapsedSec*10 >= FREQUENCY_HEARTBEAT_DS && hbs->mModified)))
     {
-        hbs->updateSPHBStatus(us);
+
         hbs->setLastBeat(m_time(nullptr));
 
         m_off_t inflightProgress = 0;

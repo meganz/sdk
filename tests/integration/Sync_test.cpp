@@ -9805,6 +9805,8 @@ TEST_F(SyncTest, RemoteReplaceFile)
     // Make sure everything made it to the cloud.
     ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
 
+    c.received_node_actionpackets = false;
+
     // Replace d/f with f.
     {
         StandardClient cr(TESTROOT, "cr");
@@ -9834,6 +9836,8 @@ TEST_F(SyncTest, RemoteReplaceFile)
         m.movetosynctrash("d/f", "");
         m.movenode("f", "d");
     }
+
+    ASSERT_TRUE(c.waitForNodesUpdated(30)) << " no actionpacket received in c";
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);

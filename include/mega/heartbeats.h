@@ -62,12 +62,7 @@ public:
     bool mModified = false;
     bool mSending = false;
 
-    using SPState = CommandBackupPut::SPState;
-    SPState spState() const { return mSPState; }
-    void setSPState(SPState state);
-
 protected:
-    SPState mSPState = CommandBackupPut::STATE_NOT_INITIALIZED;
     double mProgress = 0;
     bool mProgressInvalid = true;
 
@@ -123,16 +118,16 @@ public:
     BackupInfoSync(const UnifiedSync& us, bool pauseDown, bool pauseUp);
 
     static BackupType getSyncType(const SyncConfig& config);
-    static HeartBeatBackupInfo::SPState getSyncState (const UnifiedSync &, bool pauseDown, bool pauseUp);
-    static HeartBeatBackupInfo::SPState getSyncState(SyncError error, syncstate_t state, bool pauseDown, bool pauseUp);
-    static HeartBeatBackupInfo::SPState getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp);
+    static CommandBackupPut::SPState getSyncState (const UnifiedSync &, bool pauseDown, bool pauseUp);
+    static CommandBackupPut::SPState getSyncState(SyncError error, syncstate_t state, bool pauseDown, bool pauseUp);
+    static CommandBackupPut::SPState getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp);
     static handle getDriveId(const UnifiedSync&);
 
     bool operator==(const BackupInfoSync& o) const;
     bool operator!=(const BackupInfoSync& o) const;
 
 private:
-    static HeartBeatBackupInfo::SPState calculatePauseActiveState(bool pauseDown, bool pauseUp);
+    static CommandBackupPut::SPState calculatePauseActiveState(bool pauseDown, bool pauseUp);
 };
 
 

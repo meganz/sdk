@@ -234,6 +234,50 @@ const char* errorstring(error e)
     }
 }
 
+
+struct ConsoleLock
+{
+    static std::recursive_mutex outputlock;
+    std::ostream& os;
+    bool locking = false;
+    inline ConsoleLock(std::ostream& o)
+        : os(o), locking(true)
+    {
+        outputlock.lock();
+    }
+    ConsoleLock(ConsoleLock&& o)
+        : os(o.os), locking(o.locking)
+    {
+        o.locking = false;
+    }
+    ~ConsoleLock()
+    {
+        if (locking)
+        {
+            outputlock.unlock();
+        }
+    }
+
+    template<class T>
+    std::ostream& operator<<(T&& arg)
+    {
+        return os << std::forward<T>(arg);
+    }
+};
+
+std::recursive_mutex ConsoleLock::outputlock;
+
+ConsoleLock conlock(std::ostream& o)
+{
+    // Returns a temporary object that has locked a mutex.  The temporary's destructor will unlock the object.
+    // So you can get multithreaded non-interleaved console output with just conlock(cout) << "some " << "strings " << endl;
+    // (as the temporary's destructor will run at the end of the outermost enclosing expression).
+    // Or, move-assign the temporary to an lvalue to control when the destructor runs (to lock output over several statements).
+    // Be careful not to have cout locked across a g_megaApi member function call, as any callbacks that also log could then deadlock.
+    return ConsoleLock(o);
+}
+
+
 AppFile::AppFile()
 {
     static int nextseqno;
@@ -383,13 +427,13 @@ void DemoApp::transfer_prepare(Transfer* t)
 
 void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 {
-    cout << "Sync config updated: " << toHandle(config.mBackupId) << endl;
+    conlock(cout) << "Sync config updated: " << toHandle(config.mBackupId) << endl;
 }
 
 
 void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
 {
-    cout << "Sync is now active: " << active << endl;
+    conlock(cout) << "Sync is now active: " << active << endl;
 }
 
 void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
@@ -397,13 +441,13 @@ void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, 
     handle backupId = config.getBackupId();
     if (attempted)
     {
-        cout << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
+        conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
              << config.getEnabled()  << " syncError: " << config.getError()
              << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
     else
     {
-        cout << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess) << " enabled: "
+        conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess) << " enabled: "
             << config.getEnabled() << " syncError: " << config.getError()
             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
@@ -411,7 +455,7 @@ void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, 
 
 void DemoApp::sync_removed(const SyncConfig& config)
 {
-    cout << "Sync - removed: " << toHandle(config.mBackupId) << endl;
+    conlock(cout) << "Sync - removed: " << toHandle(config.mBackupId) << endl;
 
 }
 
@@ -419,11 +463,11 @@ void DemoApp::syncupdate_scanning(bool active)
 {
     if (active)
     {
-        cout << "Sync - scanning local files and folders" << endl;
+        conlock(cout) << "Sync - scanning local files and folders" << endl;
     }
     else
     {
-        cout << "Sync - scan completed" << endl;
+        conlock(cout) << "Sync - scan completed" << endl;
     }
 }
 
@@ -431,11 +475,11 @@ void DemoApp::syncupdate_syncing(bool active)
 {
     if (active)
     {
-        cout << "Sync - syncs are busy" << endl;
+        conlock(cout) << "Sync - syncs are busy" << endl;
     }
     else
     {
-        cout << "Sync - syncs are idle" << endl;
+        conlock(cout) << "Sync - syncs are idle" << endl;
     }
 }
 
@@ -443,11 +487,11 @@ void DemoApp::syncupdate_stalled(bool stalled)
 {
     if (stalled)
     {
-        cout << "Sync - stalled" << endl;
+        conlock(cout) << "Sync - stalled" << endl;
     }
     else
     {
-        cout << "Sync - stall ended" << endl;
+        conlock(cout) << "Sync - stall ended" << endl;
     }
 }
 
@@ -455,11 +499,11 @@ void DemoApp::syncupdate_conflicts(bool conflicts)
 {
     if (conflicts)
     {
-        cout << "Sync - conflicting paths detected" << endl;
+        conlock(cout) << "Sync - conflicting paths detected" << endl;
     }
     else
     {
-        cout << "Sync - all conflicting paths resolved" << endl;
+        conlock(cout) << "Sync - all conflicting paths resolved" << endl;
     }
 }
 
@@ -473,11 +517,11 @@ void DemoApp::syncupdate_local_lockretry(bool locked)
 {
     if (locked)
     {
-        cout << "Sync - waiting for local filesystem lock" << endl;
+        conlock(cout) << "Sync - waiting for local filesystem lock" << endl;
     }
     else
     {
-        cout << "Sync - local filesystem lock issue resolved, continuing..." << endl;
+        conlock(cout) << "Sync - local filesystem lock issue resolved, continuing..." << endl;
     }
 }
 
@@ -504,7 +548,7 @@ void DemoApp::syncupdate_treestate(const SyncConfig &, const LocalPath& lp, tree
     {
         if (type != FILENODE)
         {
-            cout << "Sync - state change of folder " << lp.toPath() << " to " << treestatename(ts) << endl;
+            conlock(cout) << "Sync - state change of folder " << lp.toPath() << " to " << treestatename(ts) << endl;
         }
     }
 }
@@ -1891,6 +1935,8 @@ static int pw_buf_pos;
 
 static void setprompt(prompttype p)
 {
+    auto cl = conlock(cout); // use this wherever we might have output threading issues
+
     prompt = p;
 
     if (p == COMMAND)
@@ -8343,7 +8389,10 @@ void megacli()
             string dynamicpromptstr = dynamicprompt.str();
 
 #if defined(WIN32) && defined(NO_READLINE)
-            static_cast<WinConsole*>(console)->updateInputPrompt(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND]);
+            {
+                auto cl = conlock(cout);
+                static_cast<WinConsole*>(console)->updateInputPrompt(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND]);
+            }
 #else
             rl_callback_handler_install(!dynamicpromptstr.empty() ? dynamicpromptstr.c_str() : prompts[prompt], store_line);
 
@@ -9183,6 +9232,7 @@ void exec_synclist(autocomplete::ACState& s)
     SyncStallInfo stall;
     if (client->syncs.syncStallDetected(stall))
     {
+        auto cl = conlock(cout);
         cout << "Stalled (mutually unresolvable changes detected)!" << endl;
         for (auto& p : stall.cloud)
         {

@@ -1574,6 +1574,12 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
 
             scanBlocked = TREE_RESOLVED;
             rare().scanBlockedTimer.reset();
+
+            // also clear flags up to the root.  TODO: might have to be more clever than this when there are multiple
+            for (auto p = parent; p != nullptr; p = p->parent)
+            {
+                p->scanBlocked = TREE_RESOLVED;
+            }
             return false;
         }
 
