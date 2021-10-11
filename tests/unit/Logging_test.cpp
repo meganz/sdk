@@ -522,26 +522,26 @@ TEST(Logging_constexpr, Extract_file_name_from_full_path)
     };
 
     const struct testCase testCases[] = {
-         {.input = LOG_xyz(__FILE__), .expected = "Logging_test.cpp" }
-        ,{.input = LOG_xyz("logging.h"), .expected = "logging.h" }
-        ,{.input = LOG_xyz("include/mega/logging.h"), .expected = "logging.h" }
-        ,{.input = LOG_xyz("include\\mega\\logging.h"), .expected = "logging.h" }
-        ,{.input = LOG_xyz("C:\\My Files\\include\\mega\\logging.h"), .expected = "logging.h" }
-        ,{.input = LOG_xyz("C:\\My Files\\include\\mega\\My Logging File.h"), .expected = "My Logging File.h" }
-        ,{.input = LOG_xyz("a/b/c/d/e/f/g/h/i/h/k/l/m/n/o/logging.h"), .expected = "logging.h" }
-        ,{.input = LOG_xyz("a/b/c/d/e/"), .expected = "" }
-        ,{.input = LOG_xyz("a\\b\\c\\d\\e\\"), .expected = "" }
+         {LOG_xyz(__FILE__), "Logging_test.cpp" }
+        ,{LOG_xyz("logging.h"), "logging.h" }
+        ,{LOG_xyz("include/mega/logging.h"), "logging.h" }
+        ,{LOG_xyz("include\\mega\\logging.h"), "logging.h" }
+        ,{LOG_xyz("C:\\My Files\\include\\mega\\logging.h"), "logging.h" }
+        ,{LOG_xyz("C:\\My Files\\include\\mega\\My Logging File.h"), "My Logging File.h" }
+        ,{LOG_xyz("a/b/c/d/e/f/g/h/i/h/k/l/m/n/o/logging.h"), "logging.h" }
+        ,{LOG_xyz("a/b/c/d/e/"), "" }
+        ,{LOG_xyz("a\\b\\c\\d\\e\\"), "" }
         ,{
-          .input = LOG_xyz("aaa/bbb/ccc/ddd/eee/fff/ggg/hhh/iii/jjjj/kkk/lll/mmm/nnn/ooo/ppp/qqq/rrr/sss/ttt/uuu/vvv/www/xxx/yyy/zzz/logging.h")
-         ,.expected = "logging.h"
+          LOG_xyz("aaa/bbb/ccc/ddd/eee/fff/ggg/hhh/iii/jjjj/kkk/lll/mmm/nnn/ooo/ppp/qqq/rrr/sss/ttt/uuu/vvv/www/xxx/yyy/zzz/logging.h")
+         ,"logging.h"
         }
-        ,{.input = LOG_xyz("/x/y/z/file\nname.xyz"), .expected = "file\nname.xyz" }
-        ,{.input = LOG_xyz("/x/y/z/λ.xyz"), .expected = "λ.xyz" } // UTF8
-        ,{.input = LOG_xyz("λ.h"), .expected = "λ.h" } // UTF8
-//        ,{.input = LOG_xyz(""), .expected = "" }  // Fails
-//        ,{.input = LOG_xyz("//"), .expected = "" } // Fails
-//        ,{.input = LOG_xyz("a"), .expected = "a" } // Fails
-//        ,{.input = LOG_xyz("\0"), .expected = "\0" } // Fails
+        ,{LOG_xyz("/x/y/z/file\nname.xyz"), "file\nname.xyz" }
+        ,{LOG_xyz("/x/y/z/λ.xyz"), "λ.xyz" } // UTF8
+        ,{LOG_xyz("λ.h"), "λ.h" } // UTF8
+//        ,{LOG_xyz(""),   "" }  // Fails
+//        ,{LOG_xyz("//"), "" } // Fails
+//        ,{LOG_xyz("a"),  "a" } // Fails
+//        ,{LOG_xyz("\0"), "\0" } // Fails
     };
 
     for(auto test: testCases ) {
