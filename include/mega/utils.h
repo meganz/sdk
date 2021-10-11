@@ -846,6 +846,13 @@ bool islchex(const int c);
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
 
+bool readLines(FileAccess& ifAccess, string_vector& destination);
+bool readLines(InputStreamAccess& isAccess, string_vector& destination);
+bool readLines(const std::string& input, string_vector& destination);
+
+bool wildcardMatch(const string& text, const string& pattern);
+bool wildcardMatch(const char* text, const char* pattern);
+
 } // namespace
 
 #endif

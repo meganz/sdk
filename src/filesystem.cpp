@@ -255,6 +255,150 @@ bool isCaseInsensitive(const FileSystemType type)
 #endif
 }
 
+RemotePath::RemotePath(const string& path)
+  : mPath(path)
+{
+}
+
+RemotePath& RemotePath::operator=(const string& rhs)
+{
+    return mPath = rhs, *this;
+}
+
+bool RemotePath::operator==(const RemotePath& rhs) const
+{
+    return mPath == rhs.mPath;
+}
+
+bool RemotePath::operator==(const string& rhs) const
+{
+    return mPath == rhs;
+}
+
+RemotePath::operator const string&() const
+{
+    return mPath;
+}
+
+void RemotePath::appendWithSeparator(const RemotePath& component, bool always)
+{
+    appendWithSeparator(component.mPath, always);
+}
+
+void RemotePath::appendWithSeparator(const string& component, bool always)
+{
+    // Only add a separator if necessary.
+    while (always || !mPath.empty())
+    {
+        // Does the path already end with a separator?
+        if (endsInSeparator())
+            break;
+
+        // Does the component begin with a separator?
+        if (component.empty() || component.front() == '/')
+            break;
+
+        // Add the separator.
+        mPath.append(1, '/');
+        break;
+    }
+
+    // Add the component.
+    mPath.append(component);
+}
+
+bool RemotePath::beginsWithSeparator() const
+{
+    return !mPath.empty() && mPath.front() == '/';
+}
+
+void RemotePath::clear()
+{
+    mPath.clear();
+}
+
+bool RemotePath::empty() const
+{
+    return mPath.empty();
+}
+
+bool RemotePath::endsInSeparator() const
+{
+    return !mPath.empty() && mPath.back() == '/';
+}
+
+bool RemotePath::findNextSeparator(size_t& index) const
+{
+    index = std::min(mPath.find('/', index), mPath.size());
+
+    return index < mPath.size();
+}
+
+bool RemotePath::hasNextPathComponent(size_t index) const
+{
+    return index < mPath.size();
+}
+
+bool RemotePath::nextPathComponent(size_t& index, RemotePath& component) const
+{
+    // Skip leading separators.
+    while (index < mPath.size() && mPath[index] == '/')
+        ++index;
+
+    // Have we hit the end of the string?
+    if (index >= mPath.size())
+        return component.clear(), false;
+
+    // Start of component.
+    auto i = index;
+
+    // Locate next separator.
+    findNextSeparator(index);
+
+    // Extract component.
+    component.mPath.assign(mPath, i, index - i);
+
+    return true;
+}
+
+void RemotePath::prependWithSeparator(const RemotePath& component)
+{
+    // Add a separator only if necessary.
+    if (!beginsWithSeparator() && !component.endsInSeparator())
+        mPath.insert(0, 1, '/');
+
+    // Prepend the component.
+    mPath.insert(0, component.mPath);
+}
+
+const string& RemotePath::str() const
+{
+    return mPath;
+}
+
+RemotePath RemotePath::subpathFrom(size_t index) const
+{
+    RemotePath path;
+
+    path.mPath = mPath.substr(index, string::npos);
+
+    return path;
+}
+
+RemotePath RemotePath::subpathTo(size_t index) const
+{
+    RemotePath path;
+
+    path.mPath.assign(mPath, 0, index);
+
+    return path;
+}
+
+const string& RemotePath::toName(const FileSystemAccess&) const
+{
+    return mPath;
+}
+
 bool IsContainingPathOf(const string& a, const char* b, size_t bLength, char sep)
 {
     // a's longer than b so a can't contain b.
@@ -1339,6 +1483,11 @@ bool LocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component) co
         subpathIndex = localpath.size();
         return true;
     }
+}
+
+bool LocalPath::hasNextPathComponent(size_t index) const
+{
+    return index < localpath.size();
 }
 
 ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)

@@ -198,6 +198,17 @@ private:
     void changedConfigState(bool notifyApp);
 };
 
+enum SyncRowType : unsigned {
+    SRT_XXX,
+    SRT_XXF,
+    SRT_XSX,
+    SRT_XSF,
+    SRT_CXX,
+    SRT_CXF,
+    SRT_CSX,
+    SRT_CSF
+}; // SyncRowType
+
 struct syncRow
 {
     syncRow(CloudNode* node, LocalNode* syncNode, FSNode* fsNode)
@@ -239,6 +250,30 @@ struct syncRow
             bool belowRemovedFsNode, fsid_localnode_map& localnodeByScannedFsid);
 
     bool empty() { return !cloudNode && !syncNode && !fsNode && cloudClashingNames.empty() && fsClashingNames.empty(); }
+
+    // What type of sync row is this?
+    SyncRowType type() const;
+
+    // Does our ignore file require exclusive processing?
+    bool ignoreFileChanged() const;
+
+    // Signals that our ignore file is changing and requires exclusive processing.
+    void ignoreFileChanging();
+
+    // Can our ignore file be processed alongside other rows?
+    bool ignoreFileStable() const;
+
+    // Convenience specializations.
+    ExclusionState exclusionState(const CloudNode& node) const;
+    ExclusionState exclusionState(const FSNode& node) const;
+    ExclusionState exclusionState(const LocalPath& name, nodetype_t type) const;
+
+    // Does this row represent an ignore file?
+    bool isIgnoreFile() const;
+
+private:
+    // Whether our ignore file requires exclusive processing.
+    bool mIgnoreFileChanged = false;
 };
 
 struct SyncPath
@@ -361,8 +396,10 @@ public:
     bool recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
     bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
     bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
+    bool resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
@@ -661,6 +698,18 @@ struct SyncStallInfo
     typedef map<string, CloudStallInfo> CloudStallInfoMap;
     typedef map<LocalPath, LocalStallInfo> LocalStallInfoMap;
 
+    bool empty() const;
+
+    bool waitingCloud(const string& cloudPath1,
+                      const string& cloudPath2,
+                      const LocalPath& localPath,
+                      SyncWaitReason reason);
+
+    bool waitingLocal(const LocalPath& localPath1,
+                      const LocalPath& localPath2,
+                      const string& cloudPath,
+                      SyncWaitReason reason);
+
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
 };
@@ -867,7 +916,7 @@ public:
     void setSyncedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
     void setScannedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
 
-    // maps nodehanlde to corresponding LocalNode* (s)
+    // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
     LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
 
@@ -1017,11 +1066,147 @@ private:
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
     enum WhichCloudVersion { EXACT_VERSION, LATEST_VERSION, FOLDER_ONLY };
-    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash, bool* nodeIsInActiveSync, WhichCloudVersion);
+    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
+            bool* nodeIsInActiveSync, bool* nodeIsDefinitelyExcluded, WhichCloudVersion);
 
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 
+    // Query whether a specified child is definitely excluded.
+    //
+    // A node is definitely excluded if:
+    // - The node itself is excluded.
+    // - One of the node's parents are definitely excluded.
+    //
+    // It is the caller's responsibility to ensure that:
+    // - Necessary locks are acquired such that this function has exclusive
+    //   access to both the local and remote node trees.
+    // - The node specified by child is below root.
+    bool isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* child);
+
+    template<typename Predicate>
+    Sync* syncMatching(Predicate&& predicate, bool includePaused)
+    {
+        // Sanity.
+        assert(onSyncThread());
+
+        lock_guard<mutex> guard(mSyncVecMutex);
+
+        for (auto& i : mSyncVec)
+        {
+            // Skip inactive syncs.
+            if (!i->mSync)
+                continue;
+
+            // Optionally skip paused syncs.
+            if (!includePaused && i->mSync->syncPaused)
+                continue;
+
+            // Have we found our lucky sync?
+            if (predicate(*i))
+                return i->mSync.get();
+        }
+
+        // No syncs match our search criteria.
+        return nullptr;
+    }
+
     Sync* syncContainingPath(const LocalPath& path, bool includePaused);
+    Sync* syncContainingPath(const string& path, bool includePaused);
+
+    // Signal that an ignore file failed to load.
+    void ignoreFileLoadFailure(const Sync& sync, const LocalPath& path);
+
+    // Records which ignore file failed to load and under which sync.
+    struct IgnoreFileFailureContext
+    {
+        // Clear the context if the associated sync:
+        // - Is disabled (or failed.)
+        // - Is paused.
+        // - No longer exists.
+        void reset(Syncs& syncs)
+        {
+            if (mBackupID == UNDEF)
+                return;
+
+            auto predicate = [&](const UnifiedSync& us) {
+                return us.mConfig.mBackupId == mBackupID
+                       && us.mConfig.mRunningState >= SYNC_INITIALSCAN;
+            };
+
+            if (syncs.syncMatching(std::move(predicate), false))
+                return;
+
+            reset();
+        }
+
+        // Clear the context.
+        void reset()
+        {
+            mBackupID = UNDEF;
+            mFilterChain.clear();
+            mPath.clear();
+        }
+
+        // Report the load failure as a stall.
+        void report(SyncStallInfo& stallInfo)
+        {
+            stallInfo.waitingLocal(mPath,
+                                   LocalPath(),
+                                   string(),
+                                   SyncWaitReason::UnableToLoadIgnoreFile);
+        }
+
+        // Has the ignore file failure been resolved?
+        bool resolve(FileSystemAccess& fsAccess)
+        {
+            // No failures to resolve so we're all good.
+            if (mBackupID == UNDEF)
+                return true;
+
+            // Try and load the ignore file.
+            auto result = mFilterChain.load(fsAccess, mPath);
+
+            // Resolved if the file's been deleted or corrected.
+            if (result == FLR_FAILED || result == FLR_SKIPPED)
+                return false;
+
+            // Clear the failure condition.
+            reset();
+
+            // Let the caller know the situation's resolved.
+            return true;
+        }
+
+        // Has an ignore file failure been signalled?
+        bool signalled() const
+        {
+            return mBackupID != UNDEF;
+        }
+
+        // Used to load the ignore file specified below.
+        FilterChain mFilterChain;
+
+        // What ignore file failed to load?
+        LocalPath mPath;
+
+        // What sync contained the broken ignore file?
+        handle mBackupID = UNDEF;
+    }; // IgnoreFileFailureContext
+
+    // Tracks the last recorded ignore file failure.
+    IgnoreFileFailureContext mIgnoreFileFailureContext;
+
+    // Check if the sync described by config contains an ignore file.
+    bool hasIgnoreFile(const SyncConfig& config);
+
+public:
+    // Default filter rules.
+    //
+    // These rules are used to generate ignore files for newly added syncs.
+    //
+    // It's safe to access this member from multiple threads as the class
+    // manages its own synchronization.
+    DefaultFilterChain mDefaultFilterChain;
 };
 
 } // namespace

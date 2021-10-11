@@ -2532,6 +2532,108 @@ std::string getSafeUrl(const std::string &posturl)
     return safeurl;
 }
 
+bool readLines(FileAccess& ifAccess, string_vector& destination)
+{
+    FileInputStream isAccess(&ifAccess);
+    return readLines(isAccess, destination);
+}
+
+bool readLines(InputStreamAccess& isAccess, string_vector& destination)
+{
+    const auto length = static_cast<unsigned int>(isAccess.size());
+
+    std::string input(length, '\0');
+
+    return isAccess.read((byte*)input.data(), length)
+           && readLines(input, destination);
+}
+
+bool readLines(const std::string& input, string_vector& destination)
+{
+    const char *current = input.data();
+    const char *end = current + input.size();
+
+    while (current < end && (*current == '\r' || *current == '\n'))
+    {
+        ++current;
+    }
+
+    while (current < end)
+    {
+        const char *delim = current;
+        const char *whitespace = current;
+
+        while (delim < end && *delim != '\r' && *delim != '\n')
+        {
+            ++delim;
+            whitespace += std::isspace(*whitespace) > 0;
+        }
+
+        if (delim != whitespace)
+        {
+            destination.emplace_back(current, delim);
+        }
+
+        while (delim < end && (*delim == '\r' || *delim == '\n'))
+        {
+            ++delim;
+        }
+
+        current = delim;
+    }
+
+    return true;
+}
+
+bool wildcardMatch(const string& text, const string& pattern)
+{
+    return wildcardMatch(text.c_str(), pattern.c_str());
+}
+
+bool wildcardMatch(const char *text, const char *pattern)
+//  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
+{
+    const char *cp = nullptr;
+    const char *mp = nullptr;
+
+    while ((*text) && (*pattern != '*'))
+    {
+        if ((*pattern != *text) && (*pattern != '?'))
+        {
+            return false;
+        }
+        pattern++;
+        text++;
+    }
+
+    while (*text)
+    {
+        if (*pattern == '*')
+        {
+            if (!*++pattern)
+            {
+                return true;
+            }
+            mp = pattern;
+            cp = text + 1;
+        }
+        else if ((*pattern == *text) || (*pattern == '?'))
+        {
+            pattern++;
+            text++;
+        }
+        else
+        {
+            pattern = mp;
+            text = cp++;
+        }
+    }
+    while (*pattern == '*')
+    {
+        pattern++;
+    }
+    return !*pattern;
+}
 
 string syncWaitReasonString(SyncWaitReason r)
 {
@@ -2554,6 +2656,8 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
         case SyncWaitReason::MoveOrRenameFailed:                            return "MoveOrRenameFailed";
         case SyncWaitReason::CreateFolderFailed:                            return "CreateFolderFailed";
+        case SyncWaitReason::UnknownExclusionState:                         return "UnknownExclusionState";        
+        case SyncWaitReason::UnableToLoadIgnoreFile:                        return "UnableToLoadIgnoreFile";
     }
     return "<out of range>";
 }

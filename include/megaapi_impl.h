@@ -2421,17 +2421,14 @@ class MegaApiImpl : public MegaApp
 
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
-        void setExcludedNames(vector<string> *excludedNames);
-        void setExcludedPaths(vector<string> *excludedPaths);
-        void setExclusionLowerSizeLimit(long long limit);
-        void setExclusionUpperSizeLimit(long long limit);
+        void setDefaultExcludedNames(vector<string> *excludedNames);
+        void setDefaultExcludedPaths(vector<string> *excludedPaths);
+        void setDefaultExclusionLowerSizeLimit(unsigned long long limit);
+        void setDefaultExclusionUpperSizeLimit(unsigned long long limit);
         bool moveToLocalDebris(const char *path);
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
-        bool isSyncable(const char *path, long long size);
         bool isInsideSync(MegaNode *node);
-        bool is_syncable(Sync*, const char*, const LocalPath&);
-        bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
         bool isIndexing();
         bool isSyncing();
@@ -2935,10 +2932,6 @@ protected:
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
         retryreason_t waitingRequest;
-        vector<string> excludedNames;
-        vector<string> excludedPaths;
-        long long syncLowerSizeLimit;
-        long long syncUpperSizeLimit;
         std::recursive_timed_mutex sdkMutex;
         using SdkMutexGuard = std::unique_lock<std::recursive_timed_mutex>;   // (equivalent to typedef)
         std::atomic<bool> syncPathStateLockTimeout{ false };

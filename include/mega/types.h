@@ -454,6 +454,7 @@ enum SyncError {
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
     COULD_NOT_MOVE_CLOUD_NODES = 32,        // rename() failed
+    COULD_NOT_CREATE_IGNORE_FILE = 33       // Couldn't create a sync's initial ignore file.
 };
 
 enum SyncWarning {
@@ -652,6 +653,7 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 // Type-Value (for user attributes)
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
+typedef pair<string, string> string_pair;
 typedef string_map TLV_map;
 
 // user attribute types
@@ -1018,6 +1020,8 @@ enum class SyncWaitReason {
     FolderMatchedAgainstFile,
     MoveOrRenameFailed,
     CreateFolderFailed,
+    UnknownExclusionState,
+    UnableToLoadIgnoreFile
 };
 
 string syncWaitReasonString(SyncWaitReason);

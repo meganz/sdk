@@ -164,6 +164,29 @@ Node::~Node()
     delete sharekey;
 }
 
+
+Node* Node::childbyname(const string& name)
+{
+    for (auto* child : children)
+    {
+        if (child->hasName(name))
+            return child;
+    }
+
+    return nullptr;
+}
+
+bool Node::hasChildWithName(const string& name) const
+{
+    for (auto* child : children)
+    {
+        if (child->hasName(name))
+            return true;
+    }
+
+    return false;
+}
+
 /// it's a nice idea but too simple - what about cases where the key is missing or just not available yet (and hence attrs not decrypted yet), etc
 //string Node::name() const
 //{
@@ -1273,6 +1296,12 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
 
     LocalTreeProcUpdateTransfers tput;
     tput.proc(*sync->syncs.fsaccess, ln);
+
+    ln->mFilterChain = mFilterChain;
+    ln->mWaitingForIgnoreFileLoad = mWaitingForIgnoreFileLoad;
+
+    // Make sure our exclusion state is recomputed.
+    ln->setRecomputeExclusionState();
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
@@ -1341,15 +1370,24 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 
     bumpnagleds();
 
+    mWaitingForIgnoreFileLoad = false;
+
     if (cparent)
     {
         setnameparent(cparent, cfullpath.leafName(), std::move(shortname));
+
+        mIsIgnoreFile = type == FILENODE && localname == IGNORE_FILE_NAME;
+
+        mExclusionState = parent->exclusionState(localname, type);
     }
     else
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
+
+        mExclusionState = ES_INCLUDED;
     }
+
 
 //#ifdef DEBUG
 //    // double check we were given the right shortname (if the file exists yet)
@@ -2058,7 +2096,8 @@ string LocalNode::getCloudPath() const
 
         CloudNode cn;
         string fullpath;
-        if (sync->syncs.lookupCloudNode(l->syncedCloudNodeHandle, cn, l->parent ? nullptr : &fullpath, nullptr, nullptr, Syncs::LATEST_VERSION))
+        if (sync->syncs.lookupCloudNode(l->syncedCloudNodeHandle, cn, l->parent ? nullptr : &fullpath,
+            nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
         {
             name = cn.name;
         }
@@ -2073,6 +2112,11 @@ string LocalNode::getCloudPath() const
     return path;
 }
 
+string LocalNode::getCloudName() const
+{
+    return localname.toName(*sync->syncs.fsaccess);
+}
+
 // locate child by localname or slocalname
 LocalNode* LocalNode::childbyname(LocalPath* localname)
 {
@@ -2084,6 +2128,18 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
     }
 
     return it->second;
+}
+
+LocalNode* LocalNode::findChildWithSyncedNodeHandle(NodeHandle h)
+{
+    for (auto& c : children)
+    {
+        if (c.second->syncedCloudNodeHandle == h)
+        {
+            return c.second;
+        }
+    }
+    return nullptr;
 }
 
 FSNode LocalNode::getLastSyncedFSDetails()
@@ -2510,6 +2566,290 @@ bool LocalNode::watch(const LocalPath&, handle)
 
 #endif // ! USE_INOTIFY
 
+void LocalNode::clearFilters()
+{
+    // Only for directories.
+    assert(type == FOLDERNODE);
+
+    // Purge all defined filter rules.
+    mFilterChain.clear();
+
+    // Reset ignore file state.
+    setWaitingForIgnoreFileLoad(false);
+
+    // Re-examine this subtree.
+    setScanAgain(false, true, true, 0);
+    setSyncAgain(false, true, true);
+}
+
+bool LocalNode::loadFilters(const LocalPath& path)
+{
+    // Only meaningful for directories.
+    assert(type == FOLDERNODE);
+
+    // Convenience.
+    auto& fsAccess = *sync->syncs.fsaccess;
+
+    // Try and load the ignore file.
+    auto result = mFilterChain.load(fsAccess, path);
+
+    // Ignore file hasn't changed.
+    if (result == FLR_SKIPPED)
+        return !mWaitingForIgnoreFileLoad;
+
+    auto failed = result == FLR_FAILED;
+
+    // Did the load fail?
+    if (failed)
+    {
+        // Let the engine know there's been a load failure.
+        sync->syncs.ignoreFileLoadFailure(*sync, path);
+
+        // Clear the filter state.
+        mFilterChain.clear();
+    }
+
+    // Update our load pending state.
+    setWaitingForIgnoreFileLoad(failed);
+
+    // Re-examine this subtree.
+    setScanAgain(false, true, true, 0);
+    setSyncAgain(false, true, true);
+
+    return !failed;
+}
+
+bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const
+{
+    // This specialization only makes sense for directories.
+    assert(this->type == FOLDERNODE);
+
+    // Check whether the file is excluded by any filters.
+    for (auto* node = this; node; node = node->parent)
+    {
+        assert(node->mExclusionState == ES_INCLUDED);
+
+        // Should we only consider inheritable filter rules?
+        inherited = inherited || node != this;
+
+        // Check for a filter match.
+        auto result = node->mFilterChain.match(namePath, type, inherited);
+
+        // Was the file matched by any filters?
+        if (result.matched)
+            return !result.included;
+
+        // Compute the node's cloud name.
+        auto name = node->localname.toName(*sync->syncs.fsaccess);
+
+        // Update path so that it's applicable to the next node's path filters.
+        namePath.second.prependWithSeparator(name);
+    }
+
+    // File's included.
+    return false;
+}
+
+bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
+{
+    // Specialization only meaningful for directories.
+    assert(type == FOLDERNODE);
+
+    // Consider files of unknown size included.
+    if (size < 0)
+        return false;
+
+    // Check whether this file is excluded by any size filters.
+    for (auto* node = this; node; node = node->parent)
+    {
+        // Sanity: We should never be called if either of these is true.
+        assert(node->mExclusionState == ES_INCLUDED);
+
+        // Check for a filter match.
+        auto result = node->mFilterChain.match(size);
+
+        // Was the file matched by any filters?
+        if (result.matched)
+            return !result.included;
+    }
+
+    // File's included.
+    return false;
+}
+
+void LocalNode::setWaitingForIgnoreFileLoad(bool pending)
+{
+    // Only meaningful for directories.
+    assert(type == FOLDERNODE);
+
+    // Do we really need to update our children?
+    if (!mWaitingForIgnoreFileLoad)
+    {
+        // Tell our children they need to recompute their state.
+        for (auto& childIt : children)
+            childIt.second->setRecomputeExclusionState();
+    }
+
+    // Apply new pending state.
+    mWaitingForIgnoreFileLoad = pending;
+}
+
+void LocalNode::setRecomputeExclusionState()
+{
+    if (mExclusionState == ES_UNKNOWN)
+        return;
+
+    mExclusionState = ES_UNKNOWN;
+
+    if (type == FILENODE)
+        return;
+
+    list<LocalNode*> pending(1, this);
+
+    while (!pending.empty())
+    {
+        auto& node = *pending.front();
+
+        for (auto& childIt : node.children)
+        {
+            auto& child = *childIt.second;
+
+            if (child.mExclusionState == ES_UNKNOWN)
+                continue;
+
+            child.mExclusionState = ES_UNKNOWN;
+
+            if (child.type == FOLDERNODE)
+                pending.emplace_back(&child);
+        }
+
+        pending.pop_front();
+    }
+}
+
+bool LocalNode::waitingForIgnoreFileLoad() const
+{
+    for (auto* node = this; node; node = node->parent)
+    {
+        if (node->mWaitingForIgnoreFileLoad)
+            return true;
+    }
+
+    return false;
+}
+
+// Query whether a file is excluded by this node or one of its parents.
+template<typename PathType>
+typename std::enable_if<IsPath<PathType>::value, ExclusionState>::type
+LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) const
+{
+    // This specialization is only meaningful for directories.
+    assert(this->type == FOLDERNODE);
+
+    // We can't determine our child's exclusion state if we don't know our own.
+    // Our children are excluded if we are.
+    if (mExclusionState != ES_INCLUDED)
+        return mExclusionState;
+
+    // Children of unknown type are considered excluded.
+    if (type == TYPE_UNKNOWN)
+        return ES_EXCLUDED;
+
+    // Ignore files are only excluded if one of their parents is.
+    if (type == FILENODE && path == IGNORE_FILE_NAME)
+        return ES_INCLUDED;
+
+    // We can't know the child's state unless our filters are current.
+    if (mWaitingForIgnoreFileLoad)
+        return ES_UNKNOWN;
+
+    // Computed cloud name and relative cloud path.
+    RemotePathPair namePath;
+
+    // Current path component.
+    PathType component;
+
+    // Check if any intermediary path components are excluded.
+    for (size_t index = 0; path.nextPathComponent(index, component); )
+    {
+        // Compute cloud name.
+        namePath.first = component.toName(*sync->syncs.fsaccess);
+
+        // Compute relative cloud path.
+        namePath.second.appendWithSeparator(namePath.first, false);
+
+        // Have we hit the final path component?
+        if (!path.hasNextPathComponent(index))
+            break;
+
+        // Is this path component excluded?
+        if (isExcluded(namePath, FOLDERNODE, false))
+            return ES_EXCLUDED;
+    }
+
+    // Which node we should start our search from.
+    auto* node = this;
+
+    // Does the final path component represent a file?
+    if (type == FILENODE)
+    {
+        // Ignore files are only exluded if one of their parents is.
+        if (namePath.first == IGNORE_FILE_NAME)
+            return ES_INCLUDED;
+
+        // Is the file excluded by any size filters?
+        if (node->isExcluded(namePath, size))
+            return ES_EXCLUDED;
+    }
+
+    // Is the file excluded by any name filters?
+    if (node->isExcluded(namePath, type, node != this))
+        return ES_EXCLUDED;
+
+    // File's included.
+    return ES_INCLUDED;
+}
+
+// Make sure we instantiate the two types.  Jenkins gcc can't handle this in the header.
+template ExclusionState LocalNode::exclusionState(const LocalPath& path, nodetype_t type, m_off_t size) const;
+template ExclusionState LocalNode::exclusionState(const RemotePath& path, nodetype_t type, m_off_t size) const;
+
+ExclusionState LocalNode::exclusionState(const string& name, nodetype_t type, m_off_t size) const
+{
+    assert(this->type == FOLDERNODE);
+
+    // Consider providing a specialized implementation to avoid conversion.
+    auto fsAccess = sync->syncs.fsaccess.get();
+    auto fsType = sync->mFilesystemType;
+    auto localname = LocalPath::fromName(name, *fsAccess, fsType);
+
+    return exclusionState(localname, type, size);
+}
+
+ExclusionState LocalNode::exclusionState() const
+{
+    return mExclusionState;
+}
+
+bool LocalNode::isIgnoreFile() const
+{
+    return mIsIgnoreFile;
+}
+
+bool LocalNode::recomputeExclusionState()
+{
+    // We should never be asked to recompute the root's exclusion state.
+    assert(parent);
+
+    // Only recompute the state if it's necessary.
+    if (mExclusionState != ES_UNKNOWN)
+        return false;
+
+    mExclusionState = parent->exclusionState(localname, type);
+
+    return mExclusionState != ES_UNKNOWN;
+}
+
 #endif // ENABLE_SYNC
 
 void Fingerprints::newnode(Node* n)
@@ -2599,5 +2939,9 @@ CloudNode::CloudNode(const Node& n)
     , fingerprint(n.fingerprint())
 {}
 
+bool CloudNode::isIgnoreFile() const
+{
+    return type == FILENODE && name == IGNORE_FILE_NAME;
+}
 
 } // namespace

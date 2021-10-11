@@ -42,6 +42,33 @@ TEST(utils, hashCombine_integer)
 #endif
 }
 
+TEST(utils, readLines)
+{
+    static const std::string input =
+        "\r"
+        "\n"
+        "     \r"
+        "  a\r\n"
+        "b\n"
+        "c\r"
+        "  d  \r"
+        "     \n"
+        "efg\n";
+    static const std::vector<std::string> expected = {
+        "  a",
+        "b",
+        "c",
+        "  d  ",
+        "efg"
+    };
+
+    std::vector<std::string> output;
+
+    ASSERT_TRUE(::mega::readLines(input, output));
+    ASSERT_EQ(output.size(), expected.size());
+    ASSERT_TRUE(std::equal(expected.begin(), expected.end(), output.begin()));
+}
+
 //TEST(Filesystem, CanonicalizeRemoteName)
 //{
 //    using namespace mega;
@@ -1339,5 +1366,58 @@ TEST(JSON, NullValue)
     JSON j(s);
     EXPECT_EQ(j.getnameid(), j.getnameid("restof\"")); // no leading '"'
     EXPECT_EQ(0, strcmp(j.pos, "\"json\"}remainder"));
+}
+
+TEST(RemotePath, nextPathComponent)
+{
+    // Absolute path.
+    {
+        RemotePath path("/a/b/");
+
+        RemotePath component;
+        size_t index = 0;
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "a");
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "b");
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+
+        // Sanity.
+        path = RemotePath("/");
+
+        index = 0;
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+    }
+
+    // Relative path.
+    {
+        RemotePath path("a/b/");
+
+        RemotePath component;
+        size_t index = 0;
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "a");
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "b");
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+
+        // Sanity.
+        path = RemotePath("");
+
+        index = 0;
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+    }
 }
 

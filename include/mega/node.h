@@ -26,6 +26,7 @@
 #include "filefingerprint.h"
 #include "file.h"
 #include "attrmap.h"
+#include "syncfilter.h"
 
 namespace mega {
 
@@ -75,6 +76,9 @@ struct CloudNode
 
     CloudNode() {}
     CloudNode(const Node& n);
+
+    // Query whether this cloud node represents an ignore file.
+    bool isIgnoreFile() const;
 };
 
 struct SyncTransfer_inClient: public File
@@ -360,6 +364,11 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
+    Node* childbyname(const string& name);
+
+    // Returns true if this node has a child with the given name.
+    bool hasChildWithName(const string& name) const;
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -385,8 +394,6 @@ inline bool Node::keyApplied() const
 
 #ifdef ENABLE_SYNC
 
-
-
 enum TREESTATE : unsigned
 {
     TREE_RESOLVED = 0,
@@ -394,6 +401,16 @@ enum TREESTATE : unsigned
     TREE_ACTION_HERE = 2,           // And also check if any children have flags set (ie, implicitly TREE_DESCENDANT_FLAGGED)
     TREE_ACTION_SUBTREE = 3         // overrides any children so the whole subtree is processed
 };
+
+enum ExclusionState : unsigned char
+{
+    // Node's definitely excluded.
+    ES_EXCLUDED,
+    // Node's definitely included.
+    ES_INCLUDED,
+    // Node has an indeterminate exclusion state.
+    ES_UNKNOWN
+}; // ExclusionState
 
 inline unsigned updateTreestateFromChild(unsigned oldFlag, unsigned childFlag)
 {
@@ -627,8 +644,13 @@ struct MEGA_API LocalNode : public Cacheable
     // build full remote path to this node (might not exist anymore, of course)
     string getCloudPath() const;
 
-    // return child node by name
+    // Get cloud name (might not exist, of course.)
+    string getCloudName() const;
+
+    // return child node by name   (TODO: could this be ambiguous, especially with case insensitive filesystems)
     LocalNode* childbyname(LocalPath*);
+
+    LocalNode* findChildWithSyncedNodeHandle(NodeHandle h);
 
     FSNode getLastSyncedFSDetails();
     FSNode getScannedFSDetails();
@@ -674,8 +696,62 @@ struct MEGA_API LocalNode : public Cacheable
     // Create a watch for this node if necessary.
     bool watch(const LocalPath& path, handle fsid);
 
-private:
+    // Filter rules applicable below this node.
+    FilterChain mFilterChain;
 
+private:
+    struct
+    {
+        // The node's exclusion state.
+        ExclusionState mExclusionState;
+
+        // Whether we're an ignore file.
+        bool mIsIgnoreFile : 1;
+
+        // Whether we need to reload this node's ignore file.
+        bool mWaitingForIgnoreFileLoad : 1;
+    };
+
+    // Query whether a file is excluded by a name filter.
+    bool isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const;
+
+    // Query whether a file is excluded by a size filter.
+    bool isExcluded(const RemotePathPair& namePath, m_off_t size) const;
+
+    // Signal that this node and its children must recompute their exclusion state.
+    void setRecomputeExclusionState();
+
+public:
+    // Clears the filters defined by this node.
+    void clearFilters();
+
+    // Load filters from the ignore file identified by path.
+    bool loadFilters(const LocalPath& path);
+
+    // Signal whether this node needs to load its ignore file.
+    void setWaitingForIgnoreFileLoad(bool waiting);
+
+    // Query whether this node needs to load its ignore file.
+    bool waitingForIgnoreFileLoad() const;
+
+    // Query whether a file is excluded by this node or one of its parents.
+    template<typename PathType>
+    typename std::enable_if<IsPath<PathType>::value, ExclusionState>::type
+    exclusionState(const PathType& path, nodetype_t type, m_off_t size = -1) const;
+
+    // Specialization of above intended for cloud name queries.
+    ExclusionState exclusionState(const string& name, nodetype_t type, m_off_t size = -1) const;
+
+    // Query this node's exclusion state.
+    ExclusionState exclusionState() const;
+
+    // Query whether this node represents an ignore file.
+    bool isIgnoreFile() const;
+
+    // Recompute this node's exclusion state.
+    bool recomputeExclusionState();
+
+private:
     unique_ptr<RareFields> rareFields;
 
 #ifdef USE_INOTIFY
