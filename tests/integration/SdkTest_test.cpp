@@ -1278,7 +1278,7 @@ string getUniqueAlias()
     srand((unsigned int)t);
     for (int i = 0; i < n; ++i)
     {
-        alias += 'a' + rand() % 26;
+        alias += static_cast<char>('a' + rand() % 26);
     }
 
     // add a timestamp
@@ -1481,6 +1481,7 @@ TEST_F(SdkTest, SdkTestKillSession)
 
         auto h = session->getHandle();
         auto hstr = Base64Str<sizeof(handle)>(h);
+        ASSERT_TRUE(strlen(hstr)>0);
 
         if (session->isAlive() && session->isCurrent())
         {

@@ -3920,7 +3920,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 {
     for (const auto& config : configs)
     {
-        assert(equal(config.mExternalDrivePath, drivePath)); _unused(config);
+        assert(equal(config.mExternalDrivePath, drivePath));
     }
 
     // Drive should already be known.

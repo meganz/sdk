@@ -4125,7 +4125,7 @@ bool CommandGetUserData::procresult(Result r)
 
         case EOO:
         {
-            assert(me == client->me); _unused(me);
+            assert(me == client->me);
 
             if (len_privk)
             {
@@ -4868,7 +4868,6 @@ bool CommandGetUserQuota::procresult(Result r)
 
             case EOO:
                 assert(!mStorage || (got_storage && got_storage_used) || client->loggedinfolderlink());
-                _unused(got_storage); _unused(got_storage_used);
 
                 if (mStorage)
                 {

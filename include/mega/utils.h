@@ -846,13 +846,6 @@ bool islchex(const int c);
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
 
-/**
- * Cast variable only used in an assert to a void expression.
- * To avoid a compiler warning. It does not generated runtime code.
- * @param var unused variable 
- */
-#define _unused(var) ((void)(var))
-
 } // namespace
 
 #endif
