@@ -1480,8 +1480,6 @@ TEST_F(SdkTest, SdkTestKillSession)
         session.reset(mApi[1].accountDetails->getSession(i++));
 
         auto h = session->getHandle();
-        auto hstr = Base64Str<sizeof(handle)>(h);
-        ASSERT_TRUE(strlen(hstr)>0);
 
         if (session->isAlive() && session->isCurrent())
         {
