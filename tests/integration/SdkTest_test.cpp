@@ -1278,7 +1278,7 @@ string getUniqueAlias()
     srand((unsigned int)t);
     for (int i = 0; i < n; ++i)
     {
-        alias += 'a' + rand() % 26;
+        alias += static_cast<char>('a' + rand() % 26);
     }
 
     // add a timestamp
@@ -1478,9 +1478,6 @@ TEST_F(SdkTest, SdkTestKillSession)
         MegaAccountSessionPtr session;
 
         session.reset(mApi[1].accountDetails->getSession(i++));
-
-        auto h = session->getHandle();
-        auto hstr = Base64Str<sizeof(handle)>(h);
 
         if (session->isAlive() && session->isCurrent())
         {
@@ -3044,7 +3041,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             m_time_t mtime = 2;
             handle fsid = 3;
             bool fsidvalid = false;
-            nodetype_t type = (nodetype_t)-9; // @TODO: Do we need a distinct state other than known/unknown?
+            nodetype_t type = nodetype_t::TYPE_UNKNOWN;
             bool mIsSymLink = false;
             bool retry = false;
             int errorcode = -998;
