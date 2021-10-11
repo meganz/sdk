@@ -510,42 +510,10 @@ TEST(Logging, macroFatal)
 
 #endif
 
-TEST(Logging_constexpr, Extract_file_name_from_full_path)
+TEST(Logging, Extract_file_name_from_full_path)
 {
-
-// Similar to Logging.h usage
-#define LOG_xyz(x) ::mega::log_file_leafname(x)
-
-    struct testCase {
-        const char* input;
-        const char* expected;
-    };
-
-    const struct testCase testCases[] = {
-         {LOG_xyz(__FILE__), "Logging_test.cpp" }
-        ,{LOG_xyz("logging.h"), "logging.h" }
-        ,{LOG_xyz("include/mega/logging.h"), "logging.h" }
-        ,{LOG_xyz("include\\mega\\logging.h"), "logging.h" }
-        ,{LOG_xyz("C:\\My Files\\include\\mega\\logging.h"), "logging.h" }
-        ,{LOG_xyz("C:\\My Files\\include\\mega\\My Logging File.h"), "My Logging File.h" }
-        ,{LOG_xyz("a/b/c/d/e/f/g/h/i/h/k/l/m/n/o/logging.h"), "logging.h" }
-        ,{LOG_xyz("a/b/c/d/e/"), "" }
-        ,{LOG_xyz("a\\b\\c\\d\\e\\"), "" }
-        ,{
-          LOG_xyz("aaa/bbb/ccc/ddd/eee/fff/ggg/hhh/iii/jjjj/kkk/lll/mmm/nnn/ooo/ppp/qqq/rrr/sss/ttt/uuu/vvv/www/xxx/yyy/zzz/logging.h")
-         ,"logging.h"
-        }
-        ,{LOG_xyz("/x/y/z/file\nname.xyz"), "file\nname.xyz" }
-        ,{LOG_xyz("/x/y/z/λ.xyz"), "λ.xyz" } // UTF8
-        ,{LOG_xyz("λ.h"), "λ.h" } // UTF8
-//        ,{LOG_xyz(""),   "" }  // Fails
-//        ,{LOG_xyz("//"), "" } // Fails
-//        ,{LOG_xyz("a"),  "a" } // Fails
-//        ,{LOG_xyz("\0"), "\0" } // Fails
-    };
-
-    for(auto test: testCases ) {
-        ASSERT_EQ( 0, strcmp(test.input, test.expected));
-    }
-#undef LOG_xyz
+    ASSERT_EQ(0, strcmp(::mega::log_file_leafname(__FILE__), "Logging_test.cpp" ));
+    ASSERT_EQ(0, strcmp(::mega::log_file_leafname("logging.h"), "logging.h") );
+    ASSERT_EQ(0, strcmp(::mega::log_file_leafname("include/mega/logging.h"), "logging.h"));
+    ASSERT_EQ(0, strcmp(::mega::log_file_leafname("include\\mega\\logging.h"), "logging.h" ));
 }
