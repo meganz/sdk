@@ -1479,8 +1479,6 @@ TEST_F(SdkTest, SdkTestKillSession)
 
         session.reset(mApi[1].accountDetails->getSession(i++));
 
-        auto h = session->getHandle();
-
         if (session->isAlive() && session->isCurrent())
         {
             sessionHandle = session->getHandle();
