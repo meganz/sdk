@@ -698,6 +698,8 @@ struct SyncStallInfo
     typedef map<string, CloudStallInfo> CloudStallInfoMap;
     typedef map<LocalPath, LocalStallInfo> LocalStallInfoMap;
 
+    bool empty() const;
+
     bool waitingCloud(const string& cloudPath1,
                       const string& cloudPath2,
                       const LocalPath& localPath,

@@ -1312,6 +1312,11 @@ void Sync::createDebrisTmpLockOnce()
     }
 }
 
+bool SyncStallInfo::empty() const
+{
+    return cloud.empty() && local.empty();
+}
+
 bool SyncStallInfo::waitingCloud(const string& cloudPath1,
                                  const string& cloudPath2,
                                  const LocalPath& localPath,
@@ -8348,10 +8353,10 @@ void Syncs::syncLoop()
                 mSyncFlags->stall.cloud.clear();
                 mSyncFlags->stall.local.clear();
 
-                stalled = (!stallReport.cloud.empty() ||
-                           !stallReport.local.empty())
-                          && mSyncFlags->noProgressCount > 10
-                          && mSyncFlags->reachableNodesAllScannedThisPass;
+                stalled = !stallReport.empty()
+                          && (mIgnoreFileFailureContext.signalled()
+                              || (mSyncFlags->noProgressCount > 10
+                                  && mSyncFlags->reachableNodesAllScannedThisPass));
 
                 if (stalled)
                 {
