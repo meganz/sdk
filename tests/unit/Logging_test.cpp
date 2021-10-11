@@ -4,7 +4,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the rules set forth in the Terms of Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -509,3 +509,43 @@ TEST(Logging, macroFatal)
 }
 
 #endif
+
+TEST(Logging_constexpr, Extract_file_name_from_full_path)
+{
+
+// Similar to Logging.h usage
+#define LOG_xyz(x) ::mega::log_file_leafname(x)
+
+    struct testCase {
+        const char* input;
+        const char* expected;
+    };
+
+    const struct testCase testCases[] = {
+         {.input = LOG_xyz(__FILE__), .expected = "Logging_test.cpp" }
+        ,{.input = LOG_xyz("logging.h"), .expected = "logging.h" }
+        ,{.input = LOG_xyz("include/mega/logging.h"), .expected = "logging.h" }
+        ,{.input = LOG_xyz("include\\mega\\logging.h"), .expected = "logging.h" }
+        ,{.input = LOG_xyz("C:\\My Files\\include\\mega\\logging.h"), .expected = "logging.h" }
+        ,{.input = LOG_xyz("C:\\My Files\\include\\mega\\My Logging File.h"), .expected = "My Logging File.h" }
+        ,{.input = LOG_xyz("a/b/c/d/e/f/g/h/i/h/k/l/m/n/o/logging.h"), .expected = "logging.h" }
+        ,{.input = LOG_xyz("a/b/c/d/e/"), .expected = "" }
+        ,{.input = LOG_xyz("a\\b\\c\\d\\e\\"), .expected = "" }
+        ,{
+          .input = LOG_xyz("aaa/bbb/ccc/ddd/eee/fff/ggg/hhh/iii/jjjj/kkk/lll/mmm/nnn/ooo/ppp/qqq/rrr/sss/ttt/uuu/vvv/www/xxx/yyy/zzz/logging.h")
+         ,.expected = "logging.h"
+        }
+        ,{.input = LOG_xyz("/x/y/z/file\nname.xyz"), .expected = "file\nname.xyz" }
+        ,{.input = LOG_xyz("/x/y/z/λ.xyz"), .expected = "λ.xyz" } // UTF8
+        ,{.input = LOG_xyz("λ.h"), .expected = "λ.h" } // UTF8
+//        ,{.input = LOG_xyz(""), .expected = "" }  // Fails
+//        ,{.input = LOG_xyz("//"), .expected = "" } // Fails
+//        ,{.input = LOG_xyz("a"), .expected = "a" } // Fails
+//        ,{.input = LOG_xyz("\0"), .expected = "\0" } // Fails
+    };
+
+    for(auto test: testCases ) {
+        ASSERT_EQ( 0, strcmp(test.input, test.expected));
+    }
+#undef LOG_xyz
+}
