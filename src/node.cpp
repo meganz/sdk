@@ -1416,6 +1416,13 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 
 auto LocalNode::rare() -> RareFields&
 {
+    // Rare fields are those that are hardly ever used, and we don't want every LocalNode using more RAM for them all the time.
+    // Those rare fields are put in this RareFields struct instead, and LocalNode holds an optional unique_ptr to them
+    // Only a tiny subset of the LocalNodes should have populated RareFields at any one time.
+    // If any of the rare fields are in use, the struct is present.  trimRareFields() removes the struct when none are in use.
+    // This function should be used when one of those field is needed, as it creates the struct if it doesn't exist yet
+    // and then returns it.
+
     if (!rareFields)
     {
         rareFields.reset(new RareFields);
@@ -1425,6 +1432,8 @@ auto LocalNode::rare() -> RareFields&
 
 auto LocalNode::rareRO() -> const RareFields&
 {
+    // RO = read only
+    // Use this function when you're not sure if rare fields have been populated, but need to check
     if (!rareFields)
     {
         static RareFields blankFields;

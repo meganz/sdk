@@ -1430,6 +1430,25 @@ struct ProgressingMonitor
 
 bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode)
 {
+    // We have detected that this LocalNode might be a move/rename target (the moved-to location).
+    // Ie, there is a new/different FSItem in this row.
+    // This function detects whether this is in fact a move or not, and takes care of performing the corresponding cloud move
+    // If we do determine it's a move, then we perform the corresponding move in the cloud.
+    // Of course that's not instant, so we need to wait until the move completes (or fails)
+    // In order to keep track of that, we put a shared_ptr to the move-tracking object into this LocalNode's rare fields.
+    // The client thread actually performing the move will update flags in that object, or it might release its shared_ptr to the move object.
+    // In the meantime this thread can continue recursing and iterate over the tree multiple times until the move is resolved.
+    // We don't recurse below the moved-from or moved-to node in the meantime though as that would cause incorrect decisions to be made.
+    // (well we do but in a very limited capacity, only checking if the cloud side has new nodes to detect crossed-over moves)
+    // If the move/rename is successful, then on one of those iterations we will detect it as a synced row in
+    // resolve_rowMatched.   That function will update our data structures, moving the sub-LocalNodes from the
+    // moved-from LocalNode to the moved-to LocalNode.  Later the moved-from LocalNode will be removed as it has no FSNode or CloudNode.
+    // So yes that means we do briefly have two LocalNodes for a the single moved file/folder while the move goes on.
+    // That's convenient algorithmicaly for tracking the move, and also it's not safe to delete the old node early
+    // as it might have come from a parent folder, which in data structures in the recursion stack are referring to.
+    // If the move/rename fails, it's likely because the move is no longer appropriate, eg new parent folder
+    // is missing.  In that case, we clean up the data structure and let the algorithm make a new choice.
+
     assert(syncs.onSyncThread());
 
     // no cloudNode at this row.  Check if this node is where a filesystem item moved to.
@@ -1875,6 +1894,24 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
 bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode)
 {
+    // We have detected that this LocalNode might be a move/rename target (the moved-to location).
+    // Ie, there is a new/different CloudNode in this row.
+    // This function detects whether this is in fact a move or not, and takes care of performing the corresponding local move/rename
+    // If we do determine it's a move/rename, then we perform the corresponding action in the local FS.
+    // We perform the local action synchronously so we don't need to track it with shared_ptrs etc.
+    // Should it fail for some reason though, we report that in the stall tracking system and continue.
+    // In the meantime this thread can continue recursing and iterate over the tree multiple times until the move is resolved.
+    // We don't recurse below the moved-from or moved-to node in the meantime though as that would cause incorrect decisions to be made.
+    // (well we do but in a very limited capacity, only checking if the local side has new nodes to detect crossed-over moves)
+    // If the move/rename is successful, then on the next tree iteration we will detect it as a synced row in
+    // resolve_rowMatched.   That function will update our data structures, moving the sub-LocalNodes from the
+    // moved-from LocalNode to the moved-to LocalNode.  Later the moved-from LocalNode will be removed as it has no FSNode or CloudNode.
+    // So yes that means we do briefly have two LocalNodes for a the single moved file/folder while the move goes on.
+    // That's convenient algorithmicaly for tracking the move, and also it's not safe to delete the old node early
+    // as it might have come from a parent folder, which in data structures in the recursion stack are referring to.
+    // If the move/rename fails, it's likely because the move is no longer appropriate, eg new parent folder
+    // is missing.  In that case, we clean up the data structure and let the algorithm make a new choice.
+
     assert(syncs.onSyncThread());
 
     // if this cloud move was a sync decision, don't look to make it locally too
@@ -4447,6 +4484,17 @@ bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
 void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren,
                 bool belowRemovedFsNode, fsid_localnode_map& localnodeByScannedFsid)
 {
+    // This is the function that determines the list of syncRows that recursiveSync() will operate on for this folder.
+    // Each syncRow a (CloudNodes, SyncNodes, FSNodes) tuple that all match up by name (taking escapes/case into account)
+    // For the case of a folder that contains already-synced content, and in which nothing changed, we can "infer" the set
+    // much more efficiently, by generating it from SyncNodes alone.
+    // Otherwise we need to calculate it, which involves sorting the three sets and matching them up.
+    // An additional complication is that we try to save RAM by not storing the scanned FSNodes for this folder
+    // If we can regenerate the list of FSNodes from the LocalNodes, then we would have done that, and so we
+    // need to recreate that list.  So our extra RAM usage is just for the folders on the stack, and not the entire tree.
+    // (Plus for those SyncNode folders where regeneration wouldn't match the FSNodes (yet))
+    // (SyncNode = LocalNode, we'll rename LocalNode eventually)
+
     // Effective children are from the last scan, if present.
     vector<FSNode>* effectiveFsChildren = belowRemovedFsNode ? nullptr : syncNode->lastFolderScan.get();
 
@@ -5135,6 +5183,16 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
         // Ignore files must be fully processed before any other child.
         auto sequences = computeSyncSequences(childRows);
+
+        // Here is where we loop over the syncRows for this folder.
+        // We must process things in a particular order
+        //    - first, check all rows for involvement in moves (case 0)
+        //      such a row is excluded from further checks
+        //    - second, check all remainging rows for sync actions on that row (case 1)
+        //    - third, recurse into each folder (case 2)
+        //      there are various reasons we may skip that, based on flags set by earlier steps
+        //    - zeroth, we perform first->third for any .megaignore file before any others
+        //      as any change involving .megaignore may affect anything else we do
 
         for (auto& sequence : sequences)
         {
@@ -6491,7 +6549,7 @@ bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
         row.syncNode->syncedFingerprint = fs;
     }
-    
+
     // Consider us previously synced.
     row.syncNode->setSyncedFsid(row.fsNode->fsid,
                                 syncs.localnodeBySyncedFsid,
@@ -8192,7 +8250,7 @@ void Syncs::syncLoop()
                 break;
             }
             Sync* sync = us->mSync.get();
-            
+
             if (sync && sync->state() >= SYNC_INITIALSCAN)
             {
 
