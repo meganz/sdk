@@ -484,7 +484,7 @@ TEST(Filesystem, isContainingPathOf)
     rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, 2);
+    EXPECT_EQ(pos, 2u);
 
     // trailing separator.
     pos = sentinel;
@@ -492,14 +492,14 @@ TEST(Filesystem, isContainingPathOf)
     rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, 2);
+    EXPECT_EQ(pos, 2u);
 
     // lhs contains itself.
     pos = sentinel;
     lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(lhs, &pos));
-    EXPECT_EQ(pos, 3);
+    EXPECT_EQ(pos, 3u);
 
 #ifdef _WIN32
     // case insensitive.
@@ -508,7 +508,7 @@ TEST(Filesystem, isContainingPathOf)
     rhs = LocalPath::fromPath("A" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, 3);
+    EXPECT_EQ(pos, 3u);
 #endif // _WIN32
 
 #undef SEP

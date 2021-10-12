@@ -5802,7 +5802,7 @@ TEST_F(SyncTest, AnomalousManualUpload)
         ASSERT_TRUE(cv.confirmModel_mainthread(model.root.get(), id));
 
         // A single anomaly should've been reported.
-        ASSERT_EQ(reporter->mAnomalies.size(), 1);
+        ASSERT_EQ(reporter->mAnomalies.size(), 1u);
 
         auto& anomaly = reporter->mAnomalies.front();
 
