@@ -3508,7 +3508,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
-    LOG_debug << "----- making sync change to test, now -----";
+    out() << "----- making sync change to test, now -----";
     clientA1.received_node_actionpackets = false;
     clientA2.received_node_actionpackets = false;
 
@@ -3519,8 +3519,16 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
 
     // client1 should send a rename command to the API
     // both client1 and client2 should receive the corresponding actionpacket
-    ASSERT_TRUE(clientA1.waitForNodesUpdated(30)) << " no actionpacket received in clientA1 for rename";
-    ASSERT_TRUE(clientA2.waitForNodesUpdated(30)) << " no actionpacket received in clientA2 for rename";
+    const char* s = nullptr;
+    if (!clientA1.waitForNodesUpdated(60))
+    {
+        s = " no actionpacket received in clientA1 for rename";
+    }
+    if (!clientA2.waitForNodesUpdated(60))
+    {
+        s = " no actionpacket received in clientA2 for rename";
+    }
+    out() << "----- wait for actionpackets ended -----";
 
     // sync activity should not take much longer after that.
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
