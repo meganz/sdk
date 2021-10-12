@@ -2076,7 +2076,6 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         if (sourceRow)
         {
             sourceRow->itemProcessed = true;
-            sourceRow->syncNode->setScanAgain(true, false, false, 0);
         }
 
         if (belowRemovedFsNode)
@@ -2177,6 +2176,23 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             row.suppressRecursion = true;
             sourceSyncNode->moveApplyingToLocal = false;
             rowResult = false;
+            return true;
+        }
+        else if (syncs.fsaccess->target_name_too_long)
+        {
+            LOG_warn << "Unable to move folder as the move target's name is too long: "
+                     << sourcePath.toPath(*syncs.fsaccess)
+                     << logTriplet(row, fullPath);
+
+            monitor.waitingLocal(fullPath.localPath,
+                                 sourceSyncNode->getLocalPath(),
+                                 sourceSyncNode->getCloudPath(),
+                                 SyncWaitReason::MoveTargetNameTooLong);
+
+            row.suppressRecursion = true;
+            sourceSyncNode->moveApplyingToLocal = false;
+            rowResult = false;
+
             return true;
         }
         else
@@ -5836,6 +5852,11 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         // item exists remotely only
         return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
     }
+    default:
+    {
+        // Silence compiler warning.
+        break;
+    }
     } // switch
 
     // SRT_XXX  (should not occur)
@@ -5843,7 +5864,6 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     CodeCounter::ScopeTimer rstXXX(syncs.mClient.performanceStats.syncItemXXX);
     assert(false);
     return false;
-
 }
 
 bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
@@ -6400,6 +6420,19 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                         parentRow.syncNode->loadFilters(fullPath.localPath);
                     }
                 }
+                else if (fsAccess.target_name_too_long)
+                {
+                    SYNC_verbose << syncname
+                                 << "Download complete but the target's name is too long: "
+                                 << logTriplet(row, fullPath);
+
+                    monitor.waitingLocal(sourcePath,
+                                         targetPath,
+                                         cloudPath,
+                                         SyncWaitReason::DownloadTargetNameTooLong);
+
+                    // Leave the transfer intact so we don't reattempt the download.
+                }
                 else if (fsAccess.transient_error)
                 {
                     // Transient error while moving download into place.
@@ -6482,10 +6515,24 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     row.syncNode->setScanAgain(true, false, false, 50);
                 }
             }
+            else if (syncs.fsaccess->target_name_too_long)
+            {
+                LOG_warn << syncname
+                         << "Unable to create target folder as its name is too long "
+                         << fullPath.localPath_utf8()
+                         << logTriplet(row, fullPath);
+                         
+                assert(row.syncNode);
+                
+                monitor.waitingLocal(fullPath.localPath,
+                                     LocalPath(),
+                                     fullPath.cloudPath,
+                                     SyncWaitReason::CreateFolderNameTooLong);
+            }
             else
             {
                 // let's consider this case as blocked too, alert the user
-                LOG_warn << syncname << "Error creating folder, marking as blocked " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
+                LOG_warn << syncname << "Unable to create folder " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
                 assert(row.syncNode);
                 monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::CreateFolderFailed);
             }
