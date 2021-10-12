@@ -686,6 +686,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails because the target already exists
     bool target_exists = false;
 
+    // Set when an operation fails because the target file name is too long.
+    bool target_name_too_long = false;
+
     // append local operating system version information to string.
     // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is via the WOW subsystem)
     virtual void osversion(string*, bool includeArchExtraInfo) const { }
