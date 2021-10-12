@@ -3470,7 +3470,7 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     error_code e;
     auto nRemoved = fs::remove_all(clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1", e);
     ASSERT_TRUE(!e) << "remove failed " << (clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1").u8string() << " error " << e;
-    ASSERT_GT(nRemoved, 0) << e;
+    ASSERT_GT(static_cast<unsigned int>(nRemoved), 0u) << e;
 
     // let them catch up
     waitonsyncs(std::chrono::seconds(20), &clientA1, &clientA2);
@@ -5717,7 +5717,7 @@ TEST_F(SyncTest, AnomalousManualDownload)
         ASSERT_EQ(read_string(destination), "g:0");
 
         // A single anomaly should be reported.
-        ASSERT_EQ(reporter->mAnomalies.size(), 1);
+        ASSERT_EQ(reporter->mAnomalies.size(), 1u);
 
         auto& anomaly = reporter->mAnomalies.front();
 
