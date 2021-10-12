@@ -2659,6 +2659,9 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::CreateFolderFailed:                            return "CreateFolderFailed";
         case SyncWaitReason::UnknownExclusionState:                         return "UnknownExclusionState";
         case SyncWaitReason::UnableToLoadIgnoreFile:                        return "UnableToLoadIgnoreFile";
+        case SyncWaitReason::MoveTargetNameTooLong:                         return "MoveTargetNameTooLong";
+        case SyncWaitReason::DownloadTargetNameTooLong:                     return "DownloadTargetNameTooLong";
+        case SyncWaitReason::CreateFolderNameTooLong:                       return "CreateFolderNameTooLong";
     }
     return "<out of range>";
 }
