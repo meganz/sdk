@@ -59,6 +59,10 @@
 #include "mega/gfx/freeimage.h"
 #endif
 
+#ifdef WIN32
+#include <winioctl.h>
+#endif
+
 namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
@@ -2638,7 +2642,7 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
     if (s.extractflagparam("-nameprefix", param)) nameprefix = param;
 
-    fs::path p = pathFromLocalPath(s.words[1].s, true);
+    fs::path p = pathFromLocalPath(s.words[1].s, false);
     if (!p.empty())
     {
         int totalfilecount = 0, totalfoldercount = 0;
@@ -2649,6 +2653,46 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     {
         cout << "invalid directory: " << p.u8string() << endl;
     }
+}
+
+void exec_generatesparsefile(autocomplete::ACState& s)
+{
+    int64_t filesize = int64_t(2) * 1024 * 1024 * 1024 * 1024;
+    string param;
+    if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
+
+    fs::path p = pathFromLocalPath(s.words[1].s, false);
+    std::ofstream(p).put('a');
+    cout << "File size:  " << fs::file_size(p) << '\n'
+        << "Free space: " << fs::space(p).free << '\n';
+
+#ifdef WIN32
+    HANDLE hFile = CreateFileW((LPCWSTR)p.u16string().data(),
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_WRITE | FILE_SHARE_READ,
+        NULL,
+        OPEN_ALWAYS,
+        0,
+        NULL);
+    DWORD bytesReturned = 0;
+    if (!DeviceIoControl(
+        hFile,                             // handle to a file
+        FSCTL_SET_SPARSE,                  // dwIoControlCode
+        (PFILE_SET_SPARSE_BUFFER) NULL,    // input buffer
+        (DWORD) 0,                         // size of input buffer
+        NULL,                              // lpOutBuffer
+        0,                                 // nOutBufferSize
+        &bytesReturned,                    // number of bytes returned
+        NULL))                              // OVERLAPPED structure
+    {
+        cout << "Set sparse file operation failed." << endl;
+    }
+    CloseHandle(hFile);
+#endif WIN32
+
+    fs::resize_file(p, filesize);
+    cout << "File size:  " << fs::file_size(p) << '\n'
+        << "Free space: " << fs::space(p).free << '\n';
 }
 
 void exec_lreplace(autocomplete::ACState& s)
@@ -3327,11 +3371,13 @@ autocomplete::ACN autocompleteSyntax()
 
 #ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
-    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"), repeat(either(sequence(flag("-folderdepth"), param("depth")),
-                                                                                                   sequence(flag("-folderwidth"), param("width")),
-                                                                                                   sequence(flag("-filecount"), param("count")),
-                                                                                                   sequence(flag("-filesize"), param("size")),
-                                                                                                   sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
+    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"),
+        repeat(either(  sequence(flag("-folderdepth"), param("depth")),
+                        sequence(flag("-folderwidth"), param("width")),
+                        sequence(flag("-filecount"), param("count")),
+                        sequence(flag("-filesize"), param("size")),
+                        sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
+    p->Add(exec_generatesparsefile, sequence(text("generatesparsefile"), opt(sequence(flag("-filesize"), param("size"))), localFSFile("targetfile")));
     p->Add(exec_lreplace, sequence(text("lreplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content")));
     p->Add(exec_lrenamereplace, sequence(text("lrenamereplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content"), localFSPath("renamed")));
 
