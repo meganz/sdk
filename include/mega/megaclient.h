@@ -684,9 +684,6 @@ private:
 
 public:
 
-    // transition the cache to failed
-    void failSync(Sync* sync, SyncError syncerror);
-
     // disable synchronization. syncError specifies why we are disabling it.
     // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
     void disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag);
@@ -735,7 +732,7 @@ public:
     void sendchatstats(const char*, int port);
 
     // send chat logs with user's annonymous id
-    void sendchatlogs(const char*, const char*, int port);
+    void sendchatlogs(const char*, mega::handle userid, mega::handle callid, int port);
 
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);

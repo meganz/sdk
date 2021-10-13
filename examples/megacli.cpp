@@ -2917,6 +2917,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                     cout << "  sync state: " << d.syncState << endl;
                     cout << "  sync substate: " << d.syncSubstate << endl;
                     cout << "  extra: " << d.extra << endl;
+                    cout << "    backup name: " << d.backupName << endl;
                     cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
                     cout << "  heartbeat status: " << d.hbStatus << endl;
                     cout << "  heartbeat progress: " << d.hbProgress << endl;
@@ -6602,7 +6603,7 @@ void exec_mediainfo(autocomplete::ACState& s)
     }
     else if (!client->mediaFileInfo.mediaCodecsReceived)
     {
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
         cout << "Mediainfo lookups requested" << endl;
     }
 
@@ -7768,9 +7769,21 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
+void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, std::unique_ptr<BusinessPlan>)
 {
     // FIXME: implement
+}
+
+void DemoApp::enumeratequotaitems_result(unique_ptr<CurrencyData> data)
+{
+    cout << "Currency data: " << endl;
+    cout << "\tName: " << data->currencyName;
+    cout << "\tSymbol: " << Base64::atob(data->currencySymbol);
+    if (data->localCurrencyName.size())
+    {
+        cout << "\tName (local): " << data->localCurrencyName;
+        cout << "\tSymbol (local): " << Base64::atob(data->localCurrencySymbol);
+    }
 }
 
 void DemoApp::enumeratequotaitems_result(error)

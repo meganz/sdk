@@ -989,7 +989,7 @@ error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
     pd.appendWithSeparator(dotDir, false);
 
     // Try and create the backup configuration directory
-    if (!(fsaccess->mkdirlocal(pd) || fsaccess->target_exists))
+    if (!(fsaccess->mkdirlocal(pd, false, false) || fsaccess->target_exists))
     {
         LOG_err << "Unable to create config DB directory: " << pd.toPath(*fsaccess);
 
@@ -1953,7 +1953,7 @@ void MegaClient::exec()
                                 notifypurge();
                                 if (sctable && pendingsccommit && !reqs.cmdspending())
                                 {
-                                    LOG_debug << "Executing postponed DB commit";
+                                    LOG_debug << "Executing postponed DB commit 2";
                                     sctable->commit();
                                     sctable->begin();
                                     app->notify_dbcommit();
@@ -2190,7 +2190,8 @@ void MegaClient::exec()
                     }
                     LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
                 }
-                LOG_err << "Useralerts request failed, continuing without them";
+                LOG_warn << "Useralerts request failed, continuing without them";
+
                 if (useralerts.begincatchup)
                 {
                     useralerts.begincatchup = false;
@@ -2564,6 +2565,7 @@ void MegaClient::exec()
                 const auto &syncConfig = sync->getConfig();
                 LocalPath localPath = sync->getConfig().getLocalPath();
                 auto fa = fsaccess->newfileaccess();
+                auto syncErr = NO_SYNC_ERROR;
 
                 if (fa->fopen(localPath, true, false))
                 {
@@ -2580,20 +2582,26 @@ void MegaClient::exec()
                         else
                         {
                             LOG_err << "Initial delayed scan failed";
-                            failSync(sync, INITIAL_SCAN_FAILED);
-                            sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, false, true);
+                            syncErr = INITIAL_SCAN_FAILED;
                         }
 
                         syncactivity = true;
                     }
                     else
                     {
-                        failSync(sync, INVALID_LOCAL_TYPE);
+                        syncErr = INVALID_LOCAL_TYPE;
                     }
                 }
                 else
                 {
-                    failSync(sync, fa->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE);
+                    syncErr = fa->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
+                }
+
+                if (syncErr != NO_SYNC_ERROR)
+                {
+                    syncs.disableSelectedSyncs(
+                        [&](SyncConfig&, Sync* s) { return s == sync; },
+                        true, syncErr, false, nullptr);
                 }
             }
         });
@@ -4493,8 +4501,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
         if (sync->statecachetable)
         {
             sync->statecachetable->remove();
-            delete sync->statecachetable;
-            sync->statecachetable = NULL;
+            sync->statecachetable.reset();
         }
     });
 
@@ -4551,7 +4558,7 @@ void MegaClient::sendchatstats(const char *json, int port)
     {
         req->posturl.append(":");
         char stringPort[6];
-        sprintf(stringPort, "%d", port);
+        snprintf(stringPort, sizeof(stringPort), "%d", static_cast<uint16_t>(port));
         req->posturl.append(stringPort);
     }
     req->posturl.append("/stats");
@@ -4560,7 +4567,7 @@ void MegaClient::sendchatstats(const char *json, int port)
     req->post(this);
 }
 
-void MegaClient::sendchatlogs(const char *json, const char *aid, int port)
+void MegaClient::sendchatlogs(const char *json, handle userid, handle callid, int port)
 {
     GenericHttpReq *req = new GenericHttpReq(rng);
     req->tag = reqtag;
@@ -4571,12 +4578,21 @@ void MegaClient::sendchatlogs(const char *json, const char *aid, int port)
     {
         req->posturl.append(":");
         char stringPort[6];
-        sprintf(stringPort, "%d", port);
+        snprintf(stringPort, sizeof(stringPort), "%d", static_cast<uint16_t>(port));
         req->posturl.append(stringPort);
     }
-    req->posturl.append("/msglog?aid=");
-    req->posturl.append(aid);
+
+    Base64Str<MegaClient::USERHANDLE> uid(userid);
+    req->posturl.append("/msglog?userid=");
+    req->posturl.append(uid);
     req->posturl.append("&t=e");
+    if (callid != UNDEF)
+    {
+    Base64Str<MegaClient::USERHANDLE> cid(callid);
+        req->posturl.append("&callid=");
+        req->posturl.append(cid);
+    }
+
     req->protect = true;
     req->out->assign(json);
     req->post(this);
@@ -6576,7 +6592,6 @@ void MegaClient::sc_ph()
     m_time_t cts = 0;
     Node *n;
     std::string authKey;
-    bool hasAuthKey = false;
 
     bool done = false;
     while (!done)
@@ -6590,7 +6605,7 @@ void MegaClient::sc_ph()
             ph = jsonsc.gethandle(MegaClient::NODEHANDLE);
             break;
         case 'w':
-            hasAuthKey = jsonsc.storeobject(&authKey);
+            static_cast<void>(jsonsc.storeobject(&authKey));
             break;
         case 'd':
             deleted = (jsonsc.getint() == 1);
@@ -7304,36 +7319,43 @@ void MegaClient::notifypurge(void)
                     return;
                 }
 
+                auto syncErr = NO_SYNC_ERROR;
+
                 // fail sync if required
                 if(n->changed.parent) //moved
                 {
                     assert(pathChanged);
                     // check if moved to rubbish
                     auto p = n->parent;
-                    bool alreadyFailed = false;
                     while (p)
                     {
                         if (p->nodehandle == rubbishHandle)
                         {
-                            failSync(activeSync.get(), REMOTE_NODE_MOVED_TO_RUBBISH);
-                            alreadyFailed = true;
+                            syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
                             break;
                         }
                         p = p->parent;
                     }
 
-                    if (!alreadyFailed)
+                    if (syncErr == NO_SYNC_ERROR)
                     {
-                        failSync(activeSync.get(), REMOTE_PATH_HAS_CHANGED);
+                        syncErr = REMOTE_PATH_HAS_CHANGED;
                     }
                 }
                 else if (removed)
                 {
-                    failSync(activeSync.get(), REMOTE_NODE_NOT_FOUND);
+                    syncErr = REMOTE_NODE_NOT_FOUND;
                 }
                 else if (pathChanged)
                 {
-                    failSync(activeSync.get(), REMOTE_PATH_HAS_CHANGED);
+                    syncErr = REMOTE_PATH_HAS_CHANGED;
+                }
+
+                if (syncErr != NO_SYNC_ERROR)
+                {
+                    syncs.disableSelectedSyncs(
+                        [&](SyncConfig&, Sync* s) { return s == activeSync.get(); },
+                        true, syncErr, false, nullptr);
                 }
             }
         });
@@ -8236,7 +8258,7 @@ char* MegaClient::utf8_to_a32forjs(const char* str, int* len)
 
     while (i < t)
     {
-        char c = str[i++] & 0xff;
+        char c = static_cast<char>(str[i++] & 0xff);
 
         if (!(c & 0x80))
         {
@@ -8364,7 +8386,7 @@ void MegaClient::stringhash(const char* s, byte* hash, SymmCipher* cipher)
 {
     int t;
 
-    t = strlen(s) & - SymmCipher::BLOCKSIZE;
+    t = static_cast<int>(strlen(s) & - SymmCipher::BLOCKSIZE);
 
     strncpy((char*)hash, s + t, SymmCipher::BLOCKSIZE);
 
@@ -11046,9 +11068,9 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                            case MAKENAMEID2('m', 'r'):    // meeting room: 1; no meeting room: 0
-                               assert(readingPublicChats);
-                               meeting = j->getbool();
-                               break;
+                                meeting = j->getbool();
+                                assert(readingPublicChats || !meeting); // public chats can be meetings or not. Private chats cannot be meetings
+                                break;
 
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
@@ -11676,7 +11698,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
         byte key[FILENODEKEYLENGTH];
         for (unsigned int i = 0; i < encKeyLen; i++)
         {
-            key[i] = encKey[i] ^ derivedKey[i];
+            key[i] = static_cast<byte>(encKey[i] ^ derivedKey[i]);
         }
 
         Base64Str<FILENODEKEYLENGTH> keyStr(key);
@@ -14559,7 +14581,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
                     LOG_debug << "Creating local folder";
 
-                    if (fsaccess->mkdirlocal(localpath))
+                    if (fsaccess->mkdirlocal(localpath, false, true))
                     {
                         // create local path, add to LocalNodes and recurse
                         LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
@@ -15644,15 +15666,6 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
 
 #ifdef ENABLE_SYNC
 
-void MegaClient::failSync(Sync* sync, SyncError syncerror)
-{
-    LOG_err << "Failing sync: " << sync->getConfig().getLocalPath().toPath(*fsaccess) << " error = " << syncerror;
-
-    sync->changestate(SYNC_FAILED, syncerror, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
-
-    syncactivity = true;
-}
-
 void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag)
 {
     if (Node* n = nodeByHandle(nodeHandle))
@@ -15705,7 +15718,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
 
 #ifdef USE_MEDIAINFO
-            mediaFileInfo.requestCodecMappingsOneTime(this, &f->localname);
+            mediaFileInfo.requestCodecMappingsOneTime(this, f->localname);
 #endif
         }
         else

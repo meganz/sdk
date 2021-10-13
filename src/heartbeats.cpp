@@ -37,7 +37,7 @@ int HeartBeatBackupInfo::status() const
 
 double HeartBeatBackupInfo::progress(m_off_t inflightProgress) const
 {
-    return mProgress + inflightProgress;
+    return mProgress + static_cast<double>(inflightProgress);
 }
 
 void HeartBeatBackupInfo::invalidateProgress()
@@ -364,7 +364,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
     if ( !hbs->mSending && (hbs->mModified
          || m_time(nullptr) - hbs->lastBeat() > MAX_HEARBEAT_SECS_DELAY))
     {
-        hbs->updateStatus(us);  //we asume this is costly: only do it when beating
+        hbs->updateStatus(us);  //we assume this is costly: only do it when beating
         hbs->setLastBeat(m_time(nullptr));
 
         m_off_t inflightProgress = 0;

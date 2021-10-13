@@ -85,6 +85,7 @@
 		A820A30A2155111C00C8B6A5 /* MEGATimeZoneDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = A820A3092155111C00C8B6A5 /* MEGATimeZoneDetails.mm */; };
 		A827F4DD204D3D14006A1962 /* MEGAFolderInfo.mm in Sources */ = {isa = PBXBuildFile; fileRef = A827F4DC204D3D14006A1962 /* MEGAFolderInfo.mm */; };
 		A8464B201F25F53A00102C75 /* MEGAChildrenLists.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8464B1F1F25F53A00102C75 /* MEGAChildrenLists.mm */; };
+		A873E86626E23AF000CBB174 /* MEGACurrency.mm in Sources */ = {isa = PBXBuildFile; fileRef = A873E86526E23AF000CBB174 /* MEGACurrency.mm */; };
 		A87843F5215D078700E809EB /* useralerts.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A87843F4215D078700E809EB /* useralerts.cpp */; };
 		A87D979F1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = A87D979E1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm */; };
 		A87D97A21F4AD49B00A98C0E /* MEGAStringList.mm in Sources */ = {isa = PBXBuildFile; fileRef = A87D97A11F4AD49B00A98C0E /* MEGAStringList.mm */; };
@@ -303,6 +304,9 @@
 		A8464B1E1F25F53A00102C75 /* MEGAChildrenLists.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAChildrenLists.h; sourceTree = "<group>"; };
 		A8464B1F1F25F53A00102C75 /* MEGAChildrenLists.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAChildrenLists.mm; sourceTree = "<group>"; };
 		A8464B211F25F68C00102C75 /* MEGAChildrenLists+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAChildrenLists+init.h"; sourceTree = "<group>"; };
+		A873E86426E23AF000CBB174 /* MEGACurrency.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGACurrency.h; sourceTree = "<group>"; };
+		A873E86526E23AF000CBB174 /* MEGACurrency.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGACurrency.mm; sourceTree = "<group>"; };
+		A873E86726E23CB800CBB174 /* MEGACurrency+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGACurrency+init.h"; sourceTree = "<group>"; };
 		A87843F4215D078700E809EB /* useralerts.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = useralerts.cpp; path = ../../src/useralerts.cpp; sourceTree = "<group>"; };
 		A87D979D1F4ACF5100A98C0E /* MEGAAchievementsDetails.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAAchievementsDetails.h; sourceTree = "<group>"; };
 		A87D979E1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAAchievementsDetails.mm; sourceTree = "<group>"; };
@@ -530,6 +534,8 @@
 				5D830396256240320082CA18 /* MEGABanner.mm */,
 				5D83038D256231850082CA18 /* MEGABannerList.h */,
 				5D830392256232A00082CA18 /* MEGABannerList.mm */,
+				A873E86426E23AF000CBB174 /* MEGACurrency.h */,
+				A873E86526E23AF000CBB174 /* MEGACurrency.mm */,
 			);
 			name = bindings;
 			sourceTree = "<group>";
@@ -697,6 +703,7 @@
 				BFD7F5182341B3B50039A6EE /* MEGAPushNotificationSettings+init.h */,
 				B6DBB54725BE99AB005F46A5 /* ListenerDispatch.h */,
 				B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */,
+				A873E86726E23CB800CBB174 /* MEGACurrency+init.h */,
 			);
 			path = Private;
 			sourceTree = "<group>";
@@ -830,6 +837,7 @@
 				940BF00E19ED97B9007E7FA2 /* MEGAAccountDetails.mm in Sources */,
 				940BEFF119ED9351007E7FA2 /* console.cpp in Sources */,
 				940BF01719ED97B9007E7FA2 /* MEGATransferList.mm in Sources */,
+				A873E86626E23AF000CBB174 /* MEGACurrency.mm in Sources */,
 				940BEFC319ED92C2007E7FA2 /* json.cpp in Sources */,
 				940BEFD519ED92C2007E7FA2 /* waiterbase.cpp in Sources */,
 				940BEFCB19ED92C2007E7FA2 /* request.cpp in Sources */,

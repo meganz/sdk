@@ -569,11 +569,11 @@ bool Node::serialize(string* d)
         numshares = 0;
         if (outshares)
         {
-            numshares += (short)outshares->size();
+            numshares = static_cast<short int>(numshares + outshares->size());
         }
         if (pendingshares)
         {
-            numshares += (short)pendingshares->size();
+            numshares = static_cast<short int>(numshares + pendingshares->size());
         }
     }
 
@@ -1054,6 +1054,7 @@ bool Node::setparent(Node* p)
 
         if (!p || p->type == FILENODE)
         {
+            DBTableTransactionCommitter committer(client->tctable); // potentially stopping many transfers here
             TreeProcDelSyncGet tdsg;
             client->proctree(this, &tdsg);
         }
