@@ -563,7 +563,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& path) const
     }
 
     // Where does our name begin?
-    auto index = parentPath.getLeafnameByteIndex(*this);
+    auto index = parentPath.getLeafnameByteIndex();
 
     // We have a parent.
     if (index)
@@ -1291,7 +1291,7 @@ bool LocalPath::beginsWithSeparator() const
     return !localpath.empty() && localpath.front() == localPathSeparator;
 }
 
-size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
+size_t LocalPath::getLeafnameByteIndex() const
 {
     size_t p = localpath.size();
 

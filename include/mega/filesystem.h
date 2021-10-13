@@ -143,7 +143,7 @@ public:
     size_t reportSize() const { return localpath.size() * sizeof(separator_t); } // only for reporting, not logic
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
-    size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
+    size_t getLeafnameByteIndex() const;
     LocalPath subpathFrom(size_t bytePos) const;
     LocalPath subpathTo(size_t bytePos) const;
 

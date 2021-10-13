@@ -2504,7 +2504,7 @@ bool Sync::movetolocaldebrisSubfolder(const LocalPath& localpath, const LocalPat
     }
 
     LocalPath moveTarget = targetFolder;
-    moveTarget.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex(*syncs.fsaccess)), true);
+    moveTarget.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex()), true);
 
     syncs.fsaccess->skip_targetexists_errorreport = !logFailReason;
     bool success = syncs.fsaccess->renamelocal(localpath, moveTarget, false);

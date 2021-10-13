@@ -1788,7 +1788,7 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
 
         if (glob)
         {
-            if (size_t index = nameArg->getLeafnameByteIndex(gWfsa))
+            if (size_t index = nameArg->getLeafnameByteIndex())
             {
                 globbase = *nameArg;
                 globbase.truncate(index);
