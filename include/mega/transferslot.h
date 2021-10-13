@@ -75,8 +75,6 @@ struct MEGA_API TransferSlot
 
     m_off_t progressreported;
 
-    m_off_t progresscontiguous;
-
     m_time_t lastprogressreport;
 
     dstime starttime, lastdata;
@@ -121,7 +119,7 @@ struct MEGA_API TransferSlot
     void progress();
 
     // update the contiguous progress
-    void updatecontiguousprogress();
+    m_off_t updatecontiguousprogress();
 
     // compute the meta MAC based on the chunk MACs
     int64_t macsmac(chunkmac_map*);
