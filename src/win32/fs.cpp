@@ -898,7 +898,13 @@ bool WinFileSystemAccess::renamelocal(const LocalPath& oldnamePath, const LocalP
     if (!r)
     {
         DWORD e = GetLastError();
+
+        target_name_too_long = isPathError(e)
+                               && exists(oldnamePath)
+                               && exists(newnamePath.parentPath());
+
         transient_error = istransientorexists(e);
+
         if (!target_exists || !skip_targetexists_errorreport)
         {
             LOG_warn << "Unable to move file: " << oldnamePath.toPath(gWfsa) <<
@@ -920,7 +926,13 @@ bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePa
     if (!r)
     {
         DWORD e = GetLastError();
+
         LOG_debug << "Unable to copy file. Error code: " << e;
+
+        target_name_too_long = isPathError(e)
+                               && exists(oldnamePath)
+                               && exists(newnamePath.parentPath());
+
         transient_error = istransientorexists(e);
     }
 
@@ -1079,6 +1091,8 @@ bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, boo
     if (!r)
     {
         DWORD e = GetLastError();
+
+        target_name_too_long = isPathError(e) && exists(namePath.parentPath());
         transient_error = istransientorexists(e);
 
         if (!target_exists || logAlreadyExistsError)
@@ -1232,6 +1246,22 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
 
     return true;
 #endif
+}
+
+bool WinFileSystemAccess::exists(const LocalPath& path) const
+{
+    auto attributes = GetFileAttributesW(path.localpath.c_str());
+    
+    return attributes != INVALID_FILE_ATTRIBUTES;
+}
+
+bool WinFileSystemAccess::isPathError(DWORD error) const
+{
+    return error == ERROR_DIRECTORY
+           || error == ERROR_FILE_NOT_FOUND
+           || error == ERROR_FILENAME_EXCED_RANGE
+           || error == ERROR_INVALID_NAME
+           || error == ERROR_PATH_NOT_FOUND;
 }
 
 void WinFileSystemAccess::osversion(string* u, bool includeArchExtraInfo) const

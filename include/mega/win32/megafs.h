@@ -88,6 +88,9 @@ public:
     static bool istransient(DWORD);
     bool istransientorexists(DWORD);
 
+    bool exists(const LocalPath& path) const;
+    bool isPathError(DWORD error) const;
+
     void osversion(string*, bool includeArchExtraInfo) const override;
     void statsid(string*) const override;
 
