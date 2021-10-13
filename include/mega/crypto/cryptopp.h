@@ -318,7 +318,7 @@ public:
      */
     void serializekeyforjs(std::string *);
 
-    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool, bool initmac = true);
+    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *mac, bool encrypt, bool initmac = true);
 
     static void setint64(int64_t, byte*);
 
