@@ -1330,6 +1330,10 @@ LocalPath LocalPath::subpathTo(size_t bytePos) const
     return p;
 }
 
+LocalPath LocalPath::parentPath() const
+{
+    return subpathTo(getLeafnameByteIndex());
+}
 
 LocalPath LocalPath::insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess)
 {

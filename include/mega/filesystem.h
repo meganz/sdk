@@ -147,6 +147,11 @@ public:
     LocalPath subpathFrom(size_t bytePos) const;
     LocalPath subpathTo(size_t bytePos) const;
 
+    // Return a path denoting this path's parent.
+    //
+    // Result is undefined if this path is a "root."
+    LocalPath parentPath() const;
+
     LocalPath insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess);
 
     void ensureWinExtendedPathLenPrefix();
