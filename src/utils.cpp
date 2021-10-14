@@ -363,8 +363,9 @@ void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progre
         else if (chunkpos == it.first && it.second.finished)
         {
             // chunkpos only goes up to the end of contiguous finished chunks (could be different than pos from last run - safe though)
-            chunkpos = chunkceil;
             progresscompleted += chunkceil - chunkpos;
+            chunkpos = chunkceil;
+            assert(chunkpos == progresscompleted);
         }
         else if (it.second.finished)
         {
@@ -490,8 +491,6 @@ m_off_t chunkmac_map::updateContiguousProgress(m_off_t fileSize)
 
 void chunkmac_map::updateMacsmacProgress(SymmCipher *cipher)
 {
-    LOG_debug << "macsmac key: " << Base64Str<sizeof cipher->key>(cipher->key);
-
     bool updated = false;
     while (macsmacSoFarPos + 1024 * 1024 * 5 < progresscontiguous  // never go past contiguous-from-start section
            && size() > 32 * 3 + 5)   // leave enough room for the mac-with-late-gaps corrective calculation to occur
