@@ -52,6 +52,7 @@ SOURCES += src/attrmap.cpp \
     src/share.cpp \
     src/sharenodekeys.cpp \
     src/sync.cpp \
+    src/syncfilter.cpp \
     src/transfer.cpp \
     src/transferslot.cpp \
     src/treeproc.cpp \
@@ -465,6 +466,7 @@ HEADERS  += include/mega.h \
             include/mega/share.h \
             include/mega/sharenodekeys.h \
             include/mega/sync.h \
+            include/mega/syncfilter.h \
             include/mega/heartbeats.h \
             include/mega/transfer.h \
             include/mega/transferslot.h \
