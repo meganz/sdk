@@ -361,10 +361,8 @@ void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progre
         }
         else if (chunkpos == it.first && it.second.finished)
         {
-            // chunkpos only goes up to the end of contiguous finished chunks (could be different than pos from last run - safe though)
-            progresscompleted += chunkceil - chunkpos;
             chunkpos = chunkceil;
-            assert(chunkpos == progresscompleted);
+            progresscompleted = chunkceil;
         }
         else if (it.second.finished)
         {

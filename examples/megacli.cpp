@@ -2561,7 +2561,7 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
     if (s.extractflagparam("-nameprefix", param)) nameprefix = param;
 
-    fs::path p = pathFromLocalPath(s.words[1].s, false);
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
     if (!p.empty())
     {
         int totalfilecount = 0, totalfoldercount = 0;
