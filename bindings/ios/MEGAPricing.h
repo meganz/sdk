@@ -98,7 +98,7 @@
 
 /**
  * @brief Get the price in the local currency (in cents)
- * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+ * @param index Product index (from 0 to MegaPricing::getNumProducts)
  * @return Price of the product (in cents)
  */
 - (NSInteger)localPriceAtProductIndex:(NSInteger)index;
