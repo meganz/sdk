@@ -961,9 +961,9 @@ struct StandardClient : public MegaApp
         if (logcb)
         {
             onCallback();
-            
+
             lock_guard<mutex> g(om);
-            
+
             out() << clientname << "syncupdate_stalled()" << b;
         }
 
@@ -9978,9 +9978,9 @@ public:
     {
         const fs::path root = makeNewTestRoot();
 
-        cd  = std::make_unique<Client>(root, "cd");
-        cdu = std::make_unique<Client>(root, "cdu");
-        cu  = std::make_unique<Client>(root, "cu");
+        cd  = ::mega::make_unique<Client>(root, "cd");
+        cdu = ::mega::make_unique<Client>(root, "cdu");
+        cu  = ::mega::make_unique<Client>(root, "cu");
 
         cd->logcb = true;
         cdu->logcb = true;
@@ -10607,7 +10607,7 @@ TEST_F(FilterFailureFixture, ResolveBrokenIgnoreFile)
     // Break the ignore file.
     model0.addfile(".megaignore", "bad");
     model0.generate(root(*cdu) / "s0");
-    
+
     // Wait for the stall to be recognized.
     ASSERT_TRUE(cdu->waitFor(SyncStallState(true), TIMEOUT));
 
@@ -11306,7 +11306,7 @@ TEST_F(LocalToCloudFilterFixture, ExcludedIgnoreFile)
 
     // Wait for the sync to complete.
     waitOnSyncs(cu.get());
-    
+
     // Check that the newly included ignore files were uploaded.
     ASSERT_TRUE(confirm(*cu, id, localFS));
     ASSERT_TRUE(confirm(*cu, id, remoteTree));
@@ -12922,7 +12922,7 @@ TEST_F(CloudToLocalFilterFixture, FilterDeferredChange)
     model.addfile("d/x");
     model.addfile("d/y");
     model.generate(cuLocalRoot);
-    
+
     // Upload tree.
     ASSERT_TRUE(cu->uploadFolderTree(cuLocalRoot, cuCloudRoot));
     ASSERT_TRUE(cu->uploadFilesInTree(cuLocalRoot, cuCloudRoot));
@@ -13480,7 +13480,7 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
 TEST_F(CloudToLocalFilterFixture, OverwriteExcluded)
 {
     RemoteNodeModel remoteTree;
-    
+
     // Set up local FS.
     LocalFSModel localFS;
 
@@ -13646,7 +13646,7 @@ TEST_F(SyncTest, CorrectlyHandlePreviouslySyncedFiles)
     // Add and start a sync.
     auto id = c.setupSync_mainthread("s", "s");
     ASSERT_NE(id, UNDEF);
-    
+
     // Wait for the sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
