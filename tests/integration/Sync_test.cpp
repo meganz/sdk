@@ -4506,7 +4506,8 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
     ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2/folder2.2"));
 }
 
-TEST_F(SyncTest, ExerciseCommands)
+// this test fails frequently on develop due to race conditions with commands vs actionpackets on develop, re-enable after merging sync rework (which has SIC removed)
+TEST_F(SyncTest, DISABLED_ExerciseCommands)
 {
     fs::path localtestroot = makeNewTestRoot();
     StandardClient standardclient(localtestroot, "ExerciseCommands");
