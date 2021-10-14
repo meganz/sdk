@@ -1286,7 +1286,7 @@ ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n
     n->Add(n11);
     n->Add(n12);
     n->Add(n13);
-    return std::move(n);
+    return n;
 }
 
 static ACN sequenceBuilder(ACN n1, ACN n2)

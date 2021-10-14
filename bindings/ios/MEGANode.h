@@ -23,7 +23,7 @@
 typedef NS_ENUM (NSInteger, MEGANodeType) {
     MEGANodeTypeUnknown = -1,
     MEGANodeTypeFile = 0,
-    MEGANodeTypeFolder,	
+    MEGANodeTypeFolder,
     MEGANodeTypeRoot,
     MEGANodeTypeIncoming,
     MEGANodeTypeRubbish
@@ -101,7 +101,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * For other MEGANode types, the name is undefined.
  *
  */
-@property (readonly, nonatomic) NSString *name;
+@property (readonly, nonatomic, nullable) NSString *name;
 
 /**
  * @brief The fingerprint (Base64-encoded) of the node
@@ -111,7 +111,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  *
  * Base64-encoded fingerprint of the node, or nil it the node doesn't have a fingerprint.
  */
-@property (readonly, nonatomic) NSString *fingerprint;
+@property (readonly, nonatomic, nullable) NSString *fingerprint;
 
 /**
  * @brief Duration of the node for audio/video files, in seconds. -1 if not set.
@@ -167,7 +167,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * The purpose of this attribute is to store the latitude coordinate where a photo was taken.
  *
  */
-@property (readonly, nonatomic) NSNumber *latitude;
+@property (readonly, nonatomic, nullable) NSNumber *latitude;
 
 /**
  * @brief Attribute of the node representing the longitude coordinate in its decimal
@@ -176,12 +176,12 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * The purpose of this attribute is to store the longitude coordinate where a photo was taken.
  *
  */
-@property (readonly, nonatomic) NSNumber *longitude;
+@property (readonly, nonatomic, nullable) NSNumber *longitude;
 
 /**
  * @brief Handle of this MEGANode in a Base64-encoded string.
  */
-@property (readonly, nonatomic) NSString *base64Handle;
+@property (readonly, nonatomic, nullable) NSString *base64Handle;
 
 /**
  * @brief Size of the node.
@@ -189,7 +189,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * The value is only valid for nodes of type MEGANodeTypeFile.
  *
  */
-@property (readonly, nonatomic) NSNumber *size;
+@property (readonly, nonatomic, nullable) NSNumber *size;
 
 /**
  * @brief Creation time of the node in MEGA (in seconds since the epoch).
@@ -197,7 +197,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * The value is only valid for nodes of type MEGANodeTypeFile or MEGANodeTypeFolder.
  *
  */
-@property (readonly, nonatomic) NSDate *creationTime;
+@property (readonly, nonatomic, nullable) NSDate *creationTime;
 
 /**
  * @brief Modification time of the file that was uploaded to MEGA (in seconds since the epoch).
@@ -205,7 +205,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * The value is only valid for nodes of type MEGANodeTypeFile.
  *
  */
-@property (readonly, nonatomic) NSDate *modificationTime;
+@property (readonly, nonatomic, nullable) NSDate *modificationTime;
 
 /**
  * @brief Public link creation time of the file to MEGA (in seconds since the epoch).
@@ -241,23 +241,6 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) uint64_t parentHandle;
 
 /**
- * @brief Tag of the operation that created/modified this node in MEGA.
- *
- * Every request and every transfer has a tag that identifies it.
- * When a request creates or modifies a node, the tag is associated with the node
- * at runtime, this association is lost after a reload of the filesystem or when
- * the SDK is closed.
- *
- * This tag is specially useful to know if a node reported in [MEGADelegate onNodesUpdate:nodeList:] or
- * [MEGAGlobalDelegate onNodesUpdate:nodeList:] was modified by a local operation (tag != 0) or by an
- * external operation, made by another MEGA client (tag == 0).
- *
- * If the node hasn't been created/modified during the current execution, this function returns 0.
- *
- */
-@property (readonly, nonatomic) NSInteger tag;
-
-/**
  * @brief The expiration time of a public link (in seconds since the epoch), if any
  *
  * 0 for non-expire links, and -1 if the MEGANode is not exported.
@@ -277,13 +260,13 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * @brief A public node for the exported node. If the MEGANode has not been
  * exported or it has expired, then it returns nil.
  */
-@property (readonly, nonatomic) MEGANode *publicNode;
+@property (readonly, nonatomic, nullable) MEGANode *publicNode;
 
 /**
  * @brief The URL for the public link of the exported node. If the MEGANode
  * has not been exported, it returns nil.
  */
-@property (readonly, nonatomic) NSString *publicLink;
+@property (readonly, nonatomic, nullable) NSString *publicLink;
 
 /**
  * @brief The handle of the owner of the node.
@@ -307,7 +290,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  *
  * @return Copy of the MEGANode object.
  */
-- (instancetype)clone;
+- (nullable instancetype)clone;
 
 /**
  * @brief Returns a BOOL value that indicates if the node represents a file (type == MEGANodeTypeFile)
@@ -501,6 +484,6 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  */
 - (BOOL)isForeign;
 
-+ (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
++ (nullable NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
 
 @end

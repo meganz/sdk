@@ -308,7 +308,7 @@ TEST(Serialization, CacheableReaderWriter_fsfp_t)
     ASSERT_TRUE(reader.unserializefsfp(fsfp));
     ASSERT_EQ(1u, reader.fieldnum);
     ASSERT_EQ(reader.ptr, data.c_str() + data.size());
-    ASSERT_EQ(42, fsfp);
+    ASSERT_EQ(42u, fsfp);
 }
 
 namespace {

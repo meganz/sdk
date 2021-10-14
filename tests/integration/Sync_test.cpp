@@ -1856,6 +1856,10 @@ struct StandardClient : public MegaApp
                      true,
                      SyncConfig::TYPE_BACKUP);
 
+        EXPECT_TRUE(!config.mOriginalPathOfRemoteRootNode.empty() &&
+            config.mOriginalPathOfRemoteRootNode.front() == '/')
+            << "config.mOriginalPathOfRemoteRootNode: " << config.mOriginalPathOfRemoteRootNode.c_str();
+
         // Try and add the backup.
         return client.addsync(config, true, completion, logname) == API_OK;
     }
@@ -1909,6 +1913,9 @@ struct StandardClient : public MegaApp
                                //string_vector(),
                                true,
                                isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
+                EXPECT_TRUE(!syncConfig.mOriginalPathOfRemoteRootNode.empty() &&
+                            syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
+                    << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
 
                 error e = client.addsync(syncConfig, true, addSyncCompletion, logname);
                 return !e;
@@ -3800,7 +3807,7 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     error_code e;
     auto nRemoved = fs::remove_all(clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1", e);
     ASSERT_TRUE(!e) << "remove failed " << (clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1").u8string() << " error " << e;
-    ASSERT_GT(nRemoved, 0) << e;
+    ASSERT_GT(static_cast<unsigned int>(nRemoved), 0u) << e;
 
     // let them catch up
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
@@ -4942,7 +4949,8 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
     ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2/folder2.2"));
 }
 
-TEST_F(SyncTest, ExerciseCommands)
+// this test fails frequently on develop due to race conditions with commands vs actionpackets on develop, re-enable after merging sync rework (which has SIC removed)
+TEST_F(SyncTest, DISABLED_ExerciseCommands)
 {
     fs::path localtestroot = makeNewTestRoot();
     StandardClient standardclient(localtestroot, "ExerciseCommands");
@@ -6147,7 +6155,7 @@ TEST_F(SyncTest, AnomalousManualDownload)
         ASSERT_EQ(read_string(destination), "g:0");
 
         // A single anomaly should be reported.
-        ASSERT_EQ(reporter->mAnomalies.size(), 1);
+        ASSERT_EQ(reporter->mAnomalies.size(), 1u);
 
         auto& anomaly = reporter->mAnomalies.front();
 
@@ -6232,7 +6240,7 @@ TEST_F(SyncTest, AnomalousManualUpload)
         ASSERT_TRUE(cv.confirmModel_mainthread(model.root.get(), id));
 
         // A single anomaly should've been reported.
-        ASSERT_EQ(reporter->mAnomalies.size(), 1);
+        ASSERT_EQ(reporter->mAnomalies.size(), 1u);
 
         auto& anomaly = reporter->mAnomalies.front();
 
