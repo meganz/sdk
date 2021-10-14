@@ -27,6 +27,7 @@
 #include "mega/filesystem.h"
 
 #include <iomanip>
+#include <cctype>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>
@@ -2656,7 +2657,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
         case SyncWaitReason::MoveOrRenameFailed:                            return "MoveOrRenameFailed";
         case SyncWaitReason::CreateFolderFailed:                            return "CreateFolderFailed";
-        case SyncWaitReason::UnknownExclusionState:                         return "UnknownExclusionState";        
+        case SyncWaitReason::UnknownExclusionState:                         return "UnknownExclusionState";
         case SyncWaitReason::UnableToLoadIgnoreFile:                        return "UnableToLoadIgnoreFile";
     }
     return "<out of range>";
