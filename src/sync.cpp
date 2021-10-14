@@ -5531,7 +5531,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle))
     {
         // Don't perform any moves until we know the row's exclusion state.
-        if (!parentRow.exclusionState(*row.cloudNode) == ES_UNKNOWN)
+        if (parentRow.exclusionState(*row.cloudNode) == ES_UNKNOWN)
         {
             row.itemProcessed = true;
             row.suppressRecursion = true;
@@ -5921,8 +5921,9 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
 bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
     assert(syncs.onSyncThread());
+
     // these comparisons may need to be adjusted for UTF, escapes
-    assert(row.syncNode->fsid_lastSynced != row.fsNode->fsid || row.syncNode->localname == row.fsNode->localname);
+    assert(row.syncNode->fsid_lastSynced != row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
     assert(row.syncNode->fsid_lastSynced == row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
 
     assert((!!row.syncNode->slocalname == !!row.fsNode->shortname) &&
@@ -5931,7 +5932,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
     if (row.syncNode->fsid_lastSynced != row.fsNode->fsid ||
         row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle ||
-        row.syncNode->localname != row.fsNode->localname)
+        0 != compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)))
     {
         if (row.syncNode->hasRare() && row.syncNode->rare().moveToHere)
         {
