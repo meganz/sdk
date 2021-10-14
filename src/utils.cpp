@@ -504,12 +504,7 @@ void chunkmac_map::updateMacsmacProgress(SymmCipher *cipher)
             assert(it->first == ChunkedHash::chunkfloor(it->first));
             SymmCipher::xorblock(next.mac, calcSoFar.mac);
             cipher->ecb_encrypt(calcSoFar.mac);
-
-            LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof next.mac>(next.mac);
-
             memcpy(next.mac, calcSoFar.mac, sizeof(next.mac));
-
-            LOG_debug << "macsmac output: " << it->first << ": " << Base64Str<sizeof next.mac>(next.mac);
 
             macsmacSoFarPos = it->first;
             next.offset = unsigned(-1);
@@ -559,8 +554,6 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    LOG_debug << "macsmac key: " << Base64Str<sizeof cipher->key>(cipher->key);
-
     for (auto& it : mMacMap)
     {
         if (it.second.isMacsmacSoFar())
@@ -570,10 +563,8 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
         else
         {
             assert(it.first == ChunkedHash::chunkfloor(it.first));
-            LOG_debug << "macsmac input: " << it.first << ": " << Base64Str<sizeof it.second.mac>(it.second.mac);
             SymmCipher::xorblock(it.second.mac, mac);
             cipher->ecb_encrypt(mac);
-            LOG_debug << "macsmac output: " << it.first << ": " << Base64Str<sizeof mac>(mac);
         }
     }
 
@@ -582,7 +573,6 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     m[0] ^= m[1];
     m[1] = m[2] ^ m[3];
 
-     LOG_debug << "macsmac final: " << Base64Str<sizeof int64_t>(mac);
     return MemAccess::get<int64_t>((const char*)mac);
 }
 
