@@ -356,7 +356,7 @@ static void displaytransferdetails(Transfer* t, const char* action)
         cout << name;
     }
 
-    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
+    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action << ": " << t->localfilename.toPath();
 }
 
 // a new transfer was added
@@ -9209,24 +9209,6 @@ void exec_synclist(autocomplete::ACState& s)
             synchronous.set_value(true);
         }, false);  // false so executes on sync thread - we are blocked here on client thread in single-threaded megacli.
         synchronous.get_future().get();
-
-        std::promise<bool> synchronous2;
-        client->syncs.collectSyncScanBlockedPaths(config.mBackupId, [&synchronous2](list<LocalPath>&& scanBlocked){
-
-            if (!scanBlocked.empty())
-            {
-                cout << "  Scan Blocked:\n";
-
-                while (!scanBlocked.empty())
-                {
-                    cout << "    " << scanBlocked.front().toPath() << "\n";
-                    scanBlocked.pop_front();
-                }
-            }
-            cout << std::endl;
-            synchronous2.set_value(true);
-        }, false);  // false so executes on sync thread - we are blocked here on client thread in single-threaded megacli.
-        synchronous2.get_future().get();
     }
 
     SyncStallInfo stall;

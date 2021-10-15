@@ -8531,7 +8531,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
 int MegaApiImpl::syncPathState(string*)
 {
     // TODO: We'll restore this functionality later.
-    //  
+    //
     //       It's not as simple as it might seem from the surface as there
     //       are a lot of threading issues to consider.
     //
@@ -22952,16 +22952,7 @@ int MegaApiImpl::isWaiting()
 #ifdef ENABLE_SYNC
     SdkMutexGuard g(sdkMutex);
 
-    bool found = false;
-    client->syncs.forEachRunningSync(false, [&](Sync* sync) {
-            if (sync->localroot->scanBlocked)
-            {
-                LOG_debug << "SDK waiting for one or more a blocked files.";
-                found = true;
-            }
-        });
-
-    if (receivedStallFlag || found) return RETRY_LOCAL_LOCK;
+    if (receivedStallFlag) return RETRY_LOCAL_LOCK;
 #endif
 
     if (waitingRequest)

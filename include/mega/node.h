@@ -543,6 +543,7 @@ struct MEGA_API LocalNode : public Cacheable
     struct RareFields
     {
         unique_ptr<BackoffTimer> scanBlockedTimer;
+        shared_ptr<LocalPath> scanBlockedPathRecord;
         shared_ptr<ScanService::ScanRequest> scanRequest;
 
         struct MoveInProgress

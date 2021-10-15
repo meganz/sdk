@@ -325,7 +325,7 @@ vector<LocalPath> DefaultFilterChain::applicablePaths(LocalPath targetPath) cons
         // Does the path identify something below the target?
         if (!targetPath.isContainingPathOf(path, &index))
             continue;
-        
+
         // Path exclusions should be relative to the target.
         paths.emplace_back(path.subpathFrom(index));
     }
@@ -559,7 +559,8 @@ FilterResult FilterChain::match(const RemotePathPair& p,
             continue;
         }
 
-        if ((*i)->applicable(type) && (*i)->match(p))
+        if (((*i)->applicable(type) || type == TYPE_UNKNOWN)  // TYPE_UNKNOWN because we need to be able to exclude scan-blocked items, and that is the type they appear as.
+           && (*i)->match(p))
         {
             return FilterResult((*i)->inclusion());
         }
@@ -809,7 +810,7 @@ bool add(const string& text, SizeFilterPtr& filter)
     {
         // Limit isn't a number or has sign markers.
         return syntaxError(text);
-    } 
+    }
 
     std::uint64_t limit;
 

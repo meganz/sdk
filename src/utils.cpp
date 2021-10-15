@@ -2663,6 +2663,14 @@ string syncWaitReasonString(SyncWaitReason r)
     return "<out of range>";
 }
 
+bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason r)
+{
+    return r == SyncWaitReason::LocalFolderNotScannable ||
+           r == SyncWaitReason::SymlinksNotSupported ||
+           r == SyncWaitReason::FolderMatchedAgainstFile ||
+           r == SyncWaitReason::UnableToLoadIgnoreFile;
+}
+
 UploadHandle UploadHandle::next()
 {
     do

@@ -343,9 +343,6 @@ public:
     // syncing to an inbound share?
     bool inshare = false;
 
-    // deletion queue
-    set<uint32_t> deleteq;
-
     // insertion/update queue
     localnode_set insertq;
 
@@ -420,9 +417,6 @@ public:
 
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
-
-    bool collectScanBlocked(list<LocalPath>& paths) const;
-    void collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) const;
 
     // debris path component relative to the base path
     string debris;
@@ -712,6 +706,8 @@ struct SyncStallInfo
 
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
+
+    bool hasImmediateStallReason() const;
 };
 
 struct SyncFlags
@@ -936,8 +932,7 @@ public:
     // Get name conficts - pass UNDEF to collect for all syncs.
     void collectSyncNameConflicts(handle backupId, std::function<void(list<NameConflict>&& nc)>, bool completionInClient);
 
-    // Get scan blocked paths - pass UNDEF to collect for all syncs.
-    void collectSyncScanBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& scanBlocked)>, bool completionInClient);
+    list<weak_ptr<LocalPath>> scanBlockedPaths;
 
     // waiter for sync loop on thread
     WAIT_CLASS waiter;

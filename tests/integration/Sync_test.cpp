@@ -2871,9 +2871,6 @@ struct StandardClient : public MegaApp
                 mc.client.syncs.forEachRunningSync(false,
                   [&](Sync* s)
                   {
-                      any_add_del |= !s->deleteq.empty();
-                      any_add_del |= !s->insertq.empty();
-
                       if (s->active() &&
                           (s->localroot->scanRequired()
                               || s->localroot->mightHaveMoves()
@@ -3325,9 +3322,6 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                           [&](Sync* s)
                           {
                               any_running_at_all = true;
-
-                              if (s->deleteq.size() || s->insertq.size())
-                                  any_activity = true;
 
                               if (s->active() &&
                                   (s->localroot->scanRequired()

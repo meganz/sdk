@@ -1018,6 +1018,7 @@ enum class SyncWaitReason {
     LocalFolderNotScannable,
     SymlinksNotSupported,
     FolderMatchedAgainstFile,
+    MatchedAgainstUnidentifiedItem,
     MoveOrRenameFailed,
     CreateFolderFailed,
     UnknownExclusionState,
@@ -1025,6 +1026,8 @@ enum class SyncWaitReason {
 };
 
 string syncWaitReasonString(SyncWaitReason);
+
+bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason);
 
 } // namespace
 

@@ -1256,6 +1256,8 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
 
     if (oldsync)
     {
+        DBTableTransactionCommitter committer(oldsync->statecachetable);
+
         // prepare localnodes for a sync change or/and a copy operation
         LocalTreeProcMove tp(parent->sync);
         sync->syncs.proclocaltree(this, &tp);
@@ -1447,9 +1449,11 @@ void LocalNode::trimRareFields()
     if (rareFields)
     {
         if (scanBlocked < TREE_ACTION_HERE) rareFields->scanBlockedTimer.reset();
+        if (scanBlocked < TREE_ACTION_HERE) rareFields->scanBlockedPathRecord.reset();
         if (!scanInProgress) rareFields->scanRequest.reset();
 
         if (!rareFields->scanBlockedTimer &&
+            !rareFields->scanBlockedPathRecord &&
             !rareFields->scanRequest &&
             !rareFields->moveFromHere &&
             !rareFields->moveToHere &&
@@ -1566,6 +1570,12 @@ void LocalNode::setScanBlocked()
     {
         p->scanBlocked = std::max<unsigned>(p->scanBlocked, TREE_DESCENDANT_FLAGGED);
     }
+
+    // Also report these as part of the stall set
+    // These records will be cleared if the LocalNode is deleted
+    // Or if the folder can eventually be scanned.
+    rare().scanBlockedPathRecord = std::make_shared<LocalPath>(getLocalPath());
+    sync->syncs.scanBlockedPaths.push_back(rare().scanBlockedPathRecord);
 }
 
 bool LocalNode::checkForScanBlocked(FSNode* fsNode)
@@ -1583,6 +1593,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
 
             scanBlocked = TREE_RESOLVED;
             rare().scanBlockedTimer.reset();
+            rare().scanBlockedPathRecord.reset();
 
             // also clear flags up to the root.  TODO: might have to be more clever than this when there are multiple
             for (auto p = parent; p != nullptr; p = p->parent)
@@ -2760,9 +2771,9 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
     if (mExclusionState != ES_INCLUDED)
         return mExclusionState;
 
-    // Children of unknown type are considered excluded.
-    if (type == TYPE_UNKNOWN)
-        return ES_EXCLUDED;
+    // Children of unknown type still have to be handled.
+    // Scan-blocked appear as TYPE_UNKNOWN and the user must be 
+	// able to exclude them when they are notified of them
 
     // Ignore files are only excluded if one of their parents is.
     if (type == FILENODE && path == IGNORE_FILE_NAME)

@@ -838,7 +838,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname));
+            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED));
 
             localroot->fsid_lastSynced = fas->fsid;
             readstatecache();
@@ -975,6 +975,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             statecacheadd(l);
             if (insertq.size() > 50000)
             {
+                DBTableTransactionCommitter committer(statecachetable);
                 cachenodes();  // periodically output updated nodes with shortname updates, so people who restart megasync still make progress towards a fast startup
             }
         }
@@ -1049,18 +1050,13 @@ void Sync::statecachedel(LocalNode* l)
         return;
     }
 
-    // Always queue the update even if we don't have a state cache.
-    //
-    // The reasoning here is that our integration tests regularly check the
-    // size of these queues to determine whether a sync is or is not idle.
-    //
-    // The same reasoning applies to statecacheadd(...) below.
-    insertq.erase(l);
-
-    if (l->dbid)
+    if (l->dbid && statecachetable)
     {
-        deleteq.insert(l->dbid);
+        statecachetable->del(l->dbid);
     }
+    l->dbid = 0;
+
+    insertq.erase(l);
 }
 
 // insert LocalNode into DB cache
@@ -1073,11 +1069,6 @@ void Sync::statecacheadd(LocalNode* l)
         return;
     }
 
-    if (l->dbid)
-    {
-        deleteq.erase(l->dbid);
-    }
-
     insertq.insert(l);
 }
 
@@ -1088,24 +1079,16 @@ void Sync::cachenodes()
     // Purge the queues if we have no state cache.
     if (!statecachetable)
     {
-        deleteq.clear();
         insertq.clear();
         return;
     }
 
-    if ((state() == SYNC_ACTIVE ||
-        (state() == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
+    if (state() == SYNC_ACTIVE ||
+       (state() == SYNC_INITIALSCAN) && insertq.size())
     {
-        LOG_debug << syncname << "Saving LocalNode database with " << insertq.size() << " additions and " << deleteq.size() << " deletions";
-        statecachetable->begin();
+        LOG_debug << syncname << "Saving LocalNode database with " << insertq.size() << " additions";
 
-        // deletions
-        for (set<uint32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
-        {
-            statecachetable->del(*it);
-        }
-
-        deleteq.clear();
+        DBTableTransactionCommitter committer(statecachetable);
 
         // additions - we iterate until completion or until we get stuck
         bool added;
@@ -1122,6 +1105,7 @@ void Sync::cachenodes()
                 }
                 else if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
+                    // add once we know the parent dbid so that the parent/child structure is correct in db
                     assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
                     statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &syncs.syncKey);
                     insertq.erase(it++);
@@ -1131,11 +1115,10 @@ void Sync::cachenodes()
             }
         } while (added);
 
-        statecachetable->commit();
-
         if (insertq.size())
         {
             LOG_err << "LocalNode caching did not complete";
+            assert(false);
         }
     }
 }
@@ -1375,6 +1358,25 @@ bool SyncStallInfo::waitingLocal(const LocalPath& localPath1,
     entry.reason = reason;
 
     return true;
+}
+
+bool SyncStallInfo::hasImmediateStallReason() const
+{
+    for (auto& i : cloud)
+    {
+        if (syncWaitReasonAlwaysNeedsUserIntervention(i.second.reason))
+        {
+            return true;
+        }
+    }
+    for (auto& i : local)
+    {
+        if (syncWaitReasonAlwaysNeedsUserIntervention(i.second.reason))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 struct ProgressingMonitor
@@ -2360,7 +2362,7 @@ dstime Sync::procscanq()
         if (nearest->rareRO().scanBlockedTimer)
         {
             // in case permissions changed on a scan-blocked folder
-            // retry straight away, but don't reset the backoff delta/base should it still be inaccessible
+            // retry straight away, but don't reset the backoff delay
             nearest->rare().scanBlockedTimer->set(syncs.waiter.ds);
         }
 
@@ -4602,33 +4604,6 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, 
     }
 }
 
-bool Sync::collectScanBlocked(list<LocalPath>& paths) const
-{
-    collectScanBlocked(*localroot, paths);
-
-    return !paths.empty();
-}
-
-void Sync::collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) const
-{
-    assert(node.type == FOLDERNODE);
-
-    if (node.scanBlocked == TREE_RESOLVED) return;
-
-    if (node.scanBlocked > TREE_DESCENDANT_FLAGGED)
-    {
-        paths.emplace_back(node.getLocalPath());
-        return;
-    }
-
-    for (auto& child : node.children)
-    {
-        if (child.second->type != FOLDERNODE) continue;
-
-        collectScanBlocked(*child.second, paths);
-    }
-}
-
 const LocalPath& syncRow::comparisonLocalname() const
 {
     if (syncNode)
@@ -5132,13 +5107,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         row.syncNode->scanAgain = TREE_RESOLVED;
     }
 
-    // report via stall system?
-    //if (row.syncNode->scanBlocked >= TREE_ACTION_HERE)
-    //{
-    //    ProgressingMonitor pm(syncs);
-    //    pm.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
-    //}
-
     if (row.syncNode->scanAgain >= TREE_ACTION_HERE)
     {
         // we must return later when we do have the scan data.
@@ -5486,29 +5454,22 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         }
     }
 
-    // Check blocked status.  Todo:  figure out use blocked flag clearing
-    if (!row.syncNode && row.fsNode && (
-        row.fsNode->isBlocked || row.fsNode->type == TYPE_UNKNOWN))
+    if (row.fsNode &&
+       (row.fsNode->type == TYPE_UNKNOWN ||
+        row.fsNode->fsid != UNDEF))
     {
-        // so that we can checkForScanBlocked() immediately below
-        resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
-    }
-    if (row.syncNode &&
-        row.syncNode->checkForScanBlocked(row.fsNode))
-    {
-        // TODO: maybe report these via stalled paths mechanism?  Need to resolve stall flip-flopping though.
-        //ProgressingMonitor pm(syncs);
-        //pm.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
-        row.suppressRecursion = true;
-        row.itemProcessed = true;
+        // We can't consider moves if we don't even know file/folder or fsid.
+        // Skip ahead to plain item comparison where we wil consider exclusion filters.
         return false;
     }
 
     // First deal with detecting local moves/renames and propagating correspondingly
-    // Independent of the 8 combos below so we don't have duplicate checks in those.
+    // Independent of the syncItem() combos below so we don't have duplicate checks in those.
+    // Be careful of unscannable folder entries which may have no detected type or fsid.
 
-    if (row.fsNode && (!row.syncNode || row.syncNode->fsid_lastSynced == UNDEF ||
-                                        row.syncNode->fsid_lastSynced != row.fsNode->fsid))
+    if (row.fsNode &&
+        (!row.syncNode || row.syncNode->fsid_lastSynced == UNDEF ||
+                          row.syncNode->fsid_lastSynced != row.fsNode->fsid))
     {
         // Don't perform any moves until we know the row's exclusion state.
         if (parentRow.exclusionState(*row.fsNode) == ES_UNKNOWN)
@@ -5656,6 +5617,22 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 return resolve_delSyncNode(row, parentRow, fullPath);
             }
         }
+    }
+
+    // Check blocked status.  Todo:  figure out use blocked flag clearing
+    if (!row.syncNode && row.fsNode && (
+        row.fsNode->isBlocked || row.fsNode->type == TYPE_UNKNOWN) &&
+        parentRow.syncNode->exclusionState(row.fsNode->localname, TYPE_UNKNOWN) == ES_INCLUDED)
+    {
+        // so that we can checkForScanBlocked() immediately below
+        resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+    }
+    if (row.syncNode &&
+        row.syncNode->checkForScanBlocked(row.fsNode))
+    {
+        row.suppressRecursion = true;
+        row.itemProcessed = true;
+        return false;
     }
 
     switch (row.type())
@@ -8303,13 +8280,15 @@ void Syncs::syncLoop()
                         // later we can make this lock much finer-grained
                         std::lock_guard<std::timed_mutex> g(mLocalNodeChangeMutex);
 
+                        DBTableTransactionCommitter committer(sync->statecachetable);
+
                         if (!sync->recursiveSync(row, pathBuffer, false, false, 0))
                         {
                             earlyExit = true;
                         }
-                    }
 
-                    sync->cachenodes();
+                        sync->cachenodes();
+                    }
 
                     if (!earlyExit)
                     {
@@ -8406,6 +8385,17 @@ void Syncs::syncLoop()
             bool stalled = syncStallState;
 
             {
+                // add scan-blocked paths to stall records
+                for (auto i = scanBlockedPaths.begin(); i != scanBlockedPaths.end(); )
+                {
+                    if (auto sbp = i->lock())
+                    {
+                        mSyncFlags->stall.waitingLocal(*sbp, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
+                        ++i;
+                    }
+                    else i = scanBlockedPaths.erase(i);
+                }
+
                 lock_guard<mutex> g(stallReportMutex);
                 stallReport.cloud.swap(mSyncFlags->stall.cloud);
                 stallReport.local.swap(mSyncFlags->stall.local);
@@ -8414,6 +8404,7 @@ void Syncs::syncLoop()
 
                 stalled = !stallReport.empty()
                           && (mIgnoreFileFailureContext.signalled()
+                              || stallReport.hasImmediateStallReason()
                               || (mSyncFlags->noProgressCount > 10
                                   && mSyncFlags->reachableNodesAllScannedThisPass));
 
@@ -8575,36 +8566,6 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
                 }
             }
             finalcompletion(move(nc));
-        });
-}
-
-// Get scan and use blocked paths - pass UNDEF to collect for all syncs.
-void Syncs::collectSyncScanBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& scanBlocked)> completion, bool completionInClient)
-{
-    assert(!onSyncThread());
-
-    auto clientCompletion = [this, completion](list<LocalPath>&& scanBlocked)
-    {
-        shared_ptr<list<LocalPath>> b2(new list<LocalPath>(move(scanBlocked)));
-        queueClient([completion, b2](MegaClient& mc, DBTableTransactionCommitter& committer)
-            {
-                if (completion) completion(move(*b2));
-            });
-    };
-
-    auto finalcompletion = completionInClient ? clientCompletion : completion;
-
-    queueSync([=]()
-        {
-            list<LocalPath> b2;
-            for (auto& us : mSyncVec)
-            {
-                if (us->mSync && (us->mConfig.mBackupId == backupId || backupId == UNDEF))
-                {
-                    us->mSync->collectScanBlocked(b2);
-                }
-            }
-            finalcompletion(move(b2));
         });
 }
 
@@ -8802,6 +8763,12 @@ bool Syncs::isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* chi
 
         // Node's included so check the next step along the trail.
         parent = node;
+    }
+
+    if (i == j)
+    {
+        // handle + name matched all the way down
+        return false;
     }
 
     // Compute relative path from last parent to child.
