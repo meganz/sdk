@@ -1754,7 +1754,7 @@ public:
     static uint64_t stringhash64(string*, SymmCipher*);
 
     // builds the authentication URI to be sent in POST requests
-    string getAuthURI(bool supressSID = false);
+    string getAuthURI(bool supressSID = false, bool supressAuthKey = false);
 
     bool setlang(string *code);
 
