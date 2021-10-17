@@ -238,7 +238,6 @@ int compareUtf(const LocalPath& s1, bool unescaping1, const LocalPath& s2, bool 
         caseInsensitive ? Utils::toUpper: detail::identity);
 }
 
-
 bool isCaseInsensitive(const FileSystemType type)
 {
     if    (type == FS_EXFAT

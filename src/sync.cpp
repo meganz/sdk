@@ -1546,6 +1546,50 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 return false;
             }
 
+            auto markSiblingSourceRow = [&]() {
+                if (!row.rowSiblings)
+                    return;
+
+                if (sourceSyncNode->parent != parentRow.syncNode)
+                    return;
+
+                for (auto& sibling : *row.rowSiblings)
+                {
+                    if (sibling.syncNode == sourceSyncNode)
+                    {
+                        sibling.itemProcessed = true;
+                        sibling.syncNode->setSyncAgain(true, false, false);
+                        return;
+                    }
+                }
+            };
+
+            // Does the move target have a reserved name?
+            if (row.hasReservedName(*syncs.fsaccess))
+            {
+                // Make sure we don't try and synchronize the source.
+                // This is meaningful for straight renames.
+                markSiblingSourceRow();
+
+                // Let the engine know why we can't action the move.
+                monitor.waitingLocal(sourceSyncNode->getLocalPath(),
+                                     fullPath.localPath,
+                                     fullPath.cloudPath,
+                                     SyncWaitReason::MoveTargetHasReservedName);
+
+                // Let the engine know that we've detected a move.
+                parentRow.syncNode->setCheckMovesAgain(false, true, false);
+
+                // Don't recurse if the row's a directory.
+                row.suppressRecursion = true;
+
+                // Row isn't synchronized.
+                rowResult = false;
+
+                // Escape immediately from syncItemCheckMove(...).
+                return true;
+            }
+
             if (!row.syncNode)
             {
                 resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
@@ -1626,29 +1670,11 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             row.suppressRecursion = true;   // wait until we have moved the other LocalNodes below this one
 
-            // is it a move within the same folder?  (ie, purely a rename?)
-            syncRow* sourceRow = nullptr;
-            if (sourceSyncNode->parent == row.syncNode->parent
-                && row.rowSiblings)
-            {
-                // then prevent any other action on this node for now
-                // if there is a new matching fs name, we'll need this node to be renamed, then a new one will be created
-                for (syncRow& r : *row.rowSiblings)
-                {
-                    // skip the syncItem() call for this one this time (so no upload until move is resolved)
-                    if (r.syncNode == sourceSyncNode) sourceRow = &r;
-                }
-            }
-
             // we don't want the source LocalNode to be visited until the move completes
             // because it might see a new file with the same name, and start an
             // upload attached to that LocalNode (which would create a wrong version chain in the account)
             // TODO: consider alternative of preventing version on upload completion - probably resulting in much more complicated name matching though
-            if (sourceRow)
-            {
-                sourceRow->itemProcessed = true;
-                sourceRow->syncNode->setSyncAgain(true, false, false);
-            }
+            markSiblingSourceRow();
 
             // Although we have detected a move locally, there's no guarantee the cloud side
             // is complete, the corresponding parent folders in the cloud may not match yet.
@@ -1990,8 +2016,48 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             return rowResult = false, true;
         }
 
+        // Convenience.
+        auto markSiblingSourceRow = [&]() {
+            if (!row.rowSiblings)
+                return;
+
+            if (sourceSyncNode->parent != parentRow.syncNode)
+                return;
+
+            for (auto& sibling : *row.rowSiblings)
+            {
+                if (sibling.syncNode == sourceSyncNode)
+                {
+                    sibling.itemProcessed = true;
+                    return;
+                }
+            }
+        };
+
         sourceSyncNode->treestate(TREESTATE_SYNCING);
         if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
+
+        // Does the move target have a reserved name?
+        if (row.hasReservedName(*syncs.fsaccess))
+        {
+            // Make sure we don't try and synchronize the source.
+            markSiblingSourceRow();
+
+            // Let the engine know why we can't action the move.
+            monitor.waitingLocal(fullPath.localPath,
+                                 sourceSyncNode->getLocalPath(),
+                                 fullPath.cloudPath,
+                                 SyncWaitReason::MoveTargetHasReservedName);
+
+            // Don't recurse if the row's a directory.
+            row.suppressRecursion = true;
+
+            // Row isn't synchronized.
+            rowResult = false;
+
+            // Escape immediately from syncItemCheckMove(...).
+            return true;
+        }
 
         LocalPath sourcePath = sourceSyncNode->getLocalPath();
 
@@ -2056,27 +2122,9 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             }
         }
 
-        // is it a move within the same folder?  (ie, purely a rename?)
-        syncRow* sourceRow = nullptr;
-        if (sourceSyncNode->parent == parentRow.syncNode
-            && row.rowSiblings
-            && !sourceSyncNode->moveAppliedToLocal)
-        {
-            // then prevent any other action on this node for now
-            // if there is a new matching fs name, we'll need this node to be renamed, then a new one will be created
-            for (syncRow& r : *row.rowSiblings)
-            {
-                // skip the syncItem() call for this one this time (so no upload until move is resolved)
-                if (r.syncNode == sourceSyncNode) sourceRow = &r;
-            }
-        }
-
         // we don't want the source LocalNode to be visited until after the move completes, and we revisit with rescanned folder data
         // because it might see a new file with the same name, and start a download, keeping the row instead of removing it
-        if (sourceRow)
-        {
-            sourceRow->itemProcessed = true;
-        }
+        markSiblingSourceRow();
 
         if (belowRemovedFsNode)
         {
@@ -4717,6 +4765,34 @@ ExclusionState syncRow::exclusionState(const LocalPath& name, nodetype_t type) c
     return syncNode->exclusionState(name, type);
 }
 
+bool syncRow::hasReservedName(const FileSystemAccess& fsAccess) const
+{
+    if (auto* c = cloudNode)
+        return isReservedName(c->name, c->type);
+
+    if (!cloudClashingNames.empty())
+    {
+        auto* c = cloudClashingNames.front();
+
+        return isReservedName(c->name, c->type);
+    }
+
+    if (auto* s = syncNode)
+        return isReservedName(fsAccess, s->localname, s->type);
+
+    if (auto* f = fsNode)
+        return isReservedName(fsAccess, f->localname, f->type);
+
+    if (!fsClashingNames.empty())
+    {
+        auto* f = fsClashingNames.front();
+
+        return isReservedName(fsAccess, f->localname, f->type);
+    }
+
+    return false;
+}
+
 bool syncRow::isIgnoreFile() const
 {
     if (auto* s = syncNode)
@@ -5534,6 +5610,27 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
             row.itemProcessed = true;
             return rowResult;
         }
+    }
+
+    // Does this row have a reserved name?
+    if (row.hasReservedName(*syncs.fsaccess))
+    {
+        // Let the client know why the row isn't being synchronized.
+        ProgressingMonitor monitor(syncs);
+
+        monitor.waitingLocal(fullPath.localPath,
+                             LocalPath(),
+                             fullPath.cloudPath,
+                             SyncWaitReason::ItemHasReservedName);
+
+        // Don't try and synchronize the row.
+        row.itemProcessed = true;
+
+        // Don't recurse if the row's a directory.
+        row.suppressRecursion = true;
+
+        // Row's not synchronized.
+        return false;
     }
 
     // Avoid syncing nodes that have multiple clashing names

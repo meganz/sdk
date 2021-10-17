@@ -1894,6 +1894,10 @@ WinDirAccess::~WinDirAccess()
     }
 }
 
+void isReservedNameHook(std::function<bool(const string&, nodetype_t)>)
+{
+}
+
 bool isReservedName(const string& name, nodetype_t type)
 {
     if (name.empty()) return false;
@@ -1924,6 +1928,13 @@ bool isReservedName(const string& name, nodetype_t type)
     }
 
     return false;
+}
+
+bool isReservedName(const FileSystemAccess& fsAccess,
+                    const LocalPath& name,
+                    nodetype_t type)
+{
+    return isReservedName(name.toName(fsAccess), type);
 }
 
 } // namespace

@@ -2174,8 +2174,29 @@ PosixDirAccess::~PosixDirAccess()
     }
 }
 
-bool isReservedName(const string&, nodetype_t)
+
+static std::function<bool(const string&, nodetype_t)> gIsReservedNameHook;
+
+void isReservedNameHook(std::function<bool(const string&, nodetype_t)> predicate)
 {
+    gIsReservedNameHook = predicate;
+}
+
+bool isReservedName(const string& name, nodetype_t type)
+{
+    if (gIsReservedNameHook)
+        return gIsReservedNameHook(name, type);
+
+    return false;
+}
+
+bool isReservedName(const FileSystemAccess& fsAccess,
+                    const LocalPath& name,
+                    nodetype_t type)
+{
+    if (gIsReservedNameHook)
+        return isReservedName(name.toName(fsAccess), type);
+
     return false;
 }
 

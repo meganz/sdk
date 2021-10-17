@@ -737,11 +737,22 @@ int platformCompareUtf(const string&, bool unescape1, const LocalPath&, bool une
 int platformCompareUtf(const LocalPath&, bool unescape1, const string&, bool unescape2);
 int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool unescape2);
 
+// Specify a predicate to call to determine whether a name is reserved.
+//
+// Meaningful only for UNIX systems.
+// 
+// Used to emulate Windows' name restrictions during testing.
+void isReservedNameHook(std::function<bool(const string&, nodetype_t)> predicate);
+
 // Returns true if name is a reserved file name.
 //
 // On Windows, a reserved file name is:
 //   - AUX, COM[0-9], CON, LPT[0-9], NUL or PRN.
 bool isReservedName(const string& name, nodetype_t type = FILENODE);
+
+bool isReservedName(const FileSystemAccess& fsAccess,
+                    const LocalPath& name,
+                    nodetype_t type = FILENODE);
 
 // Checks if there is a filename anomaly.
 //

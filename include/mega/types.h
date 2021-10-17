@@ -1025,7 +1025,9 @@ enum class SyncWaitReason {
     UnableToLoadIgnoreFile,
     MoveTargetNameTooLong,
     DownloadTargetNameTooLong,
-    CreateFolderNameTooLong
+    CreateFolderNameTooLong,
+    ItemHasReservedName,
+    MoveTargetHasReservedName
 };
 
 string syncWaitReasonString(SyncWaitReason);
