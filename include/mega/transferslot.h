@@ -118,7 +118,7 @@ struct MEGA_API TransferSlot
     // indicate progress
     void progress();
 
-    // update the contiguous progress
+    // Contiguous progress means that all the chunks are finished, from the start of the file up to (but not including) the file position returned.
     m_off_t updatecontiguousprogress();
 
     // compute the meta MAC based on the chunk MACs

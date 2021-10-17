@@ -518,9 +518,9 @@ public:
     void ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
 
     size_t size() const
-	{
-	    return mMacMap.size();
-	}
+    {
+        return mMacMap.size();
+    }
     void clear()
     {
         mMacMap.clear();

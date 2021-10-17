@@ -3254,6 +3254,7 @@ void MegaClient::dispatchTransfers()
                         }
 
                         m_off_t progresscontiguous = ts->updatecontiguousprogress();
+
                         LOG_debug << "Resuming transfer at " << nexttransfer->pos
                             << " Completed: " << nexttransfer->progresscompleted
                             << " Contiguous: " << progresscontiguous
