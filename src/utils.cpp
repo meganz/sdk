@@ -555,6 +555,7 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     {
         if (it.second.isMacsmacSoFar())
         {
+            assert(it.first == mMacMap.begin()->first);
             memcpy(mac, it.second.mac, sizeof(mac));
         }
         else
