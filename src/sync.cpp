@@ -5456,7 +5456,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
 
     if (row.fsNode &&
        (row.fsNode->type == TYPE_UNKNOWN ||
-        row.fsNode->fsid != UNDEF))
+        row.fsNode->fsid == UNDEF))
     {
         // We can't consider moves if we don't even know file/folder or fsid.
         // Skip ahead to plain item comparison where we wil consider exclusion filters.
