@@ -27,6 +27,7 @@
 #include "file.h"
 #include "attrmap.h"
 #include "syncfilter.h"
+#include "backofftimer.h"
 
 namespace mega {
 
@@ -519,10 +520,6 @@ struct MEGA_API LocalNode : public Cacheable
         unsigned scanInProgress : 1;
         unsigned scanObsolete : 1;
 
-        // whether this file/folder is blocked - now we can have many at once
-        unsigned scanBlocked : 2;    // TREESTATE
-
-
         // When recursing the tree, sometimes we need a node to set a flag in its parent
         // but, on other runs we skip over some nodes (eg. syncHere flag false)
         // however, we still need to compute the required flags for the parent node.
@@ -542,9 +539,21 @@ struct MEGA_API LocalNode : public Cacheable
     // We keep the average memory use by only alloating these when used.
     struct RareFields
     {
-        unique_ptr<BackoffTimer> scanBlockedTimer;
-        shared_ptr<LocalPath> scanBlockedPathRecord;
         shared_ptr<ScanService::ScanRequest> scanRequest;
+
+        struct ScanBlocked
+        {
+            BackoffTimer scanBlockedTimer;
+            LocalPath localPath;
+
+            // There is only one shared_ptr so if the node is gone,
+            // we can't look this up by weak_ptr.  So this ptr is not dangling
+            LocalNode* localNode = nullptr;
+
+            ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln);
+        };
+
+        shared_ptr<ScanBlocked> scanBlocked;
 
         struct MoveInProgress
         {
@@ -598,8 +607,6 @@ struct MEGA_API LocalNode : public Cacheable
     void setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds);
     void setCheckMovesAgain(bool doParent, bool doHere, bool doBelow);
     void setSyncAgain(bool doParent, bool doHere, bool doBelow);
-
-    void setScanBlocked();
 
     void setContainsConflicts(bool doParent, bool doHere, bool doBelow);
 

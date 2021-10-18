@@ -1330,7 +1330,6 @@ LocalNode::LocalNode(Sync* csync)
 , fsidScannedReused(false)
 , scanInProgress(false)
 , scanObsolete(false)
-, scanBlocked(TREE_RESOLVED)
 {
     fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
@@ -1358,7 +1357,6 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     fsidScannedReused = false;
     scanInProgress = false;
     scanObsolete = false;
-    scanBlocked = TREE_RESOLVED;
     parent_dbid = 0;
     slocalname = NULL;
 
@@ -1408,6 +1406,14 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     }
 }
 
+LocalNode::RareFields::ScanBlocked::ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln)
+    : scanBlockedTimer(rng)
+    , localPath(lp)
+    , localNode(ln)
+{
+    scanBlockedTimer.backoff(Sync::SCANNING_DELAY_DS);
+}
+
 auto LocalNode::rare() -> RareFields&
 {
     // Rare fields are those that are hardly ever used, and we don't want every LocalNode using more RAM for them all the time.
@@ -1440,12 +1446,9 @@ void LocalNode::trimRareFields()
 {
     if (rareFields)
     {
-        if (scanBlocked < TREE_ACTION_HERE) rareFields->scanBlockedTimer.reset();
-        if (scanBlocked < TREE_ACTION_HERE) rareFields->scanBlockedPathRecord.reset();
         if (!scanInProgress) rareFields->scanRequest.reset();
 
-        if (!rareFields->scanBlockedTimer &&
-            !rareFields->scanBlockedPathRecord &&
+        if (!rareFields->scanBlocked &&
             !rareFields->scanRequest &&
             !rareFields->moveFromHere &&
             !rareFields->moveToHere &&
@@ -1545,34 +1548,9 @@ void LocalNode::setContainsConflicts(bool doParent, bool doHere, bool doBelow)
     parentSetContainsConflicts = parentSetContainsConflicts || doParent;
 }
 
-void LocalNode::setScanBlocked()
-{
-    scanBlocked = std::max<unsigned>(scanBlocked, TREE_ACTION_HERE);
-
-    if (!rare().scanBlockedTimer)
-    {
-        rare().scanBlockedTimer.reset(new BackoffTimer(sync->syncs.rng));
-    }
-    if (rare().scanBlockedTimer->armed())
-    {
-        rare().scanBlockedTimer->backoff(Sync::SCANNING_DELAY_DS);
-    }
-
-    for (auto p = parent; p != NULL; p = p->parent)
-    {
-        p->scanBlocked = std::max<unsigned>(p->scanBlocked, TREE_DESCENDANT_FLAGGED);
-    }
-
-    // Also report these as part of the stall set
-    // These records will be cleared if the LocalNode is deleted
-    // Or if the folder can eventually be scanned.
-    rare().scanBlockedPathRecord = std::make_shared<LocalPath>(getLocalPath());
-    sync->syncs.scanBlockedPaths.push_back(rare().scanBlockedPathRecord);
-}
-
 bool LocalNode::checkForScanBlocked(FSNode* fsNode)
 {
-    if (scanBlocked >= TREE_ACTION_HERE)
+    if (rareRO().scanBlocked)
     {
         // Have we recovered?
         if (fsNode && fsNode->type != TYPE_UNKNOWN && !fsNode->isBlocked)
@@ -1583,30 +1561,18 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
             setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode->localname);
             sync->statecacheadd(this);
 
-            scanBlocked = TREE_RESOLVED;
-            rare().scanBlockedTimer.reset();
-            rare().scanBlockedPathRecord.reset();
+            rare().scanBlocked.reset();
+            trimRareFields();
 
-            // also clear flags up to the root.  TODO: might have to be more clever than this when there are multiple
-            for (auto p = parent; p != nullptr; p = p->parent)
-            {
-                p->scanBlocked = TREE_RESOLVED;
-            }
             return false;
         }
 
-        // rescan if the timer is up
-        if (rare().scanBlockedTimer->armed())
-        {
-            LOG_verbose << sync->syncname << "Scan blocked timer elapsed, trigger parent rescan: "  << localnodedisplaypath(*sync->syncs.fsaccess);;
-            if (parent) parent->setScanAgain(false, true, false, 0);
-            rare().scanBlockedTimer->backoff(); // wait increases exponentially
-        }
-        else
-        {
-            LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
-                << rare().scanBlockedTimer->retryin() << " for " << getLocalPath().toPath();
-        }
+        LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
+            << rare().scanBlocked->scanBlockedTimer.retryin() << " for " << getLocalPath().toPath();
+
+        // make sure path stays accurate in case this node moves
+        rare().scanBlocked->localPath = getLocalPath();
+
         return true;
     }
 
@@ -1615,7 +1581,11 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         // We were not able to get details of the filesystem item when scanning the directory.
         // Consider it a blocked file, and we'll rescan the folder from time to time.
         LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath(*sync->syncs.fsaccess);
-        setScanBlocked();
+
+        // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
+        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
+        sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
+
         return true;
     }
 
@@ -1783,7 +1753,10 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             {
                 // start a timer to retry, since we haven't already
                 LOG_verbose << sync->syncname << "Directory scan has become inaccesible for path: " << fullPath.localPath_utf8();
-                setScanBlocked();
+
+                // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
+                rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
+                sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
             }
         }
     }

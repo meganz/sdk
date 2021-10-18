@@ -2372,11 +2372,11 @@ dstime Sync::procscanq()
 
         nearest->setScanAgain(false, true, scanDescendants, SCANNING_DELAY_DS);
 
-        if (nearest->rareRO().scanBlockedTimer)
+        if (nearest->rareRO().scanBlocked)
         {
             // in case permissions changed on a scan-blocked folder
             // retry straight away, but don't reset the backoff delay
-            nearest->rare().scanBlockedTimer->set(syncs.waiter.ds);
+            nearest->rare().scanBlocked->scanBlockedTimer.set(syncs.waiter.ds);
         }
 
         // Queue an extra notification if we're a network sync.
@@ -5388,7 +5388,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         }
         row.syncNode->checkMovesAgain = updateTreestateFromChild(row.syncNode->checkMovesAgain, child.second->checkMovesAgain);
         row.syncNode->conflicts = updateTreestateFromChild(row.syncNode->conflicts, child.second->conflicts);
-        row.syncNode->scanBlocked = updateTreestateFromChild(row.syncNode->scanBlocked, child.second->scanBlocked);
 
         if (child.second->parentSetScanAgain) row.syncNode->setScanAgain(false, true, false, 0);
         if (child.second->parentSetCheckMovesAgain) row.syncNode->setCheckMovesAgain(false, true, false);
@@ -8384,26 +8383,33 @@ void Syncs::syncLoop()
                 syncBusyState = anySyncBusy;
             }
 
-            // Have any ignore file failures been reported?
-            if (mIgnoreFileFailureContext.signalled())
-            {
-                // Has the problem been resolved?
-                if (!mIgnoreFileFailureContext.resolve(*fsaccess))
-                {
-                    // Not resolved so report as a stall.
-                    mIgnoreFileFailureContext.report(mSyncFlags->stall);
-                }
-            }
-
             bool stalled = syncStallState;
 
             {
+                // add .megaignore broken file paths to stall records (if they are still broken)
+                if (mIgnoreFileFailureContext.signalled())
+                {
+                    // Has the problem been resolved?
+                    if (!mIgnoreFileFailureContext.resolve(*fsaccess))
+                    {
+                        // Not resolved so report as a stall.
+                        mIgnoreFileFailureContext.report(mSyncFlags->stall);
+                    }
+                }
+
                 // add scan-blocked paths to stall records
                 for (auto i = scanBlockedPaths.begin(); i != scanBlockedPaths.end(); )
                 {
                     if (auto sbp = i->lock())
                     {
-                        mSyncFlags->stall.waitingLocal(*sbp, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
+                        if(sbp->scanBlockedTimer.armed())
+                        {
+                            LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan: " << sbp->localPath.toPath();
+                            sbp->localNode->setScanAgain(true, false, false, 0);
+                            sbp->scanBlockedTimer.backoff(); // wait increases exponentially until we succeed
+                        }
+
+                        mSyncFlags->stall.waitingLocal(sbp->localPath, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
                         ++i;
                     }
                     else i = scanBlockedPaths.erase(i);
@@ -8416,8 +8422,7 @@ void Syncs::syncLoop()
                 mSyncFlags->stall.local.clear();
 
                 stalled = !stallReport.empty()
-                          && (mIgnoreFileFailureContext.signalled()
-                              || stallReport.hasImmediateStallReason()
+                          && (stallReport.hasImmediateStallReason()
                               || (mSyncFlags->noProgressCount > 10
                                   && mSyncFlags->reachableNodesAllScannedThisPass));
 

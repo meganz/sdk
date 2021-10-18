@@ -932,7 +932,7 @@ public:
     // Get name conficts - pass UNDEF to collect for all syncs.
     void collectSyncNameConflicts(handle backupId, std::function<void(list<NameConflict>&& nc)>, bool completionInClient);
 
-    list<weak_ptr<LocalPath>> scanBlockedPaths;
+    list<weak_ptr<LocalNode::RareFields::ScanBlocked>> scanBlockedPaths;
 
     // waiter for sync loop on thread
     WAIT_CLASS waiter;

@@ -3180,12 +3180,6 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
 
-    p->Add(exec_syncblock,
-           sequence(text("sync"),
-                    text("block"),
-                    either(text("scan")),
-                    localFSPath()));
-
     p->Add(exec_syncclosedrive,
            sequence(text("sync"),
                     text("closedrive"),
@@ -8925,45 +8919,6 @@ void exec_syncrename(autocomplete::ACState& s)
             if (!e) cout << "Rename succeeded" << endl;
             else cout << "Rename failed: " << e << endl;
         });
-}
-
-
-// For debugging.
-void exec_syncblock(autocomplete::ACState& s)
-{
-    // sync block (scan) path
-
-    // Make sure we're logged in.
-    if (client->loggedin() != FULLACCOUNT)
-    {
-        cerr << "You must be logged in to block a file/folder."
-             << endl;
-        return;
-    }
-
-    auto path = LocalPath::fromPath(s.words[3].s, *client->fsaccess);
-
-    LocalNode* node;
-
-    // Locate the node for this path.
-    client->syncs.forEachRunningSync_shortcircuit(true, [&](Sync* sync) {
-        return !(node = sync->localnodebypath(nullptr, path));
-    });
-
-    // Were we able to find a suitable local node?
-    if (!node)
-    {
-        cerr << "Couldn't locate a node for the path: "
-             << path.toPath()
-             << endl;
-        return;
-    }
-
-    // What flag are we marking?
-    if (s.words[2].s == "scan")
-    {
-        node->setScanBlocked();
-    }
 }
 
 void exec_syncclosedrive(autocomplete::ACState& s)
