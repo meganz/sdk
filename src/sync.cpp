@@ -756,13 +756,15 @@ SyncError SyncConfig::knownError() const
 Sync::Sync(UnifiedSync& us, const string& cdebris,
            const LocalPath& clocaldebris, NodeHandle rootNodeHandle, const string& rootNodeName, bool cinshare, const string& logname)
 : syncs(us.syncs)
-, localroot(new LocalNode)
+, localroot(nullptr)
 , mUnifiedSync(us)
 , syncscanbt(us.syncs.rng)
 {
     assert(syncs.onSyncThread());
     assert(cdebris.empty() || clocaldebris.empty());
     assert(!cdebris.empty() || !clocaldebris.empty());
+
+    localroot.reset(new LocalNode(this));
 
     syncs.lookupCloudNode(rootNodeHandle, cloudRoot, &cloudRootPath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
@@ -781,7 +783,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
 
-    localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
+    localroot->init(FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setSyncedNodeHandle(rootNodeHandle);
     localroot->setScanAgain(false, true, true, 0);
     localroot->setCheckMovesAgain(false, true, true);
@@ -963,7 +965,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             shortname = syncs.fsaccess->fsShortname(localpath);
         }
 
-        l->init(this, l->type, p, localpath, nullptr);
+        l->init(l->type, p, localpath, nullptr);
 
         l->parent_dbid = parent_dbid;
         l->syncedFingerprint.size = size;
@@ -1939,6 +1941,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         return true;
     }
 
+    unique_ptr<LocalNode> childrenToDeleteOnFunctionExit;
+
     if (LocalNode* sourceSyncNode = syncs.findLocalNodeByNodeHandle(row.cloudNode->handle))
     {
         if (sourceSyncNode == row.syncNode) return false;
@@ -2118,8 +2122,17 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             LOG_debug << syncname << "Move-target moved to local debris: " << path;
 
             // Therefore there is nothing in the local subfolder anymore
-            // Keep our data structure up to date:
-            row.syncNode->deleteChildren();
+            // And we should delete the localnodes corresponding to the items we moved to debris.
+            // BUT what if the move is coming from inside that folder ?!!
+            // Therefore move them to an unattached locallnode which will delete them on function exit
+
+            //row.syncNode->deleteChildren();
+            childrenToDeleteOnFunctionExit.reset(new LocalNode(this));
+            while (!row.syncNode->children.empty())
+            {
+                auto* child = row.syncNode->children.begin()->second;
+                child->setnameparent(childrenToDeleteOnFunctionExit.get(), child->localname, child->cloneShortname());
+            }
         }
 
         if (syncs.fsaccess->renamelocal(sourcePath, fullPath.localPath))
@@ -5974,9 +5987,9 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
     LOG_debug << syncname << "Creating LocalNode from FS with fsid " << toHandle(row.fsNode->fsid) << " at: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
 
     assert(row.syncNode == nullptr);
-    row.syncNode = new LocalNode;
+    row.syncNode = new LocalNode(this);
 
-    row.syncNode->init(this, row.fsNode->type, parentRow.syncNode, fullPath.localPath, row.fsNode->cloneShortname());
+    row.syncNode->init(row.fsNode->type, parentRow.syncNode, fullPath.localPath, row.fsNode->cloneShortname());
     row.syncNode->setScannedFsid(row.fsNode->fsid, syncs.localnodeByScannedFsid, row.fsNode->localname);
 
     if (row.fsNode->type == FILENODE)
@@ -6014,14 +6027,14 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
     LOG_debug << syncname << "Creating LocalNode from Cloud at: " << fullPath.cloudPath << logTriplet(row, fullPath);
 
     assert(row.syncNode == nullptr);
-    row.syncNode = new LocalNode;
+    row.syncNode = new LocalNode(this);
 
     if (row.cloudNode->type == FILENODE)
     {
         assert(row.cloudNode->fingerprint.isvalid); // todo: move inside considerSynced?
         row.syncNode->syncedFingerprint = row.cloudNode->fingerprint;
     }
-    row.syncNode->init(this, row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
+    row.syncNode->init(row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
     if (considerSynced)
     {
         row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);

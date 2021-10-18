@@ -1309,18 +1309,12 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
 void LocalNode::bumpnagleds()
 {
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
-
     nagleds = Waiter::ds + 11;
 }
 
-LocalNode::LocalNode()
-: unstableFsidAssigned(false)
+LocalNode::LocalNode(Sync* csync)
+: sync(csync)
+, unstableFsidAssigned(false)
 , deletedFS{false}
 , moveAppliedToLocal(false)
 , moveApplyingToLocal(false)
@@ -1337,12 +1331,15 @@ LocalNode::LocalNode()
 , scanInProgress(false)
 , scanObsolete(false)
 , scanBlocked(TREE_RESOLVED)
-{}
+{
+    fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
+    fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
+    syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
+}
 
 // initialize fresh LocalNode object - must be called exactly once
-void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
+void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
 {
-    sync = csync;
     parent = NULL;
 //    notseen = 0;
     unstableFsidAssigned = false;
@@ -1402,11 +1399,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 //                (slocalname && sn && !slocalname->empty() && *slocalname != localname && *slocalname == *sn)));
 //    }
 //#endif
-
-    // mark fsid as not valid
-    fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
-    fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
-    syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
 
     sync->syncs.totalLocalNodes++;
 
@@ -1826,13 +1818,6 @@ void LocalNode::reassignUnstableFsidsOnceOnly(const FSNode* fsnode)
 // update treestates back to the root LocalNode, inform app about changes
 void LocalNode::treestate(treestate_t newts)
 {
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
-
     if (newts != TREESTATE_NONE)
     {
         ts = newts;
@@ -1988,13 +1973,6 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h)
 
 LocalNode::~LocalNode()
 {
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
-
     if (!sync->mDestructorRunning && dbid && (
         sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN))
     {
@@ -2476,7 +2454,7 @@ unique_ptr<LocalNode> LocalNode::unserialize(Sync* sync, const string* d)
     }
     assert(!r.hasdataleft());
 
-    unique_ptr<LocalNode> l(new LocalNode());
+    unique_ptr<LocalNode> l(new LocalNode(sync));
 
     l->type = type;
     l->syncedFingerprint.size = size;
@@ -2772,7 +2750,7 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
         return mExclusionState;
 
     // Children of unknown type still have to be handled.
-    // Scan-blocked appear as TYPE_UNKNOWN and the user must be 
+    // Scan-blocked appear as TYPE_UNKNOWN and the user must be
 	// able to exclude them when they are notified of them
 
     // Ignore files are only excluded if one of their parents is.

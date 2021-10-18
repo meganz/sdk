@@ -675,8 +675,8 @@ struct MEGA_API LocalNode : public Cacheable
     void setnameparent(LocalNode*, const LocalPath& newlocalpath, std::unique_ptr<LocalPath>);
     void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain);
 
-    LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
+    LocalNode(Sync*);
+    void init(nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
     bool serialize(string*) override;
     static unique_ptr<LocalNode> unserialize( Sync* sync, const string* sData );

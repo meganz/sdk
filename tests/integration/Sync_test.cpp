@@ -5827,10 +5827,12 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     // Confirm models.
     ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 
-    // Locally create some files with escapes in their names.
+    // Locally create some files with control escapes in their names.
 #ifdef _WIN32
     ASSERT_TRUE(fs::create_directories(syncRoot / "dd%07"));
     ASSERT_TRUE(createDataFile(syncRoot / "ff%07", "ff"));
+    ASSERT_TRUE(fs::create_directories(syncRoot / "dd%41"));
+    ASSERT_TRUE(createDataFile(syncRoot / "ff%41", "ff"));
 #else
     ASSERT_TRUE(fs::create_directories(syncRoot / "dd\7"));
     ASSERT_TRUE(createDataFile(syncRoot / "ff\7", "ff"));
@@ -5840,8 +5842,11 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     waitonsyncs(TIMEOUT, &cd);
 
     // Update and confirm models.
-    model.addfolder("x/dd\7")->fsName("dd%07");
-    model.addfile("x/ff\7", "ff")->fsName("ff%07");
+    // We decided that control escapes would not be de-escaped if we are creating the cloud file/folder
+    model.addfolder("x/dd%07")->fsName("dd%07");
+    model.addfile("x/ff%07", "ff")->fsName("ff%07");
+    model.addfolder("x/ddA")->fsName("dd%41");
+    model.addfile("x/ffA", "ff")->fsName("ff%41");
 
     ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 }
