@@ -2084,7 +2084,11 @@ string LocalNode::getCloudPath() const
         }
 
         assert(!l->parent || l->parent->sync == sync);
-        path = (l->parent ? name : fullpath) + "/" + path;
+
+        if (!path.empty())
+            path.insert(0, 1, '/');
+
+        path.insert(0, l->parent ? name : fullpath);
     }
     return path;
 }
