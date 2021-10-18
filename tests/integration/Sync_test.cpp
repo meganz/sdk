@@ -7630,12 +7630,15 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     // Confirm move has occured locally.
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
+    c.received_node_actionpackets = false;
+
     // Check that /ds and /dx receive notifications.
     model.removenode("ds/f");
     model.removenode("dx/f");
-
     fs::remove(SYNCROOT / "ds" / "f");
     fs::remove(SYNCROOT / "dx" / "f");
+
+    ASSERT_TRUE(c.waitForNodesUpdated(30)) << " no actionpacket received in c";
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
