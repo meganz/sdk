@@ -1617,6 +1617,12 @@ void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath, vector<syncRow>
             if (!!row.syncNode != !!row.fsNode) return;
             if (row.syncNode && row.fsNode)
             {
+                if (row.syncNode->type == FILENODE &&
+                    !scannedFingerprint.isvalid)
+                {
+                    return;
+                }
+
                 ++nChecked;
                 auto generated = row.syncNode->getScannedFSDetails();
                 if (!generated.equivalentTo(*row.fsNode)) return;
@@ -1692,17 +1698,17 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             map<LocalPath, FSNode> priorScanChildren;
             for (auto& c : children)
             {
-                if (c.second->fsid_lastSynced != UNDEF)
+                if (c.second->type == FILENODE &&
+                    c.second->scannedFingerprint.isvalid)
                 {
                     assert(*c.first == c.second->localname);
-                    priorScanChildren.emplace(*c.first,
-                        c.second->scannedFingerprint.isvalid ?
-                            c.second->getScannedFSDetails() :
-                            c.second->getLastSyncedFSDetails());
+                    priorScanChildren.emplace(*c.first, c.second->getScannedFSDetails());
                 }
             }
 
-            ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath, row.fsNode->fsid, sync->syncs.mClient.followsymlinks, move(priorScanChildren));
+            ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath,
+                row.fsNode->fsid, sync->syncs.mClient.followsymlinks, move(priorScanChildren));
+
             rare().scanRequest = ourScanRequest;
             sync->mActiveScanRequest = ourScanRequest;
         }
@@ -2124,6 +2130,7 @@ FSNode LocalNode::getLastSyncedFSDetails()
     n.fsid = fsid_lastSynced;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
     n.fingerprint = syncedFingerprint;
+    assert(syncedFingerprint.isvalid || type != FILENODE);
     return n;
 }
 
