@@ -1299,7 +1299,6 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     LocalTreeProcUpdateTransfers tput;
     tput.proc(*sync->syncs.fsaccess, ln);
 
-    ln->mFilterChain = mFilterChain;
     ln->mWaitingForIgnoreFileLoad = mWaitingForIgnoreFileLoad;
 
     // Make sure our exclusion state is recomputed.
@@ -1430,7 +1429,7 @@ auto LocalNode::rare() -> RareFields&
     return *rareFields;
 }
 
-auto LocalNode::rareRO() -> const RareFields&
+auto LocalNode::rareRO() const -> const RareFields&
 {
     // RO = read only
     // Use this function when you're not sure if rare fields have been populated, but need to check
@@ -1452,6 +1451,7 @@ void LocalNode::trimRareFields()
             !rareFields->scanRequest &&
             !rareFields->moveFromHere &&
             !rareFields->moveToHere &&
+            !rareFields->filterChain &&
             rareFields->createFolderHere.expired() &&
             rareFields->removeNodeHere.expired() &&
             rareFields->unlinkHere.expired())
@@ -2542,8 +2542,12 @@ void LocalNode::clearFilters()
     // Only for directories.
     assert(type == FOLDERNODE);
 
-    // Purge all defined filter rules.
-    mFilterChain.clear();
+    // Clear filter state.
+    if (rareFields && rareFields->filterChain)
+    {
+        rareFields->filterChain.reset();
+        trimRareFields();
+    }
 
     // Reset ignore file state.
     setWaitingForIgnoreFileLoad(false);
@@ -2553,16 +2557,29 @@ void LocalNode::clearFilters()
     setSyncAgain(false, true, true);
 }
 
+const FilterChain& LocalNode::filterChainRO() const
+{
+    static const FilterChain dummy;
+
+    auto& filterChainPtr = rareRO().filterChain;
+
+    if (filterChainPtr)
+        return *filterChainPtr;
+
+    return dummy;
+}
+
 bool LocalNode::loadFilters(const LocalPath& path)
 {
     // Only meaningful for directories.
     assert(type == FOLDERNODE);
 
     // Convenience.
+    auto& filterChain = this->filterChain();
     auto& fsAccess = *sync->syncs.fsaccess;
 
     // Try and load the ignore file.
-    auto result = mFilterChain.load(fsAccess, path);
+    auto result = filterChain.load(fsAccess, path);
 
     // Ignore file hasn't changed.
     if (result == FLR_SKIPPED)
@@ -2577,7 +2594,10 @@ bool LocalNode::loadFilters(const LocalPath& path)
         sync->syncs.ignoreFileLoadFailure(*sync, path);
 
         // Clear the filter state.
-        mFilterChain.clear();
+        rareFields->filterChain.reset();
+
+        // Trim the fields.
+        trimRareFields();
     }
 
     // Update our load pending state.
@@ -2588,6 +2608,16 @@ bool LocalNode::loadFilters(const LocalPath& path)
     setSyncAgain(false, true, true);
 
     return !failed;
+}
+
+FilterChain& LocalNode::filterChain()
+{
+    auto& filterChainPtr = rare().filterChain;
+
+    if (!filterChainPtr)
+        filterChainPtr.reset(new FilterChain());
+
+    return *filterChainPtr;
 }
 
 bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const
@@ -2604,7 +2634,7 @@ bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inheri
         inherited = inherited || node != this;
 
         // Check for a filter match.
-        auto result = node->mFilterChain.match(namePath, type, inherited);
+        auto result = node->filterChainRO().match(namePath, type, inherited);
 
         // Was the file matched by any filters?
         if (result.matched)
@@ -2637,7 +2667,7 @@ bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
         assert(node->mExclusionState == ES_INCLUDED);
 
         // Check for a filter match.
-        auto result = node->mFilterChain.match(size);
+        auto result = node->filterChainRO().match(size);
 
         // Was the file matched by any filters?
         if (result.matched)

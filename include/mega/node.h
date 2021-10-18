@@ -594,6 +594,9 @@ struct MEGA_API LocalNode : public Cacheable
         weak_ptr<CreateFolderInProgress> createFolderHere;
         weak_ptr<DeleteToDebrisInProgress> removeNodeHere;
         weak_ptr<UnlinkInProgress> unlinkHere;
+
+        // Filter rules applicable below this node.
+        unique_ptr<FilterChain> filterChain;
     };
 
     bool hasRare() { return !!rareFields; }
@@ -601,7 +604,7 @@ struct MEGA_API LocalNode : public Cacheable
     void trimRareFields();
 
     // use this one to skip the hasRare check, if it doesn't exist a reference to a blank one is returned
-    const RareFields& rareRO();
+    const RareFields& rareRO() const;
 
     // set the syncupTargetedAction for this, and parents
     void setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds);
@@ -704,9 +707,6 @@ struct MEGA_API LocalNode : public Cacheable
     // Create a watch for this node if necessary.
     bool watch(const LocalPath& path, handle fsid);
 
-    // Filter rules applicable below this node.
-    FilterChain mFilterChain;
-
 private:
     struct
     {
@@ -720,6 +720,9 @@ private:
         bool mWaitingForIgnoreFileLoad : 1;
     };
 
+    // Returns a reference to this node's filter chain.
+    FilterChain& filterChain();
+
     // Query whether a file is excluded by a name filter.
     bool isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const;
 
@@ -732,6 +735,9 @@ private:
 public:
     // Clears the filters defined by this node.
     void clearFilters();
+
+    // Returns a reference to this node's filter chain.
+    const FilterChain& filterChainRO() const;
 
     // Load filters from the ignore file identified by path.
     bool loadFilters(const LocalPath& path);

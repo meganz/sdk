@@ -5964,7 +5964,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         return true;
 
     // Has it changed?
-    if (!parentRow.syncNode->mFilterChain.changed(row.fsNode->fingerprint))
+    if (!parentRow.syncNode->filterChainRO().changed(row.fsNode->fingerprint))
         return true;
 
     // If so, make sure we load its filters.
@@ -6129,7 +6129,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     if (row.syncNode->isIgnoreFile())
     {
         // Has the ignore file changed?
-        if (parentRow.syncNode->mFilterChain.changed(row.fsNode->fingerprint))
+        if (parentRow.syncNode->filterChainRO().changed(row.fsNode->fingerprint))
         {
             // Then reload the filters.
             parentRow.syncNode->loadFilters(fullPath.localPath);
