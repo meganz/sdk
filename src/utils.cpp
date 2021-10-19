@@ -2518,10 +2518,10 @@ std::string getSafeUrl(const std::string &posturl)
         }
         memset((char *)safeurl.data() + sid, 'X', end - sid);
     }
-    size_t authKey = safeurl.find("n=");
+    size_t authKey = safeurl.find("&n=");
     if (authKey != string::npos)
     {
-        authKey += 2/*n=*/ + 8/*public handle*/;
+        authKey += 3/*&n=*/ + 8/*public handle*/;
         size_t end = safeurl.find("&", authKey);
         if (end == string::npos)
         {
