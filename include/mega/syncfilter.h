@@ -173,7 +173,7 @@ public:
     FilterChain();
 
     FilterChain(const FilterChain& other);
-    
+
     FilterChain(FilterChain&& other);
 
     ~FilterChain();
@@ -199,6 +199,9 @@ public:
 
     // Attempts to locate a match for the size s.
     FilterResult match(const m_off_t s) const;
+
+    bool isValid() const { return mFingerprint.isvalid; }
+    void invalidate() { mFingerprint = FileFingerprint(); }
 
 private:
     // Fingerprint of the last loaded ignore file.

@@ -5165,6 +5165,16 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         // Ignore files must be fully processed before any other child.
         auto sequences = computeSyncSequences(childRows);
 
+        bool ignoreFilePresent = !sequences.empty() &&
+                                 sequences.front().first < sequences.front().second &&
+                                 childRows[sequences.front().first].isIgnoreFile();
+        bool hasFilter = !!row.syncNode->rareRO().filterChain;
+
+        if (ignoreFilePresent != hasFilter)
+        {
+            row.syncNode->ignoreFilterPresenceChanged(ignoreFilePresent, childRows[sequences.front().first].fsNode);
+        }
+
         // Here is where we loop over the syncRows for this folder.
         // We must process things in a particular order
         //    - first, check all rows for involvement in moves (case 0)
@@ -5308,6 +5318,26 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             {
                                 row.syncNode->setSyncAgain(false, true, false);
                             }
+
+                            if (ignoreFilePresent && childRow.isIgnoreFile() && childRow.fsNode)
+                            {
+                                // Load filters if new/updated.  If it fails, filters are marked invalid
+                                bool ok = row.syncNode->loadFiltersIfChanged(childRow.fsNode->fingerprint, fullPath.localPath);
+
+                                if (ok != !row.syncNode->rareRO().badlyFormedIgnoreFilePath)
+                                {
+                                    if (ok)
+                                    {
+                                        row.syncNode->rare().badlyFormedIgnoreFilePath.reset();
+                                    }
+                                    else
+                                    {
+                                        row.syncNode->rare().badlyFormedIgnoreFilePath.reset(new LocalNode::RareFields::BadlyFormedIgnore(fullPath.localPath, this));
+                                        syncs.badlyFormedIgnoreFilePaths.push_back(row.syncNode->rare().badlyFormedIgnoreFilePath);
+                                        syncs.mClient.app->syncupdate_filter_error(getConfig());
+                                    }
+                                }
+                            }
                         }
                         break;
 
@@ -5345,13 +5375,17 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 }
             }
 
-            // An ignore file requires exclusive processing.
-            if (row.ignoreFileChanged())
-                break;
+            if (ignoreFilePresent)
+            {
+                if (!row.syncNode->filterChainRO().isValid())
+                {
+                    // we can't calculate what's included, come back when the .megaignore is present and well-formed
+                    break;
+                }
 
-            // We need to load our ignore file.
-            if (row.syncNode->waitingForIgnoreFileLoad())
-                break;
+                // processed already, don't worry about it for the rest
+                ignoreFilePresent = false;
+            }
         }
 
         // If we added any FSNodes that aren't part of our scan data (and we think we don't need another scan), add them to the scan data
@@ -5959,19 +5993,21 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
     row.syncNode->syncAgain = std::max<unsigned>(row.syncNode->syncAgain,
         row.syncNode->type == FILENODE ? TREE_DESCENDANT_FLAGGED : TREE_RESOLVED);
 
-    // Are we dealing with an ignore file?
-    if (!row.syncNode->isIgnoreFile())
-        return true;
+    // we can load the filters as soon as the local file is present, no need to wait until the row is synced
 
-    // Has it changed?
-    if (!parentRow.syncNode->filterChainRO().changed(row.fsNode->fingerprint))
-        return true;
+    //// Are we dealing with an ignore file?
+    //if (!row.syncNode->isIgnoreFile())
+    //    return true;
 
-    // If so, make sure we load its filters.
-    parentRow.syncNode->loadFilters(fullPath.localPath);
+    //// Has it changed?
+    //if (!parentRow.syncNode->filterChainRO().changed(row.fsNode->fingerprint))
+    //    return true;
 
-    // Let the parent know its rules have changed.
-    parentRow.ignoreFileChanging();
+    //// If so, make sure we load its filters.
+    //parentRow.syncNode->loadFilters(fullPath.localPath);
+
+    //// Let the parent know its rules have changed.
+    //parentRow.ignoreFileChanging();
 
     return true;
 }
@@ -6125,19 +6161,21 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
-    // Are we dealing with an ignore file?
-    if (row.syncNode->isIgnoreFile())
-    {
-        // Has the ignore file changed?
-        if (parentRow.syncNode->filterChainRO().changed(row.fsNode->fingerprint))
-        {
-            // Then reload the filters.
-            parentRow.syncNode->loadFilters(fullPath.localPath);
+    // for uploads, we already read the local file, no ned to re-read
 
-            // Make sure the ignore file is processed before other rows.
-            parentRow.ignoreFileChanging();
-        }
-    }
+    //// Are we dealing with an ignore file?
+    //if (row.syncNode->isIgnoreFile())
+    //{
+    //    // Has the ignore file changed?
+    //    if (parentRow.syncNode->filterChainRO().changed(row.fsNode->fingerprint))
+    //    {
+    //        // Then reload the filters.
+    //        parentRow.syncNode->loadFilters(fullPath.localPath);
+
+    //        // Make sure the ignore file is processed before other rows.
+    //        parentRow.ignoreFileChanging();
+    //    }
+    //}
 
     // Don't do anything unless we know the node's included.
     if (row.syncNode->exclusionState() != ES_INCLUDED)
@@ -6360,12 +6398,14 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 row.syncNode->treestate(TREESTATE_SYNCING);
                 parentRow.syncNode->treestate(TREESTATE_SYNCING);
 
-                // Are we downloading an ignore file?
-                if (row.syncNode->isIgnoreFile())
-                {
-                    // Then signal that it's downloading.
-                    parentRow.syncNode->setWaitingForIgnoreFileLoad(true);
-                }
+                // If there's a legit .megaignore file present, we use it until (if and when) it is actually replaced.
+
+                //// Are we downloading an ignore file?
+                //if (row.syncNode->isIgnoreFile())
+                //{
+                //    // Then signal that it's downloading.
+                //    parentRow.syncNode->setWaitingForIgnoreFileLoad(true);
+                //}
             }
             else if (row.syncNode->transferSP->wasTerminated)
             {
@@ -6393,12 +6433,14 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                     row.syncNode->resetTransfer(nullptr);
 
-                    // Have we just downloaded an ignore file?
-                    if (row.syncNode->isIgnoreFile())
-                    {
-                        // Then load the filters.
-                        parentRow.syncNode->loadFilters(fullPath.localPath);
-                    }
+                    // this case is covered when we syncItem
+
+                    //// Have we just downloaded an ignore file?
+                    //if (row.syncNode->isIgnoreFile())
+                    //{
+                    //    // Then load the filters.
+                    //    parentRow.syncNode->loadFilters(fullPath.localPath);
+                    //}
                 }
                 else if (fsAccess.transient_error)
                 {
@@ -8233,12 +8275,6 @@ void Syncs::syncLoop()
 
         for (auto& us : mSyncVec)
         {
-            // Has an ignore file failure occured?
-            if (mIgnoreFileFailureContext.signalled())
-            {
-                // Then don't perform any more processing until it's resolved.
-                break;
-            }
             Sync* sync = us->mSync.get();
 
             if (sync && sync->state() >= SYNC_INITIALSCAN)
@@ -8387,14 +8423,27 @@ void Syncs::syncLoop()
 
             {
                 // add .megaignore broken file paths to stall records (if they are still broken)
-                if (mIgnoreFileFailureContext.signalled())
+                //if (mIgnoreFileFailureContext.signalled())
+                //{
+                //    // Has the problem been resolved?
+                //    if (!mIgnoreFileFailureContext.resolve(*fsaccess))
+                //    {
+                //        // Not resolved so report as a stall.
+                //        mIgnoreFileFailureContext.report(mSyncFlags->stall);
+                //    }
+                //}
+
+                for (auto i = badlyFormedIgnoreFilePaths.begin(); i != badlyFormedIgnoreFilePaths.end(); )
                 {
-                    // Has the problem been resolved?
-                    if (!mIgnoreFileFailureContext.resolve(*fsaccess))
+                    if (auto lp = i->lock())
                     {
-                        // Not resolved so report as a stall.
-                        mIgnoreFileFailureContext.report(mSyncFlags->stall);
+                        if (!(lp->sync && lp->sync->syncPaused))
+                        {
+                            mSyncFlags->stall.waitingLocal(lp->localPath, LocalPath(), string(), SyncWaitReason::UnableToLoadIgnoreFile);
+                        }
+                        ++i;
                     }
+                    else i = badlyFormedIgnoreFilePaths.erase(i);
                 }
 
                 // add scan-blocked paths to stall records
@@ -8402,7 +8451,7 @@ void Syncs::syncLoop()
                 {
                     if (auto sbp = i->lock())
                     {
-                        if(sbp->scanBlockedTimer.armed())
+                        if (sbp->scanBlockedTimer.armed())
                         {
                             LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan: " << sbp->localPath.toPath();
                             sbp->localNode->setScanAgain(true, false, false, 0);

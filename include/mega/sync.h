@@ -933,6 +933,7 @@ public:
     void collectSyncNameConflicts(handle backupId, std::function<void(list<NameConflict>&& nc)>, bool completionInClient);
 
     list<weak_ptr<LocalNode::RareFields::ScanBlocked>> scanBlockedPaths;
+    list<weak_ptr<LocalNode::RareFields::BadlyFormedIgnore>> badlyFormedIgnoreFilePaths;
 
     // waiter for sync loop on thread
     WAIT_CLASS waiter;

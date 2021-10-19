@@ -555,6 +555,19 @@ struct MEGA_API LocalNode : public Cacheable
 
         shared_ptr<ScanBlocked> scanBlocked;
 
+        struct BadlyFormedIgnore
+        {
+            LocalPath localPath;
+
+            // There is only one shared_ptr so if the node is gone,
+            // we can't look this up by weak_ptr.  So this ptr is not dangling
+            Sync* sync = nullptr;
+
+            BadlyFormedIgnore(const LocalPath& lp, Sync* s) : localPath(lp), sync(s) {}
+        };
+
+        shared_ptr<BadlyFormedIgnore> badlyFormedIgnoreFilePath;
+
         struct MoveInProgress
         {
             bool succeeded = false;
@@ -707,6 +720,8 @@ struct MEGA_API LocalNode : public Cacheable
     // Create a watch for this node if necessary.
     bool watch(const LocalPath& path, handle fsid);
 
+    void ignoreFilterPresenceChanged(bool present, FSNode* fsNode);
+
 private:
     struct
     {
@@ -729,8 +744,8 @@ private:
     // Query whether a file is excluded by a size filter.
     bool isExcluded(const RemotePathPair& namePath, m_off_t size) const;
 
-    // Signal that this node and its children must recompute their exclusion state.
-    void setRecomputeExclusionState();
+    // Signal that LocalNodes in this subtree must recompute their exclusion state.
+    void setRecomputeExclusionState(bool includingThisOne);
 
 public:
     // Clears the filters defined by this node.
@@ -740,10 +755,10 @@ public:
     const FilterChain& filterChainRO() const;
 
     // Load filters from the ignore file identified by path.
-    bool loadFilters(const LocalPath& path);
+    bool loadFiltersIfChanged(const FileFingerprint& fingerprint, const LocalPath& path);
 
     // Signal whether this node needs to load its ignore file.
-    void setWaitingForIgnoreFileLoad(bool waiting);
+    //void setWaitingForIgnoreFileLoad(bool waiting);
 
     // Query whether this node needs to load its ignore file.
     bool waitingForIgnoreFileLoad() const;

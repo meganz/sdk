@@ -11490,9 +11490,13 @@ TEST_F(LocalToCloudFilterFixture, FilterDeferredChange)
     ASSERT_TRUE(confirm(*cu, id, localFS));
     ASSERT_TRUE(confirm(*cu, id, remoteTree));
 
+    cu->received_node_actionpackets = false;
+
     // Remove .megaignore.
     // This should perform any pending filter reloads.
     ASSERT_TRUE(fs::remove(root(*cu) / "root" / ".megaignore"));
+
+    ASSERT_TRUE(cu->waitForNodesUpdated(30)) << " no actionpacket received in cu for remove";
 
     // Update models.
     localFS.removenode(".megaignore");
@@ -13296,6 +13300,9 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
     ASSERT_TRUE(confirm(*cd, id, localFS));
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
 
+
+    cd->received_node_actionpackets = false;
+
     // Move x/a/.megaignore to x/.megaignore.
     // Remove x/b/fa.
     ASSERT_TRUE(cdu->login_fetchnodes());
@@ -13306,6 +13313,8 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
     // Move x/c/d/.megaignore to x/c/.megaignore.
     ASSERT_TRUE(cdu->movenode("x/c/d/.megaignore", "x/c"));
     cdu.reset();
+
+    ASSERT_TRUE(cd->waitForNodesUpdated(30)) << " no actionpacket received in cd for remove";
 
     // Wait for sync.
     waitOnSyncs(cd.get());

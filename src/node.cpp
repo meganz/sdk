@@ -1302,7 +1302,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     ln->mWaitingForIgnoreFileLoad = mWaitingForIgnoreFileLoad;
 
     // Make sure our exclusion state is recomputed.
-    ln->setRecomputeExclusionState();
+    ln->setRecomputeExclusionState(true);
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
@@ -1452,6 +1452,7 @@ void LocalNode::trimRareFields()
             !rareFields->moveFromHere &&
             !rareFields->moveToHere &&
             !rareFields->filterChain &&
+            !rareFields->badlyFormedIgnoreFilePath &&
             rareFields->createFolderHere.expired() &&
             rareFields->removeNodeHere.expired() &&
             rareFields->unlinkHere.expired())
@@ -2550,14 +2551,15 @@ void LocalNode::clearFilters()
     assert(type == FOLDERNODE);
 
     // Clear filter state.
-    if (rareFields && rareFields->filterChain)
+    if (rareRO().filterChain)
     {
-        rareFields->filterChain.reset();
+        rare().filterChain.reset();
+        rare().badlyFormedIgnoreFilePath.reset();
         trimRareFields();
     }
 
     // Reset ignore file state.
-    setWaitingForIgnoreFileLoad(false);
+    setRecomputeExclusionState(false);
 
     // Re-examine this subtree.
     setScanAgain(false, true, true, 0);
@@ -2576,45 +2578,32 @@ const FilterChain& LocalNode::filterChainRO() const
     return dummy;
 }
 
-bool LocalNode::loadFilters(const LocalPath& path)
+bool LocalNode::loadFiltersIfChanged(const FileFingerprint& fingerprint, const LocalPath& path)
 {
     // Only meaningful for directories.
     assert(type == FOLDERNODE);
 
     // Convenience.
     auto& filterChain = this->filterChain();
-    auto& fsAccess = *sync->syncs.fsaccess;
 
-    // Try and load the ignore file.
-    auto result = filterChain.load(fsAccess, path);
-
-    // Ignore file hasn't changed.
-    if (result == FLR_SKIPPED)
-        return !mWaitingForIgnoreFileLoad;
-
-    auto failed = result == FLR_FAILED;
-
-    // Did the load fail?
-    if (failed)
+    if (filterChain.isValid() && !filterChain.changed(fingerprint))
     {
-        // Let the engine know there's been a load failure.
-        sync->syncs.ignoreFileLoadFailure(*sync, path);
-
-        // Clear the filter state.
-        rareFields->filterChain.reset();
-
-        // Trim the fields.
-        trimRareFields();
+        return true;
     }
 
-    // Update our load pending state.
-    setWaitingForIgnoreFileLoad(failed);
+    if (filterChain.isValid())
+    {
+        filterChain.invalidate();
+        setRecomputeExclusionState(false);
+    }
 
-    // Re-examine this subtree.
-    setScanAgain(false, true, true, 0);
-    setSyncAgain(false, true, true);
+    // Try and load the ignore file.
+    if (FLR_SUCCESS != filterChain.load(*sync->syncs.fsaccess, path))
+    {
+        filterChain.invalidate();
+    }
 
-    return !failed;
+    return filterChain.isValid();
 }
 
 FilterChain& LocalNode::filterChain()
@@ -2637,15 +2626,18 @@ bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inheri
     {
         assert(node->mExclusionState == ES_INCLUDED);
 
-        // Should we only consider inheritable filter rules?
-        inherited = inherited || node != this;
+        if (node->rareRO().filterChain)
+        {
+            // Should we only consider inheritable filter rules?
+            inherited = inherited || node != this;
 
-        // Check for a filter match.
-        auto result = node->filterChainRO().match(namePath, type, inherited);
+            // Check for a filter match.
+            auto result = node->filterChainRO().match(namePath, type, inherited);
 
-        // Was the file matched by any filters?
-        if (result.matched)
-            return !result.included;
+            // Was the file matched by any filters?
+            if (result.matched)
+                return !result.included;
+        }
 
         // Compute the node's cloud name.
         auto name = node->localname.toName(*sync->syncs.fsaccess);
@@ -2673,41 +2665,44 @@ bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
         // Sanity: We should never be called if either of these is true.
         assert(node->mExclusionState == ES_INCLUDED);
 
-        // Check for a filter match.
-        auto result = node->filterChainRO().match(size);
+        if (node->rareRO().filterChain)
+        {
+            // Check for a filter match.
+            auto result = node->filterChainRO().match(size);
 
-        // Was the file matched by any filters?
-        if (result.matched)
-            return !result.included;
+            // Was the file matched by any filters?
+            if (result.matched)
+                return !result.included;
+        }
     }
 
     // File's included.
     return false;
 }
 
-void LocalNode::setWaitingForIgnoreFileLoad(bool pending)
-{
-    // Only meaningful for directories.
-    assert(type == FOLDERNODE);
+//void LocalNode::setWaitingForIgnoreFileLoad(bool pending)
+//{
+//    // Only meaningful for directories.
+//    assert(type == FOLDERNODE);
+//
+//    // Do we really need to update our children?
+//    if (!mWaitingForIgnoreFileLoad)
+//    {
+//        // Tell our children they need to recompute their state.
+//        for (auto& childIt : children)
+//            childIt.second->setRecomputeExclusionState();
+//    }
+//
+//    // Apply new pending state.
+//    mWaitingForIgnoreFileLoad = pending;
+//}
 
-    // Do we really need to update our children?
-    if (!mWaitingForIgnoreFileLoad)
+void LocalNode::setRecomputeExclusionState(bool includingThisOne)
+{
+    if (includingThisOne)
     {
-        // Tell our children they need to recompute their state.
-        for (auto& childIt : children)
-            childIt.second->setRecomputeExclusionState();
+        mExclusionState = ES_UNKNOWN;
     }
-
-    // Apply new pending state.
-    mWaitingForIgnoreFileLoad = pending;
-}
-
-void LocalNode::setRecomputeExclusionState()
-{
-    if (mExclusionState == ES_UNKNOWN)
-        return;
-
-    mExclusionState = ES_UNKNOWN;
 
     if (type == FILENODE)
         return;
@@ -2856,6 +2851,22 @@ bool LocalNode::recomputeExclusionState()
     mExclusionState = parent->exclusionState(localname, type);
 
     return mExclusionState != ES_UNKNOWN;
+}
+
+
+void LocalNode::ignoreFilterPresenceChanged(bool present, FSNode* fsNode)
+{
+    // ignore file appeared or disappeared
+    if (present)
+    {
+        // if the file is actually present locally, it'll be loaded after its syncItem()
+        filterChain().invalidate();
+    }
+    else
+    {
+        rare().filterChain.reset();
+    }
+    setRecomputeExclusionState(false);
 }
 
 #endif // ENABLE_SYNC
