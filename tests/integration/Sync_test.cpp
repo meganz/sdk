@@ -2768,12 +2768,13 @@ struct StandardClient : public MegaApp
         }
     }
 
-    bool movenode(string path, string newParentPath)
+    bool movenode(string path, string newParentPath, string newName = "")
     {
         auto promise = makeSharedPromise<bool>();
         auto future = promise->get_future();
 
         movenode(std::move(path),
+                 std::move(newName),
                  std::move(newParentPath),
                  std::move(promise));
 
@@ -2782,16 +2783,18 @@ struct StandardClient : public MegaApp
         return status == future_status::ready && future.get();
     }
 
-    void movenode(string path, string newparentpath, PromiseBoolSP pb)
+    void movenode(string path, string newname, string newparentpath, PromiseBoolSP pb)
     {
         Node* n = drillchildnodebyname(gettestbasenode(), path);
         Node* p = drillchildnodebyname(gettestbasenode(), newparentpath);
         if (n && p)
         {
             resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [pb, n, p, this]()
+                [pb, n, newname, p, this]()
                 {
-                    client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
+                    const auto* name = newname.empty() ? nullptr : newname.c_str();
+
+                    client.rename(n, p, SYNCDEL_NONE, NodeHandle(), name,
                         [pb](NodeHandle h, Error e) { pb->set_value(!e); });
                 },
                 nullptr);
@@ -4651,8 +4654,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
     pclientA1->localLogout();
 
     // move f_0 into f_1 remote
-    future<bool> p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.movenode("f/f_0", "f/f_1", pb); });
-    ASSERT_TRUE(waitonresults(&p1));
+    ASSERT_TRUE(clientA2.movenode("f/f_0", "f/f_1"));
 
     // move f_1 into f_0 locally
     error_code rename_error;
@@ -13668,6 +13670,418 @@ TEST_F(SyncTest, CorrectlyHandlePreviouslySyncedFiles)
     model.addfile("d/f1");
 
     // Check everything was synced correctly.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
+struct ReservedNameTest
+  : public ::testing::Test
+{
+    // Make sure hook is established before any clients run.
+    void SetUp() override
+    {
+        // Meaningful only for UNIX systems.
+        isReservedNameHook([](const string& name, nodetype_t) {
+            // Representative examples.
+            return name == "AUX" || name == "LPT1";
+        });
+    }
+
+    // Make sure hook is cleared after all clients are destroyed.
+    void TearDown() override
+    {
+        isReservedNameHook(nullptr);
+    }
+}; // ReservedNameTest
+
+TEST_F(ReservedNameTest, StallsWhenDownloadTargetHasReservedName)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = std::chrono::seconds(8);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("s"));
+
+    // Add and start sync.
+    auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Create a directory in the cloud with a reserved name.
+    {
+        vector<NewNode> node(1);
+
+        c.client.putnodes_prepareOneFolder(&node[0], "AUX");
+
+        ASSERT_TRUE(c.putnodes("s", std::move(node)));
+    }
+
+    // Give the sync some time to process remote changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // For the sync to stall.
+    ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
+    SyncStallInfo stalls;
+
+    // Retrieve a list of stalls from the client.
+    ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
+
+    // Has the stall record actually been populated?
+    ASSERT_FALSE(stalls.local.empty());
+    ASSERT_TRUE(stalls.cloud.empty());
+
+    // Was the stall due to our download?
+    auto expectedPath = c.fsBasePath / "s" / "AUX";
+
+    // Correct local path?
+    ASSERT_EQ(stalls.local.begin()->first.toPath(),
+              expectedPath.u8string());
+
+    // Correct cloud path?
+    ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
+              "/mega_test_sync/s/AUX");
+
+    // Correct stall reason?
+    ASSERT_EQ(stalls.local.begin()->second.reason,
+              SyncWaitReason::ItemHasReservedName);
+
+    // Does the stall resolve if we remove the offending node?
+    ASSERT_TRUE(c.deleteremote("s/AUX"));
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(c.waitFor(SyncStallState(false), 2 * TIMEOUT));
+}
+
+TEST_F(ReservedNameTest, StallsWhenMoveTargetHasReservedName)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = std::chrono::seconds(8);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in the client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("s"));
+
+    // Add and start sync.
+    auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Give the sync something to synchronize.
+    Model model;
+
+    model.addfolder("d");
+    model.generate(c.fsBasePath / "s");
+
+    // Wait for the initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Was the directory created in the cloud?
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Move the directory such that it acquires a reserved name.
+    ASSERT_TRUE(c.rename("s/d", "LPT1"));
+
+    // Give the sync some time to react to remote changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Wait for the sync to stall.
+    ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
+    // Retrieve a list of stalls from the client.
+    SyncStallInfo stalls;
+
+    ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
+
+    // Make sure the stall record is populated.
+    ASSERT_FALSE(stalls.local.empty());
+    ASSERT_TRUE(stalls.cloud.empty());
+
+    // Correct stall paths?
+    auto targetPath = c.fsBasePath / "s" / "LPT1";
+    auto sourcePath = c.fsBasePath / "s" / "d";
+
+    ASSERT_EQ(stalls.local.begin()->first.toPath(),
+              targetPath.u8string());
+
+    ASSERT_EQ(stalls.local.begin()->second.involvedLocalPath.toPath(),
+              sourcePath.u8string());
+
+    ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
+              "/mega_test_sync/s/LPT1");
+
+    // Correct stall reason?
+    ASSERT_EQ(stalls.local.begin()->second.reason,
+              SyncWaitReason::MoveTargetHasReservedName);
+
+    // Does the stall resolve if we correct the name?
+    ASSERT_TRUE(c.rename("s/LPT1", "dd"));
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(c.waitFor(SyncStallState(false), 2 * TIMEOUT));
+
+    // Let the sync process remote changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Was d moved to the correct location?
+    model.findnode("d")->name = "dd";
+
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
+{
+    const string DIRECTORY_NAME(256, 'd');
+    const string FILE_NAME(256, 'f');
+
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = std::chrono::seconds(8);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("s"));
+
+    // Add and start sync.
+    auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Create a directory for the engine to synchronize.
+    {
+        vector<NewNode> node(1);
+
+        c.client.putnodes_prepareOneFolder(&node[0], DIRECTORY_NAME);
+
+        ASSERT_TRUE(c.putnodes("s", std::move(node)));
+    }
+
+    // Wait for the engine to process remote changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
+    // Retrieve a list of stalls from the client.]
+    SyncStallInfo stalls;
+
+    ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
+
+    // Make sure the stall record is populated.
+    ASSERT_FALSE(stalls.local.empty());
+    ASSERT_TRUE(stalls.cloud.empty());
+
+    // Was the stall due to the directory with the insane name?
+    {
+        auto localPath = c.fsBasePath / "s" / DIRECTORY_NAME;
+        auto cloudPath = "/mega_test_sync/s/" + DIRECTORY_NAME;
+
+        ASSERT_EQ(stalls.local.begin()->first.toPath(),
+                  localPath.u8string());
+
+        ASSERT_TRUE(stalls.local.begin()->second.involvedLocalPath.empty());
+
+        ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
+                  cloudPath);
+
+        ASSERT_EQ(stalls.local.begin()->second.reason,
+                  SyncWaitReason::CreateFolderNameTooLong);
+    }
+
+    // Does the stall resolve if we remove the directory?
+    ASSERT_TRUE(c.deleteremote("s/" + DIRECTORY_NAME));
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(c.waitFor(SyncStallState(false), 2 * TIMEOUT));
+
+    // Wait for the engine to process remote changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Upload a file for the engine to synchronize.
+    ASSERT_TRUE(c.uploadFile(c.fsBasePath / "s" / ".megaignore",
+                             FILE_NAME,
+                             "/mega_test_sync/s"));
+
+    // Give the engine some time to synchronize the file.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
+    // Retrieve a list of stalls from the client.]
+    ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
+
+    // Make sure the stall record is populated.
+    ASSERT_FALSE(stalls.local.empty());
+    ASSERT_TRUE(stalls.cloud.empty());
+
+    // Was the stall due to the file with the insane name?
+    {
+        auto localPath = c.fsBasePath / "s" / FILE_NAME;
+        auto cloudPath = "/mega_test_sync/s/" + FILE_NAME;
+
+        ASSERT_EQ(stalls.local.begin()->second.involvedLocalPath.toPath(),
+                  localPath.u8string());
+
+        ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
+                  cloudPath);
+
+        ASSERT_EQ(stalls.local.begin()->second.reason,
+                  SyncWaitReason::DownloadTargetNameTooLong);
+    }
+
+    // Does the stall resolve if we remove the file?
+    ASSERT_TRUE(c.deleteremote("s/" + FILE_NAME));
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(c.waitFor(SyncStallState(false), 2 * TIMEOUT));
+}
+
+TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
+{
+    const string FILE_NAME(256, 'f');
+
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = std::chrono::seconds(8);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in the client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("s"));
+
+    // Add and start sync.
+    auto id = c.setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Create a tree for the engine to synchronize.
+    Model model;
+
+    model.addfile("d/f");
+    model.generate(c.fsBasePath / "s");
+
+    // Wait for synchronization to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Was the file uploaded?
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Rename the file so that it has a really, really long name.
+    ASSERT_TRUE(c.rename("s/d/f", FILE_NAME));
+
+    // Give the engine some time to react to remote changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
+    // Acquire stall records from the client.
+    SyncStallInfo stalls;
+
+    ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
+
+    // Is the stall record populated?
+    ASSERT_FALSE(stalls.local.empty());
+    ASSERT_TRUE(stalls.cloud.empty());
+
+    // Was the stall due to the rename?
+    ASSERT_EQ(stalls.local.begin()->first.toPath(),
+              (c.fsBasePath / "s" / "d" / FILE_NAME).u8string());
+
+    ASSERT_EQ(stalls.local.begin()->second.involvedLocalPath.toPath(),
+              (c.fsBasePath / "s" / "d" / "f").u8string());
+
+    ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
+              "/mega_test_sync/s/d/" + FILE_NAME);
+
+    ASSERT_EQ(stalls.local.begin()->second.reason,
+              SyncWaitReason::MoveTargetNameTooLong);
+
+    // Correcting the name should resolve the stall.
+    ASSERT_TRUE(c.rename("s/d/" + FILE_NAME, "ff"));
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(c.waitFor(SyncStallState(false), 2 * TIMEOUT));
+
+    // Wait for the engine to complete the rename.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Was the rename propagated?
+    model.findnode("d/f")->name = "ff";
+    
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Move (and rename) the file such that it has a long name.
+    ASSERT_TRUE(c.movenode("s/d/ff", "s", FILE_NAME));
+
+    // Wait for the engine to process remote changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
+    // Retrieve stall records from the client.
+    ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
+
+    // Is the stall record actually populated?
+    ASSERT_FALSE(stalls.cloud.empty());
+    ASSERT_FALSE(stalls.local.empty());
+
+    // Correct paths reported?
+    ASSERT_EQ(stalls.cloud.begin()->first,
+              "/mega_test_sync/s/d/" + FILE_NAME);
+
+    ASSERT_EQ(stalls.cloud.begin()->second.involvedCloudPath,
+              "/mega_test_sync/s/" + FILE_NAME);
+
+    ASSERT_EQ(stalls.cloud.begin()->second.involvedLocalPath.toPath(),
+              (c.fsBasePath / "s" / "d" / "ff").u8string());
+
+    ASSERT_EQ(stalls.local.begin()->first.toPath(),
+              (c.fsBasePath / "s" / FILE_NAME).u8string());
+
+    ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
+              "/mega_test_sync/s/d/" + FILE_NAME);
+
+    ASSERT_EQ(stalls.local.begin()->second.involvedLocalPath.toPath(),
+              (c.fsBasePath / "s" / "d" / "ff").u8string());
+
+    // Correct reasons reported?
+    ASSERT_EQ(stalls.cloud.begin()->second.reason,
+              SyncWaitReason::MoveNeedsDestinationNodeProcessing);
+
+    ASSERT_EQ(stalls.local.begin()->second.reason,
+              SyncWaitReason::MoveTargetNameTooLong);
+
+    // Renaming the file to something sane should resolve the stall.
+    ASSERT_TRUE(c.rename("s/" + FILE_NAME, "fff"));
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(c.waitFor(SyncStallState(false), 2 * TIMEOUT));
+
+    // Wait for the engine to process the move.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Did the engine action the move?
+    model.findnode("d/ff")->name = "fff";
+    model.movenode("d/fff", "");
+
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 

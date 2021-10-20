@@ -1022,7 +1022,12 @@ enum class SyncWaitReason {
     MoveOrRenameFailed,
     CreateFolderFailed,
     UnknownExclusionState,
-    UnableToLoadIgnoreFile
+    UnableToLoadIgnoreFile,
+    MoveTargetNameTooLong,
+    DownloadTargetNameTooLong,
+    CreateFolderNameTooLong,
+    ItemHasReservedName,
+    MoveTargetHasReservedName
 };
 
 string syncWaitReasonString(SyncWaitReason);

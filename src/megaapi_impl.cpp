@@ -4981,7 +4981,7 @@ void MegaFileGet::prepare(FileSystemAccess&)
     {
         transfer->localfilename = getLocalname();
 
-        size_t leafIndex = transfer->localfilename.getLeafnameByteIndex(*transfer->client->fsaccess);
+        size_t leafIndex = transfer->localfilename.getLeafnameByteIndex();
         transfer->localfilename.truncate(leafIndex);
 
         LocalPath suffix;
