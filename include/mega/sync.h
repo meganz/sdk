@@ -361,6 +361,11 @@ public:
     // Caches all synchronized LocalNode
     void cachenodes();
 
+    // Retrieve the name of this sync's state cache.
+    //
+    // Returns an empty string if this sync has no state cache.
+    const string& statecachename() const;
+
     // change state, signal to application
     void changestate(syncstate_t, SyncError newSyncError, bool newEnableFlag, bool notifyApp);
 
@@ -511,6 +516,8 @@ private:
     unique_ptr<FileAccess> tmpfa;
     LocalPath tmpfaPath;
 
+    // Name of this sync's state cache.
+    string mStateCacheName;
 };
 
 class SyncConfigIOContext;

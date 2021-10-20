@@ -827,7 +827,9 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     {
         // open state cache table
         handle tableid[3];
-        string dbname;
+
+        // Convenience.
+        string& dbname = mStateCacheName;
 
         auto fas = syncs.fsaccess->newfileaccess(false);
 
@@ -1123,6 +1125,11 @@ void Sync::cachenodes()
             assert(false);
         }
     }
+}
+
+const string& Sync::statecachename() const
+{
+    return mStateCacheName;
 }
 
 void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
