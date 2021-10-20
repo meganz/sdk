@@ -2357,7 +2357,7 @@ void MegaClient::exec()
                 pendingsc->protect = true;
                 pendingsc->posturl.append("?sn=");
                 pendingsc->posturl.append(scsn.text());
-                pendingsc->posturl.append(getAuthURI());
+                pendingsc->posturl.append(getAuthURI(false, true));
 
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
@@ -3253,10 +3253,11 @@ void MegaClient::dispatchTransfers()
                             nexttransfer->progresscompleted = nexttransfer->size;
                         }
 
-                        ts->updatecontiguousprogress();
+                        m_off_t progresscontiguous = ts->updatecontiguousprogress();
+
                         LOG_debug << "Resuming transfer at " << nexttransfer->pos
                             << " Completed: " << nexttransfer->progresscompleted
-                            << " Contiguous: " << ts->progresscontiguous
+                            << " Contiguous: " << progresscontiguous
                             << " Partial: " << p << " Size: " << nexttransfer->size
                             << " ultoken: " << (nexttransfer->ultoken != NULL);
                     }
@@ -15369,7 +15370,7 @@ bool MegaClient::loggedIntoWritableFolder() const
     return loggedIntoFolder() && !mFolderLink.mWriteAuth.empty();
 }
 
-std::string MegaClient::getAuthURI(bool supressSID)
+std::string MegaClient::getAuthURI(bool supressSID, bool supressAuthKey)
 {
     string auth;
 
@@ -15377,7 +15378,10 @@ std::string MegaClient::getAuthURI(bool supressSID)
     {
         auth.append("&n=");
         auth.append(Base64Str<NODEHANDLE>(mFolderLink.mPublicHandle));
-        auth.append(mFolderLink.mWriteAuth);
+        if (!supressAuthKey)
+        {
+            auth.append(mFolderLink.mWriteAuth);
+        }
         if (!supressSID && !mFolderLink.mAccountAuth.empty())
         {
             auth.append("&sid=");
