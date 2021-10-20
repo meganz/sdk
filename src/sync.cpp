@@ -5113,9 +5113,9 @@ using IndexPairVector = vector<IndexPair>;
 
 static IndexPairVector computeSyncSequences(vector<syncRow>& children)
 {
-    // No prioritization necessary if we only have a single child.
-    if (children.size() < 2)
-        return IndexPairVector(1, IndexPair(0, children.size()));
+    // No children, no work to be done.
+    if (children.empty())
+        return IndexPairVector();
 
     // Separate our children into those that are ignore files and those that are not.
     auto i = std::partition(children.begin(), children.end(), [](const syncRow& child) {
@@ -5124,7 +5124,18 @@ static IndexPairVector computeSyncSequences(vector<syncRow>& children)
 
     // No prioritization necessary if there's only a single class of child.
     if (i == children.begin() || i == children.end())
-        return IndexPairVector(1, IndexPair(0, children.size()));
+    {
+        // Is it a run of regular files?
+        if (!children.front().isIgnoreFile())
+            return IndexPairVector(1, IndexPair(0, children.size()));
+
+        IndexPairVector sequences;
+
+        sequences.emplace_back(0, children.size());
+        sequences.emplace_back(children.size(), children.size());
+
+        return sequences;
+    }
 
     IndexPairVector sequences;
 
@@ -5257,9 +5268,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         // Ignore files must be fully processed before any other child.
         auto sequences = computeSyncSequences(childRows);
 
-        bool ignoreFilePresent = !sequences.empty() &&
-                                 sequences.front().first < sequences.front().second &&
-                                 childRows[sequences.front().first].isIgnoreFile();
+        bool ignoreFilePresent = sequences.size() > 1;
         bool hasFilter = !!row.syncNode->rareRO().filterChain;
 
         if (ignoreFilePresent != hasFilter)
