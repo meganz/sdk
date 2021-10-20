@@ -60,7 +60,7 @@ const dstime TransferSlot::XFERTIMEOUT = 600;
 const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 
 // max request size for downloads
-#if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(USE_IOS)
     const m_off_t TransferSlot::MAX_REQ_SIZE = 2097152; // 2 MB
 #elif defined (_WIN32) || defined(HAVE_AIO_RT)
     const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB
@@ -97,7 +97,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     slots_it = transfer->client->tslots.end();
 
     maxRequestSize = MAX_REQ_SIZE;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     MEMORYSTATUSEX statex;
     memset(&statex, 0, sizeof (statex));
     statex.dwLength = sizeof (statex);
