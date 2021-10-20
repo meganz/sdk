@@ -13302,36 +13302,69 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
     ASSERT_TRUE(confirm(*cd, id, localFS));
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
 
-
-    cd->received_node_actionpackets = false;
+    // Log in "foreign" client.
+    ASSERT_TRUE(cdu->login_fetchnodes());
 
     // Move x/a/.megaignore to x/.megaignore.
+    {
+        // Get our hands on x/.megaignore.
+        auto* root = cdu->gettestbasenode();
+        auto* node = cdu->drillchildnodebyname(root, "x/.megaignore");
+
+        // So we know when cd receives new action packets.
+        cd->received_node_actionpackets = false;
+
+        // Move x/a/.megaignore to x/.megaignore.
+        ASSERT_TRUE(cdu->movenode("x/a/.megaignore", "x"));
+
+        // Delete the original x/.megaignore.
+        ASSERT_TRUE(cdu->deleteremote(node));
+
+        // Update the models.
+        localFS.removenode(".megaignore");
+        localFS.movenode("a/.megaignore", "");
+
+        remoteTree.removenode(".megaignore");
+        remoteTree.movenode("a/.megaignore", "");
+
+        // Wait for cd to receive action packets for the above.
+        ASSERT_TRUE(cd->waitForNodesUpdated(30));
+
+        // Wait for the engine to process the changes.
+        waitOnSyncs(cd.get());
+
+        // Check that the ignore file has been "moved."
+        ASSERT_TRUE(confirm(*cd, id, localFS));
+        ASSERT_TRUE(confirm(*cd, id, remoteTree));
+    }
+
+    // So we know when new action packets have been received.
+    cd->received_node_actionpackets = false;
+
     // Remove x/b/fa.
-    ASSERT_TRUE(cdu->login_fetchnodes());
-    ASSERT_TRUE(cdu->deleteremote("x/.megaignore"));
-    ASSERT_TRUE(cdu->movenode("x/a/.megaignore", "x"));
+    //
+    // The change shouldn't be actioned as the file became excluded by
+    // the "move" above.
+    remoteTree.removenode("b/fa");
+
     ASSERT_TRUE(cdu->deleteremote("x/b/fa"));
 
-    // Move x/c/d/.megaignore to x/c/.megaignore.
+    // Move x/cd/.megaignore up a level.
+    //
+    // Change should be actioned as ignore files cannot be excluded.
+    localFS.movenode("c/d/.megaignore", "c");
+    remoteTree.movenode("c/d/.megaignore", "c");
+
     ASSERT_TRUE(cdu->movenode("x/c/d/.megaignore", "x/c"));
+
+    // We're done with the "foreign" client.
     cdu.reset();
 
-    ASSERT_TRUE(cd->waitForNodesUpdated(30)) << " no actionpacket received in cd for remove";
+    // Make sure we've received APs for the above.
+    ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
-    // Wait for sync.
+    // Wait for the engine to process above changes.
     waitOnSyncs(cd.get());
-
-    // Update models.
-    //   a/.megaignore -> .megaignore.
-    // c/d/.megaignore -> c/.megaignore
-    // [ab]/fa should both be excluded.
-    localFS.removenode(".megaignore");
-    localFS.movenode("a/.megaignore", "");
-    localFS.movenode("c/d/.megaignore", "c");
-
-    remoteTree = localFS;
-    remoteTree.addfile("a/fa");
-    remoteTree.removenode("b/fa");
 
     // Confirm models.
     ASSERT_TRUE(confirm(*cd, id, localFS));
