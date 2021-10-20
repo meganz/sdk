@@ -426,9 +426,38 @@ inline unsigned propagateSubtreeFlag(unsigned nodeFlag, unsigned childFlag)
 struct syncRow;
 struct SyncPath;
 
-struct MEGA_API LocalNode : public Cacheable
+struct MEGA_API LocalNode;
+
+struct MEGA_API LocalNodeCore
+  : public Cacheable
 {
-    class Sync* sync = nullptr;
+    LocalNodeCore() = default;
+
+    MEGA_DISABLE_COPY_MOVE(LocalNodeCore);
+
+    ~LocalNodeCore() = default;
+
+    // deserialize attributes from binary storage.
+    bool unserialize(const string* s);
+
+    // serialize attributes to binary for storage.
+    virtual bool serialize(string* d) override;
+
+    // we also need to track what fsid corresponded to our FSNode last time, even if not synced (not serialized)
+    // if it changes, we should rescan, in case of LocalNode pre-existing with no FSNode, then one appears.  Or, now it's different
+    handle fsid_asScanned = mega::UNDEF;
+
+    // local filesystem node ID (inode...) for rename/move detection
+    handle fsid_lastSynced = mega::UNDEF;
+
+    // The exact name of the file we are synced with, if synced
+    // If not synced then it's the to-local (escaped) version of the CloudNode's name
+    // This is also the key in the parent LocalNode's children map
+    // (if this is the sync root node, it is an absolute path - otherwise just a leaf name)
+    LocalPath localname;
+
+    // whether this node can be synced to the remote tree
+    bool mSyncable = true;
 
     // parent linkage
     LocalNode* parent = nullptr;
@@ -436,18 +465,39 @@ struct MEGA_API LocalNode : public Cacheable
     // stored to rebuild tree after serialization => this must not be a pointer to parent->dbid
     int32_t parent_dbid = 0;
 
-    // whether this node can be synced to the remote tree
-    bool mSyncable = true;
+    // Fingerprint of the file as of the last scan.
+    // TODO: does this make LocalNode too large?
+    FileFingerprint scannedFingerprint;
+
+    // for botched filesystems with legacy secondary ("short") names
+    // Filesystem notifications could arrive with long or short names, and we need to recognise which LocalNode corresponds.
+    // null means either the entry has no shortname or it's the same as the (normal) longname
+    std::unique_ptr<LocalPath> slocalname = nullptr;
 
     // whether this node knew its shortname (otherwise it was loaded from an old db)
     bool slocalname_in_db = false;
 
+    // related cloud node, if any
+    NodeHandle syncedCloudNodeHandle;
+
+    // The fingerprint of the node and/or file we are synced with
+    FileFingerprint syncedFingerprint;
+
+    // FILENODE or FOLDERNODE
+    nodetype_t type = TYPE_UNKNOWN;
+}; // LocalNodeCore
+
+// Convenience.
+using LocalNodeCorePtr = unique_ptr<LocalNodeCore>;
+
+struct MEGA_API LocalNode
+  : public LocalNodeCore
+{
+    class Sync* sync = nullptr;
+
     // children by name
     localnode_map children;
 
-    // for botched filesystems with legacy secondary ("short") names
-    // Filesystem notifications could arrive with long or short names, and we need to recognise which LocalNode corresponds.
-    std::unique_ptr<LocalPath> slocalname;   // null means either the entry has no shortname or it's the same as the (normal) longname
     unique_ptr<LocalPath> cloneShortname() const;
     localnode_map schildren;
 
@@ -458,33 +508,14 @@ struct MEGA_API LocalNode : public Cacheable
     // If we can regenerate the filsystem data at this node, no need to store it, save some RAM
     void clearRegeneratableFolderScan(SyncPath& fullPath, vector<syncRow>& childRows);
 
-    // The exact name of the file we are synced with, if synced
-    // If not synced then it's the to-local (escaped) version of the CloudNode's name
-    // This is also the key in the parent LocalNode's children map
-    // (if this is the sync root node, it is an absolute path - otherwise just a leaf name)
-    LocalPath localname;  //fsLeafName;
-
-    // The fingerprint of the node and/or file we are synced with
-    FileFingerprint syncedFingerprint;
-
-    // local filesystem node ID (inode...) for rename/move detection
-    handle fsid_lastSynced = mega::UNDEF;
     fsid_localnode_map::iterator fsid_lastSynced_it;
 
     // we also need to track what fsid corresponded to our FSNode last time, even if not synced (not serialized)
     // if it changes, we should rescan, in case of LocalNode pre-existing with no FSNode, then one appears.  Or, now it's different
-    handle fsid_asScanned = mega::UNDEF;
     fsid_localnode_map::iterator fsid_asScanned_it;
 
-    // Fingerprint of the file as of the last scan.  TODO: does this make LocalNode too large?
-    FileFingerprint scannedFingerprint;
-
     // related cloud node, if any
-    NodeHandle syncedCloudNodeHandle;
     nodehandle_localnode_map::iterator syncedCloudNodeHandle_it;
-
-    // FILENODE or FOLDERNODE
-    nodetype_t type = TYPE_UNKNOWN;
 
     // using a per-Localnode scan delay prevents self-notifications delaying the whole sync
     dstime scanDelayUntil = 0;
@@ -701,8 +732,8 @@ struct MEGA_API LocalNode : public Cacheable
     LocalNode(Sync*);
     void init(nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
-    bool serialize(string*) override;
-    static unique_ptr<LocalNode> unserialize( Sync* sync, const string* sData );
+    bool serialize(string* d) override;
+    static unique_ptr<LocalNode> unserialize(Sync* sync, const string* s);
 
     void deleteChildren();
 
