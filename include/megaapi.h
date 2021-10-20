@@ -8129,19 +8129,6 @@ class MegaApi
          */
         void addEntropy(char* data, unsigned int size);
 
-#ifdef WINDOWS_PHONE
-        /**
-         * @brief Set the ID for statistics
-         *
-         * Call this function one time only per MegaApi, before using that MegaApi
-         *
-         * The id parameter is hashed before being used
-         *
-         * @param id ID for statistics
-         */
-        static void setStatsID(const char *id);
-#endif
-
         /**
          * @brief Retry all pending requests
          *

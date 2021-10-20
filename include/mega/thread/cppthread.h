@@ -22,17 +22,13 @@
  * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#if defined WINDOWS_PHONE || defined USE_CPPTHREAD
+#if defined USE_CPPTHREAD
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS CppThread
 #define SEMAPHORE_CLASS CppSemaphore
 
 #include "mega/thread.h"
-
-#if defined(WINDOWS_PHONE) && !defined(__STDC_LIMIT_MACROS)
-#define __STDC_LIMIT_MACROS
-#endif
 
 #include <thread>
 #include <mutex>

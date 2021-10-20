@@ -148,7 +148,6 @@ public:
 };
 #endif
 
-#ifndef WINDOWS_PHONE
 struct MEGA_API WinAsyncIOContext : public AsyncIOContext
 {
     WinAsyncIOContext();
@@ -157,7 +156,6 @@ struct MEGA_API WinAsyncIOContext : public AsyncIOContext
 
     OVERLAPPED *overlapped;
 };
-#endif
 
 class MEGA_API WinFileAccess : public FileAccess
 {
@@ -192,13 +190,11 @@ public:
     ~WinFileAccess();
 
 protected:
-#ifndef WINDOWS_PHONE
     AsyncIOContext* newasynccontext() override;
     static VOID CALLBACK asyncopfinished(
             DWORD        dwErrorCode,
             DWORD        dwNumberOfBytesTransfered,
             LPOVERLAPPED lpOverlapped);
-#endif
 };
 } // namespace
 
