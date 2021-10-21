@@ -7,7 +7,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the rules set forth in the Terms of Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -1206,12 +1206,18 @@ void MegaClient::init()
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
-    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
-    , mAsyncQueue(*w, workerThreadCount)
+   : mAsyncQueue(*w, workerThreadCount)
+   , mCachedStatus(this)
+   , useralerts(*this)
+   , btugexpiration(rng)
+   , btcs(rng)
+   , btbadhost(rng)
+   , btworkinglock(rng)
+   , btsc(rng)
+   , btpfa(rng)
 #ifdef ENABLE_SYNC
     , syncs(*this)
 #endif
-    , mCachedStatus(this)
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -1536,6 +1542,7 @@ void MegaClient::exec()
                         break;
                     }
                     // no retry -> fall through
+                    // fall through
                 case REQ_SUCCESS:
                     restag = it->first;
                     app->http_result(req->httpstatus ? API_OK : API_EFAILED,
@@ -1566,6 +1573,7 @@ void MegaClient::exec()
                         break;
                     }
                     // no retry -> fall through
+                    // fall through
                 case REQ_INFLIGHT:
                     if (req->maxbt.nextset() && req->maxbt.armed())
                     {
@@ -1576,6 +1584,7 @@ void MegaClient::exec()
                         pendinghttp.erase(it++);
                         break;
                     }
+                    // fall through
                 default:
                     it++;
                 }
@@ -1804,7 +1813,8 @@ void MegaClient::exec()
                         if (!fc->timeout.armed()) break;
 
                         LOG_warn << "Timeout getting file attr";
-                        // timeout! fall through...
+                        // timeout!
+                        // fall through
                     case REQ_FAILURE:
                         LOG_warn << "Error getting file attr";
 
@@ -2347,7 +2357,7 @@ void MegaClient::exec()
                 pendingsc->protect = true;
                 pendingsc->posturl.append("?sn=");
                 pendingsc->posturl.append(scsn.text());
-                pendingsc->posturl.append(getAuthURI());
+                pendingsc->posturl.append(getAuthURI(false, true));
 
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
@@ -3243,10 +3253,11 @@ void MegaClient::dispatchTransfers()
                             nexttransfer->progresscompleted = nexttransfer->size;
                         }
 
-                        ts->updatecontiguousprogress();
+                        m_off_t progresscontiguous = ts->updatecontiguousprogress();
+
                         LOG_debug << "Resuming transfer at " << nexttransfer->pos
                             << " Completed: " << nexttransfer->progresscompleted
-                            << " Contiguous: " << ts->progresscontiguous
+                            << " Contiguous: " << progresscontiguous
                             << " Partial: " << p << " Size: " << nexttransfer->size
                             << " ultoken: " << (nexttransfer->ultoken != NULL);
                     }
@@ -7719,7 +7730,7 @@ void MegaClient::stringhash(const char* s, byte* hash, SymmCipher* cipher)
 // (transforms s to lowercase)
 uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 {
-    byte hash[SymmCipher::KEYLENGTH];
+    byte hash[SymmCipher::KEYLENGTH+1];
 
     tolower_string(*s);
     stringhash(s->c_str(), hash, c);
@@ -15359,7 +15370,7 @@ bool MegaClient::loggedIntoWritableFolder() const
     return loggedIntoFolder() && !mFolderLink.mWriteAuth.empty();
 }
 
-std::string MegaClient::getAuthURI(bool supressSID)
+std::string MegaClient::getAuthURI(bool supressSID, bool supressAuthKey)
 {
     string auth;
 
@@ -15367,7 +15378,10 @@ std::string MegaClient::getAuthURI(bool supressSID)
     {
         auth.append("&n=");
         auth.append(Base64Str<NODEHANDLE>(mFolderLink.mPublicHandle));
-        auth.append(mFolderLink.mWriteAuth);
+        if (!supressAuthKey)
+        {
+            auth.append(mFolderLink.mWriteAuth);
+        }
         if (!supressSID && !mFolderLink.mAccountAuth.empty())
         {
             auth.append("&sid=");

@@ -143,9 +143,14 @@ public:
     size_t reportSize() const { return localpath.size() * sizeof(separator_t); } // only for reporting, not logic
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
-    size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
+    size_t getLeafnameByteIndex() const;
     LocalPath subpathFrom(size_t bytePos) const;
     LocalPath subpathTo(size_t bytePos) const;
+
+    // Return a path denoting this path's parent.
+    //
+    // Result is undefined if this path is a "root."
+    LocalPath parentPath() const;
 
     LocalPath insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess);
 
@@ -686,6 +691,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails because the target already exists
     bool target_exists = false;
 
+    // Set when an operation fails because the target file name is too long.
+    bool target_name_too_long = false;
+
     // append local operating system version information to string.
     // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is via the WOW subsystem)
     virtual void osversion(string*, bool includeArchExtraInfo) const { }
@@ -729,11 +737,22 @@ int platformCompareUtf(const string&, bool unescape1, const LocalPath&, bool une
 int platformCompareUtf(const LocalPath&, bool unescape1, const string&, bool unescape2);
 int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool unescape2);
 
+// Specify a predicate to call to determine whether a name is reserved.
+//
+// Meaningful only for UNIX systems.
+// 
+// Used to emulate Windows' name restrictions during testing.
+void isReservedNameHook(std::function<bool(const string&, nodetype_t)> predicate);
+
 // Returns true if name is a reserved file name.
 //
 // On Windows, a reserved file name is:
 //   - AUX, COM[0-9], CON, LPT[0-9], NUL or PRN.
 bool isReservedName(const string& name, nodetype_t type = FILENODE);
+
+bool isReservedName(const FileSystemAccess& fsAccess,
+                    const LocalPath& name,
+                    nodetype_t type = FILENODE);
 
 // Checks if there is a filename anomaly.
 //

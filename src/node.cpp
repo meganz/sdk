@@ -1256,6 +1256,8 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
 
     if (oldsync)
     {
+        DBTableTransactionCommitter committer(oldsync->statecachetable);
+
         // prepare localnodes for a sync change or/and a copy operation
         LocalTreeProcMove tp(parent->sync);
         sync->syncs.proclocaltree(this, &tp);
@@ -1297,28 +1299,21 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     LocalTreeProcUpdateTransfers tput;
     tput.proc(*sync->syncs.fsaccess, ln);
 
-    ln->mFilterChain = mFilterChain;
     ln->mWaitingForIgnoreFileLoad = mWaitingForIgnoreFileLoad;
 
     // Make sure our exclusion state is recomputed.
-    ln->setRecomputeExclusionState();
+    ln->setRecomputeExclusionState(true);
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
 void LocalNode::bumpnagleds()
 {
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
-
     nagleds = Waiter::ds + 11;
 }
 
-LocalNode::LocalNode()
-: unstableFsidAssigned(false)
+LocalNode::LocalNode(Sync* csync)
+: sync(csync)
+, unstableFsidAssigned(false)
 , deletedFS{false}
 , moveAppliedToLocal(false)
 , moveApplyingToLocal(false)
@@ -1334,13 +1329,15 @@ LocalNode::LocalNode()
 , fsidScannedReused(false)
 , scanInProgress(false)
 , scanObsolete(false)
-, scanBlocked(TREE_RESOLVED)
-{}
+{
+    fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
+    fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
+    syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
+}
 
 // initialize fresh LocalNode object - must be called exactly once
-void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
+void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
 {
-    sync = csync;
     parent = NULL;
 //    notseen = 0;
     unstableFsidAssigned = false;
@@ -1359,7 +1356,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     fsidScannedReused = false;
     scanInProgress = false;
     scanObsolete = false;
-    scanBlocked = TREE_RESOLVED;
     parent_dbid = 0;
     slocalname = NULL;
 
@@ -1401,17 +1397,20 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 //    }
 //#endif
 
-    // mark fsid as not valid
-    fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
-    fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
-    syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
-
     sync->syncs.totalLocalNodes++;
 
     if (type != TYPE_UNKNOWN)
     {
         sync->localnodes[type]++;
     }
+}
+
+LocalNode::RareFields::ScanBlocked::ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln)
+    : scanBlockedTimer(rng)
+    , localPath(lp)
+    , localNode(ln)
+{
+    scanBlockedTimer.backoff(Sync::SCANNING_DELAY_DS);
 }
 
 auto LocalNode::rare() -> RareFields&
@@ -1430,7 +1429,7 @@ auto LocalNode::rare() -> RareFields&
     return *rareFields;
 }
 
-auto LocalNode::rareRO() -> const RareFields&
+auto LocalNode::rareRO() const -> const RareFields&
 {
     // RO = read only
     // Use this function when you're not sure if rare fields have been populated, but need to check
@@ -1446,13 +1445,14 @@ void LocalNode::trimRareFields()
 {
     if (rareFields)
     {
-        if (scanBlocked < TREE_ACTION_HERE) rareFields->scanBlockedTimer.reset();
         if (!scanInProgress) rareFields->scanRequest.reset();
 
-        if (!rareFields->scanBlockedTimer &&
+        if (!rareFields->scanBlocked &&
             !rareFields->scanRequest &&
             !rareFields->moveFromHere &&
             !rareFields->moveToHere &&
+            !rareFields->filterChain &&
+            !rareFields->badlyFormedIgnoreFilePath &&
             rareFields->createFolderHere.expired() &&
             rareFields->removeNodeHere.expired() &&
             rareFields->unlinkHere.expired())
@@ -1549,28 +1549,9 @@ void LocalNode::setContainsConflicts(bool doParent, bool doHere, bool doBelow)
     parentSetContainsConflicts = parentSetContainsConflicts || doParent;
 }
 
-void LocalNode::setScanBlocked()
-{
-    scanBlocked = std::max<unsigned>(scanBlocked, TREE_ACTION_HERE);
-
-    if (!rare().scanBlockedTimer)
-    {
-        rare().scanBlockedTimer.reset(new BackoffTimer(sync->syncs.rng));
-    }
-    if (rare().scanBlockedTimer->armed())
-    {
-        rare().scanBlockedTimer->backoff(Sync::SCANNING_DELAY_DS);
-    }
-
-    for (auto p = parent; p != NULL; p = p->parent)
-    {
-        p->scanBlocked = std::max<unsigned>(p->scanBlocked, TREE_DESCENDANT_FLAGGED);
-    }
-}
-
 bool LocalNode::checkForScanBlocked(FSNode* fsNode)
 {
-    if (scanBlocked >= TREE_ACTION_HERE)
+    if (rareRO().scanBlocked)
     {
         // Have we recovered?
         if (fsNode && fsNode->type != TYPE_UNKNOWN && !fsNode->isBlocked)
@@ -1581,29 +1562,18 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
             setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode->localname);
             sync->statecacheadd(this);
 
-            scanBlocked = TREE_RESOLVED;
-            rare().scanBlockedTimer.reset();
+            rare().scanBlocked.reset();
+            trimRareFields();
 
-            // also clear flags up to the root.  TODO: might have to be more clever than this when there are multiple
-            for (auto p = parent; p != nullptr; p = p->parent)
-            {
-                p->scanBlocked = TREE_RESOLVED;
-            }
             return false;
         }
 
-        // rescan if the timer is up
-        if (rare().scanBlockedTimer->armed())
-        {
-            LOG_verbose << sync->syncname << "Scan blocked timer elapsed, trigger parent rescan: "  << localnodedisplaypath(*sync->syncs.fsaccess);;
-            if (parent) parent->setScanAgain(false, true, false, 0);
-            rare().scanBlockedTimer->backoff(); // wait increases exponentially
-        }
-        else
-        {
-            LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
-                << rare().scanBlockedTimer->retryin() << " for " << getLocalPath().toPath();
-        }
+        LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
+            << rare().scanBlocked->scanBlockedTimer.retryin() << " for " << getLocalPath().toPath();
+
+        // make sure path stays accurate in case this node moves
+        rare().scanBlocked->localPath = getLocalPath();
+
         return true;
     }
 
@@ -1612,7 +1582,11 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         // We were not able to get details of the filesystem item when scanning the directory.
         // Consider it a blocked file, and we'll rescan the folder from time to time.
         LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath(*sync->syncs.fsaccess);
-        setScanBlocked();
+
+        // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
+        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
+        sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
+
         return true;
     }
 
@@ -1644,6 +1618,12 @@ void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath, vector<syncRow>
             if (!!row.syncNode != !!row.fsNode) return;
             if (row.syncNode && row.fsNode)
             {
+                if (row.syncNode->type == FILENODE &&
+                    !scannedFingerprint.isvalid)
+                {
+                    return;
+                }
+
                 ++nChecked;
                 auto generated = row.syncNode->getScannedFSDetails();
                 if (!generated.equivalentTo(*row.fsNode)) return;
@@ -1719,17 +1699,17 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             map<LocalPath, FSNode> priorScanChildren;
             for (auto& c : children)
             {
-                if (c.second->fsid_lastSynced != UNDEF)
+                if (c.second->type == FILENODE &&
+                    c.second->scannedFingerprint.isvalid)
                 {
                     assert(*c.first == c.second->localname);
-                    priorScanChildren.emplace(*c.first,
-                        c.second->scannedFingerprint.isvalid ?
-                            c.second->getScannedFSDetails() :
-                            c.second->getLastSyncedFSDetails());
+                    priorScanChildren.emplace(*c.first, c.second->getScannedFSDetails());
                 }
             }
 
-            ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath, row.fsNode->fsid, sync->syncs.mClient.followsymlinks, move(priorScanChildren));
+            ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath,
+                row.fsNode->fsid, sync->syncs.mClient.followsymlinks, move(priorScanChildren));
+
             rare().scanRequest = ourScanRequest;
             sync->mActiveScanRequest = ourScanRequest;
         }
@@ -1780,7 +1760,10 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             {
                 // start a timer to retry, since we haven't already
                 LOG_verbose << sync->syncname << "Directory scan has become inaccesible for path: " << fullPath.localPath_utf8();
-                setScanBlocked();
+
+                // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
+                rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
+                sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
             }
         }
     }
@@ -1815,13 +1798,6 @@ void LocalNode::reassignUnstableFsidsOnceOnly(const FSNode* fsnode)
 // update treestates back to the root LocalNode, inform app about changes
 void LocalNode::treestate(treestate_t newts)
 {
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
-
     if (newts != TREESTATE_NONE)
     {
         ts = newts;
@@ -1977,13 +1953,6 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h)
 
 LocalNode::~LocalNode()
 {
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
-
     if (!sync->mDestructorRunning && dbid && (
         sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN))
     {
@@ -2116,7 +2085,11 @@ string LocalNode::getCloudPath() const
         }
 
         assert(!l->parent || l->parent->sync == sync);
-        path = (l->parent ? name : fullpath) + "/" + path;
+
+        if (!path.empty())
+            path.insert(0, 1, '/');
+
+        path.insert(0, l->parent ? name : fullpath);
     }
     return path;
 }
@@ -2162,6 +2135,7 @@ FSNode LocalNode::getLastSyncedFSDetails()
     n.fsid = fsid_lastSynced;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
     n.fingerprint = syncedFingerprint;
+    assert(syncedFingerprint.isvalid || type != FILENODE);
     return n;
 }
 
@@ -2465,7 +2439,7 @@ unique_ptr<LocalNode> LocalNode::unserialize(Sync* sync, const string* d)
     }
     assert(!r.hasdataleft());
 
-    unique_ptr<LocalNode> l(new LocalNode());
+    unique_ptr<LocalNode> l(new LocalNode(sync));
 
     l->type = type;
     l->syncedFingerprint.size = size;
@@ -2595,52 +2569,70 @@ void LocalNode::clearFilters()
     // Only for directories.
     assert(type == FOLDERNODE);
 
-    // Purge all defined filter rules.
-    mFilterChain.clear();
+    // Clear filter state.
+    if (rareRO().filterChain)
+    {
+        rare().filterChain.reset();
+        rare().badlyFormedIgnoreFilePath.reset();
+        trimRareFields();
+    }
 
     // Reset ignore file state.
-    setWaitingForIgnoreFileLoad(false);
+    setRecomputeExclusionState(false);
 
     // Re-examine this subtree.
     setScanAgain(false, true, true, 0);
     setSyncAgain(false, true, true);
 }
 
-bool LocalNode::loadFilters(const LocalPath& path)
+const FilterChain& LocalNode::filterChainRO() const
+{
+    static const FilterChain dummy;
+
+    auto& filterChainPtr = rareRO().filterChain;
+
+    if (filterChainPtr)
+        return *filterChainPtr;
+
+    return dummy;
+}
+
+bool LocalNode::loadFiltersIfChanged(const FileFingerprint& fingerprint, const LocalPath& path)
 {
     // Only meaningful for directories.
     assert(type == FOLDERNODE);
 
     // Convenience.
-    auto& fsAccess = *sync->syncs.fsaccess;
+    auto& filterChain = this->filterChain();
 
-    // Try and load the ignore file.
-    auto result = mFilterChain.load(fsAccess, path);
-
-    // Ignore file hasn't changed.
-    if (result == FLR_SKIPPED)
-        return !mWaitingForIgnoreFileLoad;
-
-    auto failed = result == FLR_FAILED;
-
-    // Did the load fail?
-    if (failed)
+    if (filterChain.isValid() && !filterChain.changed(fingerprint))
     {
-        // Let the engine know there's been a load failure.
-        sync->syncs.ignoreFileLoadFailure(*sync, path);
-
-        // Clear the filter state.
-        mFilterChain.clear();
+        return true;
     }
 
-    // Update our load pending state.
-    setWaitingForIgnoreFileLoad(failed);
+    if (filterChain.isValid())
+    {
+        filterChain.invalidate();
+        setRecomputeExclusionState(false);
+    }
 
-    // Re-examine this subtree.
-    setScanAgain(false, true, true, 0);
-    setSyncAgain(false, true, true);
+    // Try and load the ignore file.
+    if (FLR_SUCCESS != filterChain.load(*sync->syncs.fsaccess, path))
+    {
+        filterChain.invalidate();
+    }
 
-    return !failed;
+    return filterChain.isValid();
+}
+
+FilterChain& LocalNode::filterChain()
+{
+    auto& filterChainPtr = rare().filterChain;
+
+    if (!filterChainPtr)
+        filterChainPtr.reset(new FilterChain());
+
+    return *filterChainPtr;
 }
 
 bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const
@@ -2653,15 +2645,18 @@ bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inheri
     {
         assert(node->mExclusionState == ES_INCLUDED);
 
-        // Should we only consider inheritable filter rules?
-        inherited = inherited || node != this;
+        if (node->rareRO().filterChain)
+        {
+            // Should we only consider inheritable filter rules?
+            inherited = inherited || node != this;
 
-        // Check for a filter match.
-        auto result = node->mFilterChain.match(namePath, type, inherited);
+            // Check for a filter match.
+            auto result = node->filterChainRO().match(namePath, type, inherited);
 
-        // Was the file matched by any filters?
-        if (result.matched)
-            return !result.included;
+            // Was the file matched by any filters?
+            if (result.matched)
+                return !result.included;
+        }
 
         // Compute the node's cloud name.
         auto name = node->localname.toName(*sync->syncs.fsaccess);
@@ -2689,41 +2684,44 @@ bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
         // Sanity: We should never be called if either of these is true.
         assert(node->mExclusionState == ES_INCLUDED);
 
-        // Check for a filter match.
-        auto result = node->mFilterChain.match(size);
+        if (node->rareRO().filterChain)
+        {
+            // Check for a filter match.
+            auto result = node->filterChainRO().match(size);
 
-        // Was the file matched by any filters?
-        if (result.matched)
-            return !result.included;
+            // Was the file matched by any filters?
+            if (result.matched)
+                return !result.included;
+        }
     }
 
     // File's included.
     return false;
 }
 
-void LocalNode::setWaitingForIgnoreFileLoad(bool pending)
-{
-    // Only meaningful for directories.
-    assert(type == FOLDERNODE);
+//void LocalNode::setWaitingForIgnoreFileLoad(bool pending)
+//{
+//    // Only meaningful for directories.
+//    assert(type == FOLDERNODE);
+//
+//    // Do we really need to update our children?
+//    if (!mWaitingForIgnoreFileLoad)
+//    {
+//        // Tell our children they need to recompute their state.
+//        for (auto& childIt : children)
+//            childIt.second->setRecomputeExclusionState();
+//    }
+//
+//    // Apply new pending state.
+//    mWaitingForIgnoreFileLoad = pending;
+//}
 
-    // Do we really need to update our children?
-    if (!mWaitingForIgnoreFileLoad)
+void LocalNode::setRecomputeExclusionState(bool includingThisOne)
+{
+    if (includingThisOne)
     {
-        // Tell our children they need to recompute their state.
-        for (auto& childIt : children)
-            childIt.second->setRecomputeExclusionState();
+        mExclusionState = ES_UNKNOWN;
     }
-
-    // Apply new pending state.
-    mWaitingForIgnoreFileLoad = pending;
-}
-
-void LocalNode::setRecomputeExclusionState()
-{
-    if (mExclusionState == ES_UNKNOWN)
-        return;
-
-    mExclusionState = ES_UNKNOWN;
 
     if (type == FILENODE)
         return;
@@ -2775,9 +2773,9 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
     if (mExclusionState != ES_INCLUDED)
         return mExclusionState;
 
-    // Children of unknown type are considered excluded.
-    if (type == TYPE_UNKNOWN)
-        return ES_EXCLUDED;
+    // Children of unknown type still have to be handled.
+    // Scan-blocked appear as TYPE_UNKNOWN and the user must be
+	// able to exclude them when they are notified of them
 
     // Ignore files are only excluded if one of their parents is.
     if (type == FILENODE && path == IGNORE_FILE_NAME)
@@ -2872,6 +2870,22 @@ bool LocalNode::recomputeExclusionState()
     mExclusionState = parent->exclusionState(localname, type);
 
     return mExclusionState != ES_UNKNOWN;
+}
+
+
+void LocalNode::ignoreFilterPresenceChanged(bool present, FSNode* fsNode)
+{
+    // ignore file appeared or disappeared
+    if (present)
+    {
+        // if the file is actually present locally, it'll be loaded after its syncItem()
+        filterChain().invalidate();
+    }
+    else
+    {
+        rare().filterChain.reset();
+    }
+    setRecomputeExclusionState(false);
 }
 
 #endif // ENABLE_SYNC

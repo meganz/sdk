@@ -2868,12 +2868,6 @@ using namespace mega;
     return (MEGAShareType) self.megaApi->getAccess([node getCPtr]);
 }
 
-- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level {
-    if (node == nil || self.megaApi == nil) return nil;
-    
-    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccess(node.getCPtr, (int) level).copy() cMemoryOwn:YES];
-}
-
 - (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level {
     if (self.megaApi == nil) return nil;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccessErrorExtended(node.getCPtr, (int)level) cMemoryOwn:YES];
@@ -2882,11 +2876,6 @@ using namespace mega;
 - (BOOL)isNodeInRubbish:(MEGANode *)node {
     if (self.megaApi == nil) return NO;
     return self.megaApi->isInRubbish(node.getCPtr);
-}
-
-- (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target {
-    if (self.megaApi == nil) return nil;
-    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMove(node.getCPtr, target.getCPtr).copy() cMemoryOwn:YES];
 }
 
 - (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {

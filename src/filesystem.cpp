@@ -238,7 +238,6 @@ int compareUtf(const LocalPath& s1, bool unescaping1, const LocalPath& s2, bool 
         caseInsensitive ? Utils::toUpper: detail::identity);
 }
 
-
 bool isCaseInsensitive(const FileSystemType type)
 {
     if    (type == FS_EXFAT
@@ -563,7 +562,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& path) const
     }
 
     // Where does our name begin?
-    auto index = parentPath.getLeafnameByteIndex(*this);
+    auto index = parentPath.getLeafnameByteIndex();
 
     // We have a parent.
     if (index)
@@ -1291,7 +1290,7 @@ bool LocalPath::beginsWithSeparator() const
     return !localpath.empty() && localpath.front() == localPathSeparator;
 }
 
-size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
+size_t LocalPath::getLeafnameByteIndex() const
 {
     size_t p = localpath.size();
 
@@ -1330,6 +1329,10 @@ LocalPath LocalPath::subpathTo(size_t bytePos) const
     return p;
 }
 
+LocalPath LocalPath::parentPath() const
+{
+    return subpathTo(getLeafnameByteIndex());
+}
 
 LocalPath LocalPath::insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess)
 {

@@ -523,10 +523,7 @@ public:
     // pause flags
     bool xferpaused[2];
 
-#ifdef ENABLE_SYNC
-    // one unified structure for SyncConfigs, the Syncs that are running, and heartbeat data
-    Syncs syncs;
-#endif
+    MegaClientAsyncQueue mAsyncQueue;
 
     // if set, symlinks will be followed except in recursive deletions
     // (give the user ample warning about possible sync repercussions)
@@ -1456,6 +1453,13 @@ public:
     std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC
+
+    // one unified structure for SyncConfigs, the Syncs that are running, and heartbeat data
+    Syncs syncs;
+
+    // indicates whether all startup syncs have been fully scanned
+    bool syncsup;
+
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
 
@@ -1710,7 +1714,7 @@ public:
     static uint64_t stringhash64(string*, SymmCipher*);
 
     // builds the authentication URI to be sent in POST requests
-    string getAuthURI(bool supressSID = false);
+    string getAuthURI(bool supressSID = false, bool supressAuthKey = false);
 
     bool setlang(string *code);
 
@@ -1839,8 +1843,6 @@ public:
 
     // whether the destructor has started running yet
     bool destructorRunning = false;
-
-    MegaClientAsyncQueue mAsyncQueue;
 
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats

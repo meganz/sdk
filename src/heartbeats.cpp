@@ -124,11 +124,10 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 
     if (us.mSync)
     {
-        if (us.mSync->active() &&
-           !us.mSync->syncPaused)
+        if (us.mSync->active())
         {
             if (us.syncs.syncStallState ||
-                us.mSync->localroot->scanBlocked >= TREE_DESCENDANT_FLAGGED)
+                us.mSync->syncPaused)
             {
                 status = CommandBackupPutHeartBeat::STALLED;
             }

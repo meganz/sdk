@@ -59,6 +59,10 @@
 #include "mega/gfx/freeimage.h"
 #endif
 
+#ifdef WIN32
+#include <winioctl.h>
+#endif
+
 namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
@@ -356,7 +360,7 @@ static void displaytransferdetails(Transfer* t, const char* action)
         cout << name;
     }
 
-    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
+    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action << ": " << t->localfilename.toPath();
 }
 
 // a new transfer was added
@@ -2651,6 +2655,46 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     }
 }
 
+void exec_generatesparsefile(autocomplete::ACState& s)
+{
+    int64_t filesize = int64_t(2) * 1024 * 1024 * 1024 * 1024;
+    string param;
+    if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
+
+    fs::path p = pathFromLocalPath(s.words[1].s, false);
+    std::ofstream(p).put('a');
+    cout << "File size:  " << fs::file_size(p) << '\n'
+        << "Free space: " << fs::space(p).free << '\n';
+
+#ifdef WIN32
+    HANDLE hFile = CreateFileW((LPCWSTR)p.u16string().data(),
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_WRITE | FILE_SHARE_READ,
+        NULL,
+        OPEN_ALWAYS,
+        0,
+        NULL);
+    DWORD bytesReturned = 0;
+    if (!DeviceIoControl(
+        hFile,                             // handle to a file
+        FSCTL_SET_SPARSE,                  // dwIoControlCode
+        (PFILE_SET_SPARSE_BUFFER) NULL,    // input buffer
+        (DWORD) 0,                         // size of input buffer
+        NULL,                              // lpOutBuffer
+        0,                                 // nOutBufferSize
+        &bytesReturned,                    // number of bytes returned
+        NULL))                              // OVERLAPPED structure
+    {
+        cout << "Set sparse file operation failed." << endl;
+    }
+    CloseHandle(hFile);
+#endif WIN32
+
+    fs::resize_file(p, filesize);
+    cout << "File size:  " << fs::file_size(p) << '\n'
+        << "Free space: " << fs::space(p).free << '\n';
+}
+
 void exec_lreplace(autocomplete::ACState& s)
 {
     bool file = s.extractflag("-file");
@@ -3180,12 +3224,6 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
 
-    p->Add(exec_syncblock,
-           sequence(text("sync"),
-                    text("block"),
-                    either(text("scan")),
-                    localFSPath()));
-
     p->Add(exec_syncclosedrive,
            sequence(text("sync"),
                     text("closedrive"),
@@ -3333,11 +3371,13 @@ autocomplete::ACN autocompleteSyntax()
 
 #ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
-    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"), repeat(either(sequence(flag("-folderdepth"), param("depth")),
-                                                                                                   sequence(flag("-folderwidth"), param("width")),
-                                                                                                   sequence(flag("-filecount"), param("count")),
-                                                                                                   sequence(flag("-filesize"), param("size")),
-                                                                                                   sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
+    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"),
+        repeat(either(  sequence(flag("-folderdepth"), param("depth")),
+                        sequence(flag("-folderwidth"), param("width")),
+                        sequence(flag("-filecount"), param("count")),
+                        sequence(flag("-filesize"), param("size")),
+                        sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
+    p->Add(exec_generatesparsefile, sequence(text("generatesparsefile"), opt(sequence(flag("-filesize"), param("size"))), localFSFile("targetfile")));
     p->Add(exec_lreplace, sequence(text("lreplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content")));
     p->Add(exec_lrenamereplace, sequence(text("lrenamereplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content"), localFSPath("renamed")));
 
@@ -8927,45 +8967,6 @@ void exec_syncrename(autocomplete::ACState& s)
         });
 }
 
-
-// For debugging.
-void exec_syncblock(autocomplete::ACState& s)
-{
-    // sync block (scan) path
-
-    // Make sure we're logged in.
-    if (client->loggedin() != FULLACCOUNT)
-    {
-        cerr << "You must be logged in to block a file/folder."
-             << endl;
-        return;
-    }
-
-    auto path = LocalPath::fromPath(s.words[3].s, *client->fsaccess);
-
-    LocalNode* node;
-
-    // Locate the node for this path.
-    client->syncs.forEachRunningSync_shortcircuit(true, [&](Sync* sync) {
-        return !(node = sync->localnodebypath(nullptr, path));
-    });
-
-    // Were we able to find a suitable local node?
-    if (!node)
-    {
-        cerr << "Couldn't locate a node for the path: "
-             << path.toPath()
-             << endl;
-        return;
-    }
-
-    // What flag are we marking?
-    if (s.words[2].s == "scan")
-    {
-        node->setScanBlocked();
-    }
-}
-
 void exec_syncclosedrive(autocomplete::ACState& s)
 {
     // Are we logged in?
@@ -9209,24 +9210,6 @@ void exec_synclist(autocomplete::ACState& s)
             synchronous.set_value(true);
         }, false);  // false so executes on sync thread - we are blocked here on client thread in single-threaded megacli.
         synchronous.get_future().get();
-
-        std::promise<bool> synchronous2;
-        client->syncs.collectSyncScanBlockedPaths(config.mBackupId, [&synchronous2](list<LocalPath>&& scanBlocked){
-
-            if (!scanBlocked.empty())
-            {
-                cout << "  Scan Blocked:\n";
-
-                while (!scanBlocked.empty())
-                {
-                    cout << "    " << scanBlocked.front().toPath() << "\n";
-                    scanBlocked.pop_front();
-                }
-            }
-            cout << std::endl;
-            synchronous2.set_value(true);
-        }, false);  // false so executes on sync thread - we are blocked here on client thread in single-threaded megacli.
-        synchronous2.get_future().get();
     }
 
     SyncStallInfo stall;

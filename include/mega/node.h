@@ -27,6 +27,7 @@
 #include "file.h"
 #include "attrmap.h"
 #include "syncfilter.h"
+#include "backofftimer.h"
 
 namespace mega {
 
@@ -519,10 +520,6 @@ struct MEGA_API LocalNode : public Cacheable
         unsigned scanInProgress : 1;
         unsigned scanObsolete : 1;
 
-        // whether this file/folder is blocked - now we can have many at once
-        unsigned scanBlocked : 2;    // TREESTATE
-
-
         // When recursing the tree, sometimes we need a node to set a flag in its parent
         // but, on other runs we skip over some nodes (eg. syncHere flag false)
         // however, we still need to compute the required flags for the parent node.
@@ -542,8 +539,34 @@ struct MEGA_API LocalNode : public Cacheable
     // We keep the average memory use by only alloating these when used.
     struct RareFields
     {
-        unique_ptr<BackoffTimer> scanBlockedTimer;
         shared_ptr<ScanService::ScanRequest> scanRequest;
+
+        struct ScanBlocked
+        {
+            BackoffTimer scanBlockedTimer;
+            LocalPath localPath;
+
+            // There is only one shared_ptr so if the node is gone,
+            // we can't look this up by weak_ptr.  So this ptr is not dangling
+            LocalNode* localNode = nullptr;
+
+            ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln);
+        };
+
+        shared_ptr<ScanBlocked> scanBlocked;
+
+        struct BadlyFormedIgnore
+        {
+            LocalPath localPath;
+
+            // There is only one shared_ptr so if the node is gone,
+            // we can't look this up by weak_ptr.  So this ptr is not dangling
+            Sync* sync = nullptr;
+
+            BadlyFormedIgnore(const LocalPath& lp, Sync* s) : localPath(lp), sync(s) {}
+        };
+
+        shared_ptr<BadlyFormedIgnore> badlyFormedIgnoreFilePath;
 
         struct MoveInProgress
         {
@@ -584,6 +607,9 @@ struct MEGA_API LocalNode : public Cacheable
         weak_ptr<CreateFolderInProgress> createFolderHere;
         weak_ptr<DeleteToDebrisInProgress> removeNodeHere;
         weak_ptr<UnlinkInProgress> unlinkHere;
+
+        // Filter rules applicable below this node.
+        unique_ptr<FilterChain> filterChain;
     };
 
     bool hasRare() { return !!rareFields; }
@@ -591,14 +617,12 @@ struct MEGA_API LocalNode : public Cacheable
     void trimRareFields();
 
     // use this one to skip the hasRare check, if it doesn't exist a reference to a blank one is returned
-    const RareFields& rareRO();
+    const RareFields& rareRO() const;
 
     // set the syncupTargetedAction for this, and parents
     void setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds);
     void setCheckMovesAgain(bool doParent, bool doHere, bool doBelow);
     void setSyncAgain(bool doParent, bool doHere, bool doBelow);
-
-    void setScanBlocked();
 
     void setContainsConflicts(bool doParent, bool doHere, bool doBelow);
 
@@ -674,8 +698,8 @@ struct MEGA_API LocalNode : public Cacheable
     void setnameparent(LocalNode*, const LocalPath& newlocalpath, std::unique_ptr<LocalPath>);
     void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain);
 
-    LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
+    LocalNode(Sync*);
+    void init(nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
     bool serialize(string*) override;
     static unique_ptr<LocalNode> unserialize( Sync* sync, const string* sData );
@@ -704,6 +728,7 @@ struct MEGA_API LocalNode : public Cacheable
 
     // Filter rules applicable below this node.
     FilterChain mFilterChain;
+    void ignoreFilterPresenceChanged(bool present, FSNode* fsNode);
 
 private:
     struct
@@ -718,24 +743,30 @@ private:
         bool mWaitingForIgnoreFileLoad : 1;
     };
 
+    // Returns a reference to this node's filter chain.
+    FilterChain& filterChain();
+
     // Query whether a file is excluded by a name filter.
     bool isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const;
 
     // Query whether a file is excluded by a size filter.
     bool isExcluded(const RemotePathPair& namePath, m_off_t size) const;
 
-    // Signal that this node and its children must recompute their exclusion state.
-    void setRecomputeExclusionState();
+    // Signal that LocalNodes in this subtree must recompute their exclusion state.
+    void setRecomputeExclusionState(bool includingThisOne);
 
 public:
     // Clears the filters defined by this node.
     void clearFilters();
 
+    // Returns a reference to this node's filter chain.
+    const FilterChain& filterChainRO() const;
+
     // Load filters from the ignore file identified by path.
-    bool loadFilters(const LocalPath& path);
+    bool loadFiltersIfChanged(const FileFingerprint& fingerprint, const LocalPath& path);
 
     // Signal whether this node needs to load its ignore file.
-    void setWaitingForIgnoreFileLoad(bool waiting);
+    //void setWaitingForIgnoreFileLoad(bool waiting);
 
     // Query whether this node needs to load its ignore file.
     bool waitingForIgnoreFileLoad() const;

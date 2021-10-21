@@ -395,7 +395,7 @@ public:
     }
 
     template<typename T, typename U>
-    int fsCompare(const T& lhs, const U& rhs, const FileSystemType type) const
+    int fsCompare(const T& lhs, const U& rhs, const ::mega::FileSystemType type) const
     {
         const auto caseInsensitive = isCaseInsensitive(type);
 
@@ -722,54 +722,55 @@ TEST(Filesystem, isContainingPathOf)
     size_t pos;
 
     // lhs does not contain rhs.
-    pos = size_t(0)-1;
+    constexpr const size_t sentinel = std::numeric_limits<size_t>::max();
+    pos = sentinel;
     lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
     rhs = LocalPath::fromPath("a" SEP "c", fsAccess);
 
     EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, -1);
+    EXPECT_EQ(pos, sentinel);
 
     // lhs does not contain rhs.
     // they do, however, share a common prefix.
-    pos = size_t(0) -1;
+    pos = sentinel;
     lhs = LocalPath::fromPath("a", fsAccess);
     rhs = LocalPath::fromPath("ab", fsAccess);
 
     EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, size_t(0) -1);
+    EXPECT_EQ(pos, sentinel);
 
     // lhs contains rhs.
     // no trailing separator.
-    pos = size_t(0) -1;
+    pos = sentinel;
     lhs = LocalPath::fromPath("a", fsAccess);
     rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, 2);
+    EXPECT_EQ(pos, 2u);
 
     // trailing separator.
-    pos = size_t(0) -1;
+    pos = sentinel;
     lhs = LocalPath::fromPath("a" SEP, fsAccess);
     rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, 2);
+    EXPECT_EQ(pos, 2u);
 
     // lhs contains itself.
-    pos = size_t(0) -1;
+    pos = sentinel;
     lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(lhs, &pos));
-    EXPECT_EQ(pos, 3);
+    EXPECT_EQ(pos, 3u);
 
 #ifdef _WIN32
     // case insensitive.
-    pos = size_t(0) -1;
+    pos = sentinel;
     lhs = LocalPath::fromPath("a" SEP "B", fsAccess);
     rhs = LocalPath::fromPath("A" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, 3);
+    EXPECT_EQ(pos, 3u);
 #endif // _WIN32
 
 #undef SEP
@@ -1421,3 +1422,189 @@ TEST(RemotePath, nextPathComponent)
     }
 }
 
+class TooLongNameTest
+    : public ::testing::Test
+{
+public:
+    TooLongNameTest()
+      : Test()
+      , mPrefixName(LocalPath::fromPath("d", mFsAccess))
+      , mPrefixPath()
+    {
+    }
+
+    LocalPath Append(const LocalPath& prefix, const string& name) const
+    {
+        LocalPath path = prefix;
+
+        path.appendWithSeparator(
+          LocalPath::fromName(name, mFsAccess, FS_UNKNOWN),
+          false);
+
+        return path;
+    }
+
+    LocalPath AppendLongName(const LocalPath& prefix, char character) const
+    {
+        // Representative limit.
+        //
+        // True limit depends on specific filesystem.
+        constexpr size_t MAX_COMPONENT_LENGTH = 255;
+
+        string name(MAX_COMPONENT_LENGTH + 1, character);
+
+        return Append(prefix, name);
+    }
+
+    bool CreateDummyFile(const LocalPath& path)
+    {
+        ::mega::byte data = 0x21;
+
+        auto fileAccess = mFsAccess.newfileaccess(false);
+
+        return fileAccess->fopen(path, false, true)
+               && fileAccess->fwrite(&data, 1, 0);
+    }
+
+    void SetUp() override
+    {
+        // Flag should initially be clear.
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+
+        // Retrieve the current working directory.
+        ASSERT_TRUE(mFsAccess.cwd(mPrefixPath));
+
+        // Compute absolute path to "container" directory.
+        mPrefixPath.appendWithSeparator(mPrefixName, false);
+        mPrefixPath.ensureWinExtendedPathLenPrefix();
+
+        // Remove container directory.
+        mFsAccess.emptydirlocal(mPrefixPath);
+        mFsAccess.rmdirlocal(mPrefixPath);
+
+        // Create container directory.
+        ASSERT_TRUE(mFsAccess.mkdirlocal(mPrefixPath, false, true));
+    }
+
+    void TearDown() override
+    {
+        // Destroy container directory.
+        mFsAccess.emptydirlocal(mPrefixPath);
+        mFsAccess.rmdirlocal(mPrefixPath);
+    }
+
+    FSACCESS_CLASS mFsAccess;
+    LocalPath mPrefixName;
+    LocalPath mPrefixPath;
+}; // TooLongNameTest
+
+TEST_F(TooLongNameTest, Copy)
+{
+    // Absolute
+    {
+        auto source = Append(mPrefixPath, "s");
+        auto target = AppendLongName(mPrefixPath, 'u');
+
+        ASSERT_TRUE(CreateDummyFile(source));
+
+        ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
+        ASSERT_TRUE(mFsAccess.target_name_too_long);
+
+        // Legitimate "bad path" error should clear the flag.
+        target = Append(mPrefixPath, "u");
+        target = Append(target, "v");
+
+        ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+    }
+
+    // Relative
+    {
+        auto source = Append(mPrefixName, "x");
+        auto target = AppendLongName(mPrefixName, 'y');
+
+        ASSERT_TRUE(CreateDummyFile(source));
+
+        ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
+        ASSERT_TRUE(mFsAccess.target_name_too_long);
+
+        // Legitimate "bad path" error should clear the flag.
+        target = Append(mPrefixName, "u");
+        target = Append(target, "v");
+
+        ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+    }
+}
+
+TEST_F(TooLongNameTest, CreateDirectory)
+{
+    // Absolute
+    {
+        auto path = AppendLongName(mPrefixPath, 'x');
+
+        ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
+        ASSERT_TRUE(mFsAccess.target_name_too_long);
+
+        // A legitimate "bad path" error should clear the flag.
+        path = Append(mPrefixPath, "x");
+        path = Append(path, "y");
+
+        ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+    }
+
+    // Relative
+    {
+        auto path = AppendLongName(mPrefixName, 'x');
+
+        ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
+        ASSERT_TRUE(mFsAccess.target_name_too_long);
+
+        // A legitimate "bad path" error should clear the flag.
+        path = Append(mPrefixName, "x");
+        path = Append(path, "y");
+
+        ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+    }
+}
+
+TEST_F(TooLongNameTest, Rename)
+{
+    // Absolute
+    {
+        auto source = Append(mPrefixPath, "q");
+        auto target = AppendLongName(mPrefixPath, 'r');
+
+        ASSERT_TRUE(mFsAccess.mkdirlocal(source, false, true));
+
+        ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
+        ASSERT_TRUE(mFsAccess.target_name_too_long);
+
+        // Legitimate "bad path" error should clear the flag.
+        target = Append(mPrefixPath, "u");
+        target = Append(target, "v");
+
+        ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+    }
+
+    // Relative
+    {
+        auto source = Append(mPrefixName, "t");
+        auto target = AppendLongName(mPrefixName, 'u');
+        
+        ASSERT_TRUE(CreateDummyFile(source));
+
+        ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
+        ASSERT_TRUE(mFsAccess.target_name_too_long);
+
+        // Legitimate "bad path" error should clear the flag.
+        target = Append(mPrefixName, "u");
+        target = Append(target, "v");
+
+        ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+    }
+}

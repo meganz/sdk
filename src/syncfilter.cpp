@@ -325,7 +325,7 @@ vector<LocalPath> DefaultFilterChain::applicablePaths(LocalPath targetPath) cons
         // Does the path identify something below the target?
         if (!targetPath.isContainingPathOf(path, &index))
             continue;
-        
+
         // Path exclusions should be relative to the target.
         paths.emplace_back(path.subpathFrom(index));
     }
@@ -541,6 +541,8 @@ FilterResult FilterChain::match(const RemotePathPair& p,
                                 const nodetype_t type,
                                 const bool onlyInheritable) const
 {
+    assert(isValid());
+
     static const string iconResource = "Icon\x0d";
 
     // Always ignore custom icon metadata.
@@ -559,7 +561,8 @@ FilterResult FilterChain::match(const RemotePathPair& p,
             continue;
         }
 
-        if ((*i)->applicable(type) && (*i)->match(p))
+        if (((*i)->applicable(type) || type == TYPE_UNKNOWN)  // TYPE_UNKNOWN because we need to be able to exclude scan-blocked items, and that is the type they appear as.
+           && (*i)->match(p))
         {
             return FilterResult((*i)->inclusion());
         }
@@ -572,6 +575,7 @@ FilterResult FilterChain::match(const m_off_t s) const
 {
     // Sanity.
     assert(s >= 0);
+    assert(isValid());
 
     // Can't match if we have no filter.
     if (!mSizeFilter)
@@ -809,7 +813,7 @@ bool add(const string& text, SizeFilterPtr& filter)
     {
         // Limit isn't a number or has sign markers.
         return syntaxError(text);
-    } 
+    }
 
     std::uint64_t limit;
 
@@ -1099,7 +1103,7 @@ std::regex::flag_type regexFlags(const bool caseSensitive)
 
 bool syntaxError(const string& text)
 {
-    LOG_verbose << "Syntax error parsing: " << text;
+    LOG_verbose << ".megaignore Syntax error parsing: " << text;
 
     return false;
 }

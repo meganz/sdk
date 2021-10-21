@@ -176,16 +176,6 @@ typedef enum { REQ_BINARY, REQ_JSON } contenttype_t;
 // new node source types
 typedef enum { NEW_NODE, NEW_PUBLIC, NEW_UPLOAD } newnodesource_t;
 
-// file chunk MAC
-struct ChunkMAC
-{
-    ChunkMAC() : offset(0), finished(false) { }
-
-    byte mac[SymmCipher::BLOCKSIZE];
-    unsigned int offset;
-    bool finished;
-};
-
 class chunkmac_map;
 
 /**
@@ -1018,13 +1008,21 @@ enum class SyncWaitReason {
     LocalFolderNotScannable,
     SymlinksNotSupported,
     FolderMatchedAgainstFile,
+    MatchedAgainstUnidentifiedItem,
     MoveOrRenameFailed,
     CreateFolderFailed,
     UnknownExclusionState,
-    UnableToLoadIgnoreFile
+    UnableToLoadIgnoreFile,
+    MoveTargetNameTooLong,
+    DownloadTargetNameTooLong,
+    CreateFolderNameTooLong,
+    ItemHasReservedName,
+    MoveTargetHasReservedName
 };
 
 string syncWaitReasonString(SyncWaitReason);
+
+bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason);
 
 } // namespace
 

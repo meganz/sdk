@@ -165,10 +165,6 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSInteger)tag {
-    return self.megaNode ? self.megaNode->getTag() : 0;
-}
-
 - (int64_t)expirationTime {
     return self.megaNode ? self.megaNode->getExpirationTime() : -1;
 }

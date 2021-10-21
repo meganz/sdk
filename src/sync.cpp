@@ -756,13 +756,15 @@ SyncError SyncConfig::knownError() const
 Sync::Sync(UnifiedSync& us, const string& cdebris,
            const LocalPath& clocaldebris, NodeHandle rootNodeHandle, const string& rootNodeName, bool cinshare, const string& logname)
 : syncs(us.syncs)
-, localroot(new LocalNode)
+, localroot(nullptr)
 , mUnifiedSync(us)
 , syncscanbt(us.syncs.rng)
 {
     assert(syncs.onSyncThread());
     assert(cdebris.empty() || clocaldebris.empty());
     assert(!cdebris.empty() || !clocaldebris.empty());
+
+    localroot.reset(new LocalNode(this));
 
     syncs.lookupCloudNode(rootNodeHandle, cloudRoot, &cloudRootPath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
@@ -781,7 +783,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
 
-    localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
+    localroot->init(FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setSyncedNodeHandle(rootNodeHandle);
     localroot->setScanAgain(false, true, true, 0);
     localroot->setCheckMovesAgain(false, true, true);
@@ -838,7 +840,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname));
+            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED));
 
             localroot->fsid_lastSynced = fas->fsid;
             readstatecache();
@@ -963,7 +965,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             shortname = syncs.fsaccess->fsShortname(localpath);
         }
 
-        l->init(this, l->type, p, localpath, nullptr);
+        l->init(l->type, p, localpath, nullptr);
 
         l->parent_dbid = parent_dbid;
         l->syncedFingerprint.size = size;
@@ -975,6 +977,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             statecacheadd(l);
             if (insertq.size() > 50000)
             {
+                DBTableTransactionCommitter committer(statecachetable);
                 cachenodes();  // periodically output updated nodes with shortname updates, so people who restart megasync still make progress towards a fast startup
             }
         }
@@ -1049,18 +1052,13 @@ void Sync::statecachedel(LocalNode* l)
         return;
     }
 
-    // Always queue the update even if we don't have a state cache.
-    //
-    // The reasoning here is that our integration tests regularly check the
-    // size of these queues to determine whether a sync is or is not idle.
-    //
-    // The same reasoning applies to statecacheadd(...) below.
-    insertq.erase(l);
-
-    if (l->dbid)
+    if (l->dbid && statecachetable)
     {
-        deleteq.insert(l->dbid);
+        statecachetable->del(l->dbid);
     }
+    l->dbid = 0;
+
+    insertq.erase(l);
 }
 
 // insert LocalNode into DB cache
@@ -1073,11 +1071,6 @@ void Sync::statecacheadd(LocalNode* l)
         return;
     }
 
-    if (l->dbid)
-    {
-        deleteq.erase(l->dbid);
-    }
-
     insertq.insert(l);
 }
 
@@ -1088,24 +1081,16 @@ void Sync::cachenodes()
     // Purge the queues if we have no state cache.
     if (!statecachetable)
     {
-        deleteq.clear();
         insertq.clear();
         return;
     }
 
-    if ((state() == SYNC_ACTIVE ||
-        (state() == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
+    if (state() == SYNC_ACTIVE ||
+       (state() == SYNC_INITIALSCAN) && insertq.size())
     {
-        LOG_debug << syncname << "Saving LocalNode database with " << insertq.size() << " additions and " << deleteq.size() << " deletions";
-        statecachetable->begin();
+        LOG_debug << syncname << "Saving LocalNode database with " << insertq.size() << " additions";
 
-        // deletions
-        for (set<uint32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
-        {
-            statecachetable->del(*it);
-        }
-
-        deleteq.clear();
+        DBTableTransactionCommitter committer(statecachetable);
 
         // additions - we iterate until completion or until we get stuck
         bool added;
@@ -1122,6 +1107,7 @@ void Sync::cachenodes()
                 }
                 else if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
+                    // add once we know the parent dbid so that the parent/child structure is correct in db
                     assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
                     statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &syncs.syncKey);
                     insertq.erase(it++);
@@ -1131,11 +1117,10 @@ void Sync::cachenodes()
             }
         } while (added);
 
-        statecachetable->commit();
-
         if (insertq.size())
         {
             LOG_err << "LocalNode caching did not complete";
+            assert(false);
         }
     }
 }
@@ -1377,6 +1362,25 @@ bool SyncStallInfo::waitingLocal(const LocalPath& localPath1,
     return true;
 }
 
+bool SyncStallInfo::hasImmediateStallReason() const
+{
+    for (auto& i : cloud)
+    {
+        if (syncWaitReasonAlwaysNeedsUserIntervention(i.second.reason))
+        {
+            return true;
+        }
+    }
+    for (auto& i : local)
+    {
+        if (syncWaitReasonAlwaysNeedsUserIntervention(i.second.reason))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 struct ProgressingMonitor
 {
     bool resolved = false;
@@ -1542,6 +1546,50 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 return false;
             }
 
+            auto markSiblingSourceRow = [&]() {
+                if (!row.rowSiblings)
+                    return;
+
+                if (sourceSyncNode->parent != parentRow.syncNode)
+                    return;
+
+                for (auto& sibling : *row.rowSiblings)
+                {
+                    if (sibling.syncNode == sourceSyncNode)
+                    {
+                        sibling.itemProcessed = true;
+                        sibling.syncNode->setSyncAgain(true, false, false);
+                        return;
+                    }
+                }
+            };
+
+            // Does the move target have a reserved name?
+            if (row.hasReservedName(*syncs.fsaccess))
+            {
+                // Make sure we don't try and synchronize the source.
+                // This is meaningful for straight renames.
+                markSiblingSourceRow();
+
+                // Let the engine know why we can't action the move.
+                monitor.waitingLocal(sourceSyncNode->getLocalPath(),
+                                     fullPath.localPath,
+                                     fullPath.cloudPath,
+                                     SyncWaitReason::MoveTargetHasReservedName);
+
+                // Let the engine know that we've detected a move.
+                parentRow.syncNode->setCheckMovesAgain(false, true, false);
+
+                // Don't recurse if the row's a directory.
+                row.suppressRecursion = true;
+
+                // Row isn't synchronized.
+                rowResult = false;
+
+                // Escape immediately from syncItemCheckMove(...).
+                return true;
+            }
+
             if (!row.syncNode)
             {
                 resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
@@ -1622,29 +1670,11 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             row.suppressRecursion = true;   // wait until we have moved the other LocalNodes below this one
 
-            // is it a move within the same folder?  (ie, purely a rename?)
-            syncRow* sourceRow = nullptr;
-            if (sourceSyncNode->parent == row.syncNode->parent
-                && row.rowSiblings)
-            {
-                // then prevent any other action on this node for now
-                // if there is a new matching fs name, we'll need this node to be renamed, then a new one will be created
-                for (syncRow& r : *row.rowSiblings)
-                {
-                    // skip the syncItem() call for this one this time (so no upload until move is resolved)
-                    if (r.syncNode == sourceSyncNode) sourceRow = &r;
-                }
-            }
-
             // we don't want the source LocalNode to be visited until the move completes
             // because it might see a new file with the same name, and start an
             // upload attached to that LocalNode (which would create a wrong version chain in the account)
             // TODO: consider alternative of preventing version on upload completion - probably resulting in much more complicated name matching though
-            if (sourceRow)
-            {
-                sourceRow->itemProcessed = true;
-                sourceRow->syncNode->setSyncAgain(true, false, false);
-            }
+            markSiblingSourceRow();
 
             // Although we have detected a move locally, there's no guarantee the cloud side
             // is complete, the corresponding parent folders in the cloud may not match yet.
@@ -1937,6 +1967,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         return true;
     }
 
+    unique_ptr<LocalNode> childrenToDeleteOnFunctionExit;
+
     if (LocalNode* sourceSyncNode = syncs.findLocalNodeByNodeHandle(row.cloudNode->handle))
     {
         if (sourceSyncNode == row.syncNode) return false;
@@ -1984,8 +2016,48 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             return rowResult = false, true;
         }
 
+        // Convenience.
+        auto markSiblingSourceRow = [&]() {
+            if (!row.rowSiblings)
+                return;
+
+            if (sourceSyncNode->parent != parentRow.syncNode)
+                return;
+
+            for (auto& sibling : *row.rowSiblings)
+            {
+                if (sibling.syncNode == sourceSyncNode)
+                {
+                    sibling.itemProcessed = true;
+                    return;
+                }
+            }
+        };
+
         sourceSyncNode->treestate(TREESTATE_SYNCING);
         if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
+
+        // Does the move target have a reserved name?
+        if (row.hasReservedName(*syncs.fsaccess))
+        {
+            // Make sure we don't try and synchronize the source.
+            markSiblingSourceRow();
+
+            // Let the engine know why we can't action the move.
+            monitor.waitingLocal(fullPath.localPath,
+                                 sourceSyncNode->getLocalPath(),
+                                 fullPath.cloudPath,
+                                 SyncWaitReason::MoveTargetHasReservedName);
+
+            // Don't recurse if the row's a directory.
+            row.suppressRecursion = true;
+
+            // Row isn't synchronized.
+            rowResult = false;
+
+            // Escape immediately from syncItemCheckMove(...).
+            return true;
+        }
 
         LocalPath sourcePath = sourceSyncNode->getLocalPath();
 
@@ -2050,28 +2122,9 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             }
         }
 
-        // is it a move within the same folder?  (ie, purely a rename?)
-        syncRow* sourceRow = nullptr;
-        if (sourceSyncNode->parent == parentRow.syncNode
-            && row.rowSiblings
-            && !sourceSyncNode->moveAppliedToLocal)
-        {
-            // then prevent any other action on this node for now
-            // if there is a new matching fs name, we'll need this node to be renamed, then a new one will be created
-            for (syncRow& r : *row.rowSiblings)
-            {
-                // skip the syncItem() call for this one this time (so no upload until move is resolved)
-                if (r.syncNode == sourceSyncNode) sourceRow = &r;
-            }
-        }
-
         // we don't want the source LocalNode to be visited until after the move completes, and we revisit with rescanned folder data
         // because it might see a new file with the same name, and start a download, keeping the row instead of removing it
-        if (sourceRow)
-        {
-            sourceRow->itemProcessed = true;
-            sourceRow->syncNode->setScanAgain(true, false, false, 0);
-        }
+        markSiblingSourceRow();
 
         if (belowRemovedFsNode)
         {
@@ -2116,8 +2169,17 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             LOG_debug << syncname << "Move-target moved to local debris: " << path;
 
             // Therefore there is nothing in the local subfolder anymore
-            // Keep our data structure up to date:
-            row.syncNode->deleteChildren();
+            // And we should delete the localnodes corresponding to the items we moved to debris.
+            // BUT what if the move is coming from inside that folder ?!!
+            // Therefore move them to an unattached locallnode which will delete them on function exit
+
+            //row.syncNode->deleteChildren();
+            childrenToDeleteOnFunctionExit.reset(new LocalNode(this));
+            while (!row.syncNode->children.empty())
+            {
+                auto* child = row.syncNode->children.begin()->second;
+                child->setnameparent(childrenToDeleteOnFunctionExit.get(), child->localname, child->cloneShortname());
+            }
         }
 
         if (syncs.fsaccess->renamelocal(sourcePath, fullPath.localPath))
@@ -2162,6 +2224,23 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             row.suppressRecursion = true;
             sourceSyncNode->moveApplyingToLocal = false;
             rowResult = false;
+            return true;
+        }
+        else if (syncs.fsaccess->target_name_too_long)
+        {
+            LOG_warn << "Unable to move folder as the move target's name is too long: "
+                     << sourcePath.toPath(*syncs.fsaccess)
+                     << logTriplet(row, fullPath);
+
+            monitor.waitingLocal(fullPath.localPath,
+                                 sourceSyncNode->getLocalPath(),
+                                 sourceSyncNode->getCloudPath(),
+                                 SyncWaitReason::MoveTargetNameTooLong);
+
+            row.suppressRecursion = true;
+            sourceSyncNode->moveApplyingToLocal = false;
+            rowResult = false;
+
             return true;
         }
         else
@@ -2357,11 +2436,11 @@ dstime Sync::procscanq()
 
         nearest->setScanAgain(false, true, scanDescendants, SCANNING_DELAY_DS);
 
-        if (nearest->rareRO().scanBlockedTimer)
+        if (nearest->rareRO().scanBlocked)
         {
             // in case permissions changed on a scan-blocked folder
-            // retry straight away, but don't reset the backoff delta/base should it still be inaccessible
-            nearest->rare().scanBlockedTimer->set(syncs.waiter.ds);
+            // retry straight away, but don't reset the backoff delay
+            nearest->rare().scanBlocked->scanBlockedTimer.set(syncs.waiter.ds);
         }
 
         // Queue an extra notification if we're a network sync.
@@ -2473,7 +2552,7 @@ bool Sync::movetolocaldebrisSubfolder(const LocalPath& localpath, const LocalPat
     }
 
     LocalPath moveTarget = targetFolder;
-    moveTarget.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex(*syncs.fsaccess)), true);
+    moveTarget.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex()), true);
 
     syncs.fsaccess->skip_targetexists_errorreport = !logFailReason;
     bool success = syncs.fsaccess->renamelocal(localpath, moveTarget, false);
@@ -4602,33 +4681,6 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, 
     }
 }
 
-bool Sync::collectScanBlocked(list<LocalPath>& paths) const
-{
-    collectScanBlocked(*localroot, paths);
-
-    return !paths.empty();
-}
-
-void Sync::collectScanBlocked(const LocalNode& node, list<LocalPath>& paths) const
-{
-    assert(node.type == FOLDERNODE);
-
-    if (node.scanBlocked == TREE_RESOLVED) return;
-
-    if (node.scanBlocked > TREE_DESCENDANT_FLAGGED)
-    {
-        paths.emplace_back(node.getLocalPath());
-        return;
-    }
-
-    for (auto& child : node.children)
-    {
-        if (child.second->type != FOLDERNODE) continue;
-
-        collectScanBlocked(*child.second, paths);
-    }
-}
-
 const LocalPath& syncRow::comparisonLocalname() const
 {
     if (syncNode)
@@ -4711,6 +4763,34 @@ ExclusionState syncRow::exclusionState(const LocalPath& name, nodetype_t type) c
     assert(syncNode->type != FILENODE);
 
     return syncNode->exclusionState(name, type);
+}
+
+bool syncRow::hasReservedName(const FileSystemAccess& fsAccess) const
+{
+    if (auto* c = cloudNode)
+        return isReservedName(c->name, c->type);
+
+    if (!cloudClashingNames.empty())
+    {
+        auto* c = cloudClashingNames.front();
+
+        return isReservedName(c->name, c->type);
+    }
+
+    if (auto* s = syncNode)
+        return isReservedName(fsAccess, s->localname, s->type);
+
+    if (auto* f = fsNode)
+        return isReservedName(fsAccess, f->localname, f->type);
+
+    if (!fsClashingNames.empty())
+    {
+        auto* f = fsClashingNames.front();
+
+        return isReservedName(fsAccess, f->localname, f->type);
+    }
+
+    return false;
 }
 
 bool syncRow::isIgnoreFile() const
@@ -5033,9 +5113,9 @@ using IndexPairVector = vector<IndexPair>;
 
 static IndexPairVector computeSyncSequences(vector<syncRow>& children)
 {
-    // No prioritization necessary if we only have a single child.
-    if (children.size() < 2)
-        return IndexPairVector(1, IndexPair(0, children.size()));
+    // No children, no work to be done.
+    if (children.empty())
+        return IndexPairVector();
 
     // Separate our children into those that are ignore files and those that are not.
     auto i = std::partition(children.begin(), children.end(), [](const syncRow& child) {
@@ -5044,7 +5124,18 @@ static IndexPairVector computeSyncSequences(vector<syncRow>& children)
 
     // No prioritization necessary if there's only a single class of child.
     if (i == children.begin() || i == children.end())
-        return IndexPairVector(1, IndexPair(0, children.size()));
+    {
+        // Is it a run of regular files?
+        if (!children.front().isIgnoreFile())
+            return IndexPairVector(1, IndexPair(0, children.size()));
+
+        IndexPairVector sequences;
+
+        sequences.emplace_back(0, children.size());
+        sequences.emplace_back(children.size(), children.size());
+
+        return sequences;
+    }
 
     IndexPairVector sequences;
 
@@ -5132,13 +5223,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         row.syncNode->scanAgain = TREE_RESOLVED;
     }
 
-    // report via stall system?
-    //if (row.syncNode->scanBlocked >= TREE_ACTION_HERE)
-    //{
-    //    ProgressingMonitor pm(syncs);
-    //    pm.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
-    //}
-
     if (row.syncNode->scanAgain >= TREE_ACTION_HERE)
     {
         // we must return later when we do have the scan data.
@@ -5183,6 +5267,14 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
         // Ignore files must be fully processed before any other child.
         auto sequences = computeSyncSequences(childRows);
+
+        bool ignoreFilePresent = sequences.size() > 1;
+        bool hasFilter = !!row.syncNode->rareRO().filterChain;
+
+        if (ignoreFilePresent != hasFilter)
+        {
+            row.syncNode->ignoreFilterPresenceChanged(ignoreFilePresent, childRows[sequences.front().first].fsNode);
+        }
 
         // Here is where we loop over the syncRows for this folder.
         // We must process things in a particular order
@@ -5327,6 +5419,26 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             {
                                 row.syncNode->setSyncAgain(false, true, false);
                             }
+
+                            if (ignoreFilePresent && childRow.isIgnoreFile() && childRow.fsNode)
+                            {
+                                // Load filters if new/updated.  If it fails, filters are marked invalid
+                                bool ok = row.syncNode->loadFiltersIfChanged(childRow.fsNode->fingerprint, fullPath.localPath);
+
+                                if (ok != !row.syncNode->rareRO().badlyFormedIgnoreFilePath)
+                                {
+                                    if (ok)
+                                    {
+                                        row.syncNode->rare().badlyFormedIgnoreFilePath.reset();
+                                    }
+                                    else
+                                    {
+                                        row.syncNode->rare().badlyFormedIgnoreFilePath.reset(new LocalNode::RareFields::BadlyFormedIgnore(fullPath.localPath, this));
+                                        syncs.badlyFormedIgnoreFilePaths.push_back(row.syncNode->rare().badlyFormedIgnoreFilePath);
+                                        syncs.mClient.app->syncupdate_filter_error(getConfig());
+                                    }
+                                }
+                            }
                         }
                         break;
 
@@ -5364,13 +5476,17 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 }
             }
 
-            // An ignore file requires exclusive processing.
-            if (row.ignoreFileChanged())
-                break;
+            if (ignoreFilePresent)
+            {
+                if (!row.syncNode->filterChainRO().isValid())
+                {
+                    // we can't calculate what's included, come back when the .megaignore is present and well-formed
+                    break;
+                }
 
-            // We need to load our ignore file.
-            if (row.syncNode->waitingForIgnoreFileLoad())
-                break;
+                // processed already, don't worry about it for the rest
+                ignoreFilePresent = false;
+            }
         }
 
         // If we added any FSNodes that aren't part of our scan data (and we think we don't need another scan), add them to the scan data
@@ -5407,7 +5523,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         }
         row.syncNode->checkMovesAgain = updateTreestateFromChild(row.syncNode->checkMovesAgain, child.second->checkMovesAgain);
         row.syncNode->conflicts = updateTreestateFromChild(row.syncNode->conflicts, child.second->conflicts);
-        row.syncNode->scanBlocked = updateTreestateFromChild(row.syncNode->scanBlocked, child.second->scanBlocked);
 
         if (child.second->parentSetScanAgain) row.syncNode->setScanAgain(false, true, false, 0);
         if (child.second->parentSetCheckMovesAgain) row.syncNode->setCheckMovesAgain(false, true, false);
@@ -5486,29 +5601,22 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         }
     }
 
-    // Check blocked status.  Todo:  figure out use blocked flag clearing
-    if (!row.syncNode && row.fsNode && (
-        row.fsNode->isBlocked || row.fsNode->type == TYPE_UNKNOWN))
+    if (row.fsNode &&
+       (row.fsNode->type == TYPE_UNKNOWN ||
+        row.fsNode->fsid == UNDEF))
     {
-        // so that we can checkForScanBlocked() immediately below
-        resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
-    }
-    if (row.syncNode &&
-        row.syncNode->checkForScanBlocked(row.fsNode))
-    {
-        // TODO: maybe report these via stalled paths mechanism?  Need to resolve stall flip-flopping though.
-        //ProgressingMonitor pm(syncs);
-        //pm.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
-        row.suppressRecursion = true;
-        row.itemProcessed = true;
+        // We can't consider moves if we don't even know file/folder or fsid.
+        // Skip ahead to plain item comparison where we wil consider exclusion filters.
         return false;
     }
 
     // First deal with detecting local moves/renames and propagating correspondingly
-    // Independent of the 8 combos below so we don't have duplicate checks in those.
+    // Independent of the syncItem() combos below so we don't have duplicate checks in those.
+    // Be careful of unscannable folder entries which may have no detected type or fsid.
 
-    if (row.fsNode && (!row.syncNode || row.syncNode->fsid_lastSynced == UNDEF ||
-                                        row.syncNode->fsid_lastSynced != row.fsNode->fsid))
+    if (row.fsNode &&
+        (!row.syncNode || row.syncNode->fsid_lastSynced == UNDEF ||
+                          row.syncNode->fsid_lastSynced != row.fsNode->fsid))
     {
         // Don't perform any moves until we know the row's exclusion state.
         if (parentRow.exclusionState(*row.fsNode) == ES_UNKNOWN)
@@ -5531,7 +5639,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle))
     {
         // Don't perform any moves until we know the row's exclusion state.
-        if (!parentRow.exclusionState(*row.cloudNode) == ES_UNKNOWN)
+        if (parentRow.exclusionState(*row.cloudNode) == ES_UNKNOWN)
         {
             row.itemProcessed = true;
             row.suppressRecursion = true;
@@ -5545,6 +5653,27 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
             row.itemProcessed = true;
             return rowResult;
         }
+    }
+
+    // Does this row have a reserved name?
+    if (row.hasReservedName(*syncs.fsaccess))
+    {
+        // Let the client know why the row isn't being synchronized.
+        ProgressingMonitor monitor(syncs);
+
+        monitor.waitingLocal(fullPath.localPath,
+                             LocalPath(),
+                             fullPath.cloudPath,
+                             SyncWaitReason::ItemHasReservedName);
+
+        // Don't try and synchronize the row.
+        row.itemProcessed = true;
+
+        // Don't recurse if the row's a directory.
+        row.suppressRecursion = true;
+
+        // Row's not synchronized.
+        return false;
     }
 
     // Avoid syncing nodes that have multiple clashing names
@@ -5656,6 +5785,22 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 return resolve_delSyncNode(row, parentRow, fullPath);
             }
         }
+    }
+
+    // Check blocked status.  Todo:  figure out use blocked flag clearing
+    if (!row.syncNode && row.fsNode && (
+        row.fsNode->isBlocked || row.fsNode->type == TYPE_UNKNOWN) &&
+        parentRow.syncNode->exclusionState(row.fsNode->localname, TYPE_UNKNOWN) == ES_INCLUDED)
+    {
+        // so that we can checkForScanBlocked() immediately below
+        resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+    }
+    if (row.syncNode &&
+        row.syncNode->checkForScanBlocked(row.fsNode))
+    {
+        row.suppressRecursion = true;
+        row.itemProcessed = true;
+        return false;
     }
 
     switch (row.type())
@@ -5847,6 +5992,11 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         // item exists remotely only
         return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
     }
+    default:
+    {
+        // Silence compiler warning.
+        break;
+    }
     } // switch
 
     // SRT_XXX  (should not occur)
@@ -5854,7 +6004,6 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     CodeCounter::ScopeTimer rstXXX(syncs.mClient.performanceStats.syncItemXXX);
     assert(false);
     return false;
-
 }
 
 bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
@@ -5921,8 +6070,9 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
 bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
     assert(syncs.onSyncThread());
+
     // these comparisons may need to be adjusted for UTF, escapes
-    assert(row.syncNode->fsid_lastSynced != row.fsNode->fsid || row.syncNode->localname == row.fsNode->localname);
+    assert(row.syncNode->fsid_lastSynced != row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
     assert(row.syncNode->fsid_lastSynced == row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
 
     assert((!!row.syncNode->slocalname == !!row.fsNode->shortname) &&
@@ -5931,7 +6081,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
     if (row.syncNode->fsid_lastSynced != row.fsNode->fsid ||
         row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle ||
-        row.syncNode->localname != row.fsNode->localname)
+        0 != compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)))
     {
         if (row.syncNode->hasRare() && row.syncNode->rare().moveToHere)
         {
@@ -5969,19 +6119,21 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
     row.syncNode->syncAgain = std::max<unsigned>(row.syncNode->syncAgain,
         row.syncNode->type == FILENODE ? TREE_DESCENDANT_FLAGGED : TREE_RESOLVED);
 
-    // Are we dealing with an ignore file?
-    if (!row.syncNode->isIgnoreFile())
-        return true;
+    // we can load the filters as soon as the local file is present, no need to wait until the row is synced
 
-    // Has it changed?
-    if (!parentRow.syncNode->mFilterChain.changed(row.fsNode->fingerprint))
-        return true;
+    //// Are we dealing with an ignore file?
+    //if (!row.syncNode->isIgnoreFile())
+    //    return true;
 
-    // If so, make sure we load its filters.
-    parentRow.syncNode->loadFilters(fullPath.localPath);
+    //// Has it changed?
+    //if (!parentRow.syncNode->filterChainRO().changed(row.fsNode->fingerprint))
+    //    return true;
 
-    // Let the parent know its rules have changed.
-    parentRow.ignoreFileChanging();
+    //// If so, make sure we load its filters.
+    //parentRow.syncNode->loadFilters(fullPath.localPath);
+
+    //// Let the parent know its rules have changed.
+    //parentRow.ignoreFileChanging();
 
     return true;
 }
@@ -5996,9 +6148,9 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
     LOG_debug << syncname << "Creating LocalNode from FS with fsid " << toHandle(row.fsNode->fsid) << " at: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
 
     assert(row.syncNode == nullptr);
-    row.syncNode = new LocalNode;
+    row.syncNode = new LocalNode(this);
 
-    row.syncNode->init(this, row.fsNode->type, parentRow.syncNode, fullPath.localPath, row.fsNode->cloneShortname());
+    row.syncNode->init(row.fsNode->type, parentRow.syncNode, fullPath.localPath, row.fsNode->cloneShortname());
     row.syncNode->setScannedFsid(row.fsNode->fsid, syncs.localnodeByScannedFsid, row.fsNode->localname);
 
     if (row.fsNode->type == FILENODE)
@@ -6036,14 +6188,14 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
     LOG_debug << syncname << "Creating LocalNode from Cloud at: " << fullPath.cloudPath << logTriplet(row, fullPath);
 
     assert(row.syncNode == nullptr);
-    row.syncNode = new LocalNode;
+    row.syncNode = new LocalNode(this);
 
     if (row.cloudNode->type == FILENODE)
     {
         assert(row.cloudNode->fingerprint.isvalid); // todo: move inside considerSynced?
         row.syncNode->syncedFingerprint = row.cloudNode->fingerprint;
     }
-    row.syncNode->init(this, row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
+    row.syncNode->init(row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
     if (considerSynced)
     {
         row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
@@ -6135,19 +6287,21 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
-    // Are we dealing with an ignore file?
-    if (row.syncNode->isIgnoreFile())
-    {
-        // Has the ignore file changed?
-        if (parentRow.syncNode->mFilterChain.changed(row.fsNode->fingerprint))
-        {
-            // Then reload the filters.
-            parentRow.syncNode->loadFilters(fullPath.localPath);
+    // for uploads, we already read the local file, no ned to re-read
 
-            // Make sure the ignore file is processed before other rows.
-            parentRow.ignoreFileChanging();
-        }
-    }
+    //// Are we dealing with an ignore file?
+    //if (row.syncNode->isIgnoreFile())
+    //{
+    //    // Has the ignore file changed?
+    //    if (parentRow.syncNode->filterChainRO().changed(row.fsNode->fingerprint))
+    //    {
+    //        // Then reload the filters.
+    //        parentRow.syncNode->loadFilters(fullPath.localPath);
+
+    //        // Make sure the ignore file is processed before other rows.
+    //        parentRow.ignoreFileChanging();
+    //    }
+    //}
 
     // Don't do anything unless we know the node's included.
     if (row.syncNode->exclusionState() != ES_INCLUDED)
@@ -6370,12 +6524,14 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 row.syncNode->treestate(TREESTATE_SYNCING);
                 parentRow.syncNode->treestate(TREESTATE_SYNCING);
 
-                // Are we downloading an ignore file?
-                if (row.syncNode->isIgnoreFile())
-                {
-                    // Then signal that it's downloading.
-                    parentRow.syncNode->setWaitingForIgnoreFileLoad(true);
-                }
+                // If there's a legit .megaignore file present, we use it until (if and when) it is actually replaced.
+
+                //// Are we downloading an ignore file?
+                //if (row.syncNode->isIgnoreFile())
+                //{
+                //    // Then signal that it's downloading.
+                //    parentRow.syncNode->setWaitingForIgnoreFileLoad(true);
+                //}
             }
             else if (row.syncNode->transferSP->wasTerminated)
             {
@@ -6403,12 +6559,27 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                     row.syncNode->resetTransfer(nullptr);
 
-                    // Have we just downloaded an ignore file?
-                    if (row.syncNode->isIgnoreFile())
-                    {
-                        // Then load the filters.
-                        parentRow.syncNode->loadFilters(fullPath.localPath);
-                    }
+                    // this case is covered when we syncItem
+
+                    //// Have we just downloaded an ignore file?
+                    //if (row.syncNode->isIgnoreFile())
+                    //{
+                    //    // Then load the filters.
+                    //    parentRow.syncNode->loadFilters(fullPath.localPath);
+                    //}
+                }
+                else if (fsAccess.target_name_too_long)
+                {
+                    SYNC_verbose << syncname
+                                 << "Download complete but the target's name is too long: "
+                                 << logTriplet(row, fullPath);
+
+                    monitor.waitingLocal(sourcePath,
+                                         targetPath,
+                                         cloudPath,
+                                         SyncWaitReason::DownloadTargetNameTooLong);
+
+                    // Leave the transfer intact so we don't reattempt the download.
                 }
                 else if (fsAccess.transient_error)
                 {
@@ -6492,10 +6663,24 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     row.syncNode->setScanAgain(true, false, false, 50);
                 }
             }
+            else if (syncs.fsaccess->target_name_too_long)
+            {
+                LOG_warn << syncname
+                         << "Unable to create target folder as its name is too long "
+                         << fullPath.localPath_utf8()
+                         << logTriplet(row, fullPath);
+                         
+                assert(row.syncNode);
+                
+                monitor.waitingLocal(fullPath.localPath,
+                                     LocalPath(),
+                                     fullPath.cloudPath,
+                                     SyncWaitReason::CreateFolderNameTooLong);
+            }
             else
             {
                 // let's consider this case as blocked too, alert the user
-                LOG_warn << syncname << "Error creating folder, marking as blocked " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
+                LOG_warn << syncname << "Unable to create folder " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
                 assert(row.syncNode);
                 monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::CreateFolderFailed);
             }
@@ -8243,12 +8428,6 @@ void Syncs::syncLoop()
 
         for (auto& us : mSyncVec)
         {
-            // Has an ignore file failure occured?
-            if (mIgnoreFileFailureContext.signalled())
-            {
-                // Then don't perform any more processing until it's resolved.
-                break;
-            }
             Sync* sync = us->mSync.get();
 
             if (sync && sync->state() >= SYNC_INITIALSCAN)
@@ -8302,13 +8481,15 @@ void Syncs::syncLoop()
                         // later we can make this lock much finer-grained
                         std::lock_guard<std::timed_mutex> g(mLocalNodeChangeMutex);
 
+                        DBTableTransactionCommitter committer(sync->statecachetable);
+
                         if (!sync->recursiveSync(row, pathBuffer, false, false, 0))
                         {
                             earlyExit = true;
                         }
-                    }
 
-                    sync->cachenodes();
+                        sync->cachenodes();
+                    }
 
                     if (!earlyExit)
                     {
@@ -8391,20 +8572,51 @@ void Syncs::syncLoop()
                 syncBusyState = anySyncBusy;
             }
 
-            // Have any ignore file failures been reported?
-            if (mIgnoreFileFailureContext.signalled())
-            {
-                // Has the problem been resolved?
-                if (!mIgnoreFileFailureContext.resolve(*fsaccess))
-                {
-                    // Not resolved so report as a stall.
-                    mIgnoreFileFailureContext.report(mSyncFlags->stall);
-                }
-            }
-
             bool stalled = syncStallState;
 
             {
+                // add .megaignore broken file paths to stall records (if they are still broken)
+                //if (mIgnoreFileFailureContext.signalled())
+                //{
+                //    // Has the problem been resolved?
+                //    if (!mIgnoreFileFailureContext.resolve(*fsaccess))
+                //    {
+                //        // Not resolved so report as a stall.
+                //        mIgnoreFileFailureContext.report(mSyncFlags->stall);
+                //    }
+                //}
+
+                for (auto i = badlyFormedIgnoreFilePaths.begin(); i != badlyFormedIgnoreFilePaths.end(); )
+                {
+                    if (auto lp = i->lock())
+                    {
+                        if (!(lp->sync && lp->sync->syncPaused))
+                        {
+                            mSyncFlags->stall.waitingLocal(lp->localPath, LocalPath(), string(), SyncWaitReason::UnableToLoadIgnoreFile);
+                        }
+                        ++i;
+                    }
+                    else i = badlyFormedIgnoreFilePaths.erase(i);
+                }
+
+                // add scan-blocked paths to stall records
+                for (auto i = scanBlockedPaths.begin(); i != scanBlockedPaths.end(); )
+                {
+                    if (auto sbp = i->lock())
+                    {
+                        if (sbp->scanBlockedTimer.armed())
+                        {
+                            LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan: " << sbp->localPath.toPath();
+                            sbp->localNode->setScanAgain(true, false, false, 0);
+                            sbp->scanBlockedTimer.backoff(); // wait increases exponentially until we succeed
+                        }
+
+                        mSyncFlags->stall.waitingLocal(sbp->localPath, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
+                        ++i;
+                    }
+                    else i = scanBlockedPaths.erase(i);
+                }
+
                 lock_guard<mutex> g(stallReportMutex);
                 stallReport.cloud.swap(mSyncFlags->stall.cloud);
                 stallReport.local.swap(mSyncFlags->stall.local);
@@ -8412,7 +8624,7 @@ void Syncs::syncLoop()
                 mSyncFlags->stall.local.clear();
 
                 stalled = !stallReport.empty()
-                          && (mIgnoreFileFailureContext.signalled()
+                          && (stallReport.hasImmediateStallReason()
                               || (mSyncFlags->noProgressCount > 10
                                   && mSyncFlags->reachableNodesAllScannedThisPass));
 
@@ -8574,36 +8786,6 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
                 }
             }
             finalcompletion(move(nc));
-        });
-}
-
-// Get scan and use blocked paths - pass UNDEF to collect for all syncs.
-void Syncs::collectSyncScanBlockedPaths(handle backupId, std::function<void(list<LocalPath>&& scanBlocked)> completion, bool completionInClient)
-{
-    assert(!onSyncThread());
-
-    auto clientCompletion = [this, completion](list<LocalPath>&& scanBlocked)
-    {
-        shared_ptr<list<LocalPath>> b2(new list<LocalPath>(move(scanBlocked)));
-        queueClient([completion, b2](MegaClient& mc, DBTableTransactionCommitter& committer)
-            {
-                if (completion) completion(move(*b2));
-            });
-    };
-
-    auto finalcompletion = completionInClient ? clientCompletion : completion;
-
-    queueSync([=]()
-        {
-            list<LocalPath> b2;
-            for (auto& us : mSyncVec)
-            {
-                if (us->mSync && (us->mConfig.mBackupId == backupId || backupId == UNDEF))
-                {
-                    us->mSync->collectScanBlocked(b2);
-                }
-            }
-            finalcompletion(move(b2));
         });
 }
 
@@ -8801,6 +8983,12 @@ bool Syncs::isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* chi
 
         // Node's included so check the next step along the trail.
         parent = node;
+    }
+
+    if (i == j)
+    {
+        // handle + name matched all the way down
+        return false;
     }
 
     // Compute relative path from last parent to child.

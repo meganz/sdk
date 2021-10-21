@@ -71,7 +71,7 @@
 namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
-                                 string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
+                                 string *nodekey, string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
                                  const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth)
 : MegaNode()
 {
@@ -92,13 +92,11 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->mtime = mtime;
     this->nodehandle = nodehandle;
     this->parenthandle = parentHandle;
-    this->attrstring.assign(attrstring->data(), attrstring->size());
     this->fileattrstring.assign(fileattrstring->data(), fileattrstring->size());
     this->nodekey.assign(nodekey->data(), nodekey->size());
     this->changed = 0;
     this->thumbnailAvailable = (Node::hasfileattribute(fileattrstring, GfxProc::THUMBNAIL) != 0);
     this->previewAvailable = (Node::hasfileattribute(fileattrstring, GfxProc::PREVIEW) != 0);
-    this->tag = 0;
     this->isPublicNode = ispublic;
     this->outShares = false;
     this->inShare = false;
@@ -164,8 +162,6 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->mtime = node->getModificationTime();
     this->nodehandle = node->getHandle();
     this->parenthandle = node->getParentHandle();
-    string * attrstring = node->getAttrString();
-    this->attrstring.assign(attrstring->data(), attrstring->size());
     char* fileAttributeString = node->getFileAttrString();
     if (fileAttributeString)
     {
@@ -177,7 +173,6 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->changed = node->getChanges();
     this->thumbnailAvailable = node->hasThumbnail();
     this->previewAvailable = node->hasPreview();
-    this->tag = static_cast<MegaNodePrivate*>(node)->tag; // deprecated; will be removed in future (this syntax just to avoid the warning)
     this->isPublicNode = node->isPublic();
     this->privateAuth = *node->getPrivateAuth();
     this->publicAuth = *node->getPublicAuth();
@@ -411,10 +406,6 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->parenthandle = node->parent ? node->parent->nodehandle : INVALID_HANDLE;
     this->owner = node->owner;
 
-    if(node->attrstring)
-    {
-        this->attrstring.assign(node->attrstring->data(), node->attrstring->size());
-    }
     this->fileattrstring = node->fileattrstring;
     this->nodekey = node->nodekeyUnchecked();
 
@@ -466,7 +457,6 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
     this->previewAvailable = (node->hasfileattribute(1) != 0);
-    this->tag = node->tag;
     this->isPublicNode = false;
     this->foreign = false;
 
@@ -521,7 +511,7 @@ bool MegaNodePrivate::serialize(string *d)
     w.serializei64(mtime);
     w.serializehandle(nodehandle);
     w.serializehandle(parenthandle);
-    w.serializestring(attrstring);
+    w.serializestring("");  // used to be attrstring
     w.serializestring(nodekey);
     w.serializestring(privateAuth);
     w.serializestring(publicAuth);
@@ -585,7 +575,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     r.eraseused(*d);
 
     return new MegaNodePrivate(name.c_str(), FILENODE, size, ctime,
-                               mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
+                               mtime, nodehandle, &nodekey, &fileattrstring,
                                fingerprint.empty() ? NULL : fingerprint.c_str(), originalfingerprint.empty() ? NULL : originalfingerprint.c_str(),
                                owner, parenthandle, privauth.c_str(), pubauth.c_str(),
                                isPublicNode, foreign, chatauth.empty() ? NULL : chatauth.c_str());
@@ -850,11 +840,6 @@ char *MegaNodePrivate::getBase64Key()
     return key;
 }
 
-string *MegaNodePrivate::getAttrString()
-{
-    return &attrstring;
-}
-
 char *MegaNodePrivate::getFileAttrString()
 {
     char* fileAttributes = NULL;
@@ -865,11 +850,6 @@ char *MegaNodePrivate::getFileAttrString()
     }
 
     return fileAttributes;
-}
-
-int MegaNodePrivate::getTag()
-{
-    return tag;
 }
 
 int64_t MegaNodePrivate::getExpirationTime()
@@ -894,7 +874,7 @@ MegaNode* MegaNodePrivate::getPublicNode()
 
     MegaNode *node = new MegaNodePrivate(
                 name, type, size, ctime, mtime,
-                plink->ph, &key, &attrstring, &fileattrstring, fingerprint, originalfingerprint,
+                plink->ph, &key, &fileattrstring, fingerprint, originalfingerprint,
                 INVALID_HANDLE);
 
     delete [] skey;
@@ -5001,7 +4981,7 @@ void MegaFileGet::prepare(FileSystemAccess&)
     {
         transfer->localfilename = getLocalname();
 
-        size_t leafIndex = transfer->localfilename.getLeafnameByteIndex(*transfer->client->fsaccess);
+        size_t leafIndex = transfer->localfilename.getLeafnameByteIndex();
         transfer->localfilename.truncate(leafIndex);
 
         LocalPath suffix;
@@ -8551,7 +8531,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
 int MegaApiImpl::syncPathState(string*)
 {
     // TODO: We'll restore this functionality later.
-    //  
+    //
     //       It's not as simple as it might seem from the surface as there
     //       are a lot of threading issues to consider.
     //
@@ -11162,20 +11142,18 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
                                             MegaHandle parentHandle, const char* privateauth, const char *publicauth, const char *chatauth)
 {
     string nodekey;
-    string attrstring;
     string fileattrsting;
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
-    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, &fileattrsting, NULL, NULL, INVALID_HANDLE,
+    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &fileattrsting, NULL, NULL, INVALID_HANDLE,
                                parentHandle, privateauth, publicauth, false, true, chatauth);
 }
 
 MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
 {
     string nodekey;
-    string attrstring;
     string fileattrsting;
-    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, &fileattrsting, NULL, NULL, INVALID_HANDLE, parentHandle,
+    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &fileattrsting, NULL, NULL, INVALID_HANDLE, parentHandle,
                                privateauth, publicauth, false, true);
 }
 
@@ -14647,7 +14625,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     }
     else
     {
-        MegaNodePrivate *megaNodePrivate = new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring, a,
+        MegaNodePrivate *megaNodePrivate = new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring,
                                                            fa, fingerprint.size() ? fingerprint.c_str() : NULL,
                                                            originalfingerprint.size() ? originalfingerprint.c_str() : NULL, INVALID_HANDLE);
         request->setPublicNode(megaNodePrivate);
@@ -15011,6 +14989,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 break;
             }
         }
+        // fall through
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
@@ -22973,16 +22952,7 @@ int MegaApiImpl::isWaiting()
 #ifdef ENABLE_SYNC
     SdkMutexGuard g(sdkMutex);
 
-    bool found = false;
-    client->syncs.forEachRunningSync(false, [&](Sync* sync) {
-            if (sync->localroot->scanBlocked)
-            {
-                LOG_debug << "SDK waiting for one or more a blocked files.";
-                found = true;
-            }
-        });
-
-    if (receivedStallFlag || found) return RETRY_LOCAL_LOCK;
+    if (receivedStallFlag) return RETRY_LOCAL_LOCK;
 #endif
 
     if (waitingRequest)
@@ -30384,7 +30354,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 {
     MegaFTPContext* ftpctx = dynamic_cast<MegaFTPContext *>(tcpctx);
 
-    ssize_t parsed = -1;
+    ssize_t parsed = -1; ((void)(parsed));
     string petition;
     std::string command;
     string response;

@@ -928,11 +928,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                     if (it != mWatches.end())
                     {
-                      if(isDirectoryRemovedEvent(in->mask))
-                      {
-                        notifyDirectoryRemovedEvent(in->wd);
+                      if(isDirectoryRemovedEvent(in->mask)) {
+                        notifyDirectoryRemovedEvent(in->wd); // We still have IN_DELETE for parent
+                      } else {
+                        notifyAll(it->first, in->len? in->name : "");
                       }
-                      notifyAll(it->first, in->len? in->name : "");
                     }
 
                 }
@@ -1165,6 +1165,7 @@ bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPat
     }
 
     target_exists = existingandcare  || errno == EEXIST || errno == EISDIR || errno == ENOTEMPTY || errno == ENOTDIR;
+    target_name_too_long = errno == ENAMETOOLONG;
     transient_error = !existingandcare && (errno == ETXTBSY || errno == EBUSY);
 
     int e = errno;
@@ -1217,6 +1218,7 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
         {
             umask(mode);
             target_exists = errno == EEXIST;
+            target_name_too_long = errno == ENAMETOOLONG;
             transient_error = errno == ETXTBSY || errno == EBUSY;
 
             int e = errno;
@@ -1384,6 +1386,8 @@ bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlre
     if (!r)
     {
         target_exists = errno == EEXIST;
+        target_name_too_long = errno == ENAMETOOLONG;
+
         if (target_exists)
         {
             if (logAlreadyExistsError)
@@ -1967,8 +1971,9 @@ fsfp_t PosixDirNotify::fsfingerprint() const
     {
         return 0;
     }
-
-    return *(fsfp_t*)&statfsbuf.f_fsid + 1;
+    fsfp_t tmp;
+    memcpy(&tmp, &statfsbuf.f_fsid, sizeof(fsfp_t));
+    return tmp+1;
 }
 
 bool PosixDirNotify::fsstableids() const
@@ -2223,8 +2228,29 @@ PosixDirAccess::~PosixDirAccess()
     }
 }
 
-bool isReservedName(const string&, nodetype_t)
+
+static std::function<bool(const string&, nodetype_t)> gIsReservedNameHook;
+
+void isReservedNameHook(std::function<bool(const string&, nodetype_t)> predicate)
 {
+    gIsReservedNameHook = predicate;
+}
+
+bool isReservedName(const string& name, nodetype_t type)
+{
+    if (gIsReservedNameHook)
+        return gIsReservedNameHook(name, type);
+
+    return false;
+}
+
+bool isReservedName(const FileSystemAccess& fsAccess,
+                    const LocalPath& name,
+                    nodetype_t type)
+{
+    if (gIsReservedNameHook)
+        return isReservedName(name.toName(fsAccess), type);
+
     return false;
 }
 

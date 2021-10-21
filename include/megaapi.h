@@ -776,25 +776,6 @@ class MegaNode
         virtual char* getBase64Key();
 
         /**
-         * @brief Returns the tag of the operation that created/modified this node in MEGA
-         *
-         * Every request and every transfer has a tag that identifies it.
-         * When a request creates or modifies a node, the tag is associated with the node
-         * at runtime, this association is lost after a reload of the filesystem or when
-         * the SDK is closed.
-         *
-         * This tag is specially useful to know if a node reported in MegaListener::onNodesUpdate or
-         * MegaGlobalListener::onNodesUpdate was modified by a local operation (tag != 0) or by an
-         * external operation, made by another MEGA client (tag == 0).
-         *
-         * If the node hasn't been created/modified during the current execution, this function returns 0
-         *
-         * @return The tag associated with the node.
-         * @deprecated This function will be removed in future releases, it was unreliable due to race conditions
-         */
-        virtual int getTag();
-
-        /**
          * @brief Returns the expiration time of a public link, if any
          *
          * @return The expiration time as an Epoch timestamp. Returns 0 for non-expire
@@ -1071,22 +1052,6 @@ class MegaNode
          * Use MegaNode::getBase64Key instead
          */
         virtual std::string* getNodeKey();
-
-        /**
-         * @brief Returns a string that contains the encrypted attributes of the file (in binary format)
-         *
-         * The return value is only valid for public nodes or undecrypted nodes. In all other cases this function
-         * will return an empty string.
-         *
-         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
-         * of the MegaNode object.
-         *
-         * @return Encrypted attributes of the file (in binary format)
-         * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-         * Use MegaNode::getName and MegaNode::getModificationTime and MegaApi::getFingerprint. They provide the same information,
-         * decrypted and in a manageable format.
-         */
-        virtual std::string* getAttrString();
 
         /**
          * @brief Returns the file attributes related to the node
