@@ -1266,7 +1266,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 #endif
     , mCachedStatus(this)
 {
-    sctable = NULL;
+    sctable.reset();
+    mNodeManager.reset();
     pendingsccommit = false;
     tctable = NULL;
     statusTable = nullptr;
@@ -4354,6 +4355,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     }
 
     sctable.reset();
+    mNodeManager.reset()
     pendingsccommit = false;
 
     statusTable.reset();
@@ -4511,6 +4513,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     {
         sctable->remove();
         sctable.reset();
+        mNodeManager.reset();
         pendingsccommit = false;
     }
 
@@ -5315,6 +5318,7 @@ void MegaClient::finalizesc(bool complete)
         LOG_err << "Cache update DB write error - disabling caching";
 
         sctable.reset();
+        mNodeManager.reset();   // may need to still keep nodes in RAM, but it won't work if not all nodes are loaded, anyway
         pendingsccommit = false;
     }
 }
@@ -8824,11 +8828,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     return j->leavearray();
 }
 
-void MegaClient::cleanNodesFromDb()
-{
-    sctable->removeNodes();
-}
-
 // decrypt and set encrypted sharekey
 void MegaClient::setkey(SymmCipher* c, const char* k)
 {
@@ -9540,10 +9539,18 @@ void MegaClient::checkForResumeableSCDatabase()
 {
     // see if we can resume from an already cached set of nodes for this folder
     opensctable();
+
     string t;
     if (sctable && sctable->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
     {
         cachedscsn = MemAccess::get<handle>(t.data());
+    }
+
+    if (sctable)
+    {
+        DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
+        assert(nodeTable);
+        mNodeManager.init(nodeTable);
     }
 }
 
@@ -12578,7 +12585,7 @@ void MegaClient::fetchnodes(bool nocache)
     {
         DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
         assert(nodeTable);
-        mNodeManager.init(*nodeTable);
+        mNodeManager.init(nodeTable);
     }
 
     // only initial load from local cache
@@ -17044,8 +17051,21 @@ void FetchNodesStats::toJsonArray(string *json)
     json->append(oss.str());
 }
 
+void NodeManager::init(DBTableNodes *table)
+{
+    mTable = table;
+}
+
+void NodeManager::reset()
+{
+    init(nullptr);
+    mNodes.clear();
+}
+
 Node *NodeManager::getNodeByHandle(NodeHandle handle)
 {
+    if (!mTable)    return nullptr;
+
     node_map::const_iterator it;
 
     if ((it = mNodes.find(handle)) != mNodes.end())
@@ -17118,6 +17138,9 @@ uint64_t NodeManager::getNumNodes()
 
 node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, int type)
 {
+    node_vector dp;
+    if (!mTable)    return dp;
+
     std::map<mega::NodeHandle, NodeSerialized> nodeMap;
     getNodesByName(searchString, nodeMap);
     if (nodeHandle.isUndef())
@@ -17133,8 +17156,6 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
         }
     }
 
-    node_vector dp;
-
     for (const auto nodeMapIt : nodeMap)
     {
         Node* n;
@@ -17148,6 +17169,11 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
             n = nodeIt->second;
         }
     }
+}
+
+bool NodeManager::removeNodesFromDb()
+{
+    return mTable->removeNodes();
 }
 
 } // namespace

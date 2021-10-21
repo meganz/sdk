@@ -228,18 +228,36 @@ public:
     bool mActionsPerformed;
 }; // SyncdownContext
 
+/**
+ * @brief The NodeManager class
+ *
+ * This class encapsulates the access to nodes. It hides the details to
+ * access to the Node object: in case it's not loaded in RAM, it will
+ * load it from the "nodes" DB table.
+ *
+ * The same DB file is used for the "statecache" and the "nodes" table, and
+ * both tables need to follow the same domain for transactions: a commit is
+ * triggered by the reception of a sequence-number in the actionpacket (scsn).
+ */
 class MEGA_API NodeManager
 {
 public:
-    void init(DBTableNodes& table);
+    // set interface to access to "nodes" table
+    void init(DBTableNodes *table);
+    void reset();
+
     Node *getNodeByHandle(NodeHandle handle);
     node_list getChildren(Node* parent);
     uint64_t getNumNodes();
     node_vector search(NodeHandle nodeHandle, const char *searchString, int type);
 
+    bool removeNodesFromDb();
+
 private:
+    // interface to handle accesses to "nodes" table
     DBTableNodes* mTable = nullptr;
-    // Not all nodes are loaded
+
+    // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     node_map mNodes;
 
 };
@@ -1223,10 +1241,10 @@ public:
     // DB access
     DbAccess* dbaccess = nullptr;
 
-    // state cache table for logged in user
+    // DbTable iface to handle "statecache" for logged in user (implemented at SqliteAccountState object)
     unique_ptr<DbTable> sctable;
 
-    // NodeManager instance to wrap all access to nodes
+    // NodeManager instance to wrap all access to Node objects
     NodeManager mNodeManager;
 
     // there is data to commit to the database when possible
@@ -1276,7 +1294,7 @@ public:
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
 
-    // open/create state cache database table
+    // open/create "statecache" and "nodes" tables in DB
     void opensctable();
 
     // opens (or creates if non existing) a status database table.
@@ -1647,7 +1665,6 @@ public:
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
-    void cleanNodesFromDb();
 
     void readok(JSON*);
     void readokelement(JSON*);

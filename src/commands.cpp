@@ -1726,6 +1726,7 @@ bool CommandLogin::procresult(Result r)
                     {
                         client->sctable->remove();
                         client->sctable.reset();
+                        client->mNodeManager.reset();
                         client->pendingsccommit = false;
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
@@ -5692,7 +5693,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.removeNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5703,7 +5704,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.removeNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5726,7 +5727,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readusers(&client->json, false))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.removeNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5747,7 +5748,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->scsn.setScsn(&client->json))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.removeNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5785,7 +5786,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->scsn.ready())
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.removeNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5805,7 +5806,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->json.storeobject())
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.removeNodesFromDb();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }

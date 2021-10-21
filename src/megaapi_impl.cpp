@@ -19574,6 +19574,7 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     client->sctable->remove();
                     client->sctable.reset();
+                    client->mNodeManager.reset();
                     client->pendingsccommit = false;
                     client->cachedscsn = UNDEF;
                 }
