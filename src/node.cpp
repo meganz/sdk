@@ -2511,24 +2511,25 @@ bool LocalNode::WatchHandle::operator==(handle fsid) const
     return fsid == mEntry->second.second;
 }
 
-void LocalNode::pathRemovedForHandle(handle fsid)
+void LocalNode::invalidateWatchHandle(handle fsid)
 {
     if (mWatchHandle == fsid){ // We have a watch on it
-      LOG_verbose << "[" << std::this_thread::get_id() << "]"
-                  << " Releasing watchHandle for fsid: " << fsid;
+        LOG_verbose << "[" << std::this_thread::get_id() << "]"
+                    << " Releasing watchHandle for fsid: " << fsid;
+        mWatchHandle = nullptr; // invalidate handle
     }
-    mWatchHandle = (nullptr);
 }
 
 bool LocalNode::watch(const LocalPath& path, handle fsid)
 {
     // Do we need to (re)create a watch?
-    if (mWatchHandle == fsid){
-      LOG_verbose << "[" << std::this_thread::get_id() << "]"
-                  << " watch for path: " << path.toPath()
-                  << " with mWatchHandle == fsid == " << fsid
-                  << " Already in place";
-      return true;
+    if (mWatchHandle == fsid)
+    {
+        LOG_verbose << "[" << std::this_thread::get_id() << "]"
+                    << " watch for path: " << path.toPath()
+                    << " with mWatchHandle == fsid == " << fsid
+                    << " Already in place";
+        return true;
     }
 
     // Get our hands on the notifier.

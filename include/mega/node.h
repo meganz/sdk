@@ -724,7 +724,7 @@ struct MEGA_API LocalNode : public Cacheable
      * A watch has been removed from the FS
      * @param fsid  File system identifier associated with the watch removed
      */
-    void pathRemovedForHandle(handle fsid);
+    void invalidateWatchHandle(handle fsid);
 
     void ignoreFilterPresenceChanged(bool present, FSNode* fsNode);
 

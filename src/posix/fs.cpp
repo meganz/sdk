@@ -849,12 +849,12 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         WatchMapIterator it;
         string localpath;
 
-        // Notifies all associated nodes.
-        auto notifyAll = [&](int handle, const string& name)
-        {
-            // What nodes are associated with this handle?
-            auto associated = mWatches.equal_range(handle);
+        // Range of nodes associated to a given handle
+        typedef std::pair<WatchMapIterator,WatchMapIterator> WatchMapIteratorRange;
 
+        // Notifies all associated nodes.
+        auto notifyAll = [&](WatchMapIteratorRange const& associated, const string& name)
+        {
             // Loop over and notify all associated nodes.
             for (auto i = associated.first; i != associated.second; ++i)
             {
@@ -874,6 +874,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 auto localName = LocalPath::fromPlatformEncoded(name);
                 notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
                 r |= Waiter::NEEDEXEC;
+                if(in->mask & IN_DELETE_SELF) { // The FS directory is gone. Invalidate the watch
+                    node.invalidateWatchHandle(i->second.second);
+                }
             }
         };
 
@@ -893,31 +896,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 #ifndef IN_EXCL_UNLINK
 #define IN_EXCL_UNLINK 0x04000000
 #endif
-                /**
-                 * Check whether the inotify event is for a directory removed.
-                 *
-                 * @param eventMask from a inotify_even mask
-                 * @return true if the event is a directory deleted event, false otherwise
-                 */
-                auto isDirectoryRemovedEvent = []( decltype(in->mask) eventMask ) -> bool
-                {
-                  return eventMask & IN_DELETE_SELF;
-                };
-
-                /**
-                 * Propagate a directory removed event to the decision point(s)
-                 * @param watchDesc as used by inotify
-                 */
-                auto notifyDirectoryRemovedEvent = [&](int watchDesc)
-                {
-                  for(auto iter=mWatches.find(watchDesc); iter!=mWatches.end() && iter->first == watchDesc; ++iter)
-                  {
-                    auto localNode = iter->second.first;
-                    auto fsid = iter->second.second;
-                    localNode->pathRemovedForHandle(fsid);
-                  }
-                };
-
                 if (in->mask & (IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM
                               | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
                 {
@@ -927,11 +905,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                     if (it != mWatches.end())
                     {
-                      if(isDirectoryRemovedEvent(in->mask)) {
-                        notifyDirectoryRemovedEvent(in->wd); // We still have IN_DELETE for parent
-                      } else {
-                        notifyAll(it->first, in->len? in->name : "");
-                      }
+                        // What nodes are associated with this handle?
+                        auto associated = mWatches.equal_range(it->first);
+                        notifyAll(associated, in->len? in->name : "");
                     }
 
                 }
