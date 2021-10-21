@@ -829,7 +829,6 @@ void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
     }
 }
 
-
 // read all pending inotify events and queue them for processing
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {

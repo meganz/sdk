@@ -726,8 +726,6 @@ struct MEGA_API LocalNode : public Cacheable
      */
     void pathRemovedForHandle(handle fsid);
 
-    // Filter rules applicable below this node.
-    FilterChain mFilterChain;
     void ignoreFilterPresenceChanged(bool present, FSNode* fsNode);
 
 private:
