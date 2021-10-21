@@ -120,7 +120,7 @@ void DbTable::checkCommitter(DBTableTransactionCommitter*)
     assert(mTransactionCommitter);
 }
 
-int DbTable::getShareType(Node *node)
+int DBTableNodes::getShareType(Node *node)
 {
     int shareType = ShareType_t::NO_SHARES;
 

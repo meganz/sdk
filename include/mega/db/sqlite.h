@@ -29,6 +29,7 @@ namespace mega {
 
 class MEGA_API SqliteDbTable : public DbTable
 {
+protected:
     sqlite3* db = nullptr;
     sqlite3_stmt* pStmt;
     string dbfile;
@@ -46,6 +47,21 @@ public:
     void abort() override;
     void remove() override;
 
+    // Access to table `vars`
+    std::string getVar(const std::string& name) override;
+    bool setVar(const std::string& name, const std::string& value) override;
+
+    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
+    virtual ~SqliteDbTable();
+
+    bool inTransaction() const override;
+
+    LocalPath dbFile() const;
+};
+
+class MEGA_API SqliteAccountState : public SqliteDbTable, public DBTableNodes
+{
+public:
     // Access to table `nodes`
     bool getNode(mega::NodeHandle nodehandle, NodeSerialized& nodeSerialized) override;
     bool getNodes(std::vector<NodeSerialized>& nodes) override;
@@ -70,16 +86,7 @@ public:
     bool del(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
 
-    // Access to table `vars`
-    std::string getVar(const std::string& name) override;
-    bool setVar(const std::string& name, const std::string& value) override;
-
-    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
-    ~SqliteDbTable();
-
-    bool inTransaction() const override;
-
-    LocalPath dbFile() const;
+    SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess
@@ -96,6 +103,8 @@ public:
                            const int version) const;
 
     SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
+
+    DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
 
     bool probe(FileSystemAccess& fsAccess, const string& name) const override;
 

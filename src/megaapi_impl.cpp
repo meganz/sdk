@@ -10999,7 +10999,7 @@ MegaShareList *MegaApiImpl::getOutSharesOrPending(int order, bool pending)
 
     vector<Share *> shares;
     std::vector<NodeSerialized> nodesSerialized;
-    client->sctable->getNodesWithSharesOrLink(nodesSerialized, pending ? DbTable::ShareType_t::PENDING_OUTSHARES : DbTable::ShareType_t::OUT_SHARES);
+    client->mNodeManager.getNodesWithSharesOrLink(nodesSerialized, pending ? DBTableNodes::ShareType_t::PENDING_OUTSHARES : DBTableNodes::ShareType_t::OUT_SHARES);
     node_vector dp;
     node_vector nodes;
     for (const NodeSerialized& node : nodesSerialized)
@@ -11767,39 +11767,16 @@ node_vector MegaApiImpl::searchWithDB(MegaHandle nodeHandle, const char *searchS
 
     SdkMutexGuard g(sdkMutex);
 
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
-    client->sctable->getNodesByName(searchString, nodeMap);
-    if (nodeHandle != INVALID_HANDLE)
+    nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, type);
+
+    for (auto it = nodeVector.begin(); it != nodeVector.end();)
     {
-        for (auto it = nodeMap.begin(); it != nodeMap.end(); )
+        Node* n = *it;
+        auto itNode = it;
+        it++;
+        if (!isValidTypeNode(n, type))
         {
-            if (!client->sctable->isAncestor(it->first, NodeHandle().set6byte(nodeHandle)))
-            {
-                nodeMap.erase(it);
-            }
-
-            it++;
-        }
-    }
-
-    node_vector dp;
-
-    for (const auto nodeMapIt : nodeMap)
-    {
-        Node* n;
-        auto nodeIt = client->mNodes.find(nodeMapIt.first);
-        if (nodeIt == client->mNodes.end())
-        {
-            n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
-        }
-        else
-        {
-            n = nodeIt->second;
-        }
-
-        if (isValidTypeNode(n, type))
-        {
-            nodeVector.push_back(n);
+            nodeVector.erase(itNode);
         }
     }
 
@@ -20387,7 +20364,7 @@ void MegaApiImpl::sendPendingRequests()
                     favouriteNodes.push_back(node->nodeHandle());
                 }
 
-                client->sctable->getFavouritesNodeHandles(node->nodeHandle(), count, favouriteNodes);
+                client->mNodeManager.getFavouritesNodeHandles(node->nodeHandle(), count, favouriteNodes);
                 std::vector<handle> handles;
                 for (const NodeHandle& nodeHandle : favouriteNodes)
                 {

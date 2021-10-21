@@ -228,6 +228,22 @@ public:
     bool mActionsPerformed;
 }; // SyncdownContext
 
+class MEGA_API NodeManager
+{
+public:
+    void init(DBTableNodes& table);
+    Node *getNodeByHandle(NodeHandle handle);
+    node_list getChildren(Node* parent);
+    uint64_t getNumNodes();
+    node_vector search(NodeHandle nodeHandle, const char *searchString, int type);
+
+private:
+    DBTableNodes* mTable = nullptr;
+    // Not all nodes are loaded
+    node_map mNodes;
+
+};
+
 class MEGA_API MegaClient
 {
 public:
@@ -237,9 +253,6 @@ public:
 
     // root nodes (files, incoming, rubbish)
     NodeHandle rootnodes[3];
-
-    // Not all nodes are loaded
-    node_map mNodes;
 
     // keep track of user storage, inshare storage, file/folder counts per root node.
     NodeCounterMap mNodeCounters;
@@ -1212,6 +1225,9 @@ public:
 
     // state cache table for logged in user
     unique_ptr<DbTable> sctable;
+
+    // NodeManager instance to wrap all access to nodes
+    NodeManager mNodeManager;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;

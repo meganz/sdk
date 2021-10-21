@@ -7545,22 +7545,7 @@ Node* MegaClient::nodeByHandle(NodeHandle h)
         return nullptr;
     }
 
-    node_map::const_iterator it;
-
-    if ((it = mNodes.find(h)) != mNodes.end())
-    {
-        return it->second;
-    }
-
-    Node* node = nullptr;
-    NodeSerialized nodeSerialized;
-    node_vector nodeVector;
-    if (sctable->getNode(h, nodeSerialized))
-    {
-        node = Node::unserialize(this, &nodeSerialized.mNode, &nodeVector, nodeSerialized.mDecrypted);
-    }
-
-    return node;
+    return mNodeManager.getNodeByHandle(h);
 }
 
 Node* MegaClient::nodeByPath(const char* path, Node* node)
@@ -9915,7 +9900,7 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            sctable.reset(dbaccess->open(rng, *fsaccess, dbname));
+            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname));
             pendingsccommit = false;
 
             if (sctable)
@@ -12587,6 +12572,13 @@ void MegaClient::fetchnodes(bool nocache)
     if (sctable && cachedscsn == UNDEF)
     {
         sctable->truncate();
+    }
+
+    if (sctable)
+    {
+        DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
+        assert(nodeTable);
+        mNodeManager.init(*nodeTable);
     }
 
     // only initial load from local cache
@@ -16610,49 +16602,7 @@ handle MegaClient::getovhandle(Node *parent, string *name)
 
 node_list MegaClient::getChildren(Node* parent)
 {
-    node_list childrenList;
-    if (!parent || !sctable)
-    {
-        return childrenList;
-    }
-
-    // get children's handles and serialized nodes from cache
-    std::map<NodeHandle, NodeSerialized> childrenMap;
-    sctable->getChildrenFromNode(parent->nodeHandle(), childrenMap);
-    node_vector dp;
-
-    // get children nodes loaded in RAM (which may not be in cache yet)
-    // (upon node's creation, nodes are added to the notification queue, `nodenotify`, but
-    // they are not dumped to cache until the notification is done in `notifypurge()`)
-    for (const auto h : parent->mChildrenInMemory)
-    {
-        NodeSerialized dummy;
-        dummy.mDecrypted = true;
-
-        // add a dummy NodeSerialized in order to add the child's handle to the map
-        // (its corresponding `Node`, loaded in memory, will be used)
-        childrenMap[h] = dummy;
-    }
-
-    // for each children, check if loaded in RAM. Otherwise, unserialize the record from cache
-    for (const auto child : childrenMap)
-    {
-        Node* n;
-        auto nodeIt = mNodes.find(child.first);
-        if (nodeIt == mNodes.end())
-        {
-            assert(child.second.mNode.length());
-            n = Node::unserialize(this, &child.second.mNode, &dp, child.second.mDecrypted);
-        }
-        else
-        {
-            n = nodeIt->second;
-        }
-
-        childrenList.push_back(n);
-    }
-
-    return childrenList;
+    return mNodeManager.getChildren(parent);
 }
 
 int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
@@ -17092,6 +17042,112 @@ void FetchNodesStats::toJsonArray(string *json)
         << timeToSyncsResumed << "," << timeToCurrent << ","
         << timeToTransfersResumed << "," << cache << "]";
     json->append(oss.str());
+}
+
+Node *NodeManager::getNodeByHandle(NodeHandle handle)
+{
+    node_map::const_iterator it;
+
+    if ((it = mNodes.find(handle)) != mNodes.end())
+    {
+        return it->second;
+    }
+
+    Node* node = nullptr;
+    NodeSerialized nodeSerialized;
+    node_vector nodeVector;
+    if (mTable->getNode(handle, nodeSerialized))
+    {
+        node = Node::unserialize(this, &nodeSerialized.mNode, &nodeVector, nodeSerialized.mDecrypted);
+    }
+
+    return node;
+}
+
+node_list NodeManager::getChildren(Node *parent)
+{
+    node_list childrenList;
+    if (!parent || !mTable)
+    {
+        return childrenList;
+    }
+
+    // get children's handles and serialized nodes from cache
+    std::map<NodeHandle, NodeSerialized> childrenMap;
+    mTable->getChildrenFromNode(parent->nodeHandle(), childrenMap);
+    node_vector dp;
+
+    // get children nodes loaded in RAM (which may not be in cache yet)
+    // (upon node's creation, nodes are added to the notification queue, `nodenotify`, but
+    // they are not dumped to cache until the notification is done in `notifypurge()`)
+    for (const auto h : parent->mChildrenInMemory)
+    {
+        NodeSerialized dummy;
+        dummy.mDecrypted = true;
+
+        // add a dummy NodeSerialized in order to add the child's handle to the map
+        // (its corresponding `Node`, loaded in memory, will be used)
+        childrenMap[h] = dummy;
+    }
+
+    // for each children, check if loaded in RAM. Otherwise, unserialize the record from cache
+    for (const auto child : childrenMap)
+    {
+        Node* n;
+        auto nodeIt = mNodes.find(child.first);
+        if (nodeIt == mNodes.end())
+        {
+            assert(child.second.mNode.length());
+            n = Node::unserialize(this, &child.second.mNode, &dp, child.second.mDecrypted);
+        }
+        else
+        {
+            n = nodeIt->second;
+        }
+
+        childrenList.push_back(n);
+    }
+
+    return childrenList;
+}
+
+uint64_t NodeManager::getNumNodes()
+{
+    return 0;
+}
+
+node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, int type)
+{
+    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
+    getNodesByName(searchString, nodeMap);
+    if (nodeHandle.isUndef())
+    {
+        for (auto it = nodeMap.begin(); it != nodeMap.end(); )
+        {
+            if (!isAncestor(it->first, NodeHandle().set6byte(nodeHandle)))
+            {
+                nodeMap.erase(it);
+            }
+
+            it++;
+        }
+    }
+
+    node_vector dp;
+
+    for (const auto nodeMapIt : nodeMap)
+    {
+        Node* n;
+        auto nodeIt = mNodes.find(nodeMapIt.first);
+        if (nodeIt == mNodes.end())
+        {
+            n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
+        }
+        else
+        {
+            n = nodeIt->second;
+        }
+    }
 }
 
 } // namespace
