@@ -696,6 +696,12 @@ struct MEGA_API LocalNode : public Cacheable
     // Create a watch for this node if necessary.
     bool watch(const LocalPath& path, handle fsid);
 
+    /**
+     * A watch has been removed from the FS
+     * @param fsid  File system identifier associated with the watch removed
+     */
+    void pathRemovedForHandle(handle fsid);
+
     // Filter rules applicable below this node.
     FilterChain mFilterChain;
 
