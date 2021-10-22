@@ -435,7 +435,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     attr_map::iterator it = n->attrs.map.find('n');
     if (it != n->attrs.map.end())
     {
-        client->fsaccess->normalize(&(it->second));
+        LocalPath::utf8_normalize(&(it->second));
     }
 
     PublicLink *plink = NULL;
@@ -738,7 +738,7 @@ void Node::setattr()
 
             if (name == 'n')
             {
-                client->fsaccess->normalize(t);
+                LocalPath::utf8_normalize(t);
             }
         }
 
@@ -1556,7 +1556,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         // Have we recovered?
         if (fsNode && fsNode->type != TYPE_UNKNOWN && !fsNode->isBlocked)
         {
-            LOG_verbose << sync->syncname << "Recovered from being scan blocked: " << localnodedisplaypath(*sync->syncs.fsaccess);
+            LOG_verbose << sync->syncname << "Recovered from being scan blocked: " << localnodedisplaypath();
 
             type = fsNode->type; // original scan may not have been able to discern type, fix it now
             setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode->localname);
@@ -1581,7 +1581,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
     {
         // We were not able to get details of the filesystem item when scanning the directory.
         // Consider it a blocked file, and we'll rescan the folder from time to time.
-        LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath(*sync->syncs.fsaccess);
+        LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath();
 
         // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
         rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
@@ -2057,11 +2057,11 @@ void LocalNode::getlocalpath(LocalPath& path) const
     }
 }
 
-string LocalNode::localnodedisplaypath(FileSystemAccess& fsa) const
+string LocalNode::localnodedisplaypath() const
 {
     LocalPath local;
     getlocalpath(local);
-    return local.toPath(fsa);
+    return local.toPath();
 }
 
 string LocalNode::getCloudPath() const
@@ -2451,8 +2451,8 @@ unique_ptr<LocalNode> LocalNode::unserialize(Sync* sync, const string* d)
     l->fsid_asScanned = UNDEF;
     l->fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
 
-    l->localname = LocalPath::fromPlatformEncoded(localname);
-    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncoded(shortname)));
+    l->localname = LocalPath::fromPlatformEncodedRelative(localname);
+    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncodedRelative(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
 
     memcpy(l->syncedFingerprint.crc.data(), crc, sizeof crc);
@@ -2828,7 +2828,7 @@ ExclusionState LocalNode::exclusionState(const string& name, nodetype_t type, m_
     // Consider providing a specialized implementation to avoid conversion.
     auto fsAccess = sync->syncs.fsaccess.get();
     auto fsType = sync->mFilesystemType;
-    auto localname = LocalPath::fromName(name, *fsAccess, fsType);
+    auto localname = LocalPath::fromRelativeName(name, *fsAccess, fsType);
 
     return exclusionState(localname, type, size);
 }

@@ -108,8 +108,8 @@ bool fileexists(const std::string& fn)
 
 void copyFile(std::string& from, std::string& to)
 {
-    LocalPath f = LocalPath::fromPath(from, fileSystemAccess);
-    LocalPath t = LocalPath::fromPath(to, fileSystemAccess);
+    LocalPath f = LocalPath::fromAbsolutePath(from);
+    LocalPath t = LocalPath::fromAbsolutePath(to);
     fileSystemAccess.copylocal(f, t, m_time());
 }
 
@@ -140,7 +140,7 @@ std::string megaApiCacheFolder(int index)
     } else
     {
         std::unique_ptr<DirAccess> da(fileSystemAccess.newdiraccess());
-        auto lp = LocalPath::fromPath(p, fileSystemAccess);
+        auto lp = LocalPath::fromAbsolutePath(p);
         if (!da->dopen(&lp, nullptr, false))
         {
             throw std::runtime_error(
@@ -2976,15 +2976,15 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_STREQ(bView2->get(1)->getName(), "NO_KEY");
 }
 
-string localpathToUtf8Leaf(const LocalPath& itemlocalname, FSACCESS_CLASS& fsa)
+string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName().toPath(fsa);
+    return itemlocalname.leafName().toPath();
 }
 
 LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
 {
     string path(p.u8string());
-    return LocalPath::fromPath(path, fsa);
+    return LocalPath::fromAbsolutePath(path);
 }
 
 
@@ -3107,7 +3107,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             LocalPath itemlocalname;
             while (da->dnext(localdir, itemlocalname, false, &type))
             {
-                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname);
 
                 std::unique_ptr<FileAccess> plain_fopen_fa(fsa.newfileaccess(false));
                 std::unique_ptr<FileAccess> iterate_fopen_fa(fsa.newfileaccess(false));
@@ -3134,7 +3134,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             LocalPath itemlocalname;
             while (da_follow->dnext(localdir, itemlocalname, true, &type))
             {
-                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname);
 
                 std::unique_ptr<FileAccess> plain_follow_fopen_fa(fsa.newfileaccess(true));
                 std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa.newfileaccess(true));
@@ -3225,7 +3225,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             set<string> remainingExpected { "glob1folder", "glob1file.txt" };
             while (da2->dnext(localdir, itemlocalname, true, &type))
             {
-                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname);
                 ASSERT_EQ(leafNameUtf8.substr(0, 5), string("glob1"));
                 ASSERT_TRUE(remainingExpected.find(leafNameUtf8) != remainingExpected.end());
                 remainingExpected.erase(leafNameUtf8);
@@ -4073,7 +4073,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
 
     FSACCESS_CLASS fsa(makeFsAccess());
     string name = "testfile";
-    LocalPath localname = LocalPath::fromPath(name, fsa);
+    LocalPath localname = LocalPath::fromRelativePath(name);
 
     int value = 0x01020304;
     for (int i = sizeof filesizes / sizeof filesizes[0]; i--; )
@@ -5578,7 +5578,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
     FSACCESS_CLASS fsa(makeFsAccess());
-    auto aux = LocalPath::fromPath(fs::current_path().u8string(), fsa);
+    auto aux = LocalPath::fromAbsolutePath(fs::current_path().u8string());
 
 #if defined (__linux__) || defined (__ANDROID__)
     if (fileSystemAccess.getlocalfstype(aux) == FS_EXT)
@@ -5750,11 +5750,11 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
 
 #ifdef WIN32
     // double check a few well known paths
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:", fsa)), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:\\", fsa)), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("C:\\", fsa)), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("C:\\Program Files", fsa)), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:\\Program Files\\Windows NT", fsa)), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:\\")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("C:\\")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("C:\\Program Files")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:\\Program Files\\Windows NT")), FS_NTFS);
 #endif
 
 }
@@ -5831,7 +5831,7 @@ TEST_F(SdkTest, EscapesReservedCharactersOnDownload)
         TransferTracker tracker(api);
 
         string targetPath = fs::current_path().u8string();
-        targetPath.append(FileSystemAccess::getPathSeparator());
+        targetPath.append(1, LocalPath::localPathSeparator_utf8);
 
         api->startDownload(child, targetPath.c_str(), &tracker);
         ASSERT_EQ(API_OK, tracker.waitForResult());
@@ -6750,6 +6750,9 @@ TEST_F(SdkTest, SyncRemoteNode)
     std::string session = dumpSession();
     ASSERT_NO_FATAL_FAILURE(locallogout());
     //loginBySessionId(0, session);
+
+    resetlastEvent();
+
     auto tracker = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
@@ -6757,6 +6760,9 @@ TEST_F(SdkTest, SyncRemoteNode)
     // since the node was deleted, path is irrelevant
     //sync.reset(megaApi[0]->getSyncByBackupId(tagID));
     //ASSERT_EQ(string(sync->getLastKnownMegaFolder()), ("/" / basePath).u8string());
+
+    // wait for the event that says all syncs (if any) have been reloaded
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
 
     // Remove a failing sync.
     LOG_verbose << "SyncRemoteNode :  Remove failed sync";

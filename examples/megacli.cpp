@@ -445,13 +445,13 @@ void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, 
     handle backupId = config.getBackupId();
     if (attempted)
     {
-        conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
+        conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath()  << " enabled: "
              << config.getEnabled()  << " syncError: " << config.getError()
              << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
     else
     {
-        conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess) << " enabled: "
+        conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
             << config.getEnabled() << " syncError: " << config.getError()
             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
@@ -605,11 +605,11 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
         name = *cfilename;
     }
 
-    auto ln = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromPath(name, *client->fsaccess)));
+    auto ln = LocalPath::fromRelativeName(name, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(targetfolder)));
     if (!targetfolder.empty())
     {
         string s = targetfolder;
-        ln.prependWithSeparator(LocalPath::fromPath(s, *client->fsaccess));
+        ln.prependWithSeparator(LocalPath::fromAbsolutePath(s));
     }
     setLocalname(ln);
 }
@@ -1586,7 +1586,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                     if(!name.size())
                     {
                         name =  c[1];
-                        n->client->fsaccess->normalize(&name);
+                        LocalPath::utf8_normalize(&name);
                     }
 
                     if (!strcmp(name.c_str(), n->displayname()))
@@ -2473,7 +2473,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     }
 
     std::string path = p.u8string();
-    auto fileSystemType = client->fsaccess->getlocalfstype(LocalPath::fromPath(path, *client->fsaccess));
+    auto fileSystemType = client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(path));
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
     for (auto& m : mn->children)
@@ -2576,9 +2576,6 @@ void exec_codeTimings(autocomplete::ACState& s)
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
     fs::path p = s.empty() ? fs::current_path() : fs::u8path(s);
-#ifdef WIN32
-    p = fs::u8path("\\\\?\\" + p.u8string());
-#endif
     if (mustexist && !fs::exists(p))
     {
         cout << "local path not found: '" << s << "'";
@@ -2909,9 +2906,14 @@ public:
     }
 };
 
+LocalPath localPathArg(string s)
+{
+    return LocalPath::fromAbsolutePath(s);
+}
+
 void exec_fingerprint(autocomplete::ACState& s)
 {
-    auto localfilepath = LocalPath::fromPath(s.words[1].s, *client->fsaccess);
+    auto localfilepath = localPathArg(s.words[1].s);
     auto fa = client->fsaccess->newfileaccess();
 
     if (fa->fopen(localfilepath, true, false, nullptr))
@@ -2954,7 +2956,7 @@ void exec_showattrs(autocomplete::ACState& s)
 void exec_timelocal(autocomplete::ACState& s)
 {
     bool get = s.words[1].s == "get";
-    auto localfilepath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+    auto localfilepath = localPathArg(s.words[2].s);
 
     if ((get && s.words.size() != 3) || (!get && s.words.size() != 4))
     {
@@ -3009,12 +3011,12 @@ void exec_timelocal(autocomplete::ACState& s)
         }
         else
         {
-            cout << "fingerprint generation failed: " << localfilepath.toPath(*client->fsaccess) << endl;
+            cout << "fingerprint generation failed: " << localfilepath.toPath() << endl;
         }
     }
     else
     {
-        cout << "fopen failed: " << localfilepath.toPath(*client->fsaccess) << endl;
+        cout << "fopen failed: " << localfilepath.toPath() << endl;
     }
 
 }
@@ -3849,7 +3851,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // rename
-                            client->fsaccess->normalize(&newname);
+                            LocalPath::utf8_normalize(&newname);
 
                             if ((e = client->setattr(n, attr_map('n', newname), setattr_result)))
                             {
@@ -4016,7 +4018,7 @@ void exec_cp(autocomplete::ACState& s)
             if (newname.size())
             {
                 sname = newname;
-                client->fsaccess->normalize(&sname);
+                LocalPath::utf8_normalize(&sname);
             }
             else
             {
@@ -4426,7 +4428,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName().toPath(*client->fsaccess);
+    return itemlocalname.leafName().toPath();
 }
 
 void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
@@ -4493,7 +4495,7 @@ void exec_put(autocomplete::ACState& s)
         cout << "Sorry, can't send recursively to a user" << endl;
     }
 
-    auto localname = LocalPath::fromPath(s.words[1].s, *client->fsaccess);
+    auto localname = localPathArg(s.words[1].s);
 
     DirAccess* da = client->fsaccess->newdiraccess();
 
@@ -4532,7 +4534,7 @@ void exec_pwd(autocomplete::ACState& s)
 
 void exec_lcd(autocomplete::ACState& s)
 {
-    LocalPath localpath = LocalPath::fromPath(s.words[1].s, *client->fsaccess);
+    LocalPath localpath = localPathArg(s.words[1].s);
 
     if (!client->fsaccess->chdirlocal(localpath))
     {
@@ -5243,7 +5245,7 @@ void exec_putua(autocomplete::ACState& s)
         else if (s.words[2].s == "load")
         {
             string data;
-            auto localpath = LocalPath::fromPath(s.words[3].s, *client->fsaccess);
+            auto localpath = localPathArg(s.words[3].s);
 
             if (loadfile(localpath, &data))
             {
@@ -6785,7 +6787,7 @@ void exec_mediainfo(autocomplete::ACState& s)
     if (s.words.size() == 3 && s.words[1].s == "calc")
     {
         MediaProperties mp;
-        auto localFilename = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+        auto localFilename = localPathArg(s.words[2].s);
 
         string ext;
         if (client->fsaccess->getextension(localFilename, ext) && MediaProperties::isMediaFilenameExt(ext))
@@ -7698,7 +7700,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 
             if (name == 'n')
             {
-                client->fsaccess->normalize(t);
+                LocalPath::utf8_normalize(t);
             }
         }
 
@@ -7779,7 +7781,7 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
             attr_map::iterator it = attrs.map.find('n');
             if (it != attrs.map.end() && !it->second.empty())
             {
-                client->fsaccess->normalize(&(it->second));
+                LocalPath::utf8_normalize(&(it->second));
                 fileName = it->second.c_str();
             }
 
@@ -8779,7 +8781,7 @@ void exec_metamac(autocomplete::ACState& s)
 
     auto ifAccess = client->fsaccess->newfileaccess();
     {
-        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromPath(s.words[1].s, *client->fsaccess)));
+        auto localPath = localPathArg(s.words[1].s);
         if (!ifAccess->fopen(localPath, 1, 0))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;
@@ -8885,9 +8887,15 @@ void exec_syncadd(autocomplete::ACState& s)
     bool named = s.extractflagparam("-name", syncname);
 
     // sync add source target
-    LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
-    LocalPath sourcePath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+    LocalPath drivePath = localPathArg(drive);
+    LocalPath sourcePath = localPathArg(s.words[2].s);
     string targetPath = s.words[3].s;
+
+    if (!drivePath.isAbsolute() || !sourcePath.isAbsolute())
+    {
+        cerr << "paths must be absolute" << endl;
+        return;
+    }
 
     // Does the target node exist?
     auto* targetNode = nodebypath(targetPath.c_str());
@@ -8900,13 +8908,10 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
-    // Necessary so that we can reliably extract the leaf name.
-    sourcePath = NormalizeAbsolute(sourcePath);
-
     // Create a suitable sync config.
     auto config =
       SyncConfig(sourcePath,
-                 named ? syncname : sourcePath.leafName().toPath(*client->fsaccess),
+                 named ? syncname : sourcePath.leafName().toPath(),
                  NodeHandle().set6byte(targetNode->nodehandle),
                  targetNode->displaypath(),
                  0,
@@ -8979,7 +8984,7 @@ void exec_syncclosedrive(autocomplete::ACState& s)
 
     // sync backup remove drive
     const auto drivePath =
-      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+        localPathArg(s.words[2].s);
 
     const auto result = client->syncs.backupCloseDrive(drivePath);
 
@@ -9093,7 +9098,7 @@ void exec_syncopendrive(autocomplete::ACState& s)
 
     // sync backup restore drive
     const auto drivePath =
-      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+        localPathArg(s.words[2].s);
 
     auto result = client->syncs.backupOpenDrive(drivePath);
 
@@ -9140,7 +9145,7 @@ void exec_synclist(autocomplete::ACState& s)
 
         // Display source/target mapping.
         cout << "  Mapping: "
-            << config.mLocalPath.toPath(*client->fsaccess)
+            << config.mLocalPath.toPath()
             << " -> "
             << cloudpath
             << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")
@@ -9198,10 +9203,10 @@ void exec_synclist(autocomplete::ACState& s)
                 }
                 if (!c.localPath.empty() || !c.clashingLocalNames.empty())
                 {
-                    cout << "  Local Path conflict at " << c.localPath.toPath(*client->fsaccess) << ": ";
+                    cout << "  Local Path conflict at " << c.localPath.toPath() << ": ";
                     for (auto& n : c.clashingLocalNames)
                     {
-                        cout << n.toPath(*client->fsaccess) << " ";
+                        cout << n.toPath() << " ";
                     }
                     cout << "\n";
                 }
@@ -9232,10 +9237,10 @@ void exec_synclist(autocomplete::ACState& s)
         }
         for (auto& p : stall.local)
         {
-            cout << "stalled local path: " << p.first.toPath(*client->fsaccess) << " " << syncWaitReasonString(p.second.reason);
+            cout << "stalled local path: " << p.first.toPath() << " " << syncWaitReasonString(p.second.reason);
             if (!p.second.involvedLocalPath.empty())
             {
-                cout << " (involved path: " << p.second.involvedLocalPath.toPath(*client->fsaccess) << ")";
+                cout << " (involved path: " << p.second.involvedLocalPath.toPath() << ")";
             }
             if (!p.second.involvedCloudPath.empty())
             {

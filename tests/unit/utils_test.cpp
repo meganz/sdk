@@ -1476,7 +1476,6 @@ public:
 
         // Compute absolute path to "container" directory.
         mPrefixPath.appendWithSeparator(mPrefixName, false);
-        mPrefixPath.ensureWinExtendedPathLenPrefix();
 
         // Remove container directory.
         mFsAccess.emptydirlocal(mPrefixPath);
@@ -1594,7 +1593,7 @@ TEST_F(TooLongNameTest, Rename)
     {
         auto source = Append(mPrefixName, "t");
         auto target = AppendLongName(mPrefixName, 'u');
-        
+
         ASSERT_TRUE(CreateDummyFile(source));
 
         ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));

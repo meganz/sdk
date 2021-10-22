@@ -1091,21 +1091,6 @@ void PosixFileSystemAccess::tmpnamelocal(LocalPath& localname) const
     localname = LocalPath::fromPlatformEncoded(buf);
 }
 
-void PosixFileSystemAccess::path2local(const string* path, string* local) const
-{
-#ifdef __MACH__
-    path2localMac(path, local);
-#else
-    *local = *path;
-#endif
-}
-
-void PosixFileSystemAccess::local2path(const string* local, string* path) const
-{
-    *path = *local;
-    normalize(path);
-}
-
 // no legacy DOS garbage here...
 bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
 {

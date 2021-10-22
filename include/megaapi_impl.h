@@ -2414,13 +2414,11 @@ class MegaApiImpl : public MegaApp
         MegaSyncList *getSyncs();
 
         void stopSyncs(MegaRequestListener *listener=NULL);
-        bool isSynced(MegaNode *n);
         void setDefaultExcludedNames(vector<string> *excludedNames);
         void setDefaultExcludedPaths(vector<string> *excludedPaths);
         void setDefaultExclusionLowerSizeLimit(unsigned long long limit);
         void setDefaultExclusionUpperSizeLimit(unsigned long long limit);
         bool moveToLocalDebris(const char *path);
-        string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
         bool isInsideSync(MegaNode *node);
         int isNodeSyncable(MegaNode *megaNode);

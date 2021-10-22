@@ -233,7 +233,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
                     if(!name.size())
                     {
                         name =  c[1];
-                        n->client->fsaccess->normalize(&name);
+                        LocalPath::utf8_normalize(&name);
                     }
 
                     if (!strcmp(name.c_str(), n->displayname()))
