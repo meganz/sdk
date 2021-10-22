@@ -3850,15 +3850,9 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
 
     // client1 should send a rename command to the API
     // both client1 and client2 should receive the corresponding actionpacket
-    const char* s = nullptr;
-    if (!clientA1.waitForNodesUpdated(60))
-    {
-        s = " no actionpacket received in clientA1 for rename";
-    }
-    if (!clientA2.waitForNodesUpdated(60))
-    {
-        s = " no actionpacket received in clientA2 for rename";
-    }
+    ASSERT_TRUE(clientA1.waitForNodesUpdated(60)) << " no actionpacket received in clientA1 for rename";
+    ASSERT_TRUE(clientA2.waitForNodesUpdated(60)) << " no actionpacket received in clientA2 for rename";
+
     out() << "----- wait for actionpackets ended -----";
 
     // sync activity should not take much longer after that.

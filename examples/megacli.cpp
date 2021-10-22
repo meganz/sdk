@@ -2685,7 +2685,7 @@ void exec_generatesparsefile(autocomplete::ACState& s)
         cout << "Set sparse file operation failed." << endl;
     }
     CloseHandle(hFile);
-#endif WIN32
+#endif // WIN32
 
     fs::resize_file(p, filesize);
     cout << "File size:  " << fs::file_size(p) << '\n'
