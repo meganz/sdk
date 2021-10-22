@@ -56,10 +56,7 @@
 #endif
 
 #ifdef _WIN32
-#ifndef WINDOWS_PHONE
 #include <shlwapi.h>
-#endif
-
 #endif
 
 #ifdef USE_OPENSSL
@@ -5245,7 +5242,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     }
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     httpio->unlock();
 #endif
 
@@ -5840,14 +5837,6 @@ char MegaApiImpl::userAttributeToScope(int type)
     return scope;
 }
 
-#ifdef WINDOWS_PHONE
-void MegaApiImpl::setStatsID(const char *id)
-{
-    SdkMutexGuard g(sdkMutex);
-    client->statsid = id;
-}
-#endif
-
 bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()
 {
     return client->ssrs_enabled;
@@ -6255,7 +6244,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener
 
     string localurl;
 
-#if defined(WINDOWS_PHONE) || (defined(_WIN32) && defined(USE_CURL))
+#if defined(_WIN32) && defined(USE_CURL)
     localurl = url;
 #else
     fsAccess->path2local(&url, &localurl);
@@ -6271,7 +6260,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener
 
         string localusername;
 
-#if defined(WINDOWS_PHONE) || (defined(_WIN32) && defined(USE_CURL))
+#if defined(_WIN32) && defined(USE_CURL)
         localusername = username;
 #else
         fsAccess->path2local(&username, &localusername);
@@ -6283,7 +6272,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener
 
         string localpassword;
 
-#if defined(WINDOWS_PHONE) || (defined(_WIN32) && defined(USE_CURL))
+#if defined(_WIN32) && defined(USE_CURL)
         localpassword = password;
 #else
         fsAccess->path2local(&password, &localpassword);
@@ -6320,24 +6309,7 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
 
 void MegaApiImpl::loop()
 {
-#if defined(WINDOWS_PHONE)
-    // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
-    string servers;
-
-    while (true)
-    {
-        client->httpio->getMEGADNSservers(&servers, false);
-
-        if (servers.size())
-            break;
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-
-    LOG_debug << "Using DNS servers " << servers;
-    sdkMutex.lock();
-    httpio->setdnsservers(servers.c_str());
-    sdkMutex.unlock();
-#elif _WIN32
+#ifdef _WIN32
     httpio->lock();
 #endif
 
