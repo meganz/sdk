@@ -56,7 +56,7 @@ TEST(Transfer, serialize_unserialize)
 
     mega::Transfer tf{client.get(), mega::GET};
     std::string lfn = "foo";
-    tf.localfilename = ::mega::LocalPath::fromPath(lfn, fsaccess);
+    tf.localfilename = ::mega::LocalPath::fromAbsolutePath(lfn);
     std::fill(tf.filekey, tf.filekey + mega::FILENODEKEYLENGTH, 'X');
     tf.ctriv = 1;
     tf.metamac = 2;

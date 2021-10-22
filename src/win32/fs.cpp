@@ -884,6 +884,7 @@ void WinFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t basede
 
 bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, bool logAlreadyExistsError)
 {
+    assert(namePath.isAbsolute());
     const std::wstring& name = namePath.localpath;
 
     bool r = !!CreateDirectoryW(name.data(), NULL);
@@ -915,6 +916,7 @@ bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, boo
 
 bool WinFileSystemAccess::setmtimelocal(LocalPath& namePath, m_time_t mtime)
 {
+    assert(namePath.isAbsolute());
     FILETIME lwt;
     LONGLONG ll;
     HANDLE hFile;
@@ -949,6 +951,7 @@ bool WinFileSystemAccess::setmtimelocal(LocalPath& namePath, m_time_t mtime)
 
 bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
 {
+    assert(namePath.isAbsolute());
     int r = SetCurrentDirectoryW(namePath.localpath.c_str());
     return r;
 }

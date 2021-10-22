@@ -504,7 +504,7 @@ void LocalPath::normalizeAbsolute()
 
         if (s.empty() || s.back() != localPathSeparator)
         {
-            s.append(localPathSeparator);
+            s.append(1, localPathSeparator);
         }
 
         localpath = s + localpath;
@@ -1591,7 +1591,7 @@ void LocalPath::path2local(const string* path, string* local)
 void LocalPath::local2path(const string* local, string* path)
 {
     *path = *local;
-    normalize(path);
+    LocalPath::utf8_normalize(path);
 }
 
 #endif
