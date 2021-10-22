@@ -871,7 +871,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                           << " Path: "
                           << name;
 
-                auto localName = LocalPath::fromPlatformEncoded(name);
+                auto localName = LocalPath::fromPlatformEncodedRelative(name);
                 notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
                 r |= Waiter::NEEDEXEC;
             }
@@ -1067,7 +1067,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                     dirnotify.notify(dirnotify.fsEventq,
                                      pathsync[i]->localroot.get(),
                                      Notification::NEEDS_SCAN_UNKNOWN,
-                                     LocalPath::fromPlatformEncoded(paths[i]),
+                                     LocalPath::fromPlatformEncodedRelative(paths[i]),
                                      strlen(paths[i]));
 
                     r |= Waiter::NEEDEXEC;
@@ -1088,7 +1088,7 @@ void PosixFileSystemAccess::tmpnamelocal(LocalPath& localname) const
 
     sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), tmpindex++);
 
-    localname = LocalPath::fromPlatformEncoded(buf);
+    localname = LocalPath::fromPlatformEncodedRelative(buf);
 }
 
 // no legacy DOS garbage here...
@@ -1252,7 +1252,7 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
                 {
                     ScopedLengthRestore restore(name);
 
-                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
+                    name.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
 #ifdef USE_IOS
                     const string nameStr = adjustBasePath(name);
@@ -2074,7 +2074,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
                 if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evaluates false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
-                    name = LocalPath::fromPlatformEncoded(globbuf.gl_pathv[globindex]);
+                    name = LocalPath::fromPlatformEncodedAbsolute(globbuf.gl_pathv[globindex]);
                     *type = (statbuf.st_mode & S_IFREG) ? FILENODE : FOLDERNODE;
 
                     globindex++;
@@ -2097,7 +2097,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
+            path.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
 #ifdef USE_IOS
             const string pathStr = adjustBasePath(path);
@@ -2122,7 +2122,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
                 if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evalves false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
-                    name = LocalPath::fromPlatformEncoded(d->d_name);
+                    name = LocalPath::fromPlatformEncodedRelative(d->d_name);
 
                     if (type)
                     {
