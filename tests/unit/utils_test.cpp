@@ -524,7 +524,7 @@ TEST_F(ComparatorTest, CompareLocalPaths)
         // Everything else is case-sensitive.
         EXPECT_NE(fsCompare(lhs, rhs, FS_EXT), 0);
 
-        rhs = fromPath("a%070b1c");
+        rhs = fromRelativePath("a%070b1c");
         EXPECT_EQ(fsCompare(lhs, rhs, FS_EXT), 0);
 #endif // ! _WIN32
     }
