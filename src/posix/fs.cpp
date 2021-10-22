@@ -40,7 +40,6 @@ extern JavaVM *MEGAjvm;
 #endif
 
 #ifdef __linux__
-
 #ifndef __ANDROID__
 #include <linux/magic.h>
 #endif /* ! __ANDROID__ */
@@ -849,18 +848,17 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         WatchMapIterator it;
         string localpath;
 
-        // Range of nodes associated to a given handle
-        typedef std::pair<WatchMapIterator,WatchMapIterator> WatchMapIteratorRange;
-
-        // Notifies all associated nodes.
-        auto notifyAll = [&](WatchMapIteratorRange const& associated, const string& name)
+        auto notifyAll = [&](int handle, const string& name)
         {
+            typedef pair<LocalNode&,unsigned long> InvalidWatchEntry;
+            vector<InvalidWatchEntry> invalidWatches; // To be invalidated
+
             // Loop over and notify all associated nodes.
+            auto associated = mWatches.equal_range(handle);
             for (auto i = associated.first; i != associated.second; ++i)
             {
                 // Convenience.
                 using std::move;
-
                 auto& node = *i->second.first;
                 auto& sync = *node.sync;
                 auto& notifier = *sync.dirnotify;
@@ -874,9 +872,14 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 auto localName = LocalPath::fromPlatformEncoded(name);
                 notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
                 r |= Waiter::NEEDEXEC;
-                if(in->mask & IN_DELETE_SELF) { // The FS directory is gone. Invalidate the watch
-                    node.invalidateWatchHandle(i->second.second);
+                if(in->mask & IN_DELETE_SELF) { // The FS directory is gone. Watch is no longer valid
+                    invalidWatches.push_back({node,i->second.second});
                 }
+            }
+            // invalidate watches not longer valid
+            for(auto pair: invalidWatches)
+            {
+                pair.first.invalidateWatchHandle(pair.second);
             }
         };
 
@@ -906,8 +909,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                     if (it != mWatches.end())
                     {
                         // What nodes are associated with this handle?
-                        auto associated = mWatches.equal_range(it->first);
-                        notifyAll(associated, in->len? in->name : "");
+                        notifyAll(it->first, in->len? in->name : "");
                     }
 
                 }
