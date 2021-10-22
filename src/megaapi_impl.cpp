@@ -6247,7 +6247,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener
 #if defined(_WIN32) && defined(USE_CURL)
     localurl = url;
 #else
-    fsAccess->path2local(&url, &localurl);
+    LocalPath::path2local(&url, &localurl);
 #endif
 
     localProxySettings->setProxyURL(&localurl);
@@ -6263,7 +6263,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener
 #if defined(_WIN32) && defined(USE_CURL)
         localusername = username;
 #else
-        fsAccess->path2local(&username, &localusername);
+        LocalPath::path2local(&username, &localusername);
 #endif
 
         string password;
@@ -6275,7 +6275,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener
 #if defined(_WIN32) && defined(USE_CURL)
         localpassword = password;
 #else
-        fsAccess->path2local(&password, &localpassword);
+        LocalPath::path2local(&password, &localpassword);
 #endif
 
         localProxySettings->setCredentials(&localusername, &localpassword);
@@ -8471,7 +8471,7 @@ int MegaApiImpl::syncPathState(string*)
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     string prefix("\\\\?\\");
     string localPrefix;
-    fsAccess->path2local(&prefix, &localPrefix);
+    LocalPath::path2local(&prefix, &localPrefix);
     path->append("", 1);
     if(!PathIsRelativeW((LPCWSTR)path->data()) && (path->size()<4 || memcmp(path->data(), localPrefix.data(), 4)))
     {
