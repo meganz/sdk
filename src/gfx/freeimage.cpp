@@ -183,9 +183,9 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
 
     // Open video file
     AVFormatContext* formatContext = nullptr;
-    if (avformat_open_input(&formatContext, imagePath.toPath(*client->fsaccess).c_str(), NULL, NULL))
+    if (avformat_open_input(&formatContext, imagePath.toPath().c_str(), NULL, NULL))
     {
-        LOG_warn << "Error opening video: " << imagePath.toPath(*client->fsaccess);
+        LOG_warn << "Error opening video: " << imagePath.toPath();
         return false;
     }
 
@@ -194,7 +194,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     // Get stream information
     if (avformat_find_stream_info(formatContext, NULL))
     {
-        LOG_warn << "Stream info not found: " << imagePath.toPath(*client->fsaccess);
+        LOG_warn << "Stream info not found: " << imagePath.toPath();
         return false;
     }
 
@@ -214,7 +214,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
 
     if (!videoStream)
     {
-        LOG_warn << "Video stream not found: " << imagePath.toPath(*client->fsaccess);
+        LOG_warn << "Video stream not found: " << imagePath.toPath();
         return false;
     }
 
@@ -384,11 +384,11 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
                                                              pitch, 24, FI_RGBA_RED_SHIFT, FI_RGBA_GREEN_MASK,
                                                              FI_RGBA_BLUE_MASK | 0xFFFF, TRUE) ) )
                     {
-                        LOG_warn << "Error loading freeimage from memory: " << imagePath.toPath(*client->fsaccess);
+                        LOG_warn << "Error loading freeimage from memory: " << imagePath.toPath();
                     }
                     else
                     {
-                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath.toPath(*client->fsaccess);
+                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath.toPath();
                     }
 
                     LOG_debug << "Video image ready";
@@ -459,7 +459,7 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
     dib = FreeImage_ConvertFromRawBits(reinterpret_cast<BYTE*>(data.get()), w, h, w * 4, 32, 0xFF0000, 0x00FF00, 0x0000FF);
     if (!dib)
     {
-        LOG_warn << "Error converting raw pdfium bitmap from memory: " << imagePath.toPath(*client->fsaccess);
+        LOG_warn << "Error converting raw pdfium bitmap from memory: " << imagePath.toPath();
         return false;
     }
     FreeImage_FlipHorizontal(dib);

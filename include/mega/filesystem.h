@@ -81,7 +81,7 @@ class MEGA_API LocalPath
     string_type localpath;
 
     // Track whether this LocalPath is from the root of a filesystem (ie, an absolute path)
-    // It makes a big difference for windows, where we must prepend \\?\
+    // It makes a big difference for windows, where we must prepend \\?\ prefix
     // to be able to access long paths, paths ending with space or `.`, etc
     bool isFromRoot = false;
 

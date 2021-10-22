@@ -293,7 +293,7 @@ struct SyncPath
 
     bool appendRowNames(const syncRow& row, FileSystemType filesystemType);
 
-    SyncPath(Syncs& s, const LocalPath& fs, const string& cloud) : syncs(s), localPath(fs), cloudPath(cloud) {}
+    SyncPath(Syncs& s, const LocalPath& fs, const string& cloud) : localPath(fs), cloudPath(cloud), syncs(s) {}
 private:
     Syncs& syncs;
 };
