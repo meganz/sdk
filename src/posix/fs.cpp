@@ -40,6 +40,7 @@ extern JavaVM *MEGAjvm;
 #endif
 
 #ifdef __linux__
+
 #ifndef __ANDROID__
 #include <linux/magic.h>
 #endif /* ! __ANDROID__ */
@@ -850,7 +851,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
         auto notifyAll = [&](int handle, const string& name)
         {
-            typedef pair<LocalNode&,unsigned long> InvalidWatchEntry;
+            using InvalidWatchEntry = pair<LocalNode&,unsigned long>;
             vector<InvalidWatchEntry> invalidWatches; // To be invalidated
 
             // Loop over and notify all associated nodes.
