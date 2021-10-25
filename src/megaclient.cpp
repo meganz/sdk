@@ -12185,33 +12185,14 @@ bool MegaClient::fetchsc(DbTable* sctable)
         }
 
 #else
-        sctable->getNodesWithoutParent(nodes);
-        for (const NodeSerialized& node : nodes)
-        {
-            n = Node::unserialize(this, &node.mNode, &dp, node.mDecrypted);
-            if (n->type == ROOTNODE)
-            {
-                getChildren(n);
-            }
-        }
-
-        nodes.clear();
-
-        sctable->getNodesWithSharesOrLink(nodes, DbTable::ShareType_t::IN_SHARES);
-        for (const NodeSerialized& node : nodes)
-        {
-            n = Node::unserialize(this, &node.mNode, &dp, node.mDecrypted);
-        }
-
-        nodes.clear();
+        mNodeManager.getRootNodes();
+        mNodeManager.getNodesWithSharesOrLink(DBTableNodes::ShareType_t::IN_SHARES);
 
         // TODO Nodes on Demand: Maybe it's possible to get mLink handle directly and
         // we don't have to unserialize all node -> client->mPublicLinks[n->nodehandle] = plink->ph;
-        sctable->getNodesWithSharesOrLink(nodes, DbTable::ShareType_t::LINK);
-        for (const NodeSerialized& node : nodes)
-        {
-            n = Node::unserialize(this, &node.mNode, &dp, node.mDecrypted);
-        }
+        // Review usages of mPublicLinks. Maybe it's possible load on demand
+        mNodeManager.getNodesWithSharesOrLink(DBTableNodes::ShareType_t::LINK);
+
 
         //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
         std::string storageString = sctable->getVar(STORAGE_SIZE);
@@ -16614,7 +16595,7 @@ node_list MegaClient::getChildren(Node* parent)
 
 int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
 {
-    return sctable->getNumberOfChildrenFromNode(parentHandle);
+    return mNodeManager.getNumberOfChildrenFromNode(parentHandle);
 }
 
 NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle)

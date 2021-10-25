@@ -469,6 +469,8 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
         if (!ptr)
         {
             delete n;
+            LOG_err << "Failed to unserialize attrs";
+            assert(false);
             return NULL;
         }
     }
@@ -479,6 +481,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
 
         if (ptr + ll > end)
         {
+            delete n;
             return NULL;
         }
 
@@ -495,7 +498,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
     attr_map::iterator it = n->attrs.map.find('n');
     if (it != n->attrs.map.end())
     {
-        client->fsaccess->normalize(&(it->second));
+        FileSystemAccess::normalize(&(it->second));
     }
 
     PublicLink *plink = NULL;
@@ -2008,7 +2011,7 @@ Node* Fingerprints::nodebyfingerprint(FileFingerprint* fingerprint)
     }
 
     NodeSerialized nodeSerialized;
-    if (mClient.sctable->getNodeByFingerprint(*fingerprint, nodeSerialized))
+    if (mClient.mNodeManager->getNodeByFingerprint(*fingerprint, nodeSerialized))
     {
         node_vector nodeVector;
         Node* node = Node::unserialize(&mClient, &nodeSerialized.mNode, &nodeVector, nodeSerialized.mDecrypted);
