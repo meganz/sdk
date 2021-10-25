@@ -48,38 +48,6 @@ public:
     {
         return type = mega::FS_UNKNOWN, false;
     }
-    void path2local(const std::string*, std::string*) const override
-    {
-        throw NotImplemented{__func__};
-    }
-
-#if defined(_WIN32)
-    void path2local(const std::string*, std::wstring*) const
-    {
-        throw NotImplemented{ __func__ };
-    }
-#endif
-
-    void local2path(const std::string* local, std::string* path) const override
-    {
-        throw NotImplemented{ __func__ };
-    }
-
-#if defined(_WIN32)
-    void local2path(const std::wstring* local, std::string* path) const override
-    {
-        path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
-
-        path->resize(WideCharToMultiByte(CP_UTF8, 0, local->data(),
-            int(local->size()),
-            (char*)path->data(),
-            int(path->size()),
-            NULL, NULL));
-
-        normalize(path);
-    }
-#endif
-
     void tmpnamelocal(mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};

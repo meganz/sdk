@@ -439,41 +439,111 @@ bool IsContainingLocalPathOf(const string& a, const char* b, size_t bLength)
 #endif
 }
 
-
-
-LocalPath NormalizeRelative(const LocalPath& path)
+// TODO: may or may not be needed
+void LocalPath::removeTrailingSeparators()
 {
-#ifdef WIN32
-    using string_type = wstring;
-#else // _WIN32
-    using string_type = string;
-#endif // ! _WIN32
-
-    LocalPath result = path;
-
-    // Convenience.
-    string_type& raw = result.localpath;
-    auto sep = LocalPath::localPathSeparator;
-
-    // Nothing to do if the path's empty.
-    if (raw.empty())
-    {
-        return result;
-    }
-
     // Remove trailing separator if present.
-    if (raw.back() == sep)
+    while (localpath.size() > 1 &&
+           localpath.back() == localPathSeparator)
     {
-        raw.pop_back();
+        localpath.pop_back();
+    }
+}
+
+void LocalPath::normalizeAbsolute()
+{
+    isFromRoot = true;
+
+#ifdef WIN32
+
+    // Add a drive separator if necessary.
+    // append \ to bare Windows drive letter paths
+    // GetFullPathNameW does all of this for windows.
+    // The documentation says to prepend \\?\ to deal with long names, but it makes the function fail
+    // it seems to work with long names anyway.
+
+    // We also convert to absolute if it isn't already, which GetFullPathNameW does also.
+    // So that when working with LocalPath, we always have the full path.
+    // Historically, relative paths can come into the system, this will convert them.
+
+    if (PathIsRelativeW(localpath.c_str()))
+    {
+        WCHAR buffer[32768 + 10];
+        DWORD stringLen = GetFullPathNameW(localpath.c_str(), 32768, buffer, NULL);
+        assert(stringLen < 32768);
+
+        localpath = wstring(buffer, stringLen);
     }
 
-    // Remove leading separator if present.
-    if (!raw.empty() && raw.front() == sep)
+    // See https://docs.microsoft.com/en-us/dotnet/standard/io/file-path-formats
+    // Also https://docs.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
+    // Basically, \\?\ is the magic prefix that means "don't mess with the path I gave you",
+    // and lets us access otherwise inaccessible files (trailing ' ', '.', very long names, etc).
+    // "Unless the path starts exactly with \\?\ (note the use of the canonical backslash), it is normalized."
+
+    // TODO:  add long-path-aware manifest? (see 2nd link)
+
+
+    if (localpath.substr(0,2) == L"\\\\")
     {
-        raw.erase(0, 1);
+        // The caller aleady passed in a path that should be precise either with \\?\ or \\.\ or \\<server> etc.
+        // Let's trust they know what they are doing and leave the path alone
+    }
+    else
+    {
+        localpath.insert(0, L"\\\\?\\");
     }
 
-    return result;
+#else
+    // convert to absolute if it isn't already
+    if (!localpath.empty() && localpath[0] != localPathSeparator)
+    {
+        char* tmp_needs_free = get_current_dir_name();
+        string s(tmp_needs_free);
+        free(tmp_needs_free);
+
+        if (s.empty() || s.back() != localPathSeparator)
+        {
+            s.append(1, localPathSeparator);
+        }
+
+        localpath = s + localpath;
+    }
+#endif
+
+    assert(invariant());
+}
+
+bool LocalPath::invariant()
+{
+    if (isFromRoot)
+    {
+        #ifdef WIN32
+            // must contain a drive letter
+            if (localpath.find(L":") == string_type::npos) return false;
+            // must start "\\"
+            if (localpath.size() < 4) return false;
+            if (localpath.substr(0, 2) != L"\\\\") return false;
+            if (PathIsRelativeW(localpath.c_str())) return false;
+        #else
+            // must start /
+            if (localpath.size() < 1) return false;
+            if (localpath.front() != localPathSeparator) return false;
+        #endif
+    }
+    else
+    {
+#ifdef WIN32
+        // must not contain a drive letter
+        if (localpath.find(L":") != string_type::npos) return false;
+        // must not start "\\"
+        if (localpath.size() >= 2 &&
+            localpath.substr(0, 2) == L"\\\\") return false;
+#else
+        // this could contain /relative for appending etc.
+#endif
+    }
+    return true;
 }
 
 FileSystemAccess::FileSystemAccess()
@@ -676,21 +746,7 @@ void FileSystemAccess::unescapefsincompatible(string *name) const
     }
 }
 
-
-const char *FileSystemAccess::getPathSeparator()
-{
-#if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__) || defined (USE_IOS)
-    return "/";
-#elif defined(_WIN32) || defined(WINDOWS_PHONE)
-    return "\\";
-#else
-    // Default case
-    LOG_warn << "No path separator found";
-    return "\\/";
-#endif
-}
-
-void FileSystemAccess::normalize(string* filename)
+void LocalPath::utf8_normalize(string* filename)
 {
     if (!filename) return;
 
@@ -1218,6 +1274,7 @@ std::string LocalPath::platformEncoded() const
 
 void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways)
 {
+    assert(!additionalPath.isFromRoot);
     if (separatorAlways || localpath.size())
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
@@ -1232,6 +1289,7 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
 
 void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
 {
+    assert(!isFromRoot);
     // no additional separator if there is already one after
     if (!localpath.empty() && localpath[0] != localPathSeparator)
     {
@@ -1242,10 +1300,12 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
         }
     }
     localpath.insert(0, additionalPath.localpath);
+    isFromRoot = additionalPath.isFromRoot;
 }
 
 LocalPath LocalPath::prependNewWithSeparator(const LocalPath& additionalPath) const
 {
+    assert(!isFromRoot);
     LocalPath lp = *this;
     lp.prependWithSeparator(additionalPath);
     return lp;
@@ -1312,16 +1372,6 @@ LocalPath LocalPath::subpathFrom(size_t bytePos) const
     return result;
 }
 
-void LocalPath::ensureWinExtendedPathLenPrefix()
-{
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    if (!PathIsRelativeW(localpath.c_str()) && ((localpath.size() < 2) || memcmp(localpath.data(), L"\\\\", 4)))
-    {
-        localpath.insert(0, L"\\\\?\\", 4);
-    }
-#endif
-}
-
 LocalPath LocalPath::subpathTo(size_t bytePos) const
 {
     LocalPath p;
@@ -1334,7 +1384,7 @@ LocalPath LocalPath::parentPath() const
     return subpathTo(getLeafnameByteIndex());
 }
 
-LocalPath LocalPath::insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess)
+LocalPath LocalPath::insertFilenameCounter(unsigned counter)
 {
     size_t dotindex = localpath.find_last_of('.');
     size_t sepindex = localpath.find_last_of(LocalPath::localPathSeparator);
@@ -1354,79 +1404,199 @@ LocalPath LocalPath::insertFilenameCounter(unsigned counter, const FileSystemAcc
     ostringstream oss;
     oss << " (" << counter << ")";
 
-    result.localpath += LocalPath::fromPath(oss.str(), fsaccess).localpath + extension.localpath;
+    result.localpath += LocalPath::fromRelativePath(oss.str()).localpath + extension.localpath;
     return result;
 }
 
 
-string LocalPath::toPath(const FileSystemAccess& fsaccess) const
-{
-    string path;
-    fsaccess.local2path(&localpath, &path);
-    return path;
-}
-
 string LocalPath::toPath() const
 {
-    // only use this one for logging, until we find out if it works for all platforms
-    static FSACCESS_CLASS fsAccess;
-    return toPath(fsAccess);  // fsAccess synchronization not needed, only the data passed to it is modified
+    string path;
+    local2path(&localpath, &path);
+
+    #ifdef WIN32
+    if (path.size() >= 4 && path.substr(0, 4) == "\\\\?\\")
+    {
+        // when a path leaves LocalPath, we can remove prefix which is only needed internally
+        path.erase(0, 4);
+    }
+    #endif
+
+    return path;
 }
 
 string LocalPath::toName(const FileSystemAccess& fsaccess) const
 {
-    string name = toPath(fsaccess);
+    string name = toPath();
     fsaccess.unescapefsincompatible(&name);
     return name;
 }
 
-LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsaccess)
+LocalPath LocalPath::fromAbsolutePath(const string& path)
 {
     LocalPath p;
-    fsaccess.path2local(&path, &p.localpath);
+    path2local(&path, &p.localpath);
+    p.normalizeAbsolute();
     return p;
 }
 
-LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType)
+LocalPath LocalPath::fromRelativePath(const string& path)
+{
+    LocalPath p;
+    path2local(&path, &p.localpath);
+    assert(p.invariant());
+    return p;
+}
+
+LocalPath LocalPath::fromRelativeName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType)
 {
     fsaccess.escapefsincompatible(&path, fsType);
-    return fromPath(path, fsaccess);
+    return fromRelativePath(path);
 }
 
-LocalPath LocalPath::fromPlatformEncoded(string path)
+LocalPath LocalPath::fromPlatformEncodedRelative(string path)
 {
-#if defined(_WIN32)
-#ifdef DEBUG
-    if (path.size() % 2)
-    {
-        assert(!(path.size() % 2));
-    }
-#endif
     LocalPath p;
+#if defined(_WIN32)
+    assert(!(path.size() % 2));
     p.localpath.resize(path.size() / sizeof(wchar_t));
     memcpy(const_cast<wchar_t*>(p.localpath.data()), path.data(), p.localpath.size() * sizeof(wchar_t));
-    return p;
 #else
-    LocalPath p;
     p.localpath = std::move(path);
-    return p;
 #endif
+    assert(p.invariant());
+    return p;
 }
 
+LocalPath LocalPath::fromPlatformEncodedAbsolute(string path)
+{
+    LocalPath p;
 #if defined(_WIN32)
-LocalPath LocalPath::fromPlatformEncoded(wstring&& wpath)
+    assert(!(path.size() % 2));
+    p.localpath.resize(path.size() / sizeof(wchar_t));
+    memcpy(const_cast<wchar_t*>(p.localpath.data()), path.data(), p.localpath.size() * sizeof(wchar_t));
+#else
+    p.localpath = std::move(path);
+#endif
+    p.normalizeAbsolute();
+    return p;
+}
+
+
+#if defined(_WIN32)
+LocalPath LocalPath::fromPlatformEncodedRelative(wstring&& wpath)
 {
     LocalPath p;
     p.localpath = std::move(wpath);
     return p;
 }
 
+LocalPath LocalPath::fromPlatformEncodedAbsolute(wstring&& wpath)
+{
+    LocalPath p;
+    p.localpath = std::move(wpath);
+    p.normalizeAbsolute();
+    return p;
+}
+
 wchar_t LocalPath::driveLetter()
 {
+    assert(isFromRoot);
     auto drivepos = localpath.find(L':');
     return drivepos == wstring::npos || drivepos < 1 ? 0 : localpath[drivepos-1];
 }
+
+
+// convert UTF-8 to Windows Unicode
+void LocalPath::path2local(const string* path, string* local)
+{
+    // make space for the worst case
+    local->resize((path->size() + 1) * sizeof(wchar_t));
+
+    int len = MultiByteToWideChar(CP_UTF8, 0,
+        path->c_str(),
+        -1,
+        (wchar_t*)local->data(),
+        int(local->size() / sizeof(wchar_t) + 1));
+    if (len)
+    {
+        // resize to actual result
+        local->resize(sizeof(wchar_t) * (len - 1));
+    }
+    else
+    {
+        local->clear();
+    }
+}
+
+// convert UTF-8 to Windows Unicode
+void LocalPath::path2local(const string* path, std::wstring* local)
+{
+    // make space for the worst case
+    local->resize(path->size() + 2);
+
+    int len = MultiByteToWideChar(CP_UTF8, 0,
+        path->c_str(),
+        -1,
+        const_cast<wchar_t*>(local->data()),
+        int(local->size()));
+    if (len)
+    {
+        // resize to actual result
+        local->resize(len - 1);
+    }
+    else
+    {
+        local->clear();
+    }
+}
+
+// convert Windows Unicode to UTF-8
+void LocalPath::local2path(const string* local, string* path)
+{
+    path->resize((local->size() + 1) * 4 / sizeof(wchar_t) + 1);
+
+    path->resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local->data(),
+        int(local->size() / sizeof(wchar_t)),
+        (char*)path->data(),
+        int(path->size()),
+        NULL, NULL));
+    utf8_normalize(path);
+    }
+
+void LocalPath::local2path(const std::wstring* local, string* path)
+{
+    path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
+
+    path->resize(WideCharToMultiByte(CP_UTF8, 0, local->data(),
+        int(local->size()),
+        (char*)path->data(),
+        int(path->size()),
+        NULL, NULL));
+
+    utf8_normalize(path);
+}
+
+#else
+
+void LocalPath::path2local(const string* path, string* local)
+{
+#ifdef __MACH__
+    path2localMac(path, local);
+#else
+    *local = *path;
 #endif
+}
+
+void LocalPath::local2path(const string* local, string* path)
+{
+    *path = *local;
+    LocalPath::utf8_normalize(path);
+}
+
+#endif
+
+
 
 
 LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
@@ -1440,6 +1610,7 @@ bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) 
 {
     assert(!empty());
     assert(!path.empty());
+    assert(isFromRoot == path.isFromRoot);
 
     if (path.localpath.size() >= localpath.size()
         && !Utils::pcasecmp(path.localpath, localpath, localpath.size()))

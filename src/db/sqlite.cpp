@@ -27,6 +27,7 @@ namespace mega {
 SqliteDbAccess::SqliteDbAccess(const LocalPath& rootPath)
   : mRootPath(rootPath)
 {
+    assert(mRootPath.isAbsolute());
 }
 
 SqliteDbAccess::~SqliteDbAccess()
@@ -48,7 +49,7 @@ LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
     LocalPath path = mRootPath;
 
     path.appendWithSeparator(
-      LocalPath::fromPath(osstream.str(), fsAccess),
+      LocalPath::fromRelativePath(osstream.str()),
       false);
 
     return path;
@@ -65,7 +66,7 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
 
         if (fileAccess->fopen(legacyPath))
         {
-            LOG_debug << "Found legacy database at: " << legacyPath.toPath(fsAccess);
+            LOG_debug << "Found legacy database at: " << legacyPath.toPath();
 
             if (currentDbVersion == LEGACY_DB_VERSION)
             {
@@ -79,13 +80,13 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
 
                 if (fsAccess.renamelocal(legacyPath, dbPath, false))
                 {
-                    auto suffix = LocalPath::fromPath("-shm", fsAccess);
+                    auto suffix = LocalPath::fromRelativePath("-shm");
                     auto from = legacyPath + suffix;
                     auto to = dbPath + suffix;
 
                     fsAccess.renamelocal(from, to);
 
-                    suffix = LocalPath::fromPath("-wal", fsAccess);
+                    suffix = LocalPath::fromRelativePath("-wal");
                     from = legacyPath + suffix;
                     to = dbPath + suffix;
 
@@ -109,11 +110,11 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
 
     if (upgraded)
     {
-        LOG_debug << "Using an upgraded DB: " << dbPath.toPath(fsAccess);
+        LOG_debug << "Using an upgraded DB: " << dbPath.toPath();
         currentDbVersion = DB_VERSION;
     }
 
-    const string dbPathStr = dbPath.toPath(fsAccess);
+    const string dbPathStr = dbPath.toPath();
     sqlite3* db;
     int result = sqlite3_open_v2(dbPathStr.c_str(), &db,
         SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
@@ -216,7 +217,7 @@ bool SqliteDbTable::inTransaction() const
 
 LocalPath SqliteDbTable::dbFile() const
 {
-    return LocalPath::fromPath(dbfile, *fsaccess);
+    return LocalPath::fromAbsolutePath(dbfile);
 }
 
 // set cursor to first record
@@ -486,7 +487,7 @@ void SqliteDbTable::remove()
 
     db = NULL;
 
-    auto localpath = LocalPath::fromPath(dbfile, *fsaccess);
+    auto localpath = LocalPath::fromAbsolutePath(dbfile);
     fsaccess->unlinklocal(localpath);
 }
 } // namespace

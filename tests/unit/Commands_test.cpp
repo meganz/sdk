@@ -262,12 +262,6 @@ public:
     std::unique_ptr<FileAccess> newfileaccess(bool = true) override{ return std::unique_ptr<FileAccess>(); }
     DirAccess* newdiraccess() override {return nullptr;}
     bool getlocalfstype(const ::mega::LocalPath&, ::mega::FileSystemType&) const override { return false; }
-    void path2local(const string*, string*) const override {}
-    void local2path(const string*, string*) const override {}
-    #if defined(_WIN32)
-    void path2local(const string*, std::wstring*) const override {}
-    void local2path(const std::wstring*, string*) const override {}
-    #endif
     void tmpnamelocal(LocalPath&) const override {}
     bool getsname(const LocalPath& , LocalPath& ) const override { return false; }
     bool renamelocal(const LocalPath&, const LocalPath&, bool = true) override { return false; }

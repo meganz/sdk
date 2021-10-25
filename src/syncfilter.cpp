@@ -283,9 +283,7 @@ void DefaultFilterChain::excludedPaths(const string_vector& paths)
     // Translate UTF8 paths to local format.
     for (auto& path : normalize(paths))
     {
-        LocalPath localPath = LocalPath::fromPath(path, mFsAccess);
-
-        localPath.ensureWinExtendedPathLenPrefix();
+        LocalPath localPath = LocalPath::fromRelativePath(path);
 
         LOG_debug << "Excluded path: " << localPath.toPath();
 
@@ -310,12 +308,6 @@ void DefaultFilterChain::upperLimit(std::uint64_t limit)
 vector<LocalPath> DefaultFilterChain::applicablePaths(LocalPath targetPath) const
 {
     vector<LocalPath> paths;
-
-    // Make sure the namespace prefix is present.
-    //
-    // This is necessary so that we can correctly determine whether a given
-    // sync root contains some path.
-    targetPath.ensureWinExtendedPathLenPrefix();
 
     // Determine which path exclusions are applicable to the target.
     for (auto& path : mExcludedPaths)
@@ -370,7 +362,7 @@ string_vector DefaultFilterChain::normalize(const string_vector& strings) const
     {
         auto temp = string;
 
-        mFsAccess.normalize(&temp);
+        LocalPath::utf8_normalize(&temp);
 
         if (!temp.empty())
             result.emplace_back(std::move(temp));
@@ -499,7 +491,7 @@ FilterLoadResult FilterChain::load(FileAccess& fileAccess)
         string l = line;
 
         // Normalize the line.
-        FSA::normalize(&l);
+        LocalPath::utf8_normalize(&l);
 
         // Were we able to normalize the line?
         if (l.empty())
@@ -591,9 +583,9 @@ FilterResult FilterChain::match(const m_off_t s) const
 }
 
 #ifdef _WIN32
-const LocalPath IgnoreFileName::mLocalName = LocalPath::fromPlatformEncoded(L".megaignore");
+const LocalPath IgnoreFileName::mLocalName = LocalPath::fromPlatformEncodedRelative(L".megaignore");
 #else // _WIN32
-const LocalPath IgnoreFileName::mLocalName = LocalPath::fromPlatformEncoded(".megaignore");
+const LocalPath IgnoreFileName::mLocalName = LocalPath::fromPlatformEncodedRelative(".megaignore");
 #endif // ! _WIN32
 
 const RemotePath IgnoreFileName::mRemoteName(".megaignore");

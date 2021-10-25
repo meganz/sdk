@@ -957,23 +957,27 @@ error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
 {
     driveId = UNDEF;
 
-    LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
-    LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
-    pd.appendWithSeparator(dotDir, false);
-    LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
-    pd.appendWithSeparator(idFile, false);
-
-    auto fa = fsaccess->newfileaccess(false);
-    if (!fa->fopen(pd, true, false))
+    if (pathToDrive && strlen(pathToDrive))
     {
-        // This case is valid when only checking for file existence
-        return API_ENOENT;
-    }
 
-    if (!fa->frawread((byte*)&driveId, sizeof(driveId), 0))
-    {
-        LOG_err << "Unable to read drive-id from file: " << pd.toPath();
-        return API_EREAD;
+        LocalPath pd = LocalPath::fromAbsolutePath(pathToDrive);
+        LocalPath dotDir = LocalPath::fromRelativePath(".megabackup");
+        pd.appendWithSeparator(dotDir, false);
+        LocalPath idFile = LocalPath::fromRelativePath("drive-id");
+        pd.appendWithSeparator(idFile, false);
+
+        auto fa = fsaccess->newfileaccess(false);
+        if (!fa->fopen(pd, true, false))
+        {
+            // This case is valid when only checking for file existence
+            return API_ENOENT;
+        }
+
+        if (!fa->frawread((byte*)&driveId, sizeof(driveId), 0))
+        {
+            LOG_err << "Unable to read drive-id from file: " << pd.toPath();
+            return API_EREAD;
+        }
     }
 
     return API_OK;
@@ -981,21 +985,21 @@ error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
 
 error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
 {
-    LocalPath pd = LocalPath::fromPath(pathToDrive, *fsaccess);
-    LocalPath dotDir = LocalPath::fromPath(".megabackup", *fsaccess);
+    LocalPath pd = LocalPath::fromAbsolutePath(pathToDrive);
+    LocalPath dotDir = LocalPath::fromRelativePath(".megabackup");
     pd.appendWithSeparator(dotDir, false);
 
     // Try and create the backup configuration directory
     if (!(fsaccess->mkdirlocal(pd, false, false) || fsaccess->target_exists))
     {
-        LOG_err << "Unable to create config DB directory: " << pd.toPath(*fsaccess);
+        LOG_err << "Unable to create config DB directory: " << pd.toPath();
 
         // Couldn't create the directory and it doesn't exist.
         return API_EWRITE;
     }
 
     // Open the file for writing
-    LocalPath idFile = LocalPath::fromPath("drive-id", *fsaccess);
+    LocalPath idFile = LocalPath::fromRelativePath("drive-id");
     pd.appendWithSeparator(idFile, false);
     auto fa = fsaccess->newfileaccess(false);
     if (!fa->fopen(pd, false, true))
@@ -1060,7 +1064,7 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
         return NULL;
     }
 
-    fsaccess->normalize(&nname);
+    LocalPath::utf8_normalize(&nname);
 
     for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
     {
@@ -1093,7 +1097,7 @@ Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t must
         return NULL;
     }
 
-    fsaccess->normalize(&nname);
+    LocalPath::utf8_normalize(&nname);
 
     for (auto it : p->children)
     {
@@ -1141,7 +1145,7 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
         return found;
     }
 
-    fsaccess->normalize(&nname);
+    LocalPath::utf8_normalize(&nname);
 
     for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
     {
@@ -3184,7 +3188,7 @@ void MegaClient::dispatchTransfers()
                     if (!nexttransfer->asyncopencontext)
                     {
                         LOG_debug << "Starting async open: "
-                                  << nexttransfer->localfilename.toPath(*fsaccess);
+                                  << nexttransfer->localfilename.toPath();
 
                         // try to open file (PUT transfers: open in nonblocking mode)
                         nexttransfer->asyncopencontext = (nexttransfer->type == PUT)
@@ -3196,7 +3200,7 @@ void MegaClient::dispatchTransfers()
                     if (nexttransfer->asyncopencontext->finished)
                     {
                         LOG_debug << "Async open finished: "
-                                  << nexttransfer->localfilename.toPath(*fsaccess);
+                                  << nexttransfer->localfilename.toPath();
 
                         openok = !nexttransfer->asyncopencontext->failed;
                         openfinished = true;
@@ -3220,7 +3224,7 @@ void MegaClient::dispatchTransfers()
                 {
                     // try to open file (PUT transfers: open in nonblocking mode)
                     LOG_debug << "Sync open: "
-                              << nexttransfer->localfilename.toPath(*fsaccess);
+                              << nexttransfer->localfilename.toPath();
 
                     openok = (nexttransfer->type == PUT)
                         ? ts->fa->fopen(nexttransfer->localfilename)
@@ -3274,7 +3278,7 @@ void MegaClient::dispatchTransfers()
                         {
                             LOG_warn << "Modification detected starting upload."
                                      << " Path: "
-                                     << nexttransfer->localfilename.toPath(*fsaccess)
+                                     << nexttransfer->localfilename.toPath()
                                      << " Size: "
                                      << nexttransfer->size
                                      << " Mtime: "
@@ -3408,7 +3412,7 @@ void MegaClient::dispatchTransfers()
                 }
                 else if (openfinished)
                 {
-                    string utf8path = nexttransfer->localfilename.toPath(*fsaccess);
+                    string utf8path = nexttransfer->localfilename.toPath();
                     if (nexttransfer->type == GET)
                     {
                         LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
@@ -6993,7 +6997,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
                     if(!name.size())
                     {
                         name =  c[1];
-                        fsaccess->normalize(&name);
+                        LocalPath::utf8_normalize(&name);
                     }
 
                     if (!strcmp(name.c_str(), n->displayname()))
@@ -7270,7 +7274,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     // generate fresh attribute object with the folder name
     AttrMap attrs;
 
-    fsaccess->normalize(&foldername);
+    LocalPath::utf8_normalize(&foldername);
     attrs.map['n'] = foldername;
 
     // add custom attributes
@@ -12974,7 +12978,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     if (!remotenode)
     {
         LOG_warn << "Sync root does not exist in the cloud: "
-                 << syncConfig.getLocalPath().toPath(*fsaccess)
+                 << syncConfig.getLocalPath().toPath()
                  << ": "
                  << LOG_NODEHANDLE(syncConfig.getRemoteNode());
 
@@ -13235,6 +13239,8 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
 error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(completion);
+    assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
+    assert(config.mLocalPath.isAbsolute());
 
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
@@ -13252,12 +13258,6 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
     handle driveId = UNDEF;
     if (config.isExternal())
     {
-        auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
-        auto sourcePath = NormalizeAbsolute(config.mLocalPath);
-
-        config.mExternalDrivePath = std::move(drivePath);
-        config.mLocalPath = std::move(sourcePath);
-
         const string& p = config.mExternalDrivePath.toPath();
         e = readDriveId(p.c_str(), driveId);
         if (e != API_OK)
@@ -13336,7 +13336,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 //    {
 //        // perform one round of unescaping to ensure that the resulting local
 //        // filename matches
-//        LocalPath p = LocalPath::fromPath(*name, *fsaccess);
+//        LocalPath p = LocalPath::fromPath(*name);
 //        strings->push_back(p.toName(*fsaccess, fsType));
 //        name = &strings->back();
 //    }
@@ -14732,7 +14732,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 }
 
                 auto fa = fsaccess->newfileaccess();
-                auto localpath = t->localfilename.toPath(*fsaccess);
+                auto localpath = t->localfilename.toPath();
 
                 if (t->localfilename.empty() || !fa->fopen(t->localfilename))
                 {
@@ -15122,7 +15122,7 @@ namespace action_bucket_compare
 
     bool getExtensionDotted(const Node* n, std::string& ext, const MegaClient& mc)
     {
-        auto localname = LocalPath::fromPath(n->displayname(), *mc.fsaccess);
+        auto localname = LocalPath::fromRelativePath(n->displayname());
         if (mc.fsaccess->getextension(localname, ext))
         {
             ext.push_back('.');

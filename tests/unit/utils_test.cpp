@@ -128,8 +128,8 @@ TEST(UtfCompare, DISABLED_SortTenThousandSpeed)
         std::reverse(rev.begin(), rev.end()); // for more sort activity
 
         fsNodes.push_back("somelongstring_" + rev);
-        lnNodes.push_back(LocalPath::fromPath("somelongstring_" + rev, fsAccess));
-        crossCompare.emplace_back("somelongstring_" + rev, LocalPath::fromPath("somelongstring_" + rev, fsAccess));
+        lnNodes.push_back(LocalPath::fromRelativePath("somelongstring_" + rev));
+        crossCompare.emplace_back("somelongstring_" + rev, LocalPath::fromRelativePath("somelongstring_" + rev));
     }
 
     using namespace std::chrono;
@@ -389,9 +389,14 @@ public:
         return compareUtf(lhs, true, rhs, true, true);
     }
 
-    LocalPath fromPath(const string& s)
+    LocalPath fromAbsPath(const string& s)
     {
-        return LocalPath::fromPath(s, mFSAccess);
+        return LocalPath::fromAbsolutePath(s);
+    }
+
+    LocalPath fromRelPath(const string& s)
+    {
+        return LocalPath::fromRelativePath(s);
     }
 
     template<typename T, typename U>
@@ -414,36 +419,36 @@ TEST_F(ComparatorTest, CompareLocalPaths)
     // Case insensitive
     {
         // Make sure basic characters are uppercased.
-        lhs = fromPath("abc");
-        rhs = fromPath("ABC");
+        lhs = fromRelPath("abc");
+        rhs = fromRelPath("ABC");
 
         EXPECT_EQ(ciCompare(lhs, rhs), 0);
         EXPECT_EQ(ciCompare(rhs, lhs), 0);
 
         // Make sure comparison invariants are not violated.
-        lhs = fromPath("abc");
-        rhs = fromPath("ABCD");
+        lhs = fromRelPath("abc");
+        rhs = fromRelPath("ABCD");
 
         EXPECT_LT(ciCompare(lhs, rhs), 0);
         EXPECT_GT(ciCompare(rhs, lhs), 0);
 
         // Make sure escapes are decoded.
-        lhs = fromPath("a%30b");
-        rhs = fromPath("A0B");
+        lhs = fromRelPath("a%30b");
+        rhs = fromRelPath("A0B");
 
         EXPECT_EQ(ciCompare(lhs, rhs), 0);
         EXPECT_EQ(ciCompare(rhs, lhs), 0);
 
         // Make sure decoded characters are uppercased.
-        lhs = fromPath("%61%62%63");
-        rhs = fromPath("ABC");
+        lhs = fromRelPath("%61%62%63");
+        rhs = fromRelPath("ABC");
 
         EXPECT_EQ(ciCompare(lhs, rhs), 0);
         EXPECT_EQ(ciCompare(rhs, lhs), 0);
 
         // Invalid escapes are left as-is.
-        lhs = fromPath("a%qb%");
-        rhs = fromPath("A%qB%");
+        lhs = fromRelPath("a%qb%");
+        rhs = fromRelPath("A%qB%");
 
         EXPECT_EQ(ciCompare(lhs, rhs), 0);
         EXPECT_EQ(ciCompare(rhs, lhs), 0);
@@ -452,62 +457,62 @@ TEST_F(ComparatorTest, CompareLocalPaths)
     // Case sensitive
     {
         // Basic comparison.
-        lhs = fromPath("abc");
+        lhs = fromRelPath("abc");
 
         EXPECT_EQ(compare(lhs, lhs), 0);
 
         // Make sure characters are not uppercased.
-        rhs = fromPath("ABC");
+        rhs = fromRelPath("ABC");
 
         EXPECT_NE(compare(lhs, rhs), 0);
         EXPECT_NE(compare(rhs, lhs), 0);
 
         // Make sure comparison invariants are not violated.
-        lhs = fromPath("abc");
-        rhs = fromPath("abcd");
+        lhs = fromRelPath("abc");
+        rhs = fromRelPath("abcd");
 
         EXPECT_LT(compare(lhs, rhs), 0);
         EXPECT_GT(compare(rhs, lhs), 0);
 
         // Make sure escapes are decoded.
-        lhs = fromPath("a%30b");
-        rhs = fromPath("a0b");
+        lhs = fromRelPath("a%30b");
+        rhs = fromRelPath("a0b");
 
         EXPECT_EQ(compare(lhs, rhs), 0);
         EXPECT_EQ(compare(rhs, lhs), 0);
 
         // Invalid escapes are left as-is.
-        lhs = fromPath("a%qb%");
+        lhs = fromRelPath("a%qb%");
 
         EXPECT_EQ(compare(lhs, lhs), 0);
 
 #ifdef _WIN32
         // Non-UNC prefixes should be skipped.
-        lhs = fromPath("\\\\?\\C:\\");
-        rhs = fromPath("C:\\");
+        lhs = fromAbsPath("\\\\?\\C:\\");
+        rhs = fromAbsPath("C:\\");
 
         EXPECT_EQ(compare(lhs, rhs), 0);
         EXPECT_EQ(compare(rhs, lhs), 0);
 
-        lhs = fromPath("\\\\.\\C:\\");
-        rhs = fromPath("C:\\");
+        lhs = fromAbsPath("\\\\.\\C:\\");
+        rhs = fromAbsPath("C:\\");
 
         EXPECT_EQ(compare(lhs, rhs), 0);
         EXPECT_EQ(compare(rhs, lhs), 0);
 
-        // Prefixes should only be removed from absolute paths.
-        lhs = fromPath("\\\\?\\X");
-        rhs = fromPath("X");
+        //// Prefixes should only be removed from absolute paths.
+        //lhs = fromAbsPath("\\\\?\\X");
+        //rhs = fromAbsPath("X");
 
-        EXPECT_NE(compare(lhs, rhs), 0);
-        EXPECT_NE(compare(rhs, lhs), 0);
+        //EXPECT_NE(compare(lhs, rhs), 0);
+        //EXPECT_NE(compare(rhs, lhs), 0);
 #endif // _WIN32
     }
 
     // Filesystem-specific
     {
-        lhs = fromPath("a\7%30b%31c");
-        rhs = fromPath("A%070B1C");
+        lhs = fromRelPath("a\7%30b%31c");
+        rhs = fromRelPath("A%070B1C");
 
         // exFAT, FAT32, NTFS and UNKNOWN are case-insensitive.
         EXPECT_EQ(fsCompare(lhs, rhs, FS_EXFAT), 0);
@@ -519,7 +524,7 @@ TEST_F(ComparatorTest, CompareLocalPaths)
         // Everything else is case-sensitive.
         EXPECT_NE(fsCompare(lhs, rhs, FS_EXT), 0);
 
-        rhs = fromPath("a%070b1c");
+        rhs = fromRelPath("a%070b1c");
         EXPECT_EQ(fsCompare(lhs, rhs, FS_EXT), 0);
 #endif // ! _WIN32
     }
@@ -533,36 +538,36 @@ TEST_F(ComparatorTest, CompareLocalPathAgainstString)
     // Case insensitive
     {
         // Simple comparison.
-        lhs = fromPath("abc");
+        lhs = fromRelPath("abc");
         rhs = "ABC";
 
         EXPECT_EQ(ciCompare(lhs, rhs), 0);
 
         // Invariants.
-        lhs = fromPath("abc");
+        lhs = fromRelPath("abc");
         rhs = "abcd";
 
         EXPECT_LT(ciCompare(lhs, rhs), 0);
 
-        lhs = fromPath("abcd");
+        lhs = fromRelPath("abcd");
         rhs = "abc";
 
         EXPECT_GT(ciCompare(lhs, rhs), 0);
 
         // All local escapes are decoded.
-        lhs = fromPath("a%30b%31c");
+        lhs = fromRelPath("a%30b%31c");
         rhs = "A0b1C";
 
         EXPECT_EQ(ciCompare(lhs, rhs), 0);
 
         // Escapes are uppercased.
-        lhs = fromPath("%61%62%63");
+        lhs = fromRelPath("%61%62%63");
         rhs = "ABC";
 
         EXPECT_EQ(ciCompare(lhs, rhs), 0);
 
         // Invalid escapes are left as-is.
-        lhs = fromPath("a%qb%");
+        lhs = fromRelPath("a%qb%");
         rhs = "A%QB%";
 
         EXPECT_EQ(ciCompare(lhs, rhs), 0);
@@ -571,7 +576,7 @@ TEST_F(ComparatorTest, CompareLocalPathAgainstString)
     // Case sensitive
     {
         // Simple comparison.
-        lhs = fromPath("abc");
+        lhs = fromRelPath("abc");
         rhs = "abc";
 
         EXPECT_EQ(compare(lhs, rhs), 0);
@@ -581,49 +586,49 @@ TEST_F(ComparatorTest, CompareLocalPathAgainstString)
 
         EXPECT_LT(compare(lhs, rhs), 0);
 
-        lhs = fromPath("abcd");
+        lhs = fromRelPath("abcd");
         rhs = "abc";
 
         EXPECT_GT(compare(lhs, rhs), 0);
 
         // All local escapes are decoded.
-        lhs = fromPath("a%30b%31c");
+        lhs = fromRelPath("a%30b%31c");
         rhs = "a0b1c";
 
         EXPECT_EQ(compare(lhs, rhs), 0);
 
         // Invalid escapes left as-is.
-        lhs = fromPath("a%qb%r");
+        lhs = fromRelPath("a%qb%r");
         rhs = "a%qb%r";
 
         EXPECT_EQ(compare(lhs, rhs), 0);
 
 #ifdef _WIN32
         // Non-UNC prefixes should be skipped.
-        lhs = fromPath("\\\\?\\C:\\");
+        lhs = fromAbsPath("\\\\?\\C:\\");
         rhs = "C:\\";
 
         EXPECT_EQ(compare(lhs, rhs), 0);
         EXPECT_EQ(compare(rhs, lhs), 0);
 
-        lhs = fromPath("\\\\.\\C:\\");
+        lhs = fromAbsPath("\\\\.\\C:\\");
         rhs = "C:\\";
 
         EXPECT_EQ(compare(lhs, rhs), 0);
         EXPECT_EQ(compare(rhs, lhs), 0);
 
-        // Prefixes should only be removed from absolute paths.
-        lhs = fromPath("\\\\?\\X");
-        rhs = "X";
+        //// Prefixes should only be removed from absolute paths.
+        //lhs = fromAbsPath("\\\\?\\X");
+        //rhs = "X";
 
-        EXPECT_NE(compare(lhs, rhs), 0);
-        EXPECT_NE(compare(rhs, lhs), 0);
+        //EXPECT_NE(compare(lhs, rhs), 0);
+        //EXPECT_NE(compare(rhs, lhs), 0);
 #endif // _WIN32
     }
 
     // Filesystem-specific
     {
-        lhs = fromPath("a\7%30b%31c");
+        lhs = fromRelPath("a\7%30b%31c");
         rhs = "A%070B1C";
 
         // exFAT, FAT32, NTFS and UNKNOWN are case-insensitive.
@@ -715,8 +720,6 @@ TEST(Filesystem, isContainingPathOf)
 #define SEP "/"
 #endif // ! _WIN32
 
-    FSACCESS_CLASS fsAccess;
-
     LocalPath lhs;
     LocalPath rhs;
     size_t pos;
@@ -724,8 +727,8 @@ TEST(Filesystem, isContainingPathOf)
     // lhs does not contain rhs.
     constexpr const size_t sentinel = std::numeric_limits<size_t>::max();
     pos = sentinel;
-    lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
-    rhs = LocalPath::fromPath("a" SEP "c", fsAccess);
+    lhs = LocalPath::fromRelativePath("a" SEP "b");
+    rhs = LocalPath::fromRelativePath("a" SEP "c");
 
     EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
     EXPECT_EQ(pos, sentinel);
@@ -733,8 +736,8 @@ TEST(Filesystem, isContainingPathOf)
     // lhs does not contain rhs.
     // they do, however, share a common prefix.
     pos = sentinel;
-    lhs = LocalPath::fromPath("a", fsAccess);
-    rhs = LocalPath::fromPath("ab", fsAccess);
+    lhs = LocalPath::fromRelativePath("a");
+    rhs = LocalPath::fromRelativePath("ab");
 
     EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
     EXPECT_EQ(pos, sentinel);
@@ -742,23 +745,23 @@ TEST(Filesystem, isContainingPathOf)
     // lhs contains rhs.
     // no trailing separator.
     pos = sentinel;
-    lhs = LocalPath::fromPath("a", fsAccess);
-    rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+    lhs = LocalPath::fromRelativePath("a");
+    rhs = LocalPath::fromRelativePath("a" SEP "b");
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
     EXPECT_EQ(pos, 2u);
 
     // trailing separator.
     pos = sentinel;
-    lhs = LocalPath::fromPath("a" SEP, fsAccess);
-    rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+    lhs = LocalPath::fromRelativePath("a" SEP);
+    rhs = LocalPath::fromRelativePath("a" SEP "b");
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
     EXPECT_EQ(pos, 2u);
 
     // lhs contains itself.
     pos = sentinel;
-    lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+    lhs = LocalPath::fromRelativePath("a" SEP "b");
 
     EXPECT_TRUE(lhs.isContainingPathOf(lhs, &pos));
     EXPECT_EQ(pos, 3u);
@@ -766,8 +769,8 @@ TEST(Filesystem, isContainingPathOf)
 #ifdef _WIN32
     // case insensitive.
     pos = sentinel;
-    lhs = LocalPath::fromPath("a" SEP "B", fsAccess);
-    rhs = LocalPath::fromPath("A" SEP "b", fsAccess);
+    lhs = LocalPath::fromRelativePath("a" SEP "B");
+    rhs = LocalPath::fromRelativePath("A" SEP "b");
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
     EXPECT_EQ(pos, 3u);
@@ -776,148 +779,7 @@ TEST(Filesystem, isContainingPathOf)
 #undef SEP
 }
 
-#ifdef _WIN32
 
-TEST(Filesystem, NormalizeAbsoluteAddDriveSeparator)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    LocalPath input = LocalPath::fromPath("C:", fsAccess);
-    LocalPath expected = LocalPath::fromPath("C:\\", fsAccess);
-
-    EXPECT_EQ(NormalizeAbsolute(input), expected);
-    EXPECT_EQ(NormalizeAbsolute(expected), expected);
-
-    input = LocalPath::fromPath("\\\\.\\C:", fsAccess);
-    expected = LocalPath::fromPath("\\\\.\\C:\\", fsAccess);
-
-    EXPECT_EQ(NormalizeAbsolute(input), expected);
-    EXPECT_EQ(NormalizeAbsolute(expected), expected);
-
-    input = LocalPath::fromPath("\\\\?\\C:", fsAccess);
-    expected = LocalPath::fromPath("\\\\?\\C:\\", fsAccess);
-
-    EXPECT_EQ(NormalizeAbsolute(input), expected);
-    EXPECT_EQ(NormalizeAbsolute(expected), expected);
-}
-
-TEST(Filesystem, NormalizeAbsoluteRemoveTrailingSeparator)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    LocalPath input = LocalPath::fromPath("A\\", fsAccess);
-    LocalPath expected = LocalPath::fromPath("A", fsAccess);
-
-    EXPECT_EQ(NormalizeAbsolute(input), expected);
-    EXPECT_EQ(NormalizeAbsolute(expected), expected);
-
-    input = LocalPath::fromPath("\\\\.\\C:\\A\\", fsAccess);
-    expected = LocalPath::fromPath("\\\\.\\C:\\A", fsAccess);
-
-    EXPECT_EQ(NormalizeAbsolute(input), expected);
-    EXPECT_EQ(NormalizeAbsolute(expected), expected);
-
-    input = LocalPath::fromPath("\\\\?\\C:\\A\\", fsAccess);
-    expected = LocalPath::fromPath("\\\\?\\C:\\A", fsAccess);
-
-    EXPECT_EQ(NormalizeAbsolute(input), expected);
-    EXPECT_EQ(NormalizeAbsolute(expected), expected);
-}
-
-TEST(Filesystem, NormalizeRelativeRemoveLeadingSeparator)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    LocalPath input = LocalPath::fromPath("\\a\\b\\", fsAccess);
-    LocalPath expected = LocalPath::fromPath("a\\b", fsAccess);
-
-    EXPECT_EQ(NormalizeRelative(input), expected);
-    EXPECT_EQ(NormalizeRelative(expected), expected);
-}
-
-TEST(Filesystem, NormalizeRelativeRemoveTrailingSeparator)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    LocalPath input = LocalPath::fromPath("a\\b\\", fsAccess);
-    LocalPath expected = LocalPath::fromPath("a\\b", fsAccess);
-
-    EXPECT_EQ(NormalizeRelative(input), expected);
-    EXPECT_EQ(NormalizeRelative(expected), expected);
-}
-
-#else // _WIN32
-
-TEST(Filesystem, NormalizeAbsoluteAddRootSeparator)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    LocalPath input = LocalPath::fromPath("", fsAccess);
-    LocalPath expected = LocalPath::fromPath("/", fsAccess);
-
-    EXPECT_EQ(NormalizeAbsolute(input), expected);
-    EXPECT_EQ(NormalizeAbsolute(expected), expected);
-}
-
-TEST(Filesystem, NormalizeAbsoluteRemoveTrailingSeparator)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    LocalPath input = LocalPath::fromPath("a/", fsAccess);
-    LocalPath expected = LocalPath::fromPath("a", fsAccess);
-
-    EXPECT_EQ(NormalizeAbsolute(input), expected);
-    EXPECT_EQ(NormalizeAbsolute(expected), expected);
-}
-
-TEST(Filesystem, NormalizeRelativeRemoveLeadingSeparator)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    LocalPath input = LocalPath::fromPath("/a/b/", fsAccess);
-    LocalPath expected = LocalPath::fromPath("a/b", fsAccess);
-
-    EXPECT_EQ(NormalizeRelative(input), expected);
-    EXPECT_EQ(NormalizeRelative(expected), expected);
-}
-
-TEST(Filesystem, NormalizeRelativeRemoveTrailingSeparator)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    LocalPath input = LocalPath::fromPath("a/b/", fsAccess);
-    LocalPath expected = LocalPath::fromPath("a/b", fsAccess);
-
-    EXPECT_EQ(NormalizeRelative(input), expected);
-    EXPECT_EQ(NormalizeRelative(expected), expected);
-}
-
-#endif // _WIN32
-
-TEST(Filesystem, NormalizeRelativeEmpty)
-{
-    using namespace mega;
-
-    LocalPath path;
-
-    EXPECT_EQ(NormalizeRelative(path), path);
-}
 
 TEST(Filesystem, isReservedName)
 {
@@ -960,7 +822,7 @@ public:
 
             // Create temporary DB root path.
             rootPath.appendWithSeparator(
-                LocalPath::fromPath("db", fsAccess), false);
+                LocalPath::fromRelativePath("db"), false);
 
             // Make sure our root path is clear.
             fsAccess.emptydirlocal(rootPath);
@@ -1019,7 +881,7 @@ TEST_F(SqliteDBTest, CreateCurrent)
     {
         ScopedLengthRestore restorer(dbFile);
 
-        dbFile.append(LocalPath::fromPath("-shm", fsAccess));
+        dbFile.append(LocalPath::fromRelativePath("-shm"));
         EXPECT_TRUE(fileAccess->isfile(dbFile));
     }
 
@@ -1027,7 +889,7 @@ TEST_F(SqliteDBTest, CreateCurrent)
     {
         ScopedLengthRestore restorer(dbFile);
 
-        dbFile.append(LocalPath::fromPath("-shm", fsAccess));
+        dbFile.append(LocalPath::fromRelativePath("-shm"));
         EXPECT_TRUE(fileAccess->isfile(dbFile));
     }
 }
@@ -1170,7 +1032,7 @@ TEST_F(SqliteDBTest, RecycleLegacy)
         // Create dummy SHM file.
         {
             legacyShmPath = legacyPath;
-            legacyShmPath.append(LocalPath::fromPath("-shm", fsAccess));
+            legacyShmPath.append(LocalPath::fromRelativePath("-shm"));
 
             auto fileAccess = fsAccess.newfileaccess(false);
             EXPECT_TRUE(fileAccess->fopen(legacyShmPath, false, true));
@@ -1179,7 +1041,7 @@ TEST_F(SqliteDBTest, RecycleLegacy)
         // Create dummy WAL file.
         {
             legacyWalPath = legacyPath;
-            legacyWalPath.append(LocalPath::fromPath("-wal", fsAccess));
+            legacyWalPath.append(LocalPath::fromRelativePath("-wal"));
 
             auto fileAccess = fsAccess.newfileaccess(false);
             EXPECT_TRUE(fileAccess->fopen(legacyWalPath, false, true));
@@ -1281,32 +1143,32 @@ TEST(LocalPath, AppendWithSeparator)
     LocalPath target;
 
     // Doesn't add a separator if the target is empty.
-    source = LocalPath::fromPath("a", fsAccess);
+    source = LocalPath::fromRelativePath("a");
     target.appendWithSeparator(source, false);
 
-    EXPECT_EQ(target.toPath(fsAccess), "a");
+    EXPECT_EQ(target.toPath(), "a");
 
     // Doesn't add a separator if the source begins with one.
-    source = LocalPath::fromPath(SEP "b", fsAccess);
-    target = LocalPath::fromPath("a", fsAccess);
+    source = LocalPath::fromRelativePath(SEP "b");
+    target = LocalPath::fromRelativePath("a");
 
     target.appendWithSeparator(source, true);
-    EXPECT_EQ(target.toPath(fsAccess), "a" SEP "b");
+    EXPECT_EQ(target.toPath(), "a" SEP "b");
 
     // Doesn't add a separator if the target ends with one.
-    source = LocalPath::fromPath("b", fsAccess);
-    target = LocalPath::fromPath("a" SEP, fsAccess);
+    source = LocalPath::fromRelativePath("b");
+    target = LocalPath::fromRelativePath("a" SEP);
 
     target.appendWithSeparator(source, true);
-    EXPECT_EQ(target.toPath(fsAccess), "a" SEP "b");
+    EXPECT_EQ(target.toPath(), "a" SEP "b");
 
     // Adds a separator when:
     // - source doesn't begin with one.
     // - target doesn't end with one.
-    target = LocalPath::fromPath("a", fsAccess);
+    target = LocalPath::fromRelativePath("a");
 
     target.appendWithSeparator(source, true);
-    EXPECT_EQ(target.toPath(fsAccess), "a" SEP "b");
+    EXPECT_EQ(target.toPath(), "a" SEP "b");
 }
 
 TEST(LocalPath, PrependWithSeparator)
@@ -1317,23 +1179,23 @@ TEST(LocalPath, PrependWithSeparator)
     LocalPath target;
 
     // No separator if target is empty.
-    source = LocalPath::fromPath("b", fsAccess);
+    source = LocalPath::fromRelativePath("b");
 
     target.prependWithSeparator(source);
-    EXPECT_EQ(target.toPath(fsAccess), "b");
+    EXPECT_EQ(target.toPath(), "b");
 
     // No separator if target begins with separator.
-    target = LocalPath::fromPath(SEP "a", fsAccess);
+    target = LocalPath::fromRelativePath(SEP "a");
 
     target.prependWithSeparator(source);
-    EXPECT_EQ(target.toPath(fsAccess), "b" SEP "a");
+    EXPECT_EQ(target.toPath(), "b" SEP "a");
 
     // No separator if source ends with separator.
-    source = LocalPath::fromPath("b" SEP, fsAccess);
-    target = LocalPath::fromPath("a", fsAccess);
+    source = LocalPath::fromRelativePath("b" SEP);
+    target = LocalPath::fromRelativePath("a");
 
     target.prependWithSeparator(source);
-    EXPECT_EQ(target.toPath(fsAccess), "b" SEP "a");
+    EXPECT_EQ(target.toPath(), "b" SEP "a");
 }
 
 #undef SEP
@@ -1428,7 +1290,7 @@ class TooLongNameTest
 public:
     TooLongNameTest()
       : Test()
-      , mPrefixName(LocalPath::fromPath("d", mFsAccess))
+      , mPrefixName(LocalPath::fromRelativePath("d"))
       , mPrefixPath()
     {
     }
@@ -1438,7 +1300,7 @@ public:
         LocalPath path = prefix;
 
         path.appendWithSeparator(
-          LocalPath::fromName(name, mFsAccess, FS_UNKNOWN),
+          LocalPath::fromRelativeName(name, mFsAccess, FS_UNKNOWN),
           false);
 
         return path;
@@ -1476,7 +1338,6 @@ public:
 
         // Compute absolute path to "container" directory.
         mPrefixPath.appendWithSeparator(mPrefixName, false);
-        mPrefixPath.ensureWinExtendedPathLenPrefix();
 
         // Remove container directory.
         mFsAccess.emptydirlocal(mPrefixPath);
@@ -1518,23 +1379,23 @@ TEST_F(TooLongNameTest, Copy)
         ASSERT_FALSE(mFsAccess.target_name_too_long);
     }
 
-    // Relative
-    {
-        auto source = Append(mPrefixName, "x");
-        auto target = AppendLongName(mPrefixName, 'y');
+    //// Relative
+    //{
+    //    auto source = Append(mPrefixName, "x");
+    //    auto target = AppendLongName(mPrefixName, 'y');
 
-        ASSERT_TRUE(CreateDummyFile(source));
+    //    ASSERT_TRUE(CreateDummyFile(source));
 
-        ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
-        ASSERT_TRUE(mFsAccess.target_name_too_long);
+    //    ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
+    //    ASSERT_TRUE(mFsAccess.target_name_too_long);
 
-        // Legitimate "bad path" error should clear the flag.
-        target = Append(mPrefixName, "u");
-        target = Append(target, "v");
+    //    // Legitimate "bad path" error should clear the flag.
+    //    target = Append(mPrefixName, "u");
+    //    target = Append(target, "v");
 
-        ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
-        ASSERT_FALSE(mFsAccess.target_name_too_long);
-    }
+    //    ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
+    //    ASSERT_FALSE(mFsAccess.target_name_too_long);
+    //}
 }
 
 TEST_F(TooLongNameTest, CreateDirectory)
@@ -1554,20 +1415,20 @@ TEST_F(TooLongNameTest, CreateDirectory)
         ASSERT_FALSE(mFsAccess.target_name_too_long);
     }
 
-    // Relative
-    {
-        auto path = AppendLongName(mPrefixName, 'x');
+    //// Relative
+    //{
+    //    auto path = AppendLongName(mPrefixName, 'x');
 
-        ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
-        ASSERT_TRUE(mFsAccess.target_name_too_long);
+    //    ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
+    //    ASSERT_TRUE(mFsAccess.target_name_too_long);
 
-        // A legitimate "bad path" error should clear the flag.
-        path = Append(mPrefixName, "x");
-        path = Append(path, "y");
+    //    // A legitimate "bad path" error should clear the flag.
+    //    path = Append(mPrefixName, "x");
+    //    path = Append(path, "y");
 
-        ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
-        ASSERT_FALSE(mFsAccess.target_name_too_long);
-    }
+    //    ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
+    //    ASSERT_FALSE(mFsAccess.target_name_too_long);
+    //}
 }
 
 TEST_F(TooLongNameTest, Rename)
@@ -1590,21 +1451,21 @@ TEST_F(TooLongNameTest, Rename)
         ASSERT_FALSE(mFsAccess.target_name_too_long);
     }
 
-    // Relative
-    {
-        auto source = Append(mPrefixName, "t");
-        auto target = AppendLongName(mPrefixName, 'u');
-        
-        ASSERT_TRUE(CreateDummyFile(source));
+    //// Relative
+    //{
+    //    auto source = Append(mPrefixName, "t");
+    //    auto target = AppendLongName(mPrefixName, 'u');
 
-        ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
-        ASSERT_TRUE(mFsAccess.target_name_too_long);
+    //    ASSERT_TRUE(CreateDummyFile(source));
 
-        // Legitimate "bad path" error should clear the flag.
-        target = Append(mPrefixName, "u");
-        target = Append(target, "v");
+    //    ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
+    //    ASSERT_TRUE(mFsAccess.target_name_too_long);
 
-        ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
-        ASSERT_FALSE(mFsAccess.target_name_too_long);
-    }
+    //    // Legitimate "bad path" error should clear the flag.
+    //    target = Append(mPrefixName, "u");
+    //    target = Append(target, "v");
+
+    //    ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
+    //    ASSERT_FALSE(mFsAccess.target_name_too_long);
+    //}
 }

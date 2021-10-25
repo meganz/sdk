@@ -65,12 +65,6 @@ public:
 
     void tmpnamelocal(LocalPath&) const override;
 
-    void path2local(const std::string*, std::string*) const override;
-    void local2path(const std::string*, std::string*) const override;
-
-    void local2path(const std::wstring*, std::string*) const override;
-    void path2local(const std::string*, std::wstring*) const override;
-
     bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
@@ -153,7 +147,6 @@ public:
 };
 #endif
 
-#ifndef WINDOWS_PHONE
 struct MEGA_API WinAsyncIOContext : public AsyncIOContext
 {
     WinAsyncIOContext();
@@ -162,7 +155,6 @@ struct MEGA_API WinAsyncIOContext : public AsyncIOContext
 
     OVERLAPPED *overlapped;
 };
-#endif
 
 class MEGA_API WinFileAccess : public FileAccess
 {
@@ -197,13 +189,11 @@ public:
     ~WinFileAccess();
 
 protected:
-#ifndef WINDOWS_PHONE
     AsyncIOContext* newasynccontext() override;
     static VOID CALLBACK asyncopfinished(
             DWORD        dwErrorCode,
             DWORD        dwNumberOfBytesTransfered,
             LPOVERLAPPED lpOverlapped);
-#endif
 };
 } // namespace
 

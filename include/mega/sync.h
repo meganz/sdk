@@ -293,7 +293,7 @@ struct SyncPath
 
     bool appendRowNames(const syncRow& row, FileSystemType filesystemType);
 
-    SyncPath(Syncs& s, const LocalPath& fs, const string& cloud) : syncs(s), localPath(fs), cloudPath(cloud) {}
+    SyncPath(Syncs& s, const LocalPath& fs, const string& cloud) : localPath(fs), cloudPath(cloud), syncs(s) {}
 private:
     Syncs& syncs;
 };
@@ -545,7 +545,7 @@ public:
     bool dirty() const;
 
     // Reads a database from disk.
-    error read(const LocalPath& drivePath, SyncConfigVector& configs);
+    error read(const LocalPath& drivePath, SyncConfigVector& configs, bool isExternal);
 
     // Write the configs with this drivepath to disk.
     error write(const LocalPath& drivePath, const SyncConfigVector& configs);
@@ -587,7 +587,7 @@ private:
     LocalPath dbPath(const LocalPath& drivePath) const;
 
     // Reads a database from the specified slot on disk.
-    error read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot);
+    error read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot, bool isExternal);
 
     // Where we store databases for internal syncs.
     const LocalPath mInternalSyncStorePath;
@@ -617,10 +617,12 @@ public:
     bool deserialize(const LocalPath& dbPath,
                      SyncConfigVector& configs,
                      JSON& reader,
-                     unsigned int slot) const;
+                     unsigned int slot,
+                     bool isExternal) const;
 
     bool deserialize(SyncConfigVector& configs,
-                     JSON& reader) const;
+                     JSON& reader,
+                     bool isExternal) const;
 
     // Return a reference to this context's filesystem access.
     FileSystemAccess& fsAccess() const;
@@ -662,7 +664,7 @@ private:
     bool decrypt(const string& in, string& out);
 
     // Deserialize a config from JSON.
-    bool deserialize(SyncConfig& config, JSON& reader) const;
+    bool deserialize(SyncConfig& config, JSON& reader, bool isExternal) const;
 
     // Encrypt data.
     string encrypt(const string& data);

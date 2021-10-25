@@ -2093,13 +2093,6 @@ void MegaApi::addEntropy(char *data, unsigned int size)
     pImpl->addEntropy(data, size);
 }
 
-#ifdef WINDOWS_PHONE
-void MegaApi::setStatsID(const char *id)
-{
-    MegaApiImpl::setStatsID(id);
-}
-#endif
-
 void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     pImpl->fastLogin(email, stringHash, base64pwkey,listener);
@@ -3316,12 +3309,6 @@ void MegaApi::setStreamingMinimumRate(int bytesPerSecond)
 
 #ifdef ENABLE_SYNC
 
-//Move local files inside synced folders to the "Rubbish" folder.
-bool MegaApi::moveToLocalDebris(const char *path)
-{
-    return pImpl->moveToLocalDebris(path);
-}
-
 int MegaApi::syncPathState(string* path)
 {
     return pImpl->syncPathState(path);
@@ -3329,7 +3316,7 @@ int MegaApi::syncPathState(string* path)
 
 MegaNode *MegaApi::getSyncedNode(string *path)
 {
-    return pImpl->getSyncedNode(LocalPath::fromPlatformEncoded(*path));
+    return pImpl->getSyncedNode(LocalPath::fromPlatformEncodedAbsolute(*path));
 }
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3452,11 +3439,6 @@ MegaSyncList* MegaApi::getSyncs()
    return pImpl->getSyncs();
 }
 
-string MegaApi::getLocalPath(MegaNode *n)
-{
-    return pImpl->getLocalPath(n);
-}
-
 long long MegaApi::getNumLocalNodes()
 {
     return pImpl->getNumLocalNodes();
@@ -3498,11 +3480,6 @@ bool MegaApi::isScanning()
 bool MegaApi::isSyncing()
 {
     return pImpl->isSyncing();
-}
-
-bool MegaApi::isSynced(MegaNode *n)
-{
-    return pImpl->isSynced(n);
 }
 
 bool MegaApi::isSyncable(const char *, long long)

@@ -26,7 +26,7 @@
 #include "mega/base64.h"
 #include "mega/testhooks.h"
 
-#if defined(WIN32) && !defined(WINDOWS_PHONE)
+#if defined(WIN32)
 #include <winhttp.h>
 #endif
 
@@ -148,7 +148,7 @@ Proxy *HttpIO::getautoproxy()
     Proxy* proxy = new Proxy();
     proxy->setProxyType(Proxy::NONE);
 
-#if defined(WIN32) && !defined(WINDOWS_PHONE)
+#if defined(WIN32)
     WINHTTP_CURRENT_USER_IE_PROXY_CONFIG ieProxyConfig = { 0 };
 
     if (WinHttpGetIEProxyConfigForCurrentUser(&ieProxyConfig) == TRUE)

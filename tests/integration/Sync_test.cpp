@@ -827,7 +827,7 @@ struct StandardClient : public MegaApp
                  httpio.get(),
                  fsaccess.get(),
 #ifdef DBACCESS_CLASS
-                 new DBACCESS_CLASS(LocalPath::fromPath(client_dbaccess_path, *fsaccess)),
+                 new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
 #else
                  NULL,
 #endif
@@ -1223,7 +1223,7 @@ struct StandardClient : public MegaApp
                 string attrstring;
                 key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
                 attrs = n1->attrs;
-                client.fsaccess->normalize(&newname);
+                LocalPath::utf8_normalize(&newname);
                 attrs.map['n'] = newname;
                 attrs.getjson(&attrstring);
                 client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
@@ -1336,7 +1336,7 @@ struct StandardClient : public MegaApp
 
         file->h = node.nodeHandle();
         file->hprivate = true;
-        file->setLocalname(LocalPath::fromPath(destination.u8string(), *client.fsaccess));
+        file->setLocalname(LocalPath::fromAbsolutePath(destination.u8string()));
         file->name = node.displayname();
         file->result = std::move(result);
 
@@ -1385,7 +1385,7 @@ struct StandardClient : public MegaApp
         unique_ptr<File> file(new FilePut());
 
         file->h = parent->nodeHandle();
-        file->setLocalname(LocalPath::fromPath(path.u8string(), *client.fsaccess));
+        file->setLocalname(LocalPath::fromAbsolutePath(path.u8string()));
         file->name = name;
 
         client.startxfer(PUT, file.release(), committer);
@@ -1727,7 +1727,7 @@ struct StandardClient : public MegaApp
         if (client.syncs.syncConfigByBackupId(backupId, c))
         {
             info.h = c.getRemoteNode();
-            info.localpath = c.getLocalPath().toPath(*client.fsaccess);
+            info.localpath = c.getLocalPath().toPath();
             info.remotepath = c.mOriginalPathOfRemoteRootNode; // bit of a hack
 
             return true;
@@ -1846,12 +1846,12 @@ struct StandardClient : public MegaApp
         }
 
         auto config =
-          SyncConfig(LocalPath::fromPath(sourcePath, *client.fsaccess),
+          SyncConfig(LocalPath::fromAbsolutePath(sourcePath),
                      sourcePath,
                      targetNode->nodeHandle(),
                      targetNode->displaypath(),
                      0,
-                     LocalPath::fromPath(drivePath, *client.fsaccess),
+                     LocalPath::fromAbsolutePath(drivePath),
                      //string_vector(),
                      true,
                      SyncConfig::TYPE_BACKUP);
@@ -1904,7 +1904,7 @@ struct StandardClient : public MegaApp
             {
                 out() << clientname << "Setting up sync from " << m->displaypath() << " to " << localpath;
                 auto syncConfig =
-                    SyncConfig(LocalPath::fromPath(localpath.u8string(), *client.fsaccess),
+                    SyncConfig(LocalPath::fromAbsolutePath(localpath.u8string()),
                                localpath.u8string(),
                                NodeHandle().set6byte(m->nodehandle),
                                m->displaypath(),
@@ -2136,11 +2136,11 @@ struct StandardClient : public MegaApp
         {
             if (n->syncedCloudNodeHandle.isUndef())
             {
-                EXPECT_TRUE(!n->syncedCloudNodeHandle.isUndef()) << "expected synced non-undef handle at localnode: " << n->localnodedisplaypath(*client.fsaccess);
+                EXPECT_TRUE(!n->syncedCloudNodeHandle.isUndef()) << "expected synced non-undef handle at localnode: " << n->localnodedisplaypath();
             }
             if (!client.nodeByHandle(n->syncedCloudNodeHandle))
             {
-                EXPECT_TRUE(!!client.nodeByHandle(n->syncedCloudNodeHandle)) << "expected synced handle that looks up node at localnode: " << n->localnodedisplaypath(*client.fsaccess);;
+                EXPECT_TRUE(!!client.nodeByHandle(n->syncedCloudNodeHandle)) << "expected synced handle that looks up node at localnode: " << n->localnodedisplaypath();;
             }
         }
         Node* syncedNode = client.nodeByHandle(n->syncedCloudNodeHandle);
@@ -2408,7 +2408,7 @@ struct StandardClient : public MegaApp
 
     void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result)
     {
-        auto localPath = LocalPath::fromPath(path.u8string(), *client.fsaccess);
+        auto localPath = LocalPath::fromAbsolutePath(path.u8string());
         auto id = UNDEF;
 
         client.syncs.forEachUnifiedSync(
@@ -3213,7 +3213,7 @@ struct StandardClient : public MegaApp
 
     bool backupOpenDrive(const fs::path& drivePath)
     {
-        auto localDrivePath = LocalPath::fromPath(drivePath.u8string(), *client.fsaccess);
+        auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
 
         error e = API_OK;
         client.syncs.syncRun([&]() {
@@ -3225,7 +3225,7 @@ struct StandardClient : public MegaApp
 
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
     {
-        auto localDrivePath = LocalPath::fromPath(drivePath.u8string(), *client.fsaccess);
+        auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
 
         client.syncs.queueSync([=]() {
                 error e = client.syncs.backupOpenDrive(localDrivePath);
@@ -3235,10 +3235,7 @@ struct StandardClient : public MegaApp
 
     void wouldBeEscapedOnDownload(fs::path root, string remoteName, PromiseBoolSP result)
     {
-        auto fsAccess = client.fsaccess;
-        auto localRoot = LocalPath::fromPath(root.u8string(), *fsAccess);
-        auto type = fsAccess->getlocalfstype(localRoot);
-        auto localName = LocalPath::fromName(remoteName, *fsAccess, type);
+        auto localName = LocalPath::fromAbsolutePath(remoteName);
 
         result->set_value(localName.toPath() != remoteName);
     }
@@ -3853,15 +3850,9 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
 
     // client1 should send a rename command to the API
     // both client1 and client2 should receive the corresponding actionpacket
-    const char* s = nullptr;
-    if (!clientA1.waitForNodesUpdated(60))
-    {
-        s = " no actionpacket received in clientA1 for rename";
-    }
-    if (!clientA2.waitForNodesUpdated(60))
-    {
-        s = " no actionpacket received in clientA2 for rename";
-    }
+    ASSERT_TRUE(clientA1.waitForNodesUpdated(60)) << " no actionpacket received in clientA1 for rename";
+    ASSERT_TRUE(clientA2.waitForNodesUpdated(60)) << " no actionpacket received in clientA2 for rename";
+
     out() << "----- wait for actionpackets ended -----";
 
     // sync activity should not take much longer after that.
@@ -5242,7 +5233,7 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
           auto fileAccess = fsAccess.newfileaccess(false);
 
           // Translate input path into something useful.
-          auto path = LocalPath::fromPath(fsPath.u8string(), fsAccess);
+          auto path = LocalPath::fromAbsolutePath(fsPath.u8string());
 
           // Try and open file for reading.
           if (fileAccess->fopen(path, true, false))
@@ -5404,8 +5395,8 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
         config1.mBackupId = UNDEF;
 
         // Update path for c1.
-        config0.mLocalPath = LocalPath::fromPath(root0.u8string(), fsAccess);
-        config1.mLocalPath = LocalPath::fromPath(root1.u8string(), fsAccess);
+        config0.mLocalPath = LocalPath::fromAbsolutePath(root0.u8string());
+        config1.mLocalPath = LocalPath::fromAbsolutePath(root1.u8string());
 
         // Make sure local sync roots exist.
         fs::create_directories(root0);
@@ -5502,10 +5493,10 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     list<NameConflict> conflicts;
     ASSERT_TRUE(client.conflictsDetected(conflicts));
     ASSERT_EQ(conflicts.size(), 2u);
-    ASSERT_EQ(conflicts.back().localPath, LocalPath::fromPath("d", *client.fsaccess).prependNewWithSeparator(client.syncByBackupId(backupId1)->localroot->localname));
+    ASSERT_EQ(conflicts.back().localPath, LocalPath::fromRelativePath("d").prependNewWithSeparator(client.syncByBackupId(backupId1)->localroot->localname));
     ASSERT_EQ(conflicts.back().clashingLocalNames.size(), 2u);
-    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromPath("f%30", *client.fsaccess)));
-    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromPath("f0", *client.fsaccess)));
+    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f%30")));
+    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f0")));
     ASSERT_EQ(conflicts.back().clashingCloudNames.size(), 0u);
 
     // Resolve the f0 / f%30 conflict.
@@ -5519,12 +5510,12 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     conflicts.clear();
     ASSERT_TRUE(client.conflictsDetected(conflicts));
     ASSERT_GE(conflicts.size(), 1u);
-    ASSERT_EQ(conflicts.front().localPath, LocalPath::fromPath("e", *client.fsaccess)
-        .prependNewWithSeparator(LocalPath::fromPath("d", *client.fsaccess))
+    ASSERT_EQ(conflicts.front().localPath, LocalPath::fromRelativePath("e")
+        .prependNewWithSeparator(LocalPath::fromRelativePath("d"))
         .prependNewWithSeparator(client.syncByBackupId(backupId1)->localroot->localname));
     ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 2u);
-    ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromPath("g%30", *client.fsaccess)));
-    ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromPath("g0", *client.fsaccess)));
+    ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromRelativePath("g%30")));
+    ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromRelativePath("g0")));
     ASSERT_EQ(conflicts.front().clashingCloudNames.size(), 0u);
 
     // Resolve the g / g%30 conflict.
@@ -8237,7 +8228,7 @@ struct TwoWaySyncSymmetryCase
         string attrstring;
         key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
         attrs = n1->attrs;
-        client1().client.fsaccess->normalize(&newname);
+        LocalPath::utf8_normalize(&newname);
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
@@ -8897,8 +8888,8 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     ASSERT_NE(backupId1, UNDEF);
     handle backupId2 = clientA1Resume.setupSync_mainthread("twoway", "twoway");
     ASSERT_NE(backupId2, UNDEF);
-    assert(allstate.localBaseFolderSteady == clientA1Steady.syncSet(backupId1).localpath);
-    assert(allstate.localBaseFolderResume == clientA1Resume.syncSet(backupId2).localpath);
+    ASSERT_EQ(allstate.localBaseFolderSteady, clientA1Steady.syncSet(backupId1).localpath);
+    ASSERT_EQ(allstate.localBaseFolderResume, clientA1Resume.syncSet(backupId2).localpath);
 
     out() << "Full-sync all test folders to the cloud for setup";
     waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
@@ -13879,7 +13870,7 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
 
     // Was the rename propagated?
     model.findnode("d/f")->name = "ff";
-    
+
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
     // Move (and rename) the file such that it has a long name.
