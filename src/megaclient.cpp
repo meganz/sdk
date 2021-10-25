@@ -16617,80 +16617,9 @@ int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
     return sctable->getNumberOfChildrenFromNode(parentHandle);
 }
 
-NodeCounter MegaClient::getTreeInfoFromFile(NodeHandle nodehandle)
+NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle)
 {
-    Node* node = nodeByHandleInRam(nodehandle);
-    bool isFileNode = node ? (node->type == FILENODE) : sctable->isFileNode(nodehandle);
-    std::vector<NodeHandle> children;
-    sctable->getChildrenHandlesFromNode(nodehandle, children);
-    NodeCounter nc;
-    for (const NodeHandle &h : children)
-    {
-        if (isFileNode)
-        {
-            nc += getTreeInfoFromFile(h);
-        }
-        else
-        {
-            // parent is file its children have to be files
-            assert(false);
-        }
-    }
-
-    if (node)
-    {
-        if (node->type == FILENODE)
-        {
-            nc.files ++;
-            nc.storage += node->size;
-            nc.versions ++;
-            nc.versionStorage += node->size;
-        }
-        else
-        {
-           assert(false);
-        }
-    }
-    else
-    {
-        nc += sctable->getNodeCounter(nodehandle, true);
-    }
-
-    return nc;
-}
-
-NodeCounter MegaClient::getTreeInfoFromFolder(NodeHandle nodehandle)
-{
-    Node* node = nodeByHandleInRam(nodehandle);
-    bool isFileNode = node ? (node->type == FILENODE) : sctable->isFileNode(nodehandle);
-    std::vector<NodeHandle> children;
-    sctable->getChildrenHandlesFromNode(nodehandle, children);
-    NodeCounter nc;
-    for (const NodeHandle &h : children)
-    {
-        if (isFileNode)
-        {
-            nc += getTreeInfoFromFile(h);
-        }
-        else
-        {
-            nc += getTreeInfoFromFolder(h);
-        }
-    }
-
-    if (node)
-    {
-        if (node->type == FOLDERNODE)
-        {
-            nc.folders ++;
-        }
-    }
-    else
-    {
-        nc += sctable->getNodeCounter(nodehandle, false);
-    }
-
-    return nc;
+    return mNodeManager.getNodeCounter(nodehandle);
 }
 
 bool MegaClient::loggedIntoFolder() const

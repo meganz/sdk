@@ -943,11 +943,8 @@ public:
     // Get number of children from a node
     int getNumberOfChildren(NodeHandle parentHandle);
 
-    // Get sub tree info from a file (size and version)
-    NodeCounter getTreeInfoFromFile(NodeHandle nodehandle);
-
-    // Get sub tree info from a folder (folders, files and size)
-    NodeCounter getTreeInfoFromFolder(NodeHandle nodehandle);
+    // Get sub tree info from a node
+    NodeCounter getTreeInfoFromNode(NodeHandle nodehandle);
 
     // use HTTPS for all communications
     bool usehttps;
