@@ -293,7 +293,7 @@ struct SyncPath
 
     bool appendRowNames(const syncRow& row, FileSystemType filesystemType);
 
-    SyncPath(Syncs& s, const LocalPath& fs, const string& cloud) : syncs(s), localPath(fs), cloudPath(cloud) {}
+    SyncPath(Syncs& s, const LocalPath& fs, const string& cloud) : localPath(fs), cloudPath(cloud), syncs(s) {}
 private:
     Syncs& syncs;
 };
@@ -538,7 +538,7 @@ public:
     bool dirty() const;
 
     // Reads a database from disk.
-    error read(const LocalPath& drivePath, SyncConfigVector& configs);
+    error read(const LocalPath& drivePath, SyncConfigVector& configs, bool isExternal);
 
     // Write the configs with this drivepath to disk.
     error write(const LocalPath& drivePath, const SyncConfigVector& configs);
@@ -580,7 +580,7 @@ private:
     LocalPath dbPath(const LocalPath& drivePath) const;
 
     // Reads a database from the specified slot on disk.
-    error read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot);
+    error read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot, bool isExternal);
 
     // Where we store databases for internal syncs.
     const LocalPath mInternalSyncStorePath;
@@ -610,10 +610,12 @@ public:
     bool deserialize(const LocalPath& dbPath,
                      SyncConfigVector& configs,
                      JSON& reader,
-                     unsigned int slot) const;
+                     unsigned int slot,
+                     bool isExternal) const;
 
     bool deserialize(SyncConfigVector& configs,
-                     JSON& reader) const;
+                     JSON& reader,
+                     bool isExternal) const;
 
     // Return a reference to this context's filesystem access.
     FileSystemAccess& fsAccess() const;
@@ -655,7 +657,7 @@ private:
     bool decrypt(const string& in, string& out);
 
     // Deserialize a config from JSON.
-    bool deserialize(SyncConfig& config, JSON& reader) const;
+    bool deserialize(SyncConfig& config, JSON& reader, bool isExternal) const;
 
     // Encrypt data.
     string encrypt(const string& data);
@@ -803,18 +805,6 @@ struct Syncs
     Syncs(MegaClient& mc);
     ~Syncs();
 
-    // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
-    bool isEmpty = true;
-
-    // Keep track of files that we can't move yet because they are changing
-    struct FileChangingState
-    {
-        // values related to possible files being updated
-        m_off_t updatedfilesize = ~0;
-        m_time_t updatedfilets = 0;
-        m_time_t updatedfileinitialts = 0;
-    };
-    std::map<LocalPath, FileChangingState> mFileChangingCheckState;
 
     /**
      * @brief
@@ -892,20 +882,6 @@ public:
 
     void importSyncConfigs(const char* data, std::function<void(error)> completion);
 
-    unique_ptr<SyncFlags> mSyncFlags;
-
-    // app scanstate flag
-    bool syncscanstate = false;
-
-    // whether any sync has any work to do
-    bool syncBusyState = false;
-
-    // app stall state flag
-    bool syncStallState = false;
-
-    // app conflict tate flag
-    bool syncConflictState = false;
-
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
     fsid_localnode_map localnodeByScannedFsid;
@@ -918,11 +894,6 @@ public:
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
     LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
-
-    bool mDetailedSyncLogging = false;
-
-    // total number of LocalNode objects
-    long long totalLocalNodes = 0;
 
     // manage syncdown flags inside the syncs
     void setSyncsNeedFullSync(bool andFullScan, handle backupId = UNDEF);
@@ -938,12 +909,6 @@ public:
     list<weak_ptr<LocalNode::RareFields::ScanBlocked>> scanBlockedPaths;
     list<weak_ptr<LocalNode::RareFields::BadlyFormedIgnore>> badlyFormedIgnoreFilePaths;
 
-    // waiter for sync loop on thread
-    WAIT_CLASS waiter;
-
-    // used to asynchronously perform scans.
-    unique_ptr<ScanService> mScanService;
-
     typedef std::function<void(MegaClient&, DBTableTransactionCommitter&)> QueuedClientFunc;
     ThreadSafeDeque<QueuedClientFunc> clientThreadActions;
     ThreadSafeDeque<std::function<void()>> syncThreadActions;
@@ -958,46 +923,41 @@ public:
     // mark nodes as needing to be checked for sync actions
     void triggerSync(NodeHandle, bool recurse = false);
 
+    // Move a file into the nearest suitable local debris.
+    std::future<bool> moveToLocalDebris(LocalPath path);
+
+    // ------ public data members (thread safe)
+
+    // waiter for sync loop on thread
+    WAIT_CLASS waiter;
+
+    // These rules are used to generate ignore files for newly added syncs.
+    DefaultFilterChain mDefaultFilterChain;
+
     // todo: move relevant code to this class later
     // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem browser for icon indicators
     std::timed_mutex mLocalNodeChangeMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
 
-    // Move a file into the nearest suitable local debris.
-    std::future<bool> moveToLocalDebris(LocalPath path);
+    // flags matching the state we have reported to the app via callbacks
+    bool syncscanstate = false;
+    bool syncBusyState = false;
+    bool syncStallState = false;
+    bool syncConflictState = false;
+
+    // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
+    bool isEmpty = true;
+
+    // directly accessed flag that makes sync-related logging a lot more detailed
+    bool mDetailedSyncLogging = false;
+
+    // total number of LocalNode objects (only updated by syncs thread)
+    long long totalLocalNodes = 0;
 
 private:
-
-    // for heartbeats
-    unique_ptr<BackupMonitor> mHeartBeatMonitor;
 
     // functions for internal use on-thread only
     void stopCancelledFailedDisabled();
 
-    // Most of these private fields should only be used on the Sync's own thread
-    // LocalNodes are entirely managed on this thread
-    friend struct LocalNode;
-    friend class Sync;
-    friend struct SyncPath;
-    friend struct UnifiedSync;
-    friend class BackupInfoSync;
-    friend class BackupMonitor;
-
-    // Syncs should have a separate fsaccess for use on its thread
-    unique_ptr<FileSystemAccess> fsaccess;
-
-    // pseudo-random number generator
-    PrnGen rng;
-
-    // Separate key to avoid threading issues
-    SymmCipher syncKey;
-
-    // data structure with mutex to interchange stall info
-    SyncStallInfo stallReport;
-    mutable mutex stallReportMutex;
-
-    // When the node tree changes, this structure lets the sync code know which LocalNodes need to be flagged
-    map<NodeHandle, bool> triggerHandles;
-    mutex triggerMutex;
     void processTriggerHandles();
 
     void exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const;
@@ -1008,16 +968,6 @@ private:
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();
 
-    // This user's internal sync configuration store.
-    unique_ptr<SyncConfigStore> mSyncConfigStore;
-
-    // Responsible for securely writing config databases to disk.
-    unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
-
-    // Stopgap solution - mutex to protect mSyncVec, and return shared_ptrs.
-    // Gradually we will tighten up the interface so UnifiedSync is only managed within the sync thread.
-    mutable mutex mSyncVecMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
-    vector<shared_ptr<UnifiedSync>> mSyncVec;
 
     // remove the Sync and its config from memory - optionally also other aspects
     void removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, bool unresg);
@@ -1026,8 +976,6 @@ private:
     void unloadSyncByIndex(size_t index);
 
     void proclocaltree(LocalNode* n, LocalTreeProc* tp);
-
-    MegaClient& mClient;
 
     bool mightAnySyncsHaveMoves(bool includePausedSyncs);
     bool isAnySyncSyncing(bool includePausedSyncs);
@@ -1052,14 +1000,6 @@ private:
     void purgeRunningSyncs_inThread();
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
 
-
-    bool mExecutingLocallogout = false;
-
-    bool mDownloadsPaused = false;
-    bool mUploadsPaused = false;
-
-    std::thread syncThread;
-    std::thread::id syncThreadId;
     void syncLoop();
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
@@ -1192,20 +1132,84 @@ private:
         handle mBackupID = UNDEF;
     }; // IgnoreFileFailureContext
 
+       // Check if the sync described by config contains an ignore file.
+    bool hasIgnoreFile(const SyncConfig& config);
+
+    // ------ private data members
+
+    MegaClient& mClient;
+
+    // Syncs should have a separate fsaccess for thread safety
+    unique_ptr<FileSystemAccess> fsaccess;
+
+    // Track some state during and between recursiveSync runs
+    unique_ptr<SyncFlags> mSyncFlags;
+
+    // This user's internal sync configuration store.
+    unique_ptr<SyncConfigStore> mSyncConfigStore;
+
+    // Responsible for securely writing config databases to disk.
+    unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
+
+    // Sometimes the Client needs a list of the sync configs, we provide it by copy (mutex for thread safety of course)
+    mutable mutex mSyncVecMutex;
+    vector<shared_ptr<UnifiedSync>> mSyncVec;
+
+    // used to asynchronously perform scans.
+    unique_ptr<ScanService> mScanService;
+
+    // pseudo-random number generator
+    PrnGen rng;
+
+    // Separate key to avoid threading issues
+    SymmCipher syncKey;
+
+    // data structure with mutex to interchange stall info
+    SyncStallInfo stallReport;
+    mutable mutex stallReportMutex;
+
+    // When the node tree changes, this structure lets the sync code know which LocalNodes need to be flagged
+    map<NodeHandle, bool> triggerHandles;
+    mutex triggerMutex;
+
+    // Keep track of files that we can't move yet because they are changing
+    struct FileChangingState
+    {
+        // values related to possible files being updated
+        m_off_t updatedfilesize = ~0;
+        m_time_t updatedfilets = 0;
+        m_time_t updatedfileinitialts = 0;
+    };
+    std::map<LocalPath, FileChangingState> mFileChangingCheckState;
+
+    // shutdown safety
+    bool mExecutingLocallogout = false;
+
+    // local record of client's state for thread safety
+    bool mDownloadsPaused = false;
+    bool mUploadsPaused = false;
+
+    // Responsible for tracking when to send sync/backup heartbeats
+    unique_ptr<BackupMonitor> mHeartBeatMonitor;
+
     // Tracks the last recorded ignore file failure.
     IgnoreFileFailureContext mIgnoreFileFailureContext;
 
-    // Check if the sync described by config contains an ignore file.
-    bool hasIgnoreFile(const SyncConfig& config);
+    // for clarifying and confirming which functions run on which threads
+    std::thread::id syncThreadId;
 
-public:
-    // Default filter rules.
-    //
-    // These rules are used to generate ignore files for newly added syncs.
-    //
-    // It's safe to access this member from multiple threads as the class
-    // manages its own synchronization.
-    DefaultFilterChain mDefaultFilterChain;
+    // declared last; would be auto-destructed first.
+    std::thread syncThread;
+
+
+    // structs and classes that are private to the thread, and need access to some internals that should not be generally public
+    friend struct LocalNode;
+    friend class Sync;
+    friend struct SyncPath;
+    friend struct UnifiedSync;
+    friend class BackupInfoSync;
+    friend class BackupMonitor;
+    friend struct ProgressingMonitor;
 };
 
 } // namespace

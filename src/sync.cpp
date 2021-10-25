@@ -186,7 +186,7 @@ void ScanService::Worker::loop()
         }
 
         const auto targetPath =
-          request->mTargetPath.toPath(*mFsAccess);
+          request->mTargetPath.toPath();
 
         LOG_verbose << "Directory scan begins: " << targetPath;
 
@@ -243,7 +243,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
         if (result.isSymlink)
         {
             LOG_debug << "Interrogated path is a symlink: "
-                      << path.toPath(*mFsAccess);
+                      << path.toPath();
         }
 
         // No need to fingerprint directories.
@@ -271,7 +271,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
     }
 
     // Couldn't open the file.
-    LOG_warn << "Error opening directory scan entry: " << path.toPath(*mFsAccess);
+    LOG_warn << "Error opening directory scan entry: " << path.toPath();
 
     // File's blocked if the error is transient.
     result.isBlocked = fileAccess->retry;
@@ -279,7 +279,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
     // Warn about the blocked file.
     if (result.isBlocked)
     {
-        LOG_warn << "File/Folder blocked during directory scan: " << path.toPath(*mFsAccess);
+        LOG_warn << "File/Folder blocked during directory scan: " << path.toPath();
     }
 
     return result;
@@ -300,7 +300,7 @@ auto ScanService::Worker::scan(ScanRequestPtr request) -> ScanResult
     if (!fileAccess->fopen(path, true, false))
     {
         LOG_debug << "Scan target does not exist or is not openable: "
-                  << path.toPath(*mFsAccess);
+                  << path.toPath();
         return SCAN_INACCESSIBLE;
     }
 
@@ -308,14 +308,14 @@ auto ScanService::Worker::scan(ScanRequestPtr request) -> ScanResult
     if (fileAccess->type != FOLDERNODE)
     {
         LOG_debug << "Scan target is not a directory: "
-                  << path.toPath(*mFsAccess);
+                  << path.toPath();
         return SCAN_INACCESSIBLE;
     }
 
     if (fileAccess->fsid != request->mExpectedFsid)
     {
         LOG_debug << "Scan target at this path has been replaced, fsid is different: "
-            << path.toPath(*mFsAccess);
+            << path.toPath();
         return SCAN_FSID_MISMATCH;
     }
 
@@ -326,7 +326,7 @@ auto ScanService::Worker::scan(ScanRequestPtr request) -> ScanResult
     if (!dirAccess->dopen(&path, fileAccess.get(), false))
     {
         LOG_debug << "Scan target is not iteratable: "
-                  << path.toPath(*mFsAccess);
+                  << path.toPath();
         return SCAN_INACCESSIBLE;
     }
 
@@ -367,7 +367,7 @@ ScopedSyncPathRestore::~ScopedSyncPathRestore()
 
 string SyncPath::localPath_utf8() const
 {
-    return localPath.toPath(*syncs.fsaccess);
+    return localPath.toPath();
 }
 
 bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
@@ -384,12 +384,12 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     else if (row.cloudNode)
     {
         // this is the local name used when downsyncing a cloud name, if previously unmatched
-        localPath.appendWithSeparator(LocalPath::fromName(row.cloudNode->name, *syncs.fsaccess, filesystemType), true);
+        localPath.appendWithSeparator(LocalPath::fromRelativeName(row.cloudNode->name, *syncs.fsaccess, filesystemType), true);
     }
     else if (!row.cloudClashingNames.empty() || !row.fsClashingNames.empty())
     {
         // so as not to mislead in logs etc
-        localPath.appendWithSeparator(LocalPath::fromName("<<<clashing>>>", *syncs.fsaccess, filesystemType), true);
+        localPath.appendWithSeparator(LocalPath::fromRelativeName("<<<clashing>>>", *syncs.fsaccess, filesystemType), true);
     }
     else
     {
@@ -792,7 +792,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     if (!cdebris.empty())
     {
         debris = cdebris;
-        localdebrisname = LocalPath::fromPath(debris, *syncs.fsaccess);
+        localdebrisname = LocalPath::fromRelativePath(debris);
         localdebris = localdebrisname;
         localdebris.prependWithSeparator(mLocalPath);
     }
@@ -1267,7 +1267,7 @@ void Sync::createDebrisTmpLockOnce()
                 LOG_verbose << syncname << "Created local sync debris folder";
             }
 
-            LocalPath tmpname = LocalPath::fromName("tmp", *syncs.fsaccess, mFilesystemType);
+            LocalPath tmpname = LocalPath::fromRelativePath("tmp");
             localfilename.appendWithSeparator(tmpname, true);
             if (syncs.fsaccess->mkdirlocal(localfilename, false, false))
             {
@@ -1277,7 +1277,7 @@ void Sync::createDebrisTmpLockOnce()
             tmpfaPath = localfilename;
 
             // lock it
-            LocalPath lockname = LocalPath::fromName("lock", *syncs.fsaccess, mFilesystemType);
+            LocalPath lockname = LocalPath::fromRelativePath("lock");
             localfilename.appendWithSeparator(lockname, true);
 
             if (tmpfa->fopen(localfilename, false, true))
@@ -1643,7 +1643,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             {
                 SYNC_verbose << syncname << "Move detected by fsid " << toHandle(row.fsNode->fsid) << " but something else with that name (" << row.cloudNode->name << ") is already here in the cloud. Type: " << row.cloudNode->type
                     << " new path: " << fullPath.localPath_utf8()
-                    << " old localnode: " << sourceSyncNode->localnodedisplaypath(*syncs.fsaccess)
+                    << " old localnode: " << sourceSyncNode->localnodedisplaypath()
                     << logTriplet(row, fullPath);
 
                 // but, is it ok to overwrite that thing?  If that's what happened locally to a synced file, and the cloud item was also synced and is still there, then it's legit
@@ -1692,7 +1692,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             {
                 LOG_debug << syncname << "Move detected by fsid " << toHandle(row.fsNode->fsid) << ". Type: " << sourceSyncNode->type
                     << " new path: " << fullPath.localPath_utf8()
-                    << " old localnode: " << sourceSyncNode->localnodedisplaypath(*syncs.fsaccess)
+                    << " old localnode: " << sourceSyncNode->localnodedisplaypath()
                     << logTriplet(row, fullPath);
 
                 if (belowRemovedCloudNode)
@@ -1812,7 +1812,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         row.syncNode->rare().moveToHere = movePtr;
                         sourceSyncNode->rare().moveFromHere = movePtr;
 
-                        LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath(*syncs.fsaccess) << " -> " << fullPath.localPath.toPath(*syncs.fsaccess);
+                        LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath() << " -> " << fullPath.localPath.toPath();
 
                         rowResult = false;
                         return true;
@@ -1877,7 +1877,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         // command sent, now we wait for the actinpacket updates, later we will recognise
                         // the row as synced from fsNode, cloudNode and update the syncNode from those
 
-                        LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath(*syncs.fsaccess) << " -> " << fullPath.localPath.toPath(*syncs.fsaccess);
+                        LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath() << " -> " << fullPath.localPath.toPath();
 
                         row.syncNode->rare().moveToHere = movePtr;
                         sourceSyncNode->rare().moveFromHere = movePtr;
@@ -2071,7 +2071,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             SYNC_verbose << syncname << "Move detected by nodehandle, but something else with that name is already here locally. Type: " << row.fsNode->type
                 << " moved node: " << fullPath.cloudPath
-                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath(*syncs.fsaccess) : "<null>")
+                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath() : "<null>")
                 << logTriplet(row, fullPath);
 
             if (row.syncNode)
@@ -2095,11 +2095,11 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         {
             LOG_debug << syncname << "Move detected by nodehandle. Type: " << sourceSyncNode->type
                 << " moved node: " << fullPath.cloudPath
-                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath(*syncs.fsaccess) : "<null>")
+                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath() : "<null>")
                 << logTriplet(row, fullPath);
 
             LOG_debug << "Sync - remote move " << fullPath.cloudPath <<
-                " from corresponding " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath(*syncs.fsaccess) : "<null>") <<
+                " from corresponding " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath() : "<null>") <<
                 " to " << parentRow.cloudNode->name;
 
             sourceSyncNode->moveApplyingToLocal = true;
@@ -2140,7 +2140,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
         if (overwrite)
         {
-            auto path = fullPath.localPath.toPath(*syncs.fsaccess);
+            auto path = fullPath.localPath.toPath();
 
             SYNC_verbose << "Move-target exists and must be moved to local debris: " << path;
 
@@ -2191,7 +2191,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // check filesystem is not changing fsids as a result of rename
             assert(overwrite || sourceSyncNode->fsid_lastSynced == debug_getfsid(fullPath.localPath, *syncs.fsaccess));
 
-            LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath(*syncs.fsaccess) << " -> " << fullPath.localPath.toPath(*syncs.fsaccess);
+            LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath() << " -> " << fullPath.localPath.toPath();
 
             if (!row.syncNode)
             {
@@ -2217,7 +2217,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         }
         else if (syncs.fsaccess->transient_error)
         {
-            LOG_warn << "transient error moving folder: " << sourcePath.toPath(*syncs.fsaccess) << logTriplet(row, fullPath);
+            LOG_warn << "transient error moving folder: " << sourcePath.toPath() << logTriplet(row, fullPath);
 
             monitor.waitingLocal(fullPath.localPath, sourceSyncNode->getLocalPath(), sourceSyncNode->getCloudPath(), SyncWaitReason::MoveOrRenameFailed);
 
@@ -2229,7 +2229,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         else if (syncs.fsaccess->target_name_too_long)
         {
             LOG_warn << "Unable to move folder as the move target's name is too long: "
-                     << sourcePath.toPath(*syncs.fsaccess)
+                     << sourcePath.toPath()
                      << logTriplet(row, fullPath);
 
             monitor.waitingLocal(fullPath.localPath,
@@ -2245,7 +2245,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         }
         else
         {
-            SYNC_verbose << "Move to here delayed since local parent doesn't exist yet: " << sourcePath.toPath(*syncs.fsaccess) << logTriplet(row, fullPath);
+            SYNC_verbose << "Move to here delayed since local parent doesn't exist yet: " << sourcePath.toPath() << logTriplet(row, fullPath);
             monitor.waitingCloud(fullPath.cloudPath, sourceSyncNode->getCloudPath(), fullPath.localPath, SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist);
             rowResult = false;
             return true;
@@ -2274,7 +2274,7 @@ dstime Sync::procextraq()
         if (node == (LocalNode*)~0)
         {
             LOG_debug << syncname << "Notification skipped: "
-                      << notification.path.toPath(*syncs.fsaccess);
+                      << notification.path.toPath();
             continue;
         }
 
@@ -2291,7 +2291,7 @@ dstime Sync::procextraq()
         }
 
         LOG_verbose << syncname << "Processing extra fs notification: "
-                    << notification.path.toPath(*syncs.fsaccess);
+                    << notification.path.toPath();
 
         LocalPath remainder;
         LocalNode* match;
@@ -2316,7 +2316,7 @@ dstime Sync::procextraq()
 #ifdef DEBUG
         if (nearest->scanAgain < TREE_ACTION_HERE)
         {
-            SYNC_verbose << "Trigger scan flag by delayed notification on " << nearest->localnodedisplaypath(*syncs.fsaccess);
+            SYNC_verbose << "Trigger scan flag by delayed notification on " << nearest->localnodedisplaypath();
         }
 #endif
         nearest->setScanAgain(false, true, !remainder.empty(), SCANNING_DELAY_DS);
@@ -2354,7 +2354,7 @@ dstime Sync::procscanq()
         if (notification.invalidated())
         {
             LOG_debug << syncname << "Notification skipped: "
-                      << notification.path.toPath(*syncs.fsaccess);
+                      << notification.path.toPath();
             continue;
         }
 
@@ -2413,7 +2413,7 @@ dstime Sync::procscanq()
 
                 SYNC_verbose << "Skipping self-notification (remaining: "
                     << nearest->expectedSelfNotificationCount << ") at: "
-                    << nearest->getLocalPath().toPath(*syncs.fsaccess);
+                    << nearest->getLocalPath().toPath();
 
                 continue;
             }
@@ -2421,7 +2421,7 @@ dstime Sync::procscanq()
             {
                 SYNC_verbose << "Expected more self-notifications ("
                     << nearest->expectedSelfNotificationCount << ") but they were late, at: "
-                    << nearest->getLocalPath().toPath(*syncs.fsaccess);
+                    << nearest->getLocalPath().toPath();
                 nearest->expectedSelfNotificationCount = 0;
             }
         }
@@ -2430,7 +2430,7 @@ dstime Sync::procscanq()
 #ifdef DEBUG
         //if (nearest->scanAgain < TREE_ACTION_HERE)
         {
-            SYNC_verbose << "Trigger scan flag by fs notification on " << nearest->localnodedisplaypath(*syncs.fsaccess);
+            SYNC_verbose << "Trigger scan flag by fs notification on " << nearest->localnodedisplaypath();
         }
 #endif
 
@@ -2447,7 +2447,7 @@ dstime Sync::procscanq()
         if (isnetwork)
         {
             LOG_verbose << syncname << "Queuing extra notification for: "
-                        << notification.path.toPath(*syncs.fsaccess);
+                        << notification.path.toPath();
 
             dirnotify->notify(dirnotify->fsDelayedNetworkEventq,
                               node,
@@ -2478,7 +2478,7 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
     // first try a subfolder with only the date (we expect that we may have target filename clashes here)
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
     LocalPath targetFolder = localdebris;
-    targetFolder.appendWithSeparator(LocalPath::fromPath(buf, *syncs.fsaccess), true);
+    targetFolder.appendWithSeparator(LocalPath::fromRelativePath(buf), true);
 
     bool failedDueToTargetExists = false;
 
@@ -2503,8 +2503,8 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
 
     // initially try wih the same sequence number as last time, to avoid making large numbers of these when possible
     targetFolder = localdebris;
-    targetFolder.appendWithSeparator(LocalPath::fromPath(
-        datetime + std::to_string(mLastDailyDateTimeDebrisCounter), *syncs.fsaccess), false);
+    targetFolder.appendWithSeparator(LocalPath::fromRelativePath(
+        datetime + std::to_string(mLastDailyDateTimeDebrisCounter)), false);
 
     if (movetolocaldebrisSubfolder(localpath, targetFolder, counterReset, failedDueToTargetExists))
     {
@@ -2523,8 +2523,8 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
     ++mLastDailyDateTimeDebrisCounter;
 
     targetFolder = localdebris;
-    targetFolder.appendWithSeparator(LocalPath::fromPath(
-        datetime + std::to_string(mLastDailyDateTimeDebrisCounter), *syncs.fsaccess), true);
+    targetFolder.appendWithSeparator(LocalPath::fromRelativePath(
+        datetime + std::to_string(mLastDailyDateTimeDebrisCounter)), true);
 
     if (movetolocaldebrisSubfolder(localpath, targetFolder, true, failedDueToTargetExists))
     {
@@ -2859,11 +2859,11 @@ void UnifiedSync::changedConfigState(bool notifyApp)
 }
 
 Syncs::Syncs(MegaClient& mc)
-  : mClient(mc)
+  : mDefaultFilterChain(*fsaccess)
+  , mClient(mc)
   , fsaccess(new FSACCESS_CLASS)
   , mSyncFlags(new SyncFlags)
   , mScanService(new ScanService(waiter))
-  , mDefaultFilterChain(*fsaccess)
 {
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
     syncThread = std::thread([this]() { syncLoop(); });
@@ -2913,6 +2913,7 @@ SyncConfigVector Syncs::allConfigs() const
 error Syncs::backupCloseDrive(LocalPath drivePath)
 {
     assert(!onSyncThread());
+    assert(drivePath.isAbsolute() || drivePath.empty());
 
     // Is the path valid?
     if (drivePath.empty())
@@ -2928,9 +2929,6 @@ error Syncs::backupCloseDrive(LocalPath drivePath)
         // Nope and we need it.
         return API_EINTERNAL;
     }
-
-    // Ensure the drive path is in normalized form.
-    drivePath = NormalizeAbsolute(drivePath);
 
     // Is this drive actually loaded?
     if (!store->driveKnown(drivePath))
@@ -2953,6 +2951,7 @@ error Syncs::backupCloseDrive(LocalPath drivePath)
 error Syncs::backupOpenDrive(LocalPath drivePath)
 {
     assert(onSyncThread());
+    assert(drivePath.isAbsolute());
 
     // Is the drive path valid?
     if (drivePath.empty())
@@ -2960,30 +2959,24 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
         return API_EARGS;
     }
 
-    // Convenience.
-    auto& fsAccess = *mClient.fsaccess;
-
     // Can we get our hands on the config store?
     auto* store = syncConfigStore();
 
     if (!store)
     {
         LOG_err << "Couldn't restore "
-                << drivePath.toPath(fsAccess)
+                << drivePath.toPath()
                 << " as there is no config store.";
 
         // Nope and we can't do anything without it.
         return API_EINTERNAL;
     }
 
-    // Ensure the drive path is in normalized form.
-    drivePath = NormalizeAbsolute(drivePath);
-
     // Has this drive already been opened?
     if (store->driveKnown(drivePath))
     {
         LOG_debug << "Skipped restore of "
-                  << drivePath.toPath(fsAccess)
+                  << drivePath.toPath()
                   << " as it has already been opened.";
 
         // Then we don't have to do anything.
@@ -2993,13 +2986,13 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
     SyncConfigVector configs;
 
     // Try and open the database on the drive.
-    auto result = store->read(drivePath, configs);
+    auto result = store->read(drivePath, configs, true);
 
     // Try and restore the backups in the database.
     if (result == API_OK)
     {
         LOG_debug << "Attempting to restore backup syncs from "
-                  << drivePath.toPath(fsAccess);
+                  << drivePath.toPath();
 
         size_t numRestored = 0;
 
@@ -3017,9 +3010,9 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
                 {
 				    skip = true;
                     LOG_err << "Skipping restore of backup "
-                            << config.mLocalPath.toPath(fsAccess)
+                            << config.mLocalPath.toPath()
                             << " on "
-                            << drivePath.toPath(fsAccess)
+                            << drivePath.toPath()
                             << " as a sync already exists with the backup id "
                             << toHandle(config.mBackupId);
                 }
@@ -3040,14 +3033,14 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
                   << " out of "
                   << configs.size()
                   << " backup(s) from "
-                  << drivePath.toPath(fsAccess);
+                  << drivePath.toPath();
 
         return API_OK;
     }
 
     // Couldn't open the database.
     LOG_warn << "Failed to restore "
-             << drivePath.toPath(fsAccess)
+             << drivePath.toPath()
              << " as we couldn't open its config database.";
 
     return result;
@@ -3148,7 +3141,7 @@ void Syncs::syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<
     bool known = store->driveKnown(LocalPath());
 
     // Load current configs from disk.
-    auto result = store->read(LocalPath(), configs);
+    auto result = store->read(LocalPath(), configs, false);
 
     if (result == API_ENOENT || result == API_OK)
     {
@@ -3255,7 +3248,7 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
     if (auto* store = syncConfigStore())
     {
         // Try and read the internal database from disk.
-        result = store->read(LocalPath(), configs);
+        result = store->read(LocalPath(), configs, false);
 
         if (result == API_ENOENT || result == API_OK)
         {
@@ -3486,9 +3479,7 @@ void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
         return;
     }
 
-    const auto& fsAccess = *mClient.fsaccess;
-
-    string localPath = config.mLocalPath.toPath(fsAccess);
+    string localPath = config.mLocalPath.toPath();
     string remotePath;
     const string& name = config.mName;
     const char* type = SyncConfig::synctypename(config.mSyncType);
@@ -3614,7 +3605,7 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     config.mEnabled = false;
     config.mError = NO_SYNC_ERROR;
     config.mLocalFingerprint = 0;
-    config.mLocalPath = LocalPath::fromPath(localPath, *mClient.fsaccess);
+    config.mLocalPath = LocalPath::fromAbsolutePath(localPath);
     config.mName = std::move(name);
     config.mOriginalPathOfRemoteRootNode = remotePath;
     config.mWarning = NO_SYNC_WARNING;
@@ -3924,9 +3915,9 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         if (!store)
         {
             LOG_err << "Unable to add backup "
-                << c.mLocalPath.toPath(*fsaccess)
+                << c.mLocalPath.toPath()
                 << " on "
-                << c.mExternalDrivePath.toPath(*fsaccess)
+                << c.mExternalDrivePath.toPath()
                 << " as there is no config store.";
 
             if (completion) completion(API_EINTERNAL, c.mError, c.mBackupId);
@@ -3942,9 +3933,9 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
             {
                 // Couldn't read an existing database.
                 LOG_err << "Unable to add backup "
-                    << c.mLocalPath.toPath(*fsaccess)
+                    << c.mLocalPath.toPath()
                     << " on "
-                    << c.mExternalDrivePath.toPath(*fsaccess)
+                    << c.mExternalDrivePath.toPath()
                     << " as we could not read its config database.";
 
                 if (completion) completion(API_EFAILED, c.mError, c.mBackupId);
@@ -4525,19 +4516,19 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
-                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
                 auto configCopy = unifiedSync->mConfig;
                 enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [this, configCopy, hadAnError](error e, SyncError se, handle backupId)
                     {
-                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << configCopy.getLocalPath().toPath(*fsaccess) << " fsfp= " << configCopy.getLocalFingerprint() << " error = " << se;
+                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << configCopy.getLocalPath().toPath() << " fsfp= " << configCopy.getLocalFingerprint() << " error = " << se;
                         assert(onSyncThread());
                         mClient.app->sync_auto_resume_result(configCopy, true, hadAnError);
                     }, "");
             }
             else
             {
-                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
                 assert(onSyncThread());
                 mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
             }
@@ -4892,7 +4883,7 @@ void Sync::combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::itera
                 == targetrow->fsNode->fsid))
             {
                 LOG_debug << syncname << "Conflicting filesystem name: "
-                    << targetrow->fsNode->localname.toPath(*syncs.fsaccess);
+                    << targetrow->fsNode->localname.toPath();
                 targetrow->fsClashingNames.push_back(targetrow->fsNode);
                 targetrow->fsNode = nullptr;
             }
@@ -4900,7 +4891,7 @@ void Sync::combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::itera
                 !targetrow->fsClashingNames.empty())
             {
                 LOG_debug << syncname << "Conflicting filesystem name: "
-                    << i->fsNode->localname.toPath(*syncs.fsaccess);
+                    << i->fsNode->localname.toPath();
                 targetrow->fsClashingNames.push_back(i->fsNode);
                 i->fsNode = nullptr;
             }
@@ -5592,9 +5583,9 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
             row.syncNode->localname != *row.fsNode->shortname)
         {
             LOG_warn << syncname
-                     << "Updating slocalname: " << row.fsNode->shortname->toPath(*syncs.fsaccess)
+                     << "Updating slocalname: " << row.fsNode->shortname->toPath()
                      << " at " << fullPath.localPath_utf8()
-                     << " was " << (row.syncNode->slocalname ? row.syncNode->slocalname->toPath(*syncs.fsaccess) : "(null)")
+                     << " was " << (row.syncNode->slocalname ? row.syncNode->slocalname->toPath() : "(null)")
                      << logTriplet(row, fullPath);
             row.syncNode->setnameparent(row.syncNode->parent, row.syncNode->localname, row.fsNode->cloneShortname());
             statecacheadd(row.syncNode);
@@ -6260,11 +6251,11 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     {
         if (row.syncNode->type == FOLDERNODE)
         {
-            LOG_debug << syncname << "Sync - local folder deletion detected: " << fullPath.localPath.toPath(*syncs.fsaccess);
+            LOG_debug << syncname << "Sync - local folder deletion detected: " << fullPath.localPath.toPath();
         }
         else
         {
-            LOG_debug << syncname << "Sync - local file deletion detected: " << fullPath.localPath.toPath(*syncs.fsaccess);
+            LOG_debug << syncname << "Sync - local file deletion detected: " << fullPath.localPath.toPath();
         }
     }
 
@@ -6340,7 +6331,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
             if (parentRow.cloudNode && parentRow.cloudNode->handle == parentRow.syncNode->syncedCloudNodeHandle)
             {
-                LOG_debug << syncname << "Sync - local file addition detected: " << fullPath.localPath.toPath(*syncs.fsaccess);
+                LOG_debug << syncname << "Sync - local file addition detected: " << fullPath.localPath.toPath();
 
                 LOG_debug << syncname << "Uploading file " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
                 assert(row.syncNode->scannedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint
@@ -6669,9 +6660,9 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                          << "Unable to create target folder as its name is too long "
                          << fullPath.localPath_utf8()
                          << logTriplet(row, fullPath);
-                         
+
                 assert(row.syncNode);
-                
+
                 monitor.waitingLocal(fullPath.localPath,
                                      LocalPath(),
                                      fullPath.cloudPath,
@@ -6949,7 +6940,7 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, 
         // todo: come back for other matches?
         if (!extraCheck || extraCheck(it->second))
         {
-            LOG_verbose << mClient.clientname << "findLocalNodeBySyncedFsid - found " << toHandle(fsid) << " at: " << it->second->getLocalPath().toPath(*fsaccess);
+            LOG_verbose << mClient.clientname << "findLocalNodeBySyncedFsid - found " << toHandle(fsid) << " at: " << it->second->getLocalPath().toPath();
             return it->second;
         }
     }
@@ -7009,7 +7000,7 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type,
         // todo: come back for other matches?
         if (!extraCheck || extraCheck(it->second))
         {
-            LOG_verbose << mClient.clientname << "findLocalNodeByScannedFsid - found at: " << it->second->getLocalPath().toPath(*fsaccess);
+            LOG_verbose << mClient.clientname << "findLocalNodeByScannedFsid - found at: " << it->second->getLocalPath().toPath();
             return it->second;
         }
     }
@@ -7219,7 +7210,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         else
         {
             SYNC_verbose << syncname << "This file/folder was moved, letting destination node at "
-                         << movedLocalNode->localnodedisplaypath(*syncs.fsaccess) << " process this first: " << logTriplet(row, fullPath);
+                         << movedLocalNode->localnodedisplaypath() << " process this first: " << logTriplet(row, fullPath);
         }
         // todo: do we need an equivalent to row.recurseToScanforNewLocalNodesOnly = true;  (in resolve_cloudNodeGone)
         monitor.waitingLocal(fullPath.localPath, movedLocalNode->getLocalPath(), string(), SyncWaitReason::MoveNeedsDestinationNodeProcessing);
@@ -7421,7 +7412,7 @@ void Syncs::processTriggerHandles()
                 for (auto it = range.first; it != range.second; ++it)
                 {
                     auto& syncs = *this;
-                    SYNC_verbose << mClient.clientname << "Triggering sync flag for " << it->second->localnodedisplaypath(*fsaccess) << (recurse ? " recursive" : "");
+                    SYNC_verbose << mClient.clientname << "Triggering sync flag for " << it->second->localnodedisplaypath() << (recurse ? " recursive" : "");
                     it->second->setSyncAgain(false, true, recurse);
                 }
             }
@@ -7437,7 +7428,7 @@ void Syncs::processTriggerHandles()
 #endif // ! _WIN32
 
 const LocalPath BACKUP_CONFIG_DIR =
-LocalPath::fromPlatformEncoded(PATHSTRING(".megabackup"));
+LocalPath::fromPlatformEncodedRelative(PATHSTRING(".megabackup"));
 
 #undef PATHSTRING
 
@@ -7447,6 +7438,7 @@ SyncConfigStore::SyncConfigStore(const LocalPath& dbPath, SyncConfigIOContext& i
     : mInternalSyncStorePath(dbPath)
     , mIOContext(ioContext)
 {
+    assert(mInternalSyncStorePath.isAbsolute());
 }
 
 SyncConfigStore::~SyncConfigStore()
@@ -7456,6 +7448,8 @@ SyncConfigStore::~SyncConfigStore()
 
 void SyncConfigStore::markDriveDirty(const LocalPath& drivePath)
 {
+    assert(drivePath.isAbsolute() || drivePath.empty());
+
     // Drive should be known.
     assert(mKnownDrives.count(drivePath));
 
@@ -7492,6 +7486,8 @@ LocalPath SyncConfigStore::dbPath(const LocalPath& drivePath) const
 
 bool SyncConfigStore::driveKnown(const LocalPath& drivePath) const
 {
+    assert(drivePath.isAbsolute() || drivePath.empty());
+
     return mKnownDrives.count(drivePath) > 0;
 }
 
@@ -7501,6 +7497,7 @@ vector<LocalPath> SyncConfigStore::knownDrives() const
 
     for (auto& i : mKnownDrives)
     {
+        assert(i.first.empty() || i.first.isAbsolute());
         result.emplace_back(i.first);
     }
 
@@ -7509,11 +7506,13 @@ vector<LocalPath> SyncConfigStore::knownDrives() const
 
 bool SyncConfigStore::removeDrive(const LocalPath& drivePath)
 {
+    assert(drivePath.isAbsolute() || drivePath.empty());
     return mKnownDrives.erase(drivePath) > 0;
 }
 
-error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& configs)
+error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& configs, bool isExternal)
 {
+    assert(drivePath.empty() || drivePath.isAbsolute());
     DriveInfo driveInfo;
     driveInfo.dbPath = dbPath(drivePath);
     driveInfo.drivePath = drivePath;
@@ -7526,7 +7525,7 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
     {
         for (const auto& slot : confSlots)
         {
-            result = read(driveInfo, configs, slot);
+            result = read(driveInfo, configs, slot, isExternal);
 
             if (result == API_OK)
             {
@@ -7600,7 +7599,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 
 
 error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
-                             unsigned int slot)
+                             unsigned int slot, bool isExternal)
 {
     const auto& dbPath = driveInfo.dbPath;
     string data;
@@ -7612,7 +7611,7 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
 
     JSON reader(data);
 
-    if (!mIOContext.deserialize(dbPath, configs, reader, slot))
+    if (!mIOContext.deserialize(dbPath, configs, reader, slot, isExternal))
     {
         return API_EREAD;
     }
@@ -7625,6 +7624,10 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
 
         if (!drivePath.empty())
         {
+            // As it came from an external drive, the path is relative
+            // but we didn't know that until now, for non-external it's absolute of course
+            config.mLocalPath = LocalPath::fromRelativePath(config.mLocalPath.toPath());
+
             config.mLocalPath.prependWithSeparator(drivePath);
         }
     }
@@ -7677,7 +7680,7 @@ SyncConfigIOContext::SyncConfigIOContext(FileSystemAccess& fsAccess,
                                          PrnGen& rng)
   : mCipher()
   , mFsAccess(fsAccess)
-  , mName(LocalPath::fromPath(NAME_PREFIX + name, mFsAccess))
+  , mName(LocalPath::fromRelativePath(NAME_PREFIX + name))
   , mRNG(rng)
   , mSigner()
 {
@@ -7703,14 +7706,15 @@ SyncConfigIOContext::~SyncConfigIOContext()
 bool SyncConfigIOContext::deserialize(const LocalPath& dbPath,
                                       SyncConfigVector& configs,
                                       JSON& reader,
-                                      unsigned int slot) const
+                                      unsigned int slot,
+                                      bool isExternal) const
 {
-    auto path = dbFilePath(dbPath, slot).toPath(mFsAccess);
+    auto path = dbFilePath(dbPath, slot).toPath();
 
     LOG_debug << "Attempting to deserialize config DB: "
               << path;
 
-    if (deserialize(configs, reader))
+    if (deserialize(configs, reader, isExternal))
     {
         LOG_debug << "Successfully deserialized config DB: "
                   << path;
@@ -7725,7 +7729,7 @@ bool SyncConfigIOContext::deserialize(const LocalPath& dbPath,
 }
 
 bool SyncConfigIOContext::deserialize(SyncConfigVector& configs,
-                                      JSON& reader) const
+                                      JSON& reader, bool isExternal) const
 {
     const auto TYPE_SYNCS = MAKENAMEID2('s', 'y');
 
@@ -7752,7 +7756,7 @@ bool SyncConfigIOContext::deserialize(SyncConfigVector& configs,
             {
                 SyncConfig config;
 
-                if (deserialize(config, reader))
+                if (deserialize(config, reader, isExternal))
                 {
                     configs.emplace_back(std::move(config));
                 }
@@ -7800,7 +7804,7 @@ error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
     LocalPath globPath = dbPath;
 
     globPath.appendWithSeparator(mName, false);
-    globPath.append(LocalPath::fromPath(".?", mFsAccess));
+    globPath.append(LocalPath::fromRelativePath(".?"));
 
     // Open directory for iteration.
     unique_ptr<DirAccess> dirAccess(mFsAccess.newdiraccess());
@@ -7826,7 +7830,7 @@ error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         }
 
         // Determine slot suffix.
-        const char suffix = filePath.toPath(mFsAccess).back();
+        const char suffix = filePath.toPath().back();
 
         // Skip invalid suffixes.
         if (!isdigit(suffix))
@@ -7878,7 +7882,7 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     LocalPath path = dbFilePath(dbPath, slot);
 
     LOG_debug << "Attempting to read config DB: "
-              << path.toPath(mFsAccess);
+              << path.toPath();
 
     // Try and open the file for reading.
     auto fileAccess = mFsAccess.newfileaccess(false);
@@ -7887,7 +7891,7 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     {
         // Couldn't open the file for reading.
         LOG_err << "Unable to open config DB for reading: "
-                << path.toPath(mFsAccess);
+                << path.toPath();
 
         return API_EREAD;
     }
@@ -7899,7 +7903,7 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     {
         // Couldn't read the file.
         LOG_err << "Unable to read config DB: "
-                << path.toPath(mFsAccess);
+                << path.toPath();
 
         return API_EREAD;
     }
@@ -7909,13 +7913,13 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     {
         // Couldn't decrypt the data.
         LOG_err << "Unable to decrypt config DB: "
-                << path.toPath(mFsAccess);
+                << path.toPath();
 
         return API_EREAD;
     }
 
     LOG_debug << "Config DB successfully read from disk: "
-              << path.toPath(mFsAccess)
+              << path.toPath()
               << ": "
               << data;
 
@@ -7931,7 +7935,7 @@ error SyncConfigIOContext::remove(const LocalPath& dbPath,
         !mFsAccess.unlinklocal(path))
     {
         LOG_warn << "Unable to remove config DB: "
-                 << path.toPath(mFsAccess);
+                 << path.toPath();
 
         return API_EWRITE;
     }
@@ -7984,7 +7988,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     LocalPath path = dbPath;
 
     LOG_debug << "Attempting to write config DB: "
-              << dbPath.toPath(mFsAccess)
+              << dbPath.toPath()
               << " / "
               << slot;
 
@@ -7992,7 +7996,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     if (!(mFsAccess.mkdirlocal(path, false, false) || mFsAccess.target_exists))
     {
         LOG_err << "Unable to create config DB directory: "
-                << dbPath.toPath(mFsAccess);
+                << dbPath.toPath();
 
         // Couldn't create the directory and it doesn't exist.
         return API_EWRITE;
@@ -8008,7 +8012,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     {
         // Couldn't open the file for writing.
         LOG_err << "Unable to open config DB for writing: "
-                << path.toPath(mFsAccess);
+                << path.toPath();
 
         return API_EWRITE;
     }
@@ -8018,7 +8022,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     {
         // Couldn't truncate the file.
         LOG_err << "Unable to truncate config DB: "
-                << path.toPath(mFsAccess);
+                << path.toPath();
 
         return API_EWRITE;
     }
@@ -8033,13 +8037,13 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     {
         // Couldn't write out the data.
         LOG_err << "Unable to write config DB: "
-                << path.toPath(mFsAccess);
+                << path.toPath();
 
         return API_EWRITE;
     }
 
     LOG_debug << "Config DB successfully written to disk: "
-              << path.toPath(mFsAccess)
+              << path.toPath()
               << ": "
               << data;
 
@@ -8054,7 +8058,7 @@ LocalPath SyncConfigIOContext::dbFilePath(const LocalPath& dbPath,
     LocalPath path = dbPath;
 
     path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+    path.append(LocalPath::fromRelativePath("." + to_string(slot)));
 
     return path;
 }
@@ -8096,7 +8100,7 @@ bool SyncConfigIOContext::decrypt(const string& in, string& out)
                                             &out);
 }
 
-bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
+bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isExternal) const
 {
     const auto TYPE_BACKUP_ID       = MAKENAMEID2('i', 'd');
     const auto TYPE_BACKUP_STATE    = MAKENAMEID2('b', 's');
@@ -8147,8 +8151,16 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
 
             reader.storebinary(&sourcePath);
 
-            config.mLocalPath =
-              LocalPath::fromPath(sourcePath, mFsAccess);
+            if (isExternal)
+            {
+                config.mLocalPath =
+                  LocalPath::fromRelativePath(sourcePath);
+            }
+            else
+            {
+                config.mLocalPath =
+                    LocalPath::fromAbsolutePath(sourcePath);
+            }
 
             break;
         }
@@ -8216,12 +8228,12 @@ string SyncConfigIOContext::encrypt(const string& data)
 void SyncConfigIOContext::serialize(const SyncConfig& config,
                                     JSONWriter& writer) const
 {
-    auto sourcePath = config.mLocalPath.toPath(mFsAccess);
+    auto sourcePath = config.mLocalPath.toPath();
 
     // Strip drive path from source.
     if (config.isExternal())
     {
-        auto drivePath = config.mExternalDrivePath.toPath(mFsAccess);
+        auto drivePath = config.mExternalDrivePath.toPath();
         sourcePath.erase(0, drivePath.size());
     }
 
@@ -8632,7 +8644,7 @@ void Syncs::syncLoop()
                 {
                     LOG_warn << mClient.clientname << "Stall detected!";
                     for (auto& p : stallReport.cloud) LOG_warn << "stalled node path (" << syncWaitReasonString(p.second.reason) << "): " << p.first;
-                    for (auto& p : stallReport.local) LOG_warn << "stalled local path (" << syncWaitReasonString(p.second.reason) << "): " << p.first.toPath(*fsaccess);
+                    for (auto& p : stallReport.local) LOG_warn << "stalled local path (" << syncWaitReasonString(p.second.reason) << "): " << p.first.toPath();
                 }
             }
 

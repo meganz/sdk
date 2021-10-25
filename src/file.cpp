@@ -222,7 +222,7 @@ File *File::unserialize(string *d)
     delete fp;
 
     file->name.assign(name, namelen);
-    file->setLocalname(LocalPath::fromPlatformEncoded(std::string(localname, localnamelen)));
+    file->setLocalname(LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen)));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
@@ -485,7 +485,7 @@ void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
     if (transfer->localfilename.empty())
     {
         transfer->localfilename = getLocalname();
-        transfer->localfilename.append(LocalPath::fromPath(".tmp", fsaccess));
+        transfer->localfilename.append(LocalPath::fromRelativePath(".tmp"));
     }
 }
 

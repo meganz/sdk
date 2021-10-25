@@ -493,6 +493,20 @@ struct MEGA_API LocalNode : public Cacheable
 
     struct
     {
+        // needs another recursiveSync for scanning at this level after pending changes
+        unsigned scanAgain : 2;    // TREESTATE
+
+        // needs another recursiveSync() to check moves at this level after pending changes
+        // (can only be cleared if all scanAgain flags are clear)
+        unsigned checkMovesAgain : 2;   // TREESTATE
+
+        // needs another recursiveSync() for deletes/uploads/downloads at this level after pending changes
+        // (can only be cleared if all checkMoveAgain flags are clear)
+        unsigned syncAgain : 2;   // TREESTATE
+
+        // whether any name conflicts have been detected.
+        unsigned conflicts : 2;   // TREESTATE
+
         // fsids have been assigned in this node.
         bool unstableFsidAssigned : 1;
 
@@ -502,20 +516,6 @@ struct MEGA_API LocalNode : public Cacheable
         // we saw this node moved/renamed in the cloud, local move expected (or active)
         bool moveApplyingToLocal : 1;    // todo: do we need these anymore?
         bool moveAppliedToLocal : 1;
-
-        // whether any name conflicts have been detected.
-        unsigned conflicts : 2;   // TREESTATE
-
-        // needs another recursiveSync() for deletes/uploads/downloads at this level after pending changes
-        // (can only be cleared if all checkMoveAgain flags are clear)
-        unsigned syncAgain : 2;   // TREESTATE
-
-        // needs another recursiveSync() to check moves at this level after pending changes
-        // (can only be cleared if all scanAgain flags are clear)
-        unsigned checkMovesAgain : 2;   // TREESTATE
-
-        // needs another recursiveSync for scanning at this level after pending changes
-        unsigned scanAgain : 2;    // TREESTATE
 
         unsigned scanInProgress : 1;
         unsigned scanObsolete : 1;
@@ -663,7 +663,7 @@ struct MEGA_API LocalNode : public Cacheable
     // build full local path to this node
     void getlocalpath(LocalPath&) const;
     LocalPath getLocalPath() const;
-    string localnodedisplaypath(FileSystemAccess& fsa) const;
+    string localnodedisplaypath() const;
 
     // build full remote path to this node (might not exist anymore, of course)
     string getCloudPath() const;

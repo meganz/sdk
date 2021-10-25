@@ -8131,19 +8131,6 @@ class MegaApi
          */
         void addEntropy(char* data, unsigned int size);
 
-#ifdef WINDOWS_PHONE
-        /**
-         * @brief Set the ID for statistics
-         *
-         * Call this function one time only per MegaApi, before using that MegaApi
-         *
-         * The id parameter is hashed before being used
-         *
-         * @param id ID for statistics
-         */
-        static void setStatsID(const char *id);
-#endif
-
         /**
          * @brief Retry all pending requests
          *
@@ -14028,14 +14015,6 @@ class MegaApi
         bool isSyncing();
 
         /**
-         * @brief Check if the MegaNode is synchronized with a local file
-         * @param MegaNode to check
-         * @return true if the node is synchronized, othewise false
-         * @see MegaApi::getLocalPath
-         */
-        bool isSynced(MegaNode *n);
-
-        /**
          * @brief Set a list of excluded file names
          *
          * Wildcards (* and ?) are allowed
@@ -14084,16 +14063,6 @@ class MegaApi
         void setDefaultExclusionUpperSizeLimit(unsigned long long limit);
 
         /**
-         * @brief Move a local file to the local "Debris" folder
-         *
-         * The file have to be inside a local synced folder
-         *
-         * @param path Path of the local file
-         * @return true on success, false on failure
-         */
-        bool moveToLocalDebris(const char *path);
-
-        /**
          * @brief Check if a path is syncable based on the excluded names and paths and sizes
          * @param name Path to check
          * @param size Size of the file or -1 to ignore the size
@@ -14119,17 +14088,6 @@ class MegaApi
          * @return MegaError::API_OK if the node is syncable, otherwise it returns an error.
          */
         int isNodeSyncable(MegaNode *node);
-
-        /**
-         * @brief Get the corresponding local path of a synced node
-         * @param Node to check
-         * @return Local path of the corresponding file in the local computer. If the node is't synced
-         * this function returns an empty string.
-         *
-         * @deprecated New functions to manage synchronizations are being implemented. This funtion will
-         * be removed in future updates.
-         */
-        std::string getLocalPath(MegaNode *node);
 
         /**
          * @brief Get the synchronization identified with a backupId
