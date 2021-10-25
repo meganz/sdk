@@ -2859,11 +2859,11 @@ void UnifiedSync::changedConfigState(bool notifyApp)
 }
 
 Syncs::Syncs(MegaClient& mc)
-  : mClient(mc)
+  : mDefaultFilterChain(*fsaccess)
+  , mClient(mc)
   , fsaccess(new FSACCESS_CLASS)
   , mSyncFlags(new SyncFlags)
   , mScanService(new ScanService(waiter))
-  , mDefaultFilterChain(*fsaccess)
 {
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
     syncThread = std::thread([this]() { syncLoop(); });

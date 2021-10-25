@@ -814,7 +814,7 @@ public:
           , fsAccess()
           , name("test")
           , rng()
-          , rootPath()
+          , rootPath(LocalPath::fromAbsolutePath("."))
         {
             // Get the current path.
             bool result = fsAccess.cwd(rootPath);

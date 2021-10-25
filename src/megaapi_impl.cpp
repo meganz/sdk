@@ -18014,7 +18014,6 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     }
                     else
                     {
-                        assert(false);  // shouldn't we be using absolute paths here?
                         wLocalPath = LocalPath::fromRelativePath(".");
                         wLocalPath.appendWithSeparator(LocalPath::fromRelativePath(""), true);
                     }
