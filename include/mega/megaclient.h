@@ -246,10 +246,28 @@ public:
     void init(DBTableNodes *table);
     void reset();
 
+    void addOrUpdateNode(Node* node); // Instead of Node it can receive parameters for create the node
+    void removeNode(Node* node);
+
     Node *getNodeByHandle(NodeHandle handle);
     node_list getChildren(Node* parent);
     uint64_t getNumNodes();
-    node_vector search(NodeHandle nodeHandle, const char *searchString, int type);
+    node_vector search(NodeHandle nodeHandle, const char *searchString);
+    node_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
+    node_vector getNodesByOrigFingerprint(const std::string& fingerprint);
+    Node *getNodeByFingerprint(const FileFingerprint& fingerprint);
+    node_vector getRootNodes();
+    node_vector getNodesWithSharesOrLink(DBTableNodes::ShareType_t shareType);
+    std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
+    NodeCounter getNodeCounter(NodeHandle node);
+    std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
+    int getNumberOfChildrenFromNode(NodeHandle parentHandle);
+    bool isNodesOnDemandDb();
+    NodeHandle getFirstAncestor(NodeHandle node);
+    bool isNodeInDB(NodeHandle node);
+    bool isAncestor(NodeHandle node, NodeHandle ancestror);
+    bool isFileNode(NodeHandle node);
+    uint64_t getNumberOfNodes();
 
     bool removeNodesFromDb();
 

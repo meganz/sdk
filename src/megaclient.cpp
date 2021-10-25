@@ -17062,6 +17062,16 @@ void NodeManager::reset()
     mNodes.clear();
 }
 
+void NodeManager::addOrUpdateNode(Node *node)
+{
+
+}
+
+void NodeManager::removeNode(Node *node)
+{
+
+}
+
 Node *NodeManager::getNodeByHandle(NodeHandle handle)
 {
     if (!mTable)    return nullptr;
@@ -17133,21 +17143,23 @@ node_list NodeManager::getChildren(Node *parent)
 
 uint64_t NodeManager::getNumNodes()
 {
-    return 0;
+    if (!mTable)    return 0;
+
+    mTable->getNumberOfNodes();
 }
 
-node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, int type)
+node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
 {
     node_vector dp;
     if (!mTable)    return dp;
 
     std::map<mega::NodeHandle, NodeSerialized> nodeMap;
-    getNodesByName(searchString, nodeMap);
+    mTable->getNodesByName(searchString, nodeMap);
     if (nodeHandle.isUndef())
     {
         for (auto it = nodeMap.begin(); it != nodeMap.end(); )
         {
-            if (!isAncestor(it->first, NodeHandle().set6byte(nodeHandle)))
+            if (!isAncestor(it->first, nodeHandle))
             {
                 nodeMap.erase(it);
             }
@@ -17168,7 +17180,214 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
         {
             n = nodeIt->second;
         }
+
+        dp.push_back(n);
     }
+
+    return dp;
+}
+
+node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprint)
+{
+    // Review Fingerprints MegaClient::mFingerprints;
+
+    node_vector dp;
+    if (!mTable)    return dp;
+
+    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
+    mTable->getNodesByFingerprint(fingerprint, nodeMap);
+
+    for (const auto nodeMapIt : nodeMap)
+    {
+        Node* n;
+        auto nodeIt = mNodes.find(nodeMapIt.first);
+        if (nodeIt == mNodes.end())
+        {
+            n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
+        }
+        else
+        {
+            n = nodeIt->second;
+        }
+
+        dp.push_back(n);
+    }
+
+    return dp;
+}
+
+node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprint)
+{
+    node_vector dp;
+    if (!mTable)
+    {
+        assert(false);
+        return dp;
+    }
+}
+
+Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return nullptr;
+    }
+}
+
+node_vector NodeManager::getRootNodes()
+{
+    node_vector dp;
+    if (!mTable)
+    {
+        assert(false);
+        return dp;
+    }
+
+    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
+    mTable->getRootNodes(nodeMap);
+
+    for (const auto nodeMapIt : nodeMap)
+    {
+        Node* n;
+        auto nodeIt = mNodes.find(nodeMapIt.first);
+        if (nodeIt == mNodes.end())
+        {
+            n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
+        }
+        else
+        {
+            n = nodeIt->second;
+        }
+
+        dp.push_back(n);
+        if (n->type == ROOTNODE)
+        {
+            getChildren(n);
+        }
+    }
+
+    return dp;
+}
+
+node_vector NodeManager::getNodesWithSharesOrLink(DBTableNodes::ShareType_t shareType)
+{
+    node_vector dp;
+    if (!mTable)    return dp;
+
+    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
+    mTable->getNodesWithSharesOrLink(nodeMap, shareType);
+
+    for (const auto nodeMapIt : nodeMap)
+    {
+        Node* n;
+        auto nodeIt = mNodes.find(nodeMapIt.first);
+        if (nodeIt == mNodes.end())
+        {
+            n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
+        }
+        else
+        {
+            n = nodeIt->second;
+        }
+
+        dp.push_back(n);
+    }
+
+    return dp;
+}
+
+std::vector<NodeHandle> NodeManager::getChildrenHandlesFromNode(NodeHandle node)
+{
+    std::vector<NodeHandle> dp;
+    if (!mTable)    return dp;
+
+    mTable->getChildrenHandlesFromNode(node, dp);
+
+    return dp;
+}
+
+NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle)
+{
+    NodeCounter nc;
+    if (!mTable)    return nc;
+
+    auto itNode = mNodes.find(nodehandle);
+    Node* node = (itNode == mNodes.end()) ? nullptr : itNode->second;
+    if (node)
+    {
+        std::vector<NodeHandle> children;
+        children = getChildrenHandlesFromNode(nodehandle);
+
+        for (const NodeHandle &h : children)
+        {
+            nc += getNodeCounter(h);
+        }
+
+        bool isFileNode = node->type == FILENODE;
+        if (isFileNode)
+        {
+            nc.files++;
+            nc.storage += node->size;
+            if (node->parent->type == FILENODE)
+            {
+                nc.versions ++;
+                nc.versionStorage += node->size;
+            }
+        }
+        else
+        {
+            nc.folders ++;
+        }
+
+    }
+    else
+    {
+        bool isFileNode = mTable->isFileNode(nodehandle);
+        nc += mTable->getNodeCounter(nodehandle, isFileNode);
+    }
+
+    return nc;
+}
+
+std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, uint32_t count)
+{
+
+}
+
+int NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
+{
+
+}
+
+bool NodeManager::isNodesOnDemandDb()
+{
+
+}
+
+NodeHandle NodeManager::getFirstAncestor(NodeHandle node)
+{
+
+}
+
+bool NodeManager::isNodeInDB(NodeHandle node)
+{
+
+}
+
+bool NodeManager::isAncestor(NodeHandle node, NodeHandle ancestror)
+{
+
+}
+
+bool NodeManager::isFileNode(NodeHandle node)
+{
+
+}
+
+uint64_t NodeManager::getNumberOfNodes()
+{
+
 }
 
 bool NodeManager::removeNodesFromDb()

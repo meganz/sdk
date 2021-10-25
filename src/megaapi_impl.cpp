@@ -11132,13 +11132,7 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
     sdkMutex.lock();
 
     Node *n;
-    node_vector nodes;
-    for (const auto& item : client->mPublicLinks)
-    {
-        n = client->nodebyhandle(item.first);
-        assert(n);
-        nodes.emplace_back(n);
-    }
+    node_vector nodes = client->mNodeManager.getNodesWithSharesOrLink(DBTableNodes::ShareType_t::LINK);
     sortByComparatorFunction(nodes, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 
@@ -11767,7 +11761,7 @@ node_vector MegaApiImpl::searchWithDB(MegaHandle nodeHandle, const char *searchS
 
     SdkMutexGuard g(sdkMutex);
 
-    nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, type);
+    nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString);
 
     for (auto it = nodeVector.begin(); it != nodeVector.end();)
     {
@@ -11979,11 +11973,11 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
             // Search on public links
-            for (auto it = client->mPublicLinks.begin(); it != client->mPublicLinks.end()
+            node_vector publicLinks = client->mNodeManager.getNodesWithSharesOrLink(DBTableNodes::ShareType_t::LINK);
+            for (auto& it = publicLinks.begin(); it != publicLinks.end()
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {
-                node = client->nodebyhandle(it->first);
-                node_vector nodeVector = searchWithDB(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                node_vector nodeVector = searchWithDB(it->nodehandle, searchString, MegaApi::ORDER_NONE, type);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }

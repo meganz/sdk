@@ -111,8 +111,8 @@ public:
     virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
     virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
     virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node) = 0;
-    virtual bool getNodesWithoutParent(std::vector<NodeSerialized>& nodes) = 0;
-    virtual bool getNodesWithSharesOrLink(std::vector<NodeSerialized>& nodes, ShareType_t shareType) = 0;
+    virtual bool getRootNodes(std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
+    virtual bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, NodeSerialized>, ShareType_t shareType) = 0;
     virtual bool getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
     virtual bool getChildrenHandlesFromNode(NodeHandle node, std::vector<NodeHandle>& nodes) = 0;
     virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
