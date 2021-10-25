@@ -18014,7 +18014,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     }
                     else
                     {
-                        wLocalPath = LocalPath::fromRelativePath(".");
+                        // Using the Absolute form, and passing "." means an absolute path of the current folder
+                        // (ideally client apps would only pass absolute paths)
+                        wLocalPath = LocalPath::fromAbsolutePath(".");
                         wLocalPath.appendWithSeparator(LocalPath::fromRelativePath(""), true);
                     }
 

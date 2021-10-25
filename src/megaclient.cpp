@@ -14732,13 +14732,12 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 }
 
                 auto fa = fsaccess->newfileaccess();
-                auto localpath = t->localfilename.toPath();
 
                 if (t->localfilename.empty() || !fa->fopen(t->localfilename))
                 {
                     if (d == PUT)
                     {
-                        LOG_warn << "Local file not found: " << localpath;
+                        LOG_warn << "Local file not found: " << t->localfilename;
                         // the transfer will be retried to ensure that the file
                         // is not just just temporarily blocked
                     }
@@ -14746,7 +14745,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                     {
                         if (hadAnyData)
                         {
-                            LOG_warn << "Temporary file not found:" << localpath;
+                            LOG_warn << "Temporary file not found:" << t->localfilename;
                         }
                         t->localfilename.clear();
                         t->chunkmacs.clear();
@@ -14760,7 +14759,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                     {
                         if (f->genfingerprint(fa.get()))
                         {
-                            LOG_warn << "The local file has been modified: " << localpath;
+                            LOG_warn << "The local file has been modified: " << t->localfilename;
                             t->tempurls.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
@@ -14772,7 +14771,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                     {
                         if (t->progresscompleted > fa->size)
                         {
-                            LOG_warn << "Truncated temporary file: " << localpath;
+                            LOG_warn << "Truncated temporary file: " << t->localfilename;
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
                             t->pos = 0;

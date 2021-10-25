@@ -1176,9 +1176,9 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
 
     bool parentChange = newparent != parent;
     bool localnameChange = newlocalpath != localname;
-    bool shortnameChange = newshortname && !slocalname ||
-                           slocalname && !newshortname ||
-                           newshortname && slocalname && *newshortname != *slocalname;
+    bool shortnameChange = (newshortname && !slocalname) ||
+                           (slocalname && !newshortname) ||
+                           (newshortname && slocalname && *newshortname != *slocalname);
 
     if (parent)
     {
@@ -1313,9 +1313,9 @@ void LocalNode::bumpnagleds()
 
 LocalNode::LocalNode(Sync* csync)
 : sync(csync)
-, syncAgain(TREE_RESOLVED)
-, checkMovesAgain(TREE_RESOLVED)
 , scanAgain(TREE_RESOLVED)
+, checkMovesAgain(TREE_RESOLVED)
+, syncAgain(TREE_RESOLVED)
 , conflicts(TREE_RESOLVED)
 , unstableFsidAssigned(false)
 , deletedFS(false)

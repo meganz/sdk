@@ -85,6 +85,11 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
     }
 }
 
+SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp)
+{
+    return s << lp.toPath();
+}
+
 
 string backupTypeToStr(BackupType type)
 {
@@ -2799,6 +2804,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::NoReason:                                      return "NoReason";
         case SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist:    return "ApplyMoveNeedsOtherSideParentFolderToExist";
         case SyncWaitReason::ApplyMoveIsBlockedByExistingItem:              return "ApplyMoveIsBlockedByExistingItem";
+        case SyncWaitReason::ApplyMoveIsWaitingForScanning:                 return "ApplyMoveIsWaitingForScanning";
         case SyncWaitReason::MoveNeedsDestinationNodeProcessing:            return "MoveNeedsDestinationNodeProcessing";
         case SyncWaitReason::UpsyncNeedsTargetFolder:                       return "UpsyncNeedsTargetFolder";
         case SyncWaitReason::DownsyncNeedsTargetFolder:                     return "DownsyncNeedsTargetFolder";
