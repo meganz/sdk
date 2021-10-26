@@ -467,9 +467,6 @@ FilterLoadResult FilterChain::load(FileAccess& fileAccess)
         return FLR_SKIPPED;
     }
 
-    // Convenience.
-    using FSA = FileSystemAccess;
-
     string_vector lines;
 
     // Read the filters, line by line.

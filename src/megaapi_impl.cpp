@@ -8940,8 +8940,9 @@ char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPat
         return NULL;
     }
     string name = filename;
-    string path = dstPath ? dstPath : "";
-    client->fsaccess->escapefsincompatible(&name, client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(path)));
+    client->fsaccess->escapefsincompatible(&name, 
+        dstPath ? client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(dstPath))
+                : FS_UNKNOWN);
     return MegaApi::strdup(name.c_str());
 }
 

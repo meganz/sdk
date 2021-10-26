@@ -1321,14 +1321,14 @@ LocalNode::LocalNode(Sync* csync)
 , deletedFS(false)
 , moveApplyingToLocal(false)
 , moveAppliedToLocal(false)
+, scanInProgress(false)
+, scanObsolete(false)
 , parentSetScanAgain(false)
 , parentSetCheckMovesAgain(false)
 , parentSetSyncAgain(false)
 , parentSetContainsConflicts(false)
 , fsidSyncedReused(false)
 , fsidScannedReused(false)
-, scanInProgress(false)
-, scanObsolete(false)
 {
     fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
