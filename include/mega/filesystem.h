@@ -120,7 +120,7 @@ class MEGA_API LocalPath
     // helper functions to ensure proper format especially on windows
     void normalizeAbsolute();
     void removeTrailingSeparators();
-    bool invariant();
+    bool invariant() const;
 
     // path2local / local2path are much more natural here than in FileSystemAccess
     // convert MEGA path (UTF-8) to local format

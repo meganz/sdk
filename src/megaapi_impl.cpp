@@ -8750,7 +8750,7 @@ void MegaApiImpl::setDefaultExcludedNames(vector<string> *excludedNames)
     SdkMutexGuard guard(sdkMutex);
 
     client->syncs.mDefaultFilterChain.excludedNames(
-      excludedNames ? *excludedNames : string_vector());
+      excludedNames ? *excludedNames : string_vector(), *client->fsaccess);
 }
 
 void MegaApiImpl::setDefaultExcludedPaths(vector<string> *excludedPaths)
@@ -8940,8 +8940,9 @@ char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPat
         return NULL;
     }
     string name = filename;
-    string path = dstPath ? dstPath : "";
-    client->fsaccess->escapefsincompatible(&name, client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(path)));
+    client->fsaccess->escapefsincompatible(&name,
+        dstPath ? client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(dstPath))
+                : FS_UNKNOWN);
     return MegaApi::strdup(name.c_str());
 }
 
@@ -18014,8 +18015,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     }
                     else
                     {
-                        assert(false);  // shouldn't we be using absolute paths here?
-                        wLocalPath = LocalPath::fromRelativePath(".");
+                        // Using the Absolute form, and passing "." means an absolute path of the current folder
+                        // (ideally client apps would only pass absolute paths)
+                        wLocalPath = LocalPath::fromAbsolutePath(".");
                         wLocalPath.appendWithSeparator(LocalPath::fromRelativePath(""), true);
                     }
 

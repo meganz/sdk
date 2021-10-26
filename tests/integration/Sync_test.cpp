@@ -4998,8 +4998,8 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
     vector<SyncWaitResult> waitResult = waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
 
     ASSERT_EQ(waitResult[0].syncStalled, true);
-    ASSERT_EQ(2, waitResult[0].stall.cloud.size());  // for now at least, reporting source and destination nodes for each move
-    ASSERT_EQ(2, waitResult[0].stall.local.size());
+    ASSERT_EQ(2u, waitResult[0].stall.cloud.size());  // for now at least, reporting source and destination nodes for each move
+    ASSERT_EQ(2u, waitResult[0].stall.local.size());
     ASSERT_EQ(waitResult[0].stall.cloud.begin()->first, "/mega_test_sync/f/f_0");
     ASSERT_EQ(waitResult[0].stall.cloud.rbegin()->first, "/mega_test_sync/f/f_1/f_0");
     ASSERT_EQ(waitResult[0].stall.local.begin()->first.toPath(), (client1LocalSyncRoot / "f_0" / "f_1").u8string() );

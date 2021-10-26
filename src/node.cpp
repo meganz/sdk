@@ -1176,9 +1176,9 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
 
     bool parentChange = newparent != parent;
     bool localnameChange = newlocalpath != localname;
-    bool shortnameChange = newshortname && !slocalname ||
-                           slocalname && !newshortname ||
-                           newshortname && slocalname && *newshortname != *slocalname;
+    bool shortnameChange = (newshortname && !slocalname) ||
+                           (slocalname && !newshortname) ||
+                           (newshortname && slocalname && *newshortname != *slocalname);
 
     if (parent)
     {
@@ -1313,22 +1313,22 @@ void LocalNode::bumpnagleds()
 
 LocalNode::LocalNode(Sync* csync)
 : sync(csync)
-, unstableFsidAssigned(false)
-, deletedFS{false}
-, moveAppliedToLocal(false)
-, moveApplyingToLocal(false)
-, conflicts(TREE_RESOLVED)
 , scanAgain(TREE_RESOLVED)
 , checkMovesAgain(TREE_RESOLVED)
 , syncAgain(TREE_RESOLVED)
+, conflicts(TREE_RESOLVED)
+, unstableFsidAssigned(false)
+, deletedFS(false)
+, moveApplyingToLocal(false)
+, moveAppliedToLocal(false)
+, scanInProgress(false)
+, scanObsolete(false)
+, parentSetScanAgain(false)
 , parentSetCheckMovesAgain(false)
 , parentSetSyncAgain(false)
-, parentSetScanAgain(false)
 , parentSetContainsConflicts(false)
 , fsidSyncedReused(false)
 , fsidScannedReused(false)
-, scanInProgress(false)
-, scanObsolete(false)
 {
     fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();

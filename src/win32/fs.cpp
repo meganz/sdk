@@ -994,7 +994,7 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
     int len = GetFullPathNameW(pathArg.localpath.data(), 0, NULL, NULL);
     if (len <= 0)
     {
-        absolutepathArg.localpath = pathArg.localpath;
+        absolutepathArg = pathArg;
         return false;
     }
 
@@ -1002,7 +1002,7 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
     int newlen = GetFullPathNameW(pathArg.localpath.data(), len, const_cast<wchar_t*>(absolutepathArg.localpath.data()), NULL);
     if (newlen <= 0 || newlen >= len)
     {
-        absolutepathArg.localpath = pathArg.localpath;
+        absolutepathArg = pathArg;
         return false;
     }
 
@@ -1018,6 +1018,7 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
         }
     }
 
+    absolutepathArg.isFromRoot = true;
     return true;
 }
 
