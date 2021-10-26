@@ -2501,8 +2501,15 @@ auto LocalNode::WatchHandle::operator=(std::nullptr_t) -> WatchHandle&
     auto& notifier = static_cast<PosixDirNotify&>(*sync.dirnotify);
 
     notifier.removeWatch(mEntry);
+    resetWatch();
+    return *this;
+}
+
+inline void LocalNode::WatchHandle::resetWatch()
+{
     mEntry = mSentinel.end();
 }
+
 
 bool LocalNode::WatchHandle::operator==(handle fsid) const
 {
@@ -2516,7 +2523,7 @@ void LocalNode::invalidateWatchHandle(handle fsid)
     if (mWatchHandle == fsid){ // We have a watch on it
         LOG_verbose << "[" << std::this_thread::get_id() << "]"
                     << " Releasing watchHandle for fsid: " << fsid;
-        mWatchHandle = nullptr; // invalidate handle
+        mWatchHandle.resetWatch(); // invalidate handle
     }
 }
 
