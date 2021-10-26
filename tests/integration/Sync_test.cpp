@@ -4662,7 +4662,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2, true));
 
     // save session A1
     string session;
