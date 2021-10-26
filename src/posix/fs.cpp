@@ -875,8 +875,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 #ifndef IN_EXCL_UNLINK
 #define IN_EXCL_UNLINK 0x04000000
 #endif
-                if (in->mask & (IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM
-                              | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
+                if ((in->mask & (IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM
+                              | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK)))
                 {
                     LOG_verbose << "Filesystem notification:"
                                 << "event: " << std::hex << in->mask;
