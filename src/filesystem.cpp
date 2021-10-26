@@ -502,11 +502,15 @@ void LocalPath::normalizeAbsolute()
     // convert to absolute if it isn't already
     if (!localpath.empty() && localpath[0] != localPathSeparator)
     {
-        char* tmp_needs_free = get_current_dir_name();
-        string s(tmp_needs_free);
-        free(tmp_needs_free);
+        char cCurrentPath[PATH_MAX];
+        if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
+        {
+            cCurrentPath[0] = 0;
+        }
 
-        if (s.empty() || s.back() != localPathSeparator)
+        string s(cCurrentPath);
+
+        if (!s.empty() && s.back() != localPathSeparator)
         {
             s.append(1, localPathSeparator);
         }
