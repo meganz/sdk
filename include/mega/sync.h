@@ -441,23 +441,18 @@ public:
     // Moves a file from source to target.
     bool moveTo(LocalPath source, LocalPath target, bool overwrite);
 
-    // get progress for heartbeats
-    m_off_t getInflightProgress();
-
     // original filesystem fingerprint
     fsfp_t fsfp = 0;
 
     // does the filesystem have stable IDs? (FAT does not)
     bool fsstableids = false;
 
-    // true if the sync hasn't loaded cached LocalNodes yet
-    //bool initializing = true;
-
     // true if the local synced folder is a network folder
     bool isnetwork = false;
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
+
     Sync(UnifiedSync&, const string&, const LocalPath&, NodeHandle rootNodeHandle, const string& rootNodeName, bool, const string& logname);
     ~Sync();
 

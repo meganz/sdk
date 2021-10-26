@@ -226,31 +226,30 @@ const string_vector DefaultFilterChain::mPredefinedNameExclusions = {
     "*.tmp"
 };
 
-DefaultFilterChain::DefaultFilterChain(FileSystemAccess& fsAccess)
+DefaultFilterChain::DefaultFilterChain()
   : mExcludedNames(mPredefinedNameExclusions)
   , mExcludedPaths()
-  , mFsAccess(fsAccess)
   , mLock()
   , mLowerLimit(0u)
   , mUpperLimit(0u)
 {
 }
 
-bool DefaultFilterChain::create(const LocalPath& targetPath)
+bool DefaultFilterChain::create(const LocalPath& targetPath, FileSystemAccess& fsAccess)
 {
     // Compute the path for the target's ignore file.
     auto filePath = targetPath;
     filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
 
     // Get access to the filesystem.
-    auto fileAccess = mFsAccess.newfileaccess(false);
+    auto fileAccess = fsAccess.newfileaccess(false);
 
     // Try and open the file for writing.
     if (!fileAccess->fopen(filePath, false, true))
         return false;
 
     // Generate the ignore file's content.
-    auto content = generate(targetPath);
+    auto content = generate(targetPath, fsAccess);
 
     // Write the content to disk.
     return fileAccess->fwrite((const byte*)content.data(),
@@ -258,7 +257,7 @@ bool DefaultFilterChain::create(const LocalPath& targetPath)
                               0);
 }
 
-void DefaultFilterChain::excludedNames(const string_vector& names)
+void DefaultFilterChain::excludedNames(const string_vector& names, FileSystemAccess& fsAccess)
 {
     lock_guard<mutex> guard(mLock);
 
@@ -270,7 +269,7 @@ void DefaultFilterChain::excludedNames(const string_vector& names)
         LOG_debug << "Excluded name: " << name;
 
         mExcludedNames.emplace_back(name);
-        mFsAccess.unescapefsincompatible(&mExcludedNames.back());
+        fsAccess.unescapefsincompatible(&mExcludedNames.back());
     }
 }
 
@@ -325,7 +324,7 @@ vector<LocalPath> DefaultFilterChain::applicablePaths(LocalPath targetPath) cons
     return paths;
 }
 
-string DefaultFilterChain::generate(const LocalPath& targetPath) const
+string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAccess& fsAccess) const
 {
     lock_guard<mutex> guard(mLock);
 
@@ -348,8 +347,8 @@ string DefaultFilterChain::generate(const LocalPath& targetPath) const
 
     auto paths = applicablePaths(targetPath);
 
-    for (auto& path : toRemotePaths(paths))
-        ostream << "-p:" << path.toName(mFsAccess) << "\n";
+    for (auto& path : toRemotePaths(paths, fsAccess))
+        ostream << "-p:" << path.toName(fsAccess) << "\n";
 
     return ostream.str();
 }
@@ -371,7 +370,7 @@ string_vector DefaultFilterChain::normalize(const string_vector& strings) const
     return result;
 }
 
-RemotePath DefaultFilterChain::toRemotePath(const LocalPath& path) const
+RemotePath DefaultFilterChain::toRemotePath(const LocalPath& path, FileSystemAccess& fsAccess) const
 {
     LocalPath component;
     RemotePath result;
@@ -379,19 +378,19 @@ RemotePath DefaultFilterChain::toRemotePath(const LocalPath& path) const
 
     // Translate each component into remote form.
     while (path.nextPathComponent(index, component))
-        result.appendWithSeparator(component.toName(mFsAccess), false);
+        result.appendWithSeparator(component.toName(fsAccess), false);
 
     return result;
 }
 
-vector<RemotePath> DefaultFilterChain::toRemotePaths(const vector<LocalPath>& paths) const
+vector<RemotePath> DefaultFilterChain::toRemotePaths(const vector<LocalPath>& paths, FileSystemAccess& fsAccess) const
 {
     vector<RemotePath> result;
 
     // Translate each path into remote form.
     for (auto& path : paths)
     {
-        auto temp = toRemotePath(path);
+        auto temp = toRemotePath(path, fsAccess);
 
         // Skip empty paths.
         if (!temp.empty())

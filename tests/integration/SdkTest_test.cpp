@@ -5156,7 +5156,13 @@ TEST_F(SdkTest, SdkBackupFolder)
     locallogout();
     auto tracker = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+
+    resetlastEvent();
+
     fetchnodes(0, maxTimeout); // auto-resumes one active backup
+
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+
     // Verify the sync again
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances, after relogin";

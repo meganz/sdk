@@ -46,9 +46,7 @@ using StringFilterPtrVector = std::vector<StringFilterPtr>;
 class MEGA_API DefaultFilterChain
 {
 public:
-    explicit DefaultFilterChain(FileSystemAccess& fsAccess);
-
-    MEGA_DISABLE_COPY_MOVE(DefaultFilterChain);
+    explicit DefaultFilterChain();
 
     // Creates a new ignore file in the target directory.
     //
@@ -60,12 +58,12 @@ public:
     // - We successfully created an ignore file in the target directory.
     //
     // Returns false otherwise.
-    bool create(const LocalPath& targetPath);
+    bool create(const LocalPath& targetPath, FileSystemAccess& fsAccess);
 
     // Specify what names should be excluded.
     //
     // Wildcard patterns are valid.
-    void excludedNames(const string_vector& names);
+    void excludedNames(const string_vector& names, FileSystemAccess& fsAccess);
 
     // Specify what paths should be excluded.
     void excludedPaths(const string_vector& paths);
@@ -90,7 +88,7 @@ private:
     vector<LocalPath> applicablePaths(LocalPath targetPath) const;
 
     // Generates the content for an ignore file.
-    string generate(const LocalPath& targetPath) const;
+    string generate(const LocalPath& targetPath, FileSystemAccess& fsAccess) const;
 
     // Returns a copy of strings where each individual string has been
     // normalized.
@@ -101,10 +99,10 @@ private:
     // Converts a relative local path to remote format.
     //
     // Path components are unescaped and are separated by '/'.
-    RemotePath toRemotePath(const LocalPath& path) const;
+    RemotePath toRemotePath(const LocalPath& path, FileSystemAccess& fsAccess) const;
 
     // Converts a list of relative local paths to remote format.
-    vector<RemotePath> toRemotePaths(const vector<LocalPath>& localPaths) const;
+    vector<RemotePath> toRemotePaths(const vector<LocalPath>& localPaths, FileSystemAccess& fsAccess) const;
 
     // Predefined name exclusions.
     static const string_vector mPredefinedNameExclusions;
@@ -123,9 +121,6 @@ private:
     // These names are translated into "cloud" format as necessary when
     // writing an ignore file for a specific sync root.
     vector<LocalPath> mExcludedPaths;
-
-    // How we access the local filesystem.
-    FileSystemAccess& mFsAccess;
 
     // How we synchronize access to instances of this class.
     mutable mutex mLock;

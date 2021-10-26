@@ -8750,7 +8750,7 @@ void MegaApiImpl::setDefaultExcludedNames(vector<string> *excludedNames)
     SdkMutexGuard guard(sdkMutex);
 
     client->syncs.mDefaultFilterChain.excludedNames(
-      excludedNames ? *excludedNames : string_vector());
+      excludedNames ? *excludedNames : string_vector(), *client->fsaccess);
 }
 
 void MegaApiImpl::setDefaultExcludedPaths(vector<string> *excludedPaths)
