@@ -269,7 +269,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     CommandChain mPendingChanges;
 
     // owner
-    handle owner = mega::UNDEF;
+    handle owner = ::mega::UNDEF;
 
     // actual time this node was created (cannot be set by user)
     m_time_t ctime = 0;
@@ -445,10 +445,10 @@ struct MEGA_API LocalNodeCore
 
     // we also need to track what fsid corresponded to our FSNode last time, even if not synced (not serialized)
     // if it changes, we should rescan, in case of LocalNode pre-existing with no FSNode, then one appears.  Or, now it's different
-    handle fsid_asScanned = mega::UNDEF;
+    handle fsid_asScanned = ::mega::UNDEF;
 
     // local filesystem node ID (inode...) for rename/move detection
-    handle fsid_lastSynced = mega::UNDEF;
+    handle fsid_lastSynced = ::mega::UNDEF;
 
     // The exact name of the file we are synced with, if synced
     // If not synced then it's the to-local (escaped) version of the CloudNode's name
