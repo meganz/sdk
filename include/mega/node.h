@@ -463,7 +463,7 @@ struct MEGA_API LocalNodeCore
     LocalNode* parent = nullptr;
 
     // stored to rebuild tree after serialization => this must not be a pointer to parent->dbid
-    int32_t parent_dbid = 0;
+    uint32_t parent_dbid = 0;
 
     // Fingerprint of the file as of the last scan.
     // TODO: does this make LocalNode too large?
