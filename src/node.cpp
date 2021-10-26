@@ -2502,6 +2502,7 @@ auto LocalNode::WatchHandle::operator=(std::nullptr_t) -> WatchHandle&
 
     notifier.removeWatch(mEntry);
     mEntry = mSentinel.end();
+    return *this;
 }
 
 bool LocalNode::WatchHandle::operator==(handle fsid) const

@@ -852,11 +852,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
                 r |= Waiter::NEEDEXEC;
                 if(in->mask & IN_DELETE_SELF) { // The FS directory is gone. Watch is no longer valid
-                    invalidWatches.push_back({node,i->second.second});
+                    invalidWatches.emplace_back(node,i->second.second);
                 }
             }
             // invalidate watches not longer valid
-            for(auto pair: invalidWatches)
+            for(auto& pair: invalidWatches)
             {
                 pair.first.invalidateWatchHandle(pair.second);
             }
@@ -870,7 +870,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 if (in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT))
                 {
-                    LOG_err << "inotify IN_Q_OVERFLOW";
+                    LOG_err << "inotify " 
+                            << (in->mask & IN_Q_OVERFLOW ? "IN_Q_OVERFLOW" : "IN_UNMOUNT");
                     notifyerr = true;
                 }
 
