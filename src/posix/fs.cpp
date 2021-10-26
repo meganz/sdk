@@ -831,12 +831,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         {
             // Loop over and notify all associated nodes.
             auto associated = mWatches.equal_range(handle);
-            for (WatchMapIterator i = associated.first; i != associated.second;)
+            for (auto i = associated.first; i != associated.second;)
             {
                 // Convenience.
                 using std::move;
                 auto& node = *i->second.first;
-                auto wd = i->second.second;
                 auto& sync = *node.sync;
                 auto& notifier = *sync.dirnotify;
 
@@ -846,8 +845,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                           << " Path: "
                           << name;
 
-                if(in->mask & IN_DELETE_SELF) { // The FS directory watched is gone
-                    node.invalidateWatchHandle(wd); // Invalidate the watch 
+                if((in->mask & IN_DELETE_SELF)) { // The FS directory watched is gone
+                    node.mWatchHandle.invalidate();
                     i = mWatches.erase(i); // Remove it form the container (C++11 and up)
                 } else {
                     ++i;
@@ -865,7 +864,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             {
                 in = (inotify_event*)(buf + p);
 
-                if (in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT))
+                if ((in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT)))
                 {
                     LOG_err << "inotify " 
                             << (in->mask & IN_Q_OVERFLOW ? "IN_Q_OVERFLOW" : "IN_UNMOUNT");

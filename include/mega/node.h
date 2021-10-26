@@ -720,12 +720,6 @@ struct MEGA_API LocalNode : public Cacheable
     // Create a watch for this node if necessary.
     bool watch(const LocalPath& path, handle fsid);
 
-    /**
-     * A watch has been removed from the FS
-     * @param fsid  File system identifier associated with the watch removed
-     */
-    void invalidateWatchHandle(handle fsid);
-
     void ignoreFilterPresenceChanged(bool present, FSNode* fsNode);
 
 private:
@@ -804,7 +798,7 @@ private:
 
         bool operator==(handle fsid) const;
 
-        void resetWatch();
+        void invalidate();
 
     private:
         WatchMap::iterator mEntry;
@@ -812,6 +806,7 @@ private:
         static WatchMap mSentinel;
     }; // WatchHandle
 
+public:
     WatchHandle mWatchHandle;
 #endif // USE_INOTIFY
 };
