@@ -829,16 +829,14 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
         auto notifyAll = [&](int handle, const string& name)
         {
-            using InvalidWatchEntry = pair<LocalNode&,unsigned long>;
-            vector<InvalidWatchEntry> invalidWatches; // To be invalidated
-
             // Loop over and notify all associated nodes.
             auto associated = mWatches.equal_range(handle);
-            for (auto i = associated.first; i != associated.second; ++i)
+            for (WatchMapIterator i = associated.first; i != associated.second;)
             {
                 // Convenience.
                 using std::move;
                 auto& node = *i->second.first;
+                auto wd = i->second.second;
                 auto& sync = *node.sync;
                 auto& notifier = *sync.dirnotify;
 
@@ -848,17 +846,16 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                           << " Path: "
                           << name;
 
+                if(in->mask & IN_DELETE_SELF) { // The FS directory watched is gone
+                    node.invalidateWatchHandle(wd); // Invalidate the watch 
+                    i = mWatches.erase(i); // Remove it form the container (C++11 and up)
+                } else {
+                    ++i;
+                }
+
                 auto localName = LocalPath::fromPlatformEncodedRelative(name);
                 notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
                 r |= Waiter::NEEDEXEC;
-                if(in->mask & IN_DELETE_SELF) { // The FS directory is gone. Watch is no longer valid
-                    invalidWatches.emplace_back(node,i->second.second);
-                }
-            }
-            // invalidate watches not longer valid
-            for(auto& pair: invalidWatches)
-            {
-                pair.first.invalidateWatchHandle(pair.second);
             }
         };
 

@@ -804,6 +804,8 @@ private:
 
         bool operator==(handle fsid) const;
 
+        void resetWatch();
+
     private:
         WatchMap::iterator mEntry;
 
