@@ -687,6 +687,312 @@ bool waitonresults(future<bool>* r1 = nullptr, future<bool>* r2 = nullptr, futur
 
 atomic<int> next_request_tag{ 1 << 30 };
 
+class StateCacheValidator
+{
+public:
+    StateCacheValidator() = default;
+
+    // Compare a local node tree against the loaded state cache.
+    bool compare(const LocalNode& root) const
+    {
+        // Tracks nodes to be compared.
+        list<const LocalNode*> pending(1, &root);
+
+        // Nodes that've been processed.
+        std::set<uint32_t> processed;
+
+        // Compare nodes against the state cache.
+        while (!pending.empty())
+        {
+            // Get our hands on the node.
+            auto& node = *pending.front();
+
+            // Node's being processed.
+            pending.pop_front();
+
+            // Track which IDs we've processed.
+            if (node.dbid)
+                processed.emplace(node.dbid);
+
+            // Does the node represent a file?
+            if (node.type == FILENODE)
+            {
+                // Is it consistent with the cache?
+                if (!matchFile(node))
+                    return false;
+
+                // No further work necessary.
+                continue;
+            }
+
+            // Node represents a directory.
+            //
+            // Is it consistent with the cache?
+            if (!matchDirectory(node))
+                return false;
+
+            // Queue children.
+            for (auto& childIt : node.children)
+            {
+                // But only those that've been written to disk.
+                if (childIt.second->dbid)
+                    pending.emplace_back(childIt.second);
+            }
+        }
+
+        // Have we matched all of the cache's content?
+        if (processed.size() != mNodeMap.size())
+            return false;
+
+        return true;
+    }
+
+    // Load a state cache from disk.
+    bool load(MegaClient& client, const string& name)
+    {
+        constexpr auto flags = DB_OPEN_FLAG_TRANSACTED;
+
+        if (!client.dbaccess)
+            return false;
+
+        // Convenience.
+        auto& dbAccess = *client.dbaccess;
+        auto& fsAccess = *client.fsaccess;
+        auto& rng = client.rng;
+
+        // Try and open the state cache.
+        DbTablePtr db(dbAccess.open(rng, fsAccess, name, flags)); 
+
+        // Try and load the state cache.
+        return db && read(*db, client.key);
+    }
+
+    // Translate the loaded state cache into a DOT diagram.
+    string toDot() const
+    {
+        // No nodes? No graph.
+        if (mNodeMap.empty())
+            return "digraph {}\n";
+
+        ostringstream ostream;
+
+        // Emit DOT prologue.
+        ostream << "digraph {\n";
+
+        // Emit root node.
+        ostream << "\t0 [ label=\"root\" ];\n";
+
+        // Emit nodes.
+        for (auto& i : mNodeMap)
+        {
+            auto& node = *i.second;
+
+            // Node.
+            ostream << "\t"
+                    << node.dbid
+                    << " [ label=\""
+                    << node.localname.toPath()
+                    << "\" ];\n";
+
+            // Parent link.
+            ostream << "\t"
+                    << node.dbid
+                    << " -> "
+                    << node.parent_dbid
+                    << ";\n";
+        }
+
+        // Emit DOT epilogue.
+        ostream << "}\n";
+
+        return ostream.str();
+    }
+
+private:
+    // Check if a directory node is consistent with the cache.
+    bool matchDirectory(const LocalNode& node) const
+    {
+        static const std::set<uint32_t> empty;
+
+        assert(node.dbid || !node.parent);
+        assert(node.parent || !node.dbid);
+
+        // Are the node's attributes consistent with cache?
+        if (node.parent && !matchGeneral(node))
+            return false;
+
+        // What children does this node have in the cache?
+        auto* children = &empty;
+
+        if (mNodeChildMap.count(node.dbid))
+            children = &mNodeChildMap.at(node.dbid);
+
+        // Is the node's parent-child linkage consistent with the cache?
+        size_t nChildren = 0;
+
+        for (auto& childIt : node.children)
+        {
+            auto& child = *childIt.second;
+
+            // Skip children that haven't been written to disk.
+            if (!child.dbid)
+                continue;
+
+            // Is the child present in the cache?
+            if (!children->count(child.dbid))
+                return false;
+
+            ++nChildren;
+        }
+
+        // Is the node's child count consistent with the cache?
+        if (children->size() != nChildren)
+            return false;
+
+        return true;
+    }
+
+    // Check if a file node is consistent with the cache.
+    bool matchFile(const LocalNode& node) const
+    {
+        assert(node.dbid);
+        assert(node.parent);
+
+        // Are the node's attributes consistent with the cache?
+        if (!matchGeneral(node))
+            return false;
+
+        // Convenience.
+        auto& entry = *mNodeMap.at(node.dbid);
+
+        // This attribute is only meaningful for files.
+        auto& lfp = node.syncedFingerprint;
+        auto& rfp = entry.syncedFingerprint;
+
+        if (lfp.isvalid != rfp.isvalid)
+            return false;
+
+        if (lfp.isvalid && lfp != rfp)
+            return false;
+
+        return true;
+    }
+
+    // Check if a node is consistent with the cache.
+    bool matchGeneral(const LocalNode& node) const
+    {
+        assert(node.dbid);
+        assert(node.parent);
+
+        // Is the node in the cache?
+        if (!mNodeMap.count(node.dbid))
+            return false;
+
+        // Convenience.
+        auto& entry = *mNodeMap.at(node.dbid);
+
+        // Compare serialized attributes.
+        if (node.type != entry.type)
+            return false;
+
+        if (node.parent->dbid != entry.parent_dbid)
+            return false;
+
+        if (node.fsid_lastSynced != entry.fsid_lastSynced)
+            return false;
+
+        if (node.localname != entry.localname)
+            return false;
+
+        if (!node.slocalname != !entry.slocalname)
+            return false;
+
+        if (node.slocalname && *node.slocalname != *entry.slocalname)
+            return false;
+
+        if (node.syncedCloudNodeHandle != entry.syncedCloudNodeHandle)
+            return false;
+
+        if (node.mSyncable != entry.mSyncable)
+            return false;
+
+        return true;
+    }
+
+    // Read a state cache's contents into memory.
+    bool read(DbTable& db, SymmCipher& key)
+    {
+        // Convenience.
+        using ::mega::make_unique;
+        using std::swap;
+
+        // Parent-child relationships.
+        map<uint32_t, set<uint32_t>> children;
+
+        // Database ID of a serialized node.
+        uint32_t id;
+
+        // Serialized metadata representing a node.
+        string metadata;
+
+        // Deserialized nodes.
+        map<uint32_t, LocalNodeCorePtr> nodes;
+
+        // Tracks pending parents.
+        set<uint32_t> pending;
+
+        // Make sure we're reading from the start.
+        db.rewind();
+
+        // Read and deserialize metadata from the state cache.
+        while (db.next(&id, &metadata, &key))
+        {
+            auto node = make_unique<LocalNodeCore>();
+
+            // Try and deserialize the node.
+            if (!node->unserialize(&metadata))
+                return false;
+
+            // Inject database ID.
+            node->dbid = id;
+
+            // Orphaned children are reunited with their parent.
+            pending.erase(id);
+
+            // Convenience.
+            auto parentID = node->parent_dbid;
+
+            // Establish parent-child link.
+            children[parentID].emplace(id);
+
+            // Add node to the database.
+            nodes.emplace(id, std::move(node));
+
+            // Potential orphan?
+            if (!parentID || !mNodeMap.count(parentID))
+                continue;
+
+            // Track potential orphans.
+            pending.emplace(parentID);
+        }
+
+        // Have all children been linked?
+        assert(pending.empty());
+
+        // Swap loaded metadata into place.
+        swap(children, mNodeChildMap);
+        swap(nodes, mNodeMap);
+
+        return true;
+    }
+
+    // Tracks the parent-child relationships of loaded nodes.
+    map<uint32_t, set<uint32_t>> mNodeChildMap;
+
+    // Node metadata loaded from the state cache.
+    map<uint32_t, LocalNodeCorePtr> mNodeMap;
+}; // StateCacheValidator
+
 struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
@@ -2540,8 +2846,11 @@ struct StandardClient : public MegaApp
             return false;
         }
 
+        // Get our hands on the sync.
+        auto* sync = syncByBackupId(backupId);
+
         // compare model against LocalNodes
-        if (Sync* sync = syncByBackupId(backupId))
+        if (sync)
         {
             if ((confirm & CONFIRM_LOCALNODE) && !confirmModel(backupId, mnode, sync->localroot.get(), expectFail, skipIgnoreFile))
             {
@@ -2554,6 +2863,25 @@ struct StandardClient : public MegaApp
         {
             return false;
         }
+
+        // Does this sync have a state cache?
+        if (!sync || sync->statecachename().empty())
+            return true;
+
+        StateCacheValidator validator;
+
+        // Try and load the state cache.
+        EXPECT_TRUE(validator.load(client, sync->statecachename()))
+          << "Sync "
+          << toHandle(backupId)
+          << ": Unable to load state cache: "
+          << sync->statecachename();
+
+        // Does the state cache accurately reflect the LNT in memory?
+        EXPECT_TRUE(validator.compare(*sync->localroot))
+          << "Sync "
+          << toHandle(backupId)
+          << ": State cache mismatch.";
 
         return true;
     }
@@ -13929,6 +14257,10 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     model.movenode("d/fff", "");
 
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST_F(SyncTest, DBV)
+{
 }
 
 #endif
