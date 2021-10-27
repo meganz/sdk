@@ -499,9 +499,9 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n, bool updateDb)
 #endif
     }
 
-    if (sctable->isNodeInDB(originalNode->nodeHandle()) && updateDb)
+    if (mNodeManager.isNodeInDB(originalNode->nodeHandle()) && updateDb)
     {
-        sctable->put(originalNode);
+        mNodeManager.addOrUpdateNode(originalNode);  // BD
     }
 }
 
@@ -1265,6 +1265,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , mSyncMonitorRetry(false), mSyncMonitorTimer(rng)
 #endif
     , mCachedStatus(this)
+    , mNodeManager(*this)
 {
     sctable.reset();
     mNodeManager.reset();
@@ -4355,7 +4356,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     }
 
     sctable.reset();
-    mNodeManager.reset()
+    mNodeManager.reset();
     pendingsccommit = false;
 
     statusTable.reset();
@@ -4747,7 +4748,7 @@ bool MegaClient::procsc()
                             WAIT_CLASS::bumpds();
                             fnstats.timeToCurrent = Waiter::ds - fnstats.startTime;
                         }
-                        fnstats.nodesCurrent = mNodes.size();
+                        fnstats.nodesCurrent = mNodeManager.getNumNodes();
 
                         statecurrent = true;
                         app->nodes_current();
@@ -4792,16 +4793,13 @@ bool MegaClient::procsc()
                         sendevent(99426, report.c_str(), 0);    // Treeproc performance log
 
                         // NULL vector: "notify all elements"
-                        app->nodes_updated(NULL, int(mNodes.size()));
+                        app->nodes_updated(NULL, int(mNodeManager.getNumNodes()));
                         app->users_updated(NULL, int(users.size()));
                         app->pcrs_updated(NULL, int(pcrindex.size()));
 #ifdef ENABLE_CHAT
                         app->chats_updated(NULL, int(chats.size()));
 #endif
-                        for (node_map::iterator it = mNodes.begin(); it != mNodes.end(); it++)
-                        {
-                            memset(&(it->second->changed), 0, sizeof it->second->changed);
-                        }
+                        mNodeManager.removeChanges();
 
                         if (!loggedinfolderlink())
                         {
@@ -5136,7 +5134,7 @@ void MegaClient::initsc()
         LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodes.size() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
 #else
 
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodes.size() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNumNodes() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -5221,9 +5219,9 @@ void MegaClient::updatesc()
                 if ((*it)->changed.removed)
                 {
                     LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->del((*it)->nodeHandle())))
+                    if (!(complete = mNodeManager.removeNode((*it)->nodeHandle())))   // DB
                     {
-                        NodeHandle firstValidAntecestor = sctable->getFirstAncestor(NodeHandle().set6byte((*it)->parenthandle));
+                        NodeHandle firstValidAntecestor = mNodeManager.getFirstAncestor(NodeHandle().set6byte((*it)->parenthandle));
                         assert(firstValidAntecestor != UNDEF);
                         assert(firstValidAntecestor == rootnodes[0] || firstValidAntecestor == rootnodes[1] || firstValidAntecestor == rootnodes[2]);
 
@@ -5242,7 +5240,7 @@ void MegaClient::updatesc()
                 else
                 {
                     LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->put(*it)))
+                    if (!(complete = mNodeManager.addOrUpdateNode(*it)))  // DB
                     {
                         break;
                     }
@@ -7422,7 +7420,7 @@ void MegaClient::notifypurge(void)
                     notifyuser(n->inshare->user);
                 }
 
-                mNodes.erase(n->nodeHandle());
+                mNodeManager.removeNode(n->nodeHandle());   // RAM
                 delete n;
             }
             else
@@ -7533,7 +7531,7 @@ void MegaClient::notifypurge(void)
     }
 #endif
 
-    totalNodes = mNodes.size();
+    totalNodes = mNodeManager.getNumNodes();
 }
 
 // return node pointer derived from node handle
@@ -8696,7 +8694,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
 #endif
 
-                n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts, addToMemory);
+                n = new Node(mNodeManager, &dp, h, ph, t, s, u, fas.c_str(), ts, addToMemory);
                 n->changed.newnode = true;
 
                 n->tag = tag;
@@ -8793,7 +8791,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             }
             else
             {
-                sctable->put(n);
+                mNodeManager.addOrUpdateNode(n);  // DB
                 if (!addToMemory)
                 {
                     delete n;
@@ -9257,7 +9255,7 @@ void MegaClient::procph(JSON *j)
                         {
                             n->setpubliclink(ph, cts, ets, takendown, authKey);
                             // In this, case we update a node in data base (no new nodes is added)
-                            sctable->put(n);
+                            mNodeManager.addOrUpdateNode(n);  // DB
                         }
                         else
                         {
@@ -9284,13 +9282,7 @@ void MegaClient::applykeys()
 
     int noKeyExpected = (rootnodes[0] != UNDEF) + (rootnodes[1] != UNDEF) + (rootnodes[2] != UNDEF);
 
-    if (mNodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
-    {
-        for (auto& it : mNodes)
-        {
-            it.second->applykey();
-        }
-    }
+    mNodeManager.applyKeys(uint32_t(mAppliedKeyNodeCount + noKeyExpected));
 
     sendkeyrewrites();
 }
@@ -11524,7 +11516,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 }
 
                 // In this, case we update a node in data base (No new nodes is added)
-                sctable->put(n);
+                mNodeManager.addOrUpdateNode(n); // DB
             }
             else
             {
@@ -12159,11 +12151,11 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     sctable->rewind();
 
-    bool isNodeOnDemandDb = sctable->isNodesOnDemandDb();
+    bool isNodeOnDemandDb = mNodeManager.isNodesOnDemandDb();
 
     if (isNodeOnDemandDb)
     {
-        assert(!mNodes.size());
+        assert(!mNodeManager.getNumNodes());
         std::vector<NodeSerialized> nodes;
 #ifdef ENABLE_SYNC
         sctable->getNodes(nodes);
@@ -12231,7 +12223,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    necessaryCommit = true;
                    // Add nodes from old data base structure to nodes on demand structure
                    // When all nodes are loaded we force a commit
-                   sctable->put(n);
+                   mNodeManager.addOrUpdateNode(n); // DB
                    sctable->del(id);
                 }
                 else
@@ -12571,7 +12563,7 @@ void MegaClient::fetchnodes(bool nocache)
 
     // only initial load from local cache
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
-            !mNodes.size() && !ISUNDEF(cachedscsn) &&
+            !mNodeManager.getNumNodes() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable.get()))
     {
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
@@ -12592,7 +12584,7 @@ void MegaClient::fetchnodes(bool nocache)
             WAIT_CLASS::bumpds();
             fnstats.mode = FetchNodesStats::MODE_DB;
             fnstats.cache = FetchNodesStats::API_NO_CACHE;
-            fnstats.nodesCached = sctable->getNumberOfNodes();
+            fnstats.nodesCached = mNodeManager.getNumNodes();
             fnstats.timeToCached = Waiter::ds - fnstats.startTime;
             fnstats.timeToResult = fnstats.timeToCached;
 
@@ -13429,11 +13421,7 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     mOptimizePurgeNodes = true;
     mFingerprints.clear();
     mNodeCounters.clear();
-    for (node_map::iterator it = mNodes.begin(); it != mNodes.end(); it++)
-    {
-        delete it->second;
-    }
-    mNodes.clear();
+    mNodeManager.cleanNodes();
     mOptimizePurgeNodes = false;
 
 #ifdef ENABLE_SYNC
@@ -16160,22 +16148,22 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
     return mFingerprints.nodebyfingerprint(fingerprint);
 }
 
-Node* MegaClient::nodeByHandleInRam(NodeHandle h) const
-{
-    if (h == UNDEF)
-    {
-        return nullptr;
-    }
+//Node* MegaClient::nodeByHandleInRam(NodeHandle h) const
+//{
+//    if (h == UNDEF)
+//    {
+//        return nullptr;
+//    }
 
-    node_map::const_iterator it;
+//    node_map::const_iterator it;
 
-    if ((it = mNodes.find(h)) != mNodes.end())
-    {
-        return it->second;
-    }
+//    if ((it = mNodes.find(h)) != mNodes.end())
+//    {
+//        return it->second;
+//    }
 
-    return nullptr;
-}
+//    return nullptr;
+//}
 
 #ifdef ENABLE_SYNC
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
@@ -16254,34 +16242,34 @@ static bool nodes_ctime_greater(const Node* a, const Node* b)
 node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin)
 {
     // 1. Get nodes added/modified not older than `since`
-    node_vector v;
-    v.reserve(mNodes.size());
-    for (node_map::iterator i = mNodes.begin(); i != mNodes.end(); ++i)
-    {
-        if (i->second->type == FILENODE && i->second->ctime >= since &&  // recent files only
-            (!i->second->parent || i->second->parent->type != FILENODE)) // excluding versions
-        {
-            v.push_back(i->second);
-        }
-    }
+//    node_vector v;
+//    v.reserve(mNodes.size());
+//    for (node_map::iterator i = mNodes.begin(); i != mNodes.end(); ++i)
+//    {
+//        if (i->second->type == FILENODE && i->second->ctime >= since &&  // recent files only
+//            (!i->second->parent || i->second->parent->type != FILENODE)) // excluding versions
+//        {
+//            v.push_back(i->second);
+//        }
+//    }
 
-    // heaps use a 'less' function, and pop_heap returns the largest item stored.
-    std::make_heap(v.begin(), v.end(), nodes_ctime_less);
+//    // heaps use a 'less' function, and pop_heap returns the largest item stored.
+//    std::make_heap(v.begin(), v.end(), nodes_ctime_less);
 
     // 2. Order them chronologically and restrict them to a maximum of `maxcount`
     node_vector v2;
-    unsigned maxItems = std::min(maxcount, unsigned(v.size()));
-    v2.reserve(maxItems);
-    while (v2.size() < maxItems && !v.empty())
-    {
-        std::pop_heap(v.begin(), v.end(), nodes_ctime_less);
-        Node* n = v.back();
-        v.pop_back();
-        if (includerubbishbin || n->firstancestor()->type != RUBBISHNODE)
-        {
-            v2.push_back(n);
-        }
-    }
+//    unsigned maxItems = std::min(maxcount, unsigned(v.size()));
+//    v2.reserve(maxItems);
+//    while (v2.size() < maxItems && !v.empty())
+//    {
+//        std::pop_heap(v.begin(), v.end(), nodes_ctime_less);
+//        Node* n = v.back();
+//        v.pop_back();
+//        if (includerubbishbin || n->firstancestor()->type != RUBBISHNODE)
+//        {
+//            v2.push_back(n);
+//        }
+//    }
     return v2;
 }
 
@@ -16497,17 +16485,12 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
 
 void MegaClient::nodesbyoriginalfingerprint(const char* originalfingerprint, Node* parent, node_vector *nv)
 {
-    std::map<NodeHandle, NodeSerialized> nodeMap;
-    if (sctable->getNodesByOrigFingerprint(originalfingerprint, nodeMap))
+    node_vector nodes = mNodeManager.getNodesByOrigFingerprint(originalfingerprint);
+    for (auto node : nodes)
     {
-        for (auto nodeIt : nodeMap)
+        if (!parent || (parent && mNodeManager.isAncestor(node->nodeHandle(), parent->nodeHandle())))
         {
-            if (!parent || (parent && sctable->isAncestor(nodeIt.first, parent->nodeHandle())))
-            {
-                node_vector nodeVector;
-                Node* node = Node::unserialize(this, &nodeIt.second.mNode, &nodeVector, nodeIt.second.mDecrypted);
-                nv->push_back(node);
-            }
+            nv->push_back(node);
         }
     }
 }
@@ -16961,6 +16944,12 @@ void FetchNodesStats::toJsonArray(string *json)
     json->append(oss.str());
 }
 
+NodeManager::NodeManager(MegaClient& client)
+    : mClient(client)
+{
+
+}
+
 void NodeManager::init(DBTableNodes *table)
 {
     mTable = table;
@@ -16972,19 +16961,35 @@ void NodeManager::reset()
     mNodes.clear();
 }
 
-void NodeManager::addOrUpdateNode(Node *node)
+bool NodeManager::addOrUpdateNode(Node *node)
 {
+    if (!mTable)
+    {
+        assert(false);
+        return false;
+    }
 
+    return false;
 }
 
-void NodeManager::removeNode(Node *node)
+bool NodeManager::removeNode(NodeHandle handle)
 {
+    if (!mTable)
+    {
+        assert(false);
+        return false;
+    }
 
+    return false;
 }
 
 Node *NodeManager::getNodeByHandle(NodeHandle handle)
 {
-    if (!mTable)    return nullptr;
+    if (!mTable)
+    {
+        assert(false);
+        return nullptr;
+    }
 
     node_map::const_iterator it;
 
@@ -16998,7 +17003,7 @@ Node *NodeManager::getNodeByHandle(NodeHandle handle)
     node_vector nodeVector;
     if (mTable->getNode(handle, nodeSerialized))
     {
-        node = Node::unserialize(this, &nodeSerialized.mNode, &nodeVector, nodeSerialized.mDecrypted);
+        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
     }
 
     return node;
@@ -17015,7 +17020,6 @@ node_list NodeManager::getChildren(Node *parent)
     // get children's handles and serialized nodes from cache
     std::map<NodeHandle, NodeSerialized> childrenMap;
     mTable->getChildrenFromNode(parent->nodeHandle(), childrenMap);
-    node_vector dp;
 
     // get children nodes loaded in RAM (which may not be in cache yet)
     // (upon node's creation, nodes are added to the notification queue, `nodenotify`, but
@@ -17038,7 +17042,7 @@ node_list NodeManager::getChildren(Node *parent)
         if (nodeIt == mNodes.end())
         {
             assert(child.second.mNode.length());
-            n = Node::unserialize(this, &child.second.mNode, &dp, child.second.mDecrypted);
+            n = unserializeNode(&child.second.mNode, child.second.mDecrypted);
         }
         else
         {
@@ -17053,15 +17057,23 @@ node_list NodeManager::getChildren(Node *parent)
 
 uint64_t NodeManager::getNumNodes()
 {
-    if (!mTable)    return 0;
+    if (!mTable)
+    {
+        assert(false);
+        return 0;
+    }
 
     mTable->getNumberOfNodes();
 }
 
 node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
 {
-    node_vector dp;
-    if (!mTable)    return dp;
+    node_vector nodes;
+    if (!mTable)
+    {
+        assert(false);
+        return nodes;
+    }
 
     std::map<mega::NodeHandle, NodeSerialized> nodeMap;
     mTable->getNodesByName(searchString, nodeMap);
@@ -17084,25 +17096,28 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         auto nodeIt = mNodes.find(nodeMapIt.first);
         if (nodeIt == mNodes.end())
         {
-            n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
         }
         else
         {
             n = nodeIt->second;
         }
 
-        dp.push_back(n);
+        nodes.push_back(n);
     }
 
-    return dp;
+    return nodes;
 }
 
 node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprint)
 {
-    // Review Fingerprints MegaClient::mFingerprints;
+    // TODO Nodes on demand: Review Fingerprints MegaClient::mFingerprints;
 
-    node_vector dp;
-    if (!mTable)    return dp;
+    node_vector nodes;
+    if (!mTable)
+    {
+        return nodes;
+    }
 
     std::map<mega::NodeHandle, NodeSerialized> nodeMap;
     mTable->getNodesByFingerprint(fingerprint, nodeMap);
@@ -17113,27 +17128,47 @@ node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprin
         auto nodeIt = mNodes.find(nodeMapIt.first);
         if (nodeIt == mNodes.end())
         {
-            n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
         }
         else
         {
             n = nodeIt->second;
         }
 
-        dp.push_back(n);
+        nodes.push_back(n);
     }
 
-    return dp;
+    return nodes;
 }
 
 node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprint)
 {
-    node_vector dp;
+    node_vector nodes;
     if (!mTable)
     {
-        assert(false);
-        return dp;
+        return nodes;
     }
+
+    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
+    mTable->getNodesByOrigFingerprint(fingerprint, nodeMap);
+
+    for (const auto nodeMapIt : nodeMap)
+    {
+        Node* n;
+        auto nodeIt = mNodes.find(nodeMapIt.first);
+        if (nodeIt == mNodes.end())
+        {
+            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+        }
+        else
+        {
+            n = nodeIt->second;
+        }
+
+        nodes.push_back(n);
+    }
+
+    return nodes;
 }
 
 Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
@@ -17143,84 +17178,100 @@ Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
         assert(false);
         return nullptr;
     }
+
+    // TODO Nodes on demand implement
+
+    return nullptr;
 }
 
 node_vector NodeManager::getRootNodes()
 {
-    node_vector dp;
+    node_vector nodes;
     if (!mTable)
     {
         assert(false);
-        return dp;
+        return nodes;
     }
 
     std::map<mega::NodeHandle, NodeSerialized> nodeMap;
     mTable->getRootNodes(nodeMap);
 
+    node_vector dp;
     for (const auto nodeMapIt : nodeMap)
     {
         Node* n;
         auto nodeIt = mNodes.find(nodeMapIt.first);
         if (nodeIt == mNodes.end())
         {
-            n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
         }
         else
         {
             n = nodeIt->second;
         }
 
-        dp.push_back(n);
+        nodes.push_back(n);
         if (n->type == ROOTNODE)
         {
             getChildren(n);
         }
     }
 
-    return dp;
+    return nodes;
 }
 
 node_vector NodeManager::getNodesWithSharesOrLink(DBTableNodes::ShareType_t shareType)
 {
-    node_vector dp;
-    if (!mTable)    return dp;
+    node_vector nodes;
+    if (!mTable)
+    {
+        assert(false);
+        return nodes;
+    }
 
     std::map<mega::NodeHandle, NodeSerialized> nodeMap;
     mTable->getNodesWithSharesOrLink(nodeMap, shareType);
-
     for (const auto nodeMapIt : nodeMap)
     {
         Node* n;
         auto nodeIt = mNodes.find(nodeMapIt.first);
         if (nodeIt == mNodes.end())
         {
-            n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
         }
         else
         {
             n = nodeIt->second;
         }
 
-        dp.push_back(n);
+        nodes.push_back(n);
     }
 
-    return dp;
+    return nodes;
 }
 
 std::vector<NodeHandle> NodeManager::getChildrenHandlesFromNode(NodeHandle node)
 {
-    std::vector<NodeHandle> dp;
-    if (!mTable)    return dp;
+    std::vector<NodeHandle> nodes;
+    if (!mTable)
+    {
+        assert(false);
+        return nodes;
+    }
 
-    mTable->getChildrenHandlesFromNode(node, dp);
+    mTable->getChildrenHandlesFromNode(node, nodes);
 
-    return dp;
+    return nodes;
 }
 
 NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle)
 {
     NodeCounter nc;
-    if (!mTable)    return nc;
+    if (!mTable)
+    {
+        assert(false);
+        return nc;
+    }
 
     auto itNode = mNodes.find(nodehandle);
     Node* node = (itNode == mNodes.end()) ? nullptr : itNode->second;
@@ -17262,47 +17313,390 @@ NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle)
 
 std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, uint32_t count)
 {
+    std::vector<NodeHandle> nodeHandles;
+    if (!mTable)
+    {
+        assert(false);
+        return nodeHandles;
+    }
 
+    mTable->getFavouritesNodeHandles(node, count, nodeHandles);
+    return nodeHandles;
 }
 
 int NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
+    if (!mTable)
+    {
+        assert(false);
+        return -1;
+    }
 
+    return mTable->getNumberOfChildrenFromNode(parentHandle);
 }
 
 bool NodeManager::isNodesOnDemandDb()
 {
+    if (!mTable)
+    {
+        assert(false);
+        return false;
+    }
 
+    return mTable->isNodesOnDemandDb();
 }
 
 NodeHandle NodeManager::getFirstAncestor(NodeHandle node)
 {
+    if (!mTable)
+    {
+        assert(false);
+        return NodeHandle();  // It's initialized to undef
+    }
 
+    return mTable->getFirstAncestor(node);
 }
 
 bool NodeManager::isNodeInDB(NodeHandle node)
 {
+    if (!mTable)
+    {
+        assert(false);
+        return false;
+    }
 
+    return mTable->isNodeInDB(node);
 }
 
-bool NodeManager::isAncestor(NodeHandle node, NodeHandle ancestror)
+bool NodeManager::isAncestor(NodeHandle node, NodeHandle ancestor)
 {
+    if (!mTable)
+    {
+        assert(false);
+        return false;
+    }
 
+    return mTable->isAncestor(node, ancestor);
 }
 
 bool NodeManager::isFileNode(NodeHandle node)
 {
+    if (!mTable)
+    {
+        assert(false);
+        return false;
+    }
 
+    return mTable->isFileNode(node);
 }
 
-uint64_t NodeManager::getNumberOfNodes()
+void NodeManager::removeChanges()
 {
-
+    for (node_map::iterator it = mNodes.begin(); it != mNodes.end(); it++)
+    {
+        memset(&(it->second->changed), 0, sizeof it->second->changed);
+    }
 }
 
-bool NodeManager::removeNodesFromDb()
+bool NodeManager::cleanNodes()
 {
+    mNodes.clear();
     return mTable->removeNodes();
+}
+
+Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
+{
+    handle h, ph;
+    nodetype_t t;
+    m_off_t s;
+    handle u;
+    const byte* k = NULL;
+    const char* fa;
+    m_time_t ts;
+    const byte* skey;
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+    unsigned short ll;
+    Node* n;
+    int i;
+    char isExported = '\0';
+    char hasLinkCreationTs = '\0';
+
+    if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
+    {
+        return NULL;
+    }
+
+    s = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof s;
+
+    if (s < 0 && s >= -RUBBISHNODE)
+    {
+        t = (nodetype_t)-s;
+    }
+    else
+    {
+        t = FILENODE;
+    }
+
+    h = 0;
+    memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
+
+    ph = 0;
+    memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
+
+    if (!ph)
+    {
+        ph = UNDEF;
+    }
+
+    u = 0;
+    memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
+    ptr += MegaClient::USERHANDLE;
+
+    // FIME: use m_time_t / Serialize64 instead
+    ptr += sizeof(time_t);
+
+    ts = (uint32_t)MemAccess::get<time_t>(ptr);
+    ptr += sizeof(time_t);
+
+    std::string undecryptedKey;
+    if (decrypted)
+    {
+        if ((t == FILENODE) || (t == FOLDERNODE))
+        {
+            int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+
+            if (ptr + keylen + 8 + sizeof(short) > end)
+            {
+                return NULL;
+            }
+
+            k = (const byte*)ptr;
+            ptr += keylen;
+        }
+    }
+    else
+    {
+        ll = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof ll;
+
+        if (ptr + ll > end)
+        {
+            return NULL;
+        }
+
+        k = nullptr;
+        undecryptedKey = std::string(ptr, ll);
+        ptr += ll;
+    }
+
+    if (t == FILENODE)
+    {
+        ll = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof ll;
+
+        if (ptr + ll > end)
+        {
+            return NULL;
+        }
+
+        fa = ptr;
+        ptr += ll;
+    }
+    else
+    {
+        fa = NULL;
+    }
+
+    if (ptr + sizeof isExported + sizeof hasLinkCreationTs > end)
+    {
+        return NULL;
+    }
+
+    isExported = MemAccess::get<char>(ptr);
+    ptr += sizeof(isExported);
+
+    hasLinkCreationTs = MemAccess::get<char>(ptr);
+    ptr += sizeof(hasLinkCreationTs);
+
+    auto authKeySize = MemAccess::get<char>(ptr);
+
+    ptr += sizeof authKeySize;
+    const char *authKey = nullptr;
+    if (authKeySize)
+    {
+        authKey = ptr;
+        ptr += authKeySize;
+    }
+
+    for (i = 5; i--;)
+    {
+        if (ptr + (unsigned char)*ptr < end)
+        {
+            ptr += (unsigned char)*ptr + 1;
+        }
+    }
+
+    if (ptr + sizeof(short) > end)
+    {
+        return NULL;
+    }
+
+    short numshares = MemAccess::get<short>(ptr);
+    ptr += sizeof(numshares);
+
+    if (numshares)
+    {
+        if (ptr + SymmCipher::KEYLENGTH > end)
+        {
+            return NULL;
+        }
+
+        skey = (const byte*)ptr;
+        ptr += SymmCipher::KEYLENGTH;
+    }
+    else
+    {
+        skey = NULL;
+    }
+
+    node_vector dp;
+    n = new Node(*this, &dp, h, ph, t, s, u, fa, ts);
+
+    if (k)
+    {
+        n->setkey(k);
+    }
+    else if (!decrypted)
+    {
+        n->setUndecryptedKey(undecryptedKey);
+    }
+
+    // read inshare, outshares, or pending shares
+    while (numshares)   // inshares: -1, outshare/s: num_shares
+    {
+        int direction = (numshares > 0) ? -1 : 0;
+        NewShare *newShare = Share::unserialize(direction, h, skey, &ptr, end);
+        if (!newShare)
+        {
+            LOG_err << "Failed to unserialize Share";
+            break;
+        }
+
+        // Recovering nodes from DB, 'updateDb' is false. Nodes are updated and it isn't necessary to update in Db
+        mClient.mergenewshare(newShare, false, n, false);
+        if (numshares > 0)  // outshare/s
+        {
+            numshares--;
+        }
+        else    // inshare
+        {
+            break;
+        }
+    }
+
+    if (decrypted)
+    {
+        ptr = n->attrs.unserialize(ptr, end);
+        if (!ptr)
+        {
+            delete n;
+            LOG_err << "Failed to unserialize attrs";
+            assert(false);
+            return NULL;
+        }
+    }
+    else
+    {
+        ll = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof ll;
+
+        if (ptr + ll > end)
+        {
+            delete n;
+            return NULL;
+        }
+
+        n->attrstring = make_unique<std::string>(ptr, ll);
+        ptr += ll;
+        n->applykey();
+        n->setattr();
+    }
+
+    // It's needed to re-normalize node names because
+    // the updated version of utf8proc doesn't provide
+    // exactly the same output as the previous one that
+    // we were using
+    attr_map::iterator it = n->attrs.map.find('n');
+    if (it != n->attrs.map.end())
+    {
+        FileSystemAccess::normalize(&(it->second));
+    }
+
+    PublicLink *plink = NULL;
+    if (isExported)
+    {
+        if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
+        {
+            delete n;
+            return NULL;
+        }
+
+        handle ph = 0;
+        memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
+        ptr += MegaClient::NODEHANDLE;
+        m_time_t ets = MemAccess::get<m_time_t>(ptr);
+        ptr += sizeof(ets);
+        bool takendown = MemAccess::get<bool>(ptr);
+        ptr += sizeof(takendown);
+
+        m_time_t cts = 0;
+        if (hasLinkCreationTs)
+        {
+            cts = MemAccess::get<m_time_t>(ptr);
+            ptr += sizeof(cts);
+        }
+
+        plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
+        mClient.mPublicLinks[n->nodehandle] = plink->ph;
+    }
+    n->plink = plink;
+
+    n->setfingerprint();
+
+    if (ptr == end)
+    {
+        if (!decrypted && !n->attrstring)
+        {
+            addOrUpdateNode(n);   // DB
+        }
+
+        return n;
+    }
+    else
+    {
+        delete n;
+        return NULL;
+    }
+}
+
+void NodeManager::applyKeys(uint32_t appliedKeys)
+{
+    if (mNodes.size() > appliedKeys)
+    {
+        for (auto& it : mNodes)
+        {
+            it.second->applykey();
+        }
+    }
+}
+
+MegaClient &NodeManager::getMegaClient()
+{
+    return mClient;
 }
 
 } // namespace

@@ -10997,20 +10997,14 @@ MegaShareList *MegaApiImpl::getOutSharesOrPending(int order, bool pending)
 {
     sdkMutex.lock();
 
+    node_vector nodes = client->mNodeManager.getNodesWithSharesOrLink(pending ? DBTableNodes::ShareType_t::PENDING_OUTSHARES : DBTableNodes::ShareType_t::OUT_SHARES);
     vector<Share *> shares;
-    std::vector<NodeSerialized> nodesSerialized;
-    client->mNodeManager.getNodesWithSharesOrLink(nodesSerialized, pending ? DBTableNodes::ShareType_t::PENDING_OUTSHARES : DBTableNodes::ShareType_t::OUT_SHARES);
-    node_vector dp;
-    node_vector nodes;
-    for (const NodeSerialized& node : nodesSerialized)
+    for (const Node* n : nodes)
     {
-        Node* n;
-        n = Node::unserialize(client, &node.mNode, &dp, node.mDecrypted);
         assert(n->outshares);
         for (auto it = n->outshares->begin(); it != n->outshares->end(); it++)
         {
             shares.push_back(it->second);
-            nodes.push_back(n);
         }
     }
 
@@ -11974,10 +11968,12 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         {
             // Search on public links
             node_vector publicLinks = client->mNodeManager.getNodesWithSharesOrLink(DBTableNodes::ShareType_t::LINK);
-            for (auto& it = publicLinks.begin(); it != publicLinks.end()
+            for (auto it = publicLinks.begin(); it != publicLinks.end()
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {
-                node_vector nodeVector = searchWithDB(it->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                // TODO: Nodes on demand Review if in this case we to apply type filter
+                node_vector nodeVector = client->mNodeManager.search((*it)->nodeHandle(), searchString);
+                //node_vector nodeVector = search((*it)->nodeHandle().as8byte(), searchString, cancelToken, true, MegaApi::ORDER_NONE, type);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
@@ -20359,7 +20355,7 @@ void MegaApiImpl::sendPendingRequests()
                     favouriteNodes.push_back(node->nodeHandle());
                 }
 
-                client->mNodeManager.getFavouritesNodeHandles(node->nodeHandle(), count, favouriteNodes);
+                favouriteNodes = client->mNodeManager.getFavouritesNodeHandles(node->nodeHandle(), count);
                 std::vector<handle> handles;
                 for (const NodeHandle& nodeHandle : favouriteNodes)
                 {

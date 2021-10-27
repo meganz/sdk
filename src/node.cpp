@@ -33,12 +33,13 @@
 
 namespace mega {
 
-Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
+Node::Node(NodeManager& nodeManager, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts, bool addToMemory)
+    : mNodeManager(nodeManager)
 {
     mInMemory = addToMemory;
-    fingerprint_it = cclient->mFingerprints.end();
-    client = cclient;
+    fingerprint_it = mNodeManager.getMegaClient().mFingerprints.end();
+    //client = cclient;
     outshares = NULL;
     pendingshares = NULL;
     tag = 0;
@@ -78,7 +79,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     if (mInMemory)
     {
-        client->mNodes[NodeHandle().set6byte(h)] = this;
+        mNodeManager.addOrUpdateNode(this);  // RAM
 
         // set parent linkage or queue for delayed parent linkage in case of
         // out-of-order delivery
@@ -98,7 +99,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     {
         NodeHandle parentNodeHandle;
         parentNodeHandle.set6byte(parenthandle);
-        NodeHandle firstValidAncestor = client->sctable->getFirstAncestor(parentNodeHandle);
+        NodeHandle firstValidAncestor = mNodeManager.getFirstAncestor(parentNodeHandle);
         firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : parentNodeHandle;
 
         if (firstValidAncestor != UNDEF)
@@ -220,18 +221,18 @@ Node::~Node()
     // in case this node is currently being transferred for syncing: abort transfer
     delete syncget;
 #endif
-
-    if (!client->mOptimizePurgeNodes)
-    {
-        for (auto& childHandle : mChildrenInMemory)
-        {
-            Node* child = client->nodeByHandleInRam(childHandle);
-            if (child)
-            {
-                child->parent = nullptr;
-            }
-        }
-    }
+// TODO nodes on demand Implement
+//    if (!client->mOptimizePurgeNodes)
+//    {
+//        for (auto& childHandle : mChildrenInMemory)
+//        {
+//            Node* child = client->nodeByHandleInRam(childHandle);
+//            if (child)
+//            {
+//                child->parent = nullptr;
+//            }
+//        }
+//    }
 }
 
 #ifdef ENABLE_SYNC
@@ -252,6 +253,11 @@ void Node::setkeyfromjson(const char* k)
     JSON::copystring(&nodekeydata, k);
     if (keyApplied()) ++client->mAppliedKeyNodeCount;
     assert(client->mAppliedKeyNodeCount >= 0);
+}
+
+void Node::setUndecryptedKey(const std::string& undecryptedKey)
+{
+    nodekeydata = undecryptedKey;
 }
 
 // update node key and decrypt attributes
@@ -429,7 +435,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
         skey = NULL;
     }
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+    n = new Node(client->mNodeManager, dp, h, ph, t, s, u, fa, ts);
 
     if (k)
     {
@@ -536,7 +542,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
     {
         if (!decrypted && !n->attrstring)
         {
-            client->sctable->put(n);
+            client->mNodeManager.addOrUpdateNode(n);  // DB
         }
 
         return n;
@@ -1075,9 +1081,9 @@ bool Node::applykey()
     if (applied)
     {
         // If node in DB update if not we can wait until it will save in DB
-        if (client->sctable->isNodeInDB(nodeHandle()))
+        if (client->mNodeManager.isNodeInDB(nodeHandle()))
         {
-            client->sctable->put(this);
+            client->mNodeManager.addOrUpdateNode(this);  // DB
         }
     }
 
@@ -2010,48 +2016,18 @@ Node* Fingerprints::nodebyfingerprint(FileFingerprint* fingerprint)
         return static_cast<Node*>(*it);
     }
 
-    NodeSerialized nodeSerialized;
-    if (mClient.mNodeManager->getNodeByFingerprint(*fingerprint, nodeSerialized))
-    {
-        node_vector nodeVector;
-        Node* node = Node::unserialize(&mClient, &nodeSerialized.mNode, &nodeVector, nodeSerialized.mDecrypted);
-        return node;
-    }
-
-    return nullptr;
+    Node *node = mClient.mNodeManager.getNodeByFingerprint(*fingerprint);
+    return node;
 }
 
 node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
 {
+    node_vector nodesByFingerPrint = mClient.mNodeManager.getNodesByFingerprint(*fingerprint);
     node_vector *nodes = new node_vector();
-    auto p = mFingerprints.equal_range(fingerprint);
-    for (iterator it = p.first; it != p.second; ++it)
-    {
-        nodes->push_back(static_cast<Node*>(*it));
-    }
 
-    std::map<NodeHandle, NodeSerialized> nodeMap;
-    if (mClient.sctable->getNodesByFingerprint(*fingerprint, nodeMap))
+    for (Node* node : nodesByFingerPrint)
     {
-        for (auto nodeIt : nodeMap)
-        {
-            bool found = false;
-            for (int i = 0; i < nodes->size(); i++)
-            {
-                if (nodes->at(i)->nodeHandle().eq(nodeIt.first))
-                {
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                node_vector nodeVector;
-                Node* node = Node::unserialize(&mClient, &nodeIt.second.mNode, &nodeVector, nodeIt.second.mDecrypted);
-                nodes->push_back(node);
-            }
-        }
+        nodes->push_back(node);
     }
 
     return nodes;

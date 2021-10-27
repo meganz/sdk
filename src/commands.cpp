@@ -2165,17 +2165,18 @@ bool CommandSetPendingContact::procresult(Result r)
                 client->notifypcr(pcr);
 
                 // remove pending shares related to the deleted PCR
-                Node *n;
-                for (node_map::iterator it = client->mNodes.begin(); it != client->mNodes.end(); it++)
-                {
-                    n = it->second;
-                    if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
-                    {
-                        client->newshares.push_back(
-                                    new NewShare(n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                 0, NULL, NULL, pcr->id, false));
-                    }
-                }
+                // TODO Nodes on demand Review and implement
+//                Node *n;
+//                for (node_map::iterator it = client->mNodes.begin(); it != client->mNodes.end(); it++)
+//                {
+//                    n = it->second;
+//                    if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
+//                    {
+//                        client->newshares.push_back(
+//                                    new NewShare(n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
+//                                                 0, NULL, NULL, pcr->id, false));
+//                    }
+//                }
 
                 client->mergenewshares(1);
             }
@@ -5693,7 +5694,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
                 {
                     client->fetchingnodes = false;
-                    client->mNodeManager.removeNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5704,7 +5705,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
                 {
                     client->fetchingnodes = false;
-                    client->mNodeManager.removeNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5727,7 +5728,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readusers(&client->json, false))
                 {
                     client->fetchingnodes = false;
-                    client->mNodeManager.removeNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5748,7 +5749,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->scsn.setScsn(&client->json))
                 {
                     client->fetchingnodes = false;
-                    client->mNodeManager.removeNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5786,7 +5787,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->scsn.ready())
                 {
                     client->fetchingnodes = false;
-                    client->mNodeManager.removeNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5799,14 +5800,14 @@ bool CommandFetchNodes::procresult(Result r)
 
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
-                client->fnstats.nodesCached = client->mNodes.size();
+                client->fnstats.nodesCached = client->mNodeManager.getNumNodes();
                 return true;
             }
             default:
                 if (!client->json.storeobject())
                 {
                     client->fetchingnodes = false;
-                    client->mNodeManager.removeNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }

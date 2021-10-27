@@ -228,6 +228,8 @@ public:
     bool mActionsPerformed;
 }; // SyncdownContext
 
+class MegaClient;
+
 /**
  * @brief The NodeManager class
  *
@@ -242,12 +244,13 @@ public:
 class MEGA_API NodeManager
 {
 public:
+    NodeManager(MegaClient& client);
     // set interface to access to "nodes" table
     void init(DBTableNodes *table);
     void reset();
 
-    void addOrUpdateNode(Node* node); // Instead of Node it can receive parameters for create the node
-    void removeNode(Node* node);
+    bool addOrUpdateNode(Node* node); // Instead of Node it can receive parameters for create the node
+    bool removeNode(NodeHandle handle);
 
     Node *getNodeByHandle(NodeHandle handle);
     node_list getChildren(Node* parent);
@@ -265,13 +268,22 @@ public:
     bool isNodesOnDemandDb();
     NodeHandle getFirstAncestor(NodeHandle node);
     bool isNodeInDB(NodeHandle node);
-    bool isAncestor(NodeHandle node, NodeHandle ancestror);
+    bool isAncestor(NodeHandle node, NodeHandle ancestor);
     bool isFileNode(NodeHandle node);
-    uint64_t getNumberOfNodes();
 
-    bool removeNodesFromDb();
+    void removeChanges();
+
+    bool cleanNodes();
+
+    Node* unserializeNode(const string*, bool decrypted = true);
+
+    void applyKeys(uint32_t appliedKeys);
+
+    MegaClient& getMegaClient();
 
 private:
+    MegaClient& mClient;
+
     // interface to handle accesses to "nodes" table
     DBTableNodes* mTable = nullptr;
 
@@ -1487,7 +1499,7 @@ public:
     // If it's necessary, load nodes from data base
     Node* nodeByHandle(NodeHandle);
     Node* nodeByPath(const char* path, Node* node = nullptr);
-    Node* nodeByHandleInRam(NodeHandle) const;
+//    Node* nodeByHandleInRam(NodeHandle) const;
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);

@@ -126,6 +126,7 @@ private:
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
     MegaClient* client = nullptr;
+    NodeManager& mNodeManager;
 
     // supplies the nodekey (which is private to ensure we track changes to it)
     const string& nodekey() const;
@@ -221,6 +222,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     void setkeyfromjson(const char*);
 
+    void setUndecryptedKey(const std::string &undecryptedKey);
+
     void setfingerprint();
 
     void faspec(string*);
@@ -269,7 +272,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool serialize(string*) override;
     static Node* unserialize(MegaClient*, const string*, node_vector*, bool decrypted = true);
 
-    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t, bool addToMemory = true);
+    Node(NodeManager&, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t, bool addToMemory = true);
     ~Node();
 
 #ifdef ENABLE_SYNC

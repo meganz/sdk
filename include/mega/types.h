@@ -123,6 +123,7 @@ struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
+class NodeManager;
 struct NewNode;
 struct Node;
 struct NodeCore;
