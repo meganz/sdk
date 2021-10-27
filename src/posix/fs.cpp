@@ -774,9 +774,7 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
 
 bool PosixFileSystemAccess::cwd(LocalPath& path) const
 {
-    string& buf = path.localpath;
-
-    buf.resize(128);
+    string buf(128, '\0');
 
     while (!getcwd(&buf[0], buf.size()))
     {
@@ -789,6 +787,8 @@ bool PosixFileSystemAccess::cwd(LocalPath& path) const
     }
 
     buf.resize(strlen(buf.c_str()));
+
+    path = LocalPath::fromPlatformEncodedAbsolute(std::move(buf));
 
     return true;
 }
