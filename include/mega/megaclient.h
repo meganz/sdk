@@ -249,7 +249,8 @@ public:
     void init(DBTableNodes *table);
     void reset();
 
-    bool addOrUpdateNode(Node* node); // Instead of Node it can receive parameters for create the node
+    bool addNode(Node* node); // Instead of Node it can receive parameters for create the node
+    bool updateNode(Node* node);
     bool removeNode(NodeHandle handle);
 
     Node *getNodeByHandle(NodeHandle handle);

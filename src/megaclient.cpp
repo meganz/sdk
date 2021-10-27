@@ -501,7 +501,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n, bool updateDb)
 
     if (mNodeManager.isNodeInDB(originalNode->nodeHandle()) && updateDb)
     {
-        mNodeManager.addOrUpdateNode(originalNode);  // BD
+        mNodeManager.updateNode(originalNode);
     }
 }
 
@@ -5240,7 +5240,7 @@ void MegaClient::updatesc()
                 else
                 {
                     LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = mNodeManager.addOrUpdateNode(*it)))  // DB
+                    if (!(complete = mNodeManager.addNode(*it)))  // DB
                     {
                         break;
                     }
@@ -8791,7 +8791,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             }
             else
             {
-                mNodeManager.addOrUpdateNode(n);  // DB
+                mNodeManager.addNode(n);  // DB
                 if (!addToMemory)
                 {
                     delete n;
@@ -9254,8 +9254,7 @@ void MegaClient::procph(JSON *j)
                         if (n)
                         {
                             n->setpubliclink(ph, cts, ets, takendown, authKey);
-                            // In this, case we update a node in data base (no new nodes is added)
-                            mNodeManager.addOrUpdateNode(n);  // DB
+                            mNodeManager.updateNode(n);  // DB
                         }
                         else
                         {
@@ -11515,8 +11514,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                     }
                 }
 
-                // In this, case we update a node in data base (No new nodes is added)
-                mNodeManager.addOrUpdateNode(n); // DB
+                mNodeManager.updateNode(n);
             }
             else
             {
@@ -12223,7 +12221,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    necessaryCommit = true;
                    // Add nodes from old data base structure to nodes on demand structure
                    // When all nodes are loaded we force a commit
-                   mNodeManager.addOrUpdateNode(n); // DB
+                   mNodeManager.addNode(n); // DB
                    sctable->del(id);
                 }
                 else
@@ -16961,7 +16959,7 @@ void NodeManager::reset()
     mNodes.clear();
 }
 
-bool NodeManager::addOrUpdateNode(Node *node)
+bool NodeManager::addNode(Node *node)
 {
     if (!mTable)
     {
@@ -16970,6 +16968,18 @@ bool NodeManager::addOrUpdateNode(Node *node)
     }
 
     return false;
+}
+
+bool NodeManager::updateNode(Node *node)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return false;
+    }
+
+    mTable->put(node);
+    return true;
 }
 
 bool NodeManager::removeNode(NodeHandle handle)
@@ -17684,7 +17694,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
     {
         if (!decrypted && !n->attrstring)
         {
-            addOrUpdateNode(n);   // DB
+            updateNode(n);
         }
 
         return n;

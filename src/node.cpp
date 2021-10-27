@@ -79,7 +79,7 @@ Node::Node(NodeManager& nodeManager, node_vector* dp, handle h, handle ph,
 
     if (mInMemory)
     {
-        mNodeManager.addOrUpdateNode(this);  // RAM
+        mNodeManager.addNode(this);  // RAM
 
         // set parent linkage or queue for delayed parent linkage in case of
         // out-of-order delivery
@@ -542,7 +542,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
     {
         if (!decrypted && !n->attrstring)
         {
-            client->mNodeManager.addOrUpdateNode(n);  // DB
+            client->mNodeManager.updateNode(n);  // DB
         }
 
         return n;
@@ -1083,7 +1083,7 @@ bool Node::applykey()
         // If node in DB update if not we can wait until it will save in DB
         if (client->mNodeManager.isNodeInDB(nodeHandle()))
         {
-            client->mNodeManager.addOrUpdateNode(this);  // DB
+            client->mNodeManager.updateNode(this);  // DB
         }
     }
 
