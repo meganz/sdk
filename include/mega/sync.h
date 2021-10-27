@@ -465,7 +465,7 @@ public:
 
     virtual ~SyncConfigIOContext();
 
-    MEGA_DISABLE_COPY_MOVE(SyncConfigIOContext);
+    MEGA_DISABLE_COPY_MOVE(SyncConfigIOContext)
 
     // Deserialize configs from JSON (with logging.)
     bool deserialize(const LocalPath& dbPath,
