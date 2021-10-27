@@ -798,7 +798,7 @@ public:
             ostream << "\t"
                     << node.dbid
                     << " -> "
-                    << node.parent_dbid
+                    << node.parentID
                     << ";\n";
         }
 
@@ -809,6 +809,22 @@ public:
     }
 
 private:
+    struct StateCacheNode
+      : public LocalNodeCore
+    {
+        // Dummy implementation.
+        bool serialize(string* destination) override
+        {
+            return LocalNodeCore::serialize(*destination, parentID);
+        }
+
+        // Useful for debugging purposes.
+        uint32_t parentID = 0u;
+    }; // StateCacheNode
+
+    // Convenience.
+    using StateCacheNodePtr = unique_ptr<StateCacheNode>;
+
     // Check if a directory node is consistent with the cache.
     bool matchDirectory(const LocalNode& node) const
     {
@@ -895,7 +911,7 @@ private:
         if (node.type != entry.type)
             return false;
 
-        if (node.parent->dbid != entry.parent_dbid)
+        if (node.parent->dbid != entry.parentID)
             return false;
 
         if (node.fsid_lastSynced != entry.fsid_lastSynced)
@@ -911,9 +927,6 @@ private:
             return false;
 
         if (node.syncedCloudNodeHandle != entry.syncedCloudNodeHandle)
-            return false;
-
-        if (node.mSyncable != entry.mSyncable)
             return false;
 
         return true;
@@ -936,7 +949,7 @@ private:
         string metadata;
 
         // Deserialized nodes.
-        map<uint32_t, LocalNodeCorePtr> nodes;
+        map<uint32_t, StateCacheNodePtr> nodes;
 
         // Tracks pending parents.
         set<uint32_t> pending;
@@ -947,10 +960,10 @@ private:
         // Read and deserialize metadata from the state cache.
         while (db.next(&id, &metadata, &key))
         {
-            auto node = make_unique<LocalNodeCore>();
+            auto node = make_unique<StateCacheNode>();
 
             // Try and deserialize the node.
-            if (!node->unserialize(&metadata))
+            if (!node->unserialize(metadata, node->parentID))
                 return false;
 
             // Inject database ID.
@@ -960,7 +973,7 @@ private:
             pending.erase(id);
 
             // Convenience.
-            auto parentID = node->parent_dbid;
+            auto parentID = node->parentID;
 
             // Establish parent-child link.
             children[parentID].emplace(id);
@@ -990,7 +1003,7 @@ private:
     map<uint32_t, set<uint32_t>> mNodeChildMap;
 
     // Node metadata loaded from the state cache.
-    map<uint32_t, LocalNodeCorePtr> mNodeMap;
+    map<uint32_t, StateCacheNodePtr> mNodeMap;
 }; // StateCacheValidator
 
 struct StandardClient : public MegaApp
