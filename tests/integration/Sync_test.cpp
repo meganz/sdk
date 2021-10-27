@@ -3027,11 +3027,6 @@ struct StandardClient : public MegaApp
         return waitonresults(&p);
     }
 
-    bool login_fetchnodes(bool makeBaseFolder = false, bool noCache = false)
-    {
-        return login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", makeBaseFolder, noCache);
-    }
-
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false)
     {
         future<bool> p2;
@@ -10248,7 +10243,7 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
     remoteTree = localFS;
 
     // Log in client.
-    ASSERT_TRUE(cdu->login_fetchnodes());
+    ASSERT_TRUE(cdu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Set download speed limit at 1kbps.
     cdu->client.setmaxdownloadspeed(1024);
@@ -10836,7 +10831,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntDownloadIgnoredNodes)
 #endif // ! NO_SIZE_FILTER
 
     // Log in client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
     auto id = setupSync(*cd, "root", "x");
@@ -12190,7 +12185,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     localFS.removenode("f");
 
     // Log in client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
@@ -12227,7 +12222,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     {
         remoteTree.removenode("du/fi");
 
-        ASSERT_TRUE(cdu->login_fetchnodes());
+        ASSERT_TRUE(cdu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
         ASSERT_TRUE(cdu->deleteremote("x/du/fi"));
         cdu.reset();
     }
@@ -12287,7 +12282,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntMoveIgnoredNodes)
 
     // Move cdu/d/fx to cdu/fx.
     {
-        ASSERT_TRUE(cu->login_fetchnodes());
+        ASSERT_TRUE(cu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
         ASSERT_TRUE(cu->movenode("cdu/d/fx", "cdu"));
 
         cu.reset();
@@ -12347,7 +12342,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntRenameIgnoredNodes)
 
     // Rename cdu/x to cdu/y.
     {
-        ASSERT_TRUE(cu->login_fetchnodes());
+        ASSERT_TRUE(cu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
         Node* node =
           cu->drillchildnodebyname(cu->gettestbasenode(), "cdu/x");
@@ -12414,7 +12409,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntRubbishIgnoredNodes)
 
     // Remove cdu/x.
     {
-        ASSERT_TRUE(cu->login_fetchnodes());
+        ASSERT_TRUE(cu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
         ASSERT_TRUE(cu->deleteremote("cdu/x"));
 
         cu.reset();
@@ -12485,7 +12480,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntUploadIgnoredNodes)
 #endif // NO_SIZE_FILTER
 
     // Log in client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
     auto id = setupSync(*cd, "root", "x");
@@ -12541,7 +12536,7 @@ TEST_F(CloudToLocalFilterFixture, ExcludedIgnoreFile)
     remoteTree = model;
 
     // Log in client.
-    ASSERT_TRUE(cdu->login_fetchnodes());
+    ASSERT_TRUE(cdu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Make sure local sync root exists.
     fs::create_directories(root(*cdu) / "root");
@@ -12559,7 +12554,7 @@ TEST_F(CloudToLocalFilterFixture, ExcludedIgnoreFile)
 
     // Make some remote changes.
     {
-        ASSERT_TRUE(cd->login_fetchnodes());
+        ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
         // Should allow download of 1.
         localFS.removenode(".megaignore");
@@ -12603,7 +12598,7 @@ TEST_F(CloudToLocalFilterFixture, FilterAdded)
     ASSERT_TRUE(cu->uploadFile(root(*cu) / ".megaignore", "/mega_test_sync/x"));
 
     // Log in "download" client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start syncs.
     auto cuId = setupSync(*cu, "root", "x");
@@ -12642,7 +12637,7 @@ TEST_F(CloudToLocalFilterFixture, FilterAdded)
     // Remove x/d/x in the cloud.
     remoteTree.removenode("d/x");
 
-    ASSERT_TRUE(cdu->login_fetchnodes());
+    ASSERT_TRUE(cdu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_TRUE(cdu->deleteremote("x/d/x"));
     cdu.reset();
 
@@ -12682,7 +12677,7 @@ TEST_F(CloudToLocalFilterFixture, FilterChanged)
     ASSERT_TRUE(cu->uploadFile(root(*cu) / ".megaignore", "/mega_test_sync/x"));
 
     // Log in the "download" client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start syncs.
     auto cuId = setupSync(*cu, "root", "x");
@@ -12729,7 +12724,7 @@ TEST_F(CloudToLocalFilterFixture, FilterChanged)
     // Delete x/y in the cloud.
     remoteTree.removenode("y");
 
-    ASSERT_TRUE(cdu->login_fetchnodes());
+    ASSERT_TRUE(cdu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_TRUE(cdu->deleteremote("x/y"));
     cdu.reset();
 
@@ -12775,7 +12770,7 @@ TEST_F(CloudToLocalFilterFixture, FilterDeferredChange)
     RemoteNodeModel remoteTree = model;
 
     // Log in "downloading" client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add sync and start sync.
     fs::create_directories(root(*cd) / "root");
@@ -12875,7 +12870,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedAcrossHierarchy)
     remoteTree.addfile("a/fa");
 
     // Log in client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
@@ -12892,7 +12887,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedAcrossHierarchy)
 
     // Move x/a/.megaignore to x/b/.megaignore.
     {
-        ASSERT_TRUE(cdu->login_fetchnodes());
+        ASSERT_TRUE(cdu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
         ASSERT_TRUE(cdu->movenode("x/a/.megaignore", "x/b"));
         cdu.reset();
     }
@@ -12959,7 +12954,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedDownHierarchy)
     remoteTree.addfile("b/fa");
 
     // Log in client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
@@ -12976,7 +12971,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedDownHierarchy)
 
     // Move ignore files.
     {
-        ASSERT_TRUE(cdu->login_fetchnodes());
+        ASSERT_TRUE(cdu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
         // Move x/.megaignore to x/a/.megaignore.
         ASSERT_TRUE(cdu->movenode("x/.megaignore", "x/a"));
@@ -13043,7 +13038,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedIntoExcluded)
     }
 
     // Log in client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
@@ -13061,7 +13056,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedIntoExcluded)
     // Move x/.megaignore into x/d/.megaignore.
     remoteTree.movenode(".megaignore", "d");
 
-    ASSERT_TRUE(cdu->login_fetchnodes());
+    ASSERT_TRUE(cdu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_TRUE(cdu->movenode("x/.megaignore", "x/d"));
     cdu.reset();
 
@@ -13118,7 +13113,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
     remoteTree.addfile("a/fa");
 
     // Log in client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
@@ -13134,7 +13129,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
 
     // Log in "foreign" client.
-    ASSERT_TRUE(cdu->login_fetchnodes());
+    ASSERT_TRUE(cdu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Move x/a/.megaignore to x/.megaignore.
     {
@@ -13239,7 +13234,7 @@ TEST_F(CloudToLocalFilterFixture, FilterRemoved)
     remoteTree.addfile("fa");
 
     // Log in client.
-    ASSERT_TRUE(cd->login_fetchnodes());
+    ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
@@ -13255,7 +13250,7 @@ TEST_F(CloudToLocalFilterFixture, FilterRemoved)
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
 
     // Remove x/.megaignore.
-    ASSERT_TRUE(cdu->login_fetchnodes());
+    ASSERT_TRUE(cdu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_TRUE(cdu->deleteremote("x/.megaignore"));
     cdu.reset();
 
@@ -13401,7 +13396,7 @@ TEST_F(CloudToLocalFilterFixture, OverwriteExcluded)
     // Move x/d/f to x, overwriting x/f.
     {
         // Log in client.
-        ASSERT_TRUE(cd->login_fetchnodes());
+        ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
         // Get a fix on x/f.
         auto* node = cd->drillchildnodebyname(cd->gettestbasenode(), "x/f");
@@ -13459,7 +13454,7 @@ TEST_F(CloudToLocalFilterFixture, RenameToIgnoredRubbishesRemote)
 
     // Rename cdu/x to cdu/y.
     {
-        ASSERT_TRUE(cu->login_fetchnodes());
+        ASSERT_TRUE(cu->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
         ASSERT_TRUE(cu->rename("cdu/x", "y"));
         cu.reset();
     }
