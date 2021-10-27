@@ -34,9 +34,9 @@ HeartBeatBackupInfo::HeartBeatBackupInfo()
 {
 }
 
-double HeartBeatBackupInfo::progress(m_off_t inflightProgress) const
+double HeartBeatBackupInfo::progress() const
 {
-    return mProgress + static_cast<double>(inflightProgress);
+    return mProgress;
 }
 
 void HeartBeatBackupInfo::invalidateProgress()
@@ -93,9 +93,9 @@ m_time_t HeartBeatBackupInfo::lastBeat() const
 }
 
 ////////// HeartBeatTransferProgressedInfo ////////
-double HeartBeatTransferProgressedInfo::progress(m_off_t inflightProgress) const
+double HeartBeatTransferProgressedInfo::progress() const
 {
-    return mProgressInvalid ? -1.0 : std::max(0., std::min(1., static_cast<double>((mTransferredBytes + inflightProgress)) / static_cast<double>(mTotalBytes)));
+    return mProgressInvalid ? -1.0 : std::max(0., std::min(1., static_cast<double>((mTransferredBytes)) / static_cast<double>(mTotalBytes)));
 }
 
 void HeartBeatTransferProgressedInfo::adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes)
@@ -350,13 +350,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 
         hbs->setLastBeat(m_time(nullptr));
 
-        m_off_t inflightProgress = 0;
-        if (us.mSync)
-        {
-            inflightProgress = us.mSync->getInflightProgress();
-        }
-
-        int8_t progress = (hbs->progress(inflightProgress) < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress(inflightProgress)*100.0));
+        int8_t progress = static_cast<int8_t>(std::lround(hbs->progress()*100.0));
 
         hbs->mSending = true;
 

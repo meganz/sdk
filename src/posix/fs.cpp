@@ -1409,11 +1409,12 @@ bool PosixFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& abso
     ostringstream os;
     if (path->at(0) == '/')
     {
-        *absolutepath = *path;
+        absolutepathArg = pathArg;
         char canonical[PATH_MAX];
         if (realpath(absolutepath->c_str(),canonical) != NULL)
         {
             absolutepath->assign(canonical);
+            absolutepathArg.isFromRoot = true;
         }
         return true;
     }
@@ -1422,20 +1423,20 @@ bool PosixFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& abso
         char cCurrentPath[PATH_MAX];
         if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
         {
-            *absolutepath = *path;
+            absolutepathArg = pathArg;
             return false;
         }
 
         *absolutepath = cCurrentPath;
         absolutepath->append("/");
         absolutepath->append(*path);
+        absolutepathArg.isFromRoot = true;
 
         char canonical[PATH_MAX];
         if (realpath(absolutepath->c_str(),canonical) != NULL)
         {
             absolutepath->assign(canonical);
         }
-
         return true;
     }
 }

@@ -1086,7 +1086,7 @@ void Sync::cachenodes()
     }
 
     if (state() == SYNC_ACTIVE ||
-       (state() == SYNC_INITIALSCAN) && insertq.size())
+       (state() == SYNC_INITIALSCAN && insertq.size()))
     {
         LOG_debug << syncname << "Saving LocalNode database with " << insertq.size() << " additions";
 
@@ -2604,39 +2604,6 @@ bool Sync::moveTo(LocalPath source, LocalPath target, bool overwrite)
     return fsAccess.renamelocal(source, target, false);
 }
 
-// todo: move this to client-side?
-m_off_t Sync::getInflightProgress()
-{
-    assert(syncs.onSyncThread());
-
-    m_off_t progressSum = 0;
-
-    for (auto tslot : syncs.mClient.tslots)
-    {
-        for (auto file : tslot->transfer->files)
-        {
-            if (auto ln = dynamic_cast<LocalNode*>(file))
-            {
-                if (ln->sync == this)
-                {
-                    progressSum += tslot->progressreported;
-                }
-            }
-            else if (auto sfg = dynamic_cast<SyncDownload_inClient*>(file))
-            {
-            //todo:
-                //if (sfg->localNode.sync == this)
-                //{
-                //    progressSum += tslot->progressreported;
-                //}
-            }
-        }
-    }
-
-    return progressSum;
-}
-
-
 UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
     : syncs(s), mConfig(c)
 {
@@ -2661,7 +2628,6 @@ void Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, bool no
             enableSyncByBackupId_inThread(backupId, resetFingerprint, notifyApp, clientCompletion, logname);
         });
 }
-
 
 void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
@@ -2722,7 +2688,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint
     if (!hasIgnoreFile(us.mConfig))
     {
         // Try and create the missing ignore file.
-        if (!mDefaultFilterChain.create(us.mConfig.mLocalPath))
+        if (!mDefaultFilterChain.create(us.mConfig.mLocalPath, *fsaccess))
         {
             us.mConfig.mError = COULD_NOT_CREATE_IGNORE_FILE;
             us.mConfig.mEnabled = false;
@@ -2859,8 +2825,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
 }
 
 Syncs::Syncs(MegaClient& mc)
-  : mDefaultFilterChain(*fsaccess)
-  , mClient(mc)
+  : mClient(mc)
   , fsaccess(new FSACCESS_CLASS)
   , mSyncFlags(new SyncFlags)
   , mScanService(new ScanService(waiter))
@@ -8113,7 +8078,6 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
     const auto TYPE_SYNC_TYPE       = MAKENAMEID2('s', 't');
     const auto TYPE_TARGET_HANDLE   = MAKENAMEID2('t', 'h');
     const auto TYPE_TARGET_PATH     = MAKENAMEID2('t', 'p');
-    const auto TYPE_EXCLUSION_RULES = MAKENAMEID2('e', 'r');
 
     for ( ; ; )
     {

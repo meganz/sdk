@@ -4369,11 +4369,18 @@ TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
     Model model;
     model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
+    pclientA1->received_node_actionpackets = false;
+    clientA2.received_node_actionpackets = false;
+
     // set up sync for A1, it should build matching local folders
     handle backupId1 = pclientA1->setupSync_mainthread("sync1", "f");
     ASSERT_NE(backupId1, UNDEF);
     handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
     ASSERT_NE(backupId2, UNDEF);
+
+    ASSERT_TRUE(pclientA1->waitForNodesUpdated(30)) << " no actionpacket received in clientA1";
+    ASSERT_TRUE(clientA2.waitForNodesUpdated(30)) << " no actionpacket received in clientA2";
+
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
     pclientA1->logcb = clientA2.logcb = true;
 
@@ -4389,6 +4396,8 @@ TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
     fs::path sync1path = pclientA1->syncSet(backupId1).localpath;
     pclientA1->localLogout();
 
+    pclientA1->received_syncs_restored = false;
+
     // remove local folders
     error_code e;
     ASSERT_TRUE(fs::remove_all(sync1path / "f_2", e) != static_cast<std::uintmax_t>(-1)) << e;
@@ -4396,6 +4405,9 @@ TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
     // resume session, see if nodes and localnodes get in sync
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes(session));
+
+    // wait for normal sync resumes to complete
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
 
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
 
@@ -4538,6 +4550,10 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
+
+    // wait for normal sync resumes to complete
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
+
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
 
     out() << "*********************  check everything matches (model has expected state of remote and local)";
@@ -4593,6 +4609,10 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
+
+    // wait for normal sync resumes to complete
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
+
     vector<SyncWaitResult> waitResult = waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
 
     // Sync rework update:  for now at least, delete wins in this case
@@ -4642,7 +4662,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2, true));
 
     // save session A1
     string session;

@@ -46,7 +46,7 @@ public:
     HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = default;
     virtual ~HeartBeatBackupInfo() = default;
 
-    virtual double progress(m_off_t inflightProgress) const;
+    virtual double progress() const;
     virtual void invalidateProgress();
 
     virtual m_time_t lastAction() const;
@@ -88,7 +88,7 @@ protected:
 class HeartBeatTransferProgressedInfo : public HeartBeatBackupInfo
 {
 public:
-    double progress(m_off_t inflightProgress) const override;
+    double progress() const override;
 
     void adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes);
 
