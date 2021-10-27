@@ -1465,6 +1465,15 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     Node* n = nullptr;
     Node* nn;
 
+
+    // special case access by handle, same syntax as megacmd
+    if (handles_on && ptr && strlen(ptr) == 10 && *ptr == 'H' && ptr[1] == ':')
+    {
+        handle h8=0;
+        Base64::atob(ptr+2, (byte*)&h8, MegaClient::NODEHANDLE);
+        return client->nodeByHandle(NodeHandle().set6byte(h8));
+    }
+
     // split path by / or :
     do {
         if (!l)
@@ -2908,6 +2917,7 @@ public:
 
 LocalPath localPathArg(string s)
 {
+    if (s.empty()) return LocalPath();
     return LocalPath::fromAbsolutePath(s);
 }
 
@@ -8890,12 +8900,6 @@ void exec_syncadd(autocomplete::ACState& s)
     LocalPath drivePath = localPathArg(drive);
     LocalPath sourcePath = localPathArg(s.words[2].s);
     string targetPath = s.words[3].s;
-
-    if (!drivePath.isAbsolute() || !sourcePath.isAbsolute())
-    {
-        cerr << "paths must be absolute" << endl;
-        return;
-    }
 
     // Does the target node exist?
     auto* targetNode = nodebypath(targetPath.c_str());

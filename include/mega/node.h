@@ -413,14 +413,14 @@ enum ExclusionState : unsigned char
     ES_UNKNOWN
 }; // ExclusionState
 
-inline unsigned updateTreestateFromChild(unsigned oldFlag, unsigned childFlag)
+inline TREESTATE updateTreestateFromChild(unsigned oldFlag, unsigned childFlag)
 {
-    return oldFlag == TREE_RESOLVED && childFlag != TREE_RESOLVED ? TREE_DESCENDANT_FLAGGED : oldFlag;
+    return oldFlag == TREE_RESOLVED && childFlag != TREE_RESOLVED ? TREE_DESCENDANT_FLAGGED : TREESTATE(oldFlag);
 }
 
-inline unsigned propagateSubtreeFlag(unsigned nodeFlag, unsigned childFlag)
+inline TREESTATE propagateSubtreeFlag(unsigned nodeFlag, unsigned childFlag)
 {
-    return nodeFlag == TREE_ACTION_SUBTREE ? TREE_ACTION_SUBTREE : childFlag;
+    return nodeFlag == TREE_ACTION_SUBTREE ? TREE_ACTION_SUBTREE : TREESTATE(childFlag);
 }
 
 struct syncRow;

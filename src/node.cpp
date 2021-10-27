@@ -1491,16 +1491,16 @@ void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime de
         }
     }
 
-    scanAgain = std::max<unsigned>(scanAgain, state);
+    scanAgain = TREESTATE(std::max<unsigned>(scanAgain, state));
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->scanAgain = std::max<unsigned>(p->scanAgain, TREE_DESCENDANT_FLAGGED);
+        p->scanAgain = TREESTATE(std::max<unsigned>(p->scanAgain, TREE_DESCENDANT_FLAGGED));
     }
 
     // for scanning, we only need to set the parent once
     if (parent && doParent)
     {
-        parent->scanAgain = std::max<unsigned>(parent->scanAgain, TREE_ACTION_HERE);
+        parent->scanAgain = TREESTATE(std::max<unsigned>(parent->scanAgain, TREE_ACTION_HERE));
         doParent = false;
         parentSetScanAgain = false;
     }
@@ -1511,10 +1511,10 @@ void LocalNode::setCheckMovesAgain(bool doParent, bool doHere, bool doBelow)
 {
     unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
 
-    checkMovesAgain = std::max<unsigned>(checkMovesAgain, state);
+    checkMovesAgain = TREESTATE(std::max<unsigned>(checkMovesAgain, state));
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->checkMovesAgain = std::max<unsigned>(p->checkMovesAgain, TREE_DESCENDANT_FLAGGED);
+        p->checkMovesAgain = TREESTATE(std::max<unsigned>(p->checkMovesAgain, TREE_DESCENDANT_FLAGGED));
     }
 
     parentSetCheckMovesAgain = parentSetCheckMovesAgain || doParent;
@@ -1527,7 +1527,7 @@ void LocalNode::setSyncAgain(bool doParent, bool doHere, bool doBelow)
     syncAgain = std::max<unsigned>(syncAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->syncAgain = std::max<unsigned>(p->syncAgain, TREE_DESCENDANT_FLAGGED);
+        p->syncAgain = TREESTATE(std::max<unsigned>(p->syncAgain, TREE_DESCENDANT_FLAGGED));
     }
 
     parentSetSyncAgain = parentSetSyncAgain || doParent;
@@ -1543,7 +1543,7 @@ void LocalNode::setContainsConflicts(bool doParent, bool doHere, bool doBelow)
     conflicts = std::max<unsigned>(conflicts, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->conflicts = std::max<unsigned>(p->conflicts, TREE_DESCENDANT_FLAGGED);
+        p->conflicts = TREESTATE(std::max<unsigned>(p->conflicts, TREE_DESCENDANT_FLAGGED));
     }
 
     parentSetContainsConflicts = parentSetContainsConflicts || doParent;

@@ -1564,31 +1564,34 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 }
             };
 
-            // Does the move target have a reserved name?
-            if (row.hasReservedName(*syncs.fsaccess))
-            {
-                // Make sure we don't try and synchronize the source.
-                // This is meaningful for straight renames.
-                markSiblingSourceRow();
+            // It turns out that after LocalPath implicitly uses \\?\ and
+            // absolute paths, we don't need to worry about reserved names.
 
-                // Let the engine know why we can't action the move.
-                monitor.waitingLocal(sourceSyncNode->getLocalPath(),
-                                     fullPath.localPath,
-                                     fullPath.cloudPath,
-                                     SyncWaitReason::MoveTargetHasReservedName);
+            //// Does the move target have a reserved name?
+            //if (row.hasReservedName(*syncs.fsaccess))
+            //{
+            //    // Make sure we don't try and synchronize the source.
+            //    // This is meaningful for straight renames.
+            //    markSiblingSourceRow();
 
-                // Let the engine know that we've detected a move.
-                parentRow.syncNode->setCheckMovesAgain(false, true, false);
+            //    // Let the engine know why we can't action the move.
+            //    monitor.waitingLocal(sourceSyncNode->getLocalPath(),
+            //                         fullPath.localPath,
+            //                         fullPath.cloudPath,
+            //                         SyncWaitReason::MoveTargetHasReservedName);
 
-                // Don't recurse if the row's a directory.
-                row.suppressRecursion = true;
+            //    // Let the engine know that we've detected a move.
+            //    parentRow.syncNode->setCheckMovesAgain(false, true, false);
 
-                // Row isn't synchronized.
-                rowResult = false;
+            //    // Don't recurse if the row's a directory.
+            //    row.suppressRecursion = true;
 
-                // Escape immediately from syncItemCheckMove(...).
-                return true;
-            }
+            //    // Row isn't synchronized.
+            //    rowResult = false;
+
+            //    // Escape immediately from syncItemCheckMove(...).
+            //    return true;
+            //}
 
             if (!row.syncNode)
             {
@@ -2037,27 +2040,30 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         sourceSyncNode->treestate(TREESTATE_SYNCING);
         if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
 
-        // Does the move target have a reserved name?
-        if (row.hasReservedName(*syncs.fsaccess))
-        {
-            // Make sure we don't try and synchronize the source.
-            markSiblingSourceRow();
+        // It turns out that after LocalPath implicitly uses \\?\ and
+        // absolute paths, we don't need to worry about reserved names.
 
-            // Let the engine know why we can't action the move.
-            monitor.waitingLocal(fullPath.localPath,
-                                 sourceSyncNode->getLocalPath(),
-                                 fullPath.cloudPath,
-                                 SyncWaitReason::MoveTargetHasReservedName);
+        //// Does the move target have a reserved name?
+        //if (row.hasReservedName(*syncs.fsaccess))
+        //{
+        //    // Make sure we don't try and synchronize the source.
+        //    markSiblingSourceRow();
 
-            // Don't recurse if the row's a directory.
-            row.suppressRecursion = true;
+        //    // Let the engine know why we can't action the move.
+        //    monitor.waitingLocal(fullPath.localPath,
+        //                         sourceSyncNode->getLocalPath(),
+        //                         fullPath.cloudPath,
+        //                         SyncWaitReason::MoveTargetHasReservedName);
 
-            // Row isn't synchronized.
-            rowResult = false;
+        //    // Don't recurse if the row's a directory.
+        //    row.suppressRecursion = true;
 
-            // Escape immediately from syncItemCheckMove(...).
-            return true;
-        }
+        //    // Row isn't synchronized.
+        //    rowResult = false;
+
+        //    // Escape immediately from syncItemCheckMove(...).
+        //    return true;
+        //}
 
         LocalPath sourcePath = sourceSyncNode->getLocalPath();
 
@@ -5257,9 +5263,9 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     if (syncs.mSyncFlags->earlyRecurseExitRequested)
                     {
                         // restore flags to at least what they were, for when we revisit on next full recurse
-                        row.syncNode->syncAgain = std::max<unsigned>(row.syncNode->syncAgain, originalSyncAgain);
-                        row.syncNode->checkMovesAgain = std::max<unsigned>(row.syncNode->checkMovesAgain, originalCheckMovesAgain);
-                        row.syncNode->conflicts = std::max<unsigned>(row.syncNode->conflicts, originalConflicsFlag);
+                        row.syncNode->syncAgain = TREESTATE(std::max<unsigned>(row.syncNode->syncAgain, originalSyncAgain));
+                        row.syncNode->checkMovesAgain = TREESTATE(std::max<unsigned>(row.syncNode->checkMovesAgain, originalCheckMovesAgain));
+                        row.syncNode->conflicts = TREESTATE(std::max<unsigned>(row.syncNode->conflicts, originalConflicsFlag));
 
                         LOG_debug << syncname
                             << "recursiveSync early exit due to pending outside request with "
@@ -5611,26 +5617,29 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         }
     }
 
-    // Does this row have a reserved name?
-    if (row.hasReservedName(*syncs.fsaccess))
-    {
-        // Let the client know why the row isn't being synchronized.
-        ProgressingMonitor monitor(syncs);
+    // It turns out that after LocalPath implicitly uses \\?\ and
+    // absolute paths, we don't need to worry about reserved names.
 
-        monitor.waitingLocal(fullPath.localPath,
-                             LocalPath(),
-                             fullPath.cloudPath,
-                             SyncWaitReason::ItemHasReservedName);
+    //// Does this row have a reserved name?
+    //if (row.hasReservedName(*syncs.fsaccess))
+    //{
+    //    // Let the client know why the row isn't being synchronized.
+    //    ProgressingMonitor monitor(syncs);
 
-        // Don't try and synchronize the row.
-        row.itemProcessed = true;
+    //    monitor.waitingLocal(fullPath.localPath,
+    //                         LocalPath(),
+    //                         fullPath.cloudPath,
+    //                         SyncWaitReason::ItemHasReservedName);
 
-        // Don't recurse if the row's a directory.
-        row.suppressRecursion = true;
+    //    // Don't try and synchronize the row.
+    //    row.itemProcessed = true;
 
-        // Row's not synchronized.
-        return false;
-    }
+    //    // Don't recurse if the row's a directory.
+    //    row.suppressRecursion = true;
+
+    //    // Row's not synchronized.
+    //    return false;
+    //}
 
     // Avoid syncing nodes that have multiple clashing names
     // Except if we previously had a folder (just itself) synced, allow recursing into that one.
@@ -6072,8 +6081,8 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         SYNC_verbose << syncname << "Row was already synced" << logTriplet(row, fullPath);
     }
 
-    row.syncNode->syncAgain = std::max<unsigned>(row.syncNode->syncAgain,
-        row.syncNode->type == FILENODE ? TREE_DESCENDANT_FLAGGED : TREE_RESOLVED);
+    row.syncNode->syncAgain = TREESTATE(std::max<unsigned>(row.syncNode->syncAgain,
+        row.syncNode->type == FILENODE ? TREE_DESCENDANT_FLAGGED : TREE_RESOLVED));
 
     // we can load the filters as soon as the local file is present, no need to wait until the row is synced
 
