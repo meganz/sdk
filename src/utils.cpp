@@ -2808,6 +2808,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::MoveNeedsDestinationNodeProcessing:            return "MoveNeedsDestinationNodeProcessing";
         case SyncWaitReason::UpsyncNeedsTargetFolder:                       return "UpsyncNeedsTargetFolder";
         case SyncWaitReason::DownsyncNeedsTargetFolder:                     return "DownsyncNeedsTargetFolder";
+        case SyncWaitReason::DeleteOrMoveWaitingOnScanning:                 return "DeleteOrMoveWaitingOnScanning";
         case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
         case SyncWaitReason::WatiingForFileToStopChanging:                  return "WatiingForFileToStopChanging";
         case SyncWaitReason::MovingDownloadToTarget:                        return "MovingDownloadToTarget";
@@ -2817,6 +2818,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::LocalFolderNotScannable:                       return "LocalFolderNotScannable";
         case SyncWaitReason::SymlinksNotSupported:                          return "SymlinksNotSupported";
         case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
+        case SyncWaitReason::MatchedAgainstUnidentifiedItem:                return "MatchedAgainstUnidentifiedItem";
         case SyncWaitReason::MoveOrRenameFailed:                            return "MoveOrRenameFailed";
         case SyncWaitReason::CreateFolderFailed:                            return "CreateFolderFailed";
         case SyncWaitReason::UnknownExclusionState:                         return "UnknownExclusionState";

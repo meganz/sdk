@@ -5852,15 +5852,10 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 
     // Locally create some files with control escapes in their names.
-#ifdef _WIN32
     ASSERT_TRUE(fs::create_directories(syncRoot / "dd%07"));
     ASSERT_TRUE(createDataFile(syncRoot / "ff%07", "ff"));
     ASSERT_TRUE(fs::create_directories(syncRoot / "dd%41"));
     ASSERT_TRUE(createDataFile(syncRoot / "ff%41", "ff"));
-#else
-    ASSERT_TRUE(fs::create_directories(syncRoot / "dd\7"));
-    ASSERT_TRUE(createDataFile(syncRoot / "ff\7", "ff"));
-#endif /* ! _WIN32 */
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &cd);
