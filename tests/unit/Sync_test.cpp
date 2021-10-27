@@ -67,7 +67,7 @@ public:
         mFSAccess.rmdirlocal(mPath);
     }
 
-    MEGA_DISABLE_COPY_MOVE(Directory);
+    MEGA_DISABLE_COPY_MOVE(Directory)
 
     operator const LocalPath&() const
     {

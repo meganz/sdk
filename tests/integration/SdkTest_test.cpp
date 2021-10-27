@@ -49,8 +49,8 @@ public:
         mWhat = std::move(mLastValue);
     }
 
-    MEGA_DISABLE_COPY(ScopedValue);
-    MEGA_DEFAULT_MOVE(ScopedValue);
+    MEGA_DISABLE_COPY(ScopedValue)
+    MEGA_DEFAULT_MOVE(ScopedValue)
 
 private:
     T mLastValue;

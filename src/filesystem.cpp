@@ -1463,7 +1463,7 @@ string LocalPath::toPath() const
     local2path(&localpath, &path);
 
     #ifdef WIN32
-    if (path.size() >= 4 && path.substr(0, 4) == "\\\\?\\")
+    if (path.size() >= 4 && 0 == path.compare(0, 4, "\\\\?\\", 4))
     {
         // when a path leaves LocalPath, we can remove prefix which is only needed internally
         path.erase(0, 4);
