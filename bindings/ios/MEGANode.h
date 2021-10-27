@@ -54,8 +54,6 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
     MEGANodeChangeTypeNew            = 0x400
 };
 
-NS_ASSUME_NONNULL_BEGIN
-
 /**
  * @brief Represents a node (file/folder) in the MEGA account.
  *
@@ -279,7 +277,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @brief The device id stored as a Node attribute of a Backup folder.
  * It will be an empty string for other nodes.
  */
-@property (readonly, nonatomic, nullable) NSString *deviceId;
+@property (readonly, nonatomic) NSString *deviceId;
 
 /**
  * @brief Creates a copy of this MEGANode object.
@@ -489,5 +487,3 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
 
 @end
-
-NS_ASSUME_NONNULL_END
