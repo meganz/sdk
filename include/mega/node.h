@@ -432,10 +432,10 @@ struct MEGA_API LocalNodeCore
   : public Cacheable
 {
     // deserialize attributes from binary storage.
-    bool unserialize(const string& source, uint32_t& parentID);
+    bool read(const string& source, uint32_t& parentID);
 
     // serialize attributes to binary for storage.
-    bool serialize(string& destination, uint32_t parentID);
+    bool write(string& destination, uint32_t parentID);
 
     // local filesystem node ID (inode...) for rename/move detection
     handle fsid_lastSynced = ::mega::UNDEF;

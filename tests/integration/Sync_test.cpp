@@ -815,7 +815,7 @@ private:
         // Dummy implementation.
         bool serialize(string* destination) override
         {
-            return LocalNodeCore::serialize(*destination, parentID);
+            return write(*destination, parentID);
         }
 
         // Useful for debugging purposes.
@@ -963,7 +963,7 @@ private:
             auto node = make_unique<StateCacheNode>();
 
             // Try and deserialize the node.
-            if (!node->unserialize(metadata, node->parentID))
+            if (!node->read(metadata, node->parentID))
                 return false;
 
             // Inject database ID.

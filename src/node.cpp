@@ -2320,7 +2320,7 @@ void SyncUpload_inClient::prepare(FileSystemAccess&)
 // - corresponding Node handle
 // - local name
 // - fingerprint crc/mtime (filenodes only)
-bool LocalNodeCore::serialize(string& destination, uint32_t parentID)
+bool LocalNodeCore::write(string& destination, uint32_t parentID)
 {
     // We need size even if we're not synced.
     auto size = syncedFingerprint.isvalid ? syncedFingerprint.size : 0;
@@ -2387,7 +2387,7 @@ bool LocalNode::serialize(string* d)
 #endif
 
     auto parentID = parent ? parent->dbid : 0;
-    auto result = LocalNodeCore::serialize(*d, parentID);
+    auto result = LocalNodeCore::write(*d, parentID);
 
 #ifdef DEBUG
     // Quick (de)serizliation check.
@@ -2407,7 +2407,7 @@ bool LocalNode::serialize(string* d)
     return result;
 }
 
-bool LocalNodeCore::unserialize(const string& source, uint32_t& parentID)
+bool LocalNodeCore::read(const string& source, uint32_t& parentID)
 {
     if (source.size() < sizeof(m_off_t)         // type/size combo
                       + sizeof(handle)          // fsid
@@ -2484,7 +2484,7 @@ unique_ptr<LocalNode> LocalNode::unserialize(Sync& sync, const string& source, u
 {
     auto node = ::mega::make_unique<LocalNode>(&sync);
 
-    if (!static_cast<LocalNodeCore&>(*node).unserialize(source, parentID))
+    if (!node->read(source, parentID))
         return nullptr;
 
     return node;
