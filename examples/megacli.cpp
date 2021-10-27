@@ -1442,6 +1442,9 @@ static void listtrees()
     }
 }
 
+bool handles_on = false;
+bool showattrs = false;
+
 // returns node pointer determined by path relative to cwd
 // path naming conventions:
 // * path is relative to cwd
@@ -1722,9 +1725,6 @@ void TreeProcListOutShares::proc(MegaClient*, Node* n)
 {
     listnodeshares(n);
 }
-
-bool handles_on = false;
-bool showattrs = false;
 
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {

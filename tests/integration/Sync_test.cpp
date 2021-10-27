@@ -3235,7 +3235,10 @@ struct StandardClient : public MegaApp
 
     void wouldBeEscapedOnDownload(fs::path root, string remoteName, PromiseBoolSP result)
     {
-        auto localName = LocalPath::fromAbsolutePath(remoteName);
+        auto fsAccess = client.fsaccess;
+        auto localRoot = LocalPath::fromAbsolutePath(root.u8string());
+        auto type = fsAccess->getlocalfstype(localRoot);
+        auto localName = LocalPath::fromRelativeName(remoteName, *fsAccess, type);
 
         result->set_value(localName.toPath() != remoteName);
     }
