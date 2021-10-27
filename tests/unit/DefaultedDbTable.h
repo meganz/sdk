@@ -65,7 +65,7 @@ public:
     {
         return false;
     }
-    bool getNodeByFingerprint(const mega::FileFingerprint&, mega::NodeSerialized&) override
+    bool getNodeByFingerprint(const mega::FileFingerprint&, mega::NodeSerialized&, mega::NodeHandle& nodeHandle) override
     {
         return false;
         //throw NotImplemented{__func__};

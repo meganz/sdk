@@ -17179,9 +17179,22 @@ Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
         return nullptr;
     }
 
-    // TODO Nodes on demand implement
+    NodeSerialized nodeSerialized;
+    NodeHandle nodeHandle;
+    mTable->getNodeByFingerprint(fingerprint, nodeSerialized, nodeHandle);
+    Node* node = nullptr;
+    auto nodeIt = mNodes.find(nodeHandle);
+    if (nodeIt == mNodes.end())
+    {
+        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
+    }
+    else
+    {
+        node = nodeIt->second;
+    }
 
-    return nullptr;
+
+    return node;
 }
 
 node_vector NodeManager::getRootNodes()

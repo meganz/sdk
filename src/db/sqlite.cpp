@@ -892,7 +892,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
     return result;
 }
 
-bool SqliteAccountState::getNodeByFingerprint(const FileFingerprint &fingerprint, NodeSerialized &node)
+bool SqliteAccountState::getNodeByFingerprint(const FileFingerprint &fingerprint, NodeSerialized &node, NodeHandle &nodeHandle)
 {
     if (!db)
     {
@@ -906,7 +906,7 @@ bool SqliteAccountState::getNodeByFingerprint(const FileFingerprint &fingerprint
 
     sqlite3_stmt *stmt;
     int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT decrypted, node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
+    if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
         string fp;
         fingerprint.serializefingerprint(&fp);
@@ -914,9 +914,10 @@ bool SqliteAccountState::getNodeByFingerprint(const FileFingerprint &fingerprint
         {
             if ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
-                node.mDecrypted = sqlite3_column_int(stmt, 0);
-                const void* data = sqlite3_column_blob(stmt, 1);
-                int size = sqlite3_column_bytes(stmt, 1);
+                nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
+                node.mDecrypted = sqlite3_column_int(stmt, 1);
+                const void* data = sqlite3_column_blob(stmt, 2);
+                int size = sqlite3_column_bytes(stmt, 2);
                 if (data && size)
                 {
                     node.mNode = std::string(static_cast<const char*>(data), size);
