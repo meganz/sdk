@@ -68,8 +68,8 @@ public:
     bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
     bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
     bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized &node) override;
-    bool getNodesWithoutParent(std::map<mega::NodeHandle, NodeSerialized>& nodes) override;
-    bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, mega::NodeSerialized> nodes, ShareType_t shareType) override;
+    bool getRootNodes(std::map<mega::NodeHandle, NodeSerialized>& nodes) override;
+    bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, mega::NodeSerialized>& nodes, ShareType_t shareType) override;
     bool getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) override;
     bool getChildrenHandlesFromNode(mega::NodeHandle parentHandle, std::vector<mega::NodeHandle> &children) override;
     bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
@@ -87,6 +87,9 @@ public:
     bool removeNodes() override;
 
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
+
+private:
+    bool processSqlQueryNodeMap(sqlite3_stmt *stmt, std::map<mega::NodeHandle, NodeSerialized> &nodes);
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

@@ -24,7 +24,7 @@
 
 namespace mt {
 
-class DefaultedDbTable: public mega::DbTable
+class DefaultedDbTable: public mega::DbTable, public mega::DBTableNodes
 {
 public:
     using mega::DbTable::DbTable;
@@ -70,12 +70,12 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    bool getNodesWithoutParent(std::vector<mega::NodeSerialized>&) override
+    bool getRootNodes(std::map<mega::NodeHandle, mega::NodeSerialized>& nodes) override
     {
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getNodesWithSharesOrLink(std::vector<mega::NodeSerialized>&, ShareType_t) override
+    bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, mega::NodeSerialized>& nodes, ShareType_t) override
     {
         return false;
         //throw NotImplemented(__func__);
