@@ -877,7 +877,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                             if (type != FILENAME_ANOMALY_NONE)
                             {
-                                client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
+                                client->filenameAnomalyDetected(type, path, node->displaypath());
                             }
                         }
                     }
@@ -980,7 +980,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                << (node->parent ? "/" : "")
                                << f->name;
 
-                    client->filenameAnomalyDetected(type, localpath.toPath(), remotepath.str());
+                    client->filenameAnomalyDetected(type, localpath, remotepath.str());
                 }
             }
 

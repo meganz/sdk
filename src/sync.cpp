@@ -1770,7 +1770,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         auto anomalyType = isFilenameAnomaly(fullPath.localPath.leafName(), newName, sourceCloudNode.type);
                         if (anomalyType != FILENAME_ANOMALY_NONE)
                         {
-                            auto local  = fullPath.localPath_utf8();
+                            auto local  = fullPath.localPath;
                             auto remote =  targetCloudNodePath + "/" + newName;
 
                             anomalyReport = [=](MegaClient& mc){
@@ -2120,7 +2120,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             if (type != FILENAME_ANOMALY_NONE)
             {
                 auto remotePath = fullPath.cloudPath;
-                auto localPath = fullPath.localPath_utf8();
+                auto localPath = fullPath.localPath;
                 syncs.queueClient([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
                     {
                         mc.filenameAnomalyDetected(type, localPath, remotePath);
@@ -3465,14 +3465,6 @@ void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
         // Otherwise settle for what we had stored.
         remotePath = config.mOriginalPathOfRemoteRootNode;
     }
-
-#ifdef _WIN32
-    // Skip namespace prefix.
-    if (!localPath.compare("\\\\?\\"))
-    {
-        localPath.erase(0, 4);
-    }
-#endif // _WIN32
 
     writer.beginobject();
     writer.arg_stringWithEscapes("localPath", localPath);
@@ -6372,7 +6364,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
                     if (type != FILENAME_ANOMALY_NONE)
                     {
-                        auto lp = fullPath.localPath_utf8();
+                        auto lp = fullPath.localPath;
                         auto rp = fullPath.cloudPath;
 
                         syncs.queueClient([type, lp, rp](MegaClient& mc, DBTableTransactionCommitter& committer)
@@ -6444,7 +6436,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
         if (type == FILENAME_ANOMALY_NONE) return;
 
         // Get our hands on the relevant paths.
-        auto localPath = path.localPath_utf8();
+        auto localPath = path.localPath;
         auto remotePath = path.cloudPath;
 
         // Report the anomaly.

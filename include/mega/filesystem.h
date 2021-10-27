@@ -710,7 +710,7 @@ class FilenameAnomalyReporter
 public:
     virtual ~FilenameAnomalyReporter() { };
 
-    virtual void anomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath) = 0;
+    virtual void anomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath) = 0;
 }; // FilenameAnomalyReporter
 
 bool isCaseInsensitive(const FileSystemType type);

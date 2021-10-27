@@ -1370,7 +1370,7 @@ MegaClient::~MegaClient()
 }
 
 void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
-                                         const string& localPath,
+                                         const LocalPath& localPath,
                                          const string& remotePath)
 {
     const char* typeName;
@@ -1389,25 +1389,16 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
         break;
     }
 
-    const auto* path = localPath.c_str();
-
-#ifdef _WIN32
-    if (!localPath.compare(0, 4, "\\\\?\\"))
-    {
-        path += 4;
-    }
-#endif // _WIN32
-
     LOG_debug << "Filename anomaly detected: type: "
               << typeName
               << " local path: "
-              << path
+              << localPath
               << " remote path: "
               << remotePath;
 
     if (!mFilenameAnomalyReporter) return;
 
-    mFilenameAnomalyReporter->anomalyDetected(type, path, remotePath);
+    mFilenameAnomalyReporter->anomalyDetected(type, localPath, remotePath);
 }
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)

@@ -3076,47 +3076,47 @@ void exec_backupcentre(autocomplete::ACState& s)
     }
 }
 
+class AnomalyReporter
+    : public FilenameAnomalyReporter
+{
+public:
+    void anomalyDetected(FilenameAnomalyType type,
+                            const LocalPath& localPath,
+                            const string& remotePath) override
+    {
+        string typeName;
+
+        switch (type)
+        {
+        case FILENAME_ANOMALY_NAME_MISMATCH:
+            typeName = "NAME_MISMATCH";
+            break;
+        case FILENAME_ANOMALY_NAME_RESERVED:
+            typeName = "NAME_RESERVED";
+            break;
+        default:
+            assert(!"Unknown anomaly type!");
+            typeName = "UNKNOWN";
+            break;
+        }
+
+        cout << "Filename anomaly detected: type: "
+                << typeName
+                << ": local path: "
+                << localPath.toPath()
+                << ": remote path: "
+                << remotePath
+                << endl;
+    }
+}; // AnomalyReporter
+
 void exec_logFilenameAnomalies(autocomplete::ACState& s)
 {
-    class Reporter
-      : public FilenameAnomalyReporter
-    {
-    public:
-        void anomalyDetected(FilenameAnomalyType type,
-                             const string& localPath,
-                             const string& remotePath) override
-        {
-            string typeName;
-
-            switch (type)
-            {
-            case FILENAME_ANOMALY_NAME_MISMATCH:
-                typeName = "NAME_MISMATCH";
-                break;
-            case FILENAME_ANOMALY_NAME_RESERVED:
-                typeName = "NAME_RESERVED";
-                break;
-            default:
-                assert(!"Unknown anomaly type!");
-                typeName = "UNKNOWN";
-                break;
-            }
-
-            cout << "Filename anomaly detected: type: "
-                 << typeName
-                 << ": local path: "
-                 << localPath
-                 << ": remote path: "
-                 << remotePath
-                 << endl;
-        }
-    }; // Reporter
-
     unique_ptr<FilenameAnomalyReporter> reporter;
 
     if (s.words[1].s == "on")
     {
-        reporter.reset(new Reporter());
+        reporter.reset(new AnomalyReporter());
     }
 
     cout << "Filename anomaly reporting is "
@@ -8675,6 +8675,9 @@ int main()
 #endif
 
     clientFolder = NULL;    // additional for folder links
+
+    client->mFilenameAnomalyReporter.reset(new AnomalyReporter()); // on by default
+
     megacli();
 
     delete client;

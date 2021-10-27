@@ -6038,16 +6038,16 @@ public:
     }
 
     void anomalyDetected(FilenameAnomalyType type,
-                         const string& localPath,
+                         const LocalPath& localPath,
                          const string& remotePath) override
     {
-        assert(startsWith(localPath, mLocalRoot));
+        assert(startsWith(localPath.toPath(), mLocalRoot));
         assert(startsWith(remotePath, mRemoteRoot));
 
         mAnomalies.emplace_back();
 
         auto& anomaly = mAnomalies.back();
-        anomaly.localPath = localPath.substr(mLocalRoot.size());
+        anomaly.localPath = localPath.toPath().substr(mLocalRoot.size());
         anomaly.remotePath = remotePath.substr(mRemoteRoot.size());
         anomaly.type = type;
     }

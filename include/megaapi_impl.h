@@ -175,7 +175,7 @@ public:
     }
 
     void anomalyDetected(FilenameAnomalyType type,
-                         const string& localPath,
+                         const LocalPath& localPath,
                          const string& remotePath) override
     {
         using MegaAnomalyType =
@@ -184,7 +184,7 @@ public:
         assert(type < FILENAME_ANOMALY_NONE);
 
         mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
-                                  localPath.c_str(),
+                                  localPath.toPath().c_str(),
                                   remotePath.c_str());
     }
 
