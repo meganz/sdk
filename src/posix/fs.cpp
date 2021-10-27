@@ -827,18 +827,14 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         WatchMapIterator it;
         string localpath;
 
-        // Notifies all associated nodes.
         auto notifyAll = [&](int handle, const string& name)
         {
-            // What nodes are associated with this handle?
-            auto associated = mWatches.equal_range(handle);
-
             // Loop over and notify all associated nodes.
-            for (auto i = associated.first; i != associated.second; ++i)
+            auto associated = mWatches.equal_range(handle);
+            for (auto i = associated.first; i != associated.second;)
             {
                 // Convenience.
                 using std::move;
-
                 auto& node = *i->second.first;
                 auto& sync = *node.sync;
                 auto& notifier = *sync.dirnotify;
@@ -848,6 +844,13 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                           << node.localname.toPath()
                           << " Path: "
                           << name;
+
+                if((in->mask & IN_DELETE_SELF)) { // The FS directory watched is gone
+                    node.mWatchHandle.invalidate();
+                    i = mWatches.erase(i); // Remove it form the container (C++11 and up)
+                } else {
+                    ++i;
+                }
 
                 auto localName = LocalPath::fromPlatformEncodedRelative(name);
                 notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
@@ -861,8 +864,10 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             {
                 in = (inotify_event*)(buf + p);
 
-                if (in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT))
+                if ((in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT)))
                 {
+                    LOG_err << "inotify " 
+                            << (in->mask & IN_Q_OVERFLOW ? "IN_Q_OVERFLOW" : "IN_UNMOUNT");
                     notifyerr = true;
                 }
 
@@ -870,15 +875,19 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 #ifndef IN_EXCL_UNLINK
 #define IN_EXCL_UNLINK 0x04000000
 #endif
-                if (in->mask & (IN_CREATE | IN_DELETE | IN_MOVED_FROM
-                              | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
+                if ((in->mask & (IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM
+                              | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK)))
                 {
+                    LOG_verbose << "Filesystem notification:"
+                                << "event: " << std::hex << in->mask;
                     it = mWatches.find(in->wd);
 
                     if (it != mWatches.end())
                     {
-                        notifyAll(it->first, in->name);
+                        // What nodes are associated with this handle?
+                        notifyAll(it->first, in->len? in->name : "");
                     }
+
                 }
             }
         }
@@ -1833,8 +1842,9 @@ pair<WatchMapIterator, bool> PosixDirNotify::addWatch(LocalNode& node, const Loc
                         IN_CLOSE_WRITE
                         | IN_CREATE
                         | IN_DELETE
+                        | IN_DELETE_SELF
                         | IN_EXCL_UNLINK
-                        | IN_MOVED_FROM
+                        | IN_MOVED_FROM // event->cookie set as IN_MOVED_TO
                         | IN_MOVED_TO
                         | IN_ONLYDIR);
 
@@ -1858,16 +1868,35 @@ pair<WatchMapIterator, bool> PosixDirNotify::addWatch(LocalNode& node, const Loc
 
 void PosixDirNotify::removeWatch(WatchMapIterator entry)
 {
+    LOG_verbose << "[" << std::this_thread::get_id() << "]"
+                <<  " removeWatch for handle: " << entry->first;
     auto& watches = fsaccess->mWatches;
 
     auto handle = entry->first;
     assert(handle >= 0);
 
-    watches.erase(entry);
+    watches.erase(entry); // Removes first instance 
 
-    if (watches.find(handle) != watches.end()) return;
+    if (watches.find(handle) != watches.end()) {
+      LOG_warn << "[" << std::this_thread::get_id() << "]"
+               << " There are more watches under handle: " << handle;
+      auto it = watches.find(handle);
+      while(it!=watches.end() && it->first == handle)
+      {
+        LOG_warn << "[" << std::this_thread::get_id() << "]"
+                 << " handle: " << handle << " fsid:" << it->second.second;
 
-    inotify_rm_watch(fsaccess->notifyfd, handle);
+        ++it;
+      }
+      return;
+    }
+
+    auto const removedResult = inotify_rm_watch(fsaccess->notifyfd, handle);
+    if(removedResult){
+      LOG_verbose << "[" << std::this_thread::get_id() << "]"
+                  <<  "inotify_rm_watch for handle: " << handle 
+                  <<  " error no: " << errno;
+    }
 }
 
 #endif // USE_INOTIFY

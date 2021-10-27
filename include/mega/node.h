@@ -798,12 +798,15 @@ private:
 
         bool operator==(handle fsid) const;
 
+        void invalidate();
+
     private:
         WatchMap::iterator mEntry;
 
         static WatchMap mSentinel;
     }; // WatchHandle
 
+public:
     WatchHandle mWatchHandle;
 #endif // USE_INOTIFY
 };

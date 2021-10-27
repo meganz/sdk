@@ -14,10 +14,12 @@
 
 
 if (WIN32)
-cmake_minimum_required(VERSION 3.15)
-cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
+  cmake_minimum_required(VERSION 3.15)
+  cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
 else()
-cmake_minimum_required(VERSION 3.13)
+  cmake_minimum_required(VERSION 3.13)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Useful for make or ninja
+  message( "CMAKE_EXPORT_COMPILE_COMMANDS ON")
 endif()
 
 project(MegaSDK)
