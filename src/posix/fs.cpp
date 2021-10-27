@@ -1874,8 +1874,9 @@ fsfp_t PosixDirNotify::fsfingerprint() const
     {
         return 0;
     }
-
-    return *(fsfp_t*)&statfsbuf.f_fsid + 1;
+    fsfp_t tmp;
+    memcpy(&tmp, &statfsbuf.f_fsid, sizeof(fsfp_t));
+    return tmp+1;
 }
 
 bool PosixDirNotify::fsstableids() const

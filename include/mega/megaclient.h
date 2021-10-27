@@ -519,15 +519,7 @@ public:
     // pause flags
     bool xferpaused[2];
 
-#ifdef ENABLE_SYNC
-
-    // one unified structure for SyncConfigs, the Syncs that are running, and heartbeat data
-    Syncs syncs;
-
-    // indicates whether all startup syncs have been fully scanned
-    bool syncsup;
-
-#endif
+    MegaClientAsyncQueue mAsyncQueue;
 
     // if set, symlinks will be followed except in recursive deletions
     // (give the user ample warning about possible sync repercussions)
@@ -632,7 +624,7 @@ public:
      * @return And error code if there are problems serious enough with the syncconfig that it should not be added.
      *         Otherwise, API_OK
      */
-    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork);
+    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork);
 
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
@@ -642,7 +634,7 @@ public:
      * @param completion Completion function
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion);
+    error addsync(SyncConfig& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
@@ -1456,6 +1448,13 @@ public:
     std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC
+
+    // one unified structure for SyncConfigs, the Syncs that are running, and heartbeat data
+    Syncs syncs;
+
+    // indicates whether all startup syncs have been fully scanned
+    bool syncsup;
+
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
 
@@ -1755,7 +1754,7 @@ public:
     static uint64_t stringhash64(string*, SymmCipher*);
 
     // builds the authentication URI to be sent in POST requests
-    string getAuthURI(bool supressSID = false);
+    string getAuthURI(bool supressSID = false, bool supressAuthKey = false);
 
     bool setlang(string *code);
 
@@ -1882,8 +1881,6 @@ public:
 
     // whether the destructor has started running yet
     bool destructorRunning = false;
-
-    MegaClientAsyncQueue mAsyncQueue;
 
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats

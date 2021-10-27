@@ -722,6 +722,7 @@ void SdkTest::onEvent(MegaApi*, MegaEvent *event)
 {
     std::lock_guard<std::mutex> lock{lastEventMutex};
     lastEvent.reset(event->copy());
+    lastEvents.insert(event->getType());
 }
 
 
@@ -1277,7 +1278,7 @@ string getUniqueAlias()
     srand((unsigned int)t);
     for (int i = 0; i < n; ++i)
     {
-        alias += 'a' + rand() % 26;
+        alias += static_cast<char>('a' + rand() % 26);
     }
 
     // add a timestamp
@@ -1477,9 +1478,6 @@ TEST_F(SdkTest, SdkTestKillSession)
         MegaAccountSessionPtr session;
 
         session.reset(mApi[1].accountDetails->getSession(i++));
-
-        auto h = session->getHandle();
-        auto hstr = Base64Str<sizeof(handle)>(h);
 
         if (session->isAlive() && session->isCurrent())
         {
@@ -3043,7 +3041,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             m_time_t mtime = 2;
             handle fsid = 3;
             bool fsidvalid = false;
-            nodetype_t type = (nodetype_t)-9; // @TODO: Do we need a distinct state other than known/unknown? 
+            nodetype_t type = nodetype_t::TYPE_UNKNOWN;
             bool mIsSymLink = false;
             bool retry = false;
             int errorcode = -998;
@@ -6213,11 +6211,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     fs::create_directories(sync3Path);
     fs::create_directories(sync4Path);
 
-    {
-        std::lock_guard<std::mutex> lock{lastEventMutex};
-        lastEvent.reset();
-        // we're assuming we're not getting any unrelated db commits while the transfer is running
-    }
+    resetlastEvent();
 
     // transfer the folder and its subfolders
     TransferTracker uploadListener(megaApi[0].get());
@@ -6225,18 +6219,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     // loop until we get a commit to the sctable to ensure we cached the new remote nodes
-    for (;;)
-    {
-        {
-            std::lock_guard<std::mutex> lock{lastEventMutex};
-            if (lastEvent && lastEvent->getType() == MegaEvent::EVENT_COMMIT_DB)
-            {
-                // we're assuming this event is the event for the whole batch of nodes
-                break;
-            }
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds{100});
-    }
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 10000));
 
     auto megaNode = [this, &basePath](const std::string& p)
     {
@@ -6628,10 +6611,19 @@ TEST_F(SdkTest, SyncPersistence)
     LOG_verbose << "SyncPersistence :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
+
+    resetlastEvent();
+
     auto nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
     std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    // make sure there are no outstanding cs requests in case
+    // "Postponing DB commit until cs requests finish"
+    // means our Sync's cloud Node is not in the db
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 10000));
+
 
     LOG_verbose << "SyncPersistence :  Enabling sync";
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr)) << "API Error adding a new sync";
@@ -6645,7 +6637,13 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_NO_FATAL_FAILURE(locallogout());
     auto trackerFastLogin = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, trackerFastLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
+
+    resetlastEvent();
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    // wait for the event that says all syncs (if any) have been reloaded
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+
     sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));

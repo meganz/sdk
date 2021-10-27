@@ -7,7 +7,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the rules set forth in the Terms of Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -1230,14 +1230,26 @@ void MegaClient::init()
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
-    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng), btheartbeat(rng)
-    , mAsyncQueue(*w, workerThreadCount)
+   : mAsyncQueue(*w, workerThreadCount)
+   , mCachedStatus(this)
+   , useralerts(*this)
+   , btugexpiration(rng)
+   , btcs(rng)
+   , btbadhost(rng)
+   , btworkinglock(rng)
+   , btheartbeat(rng)
+   , btsc(rng)
+   , btpfa(rng)
 #ifdef ENABLE_SYNC
     , syncs(*this)
-    , syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
-    , mSyncMonitorRetry(false), mSyncMonitorTimer(rng)
+    , syncfslockretrybt(rng)
+    , syncdownbt(rng)
+    , syncnaglebt(rng)
+    , syncextrabt(rng)
+    , syncscanbt(rng)
+    , mSyncMonitorRetry(false)
+    , mSyncMonitorTimer(rng)
 #endif
-    , mCachedStatus(this)
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -1570,6 +1582,7 @@ void MegaClient::exec()
                         break;
                     }
                     // no retry -> fall through
+                    // fall through
                 case REQ_SUCCESS:
                     restag = it->first;
                     app->http_result(req->httpstatus ? API_OK : API_EFAILED,
@@ -1600,6 +1613,7 @@ void MegaClient::exec()
                         break;
                     }
                     // no retry -> fall through
+                    // fall through
                 case REQ_INFLIGHT:
                     if (req->maxbt.nextset() && req->maxbt.armed())
                     {
@@ -1610,6 +1624,7 @@ void MegaClient::exec()
                         pendinghttp.erase(it++);
                         break;
                     }
+                    // fall through
                 default:
                     it++;
                 }
@@ -1838,7 +1853,8 @@ void MegaClient::exec()
                         if (!fc->timeout.armed()) break;
 
                         LOG_warn << "Timeout getting file attr";
-                        // timeout! fall through...
+                        // timeout!
+                        // fall through
                     case REQ_FAILURE:
                         LOG_warn << "Error getting file attr";
 
@@ -2426,7 +2442,7 @@ void MegaClient::exec()
                 pendingsc->protect = true;
                 pendingsc->posturl.append("?sn=");
                 pendingsc->posturl.append(scsn.text());
-                pendingsc->posturl.append(getAuthURI());
+                pendingsc->posturl.append(getAuthURI(false, true));
 
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
@@ -3937,10 +3953,11 @@ void MegaClient::dispatchTransfers()
                             nexttransfer->progresscompleted = nexttransfer->size;
                         }
 
-                        ts->updatecontiguousprogress();
+                        m_off_t progresscontiguous = ts->updatecontiguousprogress();
+
                         LOG_debug << "Resuming transfer at " << nexttransfer->pos
                             << " Completed: " << nexttransfer->progresscompleted
-                            << " Contiguous: " << ts->progresscontiguous
+                            << " Contiguous: " << progresscontiguous
                             << " Partial: " << p << " Size: " << nexttransfer->size
                             << " ultoken: " << (nexttransfer->ultoken != NULL);
                     }
@@ -8407,7 +8424,7 @@ void MegaClient::stringhash(const char* s, byte* hash, SymmCipher* cipher)
 // (transforms s to lowercase)
 uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 {
-    byte hash[SymmCipher::KEYLENGTH];
+    byte hash[SymmCipher::KEYLENGTH+1];
 
     tolower_string(*s);
     stringhash(s->c_str(), hash, c);
@@ -12455,7 +12472,8 @@ void MegaClient::fetchnodes(bool nocache)
 
             // allow sc requests to start
             scsn.setScsn(cachedscsn);
-            LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
+            LOG_info << "Session loaded from local cache. SCSN: " << scsn.text()
+                     << " node count: " << nodes.size() << " user count: " << users.size();
 
             if (loggedIntoWritableFolder())
             {
@@ -13702,7 +13720,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork)
+error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork)
 {
 #ifdef ENABLE_SYNC
 
@@ -13713,7 +13731,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
-    remotenode = nodeByHandle(syncConfig.getRemoteNode());
+    Node* remotenode = nodeByHandle(syncConfig.getRemoteNode());
     inshare = false;
     if (!remotenode)
     {
@@ -13726,6 +13744,8 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         syncConfig.mEnabled = false;
         return API_ENOENT;
     }
+
+    rootNodeName = remotenode->displayname();
 
     if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
@@ -13803,6 +13823,32 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         syncConfig.mError = openedLocalFolder->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
         syncConfig.mEnabled = false;
         return openedLocalFolder->retry ? API_ETEMPUNAVAIL : API_ENOENT;
+    }
+
+    //check we are not in any blocking situation
+    using CType = CacheableStatus::Type;
+    bool overStorage = mCachedStatus.lookup(CType::STATUS_STORAGE, STORAGE_UNKNOWN) >= STORAGE_RED;
+    bool businessExpired = mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) == BIZ_STATUS_EXPIRED;
+    bool blocked = mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1;
+
+    // the order is important here: a user needs to resolve blocked in order to resolve storage
+    if (overStorage)
+    {
+        syncConfig.mError = STORAGE_OVERQUOTA;
+        syncConfig.mEnabled = false;
+        return API_EFAILED;
+    }
+    else if (businessExpired)
+    {
+        syncConfig.mError = BUSINESS_EXPIRED;
+        syncConfig.mEnabled = false;
+        return API_EFAILED;
+    }
+    else if (blocked)
+    {
+        syncConfig.mError = ACCOUNT_BLOCKED;
+        syncConfig.mEnabled = false;
+        return API_EFAILED;
     }
 
     return API_OK;
@@ -13907,7 +13953,7 @@ void MegaClient::ensureSyncUserAttributesCompleted(Error e)
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
 {
     string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config, this));
+    BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add( new CommandBackupPut(this, info,
                                   [this, config, completion](Error e, handle backupId) {
@@ -13950,17 +13996,19 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunction completion)
+error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
+    assert(completion);
+
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
-    Node* remotenode;
+    string remotenodename;
     bool inshare, isnetwork;
-    error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenode, inshare, isnetwork);
+    error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
 
     if (e)
     {
-        completion(nullptr, config.getError(), e);
+        completion(e, config.mError, UNDEF);
         return e;
     }
 
@@ -13981,8 +14029,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
                     << drivePath.toPath(*fsaccess)
                     << " as there is no config store.";
 
-            assert(completion);
-            completion(nullptr, NO_SYNC_ERROR, API_EINTERNAL);
+            completion(API_EINTERNAL, NO_SYNC_ERROR, UNDEF);
 
             return API_EINTERNAL;
         }
@@ -14002,8 +14049,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
                         << drivePath.toPath(*fsaccess)
                         << " as we could not read its config database.";
 
-                assert(completion);
-                completion(nullptr, NO_SYNC_ERROR, API_EFAILED);
+                completion(API_EFAILED, NO_SYNC_ERROR, UNDEF);
 
                 return API_EFAILED;
             }
@@ -14016,17 +14062,17 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
         e = readDriveId(p.c_str(), driveId);
         if (e != API_OK)
         {
-            completion(nullptr, NO_SYNC_ERROR, e);
+            completion(e, config.mError, UNDEF);
             return e;
         }
     }
 
     // Add the sync.
     string deviceIdHash = getDeviceidHash();
-    BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, this));
+    BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add( new CommandBackupPut(this, info,
-                                   [this, config, completion, notifyApp](Error e, handle backupId) mutable {
+                                   [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
         if (ISUNDEF(backupId) && !e)
         {
             e = API_EFAILED;
@@ -14034,7 +14080,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
 
         if (e)
         {
-            completion(nullptr, config.getError(), e);
+            completion(e, config.mError, backupId);
         }
         else
         {
@@ -14048,7 +14094,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
 
             syncactivity = true;
 
-            completion(unifiedSync, unifiedSync->mConfig.getError(), e);
+            completion(e, unifiedSync->mConfig.getError(), backupId);
         }
     }));
 
@@ -15935,7 +15981,6 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 // pause/unpause transfers
 void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransactionCommitter& committer)
 {
-    bool changed{xferpaused[d] != pause};
     xferpaused[d] = pause;
 
     if (!pause || hard)
@@ -15966,12 +16011,9 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransac
         }
     }
 
-    if (changed)
-    {
 #ifdef ENABLE_SYNC
-        syncs.mHeartBeatMonitor->onSyncConfigChanged();
+    syncs.transferPauseFlagsUpdated(xferpaused[GET], xferpaused[PUT]);
 #endif
-    }
 }
 
 void MegaClient::setmaxconnections(direction_t d, int num)
@@ -16446,7 +16488,7 @@ bool MegaClient::loggedIntoWritableFolder() const
     return loggedIntoFolder() && !mFolderLink.mWriteAuth.empty();
 }
 
-std::string MegaClient::getAuthURI(bool supressSID)
+std::string MegaClient::getAuthURI(bool supressSID, bool supressAuthKey)
 {
     string auth;
 
@@ -16454,7 +16496,10 @@ std::string MegaClient::getAuthURI(bool supressSID)
     {
         auth.append("&n=");
         auth.append(Base64Str<NODEHANDLE>(mFolderLink.mPublicHandle));
-        auth.append(mFolderLink.mWriteAuth);
+        if (!supressAuthKey)
+        {
+            auth.append(mFolderLink.mWriteAuth);
+        }
         if (!supressSID && !mFolderLink.mAccountAuth.empty())
         {
             auth.append("&sid=");
