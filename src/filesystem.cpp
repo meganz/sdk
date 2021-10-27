@@ -31,6 +31,10 @@
 
 #include <cassert>
 
+#ifdef TARGET_OS_MAC
+#include "mega/osx/osxutils.h"
+#endif
+
 namespace mega {
 
 CodeCounter::ScopeStats g_compareUtfTimings("compareUtfTimings");
