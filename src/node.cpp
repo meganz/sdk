@@ -2505,7 +2505,7 @@ auto LocalNode::WatchHandle::operator=(std::nullptr_t) -> WatchHandle&
     return *this;
 }
 
-inline void LocalNode::WatchHandle::invalidate()
+void LocalNode::WatchHandle::invalidate()
 {
     mEntry = mSentinel.end();
 }
