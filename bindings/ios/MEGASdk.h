@@ -68,7 +68,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeCreationDesc,
     MEGASortOrderTypeModificationAsc,
     MEGASortOrderTypeModificationDesc,
-    MEGASortOrderTypePhotoAsc,
+    MEGASortOrderTypePhotoAsc = 11,
     MEGASortOrderTypePhotoDesc,
     MEGASortOrderTypeVideoAsc,
     MEGASortOrderTypeVideoDesc,
@@ -6823,32 +6823,32 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypePhotoAsc = 9
+ * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
- * - MEGASortOrderTypePhotoDesc = 10
+ * - MEGASortOrderTypePhotoDesc = 12
  * Sort with photos first, then by date descending
  *
- * - MEGASortOrderTypeVideoAsc = 11
+ * - MEGASortOrderTypeVideoAsc = 13
  * Sort with videos first, then by date ascending
  *
- * - MEGASortOrderTypeVideoDesc = 12
+ * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
  *
- * - MEGASortOrderTypeLinkCreationAsc = 13
+ * - MEGASortOrderTypeLinkCreationAsc = 15
  *
- * - MEGASortOrderTypeLinkCreationDesc = 14
+ * - MEGASortOrderTypeLinkCreationDesc = 16
  *
- * - MEGASortOrderTypeLabelAsc = 15
+ * - MEGASortOrderTypeLabelAsc = 17
  * Sort by color label, ascending
  *
- * - MEGASortOrderTypeLabelDesc = 16
+ * - MEGASortOrderTypeLabelDesc = 18
  * Sort by color label, descending
  *
- * - MEGASortOrderTypeFavouriteAsc = 17
+ * - MEGASortOrderTypeFavouriteAsc = 19
  * Sort nodes with favourite attr first
  *
- * - MEGASortOrderTypeFavouriteDesc = 18
+ * - MEGASortOrderTypeFavouriteDesc = 20
  * Sort nodes with favourite attr last
  *
  * @return List with all child MEGANode objects.
@@ -6954,32 +6954,32 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypePhotoAsc = 9
+ * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
- * - MEGASortOrderTypePhotoDesc = 10
+ * - MEGASortOrderTypePhotoDesc = 12
  * Sort with photos first, then by date descending
  *
- * - MEGASortOrderTypeVideoAsc = 11
+ * - MEGASortOrderTypeVideoAsc = 13
  * Sort with videos first, then by date ascending
  *
- * - MEGASortOrderTypeVideoDesc = 12
+ * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
  *
- * - MEGASortOrderTypeLinkCreationAsc = 13
+ * - MEGASortOrderTypeLinkCreationAsc = 15
  *
- * - MEGASortOrderTypeLinkCreationDesc = 14
+ * - MEGASortOrderTypeLinkCreationDesc = 16
  *
- * - MEGASortOrderTypeLabelAsc = 15
+ * - MEGASortOrderTypeLabelAsc = 17
  * Sort by color label, ascending
  *
- * - MEGASortOrderTypeLabelDesc = 16
+ * - MEGASortOrderTypeLabelDesc = 18
  * Sort by color label, descending
  *
- * - MEGASortOrderTypeFavouriteAsc = 17
+ * - MEGASortOrderTypeFavouriteAsc = 19
  * Sort nodes with favourite attr first
  *
- * - MEGASortOrderTypeFavouriteDesc = 18
+ * - MEGASortOrderTypeFavouriteDesc = 20
  * Sort nodes with favourite attr last
  *
  * @return Lists with files and folders child MegaNode objects
@@ -7468,32 +7468,32 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypePhotoAsc = 9
+ * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
- * - MEGASortOrderTypePhotoDesc = 10
+ * - MEGASortOrderTypePhotoDesc = 12
  * Sort with photos first, then by date descending
  *
- * - MEGASortOrderTypeVideoAsc = 11
+ * - MEGASortOrderTypeVideoAsc = 13
  * Sort with videos first, then by date ascending
  *
- * - MEGASortOrderTypeVideoDesc = 12
+ * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
  *
- * - MEGASortOrderTypeLinkCreationAsc = 13
+ * - MEGASortOrderTypeLinkCreationAsc = 15
  *
- * - MEGASortOrderTypeLinkCreationDesc = 14
+ * - MEGASortOrderTypeLinkCreationDesc = 16
  *
- * - MEGASortOrderTypeLabelAsc = 15
+ * - MEGASortOrderTypeLabelAsc = 17
  * Sort by color label, ascending
  *
- * - MEGASortOrderTypeLabelDesc = 16
+ * - MEGASortOrderTypeLabelDesc = 18
  * Sort by color label, descending
  *
- * - MEGASortOrderTypeFavouriteAsc = 17
+ * - MEGASortOrderTypeFavouriteAsc = 19
  * Sort nodes with favourite attr first
  *
- * - MEGASortOrderTypeFavouriteDesc = 18
+ * - MEGASortOrderTypeFavouriteDesc = 20
  * Sort nodes with favourite attr last
  *
  * @return List of nodes that contain the desired string in their name.
@@ -7553,17 +7553,33 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypePhotoAsc = 9
+ * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
- * - MEGASortOrderTypePhotoDesc = 10
+ * - MEGASortOrderTypePhotoDesc = 12
  * Sort with photos first, then by date descending
  *
- * - MEGASortOrderTypeVideoAsc = 11
+ * - MEGASortOrderTypeVideoAsc = 13
  * Sort with videos first, then by date ascending
  *
- * - MEGASortOrderTypeVideoDesc = 12
+ * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
+ * 
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
  *
  * @param nodeFormatType Type of nodes requested in the search
  * Valid values for this parameter are:
