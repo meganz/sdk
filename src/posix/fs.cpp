@@ -1401,44 +1401,41 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string 
     return false;
 }
 
-bool PosixFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolutepathArg)
+bool PosixFileSystemAccess::expanselocalpath(LocalPath& source, LocalPath& destination)
 {
-    std::string* path = &pathArg.localpath;
-    std::string* absolutepath = &absolutepathArg.localpath;
+    // Sanity.
+    assert(!source.empty());
 
-    ostringstream os;
-    if (path->at(0) == '/')
+    // At worst, the destination mirrors the source.
+    destination = source;
+
+    // Are we dealing with a relative path?
+    if (!source.isAbsolute())
     {
-        absolutepathArg = pathArg;
-        char canonical[PATH_MAX];
-        if (realpath(absolutepath->c_str(),canonical) != NULL)
-        {
-            absolutepath->assign(canonical);
-            absolutepathArg.isFromRoot = true;
-        }
-        return true;
-    }
-    else
-    {
-        char cCurrentPath[PATH_MAX];
-        if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
-        {
-            absolutepathArg = pathArg;
+        // Sanity.
+        assert(source.localpath[0] != '/');
+
+        // Retrieve current working directory.
+        if (!cwd(destination))
             return false;
-        }
 
-        *absolutepath = cCurrentPath;
-        absolutepath->append("/");
-        absolutepath->append(*path);
-        absolutepathArg.isFromRoot = true;
-
-        char canonical[PATH_MAX];
-        if (realpath(absolutepath->c_str(),canonical) != NULL)
-        {
-            absolutepath->assign(canonical);
-        }
-        return true;
+        // Compute absolute path.
+        destination.appendWithSeparator(source, false);
     }
+
+    // Sanity.
+    assert(destination.isAbsolute());
+    assert(destination.localpath[0] == '/');
+
+    // Canonicalize the path.
+    char buffer[PATH_MAX];
+
+    if (!realpath(destination.localpath.c_str(), buffer))
+        return destination = source, false;
+
+    destination.localpath.assign(buffer);
+
+    return true;
 }
 
 #ifdef __linux__
