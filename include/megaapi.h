@@ -8114,7 +8114,7 @@ class MegaApi
          * @param base64string The base 64 encoded string to decode.
          * @param binary A pointer to a pointer to assign with a `new unsigned char[]`
          *        allocated buffer containing the decoded binary data.
-         * @param size A pointer to a variable that will be assigned the size of the buffer allocated.
+         * @param binarysize A pointer to a variable that will be assigned the size of the buffer allocated.
          */
         static void base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize);
 
@@ -12190,7 +12190,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path to the drive
          *
          * @param pathToDrive Path to the root of the external drive
-         * @param deviceName String with drive name
+         * @param driveName String with drive name
          * @param listener MegaRequestListener to track this request
          */
         void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
@@ -14761,7 +14761,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param node MegaNode for which the path will be returned
+         * @param handle MegaNode handle for which the path will be returned
          * @return The path of the node
          */
         char* getNodePathByNodeHandle(MegaHandle handle);
@@ -15176,7 +15176,7 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @param originalfingerprint Original Fingerprint to check
+         * @param originalFingerprint Original Fingerprint to check
          * @param parent Only return nodes below this specified parent folder. Pass NULL to consider all nodes.
          * @return List of nodes with the same original fingerprint
          */
@@ -18730,7 +18730,7 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the last node handle to be synced
          *
          * @param backupId backup id identifying the backup
-         * @param state backup state
+         * @param status backup status
          * @param progress backup progress
          * @param ups Number of pending upload transfers
          * @param downs Number of pending download transfers
