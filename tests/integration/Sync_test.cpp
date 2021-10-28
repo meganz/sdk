@@ -5898,7 +5898,7 @@ TEST_F(SyncTest, AnomalousSyncDownload)
     ASSERT_TRUE(cd.confirmModel_mainthread(model.root.get(), id));
 
     // Two anomalies should be reported.
-    ASSERT_EQ(reporter->mAnomalies.size(), 2);
+    ASSERT_EQ(reporter->mAnomalies.size(), 2u);
 
     auto anomaly = reporter->mAnomalies.begin();
 

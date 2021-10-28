@@ -277,7 +277,7 @@ CurlHttpIO::CurlHttpIO()
         sslMutexes = new std::recursive_mutex*[numLocks];
         memset(sslMutexes, 0, numLocks * sizeof(std::recursive_mutex*));
 #if OPENSSL_VERSION_NUMBER >= 0x10000000  || defined (LIBRESSL_VERSION_NUMBER)
-        CRYPTO_THREADID_set_callback(CurlHttpIO::id_function);
+        ((void)(CRYPTO_THREADID_set_callback(CurlHttpIO::id_function)));
 #else
         CRYPTO_set_id_callback(CurlHttpIO::id_function);
 #endif
