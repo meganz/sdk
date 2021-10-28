@@ -2088,7 +2088,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             if (!overwrite)
             {
-                row.syncNode->setCheckMovesAgain(false, true, false);
+                parentRow.syncNode->setCheckMovesAgain(false, true, false);
                 monitor.waitingCloud(fullPath.cloudPath, sourceSyncNode->getCloudPath(), fullPath.localPath, SyncWaitReason::ApplyMoveIsBlockedByExistingItem);
                 rowResult = false;
                 return true;
