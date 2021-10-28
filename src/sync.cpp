@@ -4556,7 +4556,7 @@ void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& chi
                 {
                     if (childIt.second->fsid_asScanned != UNDEF)
                     {
-                        childIt.second->setScannedFsid(UNDEF, localnodeByScannedFsid, LocalPath());
+                        childIt.second->setScannedFsid(UNDEF, localnodeByScannedFsid, LocalPath(), FileFingerprint());
                         childIt.second->scannedFingerprint = FileFingerprint();
                     }
                 }
@@ -5156,7 +5156,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     if (!row.fsNode || belowRemovedFsNode)
     {
         row.syncNode->scanAgain = TREE_RESOLVED;
-        row.syncNode->setScannedFsid(UNDEF, syncs.localnodeByScannedFsid, LocalPath());
+        row.syncNode->setScannedFsid(UNDEF, syncs.localnodeByScannedFsid, LocalPath(), FileFingerprint());
         syncHere = row.syncNode->parent ? row.syncNode->parent->scanAgain < TREE_ACTION_HERE : true;
         recurseHere = false;  // If we need to scan, we need the folder to exist first - revisit later
         row.syncNode->lastFolderScan.reset();
@@ -5168,9 +5168,13 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
             row.syncNode->fsid_asScanned != row.fsNode->fsid)
         {
             row.syncNode->scanAgain = TREE_ACTION_HERE;
-            row.syncNode->setScannedFsid(row.fsNode->fsid, syncs.localnodeByScannedFsid, row.fsNode->localname);
+            row.syncNode->setScannedFsid(row.fsNode->fsid, syncs.localnodeByScannedFsid, row.fsNode->localname, row.fsNode->fingerprint);
         }
-        row.syncNode->scannedFingerprint = row.fsNode->fingerprint; // this can change anytime
+        else if (row.syncNode->scannedFingerprint != row.fsNode->fingerprint)
+        {
+            // this can change anytime, set it anyway
+            row.syncNode->scannedFingerprint = row.fsNode->fingerprint;
+        }
     }
 
     // Do we need to scan this node?
@@ -5290,15 +5294,16 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     {
                         if (auto* f = childRow.fsNode)
                         {
-                            // Maintain the scanned fingerprint.
-                            s->scannedFingerprint = f->fingerprint;
-
                             // Maintain scanned FSID.
                             if (s->fsid_asScanned != f->fsid)
                             {
-                                // TODO: Put these lines first to eliminate excluded parameter?
-                                syncs.setScannedFsidReused(f->fsid, nullptr);
-                                s->setScannedFsid(f->fsid, syncs.localnodeByScannedFsid, f->localname);
+                                syncs.setScannedFsidReused(f->fsid);
+                                s->setScannedFsid(f->fsid, syncs.localnodeByScannedFsid, f->localname, f->fingerprint);
+                            }
+							else if (s->scannedFingerprint != f->fingerprint)
+                            {
+                                // Maintain the scanned fingerprint.
+                                s->scannedFingerprint = f->fingerprint;
                             }
                         }
 
@@ -6116,7 +6121,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
     row.syncNode = new LocalNode(this);
 
     row.syncNode->init(row.fsNode->type, parentRow.syncNode, fullPath.localPath, row.fsNode->cloneShortname());
-    row.syncNode->setScannedFsid(row.fsNode->fsid, syncs.localnodeByScannedFsid, row.fsNode->localname);
+    row.syncNode->setScannedFsid(row.fsNode->fsid, syncs.localnodeByScannedFsid, row.fsNode->localname, row.fsNode->fingerprint);
 
     if (row.fsNode->type == FILENODE)
     {
@@ -6599,8 +6604,8 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     auto fsnode = FSNode::fromFOpened(*fa, fullPath.localPath, *syncs.fsaccess);
 
                     // Mark other nodes with this FSID as having their FSID reused.
-                    syncs.setSyncedFsidReused(fsnode->fsid, nullptr);
-                    syncs.setScannedFsidReused(fsnode->fsid, nullptr);
+                    syncs.setSyncedFsidReused(fsnode->fsid);
+                    syncs.setScannedFsidReused(fsnode->fsid);
 
                     row.syncNode->localname = fsnode->localname;
                     row.syncNode->slocalname = fsnode->cloneShortname();
@@ -6608,7 +6613,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 					// setting synced variables here means we can skip a scan of the parent folder, if just the one expected notification arrives for it
                     row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
                     row.syncNode->setSyncedFsid(fsnode->fsid, syncs.localnodeBySyncedFsid, fsnode->localname, fsnode->cloneShortname());
-					row.syncNode->setScannedFsid(fsnode->fsid, syncs.localnodeByScannedFsid, fsnode->localname);
+					row.syncNode->setScannedFsid(fsnode->fsid, syncs.localnodeByScannedFsid, fsnode->localname, fsnode->fingerprint);
                     statecacheadd(row.syncNode);
 
                     // So that we can recurse into the new directory immediately.
@@ -6981,26 +6986,24 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type,
     return nullptr;
 }
 
-void Syncs::setSyncedFsidReused(mega::handle fsid, const LocalNode* exclude)
+void Syncs::setSyncedFsidReused(mega::handle fsid)
 {
     assert(onSyncThread());
     for (auto range = localnodeBySyncedFsid.equal_range(fsid);
         range.first != range.second;
         ++range.first)
     {
-        if (range.first->second == exclude) continue;
         range.first->second->fsidSyncedReused = true;
     }
 }
 
-void Syncs::setScannedFsidReused(mega::handle fsid, const LocalNode* exclude)
+void Syncs::setScannedFsidReused(mega::handle fsid)
 {
     assert(onSyncThread());
     for (auto range = localnodeByScannedFsid.equal_range(fsid);
         range.first != range.second;
         ++range.first)
     {
-        if (range.first->second == exclude) continue;
         range.first->second->fsidScannedReused = true;
     }
 }
@@ -7239,8 +7242,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                     auto& s = *row.syncNode;
 
                     // Node's no longer associated with any file.
-                    s.scannedFingerprint = FileFingerprint();
-                    s.setScannedFsid(UNDEF, syncs.localnodeByScannedFsid, LocalPath());
+                    s.setScannedFsid(UNDEF, syncs.localnodeByScannedFsid, LocalPath(), FileFingerprint());
                     s.setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, s.localname, nullptr);
 
                     // Persist above changes.

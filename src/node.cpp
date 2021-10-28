@@ -1558,7 +1558,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
             LOG_verbose << sync->syncname << "Recovered from being scan blocked: " << localnodedisplaypath();
 
             type = fsNode->type; // original scan may not have been able to discern type, fix it now
-            setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode->localname);
+            setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode->localname, FileFingerprint());
             sync->statecacheadd(this);
 
             rare().scanBlocked.reset();
@@ -1893,7 +1893,7 @@ void LocalNode::setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, con
 //        0 == compareUtf(localname, true, name, false, true));
 }
 
-void LocalNode::setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName)
+void LocalNode::setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName, const FileFingerprint& scanfp)
 {
     if (fsid_asScanned_it != fsidnodes.end())
     {
@@ -1902,6 +1902,8 @@ void LocalNode::setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, co
 
     fsid_asScanned = newfsid;
     fsidScannedReused = false;
+
+    scannedFingerprint = scanfp;
 
     if (fsid_asScanned == UNDEF)
     {
@@ -2363,7 +2365,10 @@ bool LocalNodeCore::write(string& destination, uint32_t parentID)
 bool LocalNode::serialize(string* d)
 {
     assert(type != TYPE_UNKNOWN);
-    assert(type != FILENODE || syncedFingerprint.isvalid || scannedFingerprint.isvalid);
+
+    // In fact this can occur, eg we invalidated scannedFingerprint when it was below a removed node, when an ancestor folder moved
+    // Or (probably) from a node created from the cloud only
+    //assert(type != FILENODE || syncedFingerprint.isvalid || scannedFingerprint.isvalid);
 
     // Every node we serialize should have a parent.
     assert(parent);

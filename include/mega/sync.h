@@ -890,8 +890,8 @@ public:
     LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
     LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
 
-    void setSyncedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
-    void setScannedFsidReused(mega::handle fsid, const LocalNode* exclude = nullptr);
+    void setSyncedFsidReused(mega::handle fsid);
+    void setScannedFsidReused(mega::handle fsid);
 
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;

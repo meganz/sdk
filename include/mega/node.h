@@ -703,7 +703,7 @@ struct MEGA_API LocalNode
 
 
     void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName, std::unique_ptr<LocalPath> newshortname);
-    void setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName);
+    void setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName, const FileFingerprint& scanfp);
 
     void setSyncedNodeHandle(NodeHandle h);
 
