@@ -827,7 +827,9 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     {
         // open state cache table
         handle tableid[3];
-        string dbname;
+
+        // Convenience.
+        string& dbname = mStateCacheName;
 
         auto fas = syncs.fsaccess->newfileaccess(false);
 
@@ -967,7 +969,6 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 
         l->init(l->type, p, localpath, nullptr);
 
-        l->parent_dbid = parent_dbid;
         l->syncedFingerprint.size = size;
         l->setSyncedFsid(fsid, syncs.localnodeBySyncedFsid, l->localname, std::move(shortname));
         l->setSyncedNodeHandle(l->syncedCloudNodeHandle);
@@ -1009,10 +1010,12 @@ bool Sync::readstatecache()
         assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
         while (statecachetable->next(&cid, &cachedata, &syncs.syncKey))
         {
-            if ((l = LocalNode::unserialize(this, &cachedata).release()))
+            uint32_t parentID = 0;
+
+            if ((l = LocalNode::unserialize(*this, cachedata, parentID).release()))
             {
                 l->dbid = cid;
-                tmap.insert(pair<int32_t,LocalNode*>(l->parent_dbid,l));
+                tmap.emplace(parentID, l);
                 numLocalNodes += 1;
             }
         }
@@ -1123,6 +1126,11 @@ void Sync::cachenodes()
             assert(false);
         }
     }
+}
+
+const string& Sync::statecachename() const
+{
+    return mStateCacheName;
 }
 
 void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)

@@ -1356,7 +1356,6 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     fsidScannedReused = false;
     scanInProgress = false;
     scanObsolete = false;
-    parent_dbid = 0;
     slocalname = NULL;
 
     ts = TREESTATE_NONE;
@@ -2314,7 +2313,6 @@ void SyncUpload_inClient::prepare(FileSystemAccess&)
 }
 
 
-
 // serialize/unserialize the following LocalNode properties:
 // - type/size
 // - fsid
@@ -2322,34 +2320,15 @@ void SyncUpload_inClient::prepare(FileSystemAccess&)
 // - corresponding Node handle
 // - local name
 // - fingerprint crc/mtime (filenodes only)
-bool LocalNode::serialize(string* d)
+bool LocalNodeCore::write(string& destination, uint32_t parentID)
 {
-#ifdef DEBUG
-    if (fsid_lastSynced != UNDEF)
-    {
-        LocalPath localpath = getLocalPath();
-        auto fa = sync->syncs.fsaccess->newfileaccess(false);
-        if (fa->fopen(localpath))  // exists, is file
-        {
-            auto sn = sync->syncs.fsaccess->fsShortname(localpath);
-            assert(!localname.empty() &&
-                ((!slocalname && (!sn || localname == *sn)) ||
-                    (slocalname && sn && !slocalname->empty() && *slocalname != localname && *slocalname == *sn)));
-        }
-    }
-#endif
+    // We need size even if we're not synced.
+    auto size = syncedFingerprint.isvalid ? syncedFingerprint.size : 0;
 
-    assert(type != TYPE_UNKNOWN);
-    assert(type != FILENODE || syncedFingerprint.isvalid || scannedFingerprint.isvalid);
-
-    // we need size even if not synced, now that scannedFingerprint is separate, for serialization compatibility
-    auto size = syncedFingerprint.isvalid ? syncedFingerprint.size : scannedFingerprint.size;
-    if (size < 0) size = 0;
-
-    CacheableWriter w(*d);
+    CacheableWriter w(destination);
     w.serializei64(type ? -type : size);
     w.serializehandle(fsid_lastSynced);
-    w.serializeu32(parent ? parent->dbid : 0);
+    w.serializeu32(parentID);
     w.serializenodehandle(syncedCloudNodeHandle.as8byte());
     w.serializestring(localname.platformEncoded());
     if (type == FILENODE)
@@ -2366,41 +2345,86 @@ bool LocalNode::serialize(string* d)
             w.serializecompressed64(zeroFingerprint.mtime);
         }
     }
-    w.serializebyte(mSyncable);
-    w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
+
+    // Formerly mSyncable.
+    //
+    // No longer meaningful but serialized to maintain compatibility.
+    w.serializebyte(1u);
+
+    // first flag indicates we are storing slocalname.
+    // Storing it is much, much faster than looking it up on startup.
+    w.serializeexpansionflags(1);
     auto tmpstr = slocalname ? slocalname->platformEncoded() : string();
     w.serializepstr(slocalname ? &tmpstr : nullptr);
-
-#ifdef DEBUG
-    // just check deserializing, real quick, only in debug
-    string testread = w.dest;
-    auto test = LocalNode::unserialize(sync, &testread);
-    assert(test->localname == localname);
-    assert((test->slocalname && slocalname) || (!test->slocalname && !slocalname));
-    assert(!test->slocalname || *test->slocalname == *slocalname);
-#endif
 
     return true;
 }
 
-unique_ptr<LocalNode> LocalNode::unserialize(Sync* sync, const string* d)
+bool LocalNode::serialize(string* d)
 {
-    if (d->size() < sizeof(m_off_t)         // type/size combo
-                  + sizeof(handle)          // fsid
-                  + sizeof(uint32_t)        // parent dbid
-                  + MegaClient::NODEHANDLE  // handle
-                  + sizeof(short))          // localname length
+    assert(type != TYPE_UNKNOWN);
+    assert(type != FILENODE || syncedFingerprint.isvalid || scannedFingerprint.isvalid);
+
+    // Every node we serialize should have a parent.
+    assert(parent);
+
+    // The only node with a zero DBID should be the root.
+    assert(parent->dbid || !parent->parent);
+
+#ifdef DEBUG
+    if (fsid_lastSynced != UNDEF)
+    {
+        LocalPath localpath = getLocalPath();
+        auto fa = sync->syncs.fsaccess->newfileaccess(false);
+        if (fa->fopen(localpath))  // exists, is file
+        {
+            auto sn = sync->syncs.fsaccess->fsShortname(localpath);
+            assert(!localname.empty() &&
+                ((!slocalname && (!sn || localname == *sn)) ||
+                    (slocalname && sn && !slocalname->empty() && *slocalname != localname && *slocalname == *sn)));
+        }
+    }
+#endif
+
+    auto parentID = parent ? parent->dbid : 0;
+    auto result = LocalNodeCore::write(*d, parentID);
+
+#ifdef DEBUG
+    // Quick (de)serizliation check.
+    {
+        string source = *d;
+        uint32_t id = 0u;
+
+        auto node = unserialize(*sync, source, id);
+
+        assert(node);
+        assert(node->localname == localname);
+        assert(!node->slocalname == !slocalname);
+        assert(!node->slocalname || *node->slocalname == *slocalname);
+    }
+#endif
+
+    return result;
+}
+
+bool LocalNodeCore::read(const string& source, uint32_t& parentID)
+{
+    if (source.size() < sizeof(m_off_t)         // type/size combo
+                      + sizeof(handle)          // fsid
+                      + sizeof(uint32_t)        // parent dbid
+                      + MegaClient::NODEHANDLE  // handle
+                      + sizeof(short))          // localname length
     {
         LOG_err << "LocalNode unserialization failed - short data";
-        return NULL;
+        return false;
     }
 
-    CacheableReader r(*d);
+    CacheableReader r(source);
 
     nodetype_t type;
     m_off_t size;
 
-    if (!r.unserializei64(size)) return nullptr;
+    if (!r.unserializei64(size)) return false;
 
     if (size < 0 && size >= -FOLDERNODE)
     {
@@ -2414,7 +2438,6 @@ unique_ptr<LocalNode> LocalNode::unserialize(Sync* sync, const string* d)
     }
 
     handle fsid;
-    uint32_t parent_dbid;
     handle h = 0;
     string localname, shortname;
     uint64_t mtime = 0;
@@ -2424,7 +2447,7 @@ unique_ptr<LocalNode> LocalNode::unserialize(Sync* sync, const string* d)
     unsigned char expansionflags[8] = { 0 };
 
     if (!r.unserializehandle(fsid) ||
-        !r.unserializeu32(parent_dbid) ||
+        !r.unserializeu32(parentID) ||
         !r.unserializenodehandle(h) ||
         !r.unserializestring(localname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
@@ -2435,39 +2458,36 @@ unique_ptr<LocalNode> LocalNode::unserialize(Sync* sync, const string* d)
     {
         LOG_err << "LocalNode unserialization failed at field " << r.fieldnum;
         assert(false);
-        return nullptr;
+        return false;
     }
     assert(!r.hasdataleft());
 
-    unique_ptr<LocalNode> l(new LocalNode(sync));
+    this->type = type;
+    this->syncedFingerprint.size = size;
+    this->fsid_lastSynced = fsid;
+    this->localname = LocalPath::fromPlatformEncodedRelative(localname);
+    this->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncodedRelative(shortname)));
+    this->slocalname_in_db = 0 != expansionflags[0];
 
-    l->type = type;
-    l->syncedFingerprint.size = size;
+    memcpy(this->syncedFingerprint.crc.data(), crc, sizeof crc);
 
-    l->parent_dbid = parent_dbid;
+    this->syncedFingerprint.mtime = mtime;
+    this->syncedFingerprint.isvalid = mtime != 0;
 
-    l->fsid_lastSynced = fsid;
-    l->fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
-    l->fsid_asScanned = UNDEF;
-    l->fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
+    // previously we scanned and created the LocalNode, but we had not set syncedFingerprint
+    this->syncedCloudNodeHandle.set6byte(h);
 
-    l->localname = LocalPath::fromPlatformEncodedRelative(localname);
-    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncodedRelative(shortname)));
-    l->slocalname_in_db = 0 != expansionflags[0];
+    return true;
+}
 
-    memcpy(l->syncedFingerprint.crc.data(), crc, sizeof crc);
-    l->syncedFingerprint.mtime = mtime;
-    l->syncedFingerprint.isvalid = mtime != 0;  // previously we scanned and created the LocalNode, but we had not set syncedFingerprint
+unique_ptr<LocalNode> LocalNode::unserialize(Sync& sync, const string& source, uint32_t& parentID)
+{
+    auto node = ::mega::make_unique<LocalNode>(&sync);
 
-    l->syncedCloudNodeHandle.set6byte(h);
-    l->syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
+    if (!node->read(source, parentID))
+        return nullptr;
 
-//    l->node = sync->client->nodebyhandle(h);
-    l->parent = nullptr;
-    l->sync = sync;
-    l->mSyncable = syncable == 1;
-
-    return l;
+    return node;
 }
 
 #ifdef USE_INOTIFY

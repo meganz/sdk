@@ -469,7 +469,7 @@ typedef multimap<NodeHandle, LocalNode*> nodehandle_localnode_map;
 
 typedef set<LocalNode*> localnode_set;
 
-typedef multimap<int32_t, LocalNode*> idlocalnode_map;
+typedef multimap<uint32_t, LocalNode*> idlocalnode_map;
 
 #ifdef USE_INOTIFY
 
