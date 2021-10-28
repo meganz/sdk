@@ -15481,5 +15481,189 @@ TEST_F(SyncTest, StallsOnSpecialFile)
 
 #endif // ! _WIN32
 
+TEST_F(SyncTest, ExistingCloudMoveTargetMovedToDebrisWhenSynced)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = std::chrono::seconds(8);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+    
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Populate local tree.
+    Model model;
+    
+    model.addfile(".megaignore", "#");
+    model.addfile("fx");
+    model.addfile("fy");
+    model.generate(c.fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = c.setupSync_mainthread("s", "s", false, false);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+    
+    // Make sure initial sync succeeded.
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // Rename fx -> fy.
+    {
+        // Get our hands on the original fy.
+        auto* root = c.gettestbasenode();
+        ASSERT_NE(root, nullptr);
+
+        auto* fy = c.drillchildnodebyname(root, "s/fy");
+        ASSERT_NE(fy, nullptr);
+
+        // Rename fx -> fy.
+        model.movetosynctrash("fy", "");
+        model.findnode("fx")->name = "fy";
+
+        ASSERT_TRUE(c.rename("s/fx", "fy"));
+
+        // Remove original fy.
+        ASSERT_TRUE(c.deleteremote(fy));
+    }
+
+    // Wait for engine to process changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Did we move the original fy into the debris?
+    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnknown)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = std::chrono::seconds(8);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+    
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Populate local tree.
+    Model local;
+
+    local.addfile(".megaignore", "#");
+    local.addfile("fx");
+    local.generate(c.fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = c.setupSync_mainthread("s", "s", false, false);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+    
+    // Make sure initial sync succeeded.
+    ASSERT_TRUE(c.confirmModel_mainthread(local.root.get(), id));
+
+    // Rename fx to fy.
+    ASSERT_TRUE(c.rename("s/fx", "fy"));
+
+    // Add foreign fy.
+    local.addfile("fy");
+    local.generate(c.fsBasePath / "s");
+
+    // Wait for the engine to process the changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Wait for the engine to report a stall.
+    ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
+    // Make sure we stalled for the reason we expect.
+    SyncStallInfo stalls;
+
+    ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
+
+    // Correct number of stalls?
+    ASSERT_EQ(stalls.cloud.size(), 1);
+
+    // Make sure the move hasn't occured on the local filesystem.
+    ASSERT_TRUE(fs::exists(c.fsBasePath / "s" / "fx"));
+}
+
+TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = std::chrono::seconds(8);
+
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Populate local tree.
+    Model local;
+
+    local.addfile(".megaignore", "#");
+    local.addfile("fx");
+    local.addfile("fy");
+    local.generate(c.fsBasePath / "s");
+
+    // Create a file for later use outside of the sync tree.
+    ASSERT_TRUE(createDataFile(c.fsBasePath / "fy", "fy"));
+
+    // Add and start sync.
+    auto id = c.setupSync_mainthread("s", "s", false, false);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Make sure the sync succeeded.
+    ASSERT_TRUE(c.confirmModel_mainthread(local.root.get(), id));
+
+    // Remotely rename fx -> fy.
+    {
+        // Get our hands on the original fy.
+        auto* root = c.gettestbasenode();
+        ASSERT_NE(root, nullptr);
+
+        auto* fy = c.drillchildnodebyname(root, "s/fy");
+        ASSERT_NE(fy, nullptr);
+
+        // Rename fx -> fy.
+        ASSERT_TRUE(c.rename("s/fx", "fy"));
+
+        // Remove original fy.
+        ASSERT_TRUE(c.deleteremote(fy));
+    }
+
+    // Locally move external fy into place.
+    fs::rename(c.fsBasePath / "fy",
+               c.fsBasePath / "s" / "fy");
+
+    // Wait for engine to process changes.
+    waitonsyncs(TIMEOUT, &c);
+
+    // Wait for engine to stall.
+    ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
+    // Retrieve stalls from the engine.
+    SyncStallInfo stalls;
+
+    ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
+
+    // Correct number of stalls?
+    ASSERT_EQ(stalls.cloud.size(), 1);
+
+    // Make sure we haven't moved fx on the local filesystem.
+    ASSERT_TRUE(fs::exists(c.fsBasePath / "s" / "fx"));
+}
+
 #endif
 
