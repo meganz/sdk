@@ -5975,7 +5975,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
     // There should be a single anomaly.
-    ASSERT_EQ(reporter->mAnomalies.size(), 1);
+    ASSERT_EQ(reporter->mAnomalies.size(), 1u);
     {
         auto& anomaly = reporter->mAnomalies.back();
 
@@ -6082,7 +6082,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
     // There should be a single anomaly.
-    ASSERT_EQ(reporter->mAnomalies.size(), 1);
+    ASSERT_EQ(reporter->mAnomalies.size(), 1u);
     {
         auto& anomaly = reporter->mAnomalies.back();
 
@@ -6132,7 +6132,7 @@ TEST_F(SyncTest, AnomalousSyncUpload)
     ASSERT_TRUE(cu.confirmModel_mainthread(model.root.get(), id));
 
     // Two anomalies should've been reported.
-    ASSERT_EQ(reporter->mAnomalies.size(), 2);
+    ASSERT_EQ(reporter->mAnomalies.size(), 2u);
 
     auto anomaly = reporter->mAnomalies.begin();
 
