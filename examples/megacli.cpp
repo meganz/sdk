@@ -2856,6 +2856,8 @@ void exec_setmaxconnections(autocomplete::ACState& s)
 class MegaCLILogger : public ::mega::Logger {
 public:
     ofstream mLogFile;
+    string mLogFileName;
+    bool logToConsole = false;
 
     void log(const char*, int loglevel, const char*, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
@@ -2863,55 +2865,44 @@ public:
 #endif
     ) override
     {
+        using namespace std::chrono;
+        auto et =system_clock::now().time_since_epoch();
+        auto millisec_since_epoch =  duration_cast<milliseconds>(et).count();
+        auto sec_since_epoch = duration_cast<seconds>(et).count();
+        char ts[50];
+        auto t = std::time(NULL);
+        t = (m_time_t) sec_since_epoch;
+        if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
+        {
+            ts[0] = '\0';
+        }
+
+        auto ms = std::to_string(unsigned(millisec_since_epoch - 1000*sec_since_epoch));
+        string s;
+        s.reserve(1024);
+        s += ts;
+        s += "." + string(3 - std::min<size_t>(3, ms.size()), '0') + ms;
+        s += " ";
+        if (message) s += message;
+#ifdef ENABLE_LOG_PERFORMANCE
+        for (unsigned i = 0; i < numberMessages; ++i) s.append(directMessages[i], directMessagesSizes[i]);
+#endif
+
+        if (logToConsole)
+        {
+            std::cout << s << std::endl;
+        }
+
         if (mLogFile.is_open())
         {
-            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": ";
-            if (message) mLogFile << message;
-#ifdef ENABLE_LOG_PERFORMANCE
-            for (unsigned i = 0; i < numberMessages; ++i) mLogFile.write(directMessages[i], directMessagesSizes[i]);
-#endif
-            mLogFile << std::endl;
+            mLogFile << s << std::endl;
         }
-        else
-        {
-#ifdef _WIN32
-            using namespace std::chrono;
-            auto et =system_clock::now().time_since_epoch();
-            auto millisec_since_epoch =  duration_cast<milliseconds>(et).count();
-            auto sec_since_epoch = duration_cast<seconds>(et).count();
-            char ts[50];
-            auto t = std::time(NULL);
-            t = (m_time_t) sec_since_epoch;
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
-            {
-                ts[0] = '\0';
-            }
 
-            auto ms = std::to_string(unsigned(millisec_since_epoch - 1000*sec_since_epoch));
-            string s;
-            s.reserve(1024);
-            s += ts;
-            s += "." + string(3 - std::min<size_t>(3, ms.size()), '0') + ms;
-            s += " ";
-            if (message) s += message;
-#ifdef ENABLE_LOG_PERFORMANCE
-            for (unsigned i = 0; i < numberMessages; ++i) s.append(directMessages[i], directMessagesSizes[i]);
+#ifdef WIN32
+        // Supply the log strings to Visual Studio Output window, regardless of toconsole/file settings
+        s += "\r\n";
+        OutputDebugStringA(s.c_str());
 #endif
-            s += "\r\n";
-            OutputDebugStringA(s.c_str());
-#else
-            if (loglevel >= SimpleLogger::logCurrentLevel)
-            {
-                auto t = std::time(NULL);
-                char ts[50];
-                if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
-                {
-                    ts[0] = '\0';
-                }
-                std::cout << "[" << ts << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
-        }
-#endif
-        }
     }
 };
 
@@ -3326,8 +3317,10 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_locallogout, sequence(text("locallogout")));
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
-    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off"), flag("-verbose"))), opt(localFSFile())));
-    p->Add(exec_verbose, sequence(text("verbose"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_debug, sequence(text("debug"),
+                opt(either(flag("-on"), flag("-off"), flag("-verbose"))),
+                opt(either(flag("-console"), flag("-noconsole"))),
+                opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile())))));
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
@@ -5412,6 +5405,8 @@ void exec_debug(autocomplete::ACState& s)
     if (s.extractflag("-off"))
     {
         SimpleLogger::setLogLevel(logWarning);
+        gLogger.logToConsole = false;
+        gLogger.mLogFile.close();
     }
     if (s.extractflag("-on"))
     {
@@ -5421,41 +5416,42 @@ void exec_debug(autocomplete::ACState& s)
     {
         SimpleLogger::setLogLevel(logMax);
     }
+    if (s.extractflag("-console"))
+    {
+        gLogger.logToConsole = true;
 
-    if (s.words.size() > 1)
+    }
+    if (s.extractflag("-noconsole"))
+    {
+        gLogger.logToConsole = false;
+    }
+    if (s.extractflag("-nofile"))
     {
         gLogger.mLogFile.close();
-        if (!s.words[1].s.empty())
+    }
+    string filename;
+    if (s.extractflagparam("-file", filename))
+    {
+        gLogger.mLogFile.close();
+        if (!filename.empty())
         {
-            gLogger.mLogFile.open(s.words[1].s.c_str());
-            if (!gLogger.mLogFile.is_open())
+            gLogger.mLogFile.open(filename.c_str());
+            if (gLogger.mLogFile.is_open())
             {
-                cout << "Log file open failed: '" << s.words[1].s << "'" << endl;
+                gLogger.mLogFileName = filename;
+
+            }
+            else
+            {
+                cout << "Log file open failed: '" << filename << "'" << endl;
             }
         }
     }
 
-    cout << "Debug mode " << SimpleLogger::logCurrentLevel << endl;
-}
+    cout << "Debug level set to " << SimpleLogger::logCurrentLevel << endl;
+    cout << "Log to console: " << (gLogger.logToConsole ? "on" : "off") << endl;
+    cout << "Log to file: " << (gLogger.mLogFile.is_open() ? gLogger.mLogFileName : "<off>") << endl;
 
-void exec_verbose(autocomplete::ACState& s)
-{
-    bool turnon = s.extractflag("-on");
-    bool turnoff = s.extractflag("-off");
-
-    if (turnon)
-    {
-        gVerboseMode = true;
-    }
-    else if (turnoff)
-    {
-        gVerboseMode = false;
-    }
-    else
-    {
-        gVerboseMode = !gVerboseMode;
-    }
-    cout << "Verbose mode " << (gVerboseMode ? "on" : "off") << endl;
 }
 
 #if defined(WIN32) && defined(NO_READLINE)
@@ -8610,13 +8606,8 @@ int main()
     registerSignalHandlers();
 #endif // NO_READLINE
 
-#ifdef _WIN32
-    SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
+    SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&gLogger);
-#else
-    SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
-    SimpleLogger::setOutputClass(&gLogger);
-#endif
 
     console = new CONSOLE_CLASS;
 

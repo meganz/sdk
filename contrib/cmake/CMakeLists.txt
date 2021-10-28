@@ -604,6 +604,11 @@ ELSE(WIN32)
 
     IF(APPLE)
         SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm)
+
+        # if building all-static megacli for mac, you will need these (uncomment to enable)
+        #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework LDAP")
+        #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "libresolv.dylib")
+
     ENDIF()
 
     IF(USE_DRIVE_NOTIFICATIONS)
