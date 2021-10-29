@@ -14268,7 +14268,8 @@ void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 void MegaApiImpl::notify_dbcommit()
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_COMMIT_DB);
-    event->setText(client->scsn.text());
+    std::string text = "Sdk Db commit scsn: " + std::string(client->scsn.text());
+    event->setText(text.c_str());
     fireOnEvent(event);
 }
 
