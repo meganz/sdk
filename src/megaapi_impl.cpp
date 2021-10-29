@@ -32803,11 +32803,11 @@ MegaEventPrivate::MegaEventPrivate(int type)
 
 MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
 {
-    this->text = NULL;
-
+    this->text = nullptr; // this prevents errors when setText is called when text is initialized
     this->type = event->getType();
     this->setText(event->getText());
     this->setNumber(event->getNumber());
+    this->setHandle(event->getHandle());
 }
 
 MegaEventPrivate::~MegaEventPrivate()
