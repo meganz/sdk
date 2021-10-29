@@ -16527,7 +16527,7 @@ void MegaApiImpl::fireOnReloadNeeded()
 
 void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 {
-    LOG_debug << "Sending EVENT " << event->getType() << " to app: " << event->getText();
+    LOG_debug << "Sending " << event->getEventString() << " to app." << event->getValidDataToString();
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
@@ -32793,20 +32793,17 @@ long long MegaSizeProcessor::getTotalBytes()
     return totalBytes;
 }
 
-MegaEventPrivate::MegaEventPrivate(int type)
+MegaEventPrivate::MegaEventPrivate(int atype)
+    :type(atype)
 {
-    this->type = type;
-    this->text = NULL;
-    this->number = 0;
 }
 
 MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
 {
-    this->text = NULL;
-
     this->type = event->getType();
     this->setText(event->getText());
     this->setNumber(event->getNumber());
+    this->setHandle(event->getHandle());
 }
 
 MegaEventPrivate::~MegaEventPrivate()
@@ -32874,9 +32871,33 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_BUSINESS_STATUS: return "BUSINESS_STATUS";
         case MegaEvent::EVENT_KEY_MODIFIED: return "KEY_MODIFIED";
         case MegaEvent::EVENT_MISC_FLAGS_READY: return "MISC_FLAGS_READY";
+#ifdef ENABLE_SYNC
+        case MegaEvent::EVENT_SYNCS_DISABLED: return "SYNCS_DISABLED";
+        case MegaEvent::EVENT_SYNCS_RESTORED: return "SYNCS_RESTORED";
+#endif
     }
 
     return "UNKNOWN";
+}
+
+std::string MegaEventPrivate::getValidDataToString() const
+{
+    std::string msg;
+    if (getText())
+    {
+        msg.append(" text: ").append(getText());
+    }
+
+    if (getNumber() >= 0)
+    {
+        msg.append(" number: ").append(std::to_string(getNumber()));
+    }
+
+    if (getHandle() != INVALID_HANDLE)
+    {
+        msg.append(" handle: ").append(Base64Str<sizeof(MegaHandle)>(getHandle()));
+    }
+    return msg;
 }
 
 void MegaEventPrivate::setHandle(const MegaHandle &handle)
