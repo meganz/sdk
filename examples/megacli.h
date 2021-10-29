@@ -208,6 +208,8 @@ struct DemoApp : public MegaApp
     void sync_auto_resume_result(const SyncConfig&, bool attempted, bool hadAnError) override;
     void sync_removed(const SyncConfig& config) override;
 
+    void syncs_restored(SyncError syncError) override;
+
     void syncupdate_syncing(bool) override;
     void syncupdate_scanning(bool) override;
     void syncupdate_stalled(bool stalled) override;

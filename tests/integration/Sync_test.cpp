@@ -1235,10 +1235,14 @@ struct StandardClient : public MegaApp
     }
 
     bool received_syncs_restored = false;
-    void syncs_restored() override
+    void syncs_restored(SyncError syncError) override
     {
         lock_guard<mutex> g(om);
-        out() << clientname << "sync restore complete";
+
+        out() << clientname
+              << "sync restore complete: "
+              << SyncConfig::syncErrorToStr(syncError);
+
         received_syncs_restored = true;
     }
 

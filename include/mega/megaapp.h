@@ -298,7 +298,7 @@ struct MEGA_API MegaApp
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
 
     // after all (enabled) syncs have been restored on startup
-    virtual void syncs_restored() { }
+    virtual void syncs_restored(SyncError) { }
 
     // after all syncs have been disabled, eg due to overquota
     virtual void syncs_disabled(SyncError) { }

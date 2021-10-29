@@ -13096,10 +13096,11 @@ void MegaApiImpl::syncupdate_remote_root_changed(const SyncConfig &config)
     }
 }
 
-void MegaApiImpl::syncs_restored()
+void MegaApiImpl::syncs_restored(SyncError syncError)
 {
     mCachedMegaSyncPrivate.reset();
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNCS_RESTORED);
+    event->setNumber(syncError);
     fireOnEvent(event);
 }
 

@@ -444,7 +444,8 @@ enum SyncError {
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
     COULD_NOT_MOVE_CLOUD_NODES = 32,        // rename() failed
-    COULD_NOT_CREATE_IGNORE_FILE = 33       // Couldn't create a sync's initial ignore file.
+    COULD_NOT_CREATE_IGNORE_FILE = 33,      // Couldn't create a sync's initial ignore file.
+    SYNC_CONFIG_READ_FAILURE = 34           // Couldn't read sync configs from disk.
 };
 
 enum SyncWarning {

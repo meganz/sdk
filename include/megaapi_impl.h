@@ -3158,7 +3158,7 @@ protected:
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
 
         // this will call will fire EVENT_SYNCS_RESTORED
-        virtual void syncs_restored() override;
+        virtual void syncs_restored(SyncError syncError) override;
 
         // this will call will fire EVENT_SYNCS_DISABLED
         virtual void syncs_disabled(SyncError syncError) override;

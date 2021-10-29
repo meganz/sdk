@@ -463,6 +463,15 @@ void DemoApp::sync_removed(const SyncConfig& config)
 
 }
 
+void DemoApp::syncs_restored(SyncError syncError)
+{
+    conlock(cout) << "Sync - restoration "
+                  << (syncError != NO_SYNC_ERROR ? "failed" : "completed")
+                  << ": "
+                  << SyncConfig::syncErrorToStr(syncError)
+                  << endl;
+}
+
 void DemoApp::syncupdate_scanning(bool active)
 {
     if (active)
