@@ -32875,6 +32875,10 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_BUSINESS_STATUS: return "BUSINESS_STATUS";
         case MegaEvent::EVENT_KEY_MODIFIED: return "KEY_MODIFIED";
         case MegaEvent::EVENT_MISC_FLAGS_READY: return "MISC_FLAGS_READY";
+#ifdef ENABLE_SYNC
+        case MegaEvent::EVENT_SYNCS_DISABLED: return "SYNCS_DISABLED";
+        case MegaEvent::EVENT_SYNCS_RESTORED: return "SYNCS_RESTORED";
+#endif
     }
 
     return "UNKNOWN";
