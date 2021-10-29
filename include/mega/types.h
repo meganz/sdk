@@ -445,7 +445,8 @@ enum SyncError {
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
     COULD_NOT_MOVE_CLOUD_NODES = 32,        // rename() failed
     COULD_NOT_CREATE_IGNORE_FILE = 33,      // Couldn't create a sync's initial ignore file.
-    SYNC_CONFIG_READ_FAILURE = 34           // Couldn't read sync configs from disk.
+    SYNC_CONFIG_READ_FAILURE = 34,          // Couldn't read sync configs from disk.
+    UNKNOWN_DRIVE_PATH = 35                 // Sync's drive path isn't known.
 };
 
 enum SyncWarning {

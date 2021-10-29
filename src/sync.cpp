@@ -671,6 +671,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Unable to create initial ignore file.";
     case SYNC_CONFIG_READ_FAILURE:
         return "Unable to read sync configs from disk.";
+    case UNKNOWN_DRIVE_PATH:
+        return "Unknown drive path.";
     default:
         return "Undefined error";
     }
@@ -3880,39 +3882,53 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
     }
 
-    if (c.isExternal())
+    // Get our hands on the sync config store.
+    auto* store = syncConfigStore();
+
+    // Can we get our hands on the config store?
+    if (!store)
     {
-        auto* store = syncConfigStore();
+        LOG_err << "Unable to add backup "
+            << c.mLocalPath.toPath()
+            << " on "
+            << c.mExternalDrivePath.toPath()
+            << " as there is no config store.";
 
-        // Can we get our hands on the config store?
-        if (!store)
+        if (completion)
+            completion(API_EINTERNAL, c.mError, c.mBackupId);
+
+        return;
+    }
+
+    // Do we already know about this drive?
+    if (!store->driveKnown(c.mExternalDrivePath))
+    {
+        // Are we adding an internal sync?
+        if (c.isInternal())
         {
-            LOG_err << "Unable to add backup "
-                << c.mLocalPath.toPath()
-                << " on "
-                << c.mExternalDrivePath.toPath()
-                << " as there is no config store.";
+            // Then signal failure as the internal drive isn't available.
+            if (completion)
+                completion(API_EFAILED, UNKNOWN_DRIVE_PATH, c.mBackupId);
 
-            if (completion) completion(API_EINTERNAL, c.mError, c.mBackupId);
+            return;
         }
 
-        // Do we already know about this drive?
-        if (!store->driveKnown(c.mExternalDrivePath))
-        {
-            // Restore the drive's backups, if any.
-            auto result = backupOpenDrive(c.mExternalDrivePath);
+        // Restore the drive's backups, if any.
+        auto result = backupOpenDrive(c.mExternalDrivePath);
 
-            if (result != API_OK && result != API_ENOENT)
-            {
-                // Couldn't read an existing database.
-                LOG_err << "Unable to add backup "
+        if (result != API_OK && result != API_ENOENT)
+        {
+            // Couldn't read an existing database.
+            LOG_err << "Unable to add backup "
                     << c.mLocalPath.toPath()
                     << " on "
                     << c.mExternalDrivePath.toPath()
                     << " as we could not read its config database.";
 
-                if (completion) completion(API_EFAILED, c.mError, c.mBackupId);
-            }
+            if (completion)
+                completion(API_EFAILED, c.mError, c.mBackupId);
+
+            return;
         }
     }
 
