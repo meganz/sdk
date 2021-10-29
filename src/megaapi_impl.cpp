@@ -32798,6 +32798,7 @@ MegaEventPrivate::MegaEventPrivate(int type)
     this->type = type;
     this->text = NULL;
     this->number = -1;
+    this->mHandle = INVALID_HANDLE;
 }
 
 MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
