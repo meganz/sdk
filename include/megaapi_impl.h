@@ -1253,6 +1253,7 @@ public:
     MegaHandle getHandle() const override;
     const char *getEventString() const override;
 
+    std::string *getValidDataToString() const override;
     static const char* getEventString(int type);
 
     void setText(const char* text);

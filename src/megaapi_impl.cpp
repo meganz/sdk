@@ -16527,7 +16527,8 @@ void MegaApiImpl::fireOnReloadNeeded()
 
 void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 {
-    LOG_debug << "Sending EVENT " << event->getType() << " to app: " << event->getText();
+    unique_ptr<std::string> msg = mega::make_unique<std::string>(*event->getValidDataToString());
+    LOG_debug << "Sending " << event->getEventString() << " to app, " << *msg;
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
@@ -32882,6 +32883,28 @@ const char *MegaEventPrivate::getEventString(int type)
     }
 
     return "UNKNOWN";
+}
+
+std::string *MegaEventPrivate::getValidDataToString() const
+{
+    std::string *msg = new std::string();
+    if (getText())
+    {
+        msg->append("associated event data, text: ").append(getText());
+    }
+    else if (getNumber() >= 0)
+    {
+        msg->append("associated event data, number: ").append(std::to_string(getNumber()));
+    }
+    else if (getHandle() != INVALID_HANDLE)
+    {
+        msg->append("associated event data, handle: ").append(std::to_string(getHandle()));
+    }
+    else
+    {
+        msg->append("no valid data associated to the event");
+    }
+    return msg;
 }
 
 void MegaEventPrivate::setHandle(const MegaHandle &handle)

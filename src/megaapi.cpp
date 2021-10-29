@@ -6638,6 +6638,11 @@ const char *MegaEvent::getEventString() const
     return NULL;
 }
 
+std::string *MegaEvent::getValidDataToString() const
+{
+    return NULL;
+}
+
 MegaHandleList *MegaHandleList::createInstance()
 {
     return new MegaHandleListPrivate();
