@@ -1055,6 +1055,9 @@ configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
 # actual apps
 
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
+if (APPLE)
+    add_executable(megacli_fsloader ${MegaDir}/examples/fsevents_loader_megacli_maconly.cpp)
+endif()
 target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
     target_link_libraries(megacli ${readline_LIBRARIES})
@@ -1067,6 +1070,7 @@ endif()
 if(WIN32)
 add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
 target_link_libraries(testmega Mega )
+
 endif(WIN32)
 
 #enable_testing()

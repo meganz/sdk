@@ -8605,7 +8605,9 @@ static void registerSignalHandlers()
 
 #endif // ! NO_READLINE
 
-int main()
+int gFseventsFd = -1;
+
+int main(int argc, char* argv[])
 {
 #if defined(_WIN32) && defined(_DEBUG)
     _CrtSetBreakAlloc(124);  // set this to an allocation number to hunt leaks.  Prior to 124 and prior are from globals/statics so won't be detected by this
@@ -8614,6 +8616,27 @@ int main()
 #ifndef NO_READLINE
     registerSignalHandlers();
 #endif // NO_READLINE
+
+
+
+    std::vector<char*> myargv1(argv, argv + argc);
+
+    for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
+    {   
+#ifdef __APPLE__
+        if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
+        {   
+            int fseventsFd = std::stoi(std::string(*it).substr(13));
+            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
+                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
+                return 1;
+            }
+            
+            gFseventsFd = fseventsFd;
+            std::cout << "Using filesystem events notification handle passed from loader: " << gFseventsFd << std::endl;
+        }
+#endif  
+    }
 
     SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&gLogger);
@@ -8628,7 +8651,11 @@ int main()
 #endif
 
     // Needed so we can get the cwd.
+#ifdef __APPLE__
+    auto fsAccess = new FSACCESS_CLASS(gFseventsFd);
+#else
     auto fsAccess = new FSACCESS_CLASS();
+#endif
 
     // Where are we?
     if (!fsAccess->cwd(*startDir))

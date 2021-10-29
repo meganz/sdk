@@ -2842,9 +2842,9 @@ void UnifiedSync::changedConfigState(bool notifyApp)
     }
 }
 
-Syncs::Syncs(MegaClient& mc)
+Syncs::Syncs(MegaClient& mc, FileSystemAccess* notification_fsa)
   : mClient(mc)
-  , fsaccess(new FSACCESS_CLASS)
+  , fsaccess(notification_fsa)
   , mSyncFlags(new SyncFlags)
   , mScanService(new ScanService(waiter))
 {
