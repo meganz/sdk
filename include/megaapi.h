@@ -3999,15 +3999,6 @@ public:
      * @return Readable description of the event
      */
     virtual const char* getEventString() const;
-
-    /**
-     * @brief Returns valid data associated to the event in a string pointer
-     *
-     * This function returns a pointer to a std::string dinamically allocated.
-     * You take the ownership of the returned value.
-     *
-     * @return Valid data associated to the event in a string pointer*/
-    virtual std::string* getValidDataToString() const;
 };
 
 /**

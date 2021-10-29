@@ -14268,8 +14268,7 @@ void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 void MegaApiImpl::notify_dbcommit()
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_COMMIT_DB);
-    std::string text = "Sdk Db commit scsn: " + std::string(client->scsn.text());
-    event->setText(text.c_str());
+    event->setText(client->scsn.text());
     fireOnEvent(event);
 }
 
@@ -16528,8 +16527,7 @@ void MegaApiImpl::fireOnReloadNeeded()
 
 void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 {
-    unique_ptr<std::string> msg = mega::make_unique<std::string>(*event->getValidDataToString());
-    LOG_debug << "Sending " << event->getEventString() << " to app, " << *msg;
+    LOG_debug << "Sending " << event->getEventString() << " to app." << event->getValidDataToString();
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
@@ -32795,17 +32793,13 @@ long long MegaSizeProcessor::getTotalBytes()
     return totalBytes;
 }
 
-MegaEventPrivate::MegaEventPrivate(int type)
+MegaEventPrivate::MegaEventPrivate(int atype)
+    :type(atype)
 {
-    this->type = type;
-    this->text = NULL;
-    this->number = -1;
-    this->mHandle = INVALID_HANDLE;
 }
 
 MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
 {
-    this->text = nullptr; // this prevents errors when setText is called when text is initialized
     this->type = event->getType();
     this->setText(event->getText());
     this->setNumber(event->getNumber());
@@ -32886,24 +32880,22 @@ const char *MegaEventPrivate::getEventString(int type)
     return "UNKNOWN";
 }
 
-std::string *MegaEventPrivate::getValidDataToString() const
+std::string MegaEventPrivate::getValidDataToString() const
 {
-    std::string *msg = new std::string();
+    std::string msg;
     if (getText())
     {
-        msg->append("associated event data, text: ").append(getText());
+        msg.append(" text: ").append(getText());
     }
-    else if (getNumber() >= 0)
+
+    if (getNumber() >= 0)
     {
-        msg->append("associated event data, number: ").append(std::to_string(getNumber()));
+        msg.append(" number: ").append(std::to_string(getNumber()));
     }
-    else if (getHandle() != INVALID_HANDLE)
+
+    if (getHandle() != INVALID_HANDLE)
     {
-        msg->append("associated event data, handle: ").append(std::to_string(getHandle()));
-    }
-    else
-    {
-        msg->append("no valid data associated to the event");
+        msg.append(" handle: ").append(Base64Str<sizeof(MegaHandle)>(getHandle()));
     }
     return msg;
 }
