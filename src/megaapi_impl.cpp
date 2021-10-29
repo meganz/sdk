@@ -32797,7 +32797,7 @@ MegaEventPrivate::MegaEventPrivate(int type)
 {
     this->type = type;
     this->text = NULL;
-    this->number = 0;
+    this->number = -1;
 }
 
 MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
