@@ -143,7 +143,7 @@
 
 #define USE_IOS 1
 
-#define HAVE_LIBUV 1
+//#define HAVE_LIBUV 0
 
 #define ENABLE_CHAT 1
 

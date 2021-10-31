@@ -229,6 +229,30 @@ using namespace mega;
     return self.megaNode ? self.megaNode->hasPreview() : NO;
 }
 
+- (NSString *)thumbnailAttributeHandle {
+    if (!self.megaNode) return nil;
+    
+    const char *val = self.megaNode->getBase64ThumbnailAttributeHandle();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
+- (NSString *)previewAttributeHandle {
+    if (!self.megaNode) return nil;
+    
+    const char *val = self.megaNode->getBase64PreviewAttributeHandle();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
 - (BOOL)isPublic {
     return self.megaNode ? self.megaNode->isPublic() : NO;
 }
@@ -302,6 +326,31 @@ using namespace mega;
     }
     
     return result;
+}
+
+
+- (NSString *)customTitle {
+    if(!self.megaNode) return nil;
+    
+    return self.megaNode->getCustomAttr("title") ? [[NSString alloc] initWithUTF8String:self.megaNode->getCustomAttr("title")] : nil;
+}
+
+- (NSString *)customArtist {
+    if(!self.megaNode) return nil;
+    
+    return self.megaNode->getCustomAttr("artist") ? [[NSString alloc] initWithUTF8String:self.megaNode->getCustomAttr("artist")] : nil;
+}
+
+- (NSString *)customBPM {
+    if(!self.megaNode) return nil;
+    
+    return self.megaNode->getCustomAttr("BPM") ? [[NSString alloc] initWithUTF8String:self.megaNode->getCustomAttr("BPM")] : nil;
+}
+
+- (NSString *)customNotes {
+    if(!self.megaNode) return nil;
+    
+    return self.megaNode->getCustomAttr("notes") ? [[NSString alloc] initWithUTF8String:self.megaNode->getCustomAttr("notes")] : nil;
 }
 
 @end

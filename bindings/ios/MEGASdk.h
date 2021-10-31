@@ -1181,6 +1181,9 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (void)fastLoginWithSession:(NSString *)session delegate:(id<MEGARequestDelegate>)delegate;
 
+- (void)fastLoginWithSessionOffline:(NSString *)session delegate:(id<MEGARequestDelegate>)delegate;
+
+
 /**
  * @brief Log in to a MEGA account using a session key.
  *
@@ -1207,6 +1210,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate Delegate to track this request.
  */
 - (void)loginToFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate;
+- (void)loginToFolderLinkAuthed:(NSString *)folderLink folderAuth:(NSString *)folderAuth offline:(BOOL)offline delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Log in to a public folder using a folder link.
@@ -1273,7 +1277,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * @return Current session key.
  */
-- (nullable NSString *)dumpSession;
+- (nullable NSString *)dumpSession:(BOOL)offline;
 
 /**
  * @brief Returns the current sequence number
@@ -3616,6 +3620,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate Delegate to track this request.
  */
 - (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+- (void)exportNodeWritable:(MEGANode *)node writable:(BOOL)writable delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Generate a public link of a file/folder in MEGA.
@@ -3896,6 +3901,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate Delegate to track this request.
  */
 - (void)setPreviewNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
+
+
+- (void)setPreviewByHandle:(MEGANode *)node sourceNode:(MEGANode *)sourceNode delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setThumbnailByHandle:(MEGANode *)node sourceNode:(MEGANode *)sourceNode delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set the preview of a MEGANode.
@@ -4414,6 +4423,8 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param value New attribute value
  */
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value;
+
+- (void)setCustomNodeAttribute:(MEGANode *)node name:(NSString *)attrName value:(NSString *)attrValue delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Gets the alias for an user
@@ -6060,6 +6071,8 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  */
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
+
+- (BOOL)platformSetRLimitNumFile:(NSInteger)newNumFileLimit;
 
 /**
  * @brief Upload a file or a folder, putting the transfer on top of the upload queue
@@ -7994,7 +8007,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (BOOL)createAvatar:(NSString *)imagePath destinationPath:(NSString *)destinationPath;
 
-#ifdef HAVE_LIBUV
+#if 0 //def HAVE_LIBUV
 
 #pragma mark - HTTP Proxy Server
 

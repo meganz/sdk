@@ -18,6 +18,7 @@ libuv/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:off
 # mediainfo, customized with constrained functionality (determine media properties such as track length, codec, etc)
 libmediainfo/19.09
 libzen/0.4.37
+taglib/c303dd024e2dc03a0665ddffbb12a1077933e649
 
 # ffmpeg (video preview/thumbnail generation)
 ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on ios:off
@@ -46,7 +47,7 @@ opengl/c303dd024e2dc03a0665ddffbb12a1077933e649
 #pdfium-freetype/2-8-73
 
 # dependencies of pdfium
-icu/c303dd024e2dc03a0665ddffbb12a1077933e649
+#icu/c303dd024e2dc03a0665ddffbb12a1077933e649
 lcms/c303dd024e2dc03a0665ddffbb12a1077933e649
 libjpeg-turbo/c303dd024e2dc03a0665ddffbb12a1077933e649
 openjpeg/c303dd024e2dc03a0665ddffbb12a1077933e649
@@ -57,7 +58,7 @@ libpng/c303dd024e2dc03a0665ddffbb12a1077933e649
 #libwebsockets/2.4.2
 
 # tests and tools
-asio/c303dd024e2dc03a0665ddffbb12a1077933e649
+#asio/c303dd024e2dc03a0665ddffbb12a1077933e649
 gtest/c303dd024e2dc03a0665ddffbb12a1077933e649
 
 # previously listed - possibly for mega chat,sync,cmd.  Re-add with comment if the SDK alone needs them

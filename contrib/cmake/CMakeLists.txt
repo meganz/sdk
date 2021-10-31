@@ -1,3 +1,10 @@
+# commands for building for iOS:
+# mkdir build-cmake-iosArm64
+# cd build-cmake-iosArm64
+# /Applications/CMake.app/Contents/bin/cmake -GXcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_Swift_COMPILER_TARGET=arm64-apple-ios7.0.0 -DCMAKE_OSX_SYSROOT=iphoneos -DVCPKG_TRIPLET=arm64-ios-mega -DMega3rdPartyDir=/Users/matt/repos/3rdParty_inplace -DUSE_THIRDPARTY_FROM_VCPKG=ON ..
+# /Applications/CMake.app/Contents/bin/cmake --build . --config Release
+
+
 # This file enables building with cmake
 #
 # use cases
@@ -124,6 +131,7 @@ endif()
 if(APPLE)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
+#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" )
 endif()
 
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")
@@ -362,15 +370,15 @@ function(ImportHeaderLibrary libName includeDir)
     set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
 endfunction(ImportHeaderLibrary)
 
-if(NOT NO_READLINE)
-    if (APPLE)
-        ImportStdVcpkgLibrary(readline _ _ libreadline libreadline)
-        ImportStdVcpkgLibrary(history _ _ libhistory libhistory)
-        set(readline_LIBRARIES readline history)
-    else()
-        set(readline_LIBRARIES readline)
-    endif()
-endif()
+#if(NOT NO_READLINE)
+#    if (APPLE AND NOT IOS)
+#        ImportStdVcpkgLibrary(readline _ _ libreadline libreadline)
+#        ImportStdVcpkgLibrary(history _ _ libhistory libhistory)
+#        set(readline_LIBRARIES readline history)
+#    else()
+#        set(readline_LIBRARIES readline)
+#    endif()
+#endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_CRYPTOPP)
@@ -471,6 +479,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_half        half-2_5_d       half-2_5       libHalf-2_5_d       libHalf-2_5        )
             ImportStdVcpkgLibrary(freeimage_lzma        lzmad            lzma           liblzmad            liblzma            )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
+#            ImportStdVcpkgLibrary(freeimage_tiffxx      tiffxxd          tiffxx         libtiffxxd          libtiffxx          )
             ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
             ImportStdVcpkgLibrary(freeimage_webpdecoder webpdecoderd     webpdecoder    libwebpdecoderd     libwebpdecoder     )
             ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
@@ -502,6 +511,15 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 ImportStdVcpkgLibrary(freeimage_tiffxx        tiffxxd            tiffxx           libtiffxxd            libtiffxx            )
                 target_link_libraries(freeimage INTERFACE freeimage_tiffxx)
             endif()
+=======
+            set (freeimage_deps freeimage_Iex  freeimage_IlmImf freeimage_IlmImfUtil
+                freeimage_IlmThread freeimage_jpeg freeimage_openjp2
+                freeimage_half freeimage_libpng freeimage_lcms2 freeimage_raw freeimage_tiff
+#                freeimage_tiffxx 
+freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux
+                freeimage_jpeg freeimage_Imath freeimage_lzma
+                freeimage_jasper freeimage_turbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
+>>>>>>> songs-plus-plus
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
@@ -1045,20 +1063,20 @@ configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
 
 # actual apps
 
-add_executable(megacli ${MegaDir}/examples/megacli.cpp)
-target_link_libraries(megacli Mega )
-if (NOT NO_READLINE)
-    target_link_libraries(megacli ${readline_LIBRARIES})
-endif (NOT NO_READLINE)
+#add_executable(megacli ${MegaDir}/examples/megacli.cpp)
+#target_link_libraries(megacli Mega )
+#if (NOT NO_READLINE)
+#    target_link_libraries(megacli ${readline_LIBRARIES})
+#endif (NOT NO_READLINE)
 
 add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)
 target_link_libraries(megasimplesync Mega )
 endif()
 
-if(WIN32)
-add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
-target_link_libraries(testmega Mega )
-endif(WIN32)
+#if(WIN32)
+#add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
+#target_link_libraries(testmega Mega )
+#endif(WIN32)
 
 #enable_testing()
 #add_test(NAME SdkTestStreaming COMMAND test_sdk "--gtest_filter=\"*Streaming*\"")

@@ -557,6 +557,17 @@ bool MegaNode::hasPreview()
     return false;
 }
 
+char* MegaNode::getBase64ThumbnailAttributeHandle()
+{
+    return NULL;
+}
+
+char* MegaNode::getBase64PreviewAttributeHandle()
+{
+    return NULL;
+}
+
+
 bool MegaNode::isPublic()
 {
     return false;
@@ -2110,6 +2121,11 @@ void MegaApi::fastLogin(const char *session, MegaRequestListener *listener)
     pImpl->fastLogin(session, listener);
 }
 
+void MegaApi::fastLoginOffline(const char *session, MegaRequestListener *listener)
+{
+    pImpl->fastLogin(session, true, listener);
+}
+
 void MegaApi::killSession(MegaHandle sessionHandle, MegaRequestListener *listener)
 {
     pImpl->killSession(sessionHandle, listener);
@@ -2165,9 +2181,9 @@ void MegaApi::login(const char *login, const char *password, MegaRequestListener
     pImpl->login(login, password, listener);
 }
 
-char *MegaApi::dumpSession()
+char *MegaApi::dumpSession(bool forOffline)
 {
-    return pImpl->dumpSession();
+    return pImpl->dumpSession(forOffline);
 }
 
 char *MegaApi::getSequenceNumber()
@@ -2380,14 +2396,14 @@ void MegaApi::share(MegaNode *node, const char* email, int access, MegaRequestLi
     pImpl->share(node, email, access, listener);
 }
 
-void MegaApi::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
+void MegaApi::loginToFolder(const char* megaFolderLink, const char* authKey, bool offline, MegaRequestListener *listener)
 {
-    pImpl->loginToFolder(megaFolderLink, authKey, listener);
+    pImpl->loginToFolder(megaFolderLink, authKey, offline, listener);
 }
 
 void MegaApi::loginToFolder(const char* megaFolderLink, MegaRequestListener *listener)
 {
-    pImpl->loginToFolder(megaFolderLink, nullptr, listener);
+    pImpl->loginToFolder(megaFolderLink, nullptr, false, listener);
 }
 
 void MegaApi::importFileLink(const char* megaFileLink, MegaNode *parent, MegaRequestListener *listener)
@@ -2444,6 +2460,10 @@ void MegaApi::setThumbnailByHandle(MegaNode* node, MegaHandle fileattribute, Meg
 {
     pImpl->setThumbnailByHandle(node, fileattribute, listener);
 }
+void MegaApi::setThumbnailByHandle(MegaNode* node, MegaNode* fileattributeNode, MegaRequestListener *listener)
+{
+    pImpl->setThumbnailByHandle(node, fileattributeNode, listener);
+}
 
 void MegaApi::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
@@ -2468,6 +2488,10 @@ void MegaApi::putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath,
 void MegaApi::setPreviewByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener)
 {
     pImpl->setPreviewByHandle(node, fileattribute, listener);
+}
+void MegaApi::setPreviewByHandle(MegaNode* node, MegaNode* fileattributeNode, MegaRequestListener *listener)
+{
+    pImpl->setPreviewByHandle(node, fileattributeNode, listener);
 }
 
 void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)

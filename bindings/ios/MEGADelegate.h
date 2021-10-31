@@ -161,7 +161,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param api MEGASdk object connected to the account.
  * @param nodeList List that contains the new or updated nodes.
  */
-- (void)onNodesUpdate:(MEGASdk *)api nodeList:(MEGANodeList *)nodeList;
+- (void)onNodesUpdate:(MEGASdk *)api nodeList:(MEGANodeList * _Nullable)nodeList;
 
 /**
  * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)

@@ -298,6 +298,8 @@ public:
     textchat_map chats;
 #endif
 
+    bool offlineMode = false;
+
     // process API requests and HTTP I/O
     void exec();
 
@@ -352,7 +354,7 @@ public:
     void fastlogin(const char*, const byte*, uint64_t);
 
     // session login: binary session, bytecount
-    void login(string session);
+    void loginSession(string session, bool offline);
 
     // check password
     error validatepwd(const byte *);
@@ -382,7 +384,7 @@ public:
     void unblock();
 
     // dump current session
-    int dumpsession(string&);
+    int dumpsession(string&, bool forOfflineResume);
 
     // create a copy of the current session. EACCESS for not fully confirmed accounts
     error copysession();
@@ -408,7 +410,7 @@ public:
     void checkForResumeableSCDatabase();
 
     // set folder link: node, key. authKey is the authentication key to be able to write into the folder
-    error folderaccess(const char*folderlink, const char* authKey);
+    error folderaccess(const char*folderlink, const char* authKey, bool offline);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
     void openfilelink(handle ph, const byte *key);
@@ -549,6 +551,7 @@ public:
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
+    static error getfaHandle(handle& fah, int& c, string *fileattrstring, fatype);
 
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(UploadHandle, Transfer* = NULL);

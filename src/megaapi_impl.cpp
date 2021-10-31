@@ -1625,6 +1625,22 @@ bool MegaNodePrivate::hasPreview()
     return previewAvailable;
 }
 
+char* MegaNodePrivate::getBase64ThumbnailAttributeHandle()
+{
+    handle fah = UNDEF;
+    int c;
+    MegaClient::getfaHandle(fah, c, &fileattrstring, GfxProc::THUMBNAIL);
+    return MegaApi::strdup(Base64Str<sizeof(handle)>(fah));
+}
+
+char* MegaNodePrivate::getBase64PreviewAttributeHandle()
+{
+    handle fah = UNDEF;
+    int c;
+    MegaClient::getfaHandle(fah, c, &fileattrstring, GfxProc::PREVIEW);
+    return MegaApi::strdup(Base64Str<sizeof(handle)>(fah));
+}
+
 bool MegaNodePrivate::isPublic()
 {
     return isPublicNode;
@@ -5305,7 +5321,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     activeUsers = NULL;
     syncLowerSizeLimit = 0;
     syncUpperSizeLimit = 0;
-
+#undef HAVE_LIBUV
 #ifdef HAVE_LIBUV
     httpServer = NULL;
     httpServerMaxBufferSize = 0;
@@ -6053,6 +6069,7 @@ void MegaApiImpl::multiFactorAuthLogin(const char *email, const char *password, 
     request->setEmail(email);
     request->setPassword(password);
     request->setText(pin);
+    request->setFlag(false);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6097,6 +6114,7 @@ void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const cha
     request->setEmail(email);
     request->setPassword(stringHash);
     request->setPrivateKey(base64pwkey);
+    request->setFlag(false);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6105,6 +6123,16 @@ void MegaApiImpl::fastLogin(const char *session, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setSessionKey(session);
+    request->setFlag(false);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fastLogin(const char *session, bool offline, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    request->setSessionKey(session);
+    request->setFlag(offline);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6170,15 +6198,16 @@ void MegaApiImpl::login(const char *login, const char *password, MegaRequestList
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setEmail(login);
     request->setPassword(password);
+    request->setFlag(false);
     requestQueue.push(request);
     waiter->notify();
 }
 
-char *MegaApiImpl::dumpSession()
+char *MegaApiImpl::dumpSession(bool forOfflineResume)
 {
     SdkMutexGuard g(sdkMutex);
     string session;
-    if (client->dumpsession(session))
+    if (client->dumpsession(session, forOfflineResume))
     {
         return MegaApi::strdup(Base64::btoa(session).c_str());
     }
@@ -6657,11 +6686,12 @@ void MegaApiImpl::share(MegaNode *node, const char* email, int access, MegaReque
     waiter->notify();
 }
 
-void MegaApiImpl::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
+void MegaApiImpl::loginToFolder(const char* megaFolderLink, const char* authKey, bool offline, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setLink(megaFolderLink);
     request->setPassword(authKey);
+    request->setFlag(offline);
     request->setEmail("FOLDER");
     requestQueue.push(request);
     waiter->notify();
@@ -6743,6 +6773,20 @@ void MegaApiImpl::setThumbnailByHandle(MegaNode* node, MegaHandle attributehandl
 {
     setNodeAttribute(node, GfxProc::THUMBNAIL, nullptr, attributehandle, listener);
 }
+void MegaApiImpl::setThumbnailByHandle(MegaNode* node, MegaNode* attributehandleNode, MegaRequestListener *listener)
+{
+    handle attributehandle = UNDEF;
+    int c;
+    {
+        SdkMutexGuard g(sdkMutex);
+        Node *n = client->nodebyhandle(attributehandleNode->getHandle());
+        if (n && API_OK != client->getfaHandle(attributehandle, c, &n->fileattrstring, GfxProc::THUMBNAIL))
+        {
+            attributehandle = UNDEF;
+        }
+    }
+    setNodeAttribute(node, GfxProc::THUMBNAIL, nullptr, attributehandle, listener);
+}
 
 void MegaApiImpl::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
@@ -6766,6 +6810,21 @@ void MegaApiImpl::putPreview(MegaBackgroundMediaUpload* bu, const char *srcFileP
 
 void MegaApiImpl::setPreviewByHandle(MegaNode* node, MegaHandle attributehandle, MegaRequestListener *listener)
 {
+    setNodeAttribute(node, GfxProc::PREVIEW, nullptr, attributehandle, listener);
+}
+
+void MegaApiImpl::setPreviewByHandle(MegaNode* node, MegaNode* attributehandleNode, MegaRequestListener *listener)
+{
+    handle attributehandle = UNDEF;
+    int c;
+    {
+        SdkMutexGuard g(sdkMutex);
+        Node *n = client->nodebyhandle(attributehandleNode->getHandle());
+        if (n && API_OK != client->getfaHandle(attributehandle, c, &n->fileattrstring, GfxProc::PREVIEW))
+        {
+            attributehandle = UNDEF;
+        }
+    }
     setNodeAttribute(node, GfxProc::PREVIEW, nullptr, attributehandle, listener);
 }
 
@@ -18811,7 +18870,8 @@ void MegaApiImpl::sendPendingRequests()
             const char* megaFolderLink = request->getLink();
             const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
-
+            bool offline = request->getFlag();
+            
             if (!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
             {
                 e = API_EARGS;
@@ -18835,7 +18895,8 @@ void MegaApiImpl::sendPendingRequests()
             client->locallogout(false, true);
             if (sessionKey)
             {
-                client->login(Base64::atob(string(sessionKey)));
+                string session = Base64::atob(string(sessionKey));
+                client->loginSession(Base64::atob(string(sessionKey)), offline);
             }
             else if (login && (base64pwkey || password) && !megaFolderLink)
             {
@@ -18843,7 +18904,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = client->folderaccess(megaFolderLink, password);
+                e = client->folderaccess(megaFolderLink, password, offline);
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

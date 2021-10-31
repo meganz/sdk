@@ -789,6 +789,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				Base,
 			);
 			mainGroup = 9472043A19ED916F00F6805F;
 			productRefGroup = 9472044419ED916F00F6805F /* Products */;
@@ -954,6 +955,12 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				HEADER_SEARCH_PATHS = (
+					/Users/matt/repos/sdk/include/,
+					/Users/matt/repos/sdk/include/mega/,
+					"/Users/matt/repos/3rdParty_inplace/vcpkg/installed/arm64-ios-mega/include/",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -1001,6 +1008,12 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				HEADER_SEARCH_PATHS = (
+					/Users/matt/repos/sdk/include/,
+					/Users/matt/repos/sdk/include/mega/,
+					"/Users/matt/repos/3rdParty_inplace/vcpkg/installed/arm64-ios-mega/include/",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;
