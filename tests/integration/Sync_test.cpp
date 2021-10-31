@@ -6685,31 +6685,22 @@ TEST_F(SyncTest, AnomalousSyncDownload)
     // Were all the files downloaded okay?
     ASSERT_TRUE(cd.confirmModel_mainthread(model.root.get(), id));
 
-    // Are we on a filesystem where : would be escaped?
-    if (cd.wouldBeEscapedOnDownload(root, ":"))
-    {
-        // Yep so two anomalies should be reported.
-        ASSERT_EQ(reporter->mAnomalies.size(), 2);
+    // Two anomalies should be reported.
+    ASSERT_EQ(reporter->mAnomalies.size(), 2u);
 
-        auto anomaly = reporter->mAnomalies.begin();
+    auto anomaly = reporter->mAnomalies.begin();
 
-        // d:0
-        ASSERT_EQ(anomaly->localPath, "d%3a0");
-        ASSERT_EQ(anomaly->remotePath, "d:0");
-        ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
+    // d:0
+    ASSERT_EQ(anomaly->localPath, "d%3a0");
+    ASSERT_EQ(anomaly->remotePath, "d:0");
+    ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
 
-        ++anomaly;
+    ++anomaly;
 
-        // f:0
-        ASSERT_EQ(anomaly->localPath, "f%3a0");
-        ASSERT_EQ(anomaly->remotePath, "f:0");
-        ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
-    }
-    else
-    {
-        // Nope so there should be no anomalies.
-        ASSERT_TRUE(reporter->mAnomalies.empty());
-    }
+    // f:0
+    ASSERT_EQ(anomaly->localPath, "f%3a0");
+    ASSERT_EQ(anomaly->remotePath, "f:0");
+    ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
 }
 
 TEST_F(SyncTest, AnomalousSyncLocalRename)
@@ -6772,7 +6763,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
     // There should be a single anomaly.
-    ASSERT_EQ(reporter->mAnomalies.size(), 1);
+    ASSERT_EQ(reporter->mAnomalies.size(), 1u);
     {
         auto& anomaly = reporter->mAnomalies.back();
 
@@ -6878,25 +6869,16 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     // Verify rename.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
-    // Are we on a filesystem where : would be escaped?
-    if (cx.wouldBeEscapedOnDownload(root, ":"))
+    // There should be a single anomaly.
+    ASSERT_EQ(reporter->mAnomalies.size(), 1u);
     {
-        // Yep so there should be a single anomaly.
-        ASSERT_EQ(reporter->mAnomalies.size(), 1);
-
         auto& anomaly = reporter->mAnomalies.back();
 
         ASSERT_EQ(anomaly.localPath, "d" SEP "g%3a0");
         ASSERT_EQ(anomaly.remotePath, "d/g:0");
         ASSERT_EQ(anomaly.type, FILENAME_ANOMALY_NAME_MISMATCH);
-
-        reporter->mAnomalies.clear();
     }
-    else
-    {
-        // Nope so there should be no anomalies.
-        ASSERT_TRUE(reporter->mAnomalies.empty());
-    }
+    reporter->mAnomalies.clear();
 }
 
 TEST_F(SyncTest, AnomalousSyncUpload)
@@ -6938,7 +6920,7 @@ TEST_F(SyncTest, AnomalousSyncUpload)
     ASSERT_TRUE(cu.confirmModel_mainthread(model.root.get(), id));
 
     // Two anomalies should've been reported.
-    ASSERT_EQ(reporter->mAnomalies.size(), 2);
+    ASSERT_EQ(reporter->mAnomalies.size(), 2u);
 
     auto anomaly = reporter->mAnomalies.begin();
 
