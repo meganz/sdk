@@ -1658,6 +1658,10 @@ using namespace mega;
     self.megaApi->startUploadWithData((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (appData !=nil) ? [appData UTF8String] : NULL, isSourceTemporary);
 }
 
+- (BOOL)platformSetRLimitNumFile:(NSInteger)newNumFileLimit {
+    return self.megaApi->platformSetRLimitNumFile(int(newNumFileLimit));
+}
+
 - (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startUploadWithTopPriority((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (appData !=nil) ? [appData UTF8String] : NULL, isSourceTemporary, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }

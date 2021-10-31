@@ -5881,6 +5881,8 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  */
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
 
+- (BOOL)platformSetRLimitNumFile:(NSInteger)newNumFileLimit;
+
 /**
  * @brief Upload a file or a folder, putting the transfer on top of the upload queue
  *
