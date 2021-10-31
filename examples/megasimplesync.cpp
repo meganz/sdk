@@ -526,7 +526,7 @@ int main(int argc, char *argv[])
     }
 
     // Needed so we can get our hands on the cwd.
-    auto fsAccess = new FSACCESS_CLASS();
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 
     // Where are we?
     LocalPath currentDir;
@@ -542,7 +542,7 @@ int main(int argc, char *argv[])
     client = new MegaClient(app,
                             new WAIT_CLASS,
                             new HTTPIO_CLASS,
-                            fsAccess,
+                            move(fsAccess),
                         #ifdef DBACCESS_CLASS
                             new DBACCESS_CLASS(currentDir),
                         #else

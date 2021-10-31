@@ -804,7 +804,7 @@ struct Syncs
     // synchronous for now as that's a constraint from the intermediate layer
     NodeHandle getSyncedNodeForLocalPath(const LocalPath&);
 
-    Syncs(MegaClient& mc, FileSystemAccess* notification_fsa);
+    Syncs(MegaClient& mc, unique_ptr<FileSystemAccess> notification_fsa);
     ~Syncs();
 
 

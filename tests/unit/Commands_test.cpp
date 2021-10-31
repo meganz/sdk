@@ -302,8 +302,8 @@ public:
 class ClientMockup : public ::mega::MegaClient
 {
 public:
-    ClientMockup(MegaAppMockup& megaApp, HttpIOMockup& httpIO, FileSystemAccessMockup& fileSystem)
-        : MegaClient(&megaApp, nullptr, &httpIO, &fileSystem, nullptr, nullptr, nullptr, "UserAgent", 1)
+    ClientMockup(MegaAppMockup& megaApp, HttpIOMockup& httpIO)
+        : MegaClient(&megaApp, nullptr, &httpIO, ::mega::make_unique<FileSystemAccessMockup>(), nullptr, nullptr, nullptr, "UserAgent", 1)
     {
 
     }

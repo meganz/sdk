@@ -31,7 +31,7 @@ class FsNode;
 
 mega::handle nextFsId();
 
-std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSystemAccess& fsaccess);
+std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app);
 
 mega::Node& makeNode(mega::MegaClient& client, mega::nodetype_t type, mega::handle handle, mega::Node* parent = nullptr);
 

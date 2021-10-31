@@ -81,6 +81,10 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
+#ifdef __APPLE__
+int gFilesystemEventsFd = -1;
+#endif
+
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
@@ -4680,12 +4684,19 @@ void exec_open(autocomplete::ACState& s)
             auto gfx = new GFX_CLASS;
             gfx->startProcessingThread();
 #endif
+
+#ifdef __APPLE__
+            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
+#else
+            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+#endif
+
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
             clientFolder = new MegaClient(new DemoAppFolder,
                                           client->waiter,
                                           client->httpio,
-                                          new FSACCESS_CLASS,
+                                          move(fsAccess),
                 #ifdef DBACCESS_CLASS
                                           new DBACCESS_CLASS(*startDir),
                 #else
@@ -8605,8 +8616,6 @@ static void registerSignalHandlers()
 
 #endif // ! NO_READLINE
 
-int gFseventsFd = -1;
-
 int main(int argc, char* argv[])
 {
 #if defined(_WIN32) && defined(_DEBUG)
@@ -8622,20 +8631,20 @@ int main(int argc, char* argv[])
     std::vector<char*> myargv1(argv, argv + argc);
 
     for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
-    {   
+    {
 #ifdef __APPLE__
         if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
-        {   
+        {
             int fseventsFd = std::stoi(std::string(*it).substr(13));
             if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
                 std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
                 return 1;
             }
-            
-            gFseventsFd = fseventsFd;
-            std::cout << "Using filesystem events notification handle passed from loader: " << gFseventsFd << std::endl;
+
+            gFilesystemEventsFd = fseventsFd;
+            std::cout << "Using filesystem events notification handle passed from loader: " << gFilesystemEventsFd << std::endl;
         }
-#endif  
+#endif
     }
 
     SimpleLogger::setLogLevel(logMax);
@@ -8652,9 +8661,9 @@ int main(int argc, char* argv[])
 
     // Needed so we can get the cwd.
 #ifdef __APPLE__
-    auto fsAccess = new FSACCESS_CLASS(gFseventsFd);
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
 #else
-    auto fsAccess = new FSACCESS_CLASS();
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 #endif
 
     // Where are we?
@@ -8687,7 +8696,7 @@ int main(int argc, char* argv[])
     client = new MegaClient(demoApp,
                             waiter,
                             httpIO,
-                            fsAccess,
+                            move(fsAccess),
                             dbAccess,
                             gfx,
                             "Gk8DyQBS",
@@ -8711,8 +8720,6 @@ int main(int argc, char* argv[])
     delete waiter;
     delete httpIO;
     delete gfx;
-    //delete dbAccess; // already deleted
-    delete fsAccess;
     delete demoApp;
     acs.reset();
     autocompleteTemplate.reset();

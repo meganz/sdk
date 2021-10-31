@@ -1015,7 +1015,6 @@ struct StandardClient : public MegaApp
 
     string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
-    std::unique_ptr<FileSystemAccess> fsaccess;
     std::recursive_mutex clientMutex;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
@@ -1140,11 +1139,10 @@ struct StandardClient : public MegaApp
     StandardClient(const fs::path& basepath, const string& name)
         : client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
-        , fsaccess(new FSACCESS_CLASS(makeFsAccess_<FSACCESS_CLASS>()))
         , client(this,
                  &waiter,
                  httpio.get(),
-                 fsaccess.get(),
+                 ::mega::make_unique<FSACCESS_CLASS>(makeFsAccess_<FSACCESS_CLASS>()),
 #ifdef DBACCESS_CLASS
                  new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
 #else

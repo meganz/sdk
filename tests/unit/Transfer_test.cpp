@@ -51,8 +51,7 @@ void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
 TEST(Transfer, serialize_unserialize)
 {
     mega::MegaApp app;
-    ::mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
 
     mega::Transfer tf{client.get(), mega::GET};
     std::string lfn = "foo";

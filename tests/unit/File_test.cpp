@@ -61,8 +61,7 @@ void checkFiles(const mega::File& exp, const mega::File& act)
 TEST(File, serialize_unserialize)
 {
     mega::MegaApp app;
-    ::mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
     mega::File file;
     file.name = "foo";
     file.setLocalname(::mega::LocalPath::fromAbsolutePath(file.name));

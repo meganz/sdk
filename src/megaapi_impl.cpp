@@ -5205,8 +5205,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 #ifndef __APPLE__
     (void)fseventsfd;
     fsAccess = new MegaFileSystemAccess();
+    auto clientSyncFsAccess = ::mega::make_unique<MegaFileSystemAccess>();
 #else
-    fsAccess = new MegaFileSystemAccess(fseventsfd);
+    fsAccess = new MegaFileSystemAccess(-1);
+    auto clientSyncFsAccess = ::mega::make_unique<MegaFileSystemAccess>(fseventsfd);
 #endif
 
     dbAccess = nullptr;
@@ -5240,7 +5242,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     {
         this->appKey = appKey;
     }
-    client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
+    client = new MegaClient(this, waiter, httpio, move(clientSyncFsAccess), dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
 
 #if defined(_WIN32)
     httpio->unlock();
