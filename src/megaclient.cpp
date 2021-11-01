@@ -2584,7 +2584,7 @@ void MegaClient::exec()
     // check for Drive [dis]connects
     for (auto di = mDriveInfoCollector.get(); !di.first.empty(); di = mDriveInfoCollector.get())
     {
-        app->drive_presence_changed(di.second, LocalPath::fromPlatformEncoded(move(di.first)));
+        app->drive_presence_changed(di.second, LocalPath::fromPlatformEncodedAbsolute(move(di.first)));
     }
 #endif
 }
