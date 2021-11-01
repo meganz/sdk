@@ -395,7 +395,7 @@ inline bool Node::keyApplied() const
 
 #ifdef ENABLE_SYNC
 
-enum TreeState : unsigned
+enum TreeState
 {
     TREE_RESOLVED = 0,
     TREE_DESCENDANT_FLAGGED = 1,
