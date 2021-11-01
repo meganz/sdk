@@ -5370,14 +5370,14 @@ void exec_email(autocomplete::ACState& s)
         {
             string link = s.words[1].s;
 
-            size_t pos = link.find("#verify");
+            size_t pos = link.find("verify");
             if (pos == link.npos)
             {
                 cout << "Invalid email change link." << endl;
                 return;
             }
 
-            changecode.assign(link.substr(pos + strlen("#verify")));
+            changecode.assign(link.substr(pos + strlen("verify")));
             client->queryrecoverylink(changecode.c_str());
         }
     }
@@ -5790,9 +5790,9 @@ void exec_signup(autocomplete::ACState& s)
         const char* ptr = s.words[1].s.c_str();
         const char* tptr;
 
-        if ((tptr = strstr(ptr, "#confirm")))
+        if ((tptr = strstr(ptr, "confirm")))
         {
-            ptr = tptr + 8;
+            ptr = tptr + 7;
 
             std::string code = Base64::atob(std::string(ptr));
             if (!code.empty())
@@ -6280,14 +6280,14 @@ void exec_cancel(autocomplete::ACState& s)
     {
         string link = s.words[1].s;
 
-        size_t pos = link.find("#cancel");
+        size_t pos = link.find("cancel");
         if (pos == link.npos)
         {
             cout << "Invalid cancellation link." << endl;
             return;
         }
 
-        client->confirmcancellink(link.substr(pos + strlen("#cancel")).c_str());
+        client->confirmcancellink(link.substr(pos + strlen("cancel")).c_str());
     }
 }
 
@@ -6394,13 +6394,13 @@ void exec_recover(autocomplete::ACState& s)
     {
         string link = s.words[1].s;
 
-        size_t pos = link.find("#recover");
+        size_t pos = link.find("recover");
         if (pos == link.npos)
         {
             cout << "Invalid recovery link." << endl;
         }
 
-        recoverycode.assign(link.substr(pos + strlen("#recover")));
+        recoverycode.assign(link.substr(pos + strlen("recover")));
         client->queryrecoverylink(recoverycode.c_str());
     }
 }
