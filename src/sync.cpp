@@ -5286,9 +5286,9 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     if (syncs.mSyncFlags->earlyRecurseExitRequested)
                     {
                         // restore flags to at least what they were, for when we revisit on next full recurse
-                        row.syncNode->syncAgain = TREESTATE(std::max<unsigned>(row.syncNode->syncAgain, originalSyncAgain));
-                        row.syncNode->checkMovesAgain = TREESTATE(std::max<unsigned>(row.syncNode->checkMovesAgain, originalCheckMovesAgain));
-                        row.syncNode->conflicts = TREESTATE(std::max<unsigned>(row.syncNode->conflicts, originalConflicsFlag));
+                        row.syncNode->syncAgain = std::max<TreeState>(row.syncNode->syncAgain, originalSyncAgain);
+                        row.syncNode->checkMovesAgain = std::max<TreeState>(row.syncNode->checkMovesAgain, originalCheckMovesAgain);
+                        row.syncNode->conflicts = std::max<TreeState>(row.syncNode->conflicts, originalConflicsFlag);
 
                         LOG_debug << syncname
                             << "recursiveSync early exit due to pending outside request with "
@@ -6094,7 +6094,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
         if (row.syncNode->type == FILENODE)
         {
-            row.syncNode->checkMovesAgain = 0;
+            row.syncNode->checkMovesAgain = TREE_RESOLVED;
         }
 
         statecacheadd(row.syncNode);
@@ -6105,8 +6105,8 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         SYNC_verbose << syncname << "Row was already synced" << logTriplet(row, fullPath);
     }
 
-    row.syncNode->syncAgain = TREESTATE(std::max<unsigned>(row.syncNode->syncAgain,
-        row.syncNode->type == FILENODE ? TREE_DESCENDANT_FLAGGED : TREE_RESOLVED));
+    row.syncNode->syncAgain = std::max<TreeState>(row.syncNode->syncAgain,
+        row.syncNode->type == FILENODE ? TREE_DESCENDANT_FLAGGED : TREE_RESOLVED);
 
     // we can load the filters as soon as the local file is present, no need to wait until the row is synced
 

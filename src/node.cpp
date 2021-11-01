@@ -1477,7 +1477,7 @@ void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime de
         scanObsolete = true;
     }
 
-    unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
+    auto state = TreeState((doHere?1u:0u) << 1 | (doBelow?1u:0u));
     if (state >= TREE_ACTION_HERE && delayds > 0)
     {
         if (scanDelayUntil > Waiter::ds + delayds + 10)
@@ -1490,16 +1490,16 @@ void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime de
         }
     }
 
-    scanAgain = TREESTATE(std::max<unsigned>(scanAgain, state));
+    scanAgain = std::max<TreeState>(scanAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->scanAgain = TREESTATE(std::max<unsigned>(p->scanAgain, TREE_DESCENDANT_FLAGGED));
+        p->scanAgain = std::max<TreeState>(p->scanAgain, TREE_DESCENDANT_FLAGGED);
     }
 
     // for scanning, we only need to set the parent once
     if (parent && doParent)
     {
-        parent->scanAgain = TREESTATE(std::max<unsigned>(parent->scanAgain, TREE_ACTION_HERE));
+        parent->scanAgain = std::max<TreeState>(parent->scanAgain, TREE_ACTION_HERE);
         doParent = false;
         parentSetScanAgain = false;
     }
@@ -1508,12 +1508,12 @@ void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime de
 
 void LocalNode::setCheckMovesAgain(bool doParent, bool doHere, bool doBelow)
 {
-    unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
+    auto state = TreeState((doHere?1u:0u) << 1 | (doBelow?1u:0u));
 
-    checkMovesAgain = TREESTATE(std::max<unsigned>(checkMovesAgain, state));
+    checkMovesAgain = std::max<TreeState>(checkMovesAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->checkMovesAgain = TREESTATE(std::max<unsigned>(p->checkMovesAgain, TREE_DESCENDANT_FLAGGED));
+        p->checkMovesAgain = std::max<TreeState>(p->checkMovesAgain, TREE_DESCENDANT_FLAGGED);
     }
 
     parentSetCheckMovesAgain = parentSetCheckMovesAgain || doParent;
@@ -1521,12 +1521,12 @@ void LocalNode::setCheckMovesAgain(bool doParent, bool doHere, bool doBelow)
 
 void LocalNode::setSyncAgain(bool doParent, bool doHere, bool doBelow)
 {
-    unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
+    auto state = TreeState((doHere?1u:0u) << 1 | (doBelow?1u:0u));
 
-    syncAgain = std::max<unsigned>(syncAgain, state);
+    syncAgain = std::max<TreeState>(syncAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->syncAgain = TREESTATE(std::max<unsigned>(p->syncAgain, TREE_DESCENDANT_FLAGGED));
+        p->syncAgain = std::max<TreeState>(p->syncAgain, TREE_DESCENDANT_FLAGGED);
     }
 
     parentSetSyncAgain = parentSetSyncAgain || doParent;
@@ -1537,12 +1537,12 @@ void LocalNode::setContainsConflicts(bool doParent, bool doHere, bool doBelow)
     // using the 3 flags for consistency & understandabilty but doBelow is not relevant
     assert(!doBelow);
 
-    unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
+    auto state = TreeState((doHere?1u:0u) << 1 | (doBelow?1u:0u));
 
-    conflicts = std::max<unsigned>(conflicts, state);
+    conflicts = std::max<TreeState>(conflicts, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->conflicts = TREESTATE(std::max<unsigned>(p->conflicts, TREE_DESCENDANT_FLAGGED));
+        p->conflicts = std::max<TreeState>(p->conflicts, TREE_DESCENDANT_FLAGGED);
     }
 
     parentSetContainsConflicts = parentSetContainsConflicts || doParent;

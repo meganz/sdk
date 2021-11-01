@@ -395,7 +395,7 @@ inline bool Node::keyApplied() const
 
 #ifdef ENABLE_SYNC
 
-enum TREESTATE : unsigned
+enum TreeState : unsigned
 {
     TREE_RESOLVED = 0,
     TREE_DESCENDANT_FLAGGED = 1,
@@ -413,14 +413,14 @@ enum ExclusionState : unsigned char
     ES_UNKNOWN
 }; // ExclusionState
 
-inline TREESTATE updateTreestateFromChild(unsigned oldFlag, unsigned childFlag)
+inline TreeState updateTreestateFromChild(TreeState oldFlag, TreeState childFlag)
 {
-    return oldFlag == TREE_RESOLVED && childFlag != TREE_RESOLVED ? TREE_DESCENDANT_FLAGGED : TREESTATE(oldFlag);
+    return oldFlag == TREE_RESOLVED && childFlag != TREE_RESOLVED ? TREE_DESCENDANT_FLAGGED : oldFlag;
 }
 
-inline TREESTATE propagateSubtreeFlag(unsigned nodeFlag, unsigned childFlag)
+inline TreeState propagateSubtreeFlag(TreeState nodeFlag, TreeState childFlag)
 {
-    return nodeFlag == TREE_ACTION_SUBTREE ? TREE_ACTION_SUBTREE : TREESTATE(childFlag);
+    return nodeFlag == TREE_ACTION_SUBTREE ? TREE_ACTION_SUBTREE : TreeState(childFlag);
 }
 
 struct syncRow;
@@ -506,18 +506,18 @@ struct MEGA_API LocalNode
     struct
     {
         // needs another recursiveSync for scanning at this level after pending changes
-        unsigned scanAgain : 2;    // TREESTATE
+        TreeState scanAgain : 2;
 
         // needs another recursiveSync() to check moves at this level after pending changes
         // (can only be cleared if all scanAgain flags are clear)
-        unsigned checkMovesAgain : 2;   // TREESTATE
+        TreeState checkMovesAgain : 2;
 
         // needs another recursiveSync() for deletes/uploads/downloads at this level after pending changes
         // (can only be cleared if all checkMoveAgain flags are clear)
-        unsigned syncAgain : 2;   // TREESTATE
+        TreeState syncAgain : 2;
 
         // whether any name conflicts have been detected.
-        unsigned conflicts : 2;   // TREESTATE
+        TreeState conflicts : 2;
 
         // fsids have been assigned in this node.
         bool unstableFsidAssigned : 1;
