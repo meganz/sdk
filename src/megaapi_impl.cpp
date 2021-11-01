@@ -11775,10 +11775,12 @@ node_vector MegaApiImpl::searchWithDB(MegaHandle nodeHandle, const char *searchS
         {
             if (!client->sctable->isAncestor(it->first, NodeHandle().set6byte(nodeHandle)))
             {
-                nodeMap.erase(it);
+                it = nodeMap.erase(it);
             }
-
-            it++;
+            else
+            {
+                ++it;
+            }
         }
     }
 
