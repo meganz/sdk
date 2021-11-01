@@ -1142,7 +1142,7 @@ struct StandardClient : public MegaApp
         , client(this,
                  &waiter,
                  httpio.get(),
-                 ::mega::make_unique<FSACCESS_CLASS>(makeFsAccess_<FSACCESS_CLASS>()),
+                 makeFsAccess(),
 #ifdef DBACCESS_CLASS
                  new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
 #else

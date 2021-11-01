@@ -5,6 +5,7 @@
 #include <vector>
 #include <functional>
 
+#include "mega/filesystem.h"
 #include "stdfs.h"
 
 std::string logTime();
@@ -96,12 +97,5 @@ private:
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
 
-template<class FsAccessClass>
-FsAccessClass makeFsAccess_()
-{
-    return FsAccessClass(
-#ifdef __APPLE__
-                gFseventsFd
-#endif
-                );
-}
+std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
+

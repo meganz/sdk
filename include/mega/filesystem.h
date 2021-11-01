@@ -691,6 +691,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual void statsid(string*) const { }
 
     FileSystemAccess();
+
+    MEGA_DISABLE_COPY_MOVE(FileSystemAccess);
+
     virtual ~FileSystemAccess() { }
 
     // Get the current working directory.
