@@ -761,7 +761,7 @@ public:
         auto& rng = client.rng;
 
         // Try and open the state cache.
-        DbTablePtr db(dbAccess.open(rng, fsAccess, name, flags)); 
+        DbTablePtr db(dbAccess.open(rng, fsAccess, name, flags));
 
         // Try and load the state cache.
         return db && read(*db, client.key);
@@ -5920,7 +5920,7 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
 
     conflicts.clear();
     client.conflictsDetected(conflicts);
-    ASSERT_EQ(0, conflicts.size());
+    ASSERT_EQ(0u, conflicts.size());
 
     // Conflicts should be resolved.
     conflicts.clear();
@@ -12294,7 +12294,7 @@ TEST_F(LocalToCloudFilterFixture, RenameIgnoredToAnomalous)
     ASSERT_TRUE(confirm(*cu, id, remoteTree));
 
     // Was an anomly generated?
-    ASSERT_EQ(reporter->mAnomalies.size(), 1);
+    ASSERT_EQ(reporter->mAnomalies.size(), 1u);
 
     auto& anomaly = reporter->mAnomalies.front();
 
