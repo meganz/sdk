@@ -1088,6 +1088,8 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4266")  # derived class did not override all overloads of a virtual function
     #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
 
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")  # Sync_test.cpp : fatal error C1128: number of sections exceeded object file format limit: compile with /bigobj
+
     set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET megacli PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET testmega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
