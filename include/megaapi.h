@@ -14063,17 +14063,6 @@ class MegaApi
         void setDefaultExclusionUpperSizeLimit(unsigned long long limit);
 
         /**
-         * @brief Check if a path is syncable based on the excluded names and paths and sizes
-         * @param name Path to check
-         * @param size Size of the file or -1 to ignore the size
-         * @return true if the path is syncable, otherwise false
-         *
-         * @deprecated This function should no longer be used.
-         */
-        MEGA_DEPRECATED
-        bool isSyncable(const char *path, long long size);
-
-        /**
          * @brief Check if it's possible to start synchronizing a folder node.
          *
          * Possible return values for this function are:

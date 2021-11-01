@@ -4508,12 +4508,11 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
-                auto configCopy = unifiedSync->mConfig;
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [this, configCopy, hadAnError](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [this, unifiedSync, hadAnError](error e, SyncError se, handle backupId)
                     {
-                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << configCopy.getLocalPath().toPath() << " fsfp= " << configCopy.getLocalFingerprint() << " error = " << se;
+                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << se;
                         assert(onSyncThread());
-                        mClient.app->sync_auto_resume_result(configCopy, true, hadAnError);
+                        mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
                     }, "");
             }
             else

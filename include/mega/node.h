@@ -506,18 +506,18 @@ struct MEGA_API LocalNode
     struct
     {
         // needs another recursiveSync for scanning at this level after pending changes
-        TreeState scanAgain : 2;
+        TreeState scanAgain : 3;
 
         // needs another recursiveSync() to check moves at this level after pending changes
         // (can only be cleared if all scanAgain flags are clear)
-        TreeState checkMovesAgain : 2;
+        TreeState checkMovesAgain : 3;
 
         // needs another recursiveSync() for deletes/uploads/downloads at this level after pending changes
         // (can only be cleared if all checkMoveAgain flags are clear)
-        TreeState syncAgain : 2;
+        TreeState syncAgain : 3;
 
         // whether any name conflicts have been detected.
-        TreeState conflicts : 2;
+        TreeState conflicts : 3;
 
         // fsids have been assigned in this node.
         bool unstableFsidAssigned : 1;

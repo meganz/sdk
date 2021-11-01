@@ -3482,11 +3482,6 @@ bool MegaApi::isSyncing()
     return pImpl->isSyncing();
 }
 
-bool MegaApi::isSyncable(const char *, long long)
-{
-    return false;
-}
-
 int MegaApi::isNodeSyncable(MegaNode *node)
 {
     return pImpl->isNodeSyncable(node);
