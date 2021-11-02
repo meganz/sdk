@@ -2919,6 +2919,158 @@ TEST_F(SdkTest, SdkTestShares)
 }
 
 
+/**
+ * @brief TEST_F SdkTestShares3
+ *
+ * - Login 3 account
+ * - Create tree
+ * - Create new UserB and UserC contacts for UserA to share to
+ * - User1 shares Folder1 with UserB, and Folder1_1 with UserC
+ * - User1 locallogout
+ * - User3 add File1 to Folder1_1
+ * - Check that UserB sees File1 as NO_KEY
+ * - User2 locallogout and login with session
+ * - Check that UserB still sees File1 as NO_KEY
+ * - UserA login
+
+ #if 0
+ * - Check that UserB sees File1 with its real name
+ * - UserB locallogout and login with session
+ * - UserB load File1 undecrypted
+ #endif
+ */
+TEST_F(SdkTest, SdkTestShares3)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
+
+    // --- Create tree ---
+    //  |--Folder1
+    //    |--Folder1_1
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    char foldername1[64] = "Folder1";
+    MegaHandle hfolder1 = createFolder(0, foldername1, rootnode.get());
+    ASSERT_NE(hfolder1, UNDEF);
+
+    std::unique_ptr<MegaNode> n1{ megaApi[0]->getNodeByHandle(hfolder1) };
+    ASSERT_NE(n1, nullptr);
+
+    char foldername1_1[64] = "Folder1_1";
+    MegaHandle hfolder1_1 = createFolder(0, foldername1_1, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get());
+    ASSERT_NE(hfolder1_1, UNDEF);
+
+    std::unique_ptr<MegaNode> n1_1{ megaApi[0]->getNodeByHandle(hfolder1_1) };
+    ASSERT_NE(n1_1, nullptr);
+
+
+    // --- Create new contacts to share to ---
+
+    ASSERT_EQ(MegaError::API_OK, synchronousInviteContact(0, mApi[1].email.c_str(), "Contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_EQ(MegaError::API_OK, synchronousInviteContact(0, mApi[2].email.c_str(), "Contact request A to C", MegaContactRequest::INVITE_ACTION_ADD));
+
+    ASSERT_TRUE(WaitFor([this]() {return unique_ptr<MegaContactRequestList>(megaApi[1]->getIncomingContactRequests())->size() == 1
+                                      && unique_ptr<MegaContactRequestList>(megaApi[2]->getIncomingContactRequests())->size() == 1; }, 60000));
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(2, false));
+
+    ASSERT_EQ(MegaError::API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_EQ(MegaError::API_OK, synchronousReplyContactRequest(2, mApi[2].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+
+    WaitMillisec(3000);
+
+
+    // --- User1 shares Folder1 with UserB, and Folder1_1 with UserC ---
+
+    ASSERT_EQ(MegaError::API_OK, synchronousShare(0, n1.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_EQ(MegaError::API_OK, synchronousShare(0, n1_1.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
+
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1
+                                       && unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size() == 1; }, 60000));
+
+    unique_ptr<MegaNodeList> nl2(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
+    unique_ptr<MegaNodeList> nl3(megaApi[2]->getInShares(megaApi[2]->getContact(mApi[0].email.c_str())));
+
+    ASSERT_EQ(1, nl2->size());
+    ASSERT_EQ(1, nl3->size());
+
+
+    // --- UserA locallogout ---
+
+    string sessionA = dumpSession();
+    locallogout();
+
+
+    // --- UserC add File1 to Folder1_1 ---
+
+    static constexpr char file1[] = "File1.txt";
+    createFile(file1, false);   // not a large file since don't need to test transfers here
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(2, file1, n1_1.get())) << "Cannot upload test file";
+
+
+    // --- Check that UserB sees File1 as NO_KEY ---
+
+    ASSERT_TRUE(WaitFor([this, &n1_1]()
+        {
+            unique_ptr<MegaNodeList> aView(megaApi[1]->getChildren(n1_1.get()));
+            return aView->size() == 1;
+        },
+        60000));
+
+    unique_ptr<MegaNodeList> aView(megaApi[1]->getChildren(n1_1.get()));
+    ASSERT_EQ(1, aView->size());
+    const char* file1Name = aView->get(0)->getName(); // for debug
+    ASSERT_STREQ(file1Name, "NO_KEY");
+
+
+    // --- UserB locallogout and login with session ---
+
+    string sessionB = megaApi[1]->dumpSession();
+    auto logoutErr = doRequestLocalLogout(1);
+    ASSERT_EQ(MegaError::API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
+    auto trackerB = asyncRequestFastLogin(1, sessionB.c_str());
+    ASSERT_EQ(API_OK, trackerB->waitForResult()) << " Failed to establish a login/session for account B";
+
+
+    // --- Check that UserB still sees File1 as NO_KEY ---
+
+#if 0
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(1)); // CRASHES in MegaClient::fetchsc(DbTable* sctable), due to NULL Node*, as returned by Node::unserialize()
+#endif
+    aView.reset(megaApi[1]->getChildren(n1_1.get()));
+    ASSERT_STREQ(aView->get(0)->getName(), "NO_KEY");
+
+
+    // --- UserA login ---
+
+    auto trackerA = asyncRequestFastLogin(0, sessionA.c_str());
+    ASSERT_EQ(API_OK, trackerA->waitForResult()) << " Failed to establish a login/session for account A";
+
+#if 0
+    // --- Check that UserB sees File1 with its real name ---
+
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+    aView.reset(megaApi[1]->getChildren(n1_1.get()));
+    ASSERT_EQ(1, aView->size());
+    ASSERT_STREQ(aView->get(0)->getName(), file1);
+
+
+    // --- UserB locallogout and login with session ---
+
+    sessionB = megaApi[1]->dumpSession();
+    logoutErr = doRequestLocalLogout(1);
+    ASSERT_EQ(MegaError::API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
+    trackerB = asyncRequestFastLogin(1, sessionB.c_str());
+    ASSERT_EQ(API_OK, trackerB->waitForResult()) << " Failed to establish a login/session for account B";
+
+
+    // --- UserB load File1 undecrypted ---
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+    std::unique_ptr<MegaNode> nFile1{ megaApi[1]->getChildNode(n1_1.get(), file1Name) };
+    ASSERT_NE(nFile1, nullptr);
+#endif
+}
+
+
 TEST_F(SdkTest, SdkTestShareKeys)
 {
     LOG_info << "___TEST ShareKeys___";
