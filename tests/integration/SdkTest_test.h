@@ -56,10 +56,10 @@ struct TransferTracker : public ::mega::MegaTransferListener
 {
     std::atomic<bool> started = { false };
     std::atomic<bool> finished = { false };
-    std::atomic<MegaError::ErrorID> result = { MegaError::API_EINTERNAL };
-    std::promise<MegaError::ErrorID> promiseResult;
+    std::atomic<ErrorCodes> result = { ErrorCodes::API_EINTERNAL };
+    std::promise<ErrorCodes> promiseResult;
     MegaApi *mApi;
-    std::future<MegaError::ErrorID> futureResult;
+    std::future<ErrorCodes> futureResult;
     std::shared_ptr<TransferTracker> selfDeleteOnFinalCallback;
 
     MegaHandle resultNodeHandle = UNDEF;
@@ -77,11 +77,11 @@ struct TransferTracker : public ::mega::MegaTransferListener
     {
         // called back on a different thread
         resultNodeHandle = transfer->getNodeHandle();
-        result = static_cast<MegaError::ErrorID>(error->getErrorCode());
+        result = static_cast<ErrorCodes>(error->getErrorCode());
         finished = true;
 
         // this local version still valid even after we self-delete
-        std::promise<MegaError::ErrorID> local_promise = move(promiseResult);
+        std::promise<ErrorCodes> local_promise = move(promiseResult);
 
         if (selfDeleteOnFinalCallback)
         {
@@ -96,7 +96,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
         // let the test main thread know it can now continue
         local_promise.set_value(result);
     }
-    MegaError::ErrorID waitForResult(int seconds = defaultTimeout, bool unregisterListenerOnTimeout = true)
+    ErrorCodes waitForResult(int seconds = defaultTimeout, bool unregisterListenerOnTimeout = true)
     {
         // running on test's main thread
         if (std::future_status::ready != futureResult.wait_for(std::chrono::seconds(seconds)))
@@ -106,7 +106,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
             {
                 mApi->removeTransferListener(this);
             }
-            return static_cast<MegaError::ErrorID>(-999); // local timeout
+            return static_cast<ErrorCodes>(-999); // local timeout
         }
         return futureResult.get();
     }
@@ -118,8 +118,8 @@ struct RequestTracker : public ::mega::MegaRequestListener
 {
     std::atomic<bool> started = { false };
     std::atomic<bool> finished = { false };
-    std::atomic<MegaError::ErrorID> result = { MegaError::API_EINTERNAL };
-    std::promise<MegaError::ErrorID> promiseResult;
+    std::atomic<ErrorCodes> result = { ErrorCodes::API_EINTERNAL };
+    std::promise<ErrorCodes> promiseResult;
     MegaApi *mApi;
 
     unique_ptr<MegaRequest> request;
@@ -140,12 +140,12 @@ struct RequestTracker : public ::mega::MegaRequestListener
     {
         if (onFinish) onFinish(*e, *request);
 
-        result = MegaError::ErrorID(e->getErrorCode());
+        result = ErrorCodes(e->getErrorCode());
         this->request.reset(request->copy());
         finished = true;
-        promiseResult.set_value(static_cast<MegaError::ErrorID>(result));
+        promiseResult.set_value(static_cast<ErrorCodes>(result));
     }
-    MegaError::ErrorID waitForResult(int seconds = maxTimeout, bool unregisterListenerOnTimeout = true)
+    ErrorCodes waitForResult(int seconds = maxTimeout, bool unregisterListenerOnTimeout = true)
     {
         auto f = promiseResult.get_future();
         if (std::future_status::ready != f.wait_for(std::chrono::seconds(seconds)))
@@ -155,7 +155,7 @@ struct RequestTracker : public ::mega::MegaRequestListener
             {
                 mApi->removeRequestListener(this);
             }
-            return static_cast<MegaError::ErrorID>(-999); // local timeout
+            return static_cast<ErrorCodes>(-999); // local timeout
         }
         return f.get();
     }

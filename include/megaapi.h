@@ -5792,7 +5792,7 @@ public:
     /**
      * @brief Declaration of API error codes.
      */
-    enum ErrorID : int
+    enum
     {
         API_OK = 0,                     ///< Everything OK
         API_EINTERNAL = -1,             ///< Internal error.
