@@ -1006,7 +1006,7 @@ string SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expire
 
     mApi[apiIndex].megaApi->exportNode(n, expireDate, writable, &rt);
 
-    EXPECT_EQ(API_OK, rt.waitForResult()) << "Public link export failed";
+    rt.waitForResult();
 
     if (!expireDate || !isFreeAccount)
     {
@@ -1918,7 +1918,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
 
 
     // --- Move a node ---
-    ASSERT_EQ(API_OK, doMoveNode(0, n1, n2)) << "Cannot move node";
+    ASSERT_EQ(API_OK, doMoveNode(0, nullptr, n1, n2)) << "Cannot move node";
 
 
     // --- Get parent node ---
@@ -1930,7 +1930,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
 
 
     // --- Send to Rubbish bin ---
-    ASSERT_EQ(API_OK, doMoveNode(0, n2, megaApi[0]->getRubbishNode())) << "Cannot move node to Rubbish bin";
+    ASSERT_EQ(API_OK, doMoveNode(0, nullptr, n2, megaApi[0]->getRubbishNode())) << "Cannot move node to Rubbish bin";
 
 
     // --- Remove a node ---
@@ -2626,10 +2626,11 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
     // --- Move shared file (not owned) to Rubbish bin ---
-    ASSERT_EQ(API_OK, doMoveNode(1, megaApi[0]->getNodeByHandle(hfile2), megaApi[1]->getRubbishNode())) << "Moving shared file (not owned) to Rubbish bin failed";
+    MegaHandle movedNodeHandle = UNDEF;
+    ASSERT_EQ(API_OK, doMoveNode(1, &movedNodeHandle, megaApi[0]->getNodeByHandle(hfile2), megaApi[1]->getRubbishNode())) << "Moving shared file (not owned) to Rubbish bin failed";
 
     // --- Test that file in Rubbish bin can be restored ---
-    MegaNode* nodeMovedFile = megaApi[1]->getNodeByHandle(hfile2);
+    MegaNode* nodeMovedFile = megaApi[1]->getNodeByHandle(movedNodeHandle);  // Different handle! the node must have been copied due to differing accounts
     ASSERT_EQ(nodeMovedFile->getRestoreHandle(), hfolder2) << "Incorrect restore handle for file in Rubbish Bin";
 
     delete nl;
@@ -6558,13 +6559,13 @@ TEST_F(SdkTest, SyncRemoteNode)
     {
         TestingWithLogErrorAllowanceGuard g;
         LOG_verbose << "SyncRemoteNode :  Move remote node with sync active to the secondary folder.";
-        ASSERT_EQ(API_OK, doMoveNode(0, remoteBaseNode.get(), remoteMoveNodeParent.get()));
+        ASSERT_EQ(API_OK, doMoveNode(0, nullptr, remoteBaseNode.get(), remoteMoveNodeParent.get()));
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Moving back the remote node.";
-        ASSERT_EQ(API_OK, doMoveNode(0, remoteBaseNode.get(), remoteRootNode.get()));
+        ASSERT_EQ(API_OK, doMoveNode(0, nullptr, remoteBaseNode.get(), remoteRootNode.get()));
 
         WaitMillisec(1000);
 
