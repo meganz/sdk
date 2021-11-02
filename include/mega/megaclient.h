@@ -1205,7 +1205,7 @@ public:
     bool fetchingnodes;
     int fetchnodestag;
 
-    // have we just completed fetching new nodes?  (ie, caught up on all the historic actionpackets since the fetchnodes)
+    // set true after fetchnodes and catching up on actionpackets, stays true after that.
     bool statecurrent;
 
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)

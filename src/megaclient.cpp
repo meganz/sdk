@@ -4811,7 +4811,11 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                 }
                 else
                 {
-                    LOG_verbose << clientname << "st tag " << tag << " no tag pending";
+                    if (statecurrent)
+                    {
+                        // too much logging during catch-up otherwise
+                        LOG_verbose << clientname << "st tag " << tag << " no tag pending";
+                    }
                     return true;  // nothing pending, process everything
                 }
             }
