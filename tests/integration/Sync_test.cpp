@@ -2646,6 +2646,24 @@ struct StandardClient : public MegaApp
             ms.erase("tmp");
             ps.erase("tmp");
         }
+        else if (depth == 0)
+        {
+            // with ignore files, most tests now involve a download somewhere which means debris/tmp is created.
+            // it only matters if the content of these differs, absence or empty is effectively the same
+            if (ms.find(DEBRISFOLDER) == ms.end())
+            {
+                auto d = mn->addkid();
+                d->name = DEBRISFOLDER;
+                d->type = Model::ModelNode::folder;
+                ms.emplace(DEBRISFOLDER, d);
+            }
+            if (ps.find(DEBRISFOLDER) == ps.end())
+            {
+                auto pdeb = p / fs::path(DEBRISFOLDER);
+                fs::create_directory(pdeb);
+                ps.emplace(DEBRISFOLDER, pdeb);
+            }
+        }
 
         int matched = 0;
         vector<string> matchedlist;
