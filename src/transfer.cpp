@@ -721,7 +721,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 set<handle> nodes;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h, true))
                             && nodes.find(n->nodehandle) == nodes.end())
                     {
                         nodes.insert(n->nodehandle);
@@ -838,7 +838,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 if (success)
                 {
                     // set missing node attributes
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h)))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h, true)))
                     {
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
                             keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
@@ -870,7 +870,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                     if (!(*it)->syncxfer)
                     {
-                        if (auto node = client->nodeByHandle((*it)->h))
+                        if (auto node = client->nodeByHandle((*it)->h, true))
                         {
                             auto path = (*it)->getLocalname();
                             auto type = isFilenameAnomaly(path, node);
@@ -967,7 +967,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             File *f = (*it);
             LocalPath localpath = f->getLocalname();
 
-            if (auto node = client->nodeByHandle(f->h))
+            if (auto node = client->nodeByHandle(f->h, true))
             {
                 auto type = isFilenameAnomaly(localpath, f->name);
 

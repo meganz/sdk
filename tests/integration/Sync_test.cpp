@@ -3443,7 +3443,7 @@ struct StandardClient : public MegaApp
     //    return setupSync_mainthread(localsyncrootfolder, remotesyncrootfolder, syncid);
     //}
 
-    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, const bool isBackup = false)
+    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, bool isBackup = false, bool uploadIgnoreFirst = true)
     {
         fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
@@ -3452,7 +3452,10 @@ struct StandardClient : public MegaApp
         ofstream f(fsBasePath / ".megaignore");  // better not change the name or it upsets AnomalyReporter due to being outside the sync
         f.close();
 
-        EXPECT_TRUE(uploadFile(fsBasePath / ".megaignore", ".megaignore", "/mega_test_sync/" + remotesyncrootfolder));
+        if (uploadIgnoreFirst)
+        {
+            EXPECT_TRUE(uploadFile(fsBasePath / ".megaignore", ".megaignore", "/mega_test_sync/" + remotesyncrootfolder));
+        }
 
         auto fb = thread_do<handle>([=](StandardClient& mc, PromiseHandleSP pb)
             {
@@ -10450,9 +10453,10 @@ public:
 
     handle setupSync(Client& client,
                      const string& localFolder,
-                     const string& remoteFolder)
+                     const string& remoteFolder,
+                     bool uploadIgnoreFirst = true)
     {
-        return client.setupSync_mainthread(localFolder, remoteFolder);
+        return client.setupSync_mainthread(localFolder, remoteFolder, false, uploadIgnoreFirst);
     }
 
     string todaysDate() const
@@ -10523,7 +10527,7 @@ TEST_F(FilterFixture, AlreadySyncedFilterIsLoaded)
     fs::remove(root(*cdu) / "root" / "f");
 
     // Add and start sync.
-    const auto id = setupSync(*cdu, "root", "x");
+    const auto id = setupSync(*cdu, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for the sync to complete.
