@@ -1728,7 +1728,7 @@ struct StandardClient : public MegaApp
                               });
     }
 
-    bool uploadFile(const fs::path& path, const string& name, Node* parent)
+    bool uploadFile(const fs::path& path, const string& name, Node* parent, int timeoutSeconds = 30)
     {
         auto result =
             thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
@@ -1736,10 +1736,15 @@ struct StandardClient : public MegaApp
                     client.uploadFile(path, name, parent, pb);
                 });
 
+        if (result.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+        {
+            LOG_warn << "Timed out waiting for uplaodFile";
+            return false;
+        }
         return result.get();
     }
 
-    bool uploadFile(const fs::path& path, const string& name, string parentPath)
+    bool uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds = 30)
     {
         auto result =
             thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
@@ -1753,6 +1758,11 @@ struct StandardClient : public MegaApp
                     client.uploadFile(path, name, parent, pb);
                 });
 
+        if (result.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+        {
+            LOG_warn << "Timed out waiting for uploadFile";
+            return false;
+        }
         return result.get();
     }
 
@@ -1863,6 +1873,11 @@ struct StandardClient : public MegaApp
                               client.fetchnodes(noCache, result);
                           });
 
+        if (result.wait_for(std::chrono::seconds(180)) != std::future_status::ready)
+        {
+            LOG_warn << "Timed out waiting for fetchnodes";
+            return false;
+        }
         return result.get();
     }
 
@@ -3041,6 +3056,8 @@ struct StandardClient : public MegaApp
             return future.get();
         }
 
+        LOG_warn << "Timed out in withWait";
+
         return ResultType();
     }
 
@@ -3141,7 +3158,13 @@ struct StandardClient : public MegaApp
 
         auto status = future.wait_for(DEFAULTWAIT);
 
-        return status == future_status::ready && future.get();
+        if (status != future_status::ready)
+        {
+            LOG_warn << "Timed out waiting for movenode";
+            return false;
+        }
+
+        return future.get();
     }
 
     void movenode(string path, string newname, string newparentpath, PromiseBoolSP pb)
@@ -3426,10 +3449,10 @@ struct StandardClient : public MegaApp
         fs::create_directory(syncdir);
 
         // put a default .megaignore in the cloud, in case we set up other syncs to this folder also (avoiding duplicates create during setup races)
-        ofstream f(fsBasePath / "emptyfile");
+        ofstream f(fsBasePath / ".megaignore");  // better not change the name or it upsets AnomalyReporter due to being outside the sync
         f.close();
 
-        EXPECT_TRUE(uploadFile(fsBasePath / "emptyfile", ".megaignore", "/mega_test_sync/" + remotesyncrootfolder));
+        EXPECT_TRUE(uploadFile(fsBasePath / ".megaignore", ".megaignore", "/mega_test_sync/" + remotesyncrootfolder));
 
         auto fb = thread_do<handle>([=](StandardClient& mc, PromiseHandleSP pb)
             {
@@ -6380,7 +6403,7 @@ public:
         int type;
     }; // Anomaly
 
-    AnomalyReporter(const string& localRoot, const string& remoteRoot)
+    AnomalyReporter(const LocalPath& localRoot, const string& remoteRoot)
       : mAnomalies()
       , mLocalRoot(localRoot)
       , mRemoteRoot(remoteRoot)
@@ -6389,10 +6412,7 @@ public:
         assert(!mRemoteRoot.empty());
 
         // Add trailing separators if necessary.
-        if (string(1, mLocalRoot.back()) != SEP)
-        {
-            mLocalRoot.append(SEP);
-        }
+        mLocalRoot.appendWithSeparator(LocalPath::fromRelativePath(""), true);
 
         if (mRemoteRoot.back() != '/')
         {
@@ -6404,13 +6424,13 @@ public:
                          const LocalPath& localPath,
                          const string& remotePath) override
     {
-        assert(startsWith(localPath.toPath(), mLocalRoot));
+        assert(startsWith(localPath.toPath(), mLocalRoot.toPath()));
         assert(startsWith(remotePath, mRemoteRoot));
 
         mAnomalies.emplace_back();
 
         auto& anomaly = mAnomalies.back();
-        anomaly.localPath = localPath.toPath().substr(mLocalRoot.size());
+        anomaly.localPath = localPath.toPath().substr(mLocalRoot.toPath().size());
         anomaly.remotePath = remotePath.substr(mRemoteRoot.size());
         anomaly.type = type;
     }
@@ -6423,7 +6443,7 @@ private:
         return lhs.compare(0, rhs.size(), rhs) == 0;
     }
 
-    string mLocalRoot;
+    LocalPath mLocalRoot;
     string mRemoteRoot;
 }; // AnomalyReporter
 
@@ -6476,7 +6496,7 @@ TEST_F(SyncTest, AnomalousManualDownload)
 
     // Set anomalous filename reporter.
     AnomalyReporter* reporter =
-      new AnomalyReporter(root.u8string(),
+      new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()),
                           cd.gettestbasenode()->displaypath());
 
     cd.client.mFilenameAnomalyReporter.reset(reporter);
@@ -6570,7 +6590,7 @@ TEST_F(SyncTest, AnomalousManualUpload)
 
     // Set up anomalous name reporter.
     AnomalyReporter* reporter =
-      new AnomalyReporter(root.u8string(),
+      new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()),
                           cu.gettestbasenode()->displaypath());
 
     cu.client.mFilenameAnomalyReporter.reset(reporter);
@@ -6688,7 +6708,7 @@ TEST_F(SyncTest, AnomalousSyncDownload)
         auto local = (TESTROOT / "cd" / "s").u8string();
         auto remote = s->displaypath();
 
-        reporter = new AnomalyReporter(local, remote);
+        reporter = new AnomalyReporter(LocalPath::fromAbsolutePath(local), remote);
         cd.client.mFilenameAnomalyReporter.reset(reporter);
     }
 
@@ -6745,7 +6765,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
 
     // Set anomalous filename reporter.
     AnomalyReporter* reporter =
-      new AnomalyReporter(root.u8string(), "/mega_test_sync/s");
+      new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()), "/mega_test_sync/s");
 
     cx.client.mFilenameAnomalyReporter.reset(reporter);
 
@@ -6833,7 +6853,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     auto root = cx.syncSet(id).localpath;
 
     // Set up anomalous filename reporter.
-    auto* reporter = new AnomalyReporter(root.u8string(), "/mega_test_sync/s");
+    auto* reporter = new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()), "/mega_test_sync/s");
     cx.client.mFilenameAnomalyReporter.reset(reporter);
 
     // Populate filesystem.
@@ -6923,7 +6943,7 @@ TEST_F(SyncTest, AnomalousSyncUpload)
 
     // Set up anomalous filename reporter.
     AnomalyReporter* reporter =
-      new AnomalyReporter(root.u8string(), "/mega_test_sync/s");
+      new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()), "/mega_test_sync/s");
 
     cu.client.mFilenameAnomalyReporter.reset(reporter);
 
@@ -12286,7 +12306,7 @@ TEST_F(LocalToCloudFilterFixture, RenameIgnoredToAnomalous)
 
     // Set anomalous filename reporter.
     AnomalyReporter* reporter =
-      new AnomalyReporter((root(*cu) / "root").u8string(),
+      new AnomalyReporter(LocalPath::fromAbsolutePath((root(*cu) / "root").u8string()),
                           cu->gettestbasenode()->displaypath());
 
     cu->client.mFilenameAnomalyReporter.reset(reporter);
