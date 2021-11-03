@@ -3424,6 +3424,13 @@ struct StandardClient : public MegaApp
     {
         fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
+
+        // put a default .megaignore in the cloud, in case we set up other syncs to this folder also (avoiding duplicates create during setup races)
+        ofstream f(fsBasePath / "emptyfile");
+        f.close();
+
+        EXPECT_TRUE(uploadFile(fsBasePath / "emptyfile", ".megaignore", "/mega_test_sync/" + remotesyncrootfolder));
+
         auto fb = thread_do<handle>([=](StandardClient& mc, PromiseHandleSP pb)
             {
                 mc.setupSync_inthread(remotesyncrootfolder, syncdir, isBackup,
