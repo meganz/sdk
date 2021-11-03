@@ -321,7 +321,11 @@ void SdkTest::Cleanup()
         std::unique_ptr<MegaUserList> ul{megaApi[0]->getContacts()};
         for (int i = 0; i < ul->size(); i++)
         {
-            removeContact(ul->get(i)->getEmail());
+            const char* contactEmail = ul->get(i)->getEmail();
+            if (contactEmail && *contactEmail) // sometimes the email is an empty string (!)
+            {
+                removeContact(contactEmail);
+            }
         }
     }
 
