@@ -2617,7 +2617,9 @@ void exec_lrenamereplace(autocomplete::ACState& s)
 
 void exec_getcloudstorageused(autocomplete::ACState& s)
 {
-    cout << client->mFingerprints.getSumSizes() << endl;
+    // TODO Nodes on demand check if mFingerprints is required
+    //cout << client->mFingerprints.getSumSizes() << endl;
+    cout << client->mNodeManager.getNodeCounter(client->rootnodes[0]).storage << endl;
 }
 
 void exec_getuserquota(autocomplete::ACState& s)
@@ -7726,13 +7728,14 @@ void DemoApp::nodes_updated(Node** n, int count)
     }
     else
     {
-        for (node_map::iterator it = client->mNodes.begin(); it != client->mNodes.end(); it++)
-        {
-            if (it->second->type < 6)
-            {
-                c[1][it->second->type]++;
-            }
-        }
+        // TODO Nodes on demand review and implement
+//        for (node_map::iterator it = client->mNodes.begin(); it != client->mNodes.end(); it++)
+//        {
+//            if (it->second->type < 6)
+//            {
+//                c[1][it->second->type]++;
+//            }
+//        }
     }
 
     nodestats(c[1], "added or updated");
@@ -8574,13 +8577,14 @@ void DemoAppFolder::nodes_updated(Node **n, int count)
     }
     else
     {
-        for (node_map::iterator it = clientFolder->mNodes.begin(); it != clientFolder->mNodes.end(); it++)
-        {
-            if (it->second->type < 6)
-            {
-                c[1][it->second->type]++;
-            }
-        }
+        // TODO Nodes on demand review and implement
+//        for (node_map::iterator it = clientFolder->mNodes.begin(); it != clientFolder->mNodes.end(); it++)
+//        {
+//            if (it->second->type < 6)
+//            {
+//                c[1][it->second->type]++;
+//            }
+//        }
     }
 
     cout << "The folder link contains ";

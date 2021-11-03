@@ -125,8 +125,8 @@ private:
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
+    // TODO Nodes on demand remove MegaClient and NodeManager reference
     MegaClient* client = nullptr;
-    NodeManager& mNodeManager;
 
     // supplies the nodekey (which is private to ensure we track changes to it)
     const string& nodekey() const;
@@ -254,9 +254,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     node_set::iterator tounlink_it;
 #endif
 
-    // nodehandle of children nodes loaded in memory
-    std::set<NodeHandle> mChildrenInMemory;
-
     // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
     int tag = 0;
 
@@ -270,17 +267,14 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
     bool serialize(string*) override;
-    static Node* unserialize(MegaClient*, const string*, node_vector*, bool decrypted = true);
 
-    Node(NodeManager&, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t, bool addToMemory = true);
+    // TODO Nodes on demand Node Manager reference
+    Node(MegaClient&, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC
-
-protected:
-    bool mInMemory = false;
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted

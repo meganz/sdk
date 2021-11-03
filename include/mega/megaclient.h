@@ -249,7 +249,8 @@ public:
     void init(DBTableNodes *table);
     void reset();
 
-    bool addNode(Node* node); // Instead of Node it can receive parameters for create the node
+    // Take node ownership
+    bool addNode(Node* node, bool notify, bool isFetching = false); // Instead of Node it can receive parameters for create the node
     bool updateNode(Node* node);
     bool removeNode(NodeHandle handle);
 
@@ -263,7 +264,7 @@ public:
     node_vector getRootNodes();
     node_vector getNodesWithSharesOrLink(DBTableNodes::ShareType_t shareType);
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
-    NodeCounter getNodeCounter(NodeHandle node);
+    NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile = false);
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     int getNumberOfChildrenFromNode(NodeHandle parentHandle);
     bool isNodesOnDemandDb();
@@ -279,10 +280,16 @@ public:
     Node* unserializeNode(const string*, bool decrypted = true);
 
     void applyKeys(uint32_t appliedKeys);
+    // TODO nodes on demand check name
+    void confirmNode(Node* node);
 
+    bool hasNodesLoaded();
+
+    // TODO nodes on demand remove
     MegaClient& getMegaClient();
 
 private:
+    // TODO Nodes on demand remove reference
     MegaClient& mClient;
 
     // interface to handle accesses to "nodes" table
@@ -291,6 +298,12 @@ private:
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     node_map mNodes;
 
+    bool mKeepAllNodeInMemory = false;
+    std::set<Node*> mPendingConfirmNodes;
+    std::map<NodeHandle, node_set> mNodesWithMissingParent;  // Parent
+    //std::map<NodeHandle, node_set> mChildLoaded;
+
+    Node* getNodeInRAM(NodeHandle handle);
 };
 
 class MEGA_API MegaClient
@@ -1427,7 +1440,8 @@ public:
     transferslot_list::iterator slotit;
 
     // FileFingerprint to node mapping
-    Fingerprints mFingerprints;
+    // TODO Nodes on demand check if mFingerprints is required
+    //Fingerprints mFingerprints;
 
     // flag to skip removing nodes from mFingerprints when all nodes get deleted
     bool mOptimizePurgeNodes = false;
@@ -1531,9 +1545,6 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
-
-    // maps node handle to public handle
-    std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC
     // sync debris folder name in //bin
