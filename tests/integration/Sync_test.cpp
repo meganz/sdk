@@ -3978,9 +3978,9 @@ public:
 
     void startSyncs()
     {
-        backupId0 = client0->setupSync_mainthread("s0", "d");
+        backupId0 = client0->setupSync_mainthread("s0", "d", false, true);
         ASSERT_NE(backupId0, UNDEF);
-        backupId1 = client1->setupSync_mainthread("s1", "d");
+        backupId1 = client1->setupSync_mainthread("s1", "d", false, false);
         ASSERT_NE(backupId1, UNDEF);
     }
 
@@ -10561,7 +10561,7 @@ TEST_F(FilterFixture, CaseSensitiveFilter)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization.
@@ -10593,7 +10593,7 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
         ASSERT_TRUE(cu->login_reset_makeremotenodes("x"));
 
         // Add and start sync.
-        auto id = setupSync(*cu, "root", "x");
+        auto id = setupSync(*cu, "root", "x", false);
         ASSERT_NE(id, UNDEF);
 
         // Wait for synchronization to complete.
@@ -10664,7 +10664,7 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
     };
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "x");
+    auto id = setupSync(*cdu, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -10723,7 +10723,7 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
       };
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "x");
+    auto id = setupSync(*cdu, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -10788,7 +10788,7 @@ TEST_F(FilterFixture, NameFilter)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete.
@@ -10821,7 +10821,7 @@ TEST_F(FilterFixture, OrderDependentFilter)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -10875,7 +10875,7 @@ TEST_F(FilterFixture, PathFilter)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -10945,7 +10945,7 @@ TEST_F(FilterFixture, TargetSpecificFilter)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start the sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -10981,10 +10981,12 @@ TEST_F(FilterFailureFixture, ResolveBrokenIgnoreFile)
     model1.generate(root(*cdu) / "s1");
 
     // Add and start syncs.
-    auto id0 = setupSync(*cdu, "s0", "cdu/cdu_0");
+    auto id0 = setupSync(*cdu, "s0", "cdu/cdu_0", false);
     ASSERT_NE(id0, UNDEF);
 
-    auto id1 = setupSync(*cdu, "s1", "cdu/cdu_1");
+    WaitMillisec(5000);  // give it a chance to upload .megaignore before we start the 2nd sync
+
+    auto id1 = setupSync(*cdu, "s1", "cdu/cdu_1", false);
     ASSERT_NE(id1, UNDEF);
 
     // Wait for the initial sync to complete.
@@ -11093,7 +11095,7 @@ TEST_F(FilterFailureFixture, TriggersFailureEvent)
     };
 
     // Add and start a sync.
-    id = setupSync(*cu, "root", "cu");
+    id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for the sync to signal the event.
@@ -11128,7 +11130,7 @@ TEST_F(FilterFailureFixture, TriggersStall)
     };
 
     // Add and start the sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for the engine to detect a stall.
@@ -11179,7 +11181,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntDownloadIgnoredNodes)
 
         ASSERT_TRUE(cu->login_reset_makeremotenodes("x"));
 
-        auto id = setupSync(*cu, "root", "x");
+        auto id = setupSync(*cu, "root", "x", false);
         ASSERT_NE(id, UNDEF);
 
         waitOnSyncs(cu.get());
@@ -11208,7 +11210,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntDownloadIgnoredNodes)
     ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
-    auto id = setupSync(*cd, "root", "x");
+    auto id = setupSync(*cd, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync and confirm models.
@@ -11236,7 +11238,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntMoveIgnoredNodes)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete.
@@ -11291,7 +11293,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntRenameIgnoredNodes)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete.
@@ -11343,7 +11345,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntRubbishIgnoredNodes)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete.
@@ -11421,7 +11423,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -11489,7 +11491,7 @@ TEST_F(LocalToCloudFilterFixture, ExcludedIgnoreFile)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    const auto id = setupSync(*cu, "root", "cu");
+    const auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for the initial sync to complete.
@@ -11534,7 +11536,7 @@ TEST_F(LocalToCloudFilterFixture, FilterAdded)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for and confirm sync.
@@ -11584,7 +11586,7 @@ TEST_F(LocalToCloudFilterFixture, FilterChanged)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for and confirm sync.
@@ -11664,7 +11666,7 @@ TEST_F(LocalToCloudFilterFixture, FilterDeferredChange)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync and confirm models.
@@ -11735,7 +11737,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedAcrossHierarchy)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync and confirm models.
@@ -11812,10 +11814,12 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedBetweenSyncs)
     }
 
     // Add and start syncs.
-    auto id0 = setupSync(*cdu, "s0", "s0");
+    auto id0 = setupSync(*cdu, "s0", "s0", false);
     ASSERT_NE(id0, UNDEF);
 
-    auto id1 = setupSync(*cdu, "s1", "s1");
+    WaitMillisec(5000);  // give it a chance to upload .megaignore before we start the 2nd sync
+
+    auto id1 = setupSync(*cdu, "s1", "s1", false);
     ASSERT_NE(id1, UNDEF);
 
     // Wait for synchronization to complete.
@@ -11933,7 +11937,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedDownHierarchy)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync and confirm models.
@@ -11987,7 +11991,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedIntoExcluded)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync and confirm models.
@@ -12036,7 +12040,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedUpHierarchy)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync and confirm models.
@@ -12091,7 +12095,7 @@ TEST_F(LocalToCloudFilterFixture, FilterOverwritten)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -12138,7 +12142,7 @@ TEST_F(LocalToCloudFilterFixture, FilterRemoved)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for and confirm sync.
@@ -12186,7 +12190,7 @@ TEST_F(LocalToCloudFilterFixture, MoveToIgnoredRubbishesRemote)
     ASSERT_TRUE(cu->deleteremotedebris());
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete and confirm models.
@@ -12249,7 +12253,7 @@ TEST_F(LocalToCloudFilterFixture, OverwriteExcluded)
     ASSERT_TRUE(cdu->login_reset_makeremotenodes("x"));
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "x");
+    auto id = setupSync(*cdu, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete.
@@ -12316,7 +12320,7 @@ TEST_F(LocalToCloudFilterFixture, RenameIgnoredToAnomalous)
     cu->client.mFilenameAnomalyReporter.reset(reporter);
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete.
@@ -12372,7 +12376,7 @@ TEST_F(LocalToCloudFilterFixture, RenameToIgnoredRubbishesRemote)
     ASSERT_TRUE(cu->deleteremotedebris());
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete and confirm models.
@@ -12410,7 +12414,7 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
     // Add and start sync.
-    auto id = setupSync(*cu, "root", "cu");
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     auto root = cu->syncSet(id).localpath;
@@ -12564,7 +12568,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
 
-    auto id = setupSync(*cd, "root", "x");
+    auto id = setupSync(*cd, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -12630,7 +12634,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntMoveIgnoredNodes)
     ASSERT_TRUE(cdu->login_reset_makeremotenodes("cdu"));
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "cdu");
+    auto id = setupSync(*cdu, "root", "cdu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete.
@@ -12690,7 +12694,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntRenameIgnoredNodes)
     ASSERT_TRUE(cdu->login_reset_makeremotenodes("cdu"));
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "cdu");
+    auto id = setupSync(*cdu, "root", "cdu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete.
@@ -12757,7 +12761,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntRubbishIgnoredNodes)
     ASSERT_TRUE(cdu->login_reset_makeremotenodes("cdu"));
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "cdu");
+    auto id = setupSync(*cdu, "root", "cdu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete.
@@ -12857,7 +12861,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntUploadIgnoredNodes)
     ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
-    auto id = setupSync(*cd, "root", "x");
+    auto id = setupSync(*cd, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -12916,7 +12920,7 @@ TEST_F(CloudToLocalFilterFixture, ExcludedIgnoreFile)
     fs::create_directories(root(*cdu) / "root");
 
     // Add and start sync.
-    const auto id = setupSync(*cdu, "root", "x");
+    const auto id = setupSync(*cdu, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for initial sync to complete.
@@ -12975,10 +12979,12 @@ TEST_F(CloudToLocalFilterFixture, FilterAdded)
     ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start syncs.
-    auto cuId = setupSync(*cu, "root", "x");
+    auto cuId = setupSync(*cu, "root", "x", false);
     ASSERT_NE(cuId, UNDEF);
 
-    auto cdId = setupSync(*cd, "root", "x");
+    WaitMillisec(5000);  // give it a chance to upload .megaignore before we start the 2nd sync
+
+    auto cdId = setupSync(*cd, "root", "x", false);
     ASSERT_NE(cdId, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13054,12 +13060,14 @@ TEST_F(CloudToLocalFilterFixture, FilterChanged)
     ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start syncs.
-    auto cuId = setupSync(*cu, "root", "x");
+    auto cuId = setupSync(*cu, "root", "x", false);
     ASSERT_NE(cuId, UNDEF);
+
+    WaitMillisec(5000);  // give it a chance to upload .megaignore before we start the 2nd sync
 
     fs::create_directories(root(*cd) / "root");
 
-    auto cdId = setupSync(*cd, "root", "x");
+    auto cdId = setupSync(*cd, "root", "x", false);
     ASSERT_NE(cdId, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13149,7 +13157,7 @@ TEST_F(CloudToLocalFilterFixture, FilterDeferredChange)
     // Add sync and start sync.
     fs::create_directories(root(*cd) / "root");
 
-    auto cdId = setupSync(*cd, "root", "x");
+    auto cdId = setupSync(*cd, "root", "x", false);
     ASSERT_NE(cdId, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13249,7 +13257,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedAcrossHierarchy)
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
 
-    auto id = setupSync(*cd, "root", "x");
+    auto id = setupSync(*cd, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13333,7 +13341,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedDownHierarchy)
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
 
-    auto id = setupSync(*cd, "root", "x");
+    auto id = setupSync(*cd, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13417,7 +13425,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedIntoExcluded)
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
 
-    auto id = setupSync(*cd, "root", "x");
+    auto id = setupSync(*cd, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13492,7 +13500,7 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
 
-    auto id = setupSync(*cd, "root", "x");
+    auto id = setupSync(*cd, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13613,7 +13621,7 @@ TEST_F(CloudToLocalFilterFixture, FilterRemoved)
     // Add and start sync.
     fs::create_directories(root(*cd) / "root");
 
-    auto id = setupSync(*cd, "root", "x");
+    auto id = setupSync(*cd, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13665,7 +13673,7 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
     ASSERT_TRUE(cdu->login_reset_makeremotenodes("cdu"));
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "cdu");
+    auto id = setupSync(*cdu, "root", "cdu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13743,7 +13751,7 @@ TEST_F(CloudToLocalFilterFixture, OverwriteExcluded)
     ASSERT_TRUE(cdu->login_reset_makeremotenodes("x"));
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "x");
+    auto id = setupSync(*cdu, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13816,7 +13824,7 @@ TEST_F(CloudToLocalFilterFixture, RenameToIgnoredRubbishesRemote)
     ASSERT_TRUE(cdu->login_reset_makeremotenodes("cdu"));
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "cdu");
+    auto id = setupSync(*cdu, "root", "cdu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -13890,7 +13898,7 @@ TEST_F(SyncTest, CorrectlyHandlePreviouslySyncedFiles)
     ASSERT_TRUE(adjustLastModificationTime(lRoot / "d" / "f1", -1000));
 
     // Add and start a sync.
-    auto id = c.setupSync_mainthread("s", "s");
+    auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for the sync to complete.
@@ -13944,7 +13952,7 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
     ASSERT_TRUE(c.login_reset_makeremotenodes("s"));
 
     // Add and start sync.
-    auto id = c.setupSync_mainthread("s", "s");
+    auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for the initial sync to complete.
@@ -14056,7 +14064,7 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_TRUE(c.login_reset_makeremotenodes("s"));
 
     // Add and start sync.
-    auto id = c.setupSync_mainthread("s", "s");
+    auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Create a tree for the engine to synchronize.
