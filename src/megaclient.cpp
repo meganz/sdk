@@ -16072,23 +16072,6 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
     return mNodeManager.getNodeByFingerprint(*fingerprint);
 }
 
-//Node* MegaClient::nodeByHandleInRam(NodeHandle h) const
-//{
-//    if (h == UNDEF)
-//    {
-//        return nullptr;
-//    }
-
-//    node_map::const_iterator it;
-
-//    if ((it = mNodes.find(h)) != mNodes.end())
-//    {
-//        return it->second;
-//    }
-
-//    return nullptr;
-//}
-
 #ifdef ENABLE_SYNC
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 {

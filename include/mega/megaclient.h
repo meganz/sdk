@@ -1514,7 +1514,6 @@ public:
     // If it's necessary, load nodes from data base
     Node* nodeByHandle(NodeHandle);
     Node* nodeByPath(const char* path, Node* node = nullptr);
-//    Node* nodeByHandleInRam(NodeHandle) const;
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
