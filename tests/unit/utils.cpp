@@ -71,10 +71,9 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSyste
 
 mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, const mega::handle handle, mega::Node* const parent)
 {
-    assert(client.mNodes.find(::mega::NodeHandle().set6byte(handle)) == client.mNodes.end());
-    mega::node_vector dp;
+    assert(client.nodeByHandle(::mega::NodeHandle().set6byte(handle)) == nullptr);
     const auto ph = parent ? parent->nodehandle : mega::UNDEF;
-    auto n = new mega::Node{&client, &dp, handle, ph, type, -1, mega::UNDEF, nullptr, 0}; // owned by the client
+    auto n = new mega::Node{client, handle, ph, type, -1, mega::UNDEF, nullptr, 0}; // owned by the client
     n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
     return *n;
 }

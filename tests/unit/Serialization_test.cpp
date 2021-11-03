@@ -340,7 +340,9 @@ struct MockClient
     MockClient()
     {
         mega::PrnGen gen;
-        cli->sctable.reset(new mt::DefaultedDbTable(gen));
+        mt::DefaultedDbTable *defaultTable = new mt::DefaultedDbTable(gen);
+        cli->sctable.reset(defaultTable);
+        cli->mNodeManager.init(defaultTable);
     }
 };
 
@@ -657,7 +659,7 @@ TEST(Serialization, Node_whenNodeIsEncrypted)
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     n.attrstring.reset(new std::string);
     std::string data;
-    ASSERT_FALSE(n.serialize(&data));
+    ASSERT_TRUE(n.serialize(&data));
 }
 
 TEST(Serialization, Node_whenTypeIsUnsupported)
@@ -678,8 +680,7 @@ TEST(Serialization, Node_forFile_withoutParent_withoutShares_withoutAttrs_withou
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(90u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -693,8 +694,7 @@ TEST(Serialization, Node_forFolder_withoutParent_withoutShares_withoutAttrs_with
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(71u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -709,8 +709,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutAttrs_withoutFileAttrStrin
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(90u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -729,8 +728,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutFileAttrString_withoutPlin
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(104u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -750,8 +748,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutPlink)
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(108u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -772,8 +769,7 @@ TEST(Serialization, Node_forFile_withoutShares)
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(131u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -795,8 +791,7 @@ TEST(Serialization, Node_forFile_withoutShares_withAuthKey)
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(142u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -831,8 +826,7 @@ TEST(Serialization, Node_forFile_withoutShares_32bit)
     };
     const std::string data(rawData.data(), rawData.size());
 
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -847,8 +841,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutAttrs_withoutFileAttrStr
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(71u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -867,8 +860,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutFileAttrString_withoutPl
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(85u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -888,8 +880,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutPlink)
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(85u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n, true);
 }
 
@@ -911,8 +902,7 @@ TEST(Serialization, Node_forFolder_withoutShares)
     ASSERT_TRUE(n->serialize(&data));
 
     ASSERT_EQ(108u, data.size());
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n, true);
 }
 
@@ -947,7 +937,6 @@ TEST(Serialization, Node_forFolder_withoutShares_32bit)
     };
     const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data);
     checkDeserializedNode(*dn, *n, true);
 }
