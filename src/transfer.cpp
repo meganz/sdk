@@ -653,7 +653,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 syncxfer = true;
             }
 
-            if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
+            if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h, true))
                  && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
