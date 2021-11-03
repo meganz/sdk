@@ -108,6 +108,9 @@ public:
     bool probe(FileSystemAccess& fsAccess, const string& name) const override;
 
     const LocalPath& rootPath() const override;
+
+private:
+    bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, std::string& dbPathStr, const int flags);
 };
 
 } // namespace

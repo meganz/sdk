@@ -56,95 +56,10 @@ LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
 
 SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
 {
-    auto dbPath = databasePath(fsAccess, name, DB_VERSION);
-    auto upgraded = true;
-
+    sqlite3 *db = nullptr;
+    std::string dbPathStr;
+    if (!openDBAndCreateStatecache(&db, fsAccess, name, dbPathStr, flags))
     {
-        auto legacyPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
-        auto fileAccess = fsAccess.newfileaccess();
-
-        if (fileAccess->fopen(legacyPath))
-        {
-            LOG_debug << "Found legacy database at: " << legacyPath.toPath(fsAccess);
-
-            if (currentDbVersion == LEGACY_DB_VERSION)
-            {
-                LOG_debug << "Using a legacy database.";
-                dbPath = std::move(legacyPath);
-                upgraded = false;
-            }
-            else if ((flags & DB_OPEN_FLAG_RECYCLE))
-            {
-                LOG_debug << "Trying to recycle a legacy database.";
-
-                if (fsAccess.renamelocal(legacyPath, dbPath, false))
-                {
-                    auto suffix = LocalPath::fromPath("-shm", fsAccess);
-                    auto from = legacyPath + suffix;
-                    auto to = dbPath + suffix;
-
-                    fsAccess.renamelocal(from, to);
-
-                    suffix = LocalPath::fromPath("-wal", fsAccess);
-                    from = legacyPath + suffix;
-                    to = dbPath + suffix;
-
-                    fsAccess.renamelocal(from, to);
-
-                    LOG_debug << "Legacy database recycled.";
-                }
-                else
-                {
-                    LOG_debug << "Unable to recycle database, deleting...";
-                    fsAccess.unlinklocal(legacyPath);
-                }
-            }
-            else
-            {
-                LOG_debug << "Deleting outdated legacy database.";
-                fsAccess.unlinklocal(legacyPath);
-            }
-        }
-    }
-
-    if (upgraded)
-    {
-        LOG_debug << "Using an upgraded DB: " << dbPath.toPath(fsAccess);
-        currentDbVersion = DB_VERSION;
-    }
-
-    const string dbPathStr = dbPath.toPath(fsAccess);
-    sqlite3* db;
-    int result = sqlite3_open_v2(dbPathStr.c_str(), &db,
-        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
-        | SQLITE_OPEN_NOMUTEX // The new database connection will use the "multi-thread" threading mode. This means that separate threads are allowed to use SQLite at the same time, as long as each thread is using a different database connection.
-        , nullptr);
-
-    if (result)
-    {
-        if (db)
-        {
-            sqlite3_close(db);
-        }
-
-        return nullptr;
-    }
-
-#if !(TARGET_OS_IPHONE)
-    result = sqlite3_exec(db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
-    if (result)
-    {
-        sqlite3_close(db);
-        return nullptr;
-    }
-#endif /* ! TARGET_OS_IPHONE */
-
-    string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
-
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
-    {
-        sqlite3_close(db);
         return nullptr;
     }
 
@@ -157,110 +72,19 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
 
 DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags)
 {
-    auto dbPath = databasePath(fsAccess, name, DB_VERSION);
-    auto upgraded = true;
-
+    sqlite3 *db = nullptr;
+    std::string dbPathStr;
+    if (!openDBAndCreateStatecache(&db, fsAccess, name, dbPathStr, flags))
     {
-        auto legacyPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
-        auto fileAccess = fsAccess.newfileaccess();
-
-        if (fileAccess->fopen(legacyPath))
-        {
-            LOG_debug << "Found legacy database at: " << legacyPath.toPath(fsAccess);
-
-            if (currentDbVersion == LEGACY_DB_VERSION)
-            {
-                LOG_debug << "Using a legacy database.";
-                dbPath = std::move(legacyPath);
-                upgraded = false;
-            }
-            else if ((flags & DB_OPEN_FLAG_RECYCLE))
-            {
-                LOG_debug << "Trying to recycle a legacy database.";
-
-                if (fsAccess.renamelocal(legacyPath, dbPath, false))
-                {
-                    auto suffix = LocalPath::fromPath("-shm", fsAccess);
-                    auto from = legacyPath + suffix;
-                    auto to = dbPath + suffix;
-
-                    fsAccess.renamelocal(from, to);
-
-                    suffix = LocalPath::fromPath("-wal", fsAccess);
-                    from = legacyPath + suffix;
-                    to = dbPath + suffix;
-
-                    fsAccess.renamelocal(from, to);
-
-                    LOG_debug << "Legacy database recycled.";
-                }
-                else
-                {
-                    LOG_debug << "Unable to recycle database, deleting...";
-                    fsAccess.unlinklocal(legacyPath);
-                }
-            }
-            else
-            {
-                LOG_debug << "Deleting outdated legacy database.";
-                fsAccess.unlinklocal(legacyPath);
-            }
-        }
-    }
-
-    if (upgraded)
-    {
-        LOG_debug << "Using an upgraded DB: " << dbPath.toPath(fsAccess);
-        currentDbVersion = DB_VERSION;
-    }
-
-    const string dbPathStr = dbPath.toPath(fsAccess);
-    sqlite3* db;
-    int result = sqlite3_open_v2(dbPathStr.c_str(), &db,
-        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
-        | SQLITE_OPEN_NOMUTEX // The new database connection will use the "multi-thread" threading mode. This means that separate threads are allowed to use SQLite at the same time, as long as each thread is using a different database connection.
-        , nullptr);
-
-    if (result)
-    {
-        if (db)
-        {
-            sqlite3_close(db);
-        }
-
         return nullptr;
     }
 
-#if !(TARGET_OS_IPHONE)
-    result = sqlite3_exec(db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    // Create specific table for handle nodes
+    std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, type int, size int64, share int, decrypted int, fav int, node BLOB NOT NULL)";
+    int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
-        sqlite3_close(db);
-        return nullptr;
-    }
-#endif /* ! TARGET_OS_IPHONE */
-
-    string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
-
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
-    {
-        sqlite3_close(db);
-        return nullptr;
-    }
-
-    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, type int, size int64, share int, decrypted int, fav int, node BLOB NOT NULL)";
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
-    {
-        sqlite3_close(db);
-        return nullptr;
-    }
-
-    sql = "CREATE TABLE IF NOT EXISTS vars(name text PRIMARY KEY NOT NULL, value BLOB)";
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
-    {
+        LOG_debug << "Data base error: " << sqlite3_errmsg(db);
         sqlite3_close(db);
         return nullptr;
     }
@@ -291,6 +115,102 @@ bool SqliteDbAccess::probe(FileSystemAccess& fsAccess, const string& name) const
 const LocalPath& SqliteDbAccess::rootPath() const
 {
     return mRootPath;
+}
+
+bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &fsAccess, const string &name, std::string &dbPathStr, const int flags)
+{
+    auto dbPath = databasePath(fsAccess, name, DB_VERSION);
+    auto upgraded = true;
+
+    {
+        auto legacyPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
+        auto fileAccess = fsAccess.newfileaccess();
+
+        if (fileAccess->fopen(legacyPath))
+        {
+            LOG_debug << "Found legacy database at: " << legacyPath.toPath(fsAccess);
+
+            if (currentDbVersion == LEGACY_DB_VERSION)
+            {
+                LOG_debug << "Using a legacy database.";
+                dbPath = std::move(legacyPath);
+                upgraded = false;
+            }
+            else if ((flags & DB_OPEN_FLAG_RECYCLE))
+            {
+                LOG_debug << "Trying to recycle a legacy database.";
+
+                if (fsAccess.renamelocal(legacyPath, dbPath, false))
+                {
+                    auto suffix = LocalPath::fromPath("-shm", fsAccess);
+                    auto from = legacyPath + suffix;
+                    auto to = dbPath + suffix;
+
+                    fsAccess.renamelocal(from, to);
+
+                    suffix = LocalPath::fromPath("-wal", fsAccess);
+                    from = legacyPath + suffix;
+                    to = dbPath + suffix;
+
+                    fsAccess.renamelocal(from, to);
+
+                    LOG_debug << "Legacy database recycled.";
+                }
+                else
+                {
+                    LOG_debug << "Unable to recycle database, deleting...";
+                    fsAccess.unlinklocal(legacyPath);
+                }
+            }
+            else
+            {
+                LOG_debug << "Deleting outdated legacy database.";
+                fsAccess.unlinklocal(legacyPath);
+            }
+        }
+    }
+
+    if (upgraded)
+    {
+        LOG_debug << "Using an upgraded DB: " << dbPath.toPath(fsAccess);
+        currentDbVersion = DB_VERSION;
+    }
+
+    dbPathStr = dbPath.toPath(fsAccess);
+    int result = sqlite3_open_v2(dbPathStr.c_str(), db,
+        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
+        | SQLITE_OPEN_NOMUTEX // The new database connection will use the "multi-thread" threading mode. This means that separate threads are allowed to use SQLite at the same time, as long as each thread is using a different database connection.
+        , nullptr);
+
+    if (result)
+    {
+        if (db)
+        {
+            sqlite3_close(*db);
+        }
+
+        return false;
+    }
+
+#if !(TARGET_OS_IPHONE)
+    result = sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    if (result)
+    {
+        sqlite3_close(*db);
+        return false;
+    }
+#endif /* ! TARGET_OS_IPHONE */
+
+    string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
+
+    result = sqlite3_exec(*db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        sqlite3_close(*db);
+        return false;
+    }
+
+    return true;
 }
 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
@@ -905,7 +825,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::map<mega::NodeHandle, meg
 
     sqlite3_stmt *stmt;
     int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT nodehandle decrypted, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL) == SQLITE_OK)
+    if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int(stmt, 1, static_cast<int>(shareType)) == SQLITE_OK)
         {
