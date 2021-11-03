@@ -14823,7 +14823,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         }
 
         assert( (f->h.isUndef() && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
-                || (!f->h.isUndef() && (nodeByHandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
+                || (!f->h.isUndef() && (nodeByHandle(f->h, true) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
     return true;
