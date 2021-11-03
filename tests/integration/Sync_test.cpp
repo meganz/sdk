@@ -4133,9 +4133,9 @@ TEST_F(SyncTest, BasicSync_DelRemoteFolder)
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
     clientA1.logcb = clientA2.logcb = true;
@@ -4170,9 +4170,9 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
     clientA1.logcb = clientA2.logcb = true;
@@ -4220,9 +4220,9 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
     waitonsyncs(std::chrono::seconds(8), &clientA1, &clientA2);
     clientA1.logcb = clientA2.logcb = true;
@@ -4283,15 +4283,15 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     }
 
     // set up sync for A1 and A2, it should build matching local folders
-    handle backupId11 = clientA1.setupSync_mainthread("sync1", "f/f_0");
+    handle backupId11 = clientA1.setupSync_mainthread("sync1", "f/f_0", false, false);
     ASSERT_NE(backupId11, UNDEF);
-    handle backupId12 = clientA1.setupSync_mainthread("sync2", "f/f_2");
+    handle backupId12 = clientA1.setupSync_mainthread("sync2", "f/f_2", false, false);
     ASSERT_NE(backupId12, UNDEF);
-    handle backupId21 = clientA2.setupSync_mainthread("syncA2_1", "f/f_0");
+    handle backupId21 = clientA2.setupSync_mainthread("syncA2_1", "f/f_0", false, false);
     ASSERT_NE(backupId21, UNDEF);
-    handle backupId22 = clientA2.setupSync_mainthread("syncA2_2", "f/f_2");
+    handle backupId22 = clientA2.setupSync_mainthread("syncA2_2", "f/f_2", false, false);
     ASSERT_NE(backupId22, UNDEF);
-    handle backupId31 = clientA3.setupSync_mainthread("syncA3", "f");
+    handle backupId31 = clientA3.setupSync_mainthread("syncA3", "f", false, false);
     ASSERT_NE(backupId31, UNDEF);
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2, &clientA3);
     clientA1.logcb = clientA2.logcb = clientA3.logcb = true;
@@ -4374,9 +4374,9 @@ TEST_F(SyncTest, BasicSync_RenameLocalFile)
     ASSERT_EQ(client0.basefolderhandle, client1.basefolderhandle);
 
     // Set up syncs.
-    handle backupId0 = client0.setupSync_mainthread("s0", "x");
+    handle backupId0 = client0.setupSync_mainthread("s0", "x", false, true);
     ASSERT_NE(backupId0, UNDEF);
-    handle backupId1 = client1.setupSync_mainthread("s1", "x");
+    handle backupId1 = client1.setupSync_mainthread("s1", "x", false, false);
     ASSERT_NE(backupId1, UNDEF);
 
     // Wait for initial sync to complete.
@@ -4430,9 +4430,9 @@ TEST_F(SyncTest, BasicSync_AddLocalFolder)
     model2.root->addkid(model2.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
     clientA1.logcb = clientA2.logcb = true;
@@ -4473,7 +4473,7 @@ TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
     //ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
     //ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
     waitonsyncs(std::chrono::seconds(4), &clientA1/*, &clientA2*/);
@@ -4631,9 +4631,9 @@ TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
     model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
     clientA1.logcb = clientA2.logcb = true;
@@ -4677,9 +4677,9 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
     clientA1.logcb = clientA2.logcb = true;
@@ -4765,9 +4765,9 @@ TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
     clientA2.received_node_actionpackets = false;
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = pclientA1->setupSync_mainthread("sync1", "f");
+    handle backupId1 = pclientA1->setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
 
     ASSERT_TRUE(pclientA1->waitForNodesUpdated(30)) << " no actionpacket received in clientA1";
@@ -4890,9 +4890,9 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = pclientA1->setupSync_mainthread("sync1", "f");
+    handle backupId1 = pclientA1->setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
     pclientA1->logcb = clientA2.logcb = true;
@@ -4968,9 +4968,9 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = pclientA1->setupSync_mainthread("sync1", "f");
+    handle backupId1 = pclientA1->setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
     pclientA1->logcb = clientA2.logcb = true;
@@ -5043,9 +5043,9 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
     model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = pclientA1->setupSync_mainthread("sync1", "f");
+    handle backupId1 = pclientA1->setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
     pclientA1->logcb = clientA2.logcb = true;
@@ -5162,9 +5162,9 @@ TEST_F(SyncTest, BasicSync_SpecialCreateFile)
     model.root->addkid(model.buildModelSubdirs("f", 2, 2, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
 
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
@@ -5207,9 +5207,9 @@ TEST_F(SyncTest, BasicSync_moveAndDeleteLocalFile)
     model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
 
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
@@ -5415,9 +5415,9 @@ TEST_F(SyncTest, BasicSync_CreateAndDeleteLink)
     model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
 
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
@@ -5462,9 +5462,9 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
     model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
 
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
@@ -5521,9 +5521,9 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
 
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
@@ -5580,9 +5580,9 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
     model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
 
     // set up sync for A1, it should build matching local folders
-    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f");
+    handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f");
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
 
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
@@ -5669,7 +5669,7 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
 
     // Add and start sync.
-    const auto id = c.setupSync_mainthread("s", "x");
+    const auto id = c.setupSync_mainthread("s", "x", false, true);
     ASSERT_NE(id, UNDEF);
 
     const auto SYNCROOT = c.syncSet(id).localpath;
@@ -5757,10 +5757,10 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
         ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 1, 2));
 
         // Add syncs.
-        auto id0 = c0.setupSync_mainthread("s0", "s/s_0");
+        auto id0 = c0.setupSync_mainthread("s0", "s/s_0", false, true);
         ASSERT_NE(id0, UNDEF);
 
-        auto id1 = c0.setupSync_mainthread("s1", "s/s_1");
+        auto id1 = c0.setupSync_mainthread("s1", "s/s_1", false, false);
         ASSERT_NE(id1, UNDEF);
 
         // Populate filesystem.
@@ -5885,7 +5885,7 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     createNameFile(root / "d" / "e", "g%30");
 
     // Start the sync.
-    handle backupId1 = client.setupSync_mainthread("s", "x");
+    handle backupId1 = client.setupSync_mainthread("s", "x", false, true);
     ASSERT_NE(backupId1, UNDEF);
 
     // Give the client time to synchronize.
@@ -6040,7 +6040,7 @@ TEST_F(SyncTest, DoesntDownloadFilesWithClashingNames)
     ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
-    handle backupId1 = cd.setupSync_mainthread("sd", "x");
+    handle backupId1 = cd.setupSync_mainthread("sd", "x", false, false);
     ASSERT_NE(backupId1, UNDEF);
 
     // Wait for initial sync to complete.
@@ -6118,8 +6118,8 @@ TEST_F(SyncTest, DoesntUploadFilesWithClashingNames)
     createNameFile(root / "d1", "f0");
 
     // Start the syncs.
-    handle backupId1 = cd.setupSync_mainthread("sd", "x");
-    handle backupId2 = cu.setupSync_mainthread("su", "x");
+    handle backupId1 = cd.setupSync_mainthread("sd", "x", false, true);
+    handle backupId2 = cu.setupSync_mainthread("su", "x", false, false);
     ASSERT_NE(backupId1, UNDEF);
     ASSERT_NE(backupId2, UNDEF);
 
@@ -6202,7 +6202,7 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
-    handle backupId1 = cd.setupSync_mainthread("sd", "x");
+    handle backupId1 = cd.setupSync_mainthread("sd", "x", false, false);
     ASSERT_NE(backupId1, UNDEF);
 
     // Wait for initial sync to complete.
@@ -6308,7 +6308,7 @@ TEST_F(SyncTest, DISABLED_RemotesWithEscapesSynchronizeCorrectly)
     ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
-    handle backupId1 = cd.setupSync_mainthread("sd", "x");
+    handle backupId1 = cd.setupSync_mainthread("sd", "x", false, false);
 
     // Wait for initial sync to complete.
     waitonsyncs(TIMEOUT, &cd);
@@ -6466,7 +6466,7 @@ TEST_F(SyncTest, AnomalousManualDownload)
         ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
         // Create a sync so we can upload some files.
-        auto id = cu.setupSync_mainthread("s", "s");
+        auto id = cu.setupSync_mainthread("s", "s", false, false);
         ASSERT_NE(id, UNDEF);
 
         // Get our hands on the sync root.
@@ -6599,7 +6599,7 @@ TEST_F(SyncTest, AnomalousManualUpload)
     cu.client.mFilenameAnomalyReporter.reset(reporter);
 
     // Create a sync so we can verify uploads.
-    auto id = cv.setupSync_mainthread("s", "s");
+    auto id = cv.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     Model model;
@@ -6674,7 +6674,7 @@ TEST_F(SyncTest, AnomalousSyncDownload)
         ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
         // Add and start sync.
-        auto id = cu.setupSync_mainthread("s", "s");
+        auto id = cu.setupSync_mainthread("s", "s", false, false);
         ASSERT_NE(id, UNDEF);
 
         // Add test files for upload.
@@ -6716,7 +6716,7 @@ TEST_F(SyncTest, AnomalousSyncDownload)
     }
 
     // Add and start sync.
-    auto id = cd.setupSync_mainthread("s", "s");
+    auto id = cd.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Get our hands on the sync root.
@@ -6761,7 +6761,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     ASSERT_TRUE(cx.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start sync.
-    auto id = cx.setupSync_mainthread("s", "s");
+    auto id = cx.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     auto root = cx.syncSet(id).localpath;
@@ -6850,7 +6850,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Add and start sync.
-    auto id = cx.setupSync_mainthread("s", "s");
+    auto id = cx.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     auto root = cx.syncSet(id).localpath;
@@ -6939,7 +6939,7 @@ TEST_F(SyncTest, AnomalousSyncUpload)
     ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start sync.
-    auto id = cu.setupSync_mainthread("s", "s");
+    auto id = cu.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     auto root = cu.syncSet(id).localpath;
@@ -7000,13 +7000,13 @@ TEST_F(SyncTest, BasicSyncExportImport)
     ASSERT_TRUE(cx->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 1, 3));
 
     // Create and start syncs.
-    auto id0 = cx->setupSync_mainthread("s0", "s/s_0");
+    auto id0 = cx->setupSync_mainthread("s0", "s/s_0", false, false);
     ASSERT_NE(id0, UNDEF);
 
-    auto id1 = cx->setupSync_mainthread("s1", "s/s_1");
+    auto id1 = cx->setupSync_mainthread("s1", "s/s_1", false, false);
     ASSERT_NE(id1, UNDEF);
 
-    auto id2 = cx->setupSync_mainthread("s2", "s/s_2");
+    auto id2 = cx->setupSync_mainthread("s2", "s/s_2", false, false);
     ASSERT_NE(id2, UNDEF);
 
     // Get our hands on the sync's local root.
@@ -7120,10 +7120,10 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
     ASSERT_TRUE(c0.makeCloudSubdirs("s1", 0, 0));
 
     // Set up syncs.
-    const auto id0 = c0.setupSync_mainthread("s0", "s0");
+    const auto id0 = c0.setupSync_mainthread("s0", "s0", false, false);
     ASSERT_NE(id0, UNDEF);
 
-    const auto id1 = c0.setupSync_mainthread("s1", "s1");
+    const auto id1 = c0.setupSync_mainthread("s1", "s1", false, false);
     ASSERT_NE(id1, UNDEF);
 
     // Convenience.
@@ -7215,7 +7215,7 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
     ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s0", 0, 0));
 
     // Set up sync.
-    const auto id = c0.setupSync_mainthread("s0", "s0");
+    const auto id = c0.setupSync_mainthread("s0", "s0", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Populate local FS.
@@ -7285,10 +7285,10 @@ TEST_F(SyncTest, RenameReplaceFolderBetweenSyncs)
     ASSERT_TRUE(c0.makeCloudSubdirs("s1", 0, 0));
 
     // Set up syncs.
-    const auto id0 = c0.setupSync_mainthread("s0", "s0");
+    const auto id0 = c0.setupSync_mainthread("s0", "s0", false, false);
     ASSERT_NE(id0, UNDEF);
 
-    const auto id1 = c0.setupSync_mainthread("s1", "s1");
+    const auto id1 = c0.setupSync_mainthread("s1", "s1", false, false);
     ASSERT_NE(id1, UNDEF);
 
     // Convenience.
@@ -7377,7 +7377,7 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s0", 0, 0));
 
     // Set up sync.
-    const auto id = c0.setupSync_mainthread("s0", "s0");
+    const auto id = c0.setupSync_mainthread("s0", "s0", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Populate local FS.
@@ -7441,15 +7441,15 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 1, 3));
 
     // Add and start syncs.
-    auto id0 = c.setupSync_mainthread("s0", "x/x_0");
+    auto id0 = c.setupSync_mainthread("s0", "x/x_0", false, false);
     ASSERT_NE(id0, UNDEF);
     auto SYNC0 = c.syncSet(id0);
 
-    auto id1 = c.setupSync_mainthread("s1", "x/x_1");
+    auto id1 = c.setupSync_mainthread("s1", "x/x_1", false, false);
     ASSERT_NE(id1, UNDEF);
     auto SYNC1 = c.syncSet(id1);
 
-    auto id2 = c.setupSync_mainthread("s2", "x/x_2");
+    auto id2 = c.setupSync_mainthread("s2", "x/x_2", false, false);
     ASSERT_NE(id2, UNDEF);
     auto SYNC2 = c.syncSet(id2);
 
@@ -7562,7 +7562,7 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
     }
 
     // Add and start sync.
-    const auto id = c.setupSync_mainthread("s", "s");
+    const auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     const auto SYNCROOT = c.syncSet(id).localpath;
@@ -7603,7 +7603,7 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
     ASSERT_TRUE(c->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start sync.
-    const auto id = c->setupSync_mainthread("s", "s");
+    const auto id = c->setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     const auto SYNCROOT = c->syncSet(id).localpath;
@@ -7686,7 +7686,7 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Set up sync.
-    const auto id = c.setupSync_mainthread("s", "s");
+    const auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     const auto SYNCROOT = c.syncSet(id).localpath;
@@ -7792,7 +7792,7 @@ TEST_F(SyncTest, DeleteReplaceReplacementHasFilesystemWatch)
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start sync.
-    const auto id = c.setupSync_mainthread("s", "s");
+    const auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     const auto ROOT = c.syncSet(id).localpath;
@@ -7849,7 +7849,7 @@ TEST_F(SyncTest, RenameReplaceSourceAndTargetHaveFilesystemWatch)
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start sync.
-    const auto id = c.setupSync_mainthread("s", "s");
+    const auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     const auto SYNCROOT = c.syncSet(id).localpath;
@@ -7928,7 +7928,7 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start sync.
-    const auto id = c.setupSync_mainthread("s", "s");
+    const auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     const auto SYNCROOT = c.syncSet(id).localpath;
@@ -8054,7 +8054,7 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
         ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
         // Add and start sync.
-        id = c.setupSync_mainthread("s", "s");
+        id = c.setupSync_mainthread("s", "s", false, false);
         ASSERT_NE(id, UNDEF);
 
         // Build model and populate filesystem.
@@ -8148,7 +8148,7 @@ TEST_F(SyncTest, RootHasFilesystemWatch)
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Set up sync
-    const auto id = c.setupSync_mainthread("s", "s");
+    const auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for sync to complete.
@@ -8466,9 +8466,9 @@ struct TwoWaySyncSymmetryCase
         return client1().backupAdd_mainthread(drivePath, sourcePath, targetPath, logname);
     }
 
-    handle SetupSync(const string& sourcePath, const string& targetPath)
+    handle SetupSync(const string& sourcePath, const string& targetPath, bool uploadIgnoreFirst = true)
     {
-        return client1().setupSync_mainthread(sourcePath, targetPath, isBackup());
+        return client1().setupSync_mainthread(sourcePath, targetPath, isBackup(), uploadIgnoreFirst);
     }
 
     void SetupTwoWaySync()
@@ -9270,9 +9270,9 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     }
 
     // set up sync for A1, it should build matching cloud files/folders as the test cases add local files/folders
-    handle backupId1 = clientA1Steady.setupSync_mainthread("twoway", "twoway");
+    handle backupId1 = clientA1Steady.setupSync_mainthread("twoway", "twoway", false, true);
     ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA1Resume.setupSync_mainthread("twoway", "twoway");
+    handle backupId2 = clientA1Resume.setupSync_mainthread("twoway", "twoway", false, false);
     ASSERT_NE(backupId2, UNDEF);
     ASSERT_EQ(allstate.localBaseFolderSteady, clientA1Steady.syncSet(backupId1).localpath);
     ASSERT_EQ(allstate.localBaseFolderResume, clientA1Resume.syncSet(backupId2).localpath);
@@ -9462,7 +9462,7 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
         ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
         // Add and start sync.
-        id = c.setupSync_mainthread("s", "s");
+        id = c.setupSync_mainthread("s", "s", false, false);
         ASSERT_NE(id, UNDEF);
 
         // Squirrel away for later use.
@@ -9532,7 +9532,7 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start sync.
-    const auto id = c.setupSync_mainthread("s", "s", true);
+    const auto id = c.setupSync_mainthread("s", "s", true, false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for initial sync to complete.
@@ -9841,7 +9841,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         };
 
         // Add and start sync.
-        id = cb.setupSync_mainthread("s", "s", true);
+        id = cb.setupSync_mainthread("s", "s", true, false);
         ASSERT_NE(id, UNDEF);
 
         // Let the sync mirror.
@@ -9977,7 +9977,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Add and start backup.
-        id = cb.setupSync_mainthread("s", "s", true);
+        id = cb.setupSync_mainthread("s", "s", true, false);
         ASSERT_NE(id, UNDEF);
 
         // Wait for the backup to complete.
@@ -10115,7 +10115,7 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start sync.
-    auto id = c.setupSync_mainthread("s", "s");
+    auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Populate local filesystem.
@@ -10186,7 +10186,7 @@ TEST_F(SyncTest, RemoteReplaceFile)
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start sync.
-    auto id = c.setupSync_mainthread("s", "s");
+    auto id = c.setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Populate local filesystem.
