@@ -2611,20 +2611,20 @@ TEST_F(SdkTest, SdkTestShares2)
     //    |--file.txt
 
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
-    char foldername1[64] = "Shared-folder";
+    static constexpr char foldername1[] = "Shared-folder";
     MegaHandle hfolder1 = createFolder(0, foldername1, rootnode.get());
-    ASSERT_NE(hfolder1, UNDEF);
+    ASSERT_NE(hfolder1, UNDEF) << "Cannot create " << foldername1;
 
     std::unique_ptr<MegaNode> n1{ megaApi[0]->getNodeByHandle(hfolder1) };
     ASSERT_NE(n1, nullptr);
 
-    char foldername2[64] = "subfolder";
-    MegaHandle hfolder2 = createFolder(0, foldername2, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get());
-    ASSERT_NE(hfolder2, UNDEF);
+    static constexpr char foldername2[] = "subfolder";
+    MegaHandle hfolder2 = createFolder(0, foldername2, n1.get());
+    ASSERT_NE(hfolder2, UNDEF) << "Cannot create " << foldername2;
 
     createFile(PUBLICFILE.c_str(), false);   // not a large file since don't need to test transfers here
 
-    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get())) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.c_str(), n1.get())) << "Cannot upload a test file";
     MegaHandle hfile1 = mApi[0].h;
 
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get())) << "Cannot upload a second test file";
@@ -2665,7 +2665,7 @@ TEST_F(SdkTest, SdkTestShares2)
     // --- Check the outgoing share from User1 ---
 
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    MegaShareList* sl = megaApi[0]->getOutShares();
+    std::unique_ptr<MegaShareList> sl{ megaApi[0]->getOutShares() };
     ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
     MegaShare* s = sl->get(0);
 
@@ -2677,15 +2677,13 @@ TEST_F(SdkTest, SdkTestShares2)
     ASSERT_TRUE(n1->isShared()) << "Wrong sharing information at outgoing share";
     ASSERT_TRUE(n1->isOutShare()) << "Wrong sharing information at outgoing share";
 
-    delete sl;
-
 
     // --- Check the incoming share to User2 ---
 
-    sl = megaApi[1]->getInSharesList();
+    sl.reset(megaApi[1]->getInSharesList());
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
 
-    MegaNodeList* nl = megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str()));
+    std::unique_ptr<MegaNodeList> nl{ megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())) };
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     MegaNode* n = nl->get(0);
 
@@ -2704,10 +2702,10 @@ TEST_F(SdkTest, SdkTestShares2)
     const char* fingerPrintToSearch = nfile2->getFingerprint();
 
 
-    // --- Search by file name for User2 ---
+    // --- Search by fingerprint for User2 ---
 
     unique_ptr<MegaNodeList> fingerPrintList(megaApi[1]->getNodesByFingerprint(fingerPrintToSearch));
-    ASSERT_NE(fingerPrintList->size(), 0);
+    ASSERT_EQ(fingerPrintList->size(), 2) << "Node count by fingerprint is wrong"; // the same file was uploaded twice, with differernt paths
     bool found = false;
     for (int i = 0; i < fingerPrintList->size(); i++)
     {
@@ -2721,11 +2719,13 @@ TEST_F(SdkTest, SdkTestShares2)
     ASSERT_TRUE(found);
 
 
-    // --- Search by fingerprint for User2 ---
+    // --- Search by file name for User2 ---
 
     unique_ptr<MegaNodeList> searchList(megaApi[1]->search(fileNameToSearch));
-    ASSERT_EQ(searchList->size(), 1);
-    ASSERT_EQ(searchList->get(0)->getHandle(), hfile1);
+    ASSERT_EQ(searchList->size(), 2) << "Node count by file name is wrong"; // the same file was uploaded twice, to differernt paths
+    ASSERT_TRUE((searchList->get(0)->getHandle() == hfile1 && searchList->get(1)->getHandle() == hfile2) ||
+                (searchList->get(0)->getHandle() == hfile2 && searchList->get(1)->getHandle() == hfile1))
+                << "Node handles are not the expected ones";
 
 
     // --- User2 add file ---
@@ -2743,7 +2743,7 @@ TEST_F(SdkTest, SdkTestShares2)
 
     fetchnodes(0, maxTimeout); // is this needed here or something else?
     std::unique_ptr<MegaNode>nU2{ megaApi[0]->getNodeByHandle(hfile2U2) };    // get an updated version of the node
-    ASSERT_TRUE(nU2 && string(fileByUser2) == nU2->getName());
+    ASSERT_TRUE(nU2 && string(fileByUser2) == nU2->getName()) << "Finding node by handle failed";
 
 
     // --- Locallogout from User1 and login with session ---
@@ -2756,7 +2756,7 @@ TEST_F(SdkTest, SdkTestShares2)
 
     // --- User1 remove file ---
 
-    ASSERT_EQ(MegaError::API_OK, synchronousRemove(0, nfile2.get()));
+    ASSERT_EQ(MegaError::API_OK, synchronousRemove(0, nfile2.get())) << "Error while removing file " << nfile2->getName();
 
 
     // --- Locallogout from User2 and login with session ---
@@ -2771,7 +2771,7 @@ TEST_F(SdkTest, SdkTestShares2)
     // --- Check that User2 no longer sees the removed file ---
 
     fetchnodes(1, maxTimeout); // is this needed here or something else?
-    std::unique_ptr<MegaNode>nremoved{ megaApi[1]->getNodeByHandle(hfile2) };    // get an updated version of the node
+    std::unique_ptr<MegaNode> nremoved{ megaApi[1]->getNodeByHandle(hfile2) };    // get an updated version of the node
     ASSERT_EQ(nremoved, nullptr) << " Failed to see the file was removed";
 }
 
