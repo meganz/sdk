@@ -683,21 +683,20 @@ private:
     HMACSHA256 mSigner;
 }; // SyncConfigIOContext
 
+/**
+ * A incompatible change requests between a local and a remote
+ * structure resulted in a synchronization stall.
+ */
+typedef struct  {
+    SyncWaitReason reason = SyncWaitReason::NoReason;
+    string involvedCloudPath;    ///<! remote path representation
+    LocalPath involvedLocalPath; ///<! local path
+} StallInfo_t;
+
 struct SyncStallInfo
 {
-    struct CloudStallInfo
-    {
-        SyncWaitReason reason = SyncWaitReason::NoReason;
-        string involvedCloudPath;
-        LocalPath involvedLocalPath;
-    };
-    struct LocalStallInfo {
-        SyncWaitReason reason = SyncWaitReason::NoReason;
-        LocalPath involvedLocalPath;
-        string involvedCloudPath;
-    };
-    typedef map<string, CloudStallInfo> CloudStallInfoMap;
-    typedef map<LocalPath, LocalStallInfo> LocalStallInfoMap;
+    using CloudStallInfoMap = map<string, StallInfo_t>;
+    using LocalStallInfoMap = map<LocalPath, StallInfo_t>;
 
     bool empty() const;
 
