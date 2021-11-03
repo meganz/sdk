@@ -83,10 +83,6 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
-    // Get/Set values in data base with string as key
-    virtual std::string getVar(const std::string& name) = 0;
-    virtual bool setVar(const std::string& name, const std::string& value) = 0;
-
     // whether an unmatched begin() has been issued
     virtual bool inTransaction() const = 0;
 

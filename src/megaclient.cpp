@@ -5247,9 +5247,6 @@ void MegaClient::updatesc()
                 }
             }
 
-            sctable->setVar(STORAGE_SIZE, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
-            sctable->setVar(FILES_COUNT, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
-            sctable->setVar(FOLDERS_COUNT, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
         }
 
         if (complete)

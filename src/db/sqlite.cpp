@@ -604,67 +604,6 @@ void SqliteDbTable::remove()
     fsaccess->unlinklocal(localpath);
 }
 
-std::string SqliteDbTable::getVar(const std::string& name)
-{
-    if (!db)
-    {
-        return "";
-    }
-
-    std::string value;
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare(db, "SELECT value FROM vars WHERE name = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_text(stmt, 1, name.c_str(), (int)name.length(), SQLITE_STATIC) == SQLITE_OK)
-        {
-            if((sqlite3_step(stmt) == SQLITE_ROW))
-            {
-                const void* data = sqlite3_column_blob(stmt, 0);
-                int size = sqlite3_column_bytes(stmt, 0);
-                if (data && size)
-                {
-                    value.assign(static_cast<const char*>(data), size);
-                }
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return value;
-}
-
-bool SqliteDbTable::setVar(const std::string& name, const std::string& value)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    bool result = false;
-
-    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO vars (name, value) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_text(stmt, 1, name.c_str(), (int)name.length(), SQLITE_STATIC) == SQLITE_OK)
-        {
-            if (sqlite3_bind_blob(stmt, 2, value.data(), (int)value.size(), SQLITE_STATIC) == SQLITE_OK)
-            {
-                if (sqlite3_step(stmt) == SQLITE_DONE)
-                {
-                    result = true;
-                }
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result;
-}
-
 SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
     : SqliteDbTable(rng,  pdb, fsAccess, path, checkAlwaysTransacted)
 {

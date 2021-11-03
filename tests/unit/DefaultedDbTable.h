@@ -182,18 +182,6 @@ public:
     {
         //throw NotImplemented{__func__};
     }
-    std::string getVar(const std::string&) override
-    {
-        std::string s;
-        return s;
-        //throw NotImplemented{__func__};
-    }
-    bool setVar(const std::string&, const std::string&) override
-    {
-        return false;
-        //throw NotImplemented{__func__};
-    }
-
     bool inTransaction() const override
     {
         return false;
