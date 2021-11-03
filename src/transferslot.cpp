@@ -78,7 +78,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     lastprogressreport = 0;
     progressreported = 0;
     speed = meanSpeed = 0;
-    progresscontiguous = 0;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -1403,23 +1402,23 @@ void TransferSlot::progress()
     }
 }
 
-void TransferSlot::updatecontiguousprogress()
+m_off_t TransferSlot::updatecontiguousprogress()
 {
-    chunkmac_map::iterator pcit;
-    chunkmac_map &pcchunkmacs = transfer->chunkmacs;
-    while ((pcit = pcchunkmacs.find(progresscontiguous)) != pcchunkmacs.end()
-           && pcit->second.finished)
-    {
-        progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, transfer->size);
-    }
+    m_off_t contiguousProgress = transfer->chunkmacs.updateContiguousProgress(transfer->size);
+
+    // Since that is updated, we may have a chance to consolidate the macsmac calculation so far also
+    transfer->chunkmacs.updateMacsmacProgress(transfer->transfercipher());
+
     if (!transferbuf.tempUrlVector().empty() && transferbuf.isRaid())
     {
-        LOG_debug << "Contiguous progress: " << progresscontiguous;
+        LOG_debug << "Contiguous progress: " << contiguousProgress;
     }
     else
     {
-        LOG_debug << "Contiguous progress: " << progresscontiguous << " (" << (transfer->pos - progresscontiguous) << ")";
+        LOG_debug << "Contiguous progress: " << contiguousProgress << " (" << (transfer->pos - contiguousProgress) << ")";
     }
+
+    return contiguousProgress;
 }
 
 } // namespace

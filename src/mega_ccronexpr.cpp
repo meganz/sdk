@@ -28,6 +28,7 @@
 #include <limits.h>
 #include <string.h>
 #include <math.h>
+#include <inttypes.h>
 
 #include "mega/mega_ccronexpr.h"
 
@@ -144,14 +145,14 @@ void cron_set_bit(uint8_t* rbyte, int idx) {
     uint8_t j = (uint8_t) (idx / 8);
     uint8_t k = (uint8_t) (idx % 8);
 
-    rbyte[j] |= (1 << k);
+    rbyte[j] = static_cast<uint8_t>(rbyte[j] | (1 << k));
 }
 
 void cron_del_bit(uint8_t* rbyte, int idx) {
     uint8_t j = (uint8_t) (idx / 8);
     uint8_t k = (uint8_t) (idx % 8);
 
-    rbyte[j] &= ~(1 << k);
+    rbyte[j] = static_cast<uint8_t>(rbyte[j] & ~(1 << k));
 }
 
 uint8_t cron_get_bit(const uint8_t* rbyte, int idx) {

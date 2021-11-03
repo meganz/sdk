@@ -280,7 +280,7 @@ static const uint8_t normal_url_char[32] = {
 
 #undef T
 
-enum state
+enum state : uint8_t
   { s_dead = 1 /* important that this is > 0 */
 
   , s_start_req_or_res
@@ -364,7 +364,7 @@ enum state
 #define PARSING_HEADER(state) (state <= s_headers_done)
 
 
-enum header_states
+enum header_states : uint8_t
   { h_general = 0
   , h_C
   , h_CO
@@ -394,7 +394,7 @@ enum header_states
   , h_connection_upgrade
   };
 
-enum http_host_state
+enum http_host_state : uint8_t
   {
     s_http_host_dead = 1
   , s_http_userinfo_start
@@ -801,7 +801,7 @@ reexecute:
           goto error;
         }
 
-        parser->http_major = ch - '0';
+        parser->http_major = static_cast<short unsigned>(ch - '0');
         UPDATE_STATE(s_res_http_major);
         break;
 
@@ -818,8 +818,8 @@ reexecute:
           goto error;
         }
 
-        parser->http_major *= 10;
-        parser->http_major += ch - '0';
+        parser->http_major = static_cast<short unsigned>(10 * parser->http_major);
+        parser->http_major = static_cast<short unsigned>(parser->http_major + (ch - '0'));
 
         if (UNLIKELY(parser->http_major > 999)) {
           SET_ERRNO(HPE_INVALID_VERSION);
@@ -836,7 +836,7 @@ reexecute:
           goto error;
         }
 
-        parser->http_minor = ch - '0';
+        parser->http_minor = static_cast<short unsigned>(ch - '0');
         UPDATE_STATE(s_res_http_minor);
         break;
 
@@ -853,8 +853,8 @@ reexecute:
           goto error;
         }
 
-        parser->http_minor *= 10;
-        parser->http_minor += ch - '0';
+        parser->http_minor = static_cast<short unsigned>(10 * parser->http_minor);
+        parser->http_minor = static_cast<short unsigned>(parser->http_minor + (ch - '0'));
 
         if (UNLIKELY(parser->http_minor > 999)) {
           SET_ERRNO(HPE_INVALID_VERSION);
@@ -874,7 +874,7 @@ reexecute:
           SET_ERRNO(HPE_INVALID_STATUS);
           goto error;
         }
-        parser->status_code = ch - '0';
+        parser->status_code = static_cast<short unsigned>(ch - '0');
         UPDATE_STATE(s_res_status_code);
         break;
       }
@@ -899,8 +899,8 @@ reexecute:
           break;
         }
 
-        parser->status_code *= 10;
-        parser->status_code += ch - '0';
+        parser->status_code = static_cast<short unsigned>(10 * parser->status_code);
+        parser->status_code = static_cast<short unsigned>(parser->status_code + (ch - '0'));
 
         if (UNLIKELY(parser->status_code > 999)) {
           SET_ERRNO(HPE_INVALID_STATUS);
@@ -1209,7 +1209,7 @@ reexecute:
           goto error;
         }
 
-        parser->http_major = ch - '0';
+        parser->http_major = static_cast<short unsigned>(ch - '0');
         UPDATE_STATE(s_req_http_major);
         break;
 
@@ -1226,8 +1226,8 @@ reexecute:
           goto error;
         }
 
-        parser->http_major *= 10;
-        parser->http_major += ch - '0';
+        parser->http_major = static_cast<short unsigned>(10 * parser->http_major);
+        parser->http_major = static_cast<short unsigned>(parser->http_major + (ch - '0'));
 
         if (UNLIKELY(parser->http_major > 999)) {
           SET_ERRNO(HPE_INVALID_VERSION);
@@ -1244,7 +1244,7 @@ reexecute:
           goto error;
         }
 
-        parser->http_minor = ch - '0';
+        parser->http_minor = static_cast<short unsigned>(ch - '0');
         UPDATE_STATE(s_req_http_minor);
         break;
 
@@ -1268,8 +1268,8 @@ reexecute:
           goto error;
         }
 
-        parser->http_minor *= 10;
-        parser->http_minor += ch - '0';
+        parser->http_minor = static_cast<short unsigned>(10 * parser->http_minor);
+        parser->http_minor = static_cast<short unsigned>(parser->http_minor + (ch - '0'));
 
         if (UNLIKELY(parser->http_minor > 999)) {
           SET_ERRNO(HPE_INVALID_VERSION);
@@ -2395,7 +2395,7 @@ http_parser_parse_url(const char *buf, size_t buflen, int is_connect,
       case s_req_server_with_at:
         found_at = 1;
 
-      /* FALLTROUGH */
+        //falls through
       case s_req_server:
         uf = UF_HOST;
         break;
@@ -2426,7 +2426,7 @@ http_parser_parse_url(const char *buf, size_t buflen, int is_connect,
     u->field_data[uf].off = static_cast<uint16_t>(p - buf);
     u->field_data[uf].len = 1;
 
-    u->field_set |= (1 << uf);
+    u->field_set = static_cast<uint16_t>(u->field_set | (1 << uf));
     old_uf = uf;
   }
 

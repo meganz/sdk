@@ -260,6 +260,22 @@ public:
     void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
+     * @brief Authenticated symmetric encryption using AES in GCM mode with additional authenticated data.
+     *
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     *
+     * @param data Data to be encrypted.
+     * @param additionalData Additional data for extra authentication
+     * @param additionalDatalen Length of additional data
+     * @param iv Initialisation vector or nonce to use for encryption. Choose randomly
+     * and never re-use. See note on size above.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag
+     * @param result Encrypted data, including the additional data, and the authentication tag.
+     */
+    bool gcm_encrypt_aad(const unsigned char *data, size_t datasize, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, byte *result, size_t resultSize);
+
+    /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
@@ -275,6 +291,24 @@ public:
     bool gcm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
+     * @brief Authenticated symmetric decryption using AES in GCM mode with additional authenticated data.
+     *
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     *
+     * @param data Data to be decrypted.
+     * @param additionalData Additional data for extra authentication
+     * @param additionalDatalen Length of additional data
+     * @param iv Initialisation vector or nonce.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
+     * @param result Decrypted data, not including the authentication tag.
+     */
+    bool gcm_decrypt_aad(const byte *data, unsigned datalen,
+                         const byte *additionalData, unsigned additionalDatalen,
+                         const byte *tag, unsigned taglen,
+                         const byte *iv, unsigned ivlen, byte *result, size_t resultSize);
+
+    /**
      * @brief Serialize key for compatibility with the webclient
      *
      * The key is serialized to a JSON array like this one:
@@ -284,7 +318,7 @@ public:
      */
     void serializekeyforjs(std::string *);
 
-    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool, bool initmac = true);
+    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *mac, bool encrypt, bool initmac = true);
 
     static void setint64(int64_t, byte*);
 

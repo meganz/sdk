@@ -242,7 +242,7 @@ struct MEGA_API MegaApp
     virtual void chats_updated(textchat_map *, int) { }
     virtual void richlinkrequest_result(string*, error) { }
     virtual void chatlink_result(handle, error) { }
-    virtual void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error) { }
+    virtual void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, handle, error) { }
     virtual void chatlinkclose_result(error) { }
     virtual void chatlinkjoin_result(error) { }
 #endif
@@ -290,10 +290,10 @@ struct MEGA_API MegaApp
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
 
-    // after all syncs have been restored
+    // after all (enabled) syncs have been restored on startup
     virtual void syncs_restored() { }
 
-    // after all syncs have been disabled
+    // after all syncs have been disabled, eg due to overquota
     virtual void syncs_disabled(SyncError) { }
 
     // after an attempt to auto-resume a cache sync

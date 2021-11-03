@@ -132,6 +132,7 @@ bool JSON::skipnullvalue()
     {
     case ',':         // empty value, i.e.  "foo":,
         ++pos;
+    // fall through
     case ']':         // empty value, i.e.  "foo":]
     case'}':          // empty value, i.e.  "foo":}
         return true;
@@ -148,6 +149,7 @@ bool JSON::skipnullvalue()
         {
         case ',':     // null value, i.e.  "foo":null,
             ++pos;
+        // fall through
         case ']':     // null value, i.e.  "foo":null]
         case '}':     // null value, i.e.  "foo":null}
             pos += 4;

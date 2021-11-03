@@ -1148,7 +1148,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
         if (!s.unixStyle)
         {
             int index = ((!forwards && s.lastAppliedIndex == -1) ? -1 : (s.lastAppliedIndex + (forwards ? 1 : -1))) + (int)s.completions.size();
-            index %= s.completions.size();
+            index = static_cast<int>(index % s.completions.size());
 
             // restore quotes if it had them already
             auto& c = s.completions[index];
@@ -1286,7 +1286,7 @@ ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n
     n->Add(n11);
     n->Add(n12);
     n->Add(n13);
-    return std::move(n);
+    return n;
 }
 
 static ACN sequenceBuilder(ACN n1, ACN n2)

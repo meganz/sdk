@@ -72,14 +72,14 @@ MediaFileInfo::MediaFileInfo()
     LOG_debug << "MediaInfo version: " << GetMediaInfoVersion();
 }
 
-void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, LocalPath* ifSuitableFilename)
+void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, const LocalPath& ifSuitableFilename)
 {
     if (!mediaCodecsReceived && !mediaCodecsRequested)
     {
-        if (ifSuitableFilename)
+        if (!ifSuitableFilename.empty())
         {
             string ext;
-            if (!client->fsaccess->getextension(*ifSuitableFilename, ext)
+            if (!client->fsaccess->getextension(ifSuitableFilename, ext)
                 || !MediaProperties::isMediaFilenameExt(ext))
             {
                 return;
@@ -526,7 +526,7 @@ std::string MediaProperties::encodeMediaPropertiesAttributes(MediaProperties vp,
 
         memset(v, 0, sizeof v);
         v[3] = (vp.audiocodecid >> 4) & 255;
-        v[2] = ((vp.videocodecid >> 8) & 15) + ((vp.audiocodecid & 15) << 4);
+        v[2] = static_cast<byte>(((vp.videocodecid >> 8) & 15) + ((vp.audiocodecid & 15) << 4));
         v[1] = vp.videocodecid & 255;
         v[0] = byte(vp.containerid);
         result.append("/");

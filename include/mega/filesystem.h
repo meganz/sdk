@@ -46,12 +46,6 @@ enum FileSystemType
     FS_XFS = 9
 };
 
-// generic host filesystem node ID interface
-struct MEGA_API FsNodeId
-{
-    virtual bool isequalto(FsNodeId*) = 0;
-};
-
 typedef void (*asyncfscallback)(void *);
 
 struct MEGA_API AsyncIOContext;
@@ -179,6 +173,7 @@ public:
     static LocalPath fromPlatformEncoded(string localname);
 #ifdef WIN32
     static LocalPath fromPlatformEncoded(wstring&& localname);
+    wchar_t driveLetter();
 #endif
 
     // Generates a name for a temporary file
@@ -303,7 +298,7 @@ struct MEGA_API FileAccess
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
     // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
-    virtual bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) = 0;
+    virtual bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) = 0;
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
@@ -483,10 +478,10 @@ public:
 struct MEGA_API FileSystemAccess : public EventTrigger
 {
     // waiter to notify on filesystem events
-    Waiter *waiter;
+    Waiter *waiter = nullptr;
 
-    // indicate error reports are not necessary on this call as it'll be retried in a moment if there is a continuing problem
-    bool skip_errorreport;
+    // indicate target_exists error logging is not necessary on this call as we may try something else for overall operation success
+    bool skip_targetexists_errorreport = false;
 
     /**
      * @brief instantiate FileAccess object
@@ -537,19 +532,19 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool getsname(const LocalPath&, LocalPath&) const = 0;
 
     // rename file, overwrite target
-    virtual bool renamelocal(LocalPath&, LocalPath&, bool = true) = 0;
+    virtual bool renamelocal(const LocalPath&, const LocalPath&, bool = true) = 0;
 
     // copy file, overwrite target, set mtime
     virtual bool copylocal(LocalPath&, LocalPath&, m_time_t) = 0;
 
     // delete file
-    virtual bool unlinklocal(LocalPath&) = 0;
+    virtual bool unlinklocal(const LocalPath&) = 0;
 
     // delete empty directory
-    virtual bool rmdirlocal(LocalPath&) = 0;
+    virtual bool rmdirlocal(const LocalPath&) = 0;
 
     // create directory, optionally hidden
-    virtual bool mkdirlocal(LocalPath&, bool = false) = 0;
+    virtual bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) = 0;
 
     // make sure that we stay within the range of timestamps supported by the server data structures (unsigned 32-bit)
     static void captimestamp(m_time_t*);
@@ -581,7 +576,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     std::unique_ptr<LocalPath> fsShortname(const LocalPath& localpath);
 
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
-    bool transient_error;
+    bool transient_error = false;
 
 #ifdef ENABLE_SYNC
     // set whenever there was a global file notification error or permanent failure
@@ -591,7 +586,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 #endif
 
     // set whenever an operation fails because the target already exists
-    bool target_exists;
+    bool target_exists = false;
 
     // append local operating system version information to string.
     // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is via the WOW subsystem)
@@ -600,7 +595,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // append id for stats
     virtual void statsid(string*) const { }
 
-    MegaClient* client;
+    MegaClient* client = nullptr;
 
     FileSystemAccess();
     virtual ~FileSystemAccess() { }
