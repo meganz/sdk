@@ -87,13 +87,6 @@ Node::~Node()
     // abort pending direct reads
     client->preadabort(this);
 
-    // TODO Nodes on demand check if mFingerprints is required
-    // remove node's fingerprint from hash
-//    if (!client->mOptimizePurgeNodes)
-//    {
-//        client->mFingerprints.remove(this);
-//    }
-
 #ifdef ENABLE_SYNC
     // remove from todebris node_set
     if (todebris_it != client->todebris.end())
@@ -143,18 +136,6 @@ Node::~Node()
     // in case this node is currently being transferred for syncing: abort transfer
     delete syncget;
 #endif
-// TODO nodes on demand Implement
-//    if (!client->mOptimizePurgeNodes)
-//    {
-//        for (auto& childHandle : mChildrenInMemory)
-//        {
-//            Node* child = client->nodeByHandleInRam(childHandle);
-//            if (child)
-//            {
-//                child->parent = nullptr;
-//            }
-//        }
-//    }
 }
 
 #ifdef ENABLE_SYNC

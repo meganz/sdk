@@ -1252,7 +1252,6 @@ void MegaClient::init()
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
     mNodeCounters = NodeCounterMap();
-    mOptimizePurgeNodes = false;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
@@ -8427,8 +8426,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     }
 
     Node* n;
-    mOptimizePurgeNodes = true;
-
     while (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
@@ -8755,7 +8752,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         }
     }
 
-    mOptimizePurgeNodes = false;
     mergenewshares(notify);
 
     return j->leavearray();
@@ -13339,12 +13335,10 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     syncs.purgeRunningSyncs();
 #endif
 
-    mOptimizePurgeNodes = true;
     // TODO Nodes on demand check if mFingerprints is required
     //mFingerprints.clear();
     mNodeCounters.clear();
     mNodeManager.cleanNodes();
-    mOptimizePurgeNodes = false;
 
 #ifdef ENABLE_SYNC
     todebris.clear();
