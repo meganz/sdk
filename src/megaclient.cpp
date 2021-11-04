@@ -4747,7 +4747,8 @@ bool MegaClient::procsc()
                             WAIT_CLASS::bumpds();
                             fnstats.timeToCurrent = Waiter::ds - fnstats.startTime;
                         }
-                        fnstats.nodesCurrent = mNodeManager.getNumNodes();
+                        uint64_t numNodes = mNodeManager.getNumNodes();
+                        fnstats.nodesCurrent = numNodes;
 
                         statecurrent = true;
                         app->nodes_current();
@@ -4792,7 +4793,7 @@ bool MegaClient::procsc()
                         sendevent(99426, report.c_str(), 0);    // Treeproc performance log
 
                         // NULL vector: "notify all elements"
-                        app->nodes_updated(NULL, int(mNodeManager.getNumNodes()));
+                        app->nodes_updated(NULL, int(numNodes));
                         app->users_updated(NULL, int(users.size()));
                         app->pcrs_updated(NULL, int(pcrindex.size()));
 #ifdef ENABLE_CHAT
