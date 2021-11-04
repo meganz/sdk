@@ -7,7 +7,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the rules set forth in the Terms of Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -684,13 +684,13 @@ private:
 }; // SyncConfigIOContext
 
 /**
- * A incompatible change requests between a local and a remote
- * structure resulted in a synchronization stall.
+ * A Synchronization operation detected a problem and is
+ * not able to continue (a stall)
  */
 typedef struct  {
     SyncWaitReason reason = SyncWaitReason::NoReason;
     string involvedCloudPath;    ///<! remote path representation
-    LocalPath involvedLocalPath; ///<! local path
+    LocalPath involvedLocalPath;
 } StallInfo_t;
 
 struct SyncStallInfo
@@ -698,6 +698,7 @@ struct SyncStallInfo
     using CloudStallInfoMap = map<string, StallInfo_t>;
     using LocalStallInfoMap = map<LocalPath, StallInfo_t>;
 
+    /** No stalls detected */
     bool empty() const;
 
     bool waitingCloud(const string& cloudPath1,
@@ -713,6 +714,7 @@ struct SyncStallInfo
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
 
+    /** Requires user action to resolve */
     bool hasImmediateStallReason() const;
 };
 
