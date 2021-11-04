@@ -1,0 +1,36 @@
+diff --git a/vcpkg.json b/vcpkg.json
+index 179f1cc..c7cedff 100644
+--- a/vcpkg.json
++++ b/vcpkg.json
+@@ -125,31 +125,6 @@
+     },
+     "unicode": {
+       "description": "Build Unicode executables. (Adds definition UNICODE and _UNICODE)"
+-    },
+-    "vwebp": {
+-      "description": "Build the vwebp viewer tool.",
+-      "dependencies": [
+-        {
+-          "name": "freeglut",
+-          "platform": "!osx"
+-        },
+-        "opengl"
+-      ]
+-    },
+-    "vwebp-sdl": {
+-      "description": "Build the vwebp viewer tool.",
+-      "dependencies": [
+-        {
+-          "name": "libwebp",
+-          "features": [
+-            "vwebp"
+-          ]
+-        },
+-        {
+-          "name": "sdl1",
+-          "platform": "windows"
+-        }
+-      ]
+     }
+   }
+ }

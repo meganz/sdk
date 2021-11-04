@@ -123,7 +123,12 @@ try
                 if (fs::is_directory(vcpkgDir / "ports" / portname))
                 {
                     cout << "Removing " << (vcpkgDir / "ports" / portname).u8string() << endl;
+                    #ifdef WIN32
+                    // remove_all doesn't like read-only files in the git repo.  however it seems that will be fixed in future
+                    execute("rmdir /S /Q " + (vcpkgDir / "ports" / portname).u8string());
+                    #else
                     fs::remove_all(vcpkgDir / "ports" / portname);
+                    #endif
                 }
                 if (portversion.size() == 40)
                 {
@@ -132,6 +137,13 @@ try
                     cout << "Copying port for " << portname << " from vcpkg commit " << portversion << endl;
                     fs::copy(cloneDir / "ports" / portname, vcpkgDir / "ports" / portname, fs::copy_options::recursive);
                     fs::current_path(vcpkgDir / "ports" / portname);
+
+                    // before we apply any patch, init this as a new git repo to make it easy to
+                    // amend or add to patches - or to create a new patch file for this lib
+                    //execute("git init .");
+                    //execute("git add *.*");
+                    //execute("git add ./*");
+                    //execute("git commit -m patchInit");
 
                     auto patch = patches.find(portname);
                     if (patch != patches.end()) {
@@ -389,14 +401,14 @@ cout << "considering " << rawExpr << endl;
 cout << "build" << endl;
 }
                else if (exprArg == "off") {
-cout << "don't build" << endl; 
+cout << "don't build" << endl;
 shouldBuild = false;
 }
                else if (fs::path(expr[1]).extension() != ".patch")
                {
                    cout << "Not a patch file: " << expr[1] << " for " << s << endl;
                    exit(1);
-               }  
+               }
                else {
                    patchFile = exprArg;
                    shouldBuild = true;
