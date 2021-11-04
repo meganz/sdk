@@ -17550,7 +17550,6 @@ class MegaApi
          * The ftp link will no longer be valid.
          *
          * @param handle Handle of the node to stop serving
-         * @return URL to the node in the local FTP server, otherwise NULL
          */
         void ftpServerRemoveAllowedNode(MegaHandle handle);
 
