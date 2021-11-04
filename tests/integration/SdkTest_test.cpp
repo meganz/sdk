@@ -2932,12 +2932,9 @@ TEST_F(SdkTest, SdkTestShares)
  * - User2 locallogout and login with session
  * - Check that UserB still sees File1 as NO_KEY
  * - UserA login
-
- #if 0
  * - Check that UserB sees File1 with its real name
  * - UserB locallogout and login with session
  * - UserB load File1 undecrypted
- #endif
  */
 TEST_F(SdkTest, SdkTestShares3)
 {
@@ -3033,9 +3030,7 @@ TEST_F(SdkTest, SdkTestShares3)
 
     // --- Check that UserB still sees File1 as NO_KEY ---
 
-#if 0
-    ASSERT_NO_FATAL_FAILURE(fetchnodes(1)); // CRASHES in MegaClient::fetchsc(DbTable* sctable), due to NULL Node*, as returned by Node::unserialize()
-#endif
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(1)); // different behavior whether ENABLE_SYNC is On or Off
     aView.reset(megaApi[1]->getChildren(n1_1.get()));
     ASSERT_STREQ(aView->get(0)->getName(), "NO_KEY");
 
@@ -3044,11 +3039,11 @@ TEST_F(SdkTest, SdkTestShares3)
 
     auto trackerA = asyncRequestFastLogin(0, sessionA.c_str());
     ASSERT_EQ(API_OK, trackerA->waitForResult()) << " Failed to establish a login/session for account A";
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
-#if 0
+
     // --- Check that UserB sees File1 with its real name ---
 
-    ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
     aView.reset(megaApi[1]->getChildren(n1_1.get()));
     ASSERT_EQ(1, aView->size());
     ASSERT_STREQ(aView->get(0)->getName(), file1);
@@ -3067,7 +3062,6 @@ TEST_F(SdkTest, SdkTestShares3)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
     std::unique_ptr<MegaNode> nFile1{ megaApi[1]->getChildNode(n1_1.get(), file1Name) };
     ASSERT_NE(nFile1, nullptr);
-#endif
 }
 
 
