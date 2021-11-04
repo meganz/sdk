@@ -659,12 +659,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 {
     assert(sizeof(off_t) == 8);
 
-#ifdef ENABLE_SYNC
-    notifyerr = false;
-    //notifyfailed = true;
-#endif
-    notifyfd = -1;
-
     defaultfilepermissions = 0600;
     defaultfolderpermissions = 0700;
 
@@ -682,17 +676,9 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #endif
 
 #ifdef USE_INOTIFY
-    if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
-    {
-#ifdef ENABLE_SYNC
-        // notifyfailed = false;
-#endif
-    }
-    else
-    {
-        LOG_debug << "Unable to create inotify descriptor: "
-                  << errno;
-    }
+    notifyfd = inotify_init1(IN_NONBLOCK);
+    if (notifyfd < 0)
+        mNotificationError = errno;
 #endif
 
 #ifdef __MACH__
@@ -719,8 +705,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #define FSEVENTS_CLONE _IOW('s', 1, fsevent_clone_args)
 #define FSEVENTS_WANT_EXTENDED_INFO _IO('s', 102)
 
-    int fd;
-    fsevent_clone_args fca;
     int8_t event_list[] = { // action to take for each event
                               FSE_REPORT,  // FSE_CREATE_FILE,
                               FSE_REPORT,  // FSE_DELETE,
@@ -737,33 +721,42 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
     // for this to succeed, geteuid() must be 0, or an existing /dev/fsevents fd must have
     // been passed to the constructor
-    if ((fd = fseventsfd) >= 0 || (fd = open("/dev/fsevents", O_RDONLY)) >= 0)
+    int fd = fseventsfd;
+
+    if (fd < 0 && (fd = open("/dev/fsevents", O_RDONLY) < 0)
     {
-        fca.event_list = (int8_t*)event_list;
-        fca.num_events = sizeof event_list/sizeof(int8_t);
-        fca.event_queue_depth = 4096;
-        fca.fd = &notifyfd;
-
-        if (ioctl(fd, FSEVENTS_CLONE, (char*)&fca) >= 0)
-        {
-            if (fseventsfd < 0) close(fd);
-
-            if (ioctl(notifyfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
-            {
-#ifdef ENABLE_SYNC
-                // notifyfailed = false;
-#endif
-            }
-            else
-            {
-                close(notifyfd);
-            }
-        }
-        else
-        {
-            if (fseventsfd < 0) close(fd);
-        }
+        mNotificationError = errno;
+        return;
     }
+
+    fsevent_clone_args fca;
+    int nfd;
+
+    fca.event_list = (int8_t*)event_list;
+    fca.num_events = sizeof event_list/sizeof(int8_t);
+    fca.event_queue_depth = 4096;
+    fca.fd = &nfd;
+
+    if (ioctl(fd, FSEVENTS_CLONE, (char*)&fca) >= 0)
+    {
+        if (fseventsfd < 0) close(fd);
+
+        if (ioctl(nfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
+        {
+            notifyfd = nfd;
+            return;
+        }
+
+        mNotificationError = errno;
+        close(nfd);
+    }
+    else
+    {
+        mNotificationError = errno;
+
+        if (fseventsfd < 0) close(fd);
+    }
+
 #else
     (void)fseventsfd;  // suppress warning
 #endif
@@ -820,7 +813,14 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     {
         return r;
     }
+
 #ifdef ENABLE_SYNC
+    // Called so that related syncs perform a rescan.
+    auto notifyTransientFailure = [&]() {
+        for (auto* notifier : mNotifiers)
+            ++notifier->mErrorCount;
+    };
+
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
 
@@ -873,7 +873,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 {
                     LOG_err << "inotify " 
                             << (in->mask & IN_Q_OVERFLOW ? "IN_Q_OVERFLOW" : "IN_UNMOUNT");
-                    notifyerr = true;
+
+                    notifyTransientFailure();
                 }
 
 // this flag was introduced in glibc 2.13 and Linux 2.6.36 (released October 20, 2010)
@@ -963,7 +964,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
         if ((avail = read(notifyfd, buffer, int(sizeof buffer))) < 0)
         {
-            notifyerr = true;
+            notifyTransientFailure();
             break;
         }
 
@@ -976,7 +977,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             if (kfse->type == FSE_EVENTS_DROPPED)
             {
                 // force a full rescan
-                notifyerr = true;
+                notifyTransientFailure();
                 pos += sizeof(u_int16_t);
                 continue;
             }
@@ -1759,14 +1760,17 @@ PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root,
 #ifdef __MACH__
   , mRootsIt(fsAccess.mRoots.end())
 #endif // __MACH__
+  , mNotifiersIt(fsAccess.mNotifiers.insert(fsAccess.mNotifiers.end(), this))
 {
-#ifdef USE_INOTIFY
+    // Assume no errors are reported.
     setFailed(0, "");
-#endif
+
+    if (fsAccess.notifyfd < 0)
+    {
+        setFailed(fsAccess.mNotificationError, "Unable to create filesystem monitor.");
+    }
 
 #ifdef __MACH__
-    setFailed(0, "");
-
     // Assume FS events are relative to the sync root.
     auto eventsPath = rootPath.platformEncoded();
 
@@ -1817,6 +1821,9 @@ PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root,
 
 PosixDirNotify::~PosixDirNotify()
 {
+    // Remove ourselves from the FSA's notifier list.
+    fsaccess->mNotifiers.erase(mNotifiersIt);
+
 #ifdef __MACH__
     // Sanity.
     assert(mRootsIt != fsaccess->mRoots.end());
