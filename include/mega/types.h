@@ -446,7 +446,8 @@ enum SyncError {
     COULD_NOT_MOVE_CLOUD_NODES = 32,        // rename() failed
     COULD_NOT_CREATE_IGNORE_FILE = 33,      // Couldn't create a sync's initial ignore file.
     SYNC_CONFIG_READ_FAILURE = 34,          // Couldn't read sync configs from disk.
-    UNKNOWN_DRIVE_PATH = 35                 // Sync's drive path isn't known.
+    UNKNOWN_DRIVE_PATH = 35,                // Sync's drive path isn't known.
+    INVALID_SCAN_INTERVAL = 36              // The user's specified an invalid scan interval.
 };
 
 enum SyncWarning {

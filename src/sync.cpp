@@ -673,6 +673,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Unable to read sync configs from disk.";
     case UNKNOWN_DRIVE_PATH:
         return "Unknown drive path.";
+    case INVALID_SCAN_INTERVAL:
+        return "Invalid scan interval specified.";
     default:
         return "Undefined error";
     }
@@ -8107,11 +8109,13 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
 {
     const auto TYPE_BACKUP_ID       = MAKENAMEID2('i', 'd');
     const auto TYPE_BACKUP_STATE    = MAKENAMEID2('b', 's');
+    const auto TYPE_CHANGE_METHOD   = MAKENAMEID2('c', 'm');
     const auto TYPE_ENABLED         = MAKENAMEID2('e', 'n');
     const auto TYPE_FINGERPRINT     = MAKENAMEID2('f', 'p');
     const auto TYPE_LAST_ERROR      = MAKENAMEID2('l', 'e');
     const auto TYPE_LAST_WARNING    = MAKENAMEID2('l', 'w');
     const auto TYPE_NAME            = MAKENAMEID1('n');
+    const auto TYPE_SCAN_INTERVAL   = MAKENAMEID2('s', 'i');
     const auto TYPE_SOURCE_PATH     = MAKENAMEID2('s', 'p');
     const auto TYPE_SYNC_TYPE       = MAKENAMEID2('s', 't');
     const auto TYPE_TARGET_HANDLE   = MAKENAMEID2('t', 'h');
@@ -8124,6 +8128,11 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
         case EOO:
             // success if we reached the end of the object
             return *reader.pos == '}';
+
+        case TYPE_CHANGE_METHOD:
+            config.mChangeDetectionMethod =
+              static_cast<ChangeDetectionMethod>(reader.getint32());
+            break;
 
         case TYPE_ENABLED:
             config.mEnabled = reader.getbool();
@@ -8166,6 +8175,10 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
 
             break;
         }
+
+        case TYPE_SCAN_INTERVAL:
+            config.mScanIntervalSec =reader.getuint32();
+            break;
 
         case TYPE_SYNC_TYPE:
             config.mSyncType =
@@ -8251,6 +8264,8 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg("st", config.mSyncType);
     writer.arg("en", config.mEnabled);
     writer.arg("bs", config.mBackupState);
+    writer.arg("cm", config.mChangeDetectionMethod);
+    writer.arg("si", config.mScanIntervalSec);
     writer.endobject();
 }
 
