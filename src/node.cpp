@@ -749,7 +749,7 @@ bool Node::setparent(Node* p)
     Node *oldparent = parent;
 #endif
 
-    parenthandle = p->nodehandle;
+    parenthandle = p ? p->nodehandle : UNDEF;
     parent = p;
 
     const Node* newancestor = firstancestor();
