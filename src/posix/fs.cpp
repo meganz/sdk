@@ -1912,12 +1912,12 @@ void PosixDirNotify::removeWatch(WatchMapIterator entry)
 
 #endif // USE_INOTIFY
 
-fsfp_t PosixDirNotify::fsfingerprint() const
+fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
     struct statfs statfsbuf;
 
     // FIXME: statfs() does not really do what we want.
-    if (statfs(localbasepath.localpath.c_str(), &statfsbuf))
+    if (statfs(path.localpath.c_str(), &statfsbuf))
     {
         return 0;
     }
@@ -1926,11 +1926,11 @@ fsfp_t PosixDirNotify::fsfingerprint() const
     return tmp+1;
 }
 
-bool PosixDirNotify::fsstableids() const
+bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
     struct statfs statfsbuf;
 
-    if (statfs(localbasepath.localpath.c_str(), &statfsbuf))
+    if (statfs(path.localpath.c_str(), &statfsbuf))
     {
         LOG_err << "Failed to get filesystem type. Error code: " << errno;
         return true;

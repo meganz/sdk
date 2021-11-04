@@ -803,6 +803,17 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
+
+fsfp_t FileSystemAccess::fsFingerprint(const LocalPath&) const
+{
+    return 0;
+}
+
+bool FileSystemAccess::fsStableIDs(const LocalPath&) const
+{
+    return true;
+}
+
 bool FileSystemAccess::fileExistsAt(const LocalPath& path)
 {
     auto fa = newfileaccess(false);
@@ -853,17 +864,6 @@ void DirNotify::notify(NotificationDeque& q, LocalNode* l, Notification::ScanReq
 
     Notification n(immediate ? 0 : Waiter::ds, sr, std::move(path), l);
     q.pushBack(std::move(n));
-}
-
-// default: no fingerprint
-fsfp_t DirNotify::fsfingerprint() const
-{
-    return 0;
-}
-
-bool DirNotify::fsstableids() const
-{
-    return true;
 }
 
 DirNotify* FileSystemAccess::newdirnotify(LocalNode&, const LocalPath& rootPath, Waiter*)

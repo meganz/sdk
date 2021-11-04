@@ -139,6 +139,10 @@ public:
     ~PosixFileSystemAccess();
 
     bool cwd(LocalPath& path) const override;
+
+    fsfp_t fsFingerprint(const LocalPath& path) const override;
+
+    bool fsStableIDs(const LocalPath& path) const override;
 };
 
 #ifdef HAVE_AIO_RT
@@ -205,9 +209,6 @@ class MEGA_API PosixDirNotify : public DirNotify
 {
 public:
     PosixFileSystemAccess* fsaccess;
-
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
 
     PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root, const LocalPath& rootPath);
 

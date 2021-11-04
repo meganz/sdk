@@ -95,6 +95,10 @@ public:
 
     bool cwd(LocalPath& path) const override;
 
+    fsfp_t fsFingerprint(const LocalPath& path) const override;
+
+    bool fsStableIDs(const LocalPath& path) const override;
+
 #ifdef ENABLE_SYNC
     std::set<WinDirNotify*> dirnotifys;
 #endif
@@ -134,10 +138,6 @@ private:
     static void notifierThreadFunction();
 
 public:
-
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
-
     WinDirNotify(LocalNode& root,
                  const LocalPath& rootPath,
                  WinFileSystemAccess* owner,

@@ -818,10 +818,10 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     }
     else
     {
-        fsfp = dirnotify->fsfingerprint();
+        fsfp = syncs.fsaccess->fsFingerprint(mLocalPath);
     }
 
-    fsstableids = dirnotify->fsstableids();
+    fsstableids = syncs.fsaccess->fsStableIDs(mLocalPath);
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
     // Always create a watch for the root node.
@@ -6914,8 +6914,12 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, 
 
         if (filesystemSync)
         {
-            auto fp1 = it->second->sync->dirnotify->fsfingerprint();
-            auto fp2 = filesystemSync->dirnotify->fsfingerprint();
+            const auto& root1 = it->second->sync->localroot->localname;
+            const auto& root2 = filesystemSync->localroot->localname;
+
+            auto fp1 = fsaccess->fsFingerprint(root1);
+            auto fp2 = fsaccess->fsFingerprint(root2);
+
             if (!fp1 || !fp2 || fp1 != fp2)
             {
                 continue;
@@ -6971,8 +6975,12 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type,
 
         if (filesystemSync)
         {
-            auto fp1 = it->second->sync->dirnotify->fsfingerprint();
-            auto fp2 = filesystemSync->dirnotify->fsfingerprint();
+            const auto& root1 = it->second->sync->localroot->localname;
+            const auto& root2 = filesystemSync->localroot->localname;
+
+            auto fp1 = fsaccess->fsFingerprint(root1);
+            auto fp2 = fsaccess->fsFingerprint(root2);
+
             if (!fp1 || !fp2 || fp1 != fp2)
             {
                 continue;
@@ -8330,7 +8338,7 @@ void Syncs::syncLoop()
             {
                 if (sync->state() != SYNC_FAILED && sync->fsfp)
                 {
-                    fsfp_t current = sync->dirnotify->fsfingerprint();
+                    fsfp_t current = fsaccess->fsFingerprint(sync->localroot->localname);
                     if (sync->fsfp != current)
                     {
                         LOG_err << "Local fingerprint mismatch. Previous: " << sync->fsfp
