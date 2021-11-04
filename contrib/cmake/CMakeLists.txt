@@ -49,6 +49,7 @@ set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
 set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
 set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
 set (MEGA_USE_C_ARES 1 CACHE STRING "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL")
+set (MEGA_QT_VERSION 5.12.11 CACHE STRING "Qt version installed in c:/Qt")
 
 if (USE_PTHREAD)
     set( USE_CPPTHREAD 0)
@@ -155,12 +156,12 @@ if (USE_QT)
     if (NOT DEFINED CMAKE_PREFIX_PATH AND NOT DEFINED QT_DIR)
         if (CMAKE_HOST_WIN32 )
             if (build_64_bit)
-                set (QT_DIR "C:/Qt/5.12.10/msvc2017_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
+                set (QT_DIR "C:/Qt/${MEGA_QT_VERSION}/msvc2017_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
             else()
-                set (QT_DIR "C:/Qt/5.12.10/msvc2017" CACHE STRING "Specify your QT install folder if it is nonstandard")
+                set (QT_DIR "C:/Qt/${MEGA_QT_VERSION}/msvc2017" CACHE STRING "Specify your QT install folder if it is nonstandard")
             ENDIF()
         ELSE()
-            set (QT_DIR "/Users/Shared/Qt/5.12.10/clang_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            set (QT_DIR "/Users/Shared/Qt/${MEGA_QT_VERSION}/clang_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
         ENDIF()
         set(CMAKE_PREFIX_PATH "${QT_DIR}/lib/cmake/Qt5;${CMAKE_PREFIX_PATH}")
     ENDIF()
@@ -249,7 +250,9 @@ if (WIN32)
     endif()
 
     # warnings as errors, just for windows builds, as warnings keep creeping in.  Best if we address them once in the original MRs.
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /WX" )
+    if (build_64_bit)
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /WX" )
+    endif()
 
     # accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
@@ -606,7 +609,7 @@ ELSE(WIN32)
 
     IF(USE_DRIVE_NOTIFICATIONS)
         IF(APPLE)
-            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} 
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                 ${MegaDir}/include/mega/osx/drivenotifyosx.h
                 ${MegaDir}/src/osx/drivenotifyosx.cpp
             )
@@ -655,6 +658,7 @@ ELSE(WIN32)
 ENDIF(WIN32)
 
 configure_file ("${MegaDir}/contrib/cmake/config.h.in" "${MegaDir}/include/mega/config.h" )
+configure_file ("${MegaDir}/contrib/cmake/config.h.in" "${MegaDir}/include/config.h" )  # MEGAsync moc files also want it at mega/include/config.h
 add_definitions( -DHAVE_CONFIG_H) #otherwise, it won't be included in Windows build!
 
 SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/sodium.cpp)
@@ -988,7 +992,7 @@ add_executable(test_integration
 )
 
 if(APPLE)
-    add_executable(test_integration_fsevents_loader 
+    add_executable(test_integration_fsevents_loader
         ${MegaDir}/tests/integration/fsevents_loader_main.cpp
     )
 
