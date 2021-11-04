@@ -17104,10 +17104,13 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         {
             if (!isAncestor(it->first, nodeHandle))
             {
-                nodeMap.erase(it);
+                it = nodeMap.erase(it);
+            }
+            else
+            {
+                ++it;
             }
 
-            it++;
         }
     }
 
