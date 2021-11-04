@@ -28,7 +28,7 @@ libpng/7375bb408f2278d2f1875c259beef93332697ba7
 libjpeg-turbo/7375bb408f2278d2f1875c259beef93332697ba7
 tiff/7375bb408f2278d2f1875c259beef93332697ba7
 openjpeg/7375bb408f2278d2f1875c259beef93332697ba7
-libwebp/7375bb408f2278d2f1875c259beef93332697ba7 all:libwebp-no-freeglut.patch
+libwebp/7375bb408f2278d2f1875c259beef93332697ba7 all:libwebp-no-freeglut-no-avx.patch
 libraw/7375bb408f2278d2f1875c259beef93332697ba7 ios:libraw-ios.patch
 jxrlib/7375bb408f2278d2f1875c259beef93332697ba7 ios:jxrlib-ios-guiddef-fix.patch
 openexr/7375bb408f2278d2f1875c259beef93332697ba7 ios:openexr-ios.patch
