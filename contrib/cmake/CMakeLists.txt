@@ -152,7 +152,7 @@ ENDIF(WIN32)
 if (USE_QT)
 
     #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
-    if (NOT DEFINED CMAKE_PREFIX_PATH AND NOT DEFINED QT_DIR)
+    if (NOT DEFINED QT_DIR)
         if (CMAKE_HOST_WIN32 )
             if (build_64_bit)
                 set (QT_DIR "C:/Qt/${MEGA_QT_VERSION}/msvc2017_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
@@ -162,10 +162,15 @@ if (USE_QT)
         ELSE()
             set (QT_DIR "/Users/Shared/Qt/${MEGA_QT_VERSION}/clang_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
         ENDIF()
-        set(CMAKE_PREFIX_PATH "${QT_DIR}/lib/cmake/Qt5;${CMAKE_PREFIX_PATH}")
+        set(QT_DIR "${QT_DIR}/lib/cmake/Qt5")
     ENDIF()
+	
+	if (NOT DEFINED CMAKE_PREFIX_PATH)
+		set(CMAKE_PREFIX_PATH "${QT_DIR}/lib/cmake/Qt5")
+	endif()
 
     message(STATUS "CMAKE_PREFIX_PATH (should contain the QT install path): ${CMAKE_PREFIX_PATH}")
+    message(STATUS "QT_DIR: ${QT_DIR}")
 
     foreach (PKG IN LISTS MEGA_QT_REQUIRED_COMPONENTS)
         message(STATUS "Finding Qt package ${PKG}")
