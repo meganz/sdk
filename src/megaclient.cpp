@@ -17440,6 +17440,11 @@ void NodeManager::removeChanges()
 
 bool NodeManager::cleanNodes()
 {
+    for (auto node : mNodes)
+    {
+        delete node.second;
+    }
+
     mNodes.clear();
     if (mTable)
         mTable->removeNodes();
