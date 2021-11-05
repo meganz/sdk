@@ -5370,14 +5370,14 @@ void exec_email(autocomplete::ACState& s)
         {
             string link = s.words[1].s;
 
-            size_t pos = link.find("verify");
+            size_t pos = link.find(MegaClient::verifyLinkPrefix());
             if (pos == link.npos)
             {
                 cout << "Invalid email change link." << endl;
                 return;
             }
 
-            changecode.assign(link.substr(pos + strlen("verify")));
+            changecode.assign(link.substr(pos + strlen(MegaClient::verifyLinkPrefix())));
             client->queryrecoverylink(changecode.c_str());
         }
     }
@@ -6280,14 +6280,14 @@ void exec_cancel(autocomplete::ACState& s)
     {
         string link = s.words[1].s;
 
-        size_t pos = link.find("cancel");
+        size_t pos = link.find(MegaClient::cancelLinkPrefix());
         if (pos == link.npos)
         {
             cout << "Invalid cancellation link." << endl;
             return;
         }
 
-        client->confirmcancellink(link.substr(pos + strlen("cancel")).c_str());
+        client->confirmcancellink(link.substr(pos + strlen(MegaClient::cancelLinkPrefix())).c_str());
     }
 }
 
@@ -6394,13 +6394,13 @@ void exec_recover(autocomplete::ACState& s)
     {
         string link = s.words[1].s;
 
-        size_t pos = link.find("recover");
+        size_t pos = link.find(MegaClient::recoverLinkPrefix());
         if (pos == link.npos)
         {
             cout << "Invalid recovery link." << endl;
         }
 
-        recoverycode.assign(link.substr(pos + strlen("recover")));
+        recoverycode.assign(link.substr(pos + strlen(MegaClient::recoverLinkPrefix())));
         client->queryrecoverylink(recoverycode.c_str());
     }
 }

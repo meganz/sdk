@@ -1349,7 +1349,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, sid.c_str()));
 
     // Get confirmation link from the email
-    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "confirm", timeOfEmail);
+    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfEmail);
     ASSERT_FALSE(output.empty()) << "Confirmation link was not found.";
 
     // Use confirmation link
