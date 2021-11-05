@@ -16879,6 +16879,11 @@ void NodeManager::init(DBTableNodes *table)
 void NodeManager::reset()
 {
     init(nullptr);
+    for (auto node : mNodes)
+    {
+        delete node.second;
+    }
+
     mNodes.clear();
 }
 
