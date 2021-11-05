@@ -258,7 +258,6 @@ TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfSize)
 }
 
 #ifndef __ANDROID__
-#ifndef WINDOWS_PHONE
 TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfMTime)
 {
     mega::FileFingerprint ffp;
@@ -270,7 +269,6 @@ TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfMTime)
 
     ASSERT_FALSE(ffp == ffp2);
 }
-#endif
 #endif
 
 TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfValid)

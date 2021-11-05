@@ -492,11 +492,6 @@ char *MegaNode::getBase64Key()
     return NULL;
 }
 
-int MegaNode::getTag()
-{
-    return 0;
-}
-
 int64_t MegaNode::getExpirationTime()
 {
     return -1;
@@ -603,11 +598,6 @@ bool MegaNode::isForeign()
 }
 
 string *MegaNode::getNodeKey()
-{
-    return NULL;
-}
-
-string *MegaNode::getAttrString()
 {
     return NULL;
 }
@@ -2102,13 +2092,6 @@ void MegaApi::addEntropy(char *data, unsigned int size)
 {
     pImpl->addEntropy(data, size);
 }
-
-#ifdef WINDOWS_PHONE
-void MegaApi::setStatsID(const char *id)
-{
-    MegaApiImpl::setStatsID(id);
-}
-#endif
 
 void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {

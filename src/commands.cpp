@@ -8583,13 +8583,13 @@ bool CommandBackupPut::procresult(Result r)
     return r.wasStrictlyError() || r.hasJsonItem();
 }
 
-CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, SPHBStatus status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
     : mCompletion(f)
 {
     cmd("sphb");
 
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
-    arg("s", status);
+    arg("s", uint8_t(status));
     if (progress != -1)
     {
         arg("p", progress);
@@ -8682,10 +8682,11 @@ bool CommandBackupSyncFetch::procresult(Result r)
                 case MAKENAMEID1('s'):          d.syncState = client->json.getint32(); break;
                 case MAKENAMEID2('s', 's'):     d.syncSubstate = client->json.getint32(); break;
                 case MAKENAMEID1('e'):          client->json.storeobject(&d.extra);
-                                                d.extra = client->decypherTLVTextWithMasterKey("ed", d.extra);
+                                                d.backupName = client->decypherTLVTextWithMasterKey("bn", d.extra);
                                                 break;
                 case MAKENAMEID2('h', 'b'):
                 {
+
                     if (client->json.enterobject())
                     {
                         for (;;)
