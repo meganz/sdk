@@ -1266,7 +1266,7 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
     assert(outNames);
     assert(outRemote);
 
-    // todo: make this properly async
+    // @TODO: make this properly async
     // Get the list of conflicts from the client.
     list<NameConflict> conflicts;
     client->syncs.syncRun([&](){
@@ -1276,7 +1276,7 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
     SdkMutexGuard guard(sdkMutex);
 
     // Translate the information into a form useful to the caller.
-    // For now, just supply the first conflict.  TODO: maybe the caller would like everything?
+    // For now, just supply the first conflict. @TODO: maybe the caller would like everything?
     for (auto& c : conflicts)
     {
         if (!c.cloudPath.empty() && !c.clashingCloudNames.empty())
@@ -1301,6 +1301,24 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
 
     // got nothing after all
     return false;
+}
+
+// @TODO: Implement me
+size_t MegaApiImpl::getSyncConflicts(const char* *outParentName,
+                                     const char** outParentPath,
+                                     MegaStringList** outNames,
+                                     bool* outRemote)
+{
+    assert(outParentName);
+    assert(outParentPath);
+    assert(outNames);
+    assert(outRemote);
+
+    {
+        SdkMutexGuard guard(sdkMutex);
+        LOG_warn << "MegaApiImpl::getSyncConflicts(...) Not yet implemented";
+        return 0;
+    }
 }
 
 error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::syncFolder()

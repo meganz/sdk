@@ -5459,7 +5459,7 @@ class MegaSyncList
 
 
 
-#endif
+#endif // MEGA_SYNC
 
 
 /**
@@ -14149,7 +14149,24 @@ class MegaApi
                                MegaStringList** names,
                                bool* remote);
 
-#endif
+        /**
+         * @brief
+         * Retrieves information involving any Local <-> Cloud synchronization conflict.
+         * that requires user assistance to be solved.
+         *
+         * For example: While the synchronization was disabled
+         * Folder C was moved inside folder E. (C->E) Locally
+         * folder E was moved inside folder C. (E->C) in the cloud
+         * When the synchronization is re-enabled there is a conflict
+         *
+         * @TODO: Update contract
+         */
+        size_t getSyncConflicts(const char** parentName,
+                                const char** parentPath,
+                                MegaStringList** names,
+                                bool* remote);
+
+#endif // ENABLE_SYNC
 
         /**
          * @brief Get the backup identified with a tag

@@ -28,7 +28,7 @@
 #include "megawaiter.h"
 
 #ifdef ENABLE_SYNC
-
+#include "node.h"
 
 namespace mega {
 
@@ -687,7 +687,7 @@ private:
  * A Synchronization operation detected a problem and is
  * not able to continue (a stall)
  */
-typedef struct  {
+typedef struct StallInfo_t {
     SyncWaitReason reason = SyncWaitReason::NoReason;
     string involvedCloudPath;    ///<! remote path representation
     LocalPath involvedLocalPath;

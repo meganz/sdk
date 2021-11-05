@@ -2428,7 +2428,12 @@ class MegaApiImpl : public MegaApp
                                MegaStringList** names,
                                bool* remote);
 
-#endif
+        size_t getSyncConflicts(const char** parentName,
+                                const char** parentPath,
+                                MegaStringList** names,
+                                bool* remote);
+
+#endif // ENABLE_SYCN
 
         MegaScheduledCopy *getScheduledCopyByTag(int tag);
         MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);

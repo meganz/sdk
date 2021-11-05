@@ -3457,6 +3457,14 @@ bool MegaApi::conflictsDetected(const char** parentName,
     return pImpl->conflictsDetected(parentName, parentPath, names, remote);
 }
 
+size_t MegaApi::getSyncConflicts(const char** parentName,
+                                 const char** parentPath,
+                                 MegaStringList** names,
+                                 bool* remote) 
+{
+    return pImpl->getSyncConflicts(parentName, parentPath, names, remote);
+}
+
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
     return pImpl->getSyncByBackupId(backupId);
