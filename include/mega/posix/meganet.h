@@ -24,6 +24,7 @@
 
 #include "mega.h"
 
+#undef USE_OPENSSL
 #ifdef USE_OPENSSL
 #include <openssl/ssl.h>
 #endif

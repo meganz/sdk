@@ -27,6 +27,8 @@
 #include "filesystem.h"
 #include <string>
 
+#undef USE_MEDIAINFO
+	
 namespace mega {
 
 enum fatype_ids { fa_media = 8, fa_mediaext = 9 };

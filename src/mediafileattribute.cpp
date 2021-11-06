@@ -26,6 +26,7 @@
 #include "mega/megaclient.h"
 #include "mega/megaapp.h"
 
+#undef USE_MEDIAINFO
 #ifdef USE_MEDIAINFO
 #include "MediaInfo/MediaInfo.h"
 #include "ZenLib/Ztring.h"

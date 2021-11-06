@@ -635,7 +635,7 @@ using namespace mega;
 
 - (NSString *)dumpSession:(BOOL)offline {
     if (self.megaApi == nil) return nil;
-    const char *val = self.megaApi->dumpSession();
+    //const char *val = self.megaApi->dumpSession();
     const char *val = self.megaApi->dumpSession(offline);
 
     if (!val) return nil;

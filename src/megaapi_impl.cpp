@@ -13755,7 +13755,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                 // In consequence, the session resumption requires a regular session id (instead of the
                 // usual one with the user's handle and the pwd cipher)
                 string sid;
-                client->dumpsession(sid);
+                client->dumpsession(sid, false);
                 request->setPrivateKey(sid.c_str());
 
                 fireOnRequestFinish(request,  make_unique<MegaErrorPrivate>(e));
@@ -15554,7 +15554,7 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     else // ephemeral++
     {
         string session;
-        client->dumpsession(session);
+        client->dumpsession(session, false);
         sid = Base64::btoa(session);
     }
     request->setSessionKey(sid.c_str());

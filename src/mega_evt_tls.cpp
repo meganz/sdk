@@ -17,6 +17,7 @@
 #endif
 #endif
 
+#undef HAVE_LIBUV
 #if defined(HAVE_LIBUV)
 
 #include <assert.h>

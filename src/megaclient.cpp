@@ -12062,7 +12062,7 @@ void MegaClient::resumeephemeralPlusPlus(const std::string& session)
     // does not require a password, so the session token would be undecryptable. That's
     // the reason to use a regular session ID and perform a regular login, instead of
     // calling here resumeephemeral() directly.
-    login(session);
+    loginSession(session, false);
 }
 
 void MegaClient::cancelsignup()
@@ -12544,21 +12544,24 @@ void MegaClient::fetchnodes(bool nocache)
 
             restag = fetchnodesTag;
 
-            // upon ug completion
-            if (e != API_OK)
+            if (!offlineMode)
             {
-                LOG_err << "Session load failed: unable not get user data";
-                app->fetchnodes_result(API_EINTERNAL);
-                return; //from completion function
+                // upon ug completion
+                if (e != API_OK)
+                {
+                    LOG_err << "Session load failed: unable not get user data";
+                    app->fetchnodes_result(API_EINTERNAL);
+                    return; //from completion function
+                }
+
+                WAIT_CLASS::bumpds();
+                fnstats.mode = FetchNodesStats::MODE_DB;
+                fnstats.cache = FetchNodesStats::API_NO_CACHE;
+                fnstats.nodesCached = nodes.size();
+                fnstats.timeToCached = Waiter::ds - fnstats.startTime;
+                fnstats.timeToResult = fnstats.timeToCached;
             }
-
-            WAIT_CLASS::bumpds();
-            fnstats.mode = FetchNodesStats::MODE_DB;
-            fnstats.cache = FetchNodesStats::API_NO_CACHE;
-            fnstats.nodesCached = nodes.size();
-            fnstats.timeToCached = Waiter::ds - fnstats.startTime;
-            fnstats.timeToResult = fnstats.timeToCached;
-
+            
             statecurrent = false;
 
             assert(sctable->inTransaction());

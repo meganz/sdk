@@ -32,17 +32,17 @@ project(MegaSDK)
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON) # Generates compile_commands.json with the compilers calls for all translations units
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
-if (CMAKE_HOST_APPLE AND NOT IOS)
+#if (CMAKE_HOST_APPLE)
     set (USE_OPENSSL 0 CACHE STRING "")
-else()
-    set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
-endif()
+#else()
+#    set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
+#endif()
 
 set (USE_ASIO 1 CACHE STRING "Only needed For tcprelay test tool")
 set (USE_CURL 1 CACHE STRING "Always needed (turning it off would mean using WinHTTP instead but that has not been maintained for a while)")
 set (USE_SQLITE 1 CACHE STRING "Needed unless intending a cache-less app")
-set (USE_MEDIAINFO 1 CACHE STRING "Used to determine media properties and set those as node attributes")
-set (USE_FREEIMAGE 1 CACHE STRING "Used to create previews/thumbnails for photos/pictures")
+set (USE_MEDIAINFO 0 CACHE STRING "Used to determine media properties and set those as node attributes")
+set (USE_FREEIMAGE 0 CACHE STRING "Used to create previews/thumbnails for photos/pictures")
 set (ENABLE_SYNC 1 CACHE STRING "Turns on sync functionality")
 set (ENABLE_CHAT 0 CACHE STRING "Turns on chat management functionality")
 set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "Faster log message generation")
@@ -53,9 +53,9 @@ set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web an
 set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
 set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
-set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
+set (USE_PCRE 0 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
 set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
-set (MEGA_USE_C_ARES 1 CACHE STRING "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL")
+set (MEGA_USE_C_ARES 0 CACHE STRING "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL")
 
 if (USE_PTHREAD)
     set( USE_CPPTHREAD 0)
@@ -397,7 +397,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 #find_package(CURL CONFIG REQUIRED PATHS "${vcpkg_dir}/share/curl" NO_DEFAULT_PATH )
             ENDIF()
         ENDIF()
-        IF(USE_CURL)
+        IF(MEGA_USE_C_ARES)
             ImportStdVcpkgLibrary(cares       cares cares libcares libcares)
         ENDIF()
 
@@ -418,8 +418,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
 
-        ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
-        ImportStdVcpkgLibrary(gmock           gmockd gmock libgmockd libgmock)
+#        ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
+#        ImportStdVcpkgLibrary(gmock           gmockd gmock libgmockd libgmock)
 
         IF(USE_MEDIAINFO)
             IF(CMAKE_HOST_APPLE)
@@ -511,15 +511,6 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 ImportStdVcpkgLibrary(freeimage_tiffxx        tiffxxd            tiffxx           libtiffxxd            libtiffxx            )
                 target_link_libraries(freeimage INTERFACE freeimage_tiffxx)
             endif()
-=======
-            set (freeimage_deps freeimage_Iex  freeimage_IlmImf freeimage_IlmImfUtil
-                freeimage_IlmThread freeimage_jpeg freeimage_openjp2
-                freeimage_half freeimage_libpng freeimage_lcms2 freeimage_raw freeimage_tiff
-#                freeimage_tiffxx 
-freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux
-                freeimage_jpeg freeimage_Imath freeimage_lzma
-                freeimage_jasper freeimage_turbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
->>>>>>> songs-plus-plus
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
@@ -842,9 +833,9 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_WEBRTC}:webrtc>
                         $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen>
                         $<${USE_CURL}:curl>
-                        $<${MEGA_USE_C_ARES}:cares>
-                        $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>
-                        $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
+                       # $<${MEGA_USE_C_ARES}:cares>
+                       # $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>
+                       # $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
                         $<${USE_SQLITE}:sqlite3>
                         $<${USE_LIBUV}:uv>
                         $<${USE_PCRE}:pcrecpp>
