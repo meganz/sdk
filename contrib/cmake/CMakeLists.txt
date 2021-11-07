@@ -441,7 +441,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
         IF(USE_LIBRAW OR USE_FREEIMAGE)
             # we might need libraw directly (eg MEGAsync) but also freeimage needs it
-            ImportStdVcpkgLibrary(libraw         raw_rd           raw_r          librawd             libraw)
+            ImportStdVcpkgLibrary(libraw         raw_rd           raw_r          libraw_rd           libraw_r)
 
             # libraw needs jasper and lcms and libjpeg-turbo (all also part of freeimage)
             ImportStdVcpkgLibrary(libjasper      jasperd          jasper         libjasperd          libjasper)
