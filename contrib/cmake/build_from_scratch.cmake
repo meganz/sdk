@@ -209,7 +209,7 @@ if(WIN32)
             ${_extra_cmake_args}
     )
 
-    foreach(_config "Debug" "Release")
+    foreach(_config "Release" "Debug")
         execute_checked_command(
             COMMAND ${_cmake}
                 --build ${_build_dir}
@@ -235,7 +235,7 @@ else()
         )
     endif()
 
-    foreach(_config "Debug" "Release")
+    foreach(_config "Release" "Debug")
         set(_build_dir "${_sdk_dir}/build-${_triplet}-${_config}")
         file(MAKE_DIRECTORY ${_build_dir})
 
