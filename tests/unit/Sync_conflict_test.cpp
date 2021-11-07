@@ -37,6 +37,10 @@ class SyncConflictTest : public Test {
     protected:
 };
 
+/**
+ * A Local change where Folder A is moved into folder B and
+ * a Cloud change where Folder B is moved into folder A
+ */
 TEST(SyncConflictTest, LocalStallsWithChanges_Local_AB_Cloud_BA) { 
     mega::SyncStallInfo syncStallInfo;
 
@@ -56,11 +60,16 @@ TEST(SyncConflictTest, LocalStallsWithChanges_Local_AB_Cloud_BA) {
         mega::SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
      );
 
-    ASSERT_FALSE(syncStallInfo.empty()); // Houston!
+    ASSERT_FALSE(syncStallInfo.empty()); // Houston! We have a conflict.
     ASSERT_TRUE(syncStallInfo.hasImmediateStallReason()); // User should choose
 
 }
 
+
+/**
+ * A Cloud change where Folder B is moved into folder A and
+ * a Local change where Folder A is moved into folder B
+ */
 TEST(SyncConflictTest, CloudStallsWithChanges_Cloud_AB_Local_BA) { 
     mega::SyncStallInfo syncStallInfo;
     ASSERT_TRUE(syncStallInfo.empty());
@@ -88,14 +97,12 @@ TEST(SyncConflictTest, CloudStallsWithChanges_Cloud_AB_Local_BA) {
 TEST(SyncConflictTest, RetrieveSyncStallInfo_Private_Inteface) {
     mega::SyncStallInfo syncStallInfo;
     ASSERT_TRUE(syncStallInfo.empty());
-
     // Conflicting changes introduced here
 }
 
 TEST(SyncConflictTest, RetrieveSyncStallInfo_Public_Interface) {
     mega::SyncStallInfo syncStallInfo;
     ASSERT_TRUE(syncStallInfo.empty());
-
     // Conflicting changes introduced here
 }
 

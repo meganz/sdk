@@ -2433,7 +2433,7 @@ class MegaApiImpl : public MegaApp
                                 MegaStringList** names,
                                 bool* remote);
 
-#endif // ENABLE_SYCN
+#endif // ENABLE_SYNC
 
         MegaScheduledCopy *getScheduledCopyByTag(int tag);
         MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
