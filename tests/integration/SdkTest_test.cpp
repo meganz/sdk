@@ -2664,7 +2664,6 @@ TEST_F(SdkTest, SdkTestShares2)
 
     // --- Check the outgoing share from User1 ---
 
-    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     std::unique_ptr<MegaShareList> sl{ megaApi[0]->getOutShares() };
     ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
     MegaShare* s = sl->get(0);
@@ -2741,7 +2740,6 @@ TEST_F(SdkTest, SdkTestShares2)
 
     // --- Check that User1 has received the change ---
 
-    fetchnodes(0, maxTimeout); // is this needed here or something else?
     std::unique_ptr<MegaNode>nU2{ megaApi[0]->getNodeByHandle(hfile2U2) };    // get an updated version of the node
     ASSERT_TRUE(nU2 && string(fileByUser2) == nU2->getName()) << "Finding node by handle failed";
 
@@ -2752,6 +2750,7 @@ TEST_F(SdkTest, SdkTestShares2)
     locallogout();
     auto tracker = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    fetchnodes(0, maxTimeout);
 
 
     // --- User1 remove file ---
@@ -2766,11 +2765,11 @@ TEST_F(SdkTest, SdkTestShares2)
     ASSERT_EQ(MegaError::API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
     auto trackerU2 = asyncRequestFastLogin(1, session.c_str());
     ASSERT_EQ(API_OK, trackerU2->waitForResult()) << " Failed to establish a login/session for account " << 1;
+    fetchnodes(1, maxTimeout);
 
 
     // --- Check that User2 no longer sees the removed file ---
 
-    fetchnodes(1, maxTimeout); // is this needed here or something else?
     std::unique_ptr<MegaNode> nremoved{ megaApi[1]->getNodeByHandle(hfile2) };    // get an updated version of the node
     ASSERT_EQ(nremoved, nullptr) << " Failed to see the file was removed";
 }
