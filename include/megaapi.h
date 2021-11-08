@@ -14159,12 +14159,10 @@ class MegaApi
          * folder E was moved inside folder C. (E->C) in the cloud
          * When the synchronization is re-enabled there is a conflict
          *
-         * @TODO: Update contract
+         * @conflicts MegaStringList of conflict descriptions
+         * @return number of conflicts reported.
          */
-        size_t getSyncConflicts(const char** parentName,
-                                const char** parentPath,
-                                MegaStringList** names,
-                                bool* remote);
+        size_t getSyncConflicts(MegaStringList** conflicts);
 
 #endif // ENABLE_SYNC
 

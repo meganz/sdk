@@ -2428,10 +2428,8 @@ class MegaApiImpl : public MegaApp
                                MegaStringList** names,
                                bool* remote);
 
-        size_t getSyncConflicts(const char** parentName,
-                                const char** parentPath,
-                                MegaStringList** names,
-                                bool* remote);
+        size_t getSyncConflicts(MegaStringList** conflicts);
+        size_t static getSyncConflicts(SyncStallInfo const& si, MegaStringList** conflicts);
 
 #endif // ENABLE_SYNC
 

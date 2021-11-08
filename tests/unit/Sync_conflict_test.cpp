@@ -32,45 +32,68 @@ class SyncConflictTest : public Test {
     public:
         SyncConflictTest(){}
         ~SyncConflictTest(){}
+        
+        // Add conflicts
+        static void addLocalConflict(mega::SyncStallInfo& si);
+        static void addCloudConflict(mega::SyncStallInfo& si);
     private:
 
     protected:
 };
 
+void
+SyncConflictTest::addLocalConflict(mega::SyncStallInfo& si) {
+    // Superposition!. Which universe should we choose from?
+    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
+    const auto localPath = mega::LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+
+    si.waitingLocal(  
+        localPath, 
+        localPath,
+        theRemotePath,
+        mega::SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+     );
+}
+
+void
+SyncConflictTest::addCloudConflict(mega::SyncStallInfo& si) {
+    // Superposition!. Which universe should we choose from?
+    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
+    const auto localPath = mega::LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+
+    si.waitingCloud(
+        theRemotePath,
+        theRemotePath,
+        localPath,
+        mega::SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+     );
+}
+
 /**
  * A Local change where Folder A is moved into folder B and
  * a Cloud change where Folder B is moved into folder A
  */
-TEST(SyncConflictTest, LocalStallsWithChanges_Local_AB_Cloud_BA) { 
+TEST(SyncConflictTest, LocalStallsWithChanges_Local_AB_Cloud_BA) {
     mega::SyncStallInfo syncStallInfo;
 
     // Fresh from the oven. No stalls
     ASSERT_TRUE(syncStallInfo.empty());
     ASSERT_FALSE(syncStallInfo.hasImmediateStallReason());
 
-    // Superposition!. Which universe should we choose from?
-    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
-    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
-    const auto localPath = mega::LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
-
-    syncStallInfo.waitingLocal(  
-        localPath, 
-        localPath,
-        theRemotePath,
-        mega::SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
-     );
+    SyncConflictTest::addLocalConflict(syncStallInfo);
 
     ASSERT_FALSE(syncStallInfo.empty()); // Houston! We have a conflict.
     ASSERT_TRUE(syncStallInfo.hasImmediateStallReason()); // User should choose
 
 }
 
-
 /**
  * A Cloud change where Folder B is moved into folder A and
  * a Local change where Folder A is moved into folder B
  */
-TEST(SyncConflictTest, CloudStallsWithChanges_Cloud_AB_Local_BA) { 
+TEST(SyncConflictTest, CloudStallsWithChanges_Cloud_AB_Local_BA) {
     mega::SyncStallInfo syncStallInfo;
     ASSERT_TRUE(syncStallInfo.empty());
 
@@ -78,34 +101,12 @@ TEST(SyncConflictTest, CloudStallsWithChanges_Cloud_AB_Local_BA) {
     ASSERT_TRUE(syncStallInfo.empty());
     ASSERT_FALSE(syncStallInfo.hasImmediateStallReason());
 
-    // Superposition!. Which universe should we choose from?
-    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
-    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
-    const auto localPath = mega::LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
-
-    syncStallInfo.waitingCloud(
-        theRemotePath,
-        theRemotePath,
-        localPath,
-        mega::SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
-     );
+    SyncConflictTest::addCloudConflict(syncStallInfo);
 
     ASSERT_FALSE(syncStallInfo.empty());
     ASSERT_TRUE(syncStallInfo.hasImmediateStallReason()); // User should choose
 }
 
-TEST(SyncConflictTest, RetrieveSyncStallInfo_Private_Inteface) {
-    mega::SyncStallInfo syncStallInfo;
-    ASSERT_TRUE(syncStallInfo.empty());
-    // Conflicting changes introduced here
-}
-
-TEST(SyncConflictTest, RetrieveSyncStallInfo_Public_Interface) {
-    mega::SyncStallInfo syncStallInfo;
-    ASSERT_TRUE(syncStallInfo.empty());
-    // Conflicting changes introduced here
-}
-
-}
+} //namespace
 
 #endif // ENABLE_SYNC

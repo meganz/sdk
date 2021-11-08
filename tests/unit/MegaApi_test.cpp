@@ -218,3 +218,41 @@ TEST(MegaApi, getMimeType)
 
     ASSERT_EQ(600, successCount);
 }
+
+TEST(MegaApi, getNoSyncConflict)
+{
+    mega::SyncStallInfo syncStallInfo; // Sync conflicts
+
+    MegaStringList sentinel;
+    MegaStringList* megaStringListPtr = &sentinel;
+    ASSERT_EQ(megaStringListPtr, &sentinel);
+
+    size_t numConflicts = MegaApiImpl::getSyncConflicts(syncStallInfo, &megaStringListPtr);
+    ASSERT_EQ(numConflicts, 0u); // No conflict
+    ASSERT_EQ(megaStringListPtr, nullptr); // List not allocated
+}
+
+TEST(MegaApi, getLocalSyncConflict)
+{
+    mega::SyncStallInfo syncStallInfo; // Sync conflicts
+
+    MegaStringList sentinel;
+    MegaStringList* megaStringListPtr = &sentinel;
+    ASSERT_EQ(megaStringListPtr, &sentinel);
+
+    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
+    const auto localPath = mega::LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+
+    syncStallInfo.waitingLocal(  
+        localPath, 
+        localPath,
+        theRemotePath,
+        mega::SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+     );
+    size_t numConflicts = MegaApiImpl::getSyncConflicts(syncStallInfo, &megaStringListPtr);
+    ASSERT_EQ(numConflicts, 1u); // conflict
+    ASSERT_NE(megaStringListPtr, nullptr); // List allocated
+    ASSERT_NE(megaStringListPtr, &sentinel); // List is not sentinel
+    delete megaStringListPtr; // Release owned list
+}

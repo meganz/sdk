@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <sstream>
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -1303,22 +1304,51 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
     return false;
 }
 
-// @TODO: Implement me
-size_t MegaApiImpl::getSyncConflicts(const char* *outParentName,
-                                     const char** outParentPath,
-                                     MegaStringList** outNames,
-                                     bool* outRemote)
-{
-    assert(outParentName);
-    assert(outParentPath);
-    assert(outNames);
-    assert(outRemote);
+/**
+ * A simple output of stall reason to begin with
+ */
+std::ostream& operator<<(std::ostream& os, const StallInfo_t& si) {
+    os << "Local path: " << si.involvedLocalPath.toPath()
+       << " Cloud path: " << si.involvedCloudPath
+       << " Reason: " << syncWaitReasonString(si.reason);
+    return os;
+}
 
+
+size_t MegaApiImpl::getSyncConflicts(MegaStringList** conflicts) {
+    assert(conflicts);
+
+    SyncStallInfo syncStallInfo;
     {
-        SdkMutexGuard guard(sdkMutex);
-        LOG_warn << "MegaApiImpl::getSyncConflicts(...) Not yet implemented";
-        return 0;
+        SdkMutexGuard guard(sdkMutex); // exclusive access to SDK
+        client->syncs.syncStallDetected(syncStallInfo);
     }
+    return getSyncConflicts(syncStallInfo, conflicts);
+}
+
+// Testable
+size_t MegaApiImpl::getSyncConflicts(SyncStallInfo const& syncStallInfo, MegaStringList** conflicts) {
+    if (!syncStallInfo.hasImmediateStallReason()) {
+        *conflicts = nullptr;
+        return 0; // No user acction required
+    }
+
+    string_vector strVec;
+    for(auto& conflict : syncStallInfo.cloud) {
+        std::stringstream buffer;
+        auto& info = conflict.second; // stall information
+        buffer << "Could: " << conflict.first << " " << info;
+        strVec.push_back( buffer.str());
+    }
+
+    for(auto& conflict : syncStallInfo.local) {
+        std::stringstream buffer;
+        auto& info = conflict.second; // stall information
+        buffer << "Local: " << conflict.first.toPath() << " " << info;
+        strVec.push_back( buffer.str());
+    }
+    const auto mSLPtr = *conflicts = new MegaStringListPrivate(move(strVec));
+    return static_cast<size_t>(mSLPtr->size());
 }
 
 error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::syncFolder()
