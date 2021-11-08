@@ -6840,16 +6840,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeLinkCreationDesc = 16
  *
  * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending
+ * Sort by color label, ascending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending
+ * Sort by color label, descending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @return List with all child MEGANode objects.
  */
@@ -6971,16 +6971,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeLinkCreationDesc = 16
  *
  * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending
+ * Sort by color label, ascending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending
+ * Sort by color label, descending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @return Lists with files and folders child MegaNode objects
  */
@@ -7485,16 +7485,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeLinkCreationDesc = 16
  *
  * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending
+ * Sort by color label, ascending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending
+ * Sort by color label, descending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @return List of nodes that contain the desired string in their name.
  */
@@ -7570,16 +7570,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeLinkCreationDesc = 16
  *
  * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending
+ * Sort by color label, ascending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending
+ * Sort by color label, descending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @param nodeFormatType Type of nodes requested in the search
  * Valid values for this parameter are:
