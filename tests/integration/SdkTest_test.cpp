@@ -321,7 +321,11 @@ void SdkTest::Cleanup()
         std::unique_ptr<MegaUserList> ul{megaApi[0]->getContacts()};
         for (int i = 0; i < ul->size(); i++)
         {
-            removeContact(ul->get(i)->getEmail());
+            const char* contactEmail = ul->get(i)->getEmail();
+            if (contactEmail && *contactEmail) // sometimes the email is an empty string (!)
+            {
+                removeContact(contactEmail);
+            }
         }
     }
 
@@ -2574,6 +2578,198 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
         }
     }
     return ok;
+}
+
+
+/**
+ * @brief TEST_F SdkTestShares2
+ *
+ * - Create and upload some folders and files to User1 account
+ * - Create a new contact to share to
+ * - Share a folder with User2
+ * - Check the outgoing share from User1
+ * - Check the incoming share to User2
+ * - Get file name and fingerprint from User1
+ * - Search by file name for User2
+ * - Search by fingerprint for User2
+ * - User2 add file
+ * - Check that User1 has received the change
+ * - User1 remove file
+ * - Locallogout from User2 and login with session
+ * - Check that User2 no longer sees the removed file
+ */
+TEST_F(SdkTest, SdkTestShares2)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // --- Create some nodes to share ---
+    //  |--Shared-folder
+    //    |--subfolder
+    //      |--file.txt
+    //    |--file.txt
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    static constexpr char foldername1[] = "Shared-folder";
+    MegaHandle hfolder1 = createFolder(0, foldername1, rootnode.get());
+    ASSERT_NE(hfolder1, UNDEF) << "Cannot create " << foldername1;
+
+    std::unique_ptr<MegaNode> n1{ megaApi[0]->getNodeByHandle(hfolder1) };
+    ASSERT_NE(n1, nullptr);
+
+    static constexpr char foldername2[] = "subfolder";
+    MegaHandle hfolder2 = createFolder(0, foldername2, n1.get());
+    ASSERT_NE(hfolder2, UNDEF) << "Cannot create " << foldername2;
+
+    createFile(PUBLICFILE.c_str(), false);   // not a large file since don't need to test transfers here
+
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.c_str(), n1.get())) << "Cannot upload a test file";
+    MegaHandle hfile1 = mApi[0].h;
+
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get())) << "Cannot upload a second test file";
+    MegaHandle hfile2 = mApi[0].h;
+
+
+    // --- Create a new contact to share to ---
+
+    string message = "Hi contact. Let's share some stuff";
+
+    mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated))   // at the target side (auxiliar account)
+        << "Contact request creation not received after " << maxTimeout << " seconds";
+
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
+
+    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated))   // at the target side (auxiliar account)
+        << "Contact request creation not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated))   // at the source side (main account)
+        << "Contact request creation not received after " << maxTimeout << " seconds";
+
+    mApi[1].cr.reset();
+
+
+    // --- Share a folder with User2 ---
+
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+
+
+    // --- Check the outgoing share from User1 ---
+
+    std::unique_ptr<MegaShareList> sl{ megaApi[0]->getOutShares() };
+    ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
+    MegaShare* s = sl->get(0);
+
+    n1.reset(megaApi[0]->getNodeByHandle(hfolder1));    // get an updated version of the node
+
+    ASSERT_EQ(MegaShare::ACCESS_FULL, s->getAccess()) << "Wrong access level of outgoing share";
+    ASSERT_EQ(hfolder1, s->getNodeHandle()) << "Wrong node handle of outgoing share";
+    ASSERT_STREQ(mApi[1].email.c_str(), s->getUser()) << "Wrong email address of outgoing share";
+    ASSERT_TRUE(n1->isShared()) << "Wrong sharing information at outgoing share";
+    ASSERT_TRUE(n1->isOutShare()) << "Wrong sharing information at outgoing share";
+
+
+    // --- Check the incoming share to User2 ---
+
+    sl.reset(megaApi[1]->getInSharesList());
+    ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
+
+    std::unique_ptr<MegaNodeList> nl{ megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())) };
+    ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
+    MegaNode* n = nl->get(0);
+
+    ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
+    ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
+    ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
+    ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
+
+
+    // --- Get file name and fingerprint from User1 account ---
+
+    unique_ptr<MegaNode> nfile2(megaApi[0]->getNodeByHandle(hfile2));
+    ASSERT_NE(nfile2, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
+    const char* fileNameToSearch = nfile2->getName();
+    const char* fingerPrintToSearch = nfile2->getFingerprint();
+
+
+    // --- Search by fingerprint for User2 ---
+
+    unique_ptr<MegaNodeList> fingerPrintList(megaApi[1]->getNodesByFingerprint(fingerPrintToSearch));
+    ASSERT_EQ(fingerPrintList->size(), 2) << "Node count by fingerprint is wrong"; // the same file was uploaded twice, with differernt paths
+    bool found = false;
+    for (int i = 0; i < fingerPrintList->size(); i++)
+    {
+        if (fingerPrintList->get(i)->getHandle() == hfile2)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(found);
+
+
+    // --- Search by file name for User2 ---
+
+    unique_ptr<MegaNodeList> searchList(megaApi[1]->search(fileNameToSearch));
+    ASSERT_EQ(searchList->size(), 2) << "Node count by file name is wrong"; // the same file was uploaded twice, to differernt paths
+    ASSERT_TRUE((searchList->get(0)->getHandle() == hfile1 && searchList->get(1)->getHandle() == hfile2) ||
+                (searchList->get(0)->getHandle() == hfile2 && searchList->get(1)->getHandle() == hfile1))
+                << "Node handles are not the expected ones";
+
+
+    // --- User2 add file ---
+    //  |--Shared-folder
+    //    |--subfolder
+    //      |--by_user_2.txt
+
+    static constexpr char fileByUser2[] = "by_user_2.txt";
+    createFile(fileByUser2, false);   // not a large file since don't need to test transfers here
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(1, fileByUser2, std::unique_ptr<MegaNode>{megaApi[1]->getNodeByHandle(hfolder2)}.get())) << "Cannot upload a second test file";
+    MegaHandle hfile2U2 = mApi[1].h;
+
+
+    // --- Check that User1 has received the change ---
+
+    std::unique_ptr<MegaNode>nU2{ megaApi[0]->getNodeByHandle(hfile2U2) };    // get an updated version of the node
+    ASSERT_TRUE(nU2 && string(fileByUser2) == nU2->getName()) << "Finding node by handle failed";
+
+
+    // --- Locallogout from User1 and login with session ---
+
+    string session = dumpSession();
+    locallogout();
+    auto tracker = asyncRequestFastLogin(0, session.c_str());
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    fetchnodes(0, maxTimeout);
+
+
+    // --- User1 remove file ---
+
+    ASSERT_EQ(MegaError::API_OK, synchronousRemove(0, nfile2.get())) << "Error while removing file " << nfile2->getName();
+
+
+    // --- Locallogout from User2 and login with session ---
+
+    session = megaApi[1]->dumpSession();
+    auto logoutErr = doRequestLocalLogout(1);
+    ASSERT_EQ(MegaError::API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
+    auto trackerU2 = asyncRequestFastLogin(1, session.c_str());
+    ASSERT_EQ(API_OK, trackerU2->waitForResult()) << " Failed to establish a login/session for account " << 1;
+    fetchnodes(1, maxTimeout);
+
+
+    // --- Check that User2 no longer sees the removed file ---
+
+    std::unique_ptr<MegaNode> nremoved{ megaApi[1]->getNodeByHandle(hfile2) };    // get an updated version of the node
+    ASSERT_EQ(nremoved, nullptr) << " Failed to see the file was removed";
 }
 
 /**
