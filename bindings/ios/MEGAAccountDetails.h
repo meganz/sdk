@@ -111,7 +111,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 @property (readonly, nonatomic) NSInteger subscriptionRenewTime;
 
 /**
- * @brief The subscryption method. For example "Credit Card".
+ * @brief The subscription method. For example "Credit Card".
  *
  */
 @property (readonly, nonatomic) NSString *subscriptionMethod;
