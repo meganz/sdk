@@ -125,7 +125,7 @@ try
                     cout << "Removing " << (vcpkgDir / "ports" / portname).u8string() << endl;
                     #ifdef WIN32
                     // remove_all doesn't like read-only files in the git repo.  however it seems that will be fixed in future
-                    execute("rmdir /S /Q " + (vcpkgDir / "ports" / portname).u8string());
+                    execute("rmdir /S /Q " + ("\"" + (vcpkgDir / "ports" / portname).u8string() + "\""));
                     #else
                     fs::remove_all(vcpkgDir / "ports" / portname);
                     #endif
@@ -140,6 +140,7 @@ try
 
                     // before we apply any patch, init this as a new git repo to make it easy to
                     // amend or add to patches - or to create a new patch file for this lib
+                    // (this turned out to cause problems for normal situations but perhaps we can overcome those in future or use it selectively)
                     //execute("git init .");
                     //execute("git add *.*");
                     //execute("git add ./*");
