@@ -688,6 +688,11 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
         // notifyfailed = false;
 #endif
     }
+    else
+    {
+        LOG_debug << "Unable to create inotify descriptor: "
+                  << errno;
+    }
 #endif
 
 #ifdef __MACH__
@@ -1857,6 +1862,8 @@ pair<WatchMapIterator, bool> PosixDirNotify::addWatch(LocalNode& node, const Loc
 
     LOG_warn << "Unable to monitor path for filesystem notifications: "
              << path.localpath.c_str()
+             << ": Descriptor: "
+             << fsaccess->notifyfd
              << ": Error: "
              << errno;
 
