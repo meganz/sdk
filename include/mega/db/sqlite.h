@@ -55,6 +55,10 @@ public:
     LocalPath dbFile() const;
 };
 
+/**
+ * This class implements DbTable iface (by deriving SqliteDbTable), and additionally
+ * implements DbTableNodes iface too, so it allows to manage `nodes` table.
+ */
 class MEGA_API SqliteAccountState : public SqliteDbTable, public DBTableNodes
 {
 public:

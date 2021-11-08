@@ -254,6 +254,7 @@ public:
     bool updateNode(Node* node);
     bool removeNode(NodeHandle handle);
 
+    // if node is not available in memory, it's loaded from DB
     Node *getNodeByHandle(NodeHandle handle);
     node_list getChildren(Node* parent);
     uint64_t getNumNodes();

@@ -7389,9 +7389,11 @@ void MegaClient::notifypurge(void)
 
                 NodeHandle firstValidAntecestor = mNodeManager.getFirstAncestor(n->nodeHandle());
                 assert(firstValidAntecestor != UNDEF);
-                if (firstValidAntecestor == rootnodes[0] || firstValidAntecestor == rootnodes[1] || firstValidAntecestor == rootnodes[2])
+                if (firstValidAntecestor == rootnodes[0] ||
+                    firstValidAntecestor == rootnodes[1] ||
+                    firstValidAntecestor == rootnodes[2])
                 {
-                    mNodeCounters[firstValidAntecestor] -= mNodeManager.getNodeCounter(n->nodeHandle(), n->type == FILENODE ? true : false);
+                    mNodeCounters[firstValidAntecestor] -= mNodeManager.getNodeCounter(n->nodeHandle(), n->type == FILENODE);
                 }
             }
             else

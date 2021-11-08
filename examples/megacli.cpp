@@ -2617,7 +2617,7 @@ void exec_lrenamereplace(autocomplete::ACState& s)
 
 void exec_getcloudstorageused(autocomplete::ACState& s)
 {
-    // TODO Nodes on demand check if mFingerprints is required
+    // TODO: mFingerprints will be restored (SDK-1753). Uncomment next line and remove the following one
     //cout << client->mFingerprints.getSumSizes() << endl;
     cout << client->mNodeManager.getNodeCounter(client->rootnodes[0]).storage << endl;
 }
