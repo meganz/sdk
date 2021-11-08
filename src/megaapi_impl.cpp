@@ -17318,6 +17318,11 @@ bool MegaApiImpl::nodeComparatorPublicLinkCreationDESC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
 {
+    if (i->type != j->type)
+    {
+       return i->type == FOLDERNODE ? 1 : 0;
+    }
+
     nameid labelId = AttrMap::string2nameid("lbl");
     int iLabel = MegaNode::NODE_LBL_UNKNOWN;
     auto iAttrIt = i->attrs.map.find(labelId);
@@ -17359,6 +17364,11 @@ bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
 {
+    if (i->type != j->type)
+    {
+       return i->type == FOLDERNODE ? 1 : 0;
+    }
+
     nameid labelId = AttrMap::string2nameid("lbl");
     int iLabel = MegaNode::NODE_LBL_UNKNOWN;
     auto iAttrIt = i->attrs.map.find(labelId);
@@ -17401,6 +17411,11 @@ bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
 {
+    if (i->type != j->type)
+    {
+       return i->type == FOLDERNODE ? 1 : 0;
+    }
+
     nameid favId = AttrMap::string2nameid("fav");
     bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
     bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
@@ -17422,6 +17437,11 @@ bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
 {
+    if (i->type != j->type)
+    {
+       return i->type == FOLDERNODE ? 1 : 0;
+    }
+
     nameid favId = AttrMap::string2nameid("fav");
     bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
     bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
