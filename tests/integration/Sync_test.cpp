@@ -8503,7 +8503,7 @@ struct TwoWaySyncSymmetryCase
         }
         else
         {
-            backupId = SetupSync(sourcePath, targetPath);
+            backupId = SetupSync(sourcePath, targetPath, false);
         }
 
         ASSERT_NE(backupId, UNDEF);
@@ -9284,7 +9284,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     }
 
     // set up sync for A1, it should build matching cloud files/folders as the test cases add local files/folders
-    handle backupId1 = clientA1Steady.setupSync_mainthread("twoway", "twoway", false, true);
+    handle backupId1 = clientA1Steady.setupSync_mainthread("twoway", "twoway", false, false);
     ASSERT_NE(backupId1, UNDEF);
     handle backupId2 = clientA1Resume.setupSync_mainthread("twoway", "twoway", false, false);
     ASSERT_NE(backupId2, UNDEF);
