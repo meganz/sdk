@@ -92,7 +92,6 @@ struct MEGA_API PaddedCBC
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given. If `iv` is a zero length string, a new IV
      *     for encryption will be generated and available through the reference.
-     * @return Void.
      */
     static void encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
 

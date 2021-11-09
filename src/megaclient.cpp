@@ -15623,6 +15623,36 @@ bool MegaClient::driveMonitorEnabled()
 #endif
 }
 
+const char* MegaClient::newsignupLinkPrefix()
+{
+    static constexpr const char* prefix = "newsignup";
+    return prefix;
+}
+
+const char* MegaClient::confirmLinkPrefix()
+{
+    static constexpr const char* prefix = "confirm";
+    return prefix;
+}
+
+const char* MegaClient::verifyLinkPrefix()
+{
+    static constexpr const char* prefix = "verify";
+    return prefix;
+}
+
+const char* MegaClient::recoverLinkPrefix()
+{
+    static constexpr const char* prefix = "recover";
+    return prefix;
+}
+
+const char* MegaClient::cancelLinkPrefix()
+{
+    static constexpr const char* prefix = "cancel";
+    return prefix;
+}
+
 #ifdef MEGA_MEASURE_CODE
 std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs)
 {
