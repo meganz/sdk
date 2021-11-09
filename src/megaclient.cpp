@@ -17849,4 +17849,19 @@ NodeCounter NodeManager::getCounterForSubtree(const NodeHandle& h)
     return getNodeCounter(h);
 }
 
+void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, bool oldInShare,
+                                                             const NodeHandle& newRoot, bool newInShare)
+{
+    if (!oldRoot.isUndef() && (oldRoot == rootnode(0) || oldRoot == rootnode(1) || oldRoot == rootnode(2) || oldInShare))
+    {
+        // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
+        mNodeCounters[oldRoot] -= getCounterForSubtree(h);
+    }
+
+    if (newRoot == rootnode(0) || newRoot == rootnode(1) || newRoot == rootnode(2) || newInShare)
+    {
+        mNodeCounters[newRoot] += getCounterForSubtree(h);
+    }
+}
+
 } // namespace

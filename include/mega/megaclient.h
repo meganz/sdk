@@ -303,6 +303,8 @@ public:
     NodeCounter getCounterOfRootNodes(); // return sum of counters from all root nodes
     void updateCounter(const NodeHandle& h); // calculate for given node
     void subtractFromRootCounter(const NodeHandle& h, bool isFile);
+    void movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, bool oldInShare,
+                                                    const NodeHandle& newRoot, bool newInShare);
 
 private:
     // TODO Nodes on demand remove reference
