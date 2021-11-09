@@ -83,12 +83,13 @@ public:
     bool isNodeInDB(mega::NodeHandle node) override;
     uint64_t getNumberOfNodes() override;
     bool put(Node* node) override;
-    bool del(mega::NodeHandle nodehandle) override;
+    bool remove(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
 
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
 
 private:
+    // Iterate row by row from a query and fill the map
     bool processSqlQueryNodeMap(sqlite3_stmt *stmt, std::map<mega::NodeHandle, NodeSerialized> &nodes);
 };
 

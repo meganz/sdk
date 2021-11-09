@@ -115,6 +115,7 @@ public:
     virtual NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile) = 0;
     virtual bool getFavouritesNodeHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
     virtual int getNumberOfChildrenFromNode(NodeHandle parentHandle) = 0;
+    //
     virtual bool isNodesOnDemandDb() = 0;
     virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
     virtual bool isNodeInDB(NodeHandle node) = 0;
@@ -126,7 +127,7 @@ public:
     virtual bool put(Node* node) = 0;
 
     // Remove nodes
-    virtual bool del(NodeHandle nodehandle) = 0;
+    virtual bool remove(NodeHandle nodehandle) = 0;
     virtual bool removeNodes() = 0;
 
     static int getShareType(Node *);

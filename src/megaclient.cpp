@@ -16946,7 +16946,7 @@ bool NodeManager::removeNode(NodeHandle handle)
     Node* node = getNodeInRAM(handle);
     mPendingConfirmNodes.erase(node);
     mNodes.erase(handle);
-    mTable->del(handle);
+    mTable->remove(handle);
     delete node;
 
     return false;

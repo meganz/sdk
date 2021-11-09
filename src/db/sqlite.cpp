@@ -552,7 +552,7 @@ bool SqliteAccountState::processSqlQueryNodeMap(sqlite3_stmt *stmt, std::map<meg
     return result == SQLITE_DONE ? true : false;
 }
 
-bool SqliteAccountState::del(NodeHandle nodehandle)
+bool SqliteAccountState::remove(NodeHandle nodehandle)
 {
     if (!db)
     {
