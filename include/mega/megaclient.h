@@ -312,6 +312,8 @@ private:
     std::map<NodeHandle, node_set> mNodesWithMissingParent;  // Parent
 
     Node* getNodeInRAM(NodeHandle handle);
+    void saveNodeInRAM(Node* node, bool notify);
+    void saveNodeInDataBase(Node* node);
 };
 
 class MEGA_API MegaClient

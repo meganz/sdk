@@ -16913,68 +16913,11 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 
     if (saveNodeMemory)
     {
-        if (notify)
-        {
-            mPendingConfirmNodes.insert(node);
-        }
-        else
-        {
-            mNodes[node->nodeHandle()] = node;
-            mTable->put(node);
-        }
-
-        if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE)
-        {
-            Node *parent = nullptr;
-            if ((parent = getNodeByHandle(NodeHandle().set6byte(node->parenthandle))))
-            {
-                node->setparent(parent);
-            }
-            else
-            {
-                mNodesWithMissingParent[NodeHandle().set6byte(node->parenthandle)].insert(node);
-            }
-
-            auto it = mNodesWithMissingParent.find(node->nodeHandle());
-            if (it != mNodesWithMissingParent.end())
-            {
-                for (Node* n : it->second)
-                {
-                    n->setparent(node);
-                }
-
-                mNodesWithMissingParent.erase(it);
-            }
-        }
+        saveNodeInRAM(node, notify);
     }
     else
     {
-        mTable->put(node);
-        NodeHandle parentHandle = NodeHandle().set6byte(node->parenthandle);
-        NodeHandle firstValidAncestor = getFirstAncestor(parentHandle);
-        firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : parentHandle;
-
-        if (firstValidAncestor != UNDEF)
-        {
-            if (node->type == FILENODE)
-            {
-                mClient.mNodeCounters[firstValidAncestor].files++;
-                mClient.mNodeCounters[firstValidAncestor].storage += node->size;
-            }
-            else if (node->type == FOLDERNODE)
-            {
-                mClient.mNodeCounters[firstValidAncestor].folders++;
-            }
-
-            auto it = mClient.mNodeCounters.find(node->nodeHandle());
-            if (it != mClient.mNodeCounters.end())
-            {
-                mClient.mNodeCounters[firstValidAncestor].files += it->second.files;
-                mClient.mNodeCounters[firstValidAncestor].storage += it->second.storage;
-                mClient.mNodeCounters[firstValidAncestor].folders += it->second.folders;
-                mClient.mNodeCounters.erase(it);
-            }
-        }
+        saveNodeInDataBase(node);
     }
 
     return true;
@@ -17806,6 +17749,73 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
     }
 
     return nullptr;
+}
+
+void NodeManager::saveNodeInRAM(Node *node, bool notify)
+{
+    if (notify)
+    {
+        mPendingConfirmNodes.insert(node);
+    }
+    else
+    {
+        mNodes[node->nodeHandle()] = node;
+        mTable->put(node);
+    }
+
+    if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE)
+    {
+        Node *parent = nullptr;
+        if ((parent = getNodeByHandle(NodeHandle().set6byte(node->parenthandle))))
+        {
+            node->setparent(parent);
+        }
+        else
+        {
+            mNodesWithMissingParent[NodeHandle().set6byte(node->parenthandle)].insert(node);
+        }
+
+        auto it = mNodesWithMissingParent.find(node->nodeHandle());
+        if (it != mNodesWithMissingParent.end())
+        {
+            for (Node* n : it->second)
+            {
+                n->setparent(node);
+            }
+
+            mNodesWithMissingParent.erase(it);
+        }
+    }
+}
+
+void NodeManager::saveNodeInDataBase(Node *node)
+{
+    mTable->put(node);
+    NodeHandle parentHandle = NodeHandle().set6byte(node->parenthandle);
+    NodeHandle firstValidAncestor = getFirstAncestor(parentHandle);
+    firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : parentHandle;
+
+    if (firstValidAncestor != UNDEF)
+    {
+        if (node->type == FILENODE)
+        {
+            mClient.mNodeCounters[firstValidAncestor].files++;
+            mClient.mNodeCounters[firstValidAncestor].storage += node->size;
+        }
+        else if (node->type == FOLDERNODE)
+        {
+            mClient.mNodeCounters[firstValidAncestor].folders++;
+        }
+
+        auto it = mClient.mNodeCounters.find(node->nodeHandle());
+        if (it != mClient.mNodeCounters.end())
+        {
+            mClient.mNodeCounters[firstValidAncestor].files += it->second.files;
+            mClient.mNodeCounters[firstValidAncestor].storage += it->second.storage;
+            mClient.mNodeCounters[firstValidAncestor].folders += it->second.folders;
+            mClient.mNodeCounters.erase(it);
+        }
+    }
 }
 
 } // namespace
