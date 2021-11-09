@@ -1192,7 +1192,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     if (makeActiveCallback)
     {
         // Per MegaApi documentation, this callback occurs after the changed-state callback
-        mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
+        syncs.mClient.app->syncupdate_active(config, nowActive);
     }
 }
 
