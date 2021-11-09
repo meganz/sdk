@@ -6673,24 +6673,38 @@ TEST_F(SyncTest, AnomalousSyncDownload)
         // Log in client.
         ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
-        // Add and start sync.
-        auto id = cu.setupSync_mainthread("s", "s", false, false);
-        ASSERT_NE(id, UNDEF);
+        // Create the directories d and d/0.
+        {
+            vector<NewNode> nodes(2);
 
-        // Add test files for upload.
-        auto root = cu.syncSet(id).localpath;
+            // Prepare nodes.
+            cu.client.putnodes_prepareOneFolder(&nodes[0], "d");
+            cu.client.putnodes_prepareOneFolder(&nodes[1], "d/0");
 
-        model.addfile("f");
-        model.addfile("f:0")->fsName("f%3a0");
-        model.addfolder("d");
-        model.addfolder("d:0")->fsName("d%3a0");
-        model.generate(root);
+            // Create the nodes in the cloud.
+            ASSERT_TRUE(cu.putnodes("s", std::move(nodes)));
 
-        // Wait for sync to complete.
-        waitonsyncs(TIMEOUT, &cu);
+            // Update model.
+            model.addfolder("d");
+            model.addfolder("d?0")->fsName("d%2f0").name = "d/0";
+        }
 
-        // Did the files upload okay?
-        ASSERT_TRUE(cu.confirmModel_mainthread(model.root.get(), id));
+        // Upload the files f and f/0.
+        {
+            auto filePath = cu.fsBasePath / "f";
+            auto rootPath = "/mega_test_sync/s";
+
+            // Create a dummy for us to upload.
+            ASSERT_TRUE(createDataFile(filePath, "f"));
+
+            // Upload the files.
+            ASSERT_TRUE(cu.uploadFile(filePath, "f", rootPath));
+            ASSERT_TRUE(cu.uploadFile(filePath, "f/0", rootPath));
+
+            // Update the model.
+            model.addfile("f", "f");
+            model.addfile("f?0", "f")->fsName("f%2f0").name = "f/0";
+        }
     }
 
     // Download test files.
@@ -6737,15 +6751,15 @@ TEST_F(SyncTest, AnomalousSyncDownload)
     auto anomaly = reporter->mAnomalies.begin();
 
     // d:0
-    ASSERT_EQ(anomaly->localPath, "d%3a0");
-    ASSERT_EQ(anomaly->remotePath, "d:0");
+    ASSERT_EQ(anomaly->localPath, "d%2f0");
+    ASSERT_EQ(anomaly->remotePath, "d/0");
     ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
 
     ++anomaly;
 
     // f:0
-    ASSERT_EQ(anomaly->localPath, "f%3a0");
-    ASSERT_EQ(anomaly->remotePath, "f:0");
+    ASSERT_EQ(anomaly->localPath, "f%2f0");
+    ASSERT_EQ(anomaly->remotePath, "f/0");
     ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
 }
 
@@ -6903,14 +6917,14 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
         auto* g = cr.drillchildnodebyname(d, "g");
         ASSERT_TRUE(g);
 
-        ASSERT_TRUE(cr.setattr(g, attr_map('n', "g:0")));
+        ASSERT_TRUE(cr.setattr(g, attr_map('n', "g/0")));
     }
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cx);
 
     // Update model.
-    model.findnode("d/g")->fsName("g%3a0").name = "g:0";
+    model.findnode("d/g")->fsName("g%2f0").name = "g/0";
 
     // Verify rename.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
@@ -6920,8 +6934,8 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     {
         auto& anomaly = reporter->mAnomalies.back();
 
-        ASSERT_EQ(anomaly.localPath, "d" SEP "g%3a0");
-        ASSERT_EQ(anomaly.remotePath, "d/g:0");
+        ASSERT_EQ(anomaly.localPath, "d" SEP "g%2f0");
+        ASSERT_EQ(anomaly.remotePath, "d/g/0");
         ASSERT_EQ(anomaly.type, FILENAME_ANOMALY_NAME_MISMATCH);
     }
     reporter->mAnomalies.clear();
