@@ -2617,9 +2617,10 @@ void exec_lrenamereplace(autocomplete::ACState& s)
 
 void exec_getcloudstorageused(autocomplete::ACState& s)
 {
-    // TODO: mFingerprints will be restored (SDK-1753). Uncomment next line and remove the following one
-    //cout << client->mFingerprints.getSumSizes() << endl;
-    cout << client->mNodeManager.getNodeCounter(client->rootnodes[0]).storage << endl;
+    // TODO Nodes on demand ROOTNODE - ROOTNODE
+    m_off_t rootNodeSize = client->mNodeManager.getNodeCounter(client->rootnodes[ROOTNODE - ROOTNODE]).storage;
+    m_off_t rubbishSize = client->mNodeManager.getNodeCounter(client->rootnodes[RUBBISHNODE - ROOTNODE]).storage;
+    cout << rootNodeSize + rubbishSize << endl;
 }
 
 void exec_getuserquota(autocomplete::ACState& s)

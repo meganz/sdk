@@ -19583,9 +19583,10 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            // TODO Nodes on demand check if mFingerprints is required
-            //request->setNumber(client->mFingerprints.getSumSizes());
-            request->setNumber(client->mNodeManager.getNodeCounter(client->rootnodes[0]).storage);
+            // TODO Nodes on demand ROOTNODE - ROOTNODE
+            m_off_t rootNodeSize = client->mNodeManager.getNodeCounter(client->rootnodes[ROOTNODE - ROOTNODE]).storage;
+            m_off_t rubbishSize = client->mNodeManager.getNodeCounter(client->rootnodes[RUBBISHNODE - ROOTNODE]).storage;
+            request->setNumber(rootNodeSize + rubbishSize);
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
