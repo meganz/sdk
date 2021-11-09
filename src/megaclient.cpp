@@ -12082,9 +12082,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     sctable->rewind();
 
-    bool isNodeOnDemandDb = mNodeManager.isNodesOnDemandDb();
+    bool nodesOnDemandReady = mNodeManager.isNodesOnDemandReady();
 
-    if (isNodeOnDemandDb)
+    if (nodesOnDemandReady)
     {
         assert(mNodeManager.getNumNodes());
         std::vector<NodeSerialized> nodes;
@@ -12145,7 +12145,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
             case CACHEDNODE:
                 LOG_info << "Loading nodes from old cache";
-                assert(!isNodeOnDemandDb);
+                assert(!nodesOnDemandReady);
                 if ((n = mNodeManager.unserializeNode(&data, true)))
                 {
                    necessaryCommit = true;
@@ -17372,7 +17372,7 @@ int NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     return mTable->getNumberOfChildrenFromNode(parentHandle);
 }
 
-bool NodeManager::isNodesOnDemandDb()
+bool NodeManager::isNodesOnDemandReady()
 {
     if (!mTable)
     {

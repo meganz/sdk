@@ -268,7 +268,8 @@ public:
     NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile = false);
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     int getNumberOfChildrenFromNode(NodeHandle parentHandle);
-    bool isNodesOnDemandDb();
+    // Returns true when nodes on demand is ready to operate after load a session with old cache
+    bool isNodesOnDemandReady();
     NodeHandle getFirstAncestor(NodeHandle node);
     bool isNodeInDB(NodeHandle node);
     bool isAncestor(NodeHandle node, NodeHandle ancestor);
