@@ -214,6 +214,7 @@ struct MEGA_API DbAccess
 
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 
+    // use this method to get a `DbTable` that also implements `DbTableNodes` interface
     virtual DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
