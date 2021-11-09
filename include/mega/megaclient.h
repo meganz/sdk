@@ -299,6 +299,7 @@ public:
     MegaClient& getMegaClient();
 
     const NodeCounter* getCounter(const NodeHandle& h) const;
+    void updateCounter(const NodeHandle& h); // calculate for given node
 
 private:
     // TODO Nodes on demand remove reference

@@ -433,7 +433,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n, bool updateDb)
                             n->inshare->user->sharing.insert(n->nodehandle);
                             NodeHandle nodeHandle;
                             nodeHandle.set6byte(n->nodehandle);
-                            mNodeCounters[nodeHandle] = n->subnodeCounts();
+                            mNodeManager.updateCounter(nodeHandle);
                         }
 
                         if (notify)
@@ -12118,9 +12118,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
         //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
         // TODO nodes on demand Check ROOTNODE - ROOTNODE set to 0 or define an enum
         NodeHandle rootHandle = rootnodes[ROOTNODE - ROOTNODE];
-        mNodeCounters[rootHandle] = mNodeManager.getNodeCounter(rootHandle);
+        mNodeManager.updateCounter(rootHandle);
         NodeHandle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
-        mNodeCounters[rubbishHandle] = mNodeManager.getNodeCounter(rubbishHandle);
+        mNodeManager.updateCounter(rubbishHandle);
 #endif
 
     }
@@ -17821,6 +17821,11 @@ const NodeCounter* NodeManager::getCounter(const NodeHandle& h) const
 {
     auto it = mNodeCounters.find(h);
     return it == mNodeCounters.end() ? nullptr : &(it->second);
+}
+
+void NodeManager::updateCounter(const NodeHandle& h)
+{
+    mNodeCounters[h] = getNodeCounter(h);
 }
 
 } // namespace
