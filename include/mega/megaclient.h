@@ -299,6 +299,7 @@ public:
     MegaClient& getMegaClient();
 
     const NodeCounter* getCounter(const NodeHandle& h) const;
+    NodeCounter getCounterForSubtree(const NodeHandle& h);
     NodeCounter getCounterOfRootNodes(); // return sum of counters from all root nodes
     void updateCounter(const NodeHandle& h); // calculate for given node
     void subtractFromRootCounter(const NodeHandle& h, bool isFile);

@@ -16486,12 +16486,7 @@ int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
 
 NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle)
 {
-    if (nodehandle == rootnodes[ROOTNODE - ROOTNODE] || nodehandle == rootnodes[RUBBISHNODE - ROOTNODE] || nodehandle == rootnodes[INCOMINGNODE - ROOTNODE])
-    {
-        return mNodeCounters[nodehandle];
-    }
-
-    return mNodeManager.getNodeCounter(nodehandle);
+    return mNodeManager.getCounterForSubtree(nodehandle);
 }
 
 bool MegaClient::loggedIntoFolder() const
@@ -17842,6 +17837,16 @@ void NodeManager::subtractFromRootCounter(const NodeHandle& h, bool isFile)
     {
         mNodeCounters[firstValidAntecestor] -= getNodeCounter(h, isFile);
     }
+}
+
+NodeCounter NodeManager::getCounterForSubtree(const NodeHandle& h)
+{
+    if (h == rootnode(0) || h == rootnode(1) || h == rootnode(2))
+    {
+        return mNodeCounters[h];
+    }
+
+    return getNodeCounter(h);
 }
 
 } // namespace
