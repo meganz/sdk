@@ -298,6 +298,8 @@ public:
     // TODO nodes on demand remove
     MegaClient& getMegaClient();
 
+    const NodeCounter* getCounter(const NodeHandle& h) const;
+
 private:
     // TODO Nodes on demand remove reference
     MegaClient& mClient;
@@ -307,6 +309,9 @@ private:
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     node_map mNodes;
+
+    // keep track of user storage, inshare storage, file/folder counts per root node.
+    NodeCounterMap mNodeCounters;
 
     bool mKeepAllNodeInMemory = false;
     std::set<Node*> mPendingConfirmNodes;
@@ -326,9 +331,6 @@ public:
 
     // root nodes (files, incoming, rubbish)
     NodeHandle rootnodes[3];
-
-    // keep track of user storage, inshare storage, file/folder counts per root node.
-    NodeCounterMap mNodeCounters;
 
     // all users
     user_map users;

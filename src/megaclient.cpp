@@ -17817,4 +17817,10 @@ void NodeManager::saveNodeInDataBase(Node *node)
     }
 }
 
+const NodeCounter* NodeManager::getCounter(const NodeHandle& h) const
+{
+    auto it = mNodeCounters.find(h);
+    return it == mNodeCounters.end() ? nullptr : &(it->second);
+}
+
 } // namespace
