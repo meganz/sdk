@@ -89,7 +89,7 @@ public:
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
 
 private:
-    // Iterate row by row from a query and fill the map
+    // Iterate over a sql query row by row and fill the map
     bool processSqlQueryNodeMap(sqlite3_stmt *stmt, std::map<mega::NodeHandle, NodeSerialized> &nodes);
 };
 
