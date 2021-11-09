@@ -14150,16 +14150,15 @@ class MegaApi
                                bool* remote);
 
         /**
-         * @brief
-         * Retrieves information involving any Local <-> Cloud synchronization conflict.
-         * that requires user assistance to be solved.
+         * @brief Retrieves information involving any Local <-> Cloud synchronization conflict
+         * These conflicts requires user intervention to be solved.
          *
          * For example: While the synchronization was disabled
          * Folder C was moved inside folder E. (C->E) Locally
          * folder E was moved inside folder C. (E->C) in the cloud
-         * When the synchronization is re-enabled there is a conflict
+         * When the synchronization is re-enabled there could be interpreted as a conflict
          *
-         * @conflicts MegaStringList of conflict descriptions
+         * @param conflicts MegaStringList of conflict descriptions
          * @return number of conflicts reported.
          */
         size_t getSyncConflicts(MegaStringList** conflicts);
