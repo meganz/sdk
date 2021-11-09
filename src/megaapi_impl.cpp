@@ -8536,20 +8536,21 @@ void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceTemp
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
-    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, folderTransferTag, appData, nullptr, listener);
+    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, nullptr, folderTransferTag, appData, nullptr, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-void MegaApiImpl::startDownloadWithCancelToken (bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+void MegaApiImpl::startDownloadWithCancelToken (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, folderTransferTag, appData, cancelToken, listener);
+    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, customName, folderTransferTag, appData, cancelToken, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
+    FileSystemType fsType = fsAccess->getlocalfstype(LocalPath::fromPath(localPath, *fsAccess));
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
     if(localPath)
@@ -8584,6 +8585,14 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     transfer->setMaxRetries(maxRetries);
     transfer->setAppData(appData);
     transfer->setStartFirst(startFirst);
+
+    if (customName)
+    {
+       // set custom file/folder name if exists and escape incompatible characters for destination FS
+       std::string auxName = customName;
+       client->fsaccess->escapefsincompatible(&auxName, fsType);
+       transfer->setFileName(auxName.c_str());
+    }
 
     if (folderTransferTag)
     {
@@ -25255,7 +25264,9 @@ void MegaFolderUploadController::start(MegaNode*)
     // create a subtree for the folder that we want to upload
     unique_ptr<Tree> newTreeNode(new Tree);
     LocalPath path = LocalPath::fromPath(transfer->getPath(), *megaapiThreadClient()->fsaccess);
-    auto leaf = path.leafName().toPath(*megaapiThreadClient()->fsaccess);
+    auto leaf = transfer->getFileName()
+            ? transfer->getFileName()
+            : path.leafName().toPath(*megaapiThreadClient()->fsaccess);
 
     // if folder node already exists in remote, set it as new subtree's megaNode, otherwise call putnodes_prepareOneFolder
     newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));
@@ -27235,7 +27246,7 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *fsaccess, fsType), true);
              string utf8path = localpath.toPath(*fsaccess);
-             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), nullptr, this);
+             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), nullptr, this);
              transferQueue.push(transferDownload);
              pendingTransfers++;
          }

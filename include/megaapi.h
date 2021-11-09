@@ -12600,10 +12600,11 @@ class MegaApi
          * fails with the error API_EEXISTS and the appData of the new transfer is appended to
          * the appData of the old transfer, using a '!' separator if the old transfer had already
          * appData.
+         * @param fileName Custom file name for the file or folder in MEGA
          * @param cancelToken MegaCancelToken to be able to cancel a folder upload process.
          * @param listener MegaTransferListener to track this transfer
          */
-        void startUploadWithDataAndCancellation(const char *localPath, MegaNode *parent, const char *appData, MegaCancelToken *cancelToken=NULL, MegaTransferListener *listener=NULL);
+        void startUploadWithDataAndCancellation(const char *localPath, MegaNode *parent, const char *appData, const char *fileName = NULL, MegaCancelToken *cancelToken=NULL, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder, saving custom app data during the transfer
@@ -12881,10 +12882,11 @@ class MegaApi
          * @param appData Custom app data to save in the MegaTransfer object
          * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
          * related to the transfer.
+         * @param fileName Custom file name for the file or folder in local destination
          * @param cancelToken MegaCancelToken to be able to cancel a folder download process.
          * @param listener MegaTransferListener to track this transfer
          */
-        void startDownloadWithDataAndCancellation(MegaNode* node, const char* localPath, const char *appData,  MegaCancelToken *cancelToken=NULL, MegaTransferListener *listener = NULL);
+        void startDownloadWithDataAndCancellation(MegaNode* node, const char* localPath, const char *appData,  const char *customName, MegaCancelToken *cancelToken=NULL, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.

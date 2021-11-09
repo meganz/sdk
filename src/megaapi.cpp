@@ -3176,9 +3176,9 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
     pImpl->startTimer(period, listener);
 }
 
-void MegaApi::startUploadWithDataAndCancellation(const char *localPath, MegaNode *parent, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+void MegaApi::startUploadWithDataAndCancellation(const char *localPath, MegaNode *parent, const char *fileName, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    pImpl->startUploadWithCancelToken(false, localPath, parent, (const char *)NULL, NULL, -1, 0, false, appData, false, false, FS_UNKNOWN, cancelToken, listener);
+    pImpl->startUploadWithCancelToken(false, localPath, parent, fileName, NULL, -1, 0, false, appData, false, false, FS_UNKNOWN, cancelToken, listener);
 }
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
@@ -3246,9 +3246,9 @@ void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const
     pImpl->startDownload(false, node, localPath, 0, appData, listener);
 }
 
-void MegaApi::startDownloadWithDataAndCancellation(MegaNode* node, const char* localPath, const char *appData,  MegaCancelToken *cancelToken, MegaTransferListener *listener)
+void MegaApi::startDownloadWithDataAndCancellation(MegaNode* node, const char* localPath, const char *customName, const char *appData,  MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    pImpl->startDownloadWithCancelToken(false, node, localPath, 0, appData, cancelToken, listener);
+    pImpl->startDownloadWithCancelToken(false, node, localPath, customName, 0, appData, cancelToken, listener);
 }
 
 void MegaApi::startDownloadWithTopPriority(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
