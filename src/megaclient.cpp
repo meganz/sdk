@@ -17388,7 +17388,7 @@ void NodeManager::removeChanges()
     }
 }
 
-bool NodeManager::cleanNodes()
+void NodeManager::cleanNodes()
 {
     for (auto node : mNodes)
     {
@@ -17398,8 +17398,6 @@ bool NodeManager::cleanNodes()
     mNodes.clear();
     if (mTable)
         mTable->removeNodes();
-
-    return mTable;
 }
 
 // parse serialized node and return Node object - updates nodes hash and parent
@@ -17722,7 +17720,7 @@ void NodeManager::confirmNode(Node *node)
     }
 }
 
-bool NodeManager::hasNodesLoaded()
+bool NodeManager::hasCacheLoaded()
 {
     return mNodes.size();
 }
