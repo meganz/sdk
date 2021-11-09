@@ -16142,11 +16142,12 @@ node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
     return nodes;
 }
 
-static bool nodes_ctime_less(const Node* a, const Node* b)
-{
-    // heaps return the largest element
-    return a->ctime < b->ctime;
-}
+// TODO nodes on demand check if we it's necessary when SDK-1753 will be implemented
+//static bool nodes_ctime_less(const Node* a, const Node* b)
+//{
+//    // heaps return the largest element
+//    return a->ctime < b->ctime;
+//}
 
 static bool nodes_ctime_greater(const Node* a, const Node* b)
 {
