@@ -299,6 +299,7 @@ public:
     MegaClient& getMegaClient();
 
     const NodeCounter* getCounter(const NodeHandle& h) const;
+    NodeCounter getCounterOfRootNodes(); // return sum of counters from all root nodes
     void updateCounter(const NodeHandle& h); // calculate for given node
 
 private:
@@ -321,6 +322,7 @@ private:
     Node* getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(Node* node, bool notify);
     void saveNodeInDataBase(Node* node);
+    const NodeHandle& rootnode(int idx) const;
 };
 
 class MEGA_API MegaClient

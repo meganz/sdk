@@ -3231,14 +3231,7 @@ void MegaClient::exec()
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 
 
-    NodeCounter storagesum;
-    for (auto& nc : mNodeCounters)
-    {
-        if (nc.first == rootnodes[0] || nc.first == rootnodes[1] || nc.first == rootnodes[2])
-        {
-            storagesum += nc.second;
-        }
-    }
+    NodeCounter storagesum = mNodeManager.getCounterOfRootNodes();
     if (mNotifiedSumSize != storagesum.storage)
     {
         mNotifiedSumSize = storagesum.storage;
@@ -17821,6 +17814,24 @@ const NodeCounter* NodeManager::getCounter(const NodeHandle& h) const
 {
     auto it = mNodeCounters.find(h);
     return it == mNodeCounters.end() ? nullptr : &(it->second);
+}
+
+const NodeHandle& NodeManager::rootnode(int idx) const
+{
+    // This should be replaced with something better
+    return mClient.rootnodes[idx];
+}
+
+NodeCounter NodeManager::getCounterOfRootNodes()
+{
+    NodeHandle h = rootnode(0);
+    NodeCounter c = mNodeCounters[h];
+    h = rootnode(1);
+    c += mNodeCounters[h];
+    h = rootnode(2);
+    c += mNodeCounters[h];
+
+    return c;
 }
 
 void NodeManager::updateCounter(const NodeHandle& h)
