@@ -7380,14 +7380,7 @@ void MegaClient::notifypurge(void)
                     notifyuser(n->inshare->user);
                 }
 
-                NodeHandle firstValidAntecestor = mNodeManager.getFirstAncestor(n->nodeHandle());
-                assert(firstValidAntecestor != UNDEF);
-                if (firstValidAntecestor == rootnodes[0] ||
-                    firstValidAntecestor == rootnodes[1] ||
-                    firstValidAntecestor == rootnodes[2])
-                {
-                    mNodeCounters[firstValidAntecestor] -= mNodeManager.getNodeCounter(n->nodeHandle(), n->type == FILENODE);
-                }
+                mNodeManager.subtractFromRootCounter(n->nodeHandle(), n->type == FILENODE);
             }
             else
             {
@@ -17837,6 +17830,18 @@ NodeCounter NodeManager::getCounterOfRootNodes()
 void NodeManager::updateCounter(const NodeHandle& h)
 {
     mNodeCounters[h] = getNodeCounter(h);
+}
+
+void NodeManager::subtractFromRootCounter(const NodeHandle& h, bool isFile)
+{
+    NodeHandle firstValidAntecestor = getFirstAncestor(h);
+    assert(firstValidAntecestor != UNDEF);
+    if (firstValidAntecestor == rootnode(0) ||
+        firstValidAntecestor == rootnode(1) ||
+        firstValidAntecestor == rootnode(2))
+    {
+        mNodeCounters[firstValidAntecestor] -= getNodeCounter(h, isFile);
+    }
 }
 
 } // namespace
