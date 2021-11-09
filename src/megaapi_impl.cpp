@@ -11125,7 +11125,6 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 {
     sdkMutex.lock();
 
-    Node *n;
     node_vector nodes = client->mNodeManager.getNodesWithSharesOrLink(DBTableNodes::ShareType_t::LINK);
     sortByComparatorFunction(nodes, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
