@@ -272,6 +272,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     Node(MegaClient&, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
+    int getShareType() const;
+
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC

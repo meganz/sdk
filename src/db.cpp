@@ -120,41 +120,6 @@ void DbTable::checkCommitter(DBTableTransactionCommitter*)
     assert(mTransactionCommitter);
 }
 
-int DBTableNodes::getShareType(Node *node)
-{
-    int shareType = ShareType_t::NO_SHARES;
-
-    if (node->inshare)
-    {
-        shareType |= ShareType_t::IN_SHARES;
-    }
-    else
-    {
-        if (node->outshares)
-        {
-            for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
-            {
-                Share *share = it->second;
-                if (share->user)    // folder links are shares without user
-                {
-                    shareType |= ShareType_t::OUT_SHARES;
-                    break;
-                }
-            }
-        }
-        if (node->pendingshares && node->pendingshares->size())
-        {
-            shareType |= ShareType_t::PENDING_OUTSHARES;
-        }
-        if (node->plink)
-        {
-            shareType |= ShareType_t::LINK;
-        }
-    }
-
-    return shareType;
-}
-
 const int DbAccess::LEGACY_DB_VERSION = 11;
 const int DbAccess::DB_VERSION = DbAccess::LEGACY_DB_VERSION + 1;
 

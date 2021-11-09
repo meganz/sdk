@@ -138,6 +138,41 @@ Node::~Node()
 #endif
 }
 
+int Node::getShareType() const
+{
+    int shareType = DBTableNodes::NO_SHARES;
+
+    if (inshare)
+    {
+        shareType |= DBTableNodes::IN_SHARES;
+    }
+    else
+    {
+        if (outshares)
+        {
+            for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
+            {
+                Share *share = it->second;
+                if (share->user)    // folder links are shares without user
+                {
+                    shareType |= DBTableNodes::OUT_SHARES;
+                    break;
+                }
+            }
+        }
+        if (pendingshares && pendingshares->size())
+        {
+            shareType |= DBTableNodes::PENDING_OUTSHARES;
+        }
+        if (plink)
+        {
+            shareType |= DBTableNodes::LINK;
+        }
+    }
+
+    return shareType;
+}
+
 #ifdef ENABLE_SYNC
 
 void Node::detach(const bool recreate)

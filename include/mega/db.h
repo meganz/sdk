@@ -129,8 +129,6 @@ public:
     // Remove nodes
     virtual bool remove(NodeHandle nodehandle) = 0;
     virtual bool removeNodes() = 0;
-
-    static int getShareType(Node *);
 };
 
 class MEGA_API DBTableTransactionCommitter

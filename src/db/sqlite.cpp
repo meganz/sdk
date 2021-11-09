@@ -618,7 +618,7 @@ bool SqliteAccountState::put(Node *node)
         sqlite3_bind_int(stmt, 6, node->type);
         sqlite3_bind_int64(stmt, 7, node->size);
 
-        int shareType = getShareType(node);
+        int shareType = node->getShareType();
         sqlite3_bind_int(stmt, 8, shareType);
 
         sqlite3_bind_int(stmt, 9, !node->attrstring);
