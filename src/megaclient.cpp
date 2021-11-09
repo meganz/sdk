@@ -4747,7 +4747,7 @@ bool MegaClient::procsc()
                             WAIT_CLASS::bumpds();
                             fnstats.timeToCurrent = Waiter::ds - fnstats.startTime;
                         }
-                        uint64_t numNodes = mNodeManager.getNumNodes();
+                        uint64_t numNodes = mNodeManager.getNodeCount();
                         fnstats.nodesCurrent = numNodes;
 
                         statecurrent = true;
@@ -5134,7 +5134,7 @@ void MegaClient::initsc()
         LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNumNodes() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
 #else
 
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNumNodes() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -7507,7 +7507,7 @@ void MegaClient::notifypurge(void)
     }
 #endif
 
-    totalNodes = mNodeManager.getNumNodes();
+    totalNodes = mNodeManager.getNodeCount();
 }
 
 // return node pointer derived from node handle
@@ -12086,7 +12086,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     if (nodesOnDemandReady)
     {
-        assert(mNodeManager.getNumNodes());
+        assert(mNodeManager.getNodeCount());
         std::vector<NodeSerialized> nodes;
 #ifdef ENABLE_SYNC
         sctable->getNodes(nodes);
@@ -12504,7 +12504,7 @@ void MegaClient::fetchnodes(bool nocache)
             WAIT_CLASS::bumpds();
             fnstats.mode = FetchNodesStats::MODE_DB;
             fnstats.cache = FetchNodesStats::API_NO_CACHE;
-            fnstats.nodesCached = mNodeManager.getNumNodes();
+            fnstats.nodesCached = mNodeManager.getNodeCount();
             fnstats.timeToCached = Waiter::ds - fnstats.startTime;
             fnstats.timeToResult = fnstats.timeToCached;
 
@@ -17021,7 +17021,7 @@ node_list NodeManager::getChildren(Node *parent)
     return childrenList;
 }
 
-uint64_t NodeManager::getNumNodes()
+uint64_t NodeManager::getNodeCount()
 {
     if (!mTable)
     {

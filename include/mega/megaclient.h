@@ -258,7 +258,8 @@ public:
     // if node is not available in memory, it's loaded from DB
     Node *getNodeByHandle(NodeHandle handle);
     node_list getChildren(Node* parent);
-    uint64_t getNumNodes();
+    // Returns the number of account nodes
+    uint64_t getNodeCount();
     // Search a node by name
     node_vector search(NodeHandle nodeHandle, const char *searchString);
     node_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
