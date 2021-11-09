@@ -12436,9 +12436,9 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
         }
 
         const char* code;
-        if ((code = strstr(request->getLink(), "#verify")))
+        if ((code = strstr(request->getLink(), MegaClient::verifyLinkPrefix())))
         {
-            code += strlen("#verify");
+            code += strlen(MegaClient::verifyLinkPrefix());
 
             if (!checkPassword(request->getPassword()))
             {
@@ -12486,9 +12486,9 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
 
     const char *link = request->getLink();
     const char* code;
-    if ((code = strstr(link, "#recover")))
+    if ((code = strstr(link, MegaClient::recoverLinkPrefix())))
     {
-        code += strlen("#recover");
+        code += strlen(MegaClient::recoverLinkPrefix());
     }
     else
     {
@@ -14247,9 +14247,9 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         const char* code;
         const char *mk64;
 
-        if ((code = strstr(link, "#recover")))
+        if ((code = strstr(link, MegaClient::recoverLinkPrefix())))
         {
-            code += strlen("#recover");
+            code += strlen(MegaClient::recoverLinkPrefix());
         }
         else
         {
@@ -20359,9 +20359,9 @@ void MegaApiImpl::sendPendingRequests()
             const char* ptr = link;
             const char* tptr;
 
-            if ((tptr = strstr(ptr,"#confirm")))
+            if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix())))
             {
-                ptr = tptr+8;
+                ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
 
                 string code = Base64::atob(string(ptr));
                 if (!code.empty())
@@ -20403,9 +20403,9 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 break;
             }
-            else if ((tptr = strstr(ptr,"#newsignup")))
+            else if ((tptr = strstr(ptr, MegaClient::newsignupLinkPrefix())))
             {
-                ptr = tptr+10;
+                ptr = tptr + strlen(MegaClient::newsignupLinkPrefix());
 
                 unsigned len = unsigned((strlen(link)-(ptr-link))*3/4+4);
                 byte *c = new byte[len];
@@ -20456,7 +20456,7 @@ void MegaApiImpl::sendPendingRequests()
             const char* ptr = link;
             const char* tptr;
 
-            if ((tptr = strstr(ptr,"#confirm"))) ptr = tptr+8;
+            if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix()))) ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
 
             string code = Base64::atob(string(ptr));
             if (!code.empty())
@@ -20521,17 +20521,17 @@ void MegaApiImpl::sendPendingRequests()
             const char *link = request->getLink();
 
             const char* code;
-            if (link && (code = strstr(link, "#recover")))
+            if (link && (code = strstr(link, MegaClient::recoverLinkPrefix())))
             {
-                code += strlen("#recover");
+                code += strlen(MegaClient::recoverLinkPrefix());
             }
-            else if (link && (code = strstr(link, "#verify")))
+            else if (link && (code = strstr(link, MegaClient::verifyLinkPrefix())))
             {
-                code += strlen("#verify");
+                code += strlen(MegaClient::verifyLinkPrefix());
             }
-            else if (link && (code = strstr(link, "#cancel")))
+            else if (link && (code = strstr(link, MegaClient::cancelLinkPrefix())))
             {
-                code += strlen("#cancel");
+                code += strlen(MegaClient::cancelLinkPrefix());
             }
             else
             {
@@ -20548,9 +20548,9 @@ void MegaApiImpl::sendPendingRequests()
             const char *newPwd = request->getPassword();
 
             const char* code;
-            if (newPwd && link && (code = strstr(link, "#recover")))
+            if (newPwd && link && (code = strstr(link, MegaClient::recoverLinkPrefix())))
             {
-                code += strlen("#recover");
+                code += strlen(MegaClient::recoverLinkPrefix());
             }
             else
             {
@@ -20593,7 +20593,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             const char* code;
-            if (!pwd || !link || !(code = strstr(link, "#cancel")))
+            if (!pwd || !link || !(code = strstr(link, MegaClient::cancelLinkPrefix())))
             {
                 e = API_EARGS;
                 break;
@@ -20605,7 +20605,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            code += strlen("#cancel");
+            code += strlen(MegaClient::cancelLinkPrefix());
             client->confirmcancellink(code);
             break;
         }
@@ -20640,9 +20640,9 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             const char* code;
-            if (pwd && link && (code = strstr(link, "#verify")))
+            if (pwd && link && (code = strstr(link, MegaClient::verifyLinkPrefix())))
             {
-                code += strlen("#verify");
+                code += strlen(MegaClient::verifyLinkPrefix());
             }
             else
             {

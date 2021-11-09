@@ -956,6 +956,21 @@ public:
     // root URL for Website
     static const string MEGAURL;
 
+    // newsignup link URL prefix
+    static const char* newsignupLinkPrefix();
+
+    // confirm link URL prefix
+    static const char* confirmLinkPrefix();
+
+    // verify link URL prefix
+    static const char* verifyLinkPrefix();
+
+    // recover link URL prefix
+    static const char* recoverLinkPrefix();
+
+    // cancel link URL prefix
+    static const char* cancelLinkPrefix();
+
     // stats id
     std::string statsid;
 
