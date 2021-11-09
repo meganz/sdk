@@ -247,10 +247,11 @@ public:
     NodeManager(MegaClient& client);
     // set interface to access to "nodes" table
     void init(DBTableNodes *table);
+    // set interface to access to "nodes" table to nullptr, it's called just after sctable.reset()
     void reset();
 
     // Take node ownership
-    bool addNode(Node* node, bool notify, bool isFetching = false); // Instead of Node it can receive parameters for create the node
+    bool addNode(Node* node, bool notify, bool isFetching = false);
     bool updateNode(Node* node);
     bool removeNode(NodeHandle handle);
 
@@ -258,10 +259,12 @@ public:
     Node *getNodeByHandle(NodeHandle handle);
     node_list getChildren(Node* parent);
     uint64_t getNumNodes();
+    // Search a node by name
     node_vector search(NodeHandle nodeHandle, const char *searchString);
     node_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
     node_vector getNodesByOrigFingerprint(const std::string& fingerprint);
     Node *getNodeByFingerprint(const FileFingerprint& fingerprint);
+    // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE
     node_vector getRootNodes();
     node_vector getNodesWithSharesOrLink(DBTableNodes::ShareType_t shareType);
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
@@ -270,14 +273,17 @@ public:
     int getNumberOfChildrenFromNode(NodeHandle parentHandle);
     // Returns true when nodes on demand is ready to operate after load a session with old cache
     bool isNodesOnDemandReady();
+    // Returns first ancestor available in cache
     NodeHandle getFirstAncestor(NodeHandle node);
     bool isNodeInDB(NodeHandle node);
     bool isAncestor(NodeHandle node, NodeHandle ancestor);
     bool isFileNode(NodeHandle node);
 
+    // Clean `changed` flag from all nodes
     void removeChanges();
 
-    bool cleanNodes();
+    // Remove all nodes from all caches
+    void cleanNodes();
 
     Node* unserializeNode(const string*, bool decrypted = true);
 
@@ -285,7 +291,8 @@ public:
     // TODO nodes on demand check name
     void confirmNode(Node* node);
 
-    bool hasNodesLoaded();
+    // Returns if cache has been loaded
+    bool hasCacheLoaded();
 
     // TODO nodes on demand remove
     MegaClient& getMegaClient();
@@ -303,7 +310,6 @@ private:
     bool mKeepAllNodeInMemory = false;
     std::set<Node*> mPendingConfirmNodes;
     std::map<NodeHandle, node_set> mNodesWithMissingParent;  // Parent
-    //std::map<NodeHandle, node_set> mChildLoaded;
 
     Node* getNodeInRAM(NodeHandle handle);
 };

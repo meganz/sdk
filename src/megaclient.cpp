@@ -12483,7 +12483,7 @@ void MegaClient::fetchnodes(bool nocache)
     // only initial load from local cache
 
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
-            !mNodeManager.hasNodesLoaded() && !ISUNDEF(cachedscsn) &&
+            !mNodeManager.hasCacheLoaded() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable.get()))
     {
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
