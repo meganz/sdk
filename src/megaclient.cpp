@@ -1251,7 +1251,6 @@ void MegaClient::init()
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
-    mNodeCounters = NodeCounterMap();
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
@@ -13326,7 +13325,6 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 
     // TODO Nodes on demand check if mFingerprints is required
     //mFingerprints.clear();
-    mNodeCounters.clear();
     mNodeManager.cleanNodes();
 
 #ifdef ENABLE_SYNC
@@ -17380,6 +17378,8 @@ void NodeManager::cleanNodes()
     mNodes.clear();
     if (mTable)
         mTable->removeNodes();
+
+    mNodeCounters.clear();
 }
 
 // parse serialized node and return Node object - updates nodes hash and parent
@@ -17779,21 +17779,21 @@ void NodeManager::saveNodeInDataBase(Node *node)
     {
         if (node->type == FILENODE)
         {
-            mClient.mNodeCounters[firstValidAncestor].files++;
-            mClient.mNodeCounters[firstValidAncestor].storage += node->size;
+            mNodeCounters[firstValidAncestor].files++;
+            mNodeCounters[firstValidAncestor].storage += node->size;
         }
         else if (node->type == FOLDERNODE)
         {
-            mClient.mNodeCounters[firstValidAncestor].folders++;
+            mNodeCounters[firstValidAncestor].folders++;
         }
 
-        auto it = mClient.mNodeCounters.find(node->nodeHandle());
-        if (it != mClient.mNodeCounters.end())
+        auto it = mNodeCounters.find(node->nodeHandle());
+        if (it != mNodeCounters.end())
         {
-            mClient.mNodeCounters[firstValidAncestor].files += it->second.files;
-            mClient.mNodeCounters[firstValidAncestor].storage += it->second.storage;
-            mClient.mNodeCounters[firstValidAncestor].folders += it->second.folders;
-            mClient.mNodeCounters.erase(it);
+            mNodeCounters[firstValidAncestor].files += it->second.files;
+            mNodeCounters[firstValidAncestor].storage += it->second.storage;
+            mNodeCounters[firstValidAncestor].folders += it->second.folders;
+            mNodeCounters.erase(it);
         }
     }
 }
