@@ -302,7 +302,7 @@ public:
     NodeCounter getCounterForSubtree(const NodeHandle& h);
     NodeCounter getCounterOfRootNodes(); // return sum of counters from all root nodes
     void updateCounter(const NodeHandle& h); // calculate for given node
-    void subtractFromRootCounter(const NodeHandle& h, bool isFile);
+    void subtractFromRootCounter(const Node& n);
     void movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, bool oldInShare,
                                                     const NodeHandle& newRoot, bool newInShare);
 
