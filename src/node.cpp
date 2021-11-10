@@ -2542,7 +2542,7 @@ bool LocalNode::WatchHandle::operator==(handle fsid) const
     return fsid == mEntry->second.second;
 }
 
-bool LocalNode::watch(const LocalPath& path, handle fsid)
+WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
 {
     // Do we need to (re)create a watch?
     if (mWatchHandle == fsid)
@@ -2551,7 +2551,7 @@ bool LocalNode::watch(const LocalPath& path, handle fsid)
                     << " watch for path: " << path.toPath()
                     << " with mWatchHandle == fsid == " << fsid
                     << " Already in place";
-        return true;
+        return WR_SUCCESS;
     }
 
     // Get our hands on the notifier.

@@ -215,7 +215,7 @@ public:
     ~PosixDirNotify();
 
 #if defined(ENABLE_SYNC) && defined(USE_INOTIFY)
-    pair<WatchMapIterator, bool> addWatch(LocalNode& node, const LocalPath& path, handle fsid);
+    pair<WatchMapIterator, WatchResult> addWatch(LocalNode& node, const LocalPath& path, handle fsid);
     void removeWatch(WatchMapIterator entry);
 #endif // ENABLE_SYNC && USE_INOTIFY
 

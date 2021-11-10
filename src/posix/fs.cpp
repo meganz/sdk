@@ -1835,7 +1835,7 @@ PosixDirNotify::~PosixDirNotify()
 
 #if defined(USE_INOTIFY)
 
-pair<WatchMapIterator, bool> PosixDirNotify::addWatch(LocalNode& node, const LocalPath& path, handle fsid)
+pair<WatchMapIterator, WatchResult> PosixDirNotify::addWatch(LocalNode& node, const LocalPath& path, handle fsid)
 {
     using std::forward_as_tuple;
     using std::piecewise_construct;
@@ -1864,7 +1864,7 @@ pair<WatchMapIterator, bool> PosixDirNotify::addWatch(LocalNode& node, const Loc
                           forward_as_tuple(handle),
                           forward_as_tuple(&node, fsid));
 
-        return make_pair(entry, true);
+        return make_pair(entry, WR_SUCCESS);
     }
 
     LOG_warn << "Unable to monitor path for filesystem notifications: "
@@ -1874,7 +1874,10 @@ pair<WatchMapIterator, bool> PosixDirNotify::addWatch(LocalNode& node, const Loc
              << ": Error: "
              << errno;
 
-    return make_pair(watches.end(), false);
+    if (errno == ENOMEM || errno == ENOSPC)
+        return make_pair(watches.end(), WR_FATAL);
+
+    return make_pair(watches.end(), WR_FAILURE);
 }
 
 void PosixDirNotify::removeWatch(WatchMapIterator entry)

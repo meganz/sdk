@@ -675,6 +675,10 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Unknown drive path.";
     case INVALID_SCAN_INTERVAL:
         return "Invalid scan interval specified.";
+    case NOTIFICATION_SYSTEM_UNAVAILABLE:
+        return "Filesystem notification subsystem unavailable.";
+    case UNABLE_TO_ADD_WATCH:
+        return "Unable to add filesystem watch.";
     default:
         return "Undefined error";
     }
@@ -823,9 +827,6 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     fsstableids = syncs.fsaccess->fsStableIDs(mLocalPath);
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
-
-    // Always create a watch for the root node.
-    localroot->watch(mLocalPath, UNDEF);
 
     // load LocalNodes from cache (only for internal syncs)
     // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
@@ -2808,16 +2809,32 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     us.mSync.reset(new Sync(us, debris, localdebris, rootNodeHandle, rootNodeName, inshare, logname));
     us.mConfig.setLocalFingerprint(us.mSync->fsfp);
 
-    error e;
-    if (prevFingerprint && prevFingerprint != us.mConfig.getLocalFingerprint())
-    {
-        LOG_err << "New sync local fingerprint mismatch. Previous: " << prevFingerprint
-            << "  Current: " << us.mConfig.getLocalFingerprint();
-        us.mSync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH, false, true);
-        us.mConfig.mError = LOCAL_FINGERPRINT_MISMATCH;
+    // Assume we'll encounter an error.
+    error e = API_EFAILED;
+
+    // Reduce duplication.
+    auto signalError = [&](SyncError error) {
+        us.mSync->changestate(SYNC_FAILED, error, false, true);
+        us.mConfig.mError = error;
         us.mConfig.mEnabled = false;
         us.mSync.reset();
-        e = API_EFAILED;
+    };
+
+    if (us.mSync->localroot->watch(us.mConfig.getLocalPath(), UNDEF) != WR_SUCCESS)
+    {
+        LOG_err << "Unable to add a watch for the sync root: "
+                << us.mConfig.getLocalPath();
+
+        signalError(UNABLE_TO_ADD_WATCH);
+    }
+    else if (prevFingerprint && prevFingerprint != us.mConfig.getLocalFingerprint())
+    {
+        LOG_err << "New sync local fingerprint mismatch. Previous: "
+                << prevFingerprint
+                << "  Current: "
+                << us.mConfig.getLocalFingerprint();
+
+        signalError(LOCAL_FINGERPRINT_MISMATCH);
     }
     else
     {
@@ -5458,7 +5475,11 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // Add watches as necessary.
                             if (childRow.fsNode)
                             {
-                                childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
+                                auto result = childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
+
+                                // Any fatal errors while adding the watch?
+                                if (result == WR_FATAL)
+                                    changestate(SYNC_FAILED, UNABLE_TO_ADD_WATCH, false, true);
                             }
 
                             if (!recursiveSync(childRow, fullPath, belowRemovedCloudNode || childRow.recurseBelowRemovedCloudNode, belowRemovedFsNode || childRow.recurseBelowRemovedFsNode, depth+1))
@@ -8469,24 +8490,39 @@ void Syncs::syncLoop()
 
             if (sync && sync->state() >= SYNC_INITIALSCAN)
             {
-
-                if (sync->dirnotify->mErrorCount.load())
+                // Check for filesystem notification failures.
                 {
-                    LOG_err << "Sync " << toHandle(sync->getConfig().getBackupId()) << " had a filesystem notification buffer overflow.  Triggering full scan.";
-                    sync->dirnotify->mErrorCount.store(0);
-                    sync->localroot->setScanAgain(false, true, true, 5);
-                }
+                    // Convenience.
+                    auto* notifier = sync->dirnotify.get();
 
-                string failReason;
-                if (sync->dirnotify->getFailed(failReason))
-                {
-                    if (sync->syncscanbt.armed())
+                    // Has it encountered a recoverable error?
+                    if (notifier->mErrorCount.load() > 0)
                     {
-                        LOG_warn << "Sync " << toHandle(sync->getConfig().getBackupId()) <<  " notifications failed or were not available (reason: " << failReason << " and it's time for another full scan";
-                        auto totalnodes = sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
-                        dstime backoff = 300 + totalnodes / 128;
-                        sync->syncscanbt.backoff(backoff);
-                        LOG_warn << "Sync " << toHandle(sync->getConfig().getBackupId()) << " next full scan in " << backoff << " ds";
+                        // Then issue a full scan.
+                        LOG_err << "Sync "
+                                << toHandle(sync->getConfig().getBackupId())
+                                << " had a filesystem notification buffer overflow. Triggering full scan.";
+
+                        // Reset the error counter.
+                        notifier->mErrorCount.store(0);
+                        
+                        // Rescan everything from the root down.
+                        sync->localroot->setScanAgain(false, true, true, 5);
+                    }
+
+                    string reason;
+
+                    // Has it encountered an unrecoverable error?
+                    if (notifier->getFailed(reason))
+                    {
+                        // Then fail the sync.
+                        LOG_err << "Sync "
+                                << toHandle(sync->getConfig().getBackupId())
+                                << " notifications failed or were not available (reason: "
+                                << reason
+                                << ")";
+
+                        sync->changestate(SYNC_FAILED, NOTIFICATION_SYSTEM_UNAVAILABLE, false, true);
                     }
                 }
 
