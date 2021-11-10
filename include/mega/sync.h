@@ -49,8 +49,16 @@ enum ChangeDetectionMethod
     // Via periodic rescanning.
     //
     // The user must specify a scan frequency in order to use this mode.
-    CDM_PERIODIC_SCANNING
+    CDM_PERIODIC_SCANNING,
+    // Unknown change detection method.
+    //
+    // A possible result of importing a user-edited sync config.
+    CDM_UNKNOWN
 }; // ChangeDetectionMethod
+
+ChangeDetectionMethod changeDetectionMethodFromString(const string& method);
+
+string changeDetectionMethodToString(const ChangeDetectionMethod method);
 
 class SyncConfig
 {

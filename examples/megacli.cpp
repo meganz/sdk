@@ -9240,12 +9240,21 @@ void exec_synclist(autocomplete::ACState& s)
         }
 
         // Display sync type.
-
         cout << "  Type: "
             << (config.isExternal() ? "EX" : "IN")
             << "TERNAL "
             << SyncConfig::synctypename(config.getType())
             << "\n";
+
+        // Display change detection method.
+        cout << "  Change Detection Method: "
+             << changeDetectionMethodToString(config.mChangeDetectionMethod)
+             << "\n";
+
+        // Display scan interval.
+        cout << "  Scan Interval (seconds): "
+             << config.mScanIntervalSec
+             << "\n";
 
         std::promise<bool> synchronous;
         client->syncs.collectSyncNameConflicts(config.mBackupId, [&synchronous](list<NameConflict>&& conflicts){

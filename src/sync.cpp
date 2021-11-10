@@ -47,6 +47,35 @@ std::atomic<size_t> ScanService::mNumServices(0);
 std::unique_ptr<ScanService::Worker> ScanService::mWorker;
 std::mutex ScanService::mWorkerLock;
 
+ChangeDetectionMethod changeDetectionMethodFromString(const string& method)
+{
+    static const auto notifications =
+      changeDetectionMethodToString(CDM_NOTIFICATIONS);
+    static const auto scanning =
+      changeDetectionMethodToString(CDM_PERIODIC_SCANNING);
+
+    if (method == notifications)
+        return CDM_NOTIFICATIONS;
+
+    if (method == scanning)
+        return CDM_PERIODIC_SCANNING;
+
+    return CDM_UNKNOWN;
+}
+
+string changeDetectionMethodToString(const ChangeDetectionMethod method)
+{
+    switch (method)
+    {
+    case CDM_NOTIFICATIONS:
+        return "notifications";
+    case CDM_PERIODIC_SCANNING:
+        return "scanning";
+    default:
+        return "unknown";
+    }
+}
+
 ScanService::ScanService(Waiter& waiter)
   : mWaiter(waiter)
 {
@@ -3522,6 +3551,13 @@ void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
     writer.arg_stringWithEscapes("name", name);
     writer.arg_stringWithEscapes("remotePath", remotePath);
     writer.arg_stringWithEscapes("type", type);
+
+    const auto changeMethod =
+      changeDetectionMethodToString(config.mChangeDetectionMethod);
+
+    writer.arg_stringWithEscapes("changeMethod", changeMethod);
+    writer.arg("scanInterval", config.mScanIntervalSec);
+
     writer.endobject();
 }
 
@@ -3529,17 +3565,24 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
 {
     assert(!onSyncThread());
 
-    static const string TYPE_LOCAL_PATH  = "localPath";
-    static const string TYPE_NAME        = "name";
-    static const string TYPE_REMOTE_PATH = "remotePath";
-    static const string TYPE_TYPE        = "type";
+    static const string TYPE_CHANGE_METHOD = "changeMethod";
+    static const string TYPE_LOCAL_PATH    = "localPath";
+    static const string TYPE_NAME          = "name";
+    static const string TYPE_REMOTE_PATH   = "remotePath";
+    static const string TYPE_SCAN_INTERVAL = "scanInterval";
+    static const string TYPE_TYPE          = "type";
 
     LOG_debug << "Attempting to parse config object: "
               << reader.pos;
 
+    // Default to notification change detection method.
+    string changeMethod =
+      changeDetectionMethodToString(CDM_NOTIFICATIONS);
+
     string localPath;
     string name;
     string remotePath;
+    string scanInterval;
     string type;
 
     // Parse config properties.
@@ -3564,6 +3607,10 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
             return false;
         }
 
+        if (key == TYPE_CHANGE_METHOD)
+        {
+            changeMethod = std::move(value);
+        }
         if (key == TYPE_LOCAL_PATH)
         {
             localPath = std::move(value);
@@ -3575,6 +3622,10 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
         else if (key == TYPE_REMOTE_PATH)
         {
             remotePath = std::move(value);
+        }
+        else if (key == TYPE_SCAN_INTERVAL)
+        {
+            scanInterval = std::move(value);
         }
         else if (key == TYPE_TYPE)
         {
@@ -3636,6 +3687,38 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
                 << remotePath;
 
         return false;
+    }
+
+    // Set change detection method.
+    config.mChangeDetectionMethod =
+      changeDetectionMethodFromString(changeMethod);
+
+    if (config.mChangeDetectionMethod == CDM_UNKNOWN)
+    {
+        LOG_err << "Invalid config: "
+                << "unknown change detection method: "
+                << changeMethod;
+
+        return false;
+    }
+
+    // Set scan interval.
+    if (config.mChangeDetectionMethod == CDM_PERIODIC_SCANNING)
+    {
+        std::istringstream istream(scanInterval);
+
+        istream >> config.mScanIntervalSec;
+
+        auto failed = istream.fail() || !istream.eof();
+
+        if (failed || !config.mScanIntervalSec)
+        {
+            LOG_err << "Invalid config: "
+                    << "malformed scan interval: "
+                    << scanInterval;
+
+            return false;
+        }
     }
 
     // Set type.
