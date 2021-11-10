@@ -2544,6 +2544,10 @@ bool LocalNode::WatchHandle::operator==(handle fsid) const
 
 WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
 {
+    // Can't add a watch if we don't have a notifier.
+    if (!sync->dirnotify)
+        return WR_SUCCESS;
+
     // Do we need to (re)create a watch?
     if (mWatchHandle == fsid)
     {

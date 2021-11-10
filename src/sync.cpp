@@ -811,8 +811,13 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
         localdebrisname = clocaldebris.leafName();
         localdebris = clocaldebris;
     }
-    // notifications may be queueing from this moment
-    dirnotify.reset(syncs.fsaccess->newdirnotify(*localroot, mLocalPath, &syncs.waiter));
+
+    // Should this sync make use of filesystem notifications?
+    if (us.mConfig.mChangeDetectionMethod == CDM_NOTIFICATIONS)
+    {
+        // Notifications may be queueing from this moment
+        dirnotify.reset(syncs.fsaccess->newdirnotify(*localroot, mLocalPath, &syncs.waiter));
+    }
 
     // set specified fsfp or get from fs if none
     const auto cfsfp = mUnifiedSync.mConfig.getLocalFingerprint();
@@ -2198,6 +2203,10 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             LOG_debug << syncname << "Move-target moved to local debris: " << path;
 
+            // Rescan the parent if we're operating in periodic scan mode.
+            if (!dirnotify)
+                parentRow.syncNode->setScanAgain(false, true, false, 0);
+
             // Therefore there is nothing in the local subfolder anymore
             // And we should delete the localnodes corresponding to the items we moved to debris.
             // BUT what if the move is coming from inside that folder ?!!
@@ -2291,6 +2300,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 dstime Sync::procextraq()
 {
     assert(syncs.onSyncThread());
+    assert(dirnotify.get());
 
     Notification notification;
     NotificationDeque& queue = dirnotify->fsDelayedNetworkEventq;
@@ -2362,6 +2372,7 @@ dstime Sync::procextraq()
 dstime Sync::procscanq()
 {
     assert(syncs.onSyncThread());
+    assert(dirnotify.get());
 
     NotificationDeque& queue = dirnotify->fsEventq;
 
@@ -6615,6 +6626,14 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     SYNC_verbose << syncname << "Download complete, but move failed" << logTriplet(row, fullPath);
                     row.syncNode->resetTransfer(nullptr);
                 }
+
+                // Rescan our parent if we're operating in periodic scan mode.
+                //
+                // The reason we're issuing a scan in almost all cases is
+                // that we can't tell whether we were able to move any
+                // existing file at the donwload target into the debris.
+                if (!fsAccess.target_name_too_long && !dirnotify.get())
+                    parentRow.syncNode->setScanAgain(false, true, false, 0);
             }
             else
             {
@@ -7366,6 +7385,30 @@ bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
     assert(fsn.fingerprint.isvalid);
     return ln.syncedFingerprint.isvalid &&
             fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
+}
+
+std::future<void> Syncs::triggerScan(handle id)
+{
+    assert(!onSyncThread());
+
+    auto notifier = std::make_shared<std::promise<void>>();
+    auto result = notifier->get_future();
+
+    queueSync([id, notifier, this]() {
+        lock_guard<mutex> guard(mSyncVecMutex);
+
+        for (auto& us : mSyncVec)
+        {
+            auto* s = us->mSync.get();
+
+            if (s && us->mConfig.mBackupId == id)
+                s->localroot->setScanAgain(false, true, true, 0);
+        }
+
+        notifier->set_value();
+    });
+
+    return result;
 }
 
 void Syncs::triggerSync(NodeHandle h, bool recurse)
@@ -8437,12 +8480,18 @@ void Syncs::syncLoop()
 
         waiter.bumpds();
 
+        // Process filesystem notifications.
         for (auto& us : mSyncVec)
         {
+            // Only process active syncs.
             if (Sync* sync = us->mSync.get())
             {
-                sync->procextraq();
-                sync->procscanq();
+                // And only those that make use of filesystem events.
+                if (sync->dirnotify)
+                {
+                    sync->procextraq();
+                    sync->procscanq();
+                }
             }
         }
 
@@ -8451,11 +8500,29 @@ void Syncs::syncLoop()
         waiter.bumpds();
 
         // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
-        if (!mClient.actionpacketsCurrent ||
-           (!syncStallState && !isAnySyncSyncing(true)))
-        {
-            // nothing to do, go back to waiting
+        if (!mClient.actionpacketsCurrent)
             continue;
+
+        // Does it look like we have no work to do?
+        if (!syncStallState && !isAnySyncSyncing(true))
+        {
+            auto mustScan = false;
+
+            // Check if any syncs need a periodic scan.
+            for (auto& us : mSyncVec)
+            {
+                auto* sync = us->mSync.get();
+
+                // Only active syncs without a notifier.
+                if (!sync || sync->dirnotify)
+                    continue;
+
+                mustScan |= sync->syncscanbt.armed();
+            }
+
+            // No work to do.
+            if (!mustScan)
+                continue;
         }
 
         if (syncStallState &&
@@ -8479,7 +8546,7 @@ void Syncs::syncLoop()
             mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass && !mSyncFlags->isInitialPass;
             mSyncFlags->reachableNodesAllScannedThisPass = true;
             mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves(false); // paused syncs do not participate in move detection
-            mSyncFlags->noProgress = true;
+            mSyncFlags->noProgress = mSyncFlags->reachableNodesAllScannedLastPass;
         }
 
         unsigned skippedForScanning = 0;
@@ -8490,11 +8557,9 @@ void Syncs::syncLoop()
 
             if (sync && sync->state() >= SYNC_INITIALSCAN)
             {
-                // Check for filesystem notification failures.
+                // Does this sync rely on filesystem notifications?
+                if (auto* notifier = sync->dirnotify.get())
                 {
-                    // Convenience.
-                    auto* notifier = sync->dirnotify.get();
-
                     // Has it encountered a recoverable error?
                     if (notifier->mErrorCount.load() > 0)
                     {
@@ -8523,6 +8588,23 @@ void Syncs::syncLoop()
                                 << ")";
 
                         sync->changestate(SYNC_FAILED, NOTIFICATION_SYSTEM_UNAVAILABLE, false, true);
+                    }
+                }
+                else
+                {
+                    // No notifier.
+
+                    // Is it time to issue a rescan?
+                    if (sync->syncscanbt.armed())
+                    {
+                        // Issue full rescan.
+                        sync->localroot->setScanAgain(false, true, true, 0);
+
+                        // Translate interval into deciseconds.
+                        auto intervalDs = sync->getConfig().mScanIntervalSec * 10;
+
+                        // Queue next scan.
+                        sync->syncscanbt.backoff(intervalDs);
                     }
                 }
 

@@ -64,6 +64,11 @@ bool suppressfiles = false;
 
 typedef ::mega::byte byte;
 
+// Don't use filesystem notifications.
+#define NO_FILESYSTEM_NOTIFICATIONS 1
+#define SCAN_INTERVAL_SEC 600
+
+// Don't use size filters.
 #define NO_SIZE_FILTER 1
 
 bool adjustLastModificationTime(const fs::path& path, int adjustment)
@@ -2253,6 +2258,11 @@ struct StandardClient : public MegaApp
                             syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
                     << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
 
+#ifdef NO_FILESYSTEM_NOTIFICATIONS
+                syncConfig.mChangeDetectionMethod = CDM_PERIODIC_SCANNING;
+                syncConfig.mScanIntervalSec = SCAN_INTERVAL_SEC;
+#endif // NO_FILESYSTEM_NOTIFICATIONS
+
                 error e = client.addsync(syncConfig, true, addSyncCompletion, logname);
                 return !e;
             }
@@ -3643,6 +3653,15 @@ struct StandardClient : public MegaApp
 
         return result.get();
     }
+
+    void triggerScan(handle id)
+    {
+#ifdef NO_FILESYSTEM_NOTIFICATIONS
+        client.syncs.triggerScan(id).get();
+#else
+        static_cast<void>(id);
+#endif
+    }
 };
 
 using SyncWaitPredicate = std::function<bool(StandardClient&)>;
@@ -4195,6 +4214,9 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     ASSERT_TRUE(!e) << "remove failed " << (clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1").u8string() << " error " << e;
     ASSERT_GT(static_cast<unsigned int>(nRemoved), 0u) << e;
 
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
+
     // let them catch up
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
 
@@ -4239,6 +4261,9 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     error_code rename_error;
     fs::rename(clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1", clientA1.syncSet(backupId1).localpath / "f_2_1", rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
+
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
 
     // client1 should send a rename command to the API
     // both client1 and client2 should receive the corresponding actionpacket
@@ -4332,6 +4357,10 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     fs::rename(path1, path2, rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
 
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId11);
+    clientA1.triggerScan(backupId12);
+
     // client1 should send a rename command to the API
     // both client1 and client2 should receive the corresponding actionpacket
     ASSERT_TRUE(clientA1.waitForNodesUpdated(30)) << " no actionpacket received in clientA1 for rename";
@@ -4385,6 +4414,9 @@ TEST_F(SyncTest, BasicSync_RenameLocalFile)
     // Add x/f.
     ASSERT_TRUE(createNameFile(client0.syncSet(backupId0).localpath, "f"));
 
+    // Trigger full scan.
+    client0.triggerScan(backupId0);
+
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &client0, &client1);
 
@@ -4402,6 +4434,9 @@ TEST_F(SyncTest, BasicSync_RenameLocalFile)
     // Rename x/f to x/g.
     fs::rename(client0.syncSet(backupId0).localpath / "f",
                client0.syncSet(backupId0).localpath / "g");
+
+    // Trigger full scan.
+    client0.triggerScan(backupId0);
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &client0, &client1);
@@ -4444,6 +4479,9 @@ TEST_F(SyncTest, BasicSync_AddLocalFolder)
     // make new folders (and files) in the local filesystem and see if we catch up in A1 and A2 (adder and observer syncs)
     ASSERT_TRUE(buildLocalFolders(clientA1.syncSet(backupId1).localpath / "f_2", "newkid", 2, 2, 2));
 
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
+
     // let them catch up
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);  // two minutes should be long enough to get past API_ETEMPUNAVAIL == -18 for sync2 downloading the files uploaded by sync1
 
@@ -4482,6 +4520,9 @@ TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
     // Create a directory tree in one sync, it should be synced to the cloud and back to the other
     // Create enough files and folders that we put a strain on the notification logic: 3k entries
     ASSERT_TRUE(buildLocalFolders(clientA1.syncSet(backupId1).localpath, "initial", 0, 0, 16000));
+
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
 
     //waitonsyncs(std::chrono::seconds(10), &clientA1 /*, &clientA2*/);
     std::this_thread::sleep_for(std::chrono::seconds(5));
@@ -4651,6 +4692,9 @@ TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
     fs::rename(path1, path2, rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
 
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
+
     // let them catch up
     waitonsyncs(std::chrono::seconds(10), &clientA1, &clientA2);
 
@@ -4699,6 +4743,9 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     ASSERT_TRUE(!rename_error) << rename_error;
     fs::rename(clientA1.syncSet(backupId1).localpath / "f_2", clientA1.syncSet(backupId1).localpath / "new" / "new_1" / "new_1_2" / "f_1" / "f_1_2" / "f_2", rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
+
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
 
     // let them catch up
     waitonsyncs(std::chrono::seconds(7), &clientA1, &clientA2);
@@ -5182,6 +5229,9 @@ TEST_F(SyncTest, BasicSync_SpecialCreateFile)
         model.findnode("f/f_0")->addkid(model.makeModelSubfile(filename));
     }
 
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
+
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
@@ -5224,6 +5274,9 @@ TEST_F(SyncTest, BasicSync_moveAndDeleteLocalFile)
     fs::rename(clientA1.syncSet(backupId1).localpath / "f_0", clientA1.syncSet(backupId1).localpath / "renamed", rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
     fs::remove(clientA1.syncSet(backupId1).localpath / "renamed");
+
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
@@ -5538,12 +5591,18 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     fs::create_symlink(clientA1.syncSet(backupId1).localpath / "f_0", clientA1.syncSet(backupId1).localpath / "linked", linkage_error);
     ASSERT_TRUE(!linkage_error) << linkage_error;
 
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
+
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
     fs::rename(clientA1.syncSet(backupId1).localpath / "f_0", clientA1.syncSet(backupId1).localpath / "linked", linkage_error);
+
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
@@ -5553,6 +5612,9 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
 
     fs::remove(clientA1.syncSet(backupId1).localpath / "linked");
     ASSERT_TRUE(createNameFile(clientA1.syncSet(backupId1).localpath, "linked"));
+
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
@@ -5596,6 +5658,9 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
     fs::create_symlink(clientA1.syncSet(backupId1).localpath / "f_0", clientA1.syncSet(backupId1).localpath / "linked", linkage_error);
     ASSERT_TRUE(!linkage_error) << linkage_error;
 
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
+
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
@@ -5603,6 +5668,10 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
     ASSERT_TRUE(createNameFile(clientA2.syncSet(backupId2).localpath, "linked"));
+
+    // Trigger a full scan.
+    clientA1.triggerScan(backupId1);
+    clientA2.triggerScan(backupId2);
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
@@ -5684,6 +5753,9 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
     ASSERT_TRUE(fingerprints.back());
 
+    // Trigger full scan.
+    c.triggerScan(id);
+
     // Wait for initial sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -5698,6 +5770,9 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
     ASSERT_TRUE(fingerprints.back());
 
+    // Trigger full scan.
+    c.triggerScan(id);
+
     // Wait for change to propagate.
     waitonsyncs(TIMEOUT, &c);
 
@@ -5711,6 +5786,9 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     // Update fingerprint.
     fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
     ASSERT_TRUE(fingerprints.back());
+
+    // Trigger full scan.
+    c.triggerScan(id);
 
     // Wait for change to propagate.
     waitonsyncs(TIMEOUT, &c);
@@ -5771,6 +5849,10 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
         model.addfile("f");
         model.generate(root0);
         model.generate(root1, true);
+
+        // Trigger a full scan.
+        c0.triggerScan(id0);
+        c0.triggerScan(id1);
 
         // Wait for sync to complete.
         waitonsyncs(TIMEOUT, &c0);
@@ -5911,6 +5993,9 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f0")));
     ASSERT_EQ(conflicts.back().clashingCloudNames.size(), 0u);
 
+    // Trigger a full scan.
+    client.triggerScan(backupId1);
+
     // Resolve the f0 / f%30 conflict.
     ASSERT_TRUE(fs::remove(root / "d" / "f%30"));
 
@@ -5932,6 +6017,9 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
 
     // Resolve the g / g%30 conflict.
     ASSERT_TRUE(fs::remove(root / "d" / "e" / "g%30"));
+
+    // Trigger a scan.
+    client.triggerScan(backupId1);
 
     // Give the sync some time to think.
     waitonsyncs(TIMEOUT, &client);
@@ -6142,6 +6230,9 @@ TEST_F(SyncTest, DoesntUploadFilesWithClashingNames)
     fs::remove_all(root / "d0");
     fs::remove_all(root / "f0");
 
+    // Trigger a full scan.
+    cu.triggerScan(backupId2);
+
     // Wait for the sync to complete.
     waitonsyncs(TIMEOUT, &cd, &cu);
 
@@ -6234,6 +6325,9 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
 #endif /* ! _WIN32 */
     ASSERT_TRUE(!!model.removenode("x/f\7"));
 
+    // Trigger a full scan.
+    cd.triggerScan(backupId1);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &cd);
 
@@ -6245,6 +6339,9 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     ASSERT_TRUE(createDataFile(syncRoot / "ff%07", "ff"));
     ASSERT_TRUE(fs::create_directories(syncRoot / "dd%41"));
     ASSERT_TRUE(createDataFile(syncRoot / "ff%41", "ff"));
+
+    // Trigger a full scan.
+    cd.triggerScan(backupId1);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &cd);
@@ -6478,6 +6575,9 @@ TEST_F(SyncTest, AnomalousManualDownload)
         model.addfile("f");
         model.addfile("g:0")->fsName("g%3a0");
         model.generate(root);
+
+        // Trigger a full scan.
+        cu.triggerScan(id);
 
         // Wait for the upload to complete.
         waitonsyncs(TIMEOUT, &cu);
@@ -6793,6 +6893,9 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     model.addfile("f");
     model.generate(root);
 
+    // Trigger a full scan.
+    cx.triggerScan(id);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &cx);
 
@@ -6802,6 +6905,9 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     // Rename d/f -> d/g.
     model.findnode("d/f")->name = "g";
     fs::rename(root / "d" / "f", root / "d" / "g");
+
+    // Trigger a scan.
+    cx.triggerScan(id);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &cx);
@@ -6815,6 +6921,9 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     // Rename d/g -> d/g:0.
     model.findnode("d/g")->fsName("g%3a0").name = "g:0";
     fs::rename(root / "d" / "g", root / "d" / "g%3a0");
+
+    // Trigger a scan.
+    cx.triggerScan(id);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &cx);
@@ -6837,6 +6946,9 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     model.findnode("d/g:0")->content = "f";
     model.removenode("f");
     fs::rename(root / "f", root / "d" / "g%3a0");
+
+    // Trigger a scan.
+    cx.triggerScan(id);
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cx);
@@ -6879,6 +6991,9 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     model.addfile("d/f");
     model.addfile("f");
     model.generate(root);
+
+    // Trigger full scan.
+    cx.triggerScan(id);
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cx);
@@ -6973,6 +7088,9 @@ TEST_F(SyncTest, AnomalousSyncUpload)
     model.addfolder("d:0")->fsName("d%3a0");
     model.generate(root);
 
+    // Trigger full scan.
+    cu.triggerScan(id);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &cu);
 
@@ -7046,6 +7164,11 @@ TEST_F(SyncTest, BasicSyncExportImport)
     model2.addfile("f0");
     model2.addfile("f1");
     model2.generate(root2);
+
+    // Trigger full scan.
+    cx->triggerScan(id0);
+    cx->triggerScan(id1);
+    cx->triggerScan(id2);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, cx.get());
@@ -7150,6 +7273,9 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
 
     model0.addfile("f0", "x");
     model0.generate(SYNCROOT0);
+    
+    // Trigger full scan.
+    c0.triggerScan(id0);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
@@ -7169,6 +7295,10 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
 
     ASSERT_TRUE(createDataFile(SYNCROOT0 / "f0", "y"));
 
+    // Trigger full scan.
+    c0.triggerScan(id0);
+    c0.triggerScan(id1);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
 
@@ -7181,6 +7311,9 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
 
     // Make sure s0 is disabled.
     ASSERT_TRUE(createDataFile(SYNCROOT0 / "f1", "z"));
+
+    // Trigger full scan.
+    c0.triggerScan(id0);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
@@ -7201,6 +7334,10 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
     model1.addfile("f0", "q");
 
     ASSERT_TRUE(createDataFile(SYNCROOT1 / "f0", "q"));
+
+    // Trigger a full scan.
+    c0.triggerScan(id0);
+    c0.triggerScan(id1);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
@@ -7240,6 +7377,9 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
     model.addfile("f1");
     model.generate(SYNCROOT);
 
+    // Trigger full scan.
+    c0.triggerScan(id);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
 
@@ -7258,6 +7398,9 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
 
     ASSERT_TRUE(createDataFile(SYNCROOT / "f1", "x"));
 
+    // Trigger full scan.
+    c0.triggerScan(id);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
 
@@ -7275,6 +7418,9 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
     model.addfile("f2", "y");
 
     ASSERT_TRUE(createDataFile(SYNCROOT / "f2", "y"));
+
+    // Trigger full scan.
+    c0.triggerScan(id);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
@@ -7316,6 +7462,9 @@ TEST_F(SyncTest, RenameReplaceFolderBetweenSyncs)
     model0.addfile("d0/f0");
     model0.generate(SYNCROOT0);
 
+    // Trigger full scan.
+    c0.triggerScan(id0);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
 
@@ -7332,6 +7481,10 @@ TEST_F(SyncTest, RenameReplaceFolderBetweenSyncs)
     model0.removenode("d0/f0");
 
     fs::create_directories(SYNCROOT0 / "d0");
+
+    // Trigger full scan.
+    c0.triggerScan(id0);
+    c0.triggerScan(id1);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
@@ -7363,6 +7516,10 @@ TEST_F(SyncTest, RenameReplaceFolderBetweenSyncs)
 
     // Replace s1/d0.
     fs::create_directories(SYNCROOT1 / "d0");
+
+    // Trigger full scan.
+    c0.triggerScan(id0);
+    c0.triggerScan(id1);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
@@ -7402,6 +7559,9 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     model.addfile("d1/f0");
     model.generate(SYNCROOT);
 
+    // Trigger a full scan.
+    c0.triggerScan(id);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
 
@@ -7418,6 +7578,9 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     // Replace /d1.
     fs::create_directories(SYNCROOT / "d1");
 
+    // Trigger a full scan.
+    c0.triggerScan(id);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
 
@@ -7433,6 +7596,9 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
 
     // Replace /d2.
     fs::create_directories(SYNCROOT / "d2");
+
+    // Trigger a full scan.
+    c0.triggerScan(id);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c0);
@@ -7480,7 +7646,15 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     model2.root->addkid(model2.buildModelSubdirs("d", 1, 1, 2));
     model2.generate(SYNC2.localpath, true);
 
+    // Trigger a full scan.
+    c.triggerScan(id0);
+    c.triggerScan(id1);
+    c.triggerScan(id2);
+
+    // Wait for the engine to process changes.
     auto waitResult = waitonsyncs(TIMEOUT, &c);
+
+    // Wait for the engine to signal a stall.
     ASSERT_TRUE(noSyncStalled(waitResult));
 
     c.setSyncPausedByBackupId(id0, true);
@@ -7513,6 +7687,11 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     c.setSyncPausedByBackupId(id1, false);
     c.setSyncPausedByBackupId(id2, false);
 
+    // Trigger a full scan.
+    c.triggerScan(id0);
+    c.triggerScan(id1);
+    c.triggerScan(id2);
+
     // Be absolutely sure we've stalled. (stall is across all syncs - todo: figure out if each one contains a stall)
     ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(20)));
 
@@ -7530,6 +7709,10 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     fs::remove(SYNC2.localpath / "d" / "file0_d");
     model2.findnode("d/file0_d")->content = "remoteFile";
     model2.ensureLocalDebrisTmpLock(""); // due to download temp location
+
+    // Trigger a full scan.
+    c.triggerScan(id0);
+    c.triggerScan(id2);
 
     LOG_debug << "Wait for the sync to exit the stall state.";
     ASSERT_TRUE(c.waitFor(SyncStallState(false), TIMEOUT));
@@ -7596,6 +7779,9 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
 
     ASSERT_TRUE(createDataFile(SYNCROOT / "d" / "f", "x"));
 
+    // Trigger a full scan.
+    c.triggerScan(id);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -7627,6 +7813,9 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
 
     model.addfolder("d0/d0d0");
     model.generate(SYNCROOT);
+
+    // Trigger a full scan.
+    c->triggerScan(id);
 
     // Wait for initial sync to complete.
     waitonsyncs(TIMEOUT, c.get());
@@ -7660,6 +7849,9 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         // Wait for the sync to be resumed.
         notify.get_future().get();
 
+        // Trigger a full scan.
+        c->triggerScan(id);
+
         // Wait for sync to complete.
         waitonsyncs(TIMEOUT, c.get());
 
@@ -7678,6 +7870,9 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         model.addfile("d0/d0d0/d0d0f", "d0d0f");
         ASSERT_TRUE(createDataFile(SYNCROOT / "d0" / "d0d0" / "d0d0f", "d0d0f"));
     }
+
+    // Trigger a full scan.
+    c->triggerScan(id);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, c.get());
@@ -7713,6 +7908,9 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
     model.addfolder("d2/dx");
     model.generate(SYNCROOT);
 
+    // Trigger a full scan.
+    c.triggerScan(id);
+
     // Wait for initial sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -7734,6 +7932,9 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
                    SYNCROOT / "d1" / "dx");
     }
 
+    // Trigger a full scan.
+    c.triggerScan(id);
+
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -7747,11 +7948,17 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
     ASSERT_TRUE(createDataFile(SYNCROOT / "d1" / "dq" / "fq", "q"));
     ASSERT_TRUE(createDataFile(SYNCROOT / "d1" / "dx" / "fx", "x"));
 
+    // Trigger a full scan.
+    c.triggerScan(id);
+
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
     // Have the files made it up to the cloud?
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
+
+    // So we can detect whether we've received packets for the below.
+    c.received_node_actionpackets = false;
 
     // Remotely move.
     {
@@ -7771,6 +7978,9 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
         ASSERT_TRUE(cr.movenode("s/d1/dx", "s/d0"));
     }
 
+    // Wait for the client to receive action packets for the above change.
+    ASSERT_TRUE(c.waitForNodesUpdated(30));
+
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -7783,6 +7993,9 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
 
     fs::remove(SYNCROOT / "d2" / "dq" / "fq");
     fs::remove(SYNCROOT / "d0" / "dx" / "fx");
+
+    // Trigger a full scan.
+    c.triggerScan(id);
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -7817,6 +8030,9 @@ TEST_F(SyncTest, DeleteReplaceReplacementHasFilesystemWatch)
     model.addfolder("dx/f");
     model.generate(ROOT);
 
+    // Trigger a full scan.
+    c.triggerScan(id);
+
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -7826,6 +8042,9 @@ TEST_F(SyncTest, DeleteReplaceReplacementHasFilesystemWatch)
     // Remove/replace the directory.
     fs::remove_all(ROOT / "dx");
     fs::create_directory(ROOT / "dx");
+
+    // Trigger a scan.
+    c.triggerScan(id);
 
     // Wait for all notifications to be processed.
     waitonsyncs(TIMEOUT, &c);
@@ -7840,6 +8059,9 @@ TEST_F(SyncTest, DeleteReplaceReplacementHasFilesystemWatch)
     model.addfile("dx/g", "g");
 
     ASSERT_TRUE(createDataFile(ROOT / "dx" / "g", "g"));
+
+    // Trigger a full scan.
+    c.triggerScan(id);
 
     // Wait for notifications to be processed.
     waitonsyncs(TIMEOUT, &c);
@@ -7875,6 +8097,9 @@ TEST_F(SyncTest, RenameReplaceSourceAndTargetHaveFilesystemWatch)
     model.addfolder("dz");
     model.generate(SYNCROOT);
 
+    // Trigger a full scan.
+    c.triggerScan(id);
+
     // Wait for initial sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -7893,6 +8118,9 @@ TEST_F(SyncTest, RenameReplaceSourceAndTargetHaveFilesystemWatch)
     fs::rename(SYNCROOT / "dz", SYNCROOT / "dy");
     fs::create_directories(SYNCROOT / "dz");
 
+    // Trigger a full scan.
+    c.triggerScan(id);
+
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -7905,6 +8133,9 @@ TEST_F(SyncTest, RenameReplaceSourceAndTargetHaveFilesystemWatch)
 
     ASSERT_TRUE(createDataFile(SYNCROOT / "dr" / "fr", "r"));
     ASSERT_TRUE(createDataFile(SYNCROOT / "dy" / "fy", "y"));
+
+    // Trigger a full scan.
+    c.triggerScan(id);
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -7920,6 +8151,9 @@ TEST_F(SyncTest, RenameReplaceSourceAndTargetHaveFilesystemWatch)
 
     ASSERT_TRUE(createDataFile(SYNCROOT / "dq" / "fq", "q"));
     ASSERT_TRUE(createDataFile(SYNCROOT / "dz" / "fz", "z"));
+
+    // Trigger a full scan.
+    c.triggerScan(id);
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -7954,6 +8188,9 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     model.addfolder("dz");
     model.generate(SYNCROOT);
 
+    // Trigger a scan.
+    c.triggerScan(id);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -7975,6 +8212,9 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
         fs::rename(SYNCROOT / "dz", SYNCROOT / "dy");
     }
 
+    // Trigger a scan.
+    c.triggerScan(id);
+
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -7987,6 +8227,9 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
 
     ASSERT_TRUE(createDataFile(SYNCROOT / "dr" / "f", "x"));
     ASSERT_TRUE(createDataFile(SYNCROOT / "dy" / "f", "y"));
+
+    // Trigger a scan.
+    c.triggerScan(id);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -8023,7 +8266,8 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
         ASSERT_TRUE(cr.setattr(dy, attr_map('n', "dx")));
     }
 
-    WaitMillisec(4000); // it can take a while for APs to arrive (or to be sent)
+    // it can take a while for APs to arrive (or to be sent)
+    WaitMillisec(4000);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -8038,6 +8282,9 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     model.removenode("dx/f");
     fs::remove(SYNCROOT / "ds" / "f");
     fs::remove(SYNCROOT / "dx" / "f");
+
+    // Trigger a scan.
+    c.triggerScan(id);
 
     ASSERT_TRUE(c.waitForNodesUpdated(30)) << " no actionpacket received in c";
 
@@ -8075,6 +8322,9 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
         model.addfolder("0/1/2/3");
         model.addfolder("4/5/6/7");
         model.generate(c.syncSet(id).localpath);
+
+        // Trigger a full scan.
+        c.triggerScan(id);
 
         // Wait for the sync to complete.
         waitonsyncs(TIMEOUT, &c);
@@ -8174,6 +8424,9 @@ TEST_F(SyncTest, RootHasFilesystemWatch)
     model.addfolder("d0");
     model.addfile("f0");
     model.generate(c.syncSet(id).localpath);
+
+    // Trigger a full scan.
+    c.triggerScan(id);
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -8701,6 +8954,10 @@ struct TwoWaySyncSymmetryCase
             if (!ec) break;
             WaitMillisec(100);
         }
+
+        if (!pauseDuringAction)
+            client1().triggerScan(backupId);
+
         ASSERT_TRUE(!ec) << "local_rename " << p1 << " to " << p2 << " failed: " << ec.message();
     }
 
@@ -8725,6 +8982,10 @@ struct TwoWaySyncSymmetryCase
             fs::remove_all(p2, ec);
             fs::rename(p1, p2, ec);
         }
+
+        if (!pauseDuringAction)
+            client1().triggerScan(backupId);
+
         ASSERT_TRUE(!ec) << "local_move " << p1 << " to " << p2 << " failed: " << ec.message();
     }
 
@@ -8741,6 +9002,10 @@ struct TwoWaySyncSymmetryCase
 
         std::error_code ec;
         fs::copy(p1, p2, ec);
+
+        if (!pauseDuringAction)
+            client1().triggerScan(backupId);
+
         ASSERT_TRUE(!ec) << "local_copy " << p1 << " to " << p2 << " failed: " << ec.message();
     }
 
@@ -8755,6 +9020,10 @@ struct TwoWaySyncSymmetryCase
 
         std::error_code ec;
         fs::remove_all(p, ec);
+
+        if (!pauseDuringAction)
+            client1().triggerScan(backupId);
+
         ASSERT_TRUE(!ec) << "local_delete " << p << " failed: " << ec.message();
         if (updatemodel) localModel.emulate_delete(path);
     }
@@ -9487,6 +9756,9 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
         model.addfolder("c");
         model.generate(root);
 
+        // Trigger full scan.
+        c.triggerScan(id);
+
         // Wait for initial sync to complete.
         waitonsyncs(TIMEOUT, &c);
 
@@ -10142,6 +10414,9 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
     //m.addfile("d/h");
     m.generate(c.syncSet(id).localpath);
 
+    // Trigger a full scan.
+    c.triggerScan(id);
+
     // Wait for initial sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
@@ -10209,6 +10484,9 @@ TEST_F(SyncTest, RemoteReplaceFile)
     m.addfile("d/f");
     m.addfile("f");
     m.generate(c.syncSet(id).localpath);
+
+    // Trigger a full scan.
+    c.triggerScan(id);
 
     // Wait for initial sync to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -14194,10 +14472,6 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     model.movenode("d/fff", "");
 
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
-}
-
-TEST_F(SyncTest, DBV)
-{
 }
 
 #endif
