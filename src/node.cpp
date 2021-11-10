@@ -777,7 +777,7 @@ bool Node::setparent(Node* p)
     NodeHandle nah;
     nah.set6byte(newancestor->nodehandle);
 
-    client->mNodeManager.movedSubtreeToNewRoot(nodeHandle(), oah, originalancestor ? originalancestor->inshare : false,
+    client->mNodeManager.movedSubtreeToNewRoot(nodeHandle(), oah, originalancestor ? originalancestor->inshare : nullptr,
                                                              nah, newancestor->inshare);
 
 #ifdef ENABLE_SYNC
