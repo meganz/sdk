@@ -258,4 +258,24 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
  */
 @property (readonly, nonatomic) unsigned long long priority;
 
+/**
+ * @brief Returns the notification number of the SDK when this MEGATransfer was generated
+ *
+ * The notification number of the SDK is increased every time the SDK sends a callback
+ * to the app.
+ *
+ * @return Notification number
+ */
+@property (readonly, nonatomic) NSNumber *notificationNumber;
+
+/**
+ * @brief Returns whether the target folder of the transfer was overriden by the API server
+ *
+ * It may happen that the target folder fo a transfer is deleted by the time the node
+ * is going to be added. Hence, the API will create the node in the rubbish bin.
+ *
+ * @return YES if target folder was overriden (apps can check the final parent)
+ */
+@property (readonly, nonatomic) BOOL targetOverride;
+
 @end
