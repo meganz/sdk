@@ -25,7 +25,8 @@
 typedef NS_ENUM (NSInteger, MEGATransferType) {
     MEGATransferTypeDownload,
     MEGATransferTypeUpload,
-    MEGATransferTypeLocalHTTPDownload
+    MEGATransferTypeLocalTCPDownload,
+    MEGATransferTypeLocalHTTPDownload = 2 //Kept for backwards compatibility
 };
 
 typedef NS_ENUM (NSInteger, MEGATransferState) {
@@ -246,6 +247,40 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
 
 /**
  * @brief State of the transfer
+ *
+ * It can be one of these values:
+ * - MEGATransferStateNone = 0
+ * Unknown state. This state should be never returned.
+ *
+ * - MEGATransferStateQueued = 1
+ * The transfer is queued. No data related to it is being transferred.
+ *
+ * - MEGATransferStateActive = 2
+ * The transfer is active. Its data is being transferred.
+ *
+ * - MEGATransferStatePaused= 3
+ * The transfer is paused. It won't be activated until it's resumed.
+ *
+ * - MEGATransferStateRetrying = 4
+ * The transfer is waiting to be retried due to a temporary error.
+ *
+ * - MEGATransferStateCompleting = 5
+ * The transfer is being completed. All data has been transferred
+ * but it's still needed to attach the resulting node to the
+ * account (uploads), to attach thumbnails/previews to the
+ * node (uploads of images) or to create the resulting local
+ * file (downloads). The transfer should be completed in a short time.
+ *
+ * - MEGATransferStateComplete = 6
+ * The transfer has being finished.
+ *
+ * - MEGATransferStateCancelled = 7
+ * The transfer was cancelled by the user.
+ *
+ * - MEGATransferStateFailed = 8
+ * The transfer was cancelled by the SDK due to a fatal error or
+ * after a high number of retries.
+ *
  */
 @property (readonly, nonatomic) MEGATransferState state;
 
