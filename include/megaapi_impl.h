@@ -2780,7 +2780,7 @@ protected:
         // Generic method to get outShares nodes or pending outShares
         // pending is true if we want receive pending outShares, false for outShares
         MegaShareList *getOutSharesOrPending(int order, bool pending);
-        node_vector searchWithDB(MegaHandle nodeHandle, const char* searchString, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
+        node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
         bool isValidTypeNode(Node *node, int type);
 
         MegaApi *api;

@@ -11744,7 +11744,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-node_vector MegaApiImpl::searchWithDB(MegaHandle nodeHandle, const char *searchString, int order, int type)
+node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int order, int type)
 {
     node_vector nodeVector;
     if (!searchString)
@@ -11863,7 +11863,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         node_vector nodeVector;
         if (recursive)
         {
-            nodeVector = searchWithDB(n->getHandle(), searchString, order, type);
+            nodeVector = searchInNodeManager(n->getHandle(), searchString, order, type);
         }
         else
         {
@@ -11899,7 +11899,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             node = client->nodeByHandle(client->rootnodes[0]);
             if (recursive)
             {
-                node_vector nodeVector = searchWithDB(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
             else
@@ -11920,7 +11920,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchWithDB(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -11950,7 +11950,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchWithDB(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -11970,9 +11970,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {
-                // TODO: Nodes on demand Review if in this case we to apply type filter
-                node_vector nodeVector = client->mNodeManager.search((*it)->nodeHandle(), searchString);
-                //node_vector nodeVector = search((*it)->nodeHandle().as8byte(), searchString, cancelToken, true, MegaApi::ORDER_NONE, type);
+                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, MegaApi::ORDER_NONE, type);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
