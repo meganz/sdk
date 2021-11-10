@@ -301,7 +301,7 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
  *
  * @return Notification number
  */
-@property (readonly, nonatomic) NSNumber *notificationNumber;
+@property (readonly, nonatomic) long long notificationNumber;
 
 /**
  * @brief Returns whether the target folder of the transfer was overriden by the API server

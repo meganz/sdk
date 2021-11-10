@@ -184,8 +184,8 @@ using namespace mega;
     return self.megaTransfer ? self.megaTransfer->getPriority() : 0;
 }
 
-- (NSNumber *)notificationNumber {
-    return self.megaTransfer ? [NSNumber.alloc initWithLongLong:self.megaTransfer->getNotificationNumber()] : nil;
+- (long long)notificationNumber {
+    return self.megaTransfer ? self.megaTransfer->getNotificationNumber() : 0;
 }
 
 - (BOOL)targetOverride {
