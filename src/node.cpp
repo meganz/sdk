@@ -2583,10 +2583,10 @@ WatchMap LocalNode::WatchHandle::mSentinel;
 
 #else // USE_INOTIFY
 
-bool LocalNode::watch(const LocalPath&, handle)
+WatchResult LocalNode::watch(const LocalPath&, handle)
 {
     // Only inotify requires us to create watches for each node.
-    return true;
+    return WR_SUCCESS;
 }
 
 #endif // ! USE_INOTIFY
