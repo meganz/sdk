@@ -458,21 +458,21 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
 
 void SyncThreadsafeState::addExpectedUpload(NodeHandle parentHandle, const string& name, weak_ptr<SyncUpload_inClient> wp)
 {
-    lock_guard g(mMutex);
+    lock_guard<mutex> g(mMutex);
     mExpectedUploads[toNodeHandle(parentHandle) + ":" + name] = wp;
     LOG_verbose << "Expecting upload " << (toNodeHandle(parentHandle) + ":" + name);
 }
 
 void SyncThreadsafeState::removeExpectedUpload(NodeHandle parentHandle, const string& name)
 {
-    lock_guard g(mMutex);
+    lock_guard<mutex> g(mMutex);
     mExpectedUploads.erase(toNodeHandle(parentHandle) + ":" + name);
     LOG_verbose << "Unexpecting upload " << (toNodeHandle(parentHandle) + ":" + name);
 }
 
 shared_ptr<SyncUpload_inClient> SyncThreadsafeState::isNodeAnExpectedUpload(NodeHandle parentHandle, const string& name)
 {
-    lock_guard g(mMutex);
+    lock_guard<mutex> g(mMutex);
     auto it = mExpectedUploads.find(toNodeHandle(parentHandle) + ":" + name);
     return it == mExpectedUploads.end() ? nullptr : it->second.lock();
 }
@@ -480,7 +480,7 @@ shared_ptr<SyncUpload_inClient> SyncThreadsafeState::isNodeAnExpectedUpload(Node
 
 void SyncThreadsafeState::adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes)
 {
-    lock_guard g(mMutex);
+    lock_guard<mutex> g(mMutex);
     TransferCounts& tc = upload ? mUploads : mDownloads;
     tc.queued += adjustQueued;
     tc.completed += adjustCompleted;
