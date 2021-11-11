@@ -14369,18 +14369,23 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
     auto nni = nn.size();
     while (nni--)
     {
-        Node* n;
-        if (nn[nni].type == FILENODE && !nn[nni].added)
-        {
-            if ((n = nodebyhandle(nn[nni].nodehandle)))
-            {
-                mFingerprints.remove(n);
-            }
-        }
+
+// only actionpackets can update node state now
+        //Node* n;
+        //if (nn[nni].type == FILENODE && !nn[nni].added)
+        //{
+        //    if ((n = nodebyhandle(nn[nni].nodehandle)))
+        //    {
+        //        mFingerprints.remove(n);
+        //    }
+        //}
 
         if (auto upload = nn[nni].syncUpload.lock())
         {
+            upload->putnodesResultHandle = NodeHandle().set6byte(nn[nni].mAddedHandle);
             upload->wasPutnodesCompleted = true;
+            //upload->syncThreadSafeState->addCompletedUploadHandle(upload->putnodesResultHandle);
+            //LOG_debug << "Upload+putnodes for sync completed, cloud handle " << upload->putnodesResultHandle.load();
         }
 
         //TODO:

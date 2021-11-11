@@ -452,7 +452,8 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, LocalPath clocalname, bool fromInshare, FileSystemAccess& fsaccess)
+SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, LocalPath clocalname, bool fromInshare,
+        FileSystemAccess& fsaccess, shared_ptr<SyncThreadsafeState> stss)
 {
     h = n.handle;
     *(FileFingerprint*)this = n.fingerprint;
@@ -465,8 +466,8 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, LocalPath clocalname,
     clocalname.appendWithSeparator(tmpfilename, true);
     setLocalname(clocalname);
 
-
-    // todo: localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
+    syncThreadSafeState = move(stss);
+    syncThreadSafeState->adjustTransferCounts(false, 1, 0, size, 0);
 }
 
 SyncDownload_inClient::~SyncDownload_inClient()
@@ -475,6 +476,15 @@ SyncDownload_inClient::~SyncDownload_inClient()
     {
         assert(wasRequesterAbandoned);
         transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
+    }
+
+    if (wasCompleted)
+    {
+        syncThreadSafeState->adjustTransferCounts(false, -1, 1, -size, size);
+    }
+    else
+    {
+        syncThreadSafeState->adjustTransferCounts(false, -1, 0, -size, 0);
     }
 }
 

@@ -82,6 +82,8 @@ struct CloudNode
     bool isIgnoreFile() const;
 };
 
+class SyncThreadsafeState;
+
 struct SyncTransfer_inClient: public File
 {
     // self-destruct after completion
@@ -89,6 +91,7 @@ struct SyncTransfer_inClient: public File
     void terminated();
 
     shared_ptr<SyncTransfer_inClient> selfKeepAlive;
+    shared_ptr<SyncThreadsafeState> syncThreadSafeState;
 
     bool wasTerminated = false;
     bool wasCompleted = false;
@@ -102,7 +105,8 @@ struct SyncDownload_inClient: public SyncTransfer_inClient
     void prepare(FileSystemAccess&);
     bool failed(error, MegaClient*);
 
-    SyncDownload_inClient(CloudNode& n, LocalPath, bool fromInshare, FileSystemAccess& fsaccess);
+    SyncDownload_inClient(CloudNode& n, LocalPath, bool fromInshare,
+            FileSystemAccess& fsaccess, shared_ptr<SyncThreadsafeState> stss);
     ~SyncDownload_inClient();
 };
 
@@ -110,12 +114,19 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
 {
     // This class is part of the client's Transfer system (ie, works in the client's thread)
     // The sync system keeps a shared_ptr to it.  Whichever system finishes with it last actually deletes it
-    SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath, const string& nodeName, const FileFingerprint& ff);
+    SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
+            const string& nodeName, const FileFingerprint& ff, shared_ptr<SyncThreadsafeState> stss,
+            handle fsid, const LocalPath& localname);
     ~SyncUpload_inClient();
 
     void prepare(FileSystemAccess&) override;
 
-    bool wasPutnodesCompleted = false;
+    std::atomic<bool> wasPutnodesCompleted = false;
+    std::atomic<NodeHandle> putnodesResultHandle;
+    std::atomic<bool> renameInProgress = false;
+
+    handle sourceFsid;
+    LocalPath sourceLocalname;
 };
 
 // new node for putnodes()
@@ -545,6 +556,15 @@ struct MEGA_API LocalNode
         // that has reused this node's FSID.
         unsigned fsidSyncedReused : 1;
         unsigned fsidScannedReused : 1;
+
+        // we can't delete a node immediately in case it's involved in a move
+        // that we haven't detected yet.  So we increment this counter
+        // Once it's big enough then we are sure and can delete the LocalNode.
+        unsigned confirmDeleteCount : 2;
+
+        // If we detected+actioned a move, and this is the old node
+        // we can't delete it directly as there may be references on the stack
+        unsigned certainlyOrphaned : 1;
     };
 
     // Fields which are hardly ever used.
@@ -696,7 +716,7 @@ struct MEGA_API LocalNode
     void queueClientUpload(shared_ptr<SyncUpload_inClient> upload);
     void queueClientDownload(shared_ptr<SyncDownload_inClient> upload);
     void resetTransfer(shared_ptr<SyncTransfer_inClient> p);
-    void checkTransferCompleted();
+    void checkTransferCompleted(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     void updateTransferLocalname();
     void transferResetUnlessMatched(direction_t, const FileFingerprint& fingerprint);
     shared_ptr<SyncTransfer_inClient> transferSP;

@@ -456,6 +456,38 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     return true;
 }
 
+void SyncThreadsafeState::addExpectedUpload(NodeHandle parentHandle, const string& name, weak_ptr<SyncUpload_inClient> wp)
+{
+    lock_guard g(mMutex);
+    mExpectedUploads[toNodeHandle(parentHandle) + ":" + name] = wp;
+    LOG_verbose << "Expecting upload " << (toNodeHandle(parentHandle) + ":" + name);
+}
+
+void SyncThreadsafeState::removeExpectedUpload(NodeHandle parentHandle, const string& name)
+{
+    lock_guard g(mMutex);
+    mExpectedUploads.erase(toNodeHandle(parentHandle) + ":" + name);
+    LOG_verbose << "Unexpecting upload " << (toNodeHandle(parentHandle) + ":" + name);
+}
+
+shared_ptr<SyncUpload_inClient> SyncThreadsafeState::isNodeAnExpectedUpload(NodeHandle parentHandle, const string& name)
+{
+    lock_guard g(mMutex);
+    auto it = mExpectedUploads.find(toNodeHandle(parentHandle) + ":" + name);
+    return it == mExpectedUploads.end() ? nullptr : it->second.lock();
+}
+
+
+void SyncThreadsafeState::adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes)
+{
+    lock_guard g(mMutex);
+    TransferCounts& tc = upload ? mUploads : mDownloads;
+    tc.queued += adjustQueued;
+    tc.completed += adjustCompleted;
+    tc.queuedBytes += adjustQueuedBytes;
+    tc.completedBytes += adjustCompletedBytes;
+}
+
 SyncConfig::SyncConfig(LocalPath localPath,
                        std::string name,
                        NodeHandle remoteNode,
@@ -763,6 +795,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 , localroot(nullptr)
 , mUnifiedSync(us)
 , syncscanbt(us.syncs.rng)
+, threadSafeState(new SyncThreadsafeState)
 {
     assert(syncs.onSyncThread());
     assert(cdebris.empty() || clocaldebris.empty());
@@ -1919,15 +1952,40 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             }
             else
             {
-                // eg. cloud parent folder not synced yet (maybe Localnode is created, but not handle matched yet)
-                if (!foundSourceCloudNode) SYNC_verbose << syncname << "Source cloud node doesn't exist yet" << logTriplet(row, fullPath);
-                if (!foundTargetCloudNode) SYNC_verbose << syncname << "Target parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
+                if (!foundSourceCloudNode)
+                {
+                    // eg. upload in progress for this node, and locally renamed in the meantime.
+                    // we can still update the LocalNode, and the uploaded node will be renamed later.
 
-                monitor.waitingLocal(fullPath.localPath, sourceSyncNode->getLocalPath(), fullPath.cloudPath, SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist);
+                    if (!foundSourceCloudNode) SYNC_verbose << syncname << "Adjusting LN for local move/rename before cloud node exists." << logTriplet(row, fullPath);
 
-                row.suppressRecursion = true;
-                rowResult = false;
-                return true;
+                    // remove fsid (and handle) from source node, so we don't detect
+                    // that as a move source anymore
+                    sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
+
+                    assert(sourceSyncNode->fsid_lastSynced == row.fsNode->fsid);
+                    sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, nullptr); // no longer associted with an fs item
+                    sourceSyncNode->sync->statecacheadd(sourceSyncNode);
+
+                    // do not consider this one synced though, or we won't recognize it as a move target when the uploaded node appears
+                    //row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr); // in case of further local moves before upload completes
+                    //statecacheadd(row.syncNode);
+
+                    // we know we have orphaned the sourceSyncNode so it can be removed at the first opportunity, no need to wait
+                    sourceSyncNode->confirmDeleteCount = 2;
+                    sourceSyncNode->certainlyOrphaned = 1;
+                }
+                else
+                {
+                    // eg. cloud parent folder not synced yet (maybe Localnode is created, but not handle matched yet)
+                    if (!foundTargetCloudNode) SYNC_verbose << syncname << "Target parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
+
+                    monitor.waitingLocal(fullPath.localPath, sourceSyncNode->getLocalPath(), fullPath.cloudPath, SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist);
+
+                    row.suppressRecursion = true;
+                    rowResult = false;
+                    return true;
+                }
             }
         }
     }
@@ -5281,6 +5339,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
         for (auto& sequence : sequences)
         {
+            // The main three steps: moves, node itself, recurse
             for (unsigned step = 0; step < 3; ++step)
             {
                 for (auto i = sequence.first; i != sequence.second; ++i)
@@ -5713,6 +5772,22 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
     //auto isIgnoreFile = row.isIgnoreFile();
 
+    unsigned confirmDeleteCount = 0;
+    if (row.syncNode)
+    {
+        // reset the count pre-emptively in case we don't choose SRT_XSX
+        confirmDeleteCount = row.syncNode->confirmDeleteCount;
+        row.syncNode->confirmDeleteCount = 0;
+
+        if (row.syncNode->certainlyOrphaned)
+        {
+            SYNC_verbose << "Removing certainly orphaned LN. " << logTriplet(row, fullPath);
+            delete row.syncNode;
+            row.syncNode = nullptr;
+            if (!row.cloudNode && !row.fsNode) return false;
+        }
+    }
+
     // check for cases in progress that we shouldn't be re-evaluating yet
     if (auto* s = row.syncNode)
     {
@@ -5757,7 +5832,10 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             }
         }
 
-        s->checkTransferCompleted();
+        // as it turns out, this is too early.
+        // we need to wait for resolve_rowMatched to recognise it
+        // otherwise there may be more renames to process first
+        //s->checkTransferCompleted(row, parentRow, fullPath);
 
         // Is the row excluded?
         if (s->exclusionState() == ES_EXCLUDED)
@@ -5779,7 +5857,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 assert(!s->rareRO().moveFromHere);
                 assert(!s->rareRO().moveToHere);
 
-                return resolve_delSyncNode(row, parentRow, fullPath);
+                return resolve_delSyncNode(row, parentRow, fullPath, 100);
             }
         }
     }
@@ -5800,7 +5878,21 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         return false;
     }
 
-    switch (row.type())
+    auto rowType = row.type();
+
+    //if (rowType != SRT_CSF && row.cloudNode &&
+    //    threadSafeState->isNodeHandleFromCompletedUpload(row.cloudNode->handle))
+    //{
+    //    // pretend we didn't see the cloud node which is a result of upload
+    //    // when that node's source may have moved (until we've double checked etc)
+    //    // this covers the case of eg. removing the old LocalNode pre-rename/move
+    //    LOG_debug << "converting type " << rowType << " to ignore uploading-resolving cloud node." << logTriplet(row, fullPath);
+    //    row.cloudNode = nullptr;
+    //    rowType = row.type();
+    //    if (rowType == SRT_XXX) return false;
+    //}
+
+    switch (rowType)
     {
     case SRT_CSF:
     {
@@ -5878,27 +5970,51 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             return resolve_fsNodeGone(row, parentRow, fullPath);
         }
 
-        if (row.syncNode->fsid_lastSynced != UNDEF
-            && !row.syncNode->syncedCloudNodeHandle.isUndef()
-            // for cloud nodes, same handle must be same content
-            && row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle)
+        // where we uploaded this node but the fsNode moved already, consider the cloud side synced.
+        if (row.syncNode->fsid_lastSynced != UNDEF &&
+            row.syncNode->syncedCloudNodeHandle.isUndef() &&
+            syncEqual(*row.cloudNode, *row.syncNode))
         {
-            // used to be fully synced and the cloud side still has that version
-            // remove in the cloud (if not part of a move)
-            return resolve_fsNodeGone(row, parentRow, fullPath);
+            row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+            return false;  // let the next pass determine if it's a move
         }
 
-        // either
-        //  - fs item did not exist before; downsync
-        //  - the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
-        return resolve_downsync(row, parentRow, fullPath, false);
+        if (row.syncNode->fsid_lastSynced == UNDEF)
+        {
+            // fs item did not exist before; downsync
+            return resolve_downsync(row, parentRow, fullPath, false);
+        }
+        else if (//!row.syncNode->syncedCloudNodeHandle.isUndef() &&
+                 row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
+        {
+            // the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
+            return resolve_downsync(row, parentRow, fullPath, false);
+        }
+        else
+        {
+            // It might be a removal; it might be that the local fs item was moved during upload and now the cloud node from the upload has appeared
+            // resolve_fsNodeGone only removes if we know the fs item isn't anywhere else in the sync filesystem subtrees.
+
+            if (row.syncNode->fsid_lastSynced != UNDEF
+                && !row.syncNode->syncedCloudNodeHandle.isUndef()
+                // for cloud nodes, same handle must be same content
+                && row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle)
+            {
+                // used to be fully synced and the cloud side still has that version
+                // remove in the cloud (if not part of a move)
+                return resolve_fsNodeGone(row, parentRow, fullPath);
+            }
+            LOG_debug << "interesting case, does it occur?";
+
+            return false;
+        }
     }
     case SRT_XSX:
     {
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSX);
 
         // local and cloud disappeared; remove sync item also
-        return resolve_delSyncNode(row, parentRow, fullPath);
+        return resolve_delSyncNode(row, parentRow, fullPath, confirmDeleteCount);
     }
     case SRT_CXF:
     {
@@ -6068,6 +6184,12 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 {
     assert(syncs.onSyncThread());
 
+    //if (threadSafeState->isNodeHandleFromCompletedUpload(row.cloudNode->handle))
+    //{
+    //    SYNC_verbose << syncname << "Node is a recent upload, skipping LN match for test: " << fullPath.cloudPath << logTriplet(row, fullPath);
+    //    return false;
+    //}
+
     // these comparisons may need to be adjusted for UTF, escapes
     assert(row.syncNode->fsid_lastSynced != row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
     assert(row.syncNode->fsid_lastSynced == row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
@@ -6103,6 +6225,12 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         if (row.syncNode->type == FILENODE)
         {
             row.syncNode->checkMovesAgain = TREE_RESOLVED;
+        }
+
+        if (row.syncNode->transferSP)
+        {
+            LOG_debug << "Clearing transfer for matched row at " << logTriplet(row, fullPath);
+            row.syncNode->resetTransfer(nullptr);
         }
 
         statecacheadd(row.syncNode);
@@ -6158,7 +6286,10 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
 
     if (considerSynced)
     {
+        // we should be careful about considering synced, eg this might be a node moved from somewhere else
+        SYNC_verbose << "Considering this node synced on fs side already: " << toHandle(row.fsNode->fsid);
         row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
+        row.syncNode->syncedFingerprint  = row.fsNode->fingerprint;
         row.syncNode->treestate(TREESTATE_SYNCED);
     }
     else
@@ -6182,7 +6313,8 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
-    LOG_debug << syncname << "Creating LocalNode from Cloud at: " << fullPath.cloudPath << logTriplet(row, fullPath);
+
+    SYNC_verbose << syncname << "Creating LocalNode from Cloud at: " << fullPath.cloudPath << logTriplet(row, fullPath);
 
     assert(row.syncNode == nullptr);
     row.syncNode = new LocalNode(this);
@@ -6193,6 +6325,23 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
         row.syncNode->syncedFingerprint = row.cloudNode->fingerprint;
     }
     row.syncNode->init(row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
+
+    if (auto uploadPtr = threadSafeState->isNodeAnExpectedUpload(row.cloudNode->parentHandle, row.cloudNode->name))
+    {
+        // If we make a LocalNode for an upload we created ourselves,
+        // it's because the local file is no longer at the matching position
+        // and we need to set it up to be moved correspondingly
+        // Setting the synced fsid without a corresponding FSNode will cause move detection
+
+        SYNC_verbose << syncname << "Node is a recent upload, but source FS file is no longer here: " << fullPath.cloudPath << logTriplet(row, fullPath);
+        row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+        row.syncNode->setSyncedFsid(uploadPtr->sourceFsid, syncs.localnodeBySyncedFsid, uploadPtr->sourceLocalname, nullptr);
+        row.syncNode->syncedFingerprint  = row.cloudNode->fingerprint;
+        row.syncNode->treestate(TREESTATE_PENDING);
+        return false;
+    }
+
+
     if (considerSynced)
     {
         row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
@@ -6212,7 +6361,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
     return false;
 }
 
-bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
@@ -6230,6 +6379,26 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     {
         SYNC_verbose << syncname << "Not deleting still-moving/renaming source node yet." << logTriplet(row, fullPath);
         monitor.waitingCloud(fullPath.cloudPath, "", fullPath.localPath, SyncWaitReason::MoveNeedsDestinationNodeProcessing);
+        return false;
+    }
+
+    // We need to be sure we really can delete this node.
+    // The risk is that it may actually be part of a move
+    // and the other end of the move
+    // (ie a new LocalNode with matching fsid/nodehandle)
+    // is only appearing in this traversal of the tree.
+    // It may have appeared but hasn't been evaluated for moves.
+    // We may not even have processed that new node/path yet.
+    // To work around this, we don't delete on the first go
+    // instead, we start a counter.  If we decide that yes
+    // this node should be deleted on two consecutive passes
+    // then its ok, we've confirmed it really isn't part of a move.
+
+
+    if (deleteCounter < 1)
+    {
+        SYNC_verbose << "This LocalNode is a candidate for deletion, we'll confirm on the next pass." << logTriplet(row, fullPath);
+        row.syncNode->confirmDeleteCount = deleteCounter + 1;
         return false;
     }
 
@@ -6272,6 +6441,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         parentRow.syncNode->clearFilters();
     }
 
+    SYNC_verbose << "Deleting LocalNode " << row.syncNode->syncedCloudNodeHandle << " " << toHandle(row.syncNode->fsid_lastSynced) << logTriplet(row, fullPath);
     // deletes itself and subtree, queues db record removal
     delete row.syncNode;
     row.syncNode = nullptr;
@@ -6346,7 +6516,13 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 // if we were already matched with a name that is not exactly the same as toName(), keep using it
                 string nodeName = row.cloudNode ? row.cloudNode->name : row.fsNode->localname.toName(*syncs.fsaccess);
 
-                row.syncNode->queueClientUpload(std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle, fullPath.localPath, nodeName, row.fsNode->fingerprint));
+                auto upload = std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle,
+                    fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
+                    row.fsNode->fsid, row.fsNode->localname);
+
+                threadSafeState->addExpectedUpload(parentRow.cloudNode->handle, nodeName, upload);
+
+                row.syncNode->queueClientUpload(upload);
 
                 LOG_debug << syncname << "Sync - sending file " << fullPath.localPath_utf8();
 
@@ -6368,6 +6544,14 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
 // todo: also update Upload's localname in case of moves
 
+                // Set the fs-side synced id.
+                // Once the upload completes, potentially the local fs item may have moved.
+                // If that's the case, having this synced fsid set lets us track the local move
+                // and move the uploadPtr from the old LN to the new one.
+                SYNC_verbose << syncname << "Considering this file synced on the fs side: " << toHandle(row.fsNode->fsid) << logTriplet(row, fullPath);
+                row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
+                row.syncNode->syncedFingerprint  = row.fsNode->fingerprint;
+                statecacheadd(row.syncNode);
             }
             else
             {
@@ -6506,7 +6690,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
         {
             if (!row.syncNode->transferSP)
             {
-                LOG_debug << syncname << "Sync - remote file addition detected: " << fullPath.cloudPath;
+                LOG_debug << syncname << "Sync - remote file addition detected: " << row.cloudNode->handle << " " << fullPath.cloudPath;
 
                 // FIXME: to cover renames that occur during the
                 // download, reconstruct localname in complete()
@@ -6516,7 +6700,8 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 createDebrisTmpLockOnce();
 
                 // download to tmpfaPath (folder debris/tmp). We will rename/mv it to correct location (updated if necessary) after that completes
-                row.syncNode->queueClientDownload(std::make_shared<SyncDownload_inClient>(*row.cloudNode, tmpfaPath, inshare, *syncs.fsaccess));
+                row.syncNode->queueClientDownload(std::make_shared<SyncDownload_inClient>(*row.cloudNode,
+                        tmpfaPath, inshare, *syncs.fsaccess, threadSafeState));
 
                 row.syncNode->treestate(TREESTATE_SYNCING);
                 parentRow.syncNode->treestate(TREESTATE_SYNCING);
@@ -6605,7 +6790,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
             monitor.waitingCloud(fullPath.cloudPath, "", fullPath.localPath, SyncWaitReason::DownsyncNeedsTargetFolder);
         }
     }
-    else
+    else // FOLDERNODE
     {
         assert(!alreadyExists); // if it did we would have matched it
 
@@ -6731,6 +6916,8 @@ bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
         row.syncNode->syncedFingerprint = fs;
     }
+
+    // todo: is the below right?  if we set it synced, we won't upload/download?
 
     // Consider us previously synced.
     row.syncNode->setSyncedFsid(row.fsNode->fsid,
