@@ -276,7 +276,6 @@ public:
     bool isNodesOnDemandReady();
     // Returns first ancestor available in cache
     NodeHandle getFirstAncestor(NodeHandle node);
-    bool isNodeInDB(NodeHandle node);
     bool isAncestor(NodeHandle node, NodeHandle ancestor);
     bool isFileNode(NodeHandle node);
 

@@ -740,11 +740,7 @@ bool Node::applykey()
 
     if (applied)
     {
-        // If node in DB update if not we can wait until it will save in DB
-        if (client->mNodeManager.isNodeInDB(nodeHandle()))
-        {
-            client->mNodeManager.updateNode(this);  // DB
-        }
+        client->mNodeManager.updateNode(this);
     }
 
     return applied;

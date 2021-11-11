@@ -499,10 +499,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n, bool updateDb)
 #endif
     }
 
-    if (mNodeManager.isNodeInDB(originalNode->nodeHandle()) && updateDb)
-    {
         mNodeManager.updateNode(originalNode);
-    }
 }
 
 
@@ -17325,17 +17322,6 @@ NodeHandle NodeManager::getFirstAncestor(NodeHandle node)
     }
 
     return mTable->getFirstAncestor(node);
-}
-
-bool NodeManager::isNodeInDB(NodeHandle node)
-{
-    if (!mTable)
-    {
-        assert(false);
-        return false;
-    }
-
-    return mTable->isNodeInDB(node);
 }
 
 bool NodeManager::isAncestor(NodeHandle node, NodeHandle ancestor)
