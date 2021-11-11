@@ -17556,8 +17556,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
             break;
         }
 
-        // Recovering nodes from DB, 'updateDb' is false. Nodes are updated and it isn't necessary to update in Db
-        mClient.mergenewshare(newShare, false, n, false);
         if (numshares > 0)  // outshare/s
         {
             numshares--;
