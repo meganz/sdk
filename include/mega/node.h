@@ -121,9 +121,9 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
 
     void prepare(FileSystemAccess&) override;
 
-    std::atomic<bool> wasPutnodesCompleted = false;
+    std::atomic<bool> wasPutnodesCompleted{false};;
     std::atomic<NodeHandle> putnodesResultHandle;
-    std::atomic<bool> renameInProgress = false;
+    std::atomic<bool> renameInProgress{false};;
 
     handle sourceFsid;
     LocalPath sourceLocalname;
