@@ -177,7 +177,7 @@ void MegaClient::mergenewshares(bool notify)
     }
 }
 
-void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n, bool updateDb)
+void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
 {
     bool skreceived = false;
 
