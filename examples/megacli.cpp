@@ -3937,7 +3937,7 @@ void exec_cp(autocomplete::ACState& s)
                 }
             }
 
-            if (!client->versions_disabled && tn && n->type == FILENODE)
+            if (tn && n->type == FILENODE)
             {
                 Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
                 if (ovn)
@@ -7599,7 +7599,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                     }
                 }
 
-                newnode->ovhandle = !client->versions_disabled ? ovn->nodehandle : UNDEF;
+                newnode->ovhandle = ovn->nodehandle;
             }
         }
 

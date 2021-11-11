@@ -14779,10 +14779,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
                 return;
             }
 
-            if (!client->versions_disabled)
-            {
-                ovhandle = ovn->nodehandle;
-            }
+            ovhandle = ovn->nodehandle;
         }
 
         vector<NewNode> newnodes(1);
@@ -18224,7 +18221,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             attrs.map['n'] = sname;
                             attrs.getjson(&attrstring);
                             client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                            if (tc.nn[0].type == FILENODE && !client->versions_disabled)
+                            if (tc.nn[0].type == FILENODE)
                             {
                                 tc.nn[0].ovhandle = client->getovhandle(parent, &sname);
                             }
@@ -19040,10 +19037,7 @@ void MegaApiImpl::sendPendingRequests()
                                 break;  // request finishes now if error, otherwise on unlink_result
                             }
 
-                            if (!client->versions_disabled)
-                            {
-                                ovhandle = ovn->nodehandle;
-                            }
+                            ovhandle = ovn->nodehandle;
                         }
                     }
                 }
@@ -19185,10 +19179,7 @@ void MegaApiImpl::sendPendingRequests()
                             delete fp;
                         }
 
-                        if (!client->versions_disabled)
-                        {
-                            ovhandle = ovn->nodehandle;
-                        }
+                        ovhandle = ovn->nodehandle;
                     }
                 }
 
@@ -19260,10 +19251,7 @@ void MegaApiImpl::sendPendingRequests()
                             break;
                         }
 
-                        if (!client->versions_disabled)
-                        {
-                            ovhandle = ovn->nodehandle;
-                        }
+                        ovhandle = ovn->nodehandle;
                     }
                 }
 

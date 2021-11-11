@@ -1033,7 +1033,7 @@ bool MegaClient::warnlevel()
 // Preserve previous version attrs that should be kept
 void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 {
-    if (previousNode && versions_disabled)
+    if (previousNode)
     {
         nameid favnid = AttrMap::string2nameid("fav");
         auto it = previousNode->attrs.map.find(favnid);
@@ -7909,11 +7909,9 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     SymmCipher::xorblock((const byte*)newnode->nodekey.data() + SymmCipher::KEYLENGTH, (byte*)newnode->nodekey.data());
 
     // adjust previous version node
-    if (!versions_disabled)
-    {
-        string name(utf8Name);
-        newnode->ovhandle = getovhandle(parentNode, &name);
-    }
+    string name(utf8Name);
+    newnode->ovhandle = getovhandle(parentNode, &name);
+
     return e;
 }
 
