@@ -16904,7 +16904,11 @@ bool NodeManager::updateNode(Node *node)
         return false;
     }
 
-    mTable->put(node);
+    if (mTable->isNodeInDB(node->nodeHandle()))
+    {
+        mTable->put(node);
+    }
+
     return true;
 }
 
