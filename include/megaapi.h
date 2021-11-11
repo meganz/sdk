@@ -19161,6 +19161,13 @@ public:
      * @return Subscription method. For example "Credit Card".
      */
     virtual char* getSubscriptionMethod();
+    
+    /**
+     * @brief Get the subscription method id
+     *
+     * @return Subscription method. For example 16.
+     */
+    virtual int getSubscriptionMethodId();
 
     /**
      * @brief Get the subscription cycle

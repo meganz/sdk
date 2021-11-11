@@ -117,6 +117,12 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 @property (readonly, nonatomic) NSString *subscriptionMethod;
 
 /**
+ * @brief The subscription method. For example 16.
+ *
+ */
+@property (readonly, nonatomic) NSInteger subscriptionMethodId;
+
+/**
  * @brief The subscription cycle
  *
  * This value will show if the subscription will be montly or yearly renewed.
