@@ -16992,7 +16992,10 @@ node_list NodeManager::getChildren(Node *parent)
             n = nodeIt->second;
         }
 
-        childrenList.push_back(n);
+        if (n->parenthandle == parent->nodehandle)
+        {
+            childrenList.push_back(n);
+        }
     }
 
     return childrenList;
