@@ -16858,12 +16858,8 @@ void NodeManager::init(DBTableNodes *table)
 void NodeManager::reset()
 {
     init(nullptr);
-    for (auto node : mNodes)
-    {
-        delete node.second;
-    }
 
-    mNodes.clear();
+    cleanNodes();
 }
 
 bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
