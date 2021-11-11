@@ -193,6 +193,9 @@ public:
 
     SyncError knownError() const;
 
+    // True if this sync is operating in scan-only mode.
+    bool isScanOnly() const;
+
 private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
     SyncError mKnownError = NO_SYNC_ERROR;
@@ -954,7 +957,7 @@ public:
     bool updateSyncRemoteLocation(UnifiedSync&, bool exists, string cloudPath);
     
     // Trigger a full scan on the specified sync.
-    std::future<void> triggerScan(handle id);
+    std::future<bool> triggerFullScan(handle backupID);
 
     // mark nodes as needing to be checked for sync actions
     void triggerSync(NodeHandle, bool recurse = false);

@@ -790,6 +790,11 @@ SyncError SyncConfig::knownError() const
     return mKnownError;
 }
 
+bool SyncConfig::isScanOnly() const
+{
+    return mChangeDetectionMethod == CDM_PERIODIC_SCANNING;
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const string& cdebris,
@@ -7470,25 +7475,32 @@ bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
             fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
 }
 
-std::future<void> Syncs::triggerScan(handle id)
+std::future<bool> Syncs::triggerFullScan(handle backupID)
 {
     assert(!onSyncThread());
 
-    auto notifier = std::make_shared<std::promise<void>>();
+    auto notifier = std::make_shared<std::promise<bool>>();
     auto result = notifier->get_future();
 
-    queueSync([id, notifier, this]() {
+    queueSync([backupID, notifier, this]() {
         lock_guard<mutex> guard(mSyncVecMutex);
 
         for (auto& us : mSyncVec)
         {
             auto* s = us->mSync.get();
 
-            if (s && us->mConfig.mBackupId == id)
+            if (!s || us->mConfig.mBackupId != backupID)
+                continue;
+
+            if (us->mConfig.isScanOnly())
                 s->localroot->setScanAgain(false, true, true, 0);
+
+            notifier->set_value(true);
+
+            return;
         }
 
-        notifier->set_value();
+        notifier->set_value(false);
     });
 
     return result;
