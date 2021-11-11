@@ -763,22 +763,8 @@ bool Node::setparent(Node* p)
         return false;
     }
 
-    NodeCounter nc;
-    bool gotnc = false;
-
-    if (parent)
-    {
-        const Node *originalancestor = firstancestor();
-        NodeHandle oah = originalancestor->nodeHandle();
-        if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
-        {
-            nc = subnodeCounts();
-            gotnc = true;
-
-            // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
-            client->mNodeCounters[oah] -= nc;
-        }
-    }
+    const Node* originalancestor = parent ? firstancestor() : nullptr;
+    const NodeHandle& oah = originalancestor ? originalancestor->nodeHandle() : NodeHandle();
 
 #ifdef ENABLE_SYNC
     Node *oldparent = parent;
@@ -791,16 +777,8 @@ bool Node::setparent(Node* p)
     NodeHandle nah;
     nah.set6byte(newancestor->nodehandle);
 
-    if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
-    {
-        if (!gotnc)
-        {
-            nc = subnodeCounts();
-        }
-
-        client->mNodeCounters[nah] += nc;
-    }
-
+    client->mNodeManager.movedSubtreeToNewRoot(nodeHandle(), oah, originalancestor ? originalancestor->inshare : nullptr,
+                                                             nah, newancestor->inshare);
 
 #ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers

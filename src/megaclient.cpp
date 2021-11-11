@@ -433,7 +433,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n, bool updateDb)
                             n->inshare->user->sharing.insert(n->nodehandle);
                             NodeHandle nodeHandle;
                             nodeHandle.set6byte(n->nodehandle);
-                            mNodeCounters[nodeHandle] = n->subnodeCounts();
+                            mNodeManager.updateCounter(nodeHandle);
                         }
 
                         if (notify)
@@ -1251,7 +1251,6 @@ void MegaClient::init()
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
-    mNodeCounters = NodeCounterMap();
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
@@ -3231,14 +3230,7 @@ void MegaClient::exec()
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 
 
-    NodeCounter storagesum;
-    for (auto& nc : mNodeCounters)
-    {
-        if (nc.first == rootnodes[0] || nc.first == rootnodes[1] || nc.first == rootnodes[2])
-        {
-            storagesum += nc.second;
-        }
-    }
+    NodeCounter storagesum = mNodeManager.getCounterOfRootNodes();
     if (mNotifiedSumSize != storagesum.storage)
     {
         mNotifiedSumSize = storagesum.storage;
@@ -7387,14 +7379,7 @@ void MegaClient::notifypurge(void)
                     notifyuser(n->inshare->user);
                 }
 
-                NodeHandle firstValidAntecestor = mNodeManager.getFirstAncestor(n->nodeHandle());
-                assert(firstValidAntecestor != UNDEF);
-                if (firstValidAntecestor == rootnodes[0] ||
-                    firstValidAntecestor == rootnodes[1] ||
-                    firstValidAntecestor == rootnodes[2])
-                {
-                    mNodeCounters[firstValidAntecestor] -= mNodeManager.getNodeCounter(n->nodeHandle(), n->type == FILENODE);
-                }
+                mNodeManager.subtractFromRootCounter(*n);
             }
             else
             {
@@ -12118,9 +12103,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
         //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
         // TODO nodes on demand Check ROOTNODE - ROOTNODE set to 0 or define an enum
         NodeHandle rootHandle = rootnodes[ROOTNODE - ROOTNODE];
-        mNodeCounters[rootHandle] = mNodeManager.getNodeCounter(rootHandle);
+        mNodeManager.updateCounter(rootHandle);
         NodeHandle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
-        mNodeCounters[rubbishHandle] = mNodeManager.getNodeCounter(rubbishHandle);
+        mNodeManager.updateCounter(rubbishHandle);
 #endif
 
     }
@@ -13340,7 +13325,6 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 
     // TODO Nodes on demand check if mFingerprints is required
     //mFingerprints.clear();
-    mNodeCounters.clear();
     mNodeManager.cleanNodes();
 
 #ifdef ENABLE_SYNC
@@ -16500,12 +16484,7 @@ int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
 
 NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle)
 {
-    if (nodehandle == rootnodes[ROOTNODE - ROOTNODE] || nodehandle == rootnodes[RUBBISHNODE - ROOTNODE] || nodehandle == rootnodes[INCOMINGNODE - ROOTNODE])
-    {
-        return mNodeCounters[nodehandle];
-    }
-
-    return mNodeManager.getNodeCounter(nodehandle);
+    return mNodeManager.getCounterForSubtree(nodehandle);
 }
 
 bool MegaClient::loggedIntoFolder() const
@@ -17399,6 +17378,8 @@ void NodeManager::cleanNodes()
     mNodes.clear();
     if (mTable)
         mTable->removeNodes();
+
+    mNodeCounters.clear();
 }
 
 // parse serialized node and return Node object - updates nodes hash and parent
@@ -17798,22 +17779,93 @@ void NodeManager::saveNodeInDataBase(Node *node)
     {
         if (node->type == FILENODE)
         {
-            mClient.mNodeCounters[firstValidAncestor].files++;
-            mClient.mNodeCounters[firstValidAncestor].storage += node->size;
+            mNodeCounters[firstValidAncestor].files++;
+            mNodeCounters[firstValidAncestor].storage += node->size;
         }
         else if (node->type == FOLDERNODE)
         {
-            mClient.mNodeCounters[firstValidAncestor].folders++;
+            mNodeCounters[firstValidAncestor].folders++;
         }
 
-        auto it = mClient.mNodeCounters.find(node->nodeHandle());
-        if (it != mClient.mNodeCounters.end())
+        auto it = mNodeCounters.find(node->nodeHandle());
+        if (it != mNodeCounters.end())
         {
-            mClient.mNodeCounters[firstValidAncestor].files += it->second.files;
-            mClient.mNodeCounters[firstValidAncestor].storage += it->second.storage;
-            mClient.mNodeCounters[firstValidAncestor].folders += it->second.folders;
-            mClient.mNodeCounters.erase(it);
+            mNodeCounters[firstValidAncestor].files += it->second.files;
+            mNodeCounters[firstValidAncestor].storage += it->second.storage;
+            mNodeCounters[firstValidAncestor].folders += it->second.folders;
+            mNodeCounters.erase(it);
         }
+    }
+}
+
+const NodeCounter* NodeManager::getCounter(const NodeHandle& h) const
+{
+    auto it = mNodeCounters.find(h);
+    return it == mNodeCounters.end() ? nullptr : &(it->second);
+}
+
+const NodeHandle& NodeManager::rootnode(int idx) const
+{
+    // This should be replaced with something better
+    return mClient.rootnodes[idx];
+}
+
+NodeCounter NodeManager::getCounterOfRootNodes()
+{
+    NodeHandle h = rootnode(0);
+    NodeCounter c = mNodeCounters[h];
+    h = rootnode(1);
+    c += mNodeCounters[h];
+    h = rootnode(2);
+    c += mNodeCounters[h];
+
+    return c;
+}
+
+void NodeManager::updateCounter(const NodeHandle& h)
+{
+    mNodeCounters[h] = getNodeCounter(h);
+}
+
+void NodeManager::subtractFromRootCounter(const Node& n)
+{
+    NodeHandle firstValidAntecestor = getFirstAncestor(n.nodeHandle());
+    assert(firstValidAntecestor != UNDEF);
+    if (firstValidAntecestor == rootnode(0) ||
+        firstValidAntecestor == rootnode(1) ||
+        firstValidAntecestor == rootnode(2))
+    {
+        mNodeCounters[firstValidAntecestor] -= getNodeCounter(n.nodeHandle(), n.type == FILENODE);
+    }
+}
+
+NodeCounter NodeManager::getCounterForSubtree(const NodeHandle& h)
+{
+    if (h == rootnode(0) || h == rootnode(1) || h == rootnode(2))
+    {
+        return mNodeCounters[h];
+    }
+
+    return getNodeCounter(h);
+}
+
+void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, bool oldInShare,
+                                                             const NodeHandle& newRoot, bool newInShare)
+{
+    bool subTreeCalculated = false;
+    NodeCounter nc;
+
+    if (!oldRoot.isUndef() && (oldRoot == rootnode(0) || oldRoot == rootnode(1) || oldRoot == rootnode(2) || oldInShare))
+    {
+        // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
+        nc = getCounterForSubtree(h);
+        mNodeCounters[oldRoot] -= nc;
+        subTreeCalculated = true;
+    }
+
+    if (newRoot == rootnode(0) || newRoot == rootnode(1) || newRoot == rootnode(2) || newInShare)
+    {
+        mNodeCounters[newRoot] += subTreeCalculated ? nc : getCounterForSubtree(h);
     }
 }
 

@@ -298,6 +298,14 @@ public:
     // TODO nodes on demand remove
     MegaClient& getMegaClient();
 
+    const NodeCounter* getCounter(const NodeHandle& h) const;
+    NodeCounter getCounterForSubtree(const NodeHandle& h);
+    NodeCounter getCounterOfRootNodes(); // return sum of counters from all root nodes
+    void updateCounter(const NodeHandle& h); // calculate for given node
+    void subtractFromRootCounter(const Node& n);
+    void movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, bool oldInShare,
+                                                    const NodeHandle& newRoot, bool newInShare);
+
 private:
     // TODO Nodes on demand remove reference
     MegaClient& mClient;
@@ -308,6 +316,9 @@ private:
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     node_map mNodes;
 
+    // keep track of user storage, inshare storage, file/folder counts per root node.
+    NodeCounterMap mNodeCounters;
+
     bool mKeepAllNodeInMemory = false;
     std::set<Node*> mPendingConfirmNodes;
     std::map<NodeHandle, node_set> mNodesWithMissingParent;  // Parent
@@ -315,6 +326,7 @@ private:
     Node* getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(Node* node, bool notify);
     void saveNodeInDataBase(Node* node);
+    const NodeHandle& rootnode(int idx) const;
 };
 
 class MEGA_API MegaClient
@@ -326,9 +338,6 @@ public:
 
     // root nodes (files, incoming, rubbish)
     NodeHandle rootnodes[3];
-
-    // keep track of user storage, inshare storage, file/folder counts per root node.
-    NodeCounterMap mNodeCounters;
 
     // all users
     user_map users;

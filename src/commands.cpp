@@ -4728,12 +4728,12 @@ bool CommandGetUserQuota::procresult(Result r)
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        auto iter = client->mNodeCounters.find(NodeHandle().set6byte(h));
-                        if (iter != client->mNodeCounters.end())
+                        const NodeCounter* counter = client->mNodeManager.getCounter(NodeHandle().set6byte(h));
+                        if (counter)
                         {
-                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
-                                      << iter->second.versionStorage << " " << ns->version_bytes << " " << iter->second.versions << " " << ns->version_files
-                                      << (iter->second.storage == ns->bytes && iter->second.files == ns->files && iter->second.folders == ns->folders && iter->second.versionStorage == ns->version_bytes && iter->second.versions == ns->version_files
+                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << counter->storage << " " << ns->bytes << " " << counter->files << " " << ns->files << " " << counter->folders << " " << ns->folders << " "
+                                      << counter->versionStorage << " " << ns->version_bytes << " " << counter->versions << " " << ns->version_files
+                                      << (counter->storage == ns->bytes && counter->files == ns->files && counter->folders == ns->folders && counter->versionStorage == ns->version_bytes && counter->versions == ns->version_files
                                           ? "" : " ******************************************* mismatch *******************************************");
                         }
 #endif
