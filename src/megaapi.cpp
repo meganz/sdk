@@ -3457,9 +3457,9 @@ bool MegaApi::conflictsDetected(const char** parentName,
     return pImpl->conflictsDetected(parentName, parentPath, names, remote);
 }
 
-size_t MegaApi::getSyncConflicts(MegaStringList** conflicts)
+size_t MegaApi::getSyncStalls(MegaStringList** syncStallList)
 {
-    return pImpl->getSyncConflicts(conflicts);
+    return pImpl->getSyncStalls(syncStallList);
 }
 
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
@@ -6005,6 +6005,20 @@ void MegaSyncList::addSync(MegaSync *sync)
 {
 
 }
+
+MegaSyncStall::MegaSyncStall(){}
+MegaSyncStall::~MegaSyncStall(){}
+const char* MegaSyncStall::indexPath()  const { return ""; }
+const char* MegaSyncStall::localPath()  const { return ""; }
+const char* MegaSyncStall::cloudPath()  const { return ""; }
+MegaSyncStall::SyncStallReason MegaSyncStall::reason() const { return MegaSyncStall::SyncStallReason::Unknown; }
+bool MegaSyncStall::isCloud() const { return false; }
+bool MegaSyncStall::isImmediate() const { return false; }
+
+MegaSyncStallList::MegaSyncStallList(){}
+MegaSyncStallList::~MegaSyncStallList(){}
+size_t MegaSyncStallList::size() const { return 0; }
+MegaSyncStall* MegaSyncStallList::get(size_t i) const { return nullptr; }
 
 #endif
 

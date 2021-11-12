@@ -1304,6 +1304,64 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
     return false;
 }
 
+MegaSyncStallImpl::MegaSyncStallImpl(
+    const string indexPath,
+    const string localPath,
+    const string cloudPath,
+    MegaSyncStall::SyncStallReason reason,
+    bool isCloud,
+    bool isImmediate)
+:mIndexPath(indexPath)
+,mLocalPath(localPath)
+,mCloudPath(cloudPath)
+,mReason(reason)
+,mIsCloud(isCloud)
+,mIsImmediate(isImmediate) {}
+
+MegaSyncStall* MegaSyncStallListImpl::get(size_t i) const {
+    if( i >= stalls.size()){
+        return nullptr;
+    }
+    return new MegaSyncStallImpl(stalls[i]);
+}
+
+void MegaSyncStallListImpl::addCloudStalls(const SyncStallInfo& syncStalls){
+    std::cout << "void MegaSyncStallListImpl::addCloudStalls(const SyncStallInfo& syncStalls)\n";
+    const bool itIsCloud = true;
+    const bool itIsInmmediate = false; // @TODO: Change this
+    for(auto& stall : syncStalls.cloud) {
+        stalls.emplace_back(
+            stall.first,
+            stall.second.involvedLocalPath.toPath(),
+            stall.second.involvedCloudPath,
+            MegaSyncStall::SyncStallReason::Unknown, // @TODO: Change this
+            itIsCloud,
+            itIsInmmediate
+        );
+    }
+}
+
+void MegaSyncStallListImpl::addLocalStalls(const SyncStallInfo& syncStalls){
+    std::cout << "void MegaSyncStallListImpl::addLocalStalls(const SyncStallInfo& syncStalls)\n";
+    const bool itIsCloud = false;
+    const bool itIsInmmediate = false; // @TODO: Change this
+    for(auto& stall : syncStalls.local) {
+        stalls.emplace_back(
+            stall.first.toPath(),
+            stall.second.involvedLocalPath.toPath(),
+            stall.second.involvedCloudPath,
+            MegaSyncStall::SyncStallReason::Unknown, // @TODO: Change this
+            itIsCloud,
+            itIsInmmediate
+        );
+    }
+}
+
+MegaSyncStallListImpl::MegaSyncStallListImpl(const SyncStallInfo& stalls){
+    addLocalStalls(stalls);
+    addCloudStalls(stalls);
+}
+
 /**
  * A simple output of stall reason to begin with
  */
@@ -1314,34 +1372,34 @@ std::ostream& operator<<(std::ostream& os, const StallInfo_t& si) {
     return os;
 }
 
-
-size_t MegaApiImpl::getSyncConflicts(MegaStringList** conflicts) {
+size_t MegaApiImpl::getSyncStalls(MegaStringList** conflicts) {
     assert(conflicts);
-
-    SyncStallInfo syncStallInfo;
+    auto stallInfo = make_unique<SyncStallInfo>();
     {
         SdkMutexGuard guard(sdkMutex); // exclusive access to SDK
-        client->syncs.syncStallDetected(syncStallInfo);
+        client->syncs.syncStallDetected(*stallInfo);
     }
-    return getSyncConflicts(syncStallInfo, conflicts);
+    return getSyncStalls(move(stallInfo), conflicts);
 }
 
-// Testable
-size_t MegaApiImpl::getSyncConflicts(SyncStallInfo const& syncStallInfo, MegaStringList** conflicts) {
-    if (!syncStallInfo.hasImmediateStallReason()) {
+// Testable interface
+size_t MegaApiImpl::getSyncStalls(std::unique_ptr<SyncStallInfo> syncStallInfo,
+        MegaStringList** conflicts) {
+
+    if (!syncStallInfo->hasImmediateStallReason()) {
         *conflicts = nullptr;
         return 0; // No user acction required
     }
 
     string_vector strVec;
-    for(auto& conflict : syncStallInfo.cloud) {
+    for(auto& conflict : syncStallInfo->cloud) {
         std::stringstream buffer;
         auto& info = conflict.second; // stall information
-        buffer << "Could: " << conflict.first << " " << info;
+        buffer << "Cloud: " << conflict.first << " " << info;
         strVec.push_back( buffer.str());
     }
 
-    for(auto& conflict : syncStallInfo.local) {
+    for(auto& conflict : syncStallInfo->local) {
         std::stringstream buffer;
         auto& info = conflict.second; // stall information
         buffer << "Local: " << conflict.first.toPath() << " " << info;
@@ -33694,5 +33752,6 @@ const vector<handle>& FavouriteProcessor::getHandles() const
 {
     return handles;
 }
+
 
 }

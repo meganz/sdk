@@ -83,6 +83,8 @@ class MegaPushNotificationSettings;
 class MegaBackgroundMediaUpload;
 class MegaCancelToken;
 class MegaApi;
+class MegaSyncStall;
+class MegaSyncStallList;
 
 class MegaSemaphore;
 
@@ -5457,7 +5459,60 @@ class MegaSyncList
         virtual void addSync(MegaSync* sync);
 };
 
+/**
+ * @brief A synchronization conflict that requires user intervension to be solved
+ *
+ * @TODO: Document interface
+ */
+class MegaSyncStall {
+    public:
+        MegaSyncStall();
+        virtual ~MegaSyncStall();
+        virtual const char* indexPath()  const;
+        virtual const char* localPath()  const;
+        virtual const char* cloudPath()  const;
 
+        /**
+         * @brief Why a conflict. The end user should take some action.
+         *
+         * To be interpreted in the context of a MegaSyncStall (a.k.a. stall)
+         */
+        enum class SyncStallReason {
+            Unknown = 0,
+            LocalFolderNotScannable,
+            SymlinksNotSupported,
+            FolderMatchedAgainstFile,
+            UnableToLoadIgnoreFile,
+            LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+        };
+
+        /**
+         * @brief Reason for the sync stall
+         */
+        virtual SyncStallReason reason() const;
+
+        /**
+         * @brief Where the conflict was detected
+         */
+        virtual bool isCloud() const;
+
+        virtual bool isImmediate() const;
+};
+
+/**
+ * @brief A list of synchronization conflicts @see MegaSyncStall
+ *
+ * @TODO: Document interface
+ */
+class MegaSyncStallList
+{
+    public:
+        //static MegaSyncStalls * createInstance();
+        MegaSyncStallList();
+        virtual ~MegaSyncStallList();
+        virtual MegaSyncStall* get(size_t i) const;
+        virtual size_t size() const;
+};
 
 #endif // MEGA_SYNC
 
@@ -14150,7 +14205,7 @@ class MegaApi
                                bool* remote);
 
         /**
-         * @brief Retrieves information involving any Local <-> Cloud synchronization conflict
+         * @brief Retrieves information involving any Local <-> Cloud synchronization stall conflict
          * These conflicts requires user intervention to be solved.
          *
          * For example: While the synchronization was disabled
@@ -14158,10 +14213,10 @@ class MegaApi
          * folder E was moved inside folder C. (E->C) in the cloud
          * When the synchronization is re-enabled there could be interpreted as a conflict
          *
-         * @param conflicts MegaStringList of conflict descriptions
+         * @param syncStallList MegaStringList of sync stall description
          * @return number of conflicts reported.
          */
-        size_t getSyncConflicts(MegaStringList** conflicts);
+        size_t getSyncStalls(MegaStringList** syncStallList);
 
 #endif // ENABLE_SYNC
 
