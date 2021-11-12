@@ -1263,8 +1263,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , mCachedStatus(this)
     , mNodeManager(*this)
 {
-    sctable.reset();
     mNodeManager.reset();
+    sctable.reset();
     pendingsccommit = false;
     tctable = NULL;
     statusTable = nullptr;
@@ -4344,8 +4344,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
         removeCaches(keepSyncsConfigFile);
     }
 
-    sctable.reset();
     mNodeManager.reset();
+    sctable.reset();
     pendingsccommit = false;
 
     statusTable.reset();
@@ -4500,9 +4500,9 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
 {
     if (sctable)
     {
+        mNodeManager.reset();
         sctable->remove();
         sctable.reset();
-        mNodeManager.reset();
         pendingsccommit = false;
     }
 
@@ -5268,12 +5268,11 @@ void MegaClient::finalizesc(bool complete)
     }
     else
     {
-        sctable->remove();
-
         LOG_err << "Cache update DB write error - disabling caching";
 
-        sctable.reset();
         mNodeManager.reset();   // may need to still keep nodes in RAM, but it won't work if not all nodes are loaded, anyway
+        sctable->remove();
+        sctable.reset();
         pendingsccommit = false;
     }
 }
@@ -9452,13 +9451,6 @@ void MegaClient::checkForResumeableSCDatabase()
     {
         cachedscsn = MemAccess::get<handle>(t.data());
     }
-
-    if (sctable)
-    {
-        DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
-        assert(nodeTable);
-        mNodeManager.init(nodeTable);
-    }
 }
 
 error MegaClient::folderaccess(const char *folderlink, const char * authKey)
@@ -9819,7 +9811,11 @@ void MegaClient::opensctable()
 
             if (sctable)
             {
-                // sctable always has a transaction started.
+                DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
+                assert(nodeTable);
+                mNodeManager.init(nodeTable);
+
+                // DB connection always has a transaction started (applies to both tables, statecache and nodes)
                 // We only commit once we have an up to date SCSN and the table state matches it.
                 sctable->begin();
                 assert(sctable->inTransaction());
@@ -12453,13 +12449,6 @@ void MegaClient::fetchnodes(bool nocache)
     if (sctable && cachedscsn == UNDEF)
     {
         sctable->truncate();
-    }
-
-    if (sctable)
-    {
-        DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
-        assert(nodeTable);
-        mNodeManager.init(nodeTable);
     }
 
     // only initial load from local cache
