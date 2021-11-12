@@ -17668,10 +17668,7 @@ void NodeManager::confirmNode(Node *node)
         auto nodeIt = mPendingConfirmNodes.find(node);
         if (nodeIt != mPendingConfirmNodes.end())
         {
-            // TODO Nodes on demand uncoment and review
-            //assert(mNodes.find(node->nodeHandle()) == mNodes.end());
             mPendingConfirmNodes.erase(nodeIt);
-            mNodes[node->nodeHandle()] = node;
         }
 
         mTable->put(node);
@@ -17709,13 +17706,14 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
 
 void NodeManager::saveNodeInRAM(Node *node, bool notify)
 {
-    if (notify)
+    mNodes[node->nodeHandle()] = node;
+
+    if (notify) // wait for notifypurge() to dump to disk / DB
     {
         mPendingConfirmNodes.insert(node);
     }
     else
     {
-        mNodes[node->nodeHandle()] = node;
         mTable->put(node);
     }
 
