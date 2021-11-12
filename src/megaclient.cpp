@@ -12097,6 +12097,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
         // TODO nodes on demand Check ROOTNODE - ROOTNODE set to 0 or define an enum
         NodeHandle rootHandle = rootnodes[ROOTNODE - ROOTNODE];
         mNodeManager.updateCounter(rootHandle);
+        NodeHandle inboxHandle = rootnodes[INCOMINGNODE - ROOTNODE];
+        mNodeManager.updateCounter(inboxHandle);
         NodeHandle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
         mNodeManager.updateCounter(rubbishHandle);
 #endif
