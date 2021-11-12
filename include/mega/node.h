@@ -51,6 +51,9 @@ struct MEGA_API NodeCore
     // parent node handle (in a Node context, temporary placeholder until parent is set)
     handle parenthandle = UNDEF;
 
+    // inline convenience function to get a typed version that ensures we use the 6 bytes of a node handle, and not 8
+    NodeHandle parentHandle() const { return NodeHandle().set6byte(parenthandle); }
+
     // node type
     nodetype_t type = TYPE_UNKNOWN;
 

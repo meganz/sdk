@@ -17505,7 +17505,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
     }
 
     n = new Node(mClient, h, ph, t, s, u, fa, ts);
-    n->parent = getNodeByHandle(NodeHandle().set6byte(n->parenthandle));
+    n->parent = getNodeByHandle(n->parentHandle());
     mNodes[n->nodeHandle()] = n;
 
     if (k)
@@ -17703,13 +17703,13 @@ void NodeManager::saveNodeInRAM(Node *node, bool notify)
     if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE)
     {
         Node *parent = nullptr;
-        if ((parent = getNodeByHandle(NodeHandle().set6byte(node->parenthandle))))
+        if ((parent = getNodeByHandle(node->parentHandle())))
         {
             node->setparent(parent);
         }
         else
         {
-            mNodesWithMissingParent[NodeHandle().set6byte(node->parenthandle)].insert(node);
+            mNodesWithMissingParent[node->parentHandle()].insert(node);
         }
 
         auto it = mNodesWithMissingParent.find(node->nodeHandle());
@@ -17728,9 +17728,9 @@ void NodeManager::saveNodeInRAM(Node *node, bool notify)
 void NodeManager::saveNodeInDataBase(Node *node)
 {
     mTable->put(node);
-    NodeHandle parentHandle = NodeHandle().set6byte(node->parenthandle);
-    NodeHandle firstValidAncestor = getFirstAncestor(parentHandle);
-    firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : parentHandle;
+
+    NodeHandle firstValidAncestor = getFirstAncestor(node->parentHandle());
+    firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : node->parentHandle();
 
     if (firstValidAncestor != UNDEF)
     {
