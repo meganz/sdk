@@ -16855,6 +16855,12 @@ void NodeManager::reset()
 
 bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 {
+    // 'isFetching' is true only when CommandFetchNodes is in flight and/or it has been received,
+    // but it's been complemented with actionpackets. It's false when loaded from DB.
+
+    // 'notify' is false when loading nodes from API or DB. True when node is received from
+    // actionpackets and/or from response of CommandPutnodes
+
     if (!mTable)
     {
         assert(false);
@@ -16895,6 +16901,8 @@ bool NodeManager::updateNode(Node *node)
         return false;
     }
 
+    // TODO: this block can be replaced by a mTable->update(node), which would fail
+    // if the node is not in DB already. It would save a query to DB.
     if (mTable->isNodeInDB(node->nodeHandle()))
     {
         mTable->put(node);
@@ -17144,9 +17152,9 @@ node_vector NodeManager::getRootNodes()
         {
             n = nodeIt->second;
         }
-
         nodes.push_back(n);
-        if (n->type == ROOTNODE)
+
+        if (n->type == ROOTNODE)    // load first level of folders in Cloud
         {
             getChildren(n);
         }
@@ -17210,32 +17218,32 @@ NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle, bool parentIsFile
         return nc;
     }
 
+    Node* node = getNodeInRAM(nodehandle);
+    bool isFileNode = node ? (node->type == FILENODE) : mTable->isFileNode(nodehandle);
+
     std::vector<NodeHandle> children;
     children = getChildrenHandlesFromNode(nodehandle);
-    bool isFileNode = mTable->isFileNode(nodehandle);
     for (const NodeHandle &h : children)
     {
         nc += getNodeCounter(h, isFileNode);
     }
 
-    Node* node = getNodeInRAM(nodehandle);
     if (node)
     {
-        if (node->type == FILENODE)
+        if (isFileNode)
         {
             nc.files++;
             nc.storage += node->size;
             if (node->parent->type == FILENODE)
             {
-                nc.versions ++;
+                nc.versions++;
                 nc.versionStorage += node->size;
             }
         }
         else if (node->type == FOLDERNODE)
         {
-            nc.folders ++;
+            nc.folders++;
         }
-
     }
     else
     {
@@ -17650,6 +17658,9 @@ void NodeManager::notifyPurge(Node *node)
     {
         mTable->remove(node->nodeHandle());
 
+        // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
+        mNodeCounters.erase(node->nodeHandle());    // will apply only to rootnodes and inshares, currently
+
         // effectively delete node from RAM
         mNodes.erase(node->nodeHandle());
         delete node;
@@ -17802,6 +17813,7 @@ NodeCounter NodeManager::getCounterForSubtree(const NodeHandle& h)
 {
     if (h == rootnode(0) || h == rootnode(1) || h == rootnode(2))
     {
+        // node counters for rootnodes are always loaded upon fetchsc()
         return mNodeCounters[h];
     }
 
