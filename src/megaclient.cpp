@@ -5120,7 +5120,7 @@ void MegaClient::initsc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNumNodes() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
 #else
 
         LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
@@ -16901,7 +16901,7 @@ bool NodeManager::updateNode(Node *node)
     return true;
 }
 
-bool NodeManager::removeNode(NodeHandle handle)
+bool NodeManager::removeNode(Node *node)
 {
     if (!mTable)
     {
@@ -16909,13 +16909,12 @@ bool NodeManager::removeNode(NodeHandle handle)
         return false;
     }
 
-    Node* node = getNodeInRAM(handle);
     mPendingConfirmNodes.erase(node);
-    mNodes.erase(handle);
-    mTable->remove(handle);
+    mNodes.erase(node->nodeHandle());
+    mTable->remove(node->nodeHandle());
     delete node;
 
-    return false;
+    return true;
 }
 
 Node *NodeManager::getNodeByHandle(NodeHandle handle)
@@ -16994,7 +16993,7 @@ uint64_t NodeManager::getNodeCount()
 {
     if (!mTable)
     {
-        //assert(false);
+        assert(false);
         return 0;
     }
 
@@ -17661,7 +17660,7 @@ void NodeManager::confirmNode(Node *node)
 
     if (node->changed.removed)
     {
-        removeNode(node->nodeHandle());
+        removeNode(node);
     }
     else
     {

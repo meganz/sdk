@@ -253,7 +253,7 @@ public:
     // Take node ownership
     bool addNode(Node* node, bool notify, bool isFetching = false);
     bool updateNode(Node* node);
-    bool removeNode(NodeHandle handle);
+    bool removeNode(Node *node);
 
     // if node is not available in memory, it's loaded from DB
     Node *getNodeByHandle(NodeHandle handle);
