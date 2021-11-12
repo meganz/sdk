@@ -419,7 +419,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                             {
                                 n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
                                 n->inshare->user->sharing.insert(n->nodehandle);
-                                mNodeCounters[n->nodehandle] = n->subnodeCounts();
+                                mNodeCounters[n->nodeHandle()] = n->subnodeCounts();
                             }
 
                             if (notify)
@@ -521,10 +521,10 @@ bool MegaClient::isValidFolderLink()
 {
     if (!ISUNDEF(mFolderLink.mPublicHandle))
     {
-        handle h = rootnodes[0];   // is the actual rootnode handle received?
-        if (!ISUNDEF(h))
+        NodeHandle h = rootnodes.files;   // is the actual rootnode handle received?
+        if (!h.isUndef())
         {
-            Node *n = nodebyhandle(h);
+            Node *n = nodeByHandle(h);
             if (n && (n->attrs.map.find('n') == n->attrs.map.end()))    // is it decrypted? (valid key)
             {
                 return true;
@@ -558,8 +558,8 @@ bool MegaClient::isPrivateNode(NodeHandle h)
         return false;
     }
 
-    handle rootnode = getrootnode(node)->nodehandle;
-    return (rootnode == rootnodes[0] || rootnode == rootnodes[1] || rootnode == rootnodes[2]);
+    NodeHandle rootnode = getrootnode(node)->nodeHandle();
+    return (rootnode == rootnodes.files || rootnode == rootnodes.inbox || rootnode == rootnodes.rubbish);
 }
 
 bool MegaClient::isForeignNode(NodeHandle h)
@@ -570,8 +570,8 @@ bool MegaClient::isForeignNode(NodeHandle h)
         return false;
     }
 
-    handle rootnode = getrootnode(node)->nodehandle;
-    return (rootnode != rootnodes[0] && rootnode != rootnodes[1] && rootnode != rootnodes[2]);
+    NodeHandle rootnode = getrootnode(node)->nodeHandle();
+    return (rootnode != rootnodes.files && rootnode != rootnodes.inbox && rootnode != rootnodes.rubbish);
 }
 
 SCSN::SCSN()
@@ -1177,10 +1177,9 @@ void MegaClient::init()
     syncdebrisminute = 0;
 #endif
 
-    for (int i = sizeof rootnodes / sizeof *rootnodes; i--; )
-    {
-        rootnodes[i] = UNDEF;
-    }
+    rootnodes.files = NodeHandle();
+    rootnodes.inbox = NodeHandle();
+    rootnodes.rubbish = NodeHandle();
 
     pendingsc.reset();
     pendingscUserAlerts.reset();
@@ -2556,7 +2555,7 @@ void MegaClient::exec()
     NodeCounter storagesum;
     for (auto& nc : mNodeCounters)
     {
-        if (nc.first == rootnodes[0] || nc.first == rootnodes[1] || nc.first == rootnodes[2])
+        if (nc.first == rootnodes.files || nc.first == rootnodes.inbox || nc.first == rootnodes.rubbish)
         {
             storagesum += nc.second;
         }
@@ -7023,11 +7022,11 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             {
                 if (c[2] == "in")
                 {
-                    n = nodebyhandle(rootnodes[1]);
+                    n = nodeByHandle(rootnodes.inbox);
                 }
                 else if (c[2] == "bin")
                 {
-                    n = nodebyhandle(rootnodes[2]);
+                    n = nodeByHandle(rootnodes.rubbish);
                 }
                 else
                 {
@@ -7038,7 +7037,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             }
             else
             {
-                n = nodebyhandle(rootnodes[0]);
+                n = nodeByHandle(rootnodes.files);
                 l = 1;
             }
         }
@@ -7994,7 +7993,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     sts = ts;
                 }
 
-                n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts);
+                n = new Node(this, &dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fas.c_str(), ts);
                 n->changed.newnode = true;
 
                 n->tag = tag;
@@ -8005,9 +8004,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 // folder link access: first returned record defines root node and identity
 				// (this code used to be in Node::Node but is not suitable for session resume)
-                if (ISUNDEF(*rootnodes))
+
+                if (rootnodes.files.isUndef())
                 {
-                    *rootnodes = h;
+                    rootnodes.files.set6byte(h);
 
                     if (loggedIntoWritableFolder())
                     {
@@ -8536,7 +8536,9 @@ void MegaClient::applykeys()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
-    int noKeyExpected = (rootnodes[0] != UNDEF) + (rootnodes[1] != UNDEF) + (rootnodes[2] != UNDEF);
+    int noKeyExpected = (rootnodes.files.isUndef() ? 0 : 1)
+                      + (rootnodes.inbox.isUndef() ? 0 : 1)
+                      + (rootnodes.rubbish.isUndef() ? 0 : 1);
 
     if (nodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
     {
@@ -8968,7 +8970,7 @@ void MegaClient::login(string session)
             mFolderLink.mWriteAuth = writeAuth;
             mFolderLink.mAccountAuth = accountAuth;
 
-            rootnodes[0] = rootnode;
+            rootnodes.files.set6byte(rootnode);
             key.setkey(k, FOLDERNODE);
 
             checkForResumeableSCDatabase();
@@ -9046,7 +9048,7 @@ int MegaClient::dumpsession(string& session)
 
         cw.serializebyte(2);
         cw.serializenodehandle(mFolderLink.mPublicHandle);
-        cw.serializenodehandle(*rootnodes);
+        cw.serializenodehandle(rootnodes.files.as8byte());
         cw.serializebinary(key.key, sizeof(key.key));
         cw.serializeexpansionflags(!mFolderLink.mWriteAuth.empty(), !mFolderLink.mAccountAuth.empty(), true);
 
@@ -9519,6 +9521,8 @@ void MegaClient::resetKeyring()
 // process node tree (bottom up)
 void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipversions)
 {
+    if (!n) return;
+
     if (!skipversions || n->type != FILENODE)
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); )
@@ -11736,7 +11740,7 @@ void MegaClient::fetchnodes(bool nocache)
             {
                 // If logged into writable folder, we need the sharekey set in the root node
                 // so as to include it in subsequent put nodes
-                if (Node* n = nodebyhandle(*rootnodes))
+                if (Node* n = nodeByHandle(rootnodes.files))
                 {
                     n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
                 }
@@ -12846,8 +12850,6 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     Node* n = remotenode;
     bool inshare = false;
 
-    handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
-
     do {
 
         if (n->inshare && !inshare)
@@ -12866,7 +12868,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
             inshare = true;
         }
 
-        if (n->nodehandle == rubbishHandle)
+        if (n->nodeHandle() == rootnodes.rubbish)
         {
             if(syncError)
             {

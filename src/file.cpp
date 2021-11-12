@@ -355,7 +355,7 @@ void File::completed(Transfer* t, putsource_t source)
             // inaccessible target folder - use //bin instead
             if (!t->client->nodeByHandle(th))
             {
-                th.set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
+                th = t->client->rootnodes.rubbish;
             }
 ///todo:
 //#ifdef ENABLE_SYNC

@@ -1075,7 +1075,7 @@ void DemoApp::fetchnodes_result(const Error& e)
             }
             else
             {
-                assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
+                assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
                 cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
@@ -1390,11 +1390,6 @@ static NodeHandle cwd;
 // Where we were on the local filesystem when megacli started.
 static unique_ptr<LocalPath> startDir(new LocalPath);
 
-static const char* rootnodenames[] =
-{ "ROOT", "INBOX", "RUBBISH" };
-static const char* rootnodepaths[] =
-{ "/", "//in", "//bin" };
-
 static void nodestats(int* c, const char* action)
 {
     if (c[FILENODE])
@@ -1419,12 +1414,17 @@ static void nodestats(int* c, const char* action)
 // list available top-level nodes and contacts/incoming shares
 static void listtrees()
 {
-    for (int i = 0; i < (int) (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    if (!client->rootnodes.files.isUndef())
     {
-        if (client->rootnodes[i] != UNDEF)
-        {
-            cout << rootnodenames[i] << " on " << rootnodepaths[i] << endl;
-        }
+        cout << "ROOT on /" << endl;
+    }
+    if (!client->rootnodes.inbox.isUndef())
+    {
+        cout << "INBOX on //in" << endl;
+    }
+    if (!client->rootnodes.rubbish.isUndef())
+    {
+        cout << "RUBBISH on //bin" << endl;
     }
 
     for (user_map::iterator uit = client->users.begin(); uit != client->users.end(); uit++)
@@ -1445,9 +1445,9 @@ static void listtrees()
         }
     }
 
-    if (clientFolder && !ISUNDEF(clientFolder->rootnodes[0]))
+    if (clientFolder && !clientFolder->rootnodes.files.isUndef())
     {
-        Node *n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
+        Node *n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
         if (n)
         {
             cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
@@ -1588,7 +1588,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 return NULL;
             }
 
-            n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
+            n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
             if (c.size() == 2 && c[1].empty())
             {
                 return n;
@@ -1638,11 +1638,11 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodebyhandle(client->rootnodes[1]);
+                    n = client->nodeByHandle(client->rootnodes.inbox);
                 }
                 else if (c[2] == "bin")
                 {
-                    n = client->nodebyhandle(client->rootnodes[2]);
+                    n = client->nodeByHandle(client->rootnodes.rubbish);
                 }
                 else
                 {
@@ -1653,7 +1653,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             }
             else
             {
-                n = client->nodebyhandle(client->rootnodes[0]);
+                n = client->nodeByHandle(client->rootnodes.files);
 
                 l = 1;
             }
@@ -2420,7 +2420,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 
     std::vector<Node*> emptyFolders;
     bool empty = true;
-    Node* trash = client->nodebyhandle(client->rootnodes[2]);
+    Node* trash = client->nodeByHandle(client->rootnodes.rubbish);
     for (auto c : n->children)
     {
         bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
@@ -3777,7 +3777,7 @@ void exec_cd(autocomplete::ACState& s)
     }
     else
     {
-        cwd = NodeHandle().set6byte(client->rootnodes[0]);
+        cwd = client->rootnodes.files;
     }
 }
 
@@ -4307,7 +4307,7 @@ void exec_get(autocomplete::ACState& s)
                     // node from public folder link
                     if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
                     {
-                        handle h = clientFolder->rootnodes[0];
+                        handle h = clientFolder->rootnodes.files.as8byte();
                         char *pubauth = new char[12];
                         Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
                         f->pubauth = pubauth;
@@ -4915,17 +4915,12 @@ void exec_share(autocomplete::ACState& s)
     case 1:		// list all shares (incoming and outgoing)
     {
         TreeProcListOutShares listoutshares;
-        Node* n;
 
         cout << "Shared folders:" << endl;
 
-        for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
-        {
-            if ((n = client->nodebyhandle(client->rootnodes[i])))
-            {
-                client->proctree(n, &listoutshares);
-            }
-        }
+        client->proctree(client->nodeByHandle(client->rootnodes.files), &listoutshares);
+        client->proctree(client->nodeByHandle(client->rootnodes.inbox), &listoutshares);
+        client->proctree(client->nodeByHandle(client->rootnodes.rubbish), &listoutshares);
 
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)
@@ -7689,7 +7684,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     {
         if (pdf_to_import)
         {
-            n = client->nodebyhandle(client->rootnodes[0]);
+            n = client->nodeByHandle(client->rootnodes.files);
         }
         else
         {
@@ -7942,7 +7937,7 @@ void DemoApp::nodes_updated(Node** n, int count)
 
     if (cwd.isUndef())
     {
-        cwd = NodeHandle().set6byte(client->rootnodes[0]);
+        cwd = client->rootnodes.files;
     }
 }
 
@@ -8065,6 +8060,12 @@ void DemoApp::contactlinkdelete_result(error e)
     }
 }
 
+void reportNodeStorage(NodeStorage* ns, const string& rootnodename)
+{
+    cout << "\t\tIn " << rootnodename << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
+    cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
+}
+
 // display account details/history
 void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, bool pro, bool purchases,
                               bool transactions, bool sessions)
@@ -8075,13 +8076,9 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
-        for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
-        {
-            NodeStorage* ns = &ad->storage[client->rootnodes[i]];
-
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
-            cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
-        }
+        reportNodeStorage(&ad->storage[client->rootnodes.files.as8byte()], "/");
+        reportNodeStorage(&ad->storage[client->rootnodes.inbox.as8byte()], "//in");
+        reportNodeStorage(&ad->storage[client->rootnodes.rubbish.as8byte()], "//bin");
     }
 
     if (transfer)

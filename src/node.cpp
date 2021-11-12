@@ -34,7 +34,7 @@
 
 namespace mega {
 
-Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
+Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {
     client = cclient;
@@ -43,8 +43,8 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     tag = 0;
     appdata = NULL;
 
-    nodehandle = h;
-    parenthandle = ph;
+    nodehandle = h.as8byte();
+    parenthandle = ph.as8byte();
 
     parent = NULL;
 
@@ -67,16 +67,15 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     Node* p;
 
-    client->nodes[NodeHandle().set6byte(h)] = this;
+    client->nodes[h] = this;
 
-    if (t >= ROOTNODE && t <= RUBBISHNODE)
-    {
-        client->rootnodes[t - ROOTNODE] = h;
-    }
+    if (t == ROOTNODE) client->rootnodes.files = h;
+    if (t == INCOMINGNODE) client->rootnodes.inbox = h;
+    if (t == RUBBISHNODE) client->rootnodes.rubbish = h;
 
     // set parent linkage or queue for delayed parent linkage in case of
     // out-of-order delivery
-    if ((p = client->nodebyhandle(ph, true)))
+    if ((p = client->nodeByHandle(ph, true)))
     {
         setparent(p);
     }
@@ -135,15 +134,15 @@ Node::~Node()
         }
 
         const Node* fa = firstancestor();
-        handle ancestor = fa->nodehandle;
-        if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+        NodeHandle ancestor = fa->nodeHandle();
+        if (ancestor == client->rootnodes.files || ancestor == client->rootnodes.inbox || ancestor == client->rootnodes.rubbish || fa->inshare)
         {
-            client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+            client->mNodeCounters[firstancestor()->nodeHandle()] -= subnodeCounts();
         }
 
         if (inshare)
         {
-            client->mNodeCounters.erase(nodehandle);
+            client->mNodeCounters.erase(nodeHandle());
         }
 
         // delete child-parent associations (normally not used, as nodes are
@@ -392,7 +391,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+    n = new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
 
     if (k)
     {
@@ -898,7 +897,7 @@ bool Node::applykey()
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
-    handle me = client->loggedin() ? client->me : *client->rootnodes;
+    handle me = client->loggedin() ? client->me : client->rootnodes.files.as8byte();
 
     while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {
@@ -1005,8 +1004,8 @@ bool Node::setparent(Node* p)
     bool gotnc = false;
 
     const Node *originalancestor = firstancestor();
-    handle oah = originalancestor->nodehandle;
-    if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
+    NodeHandle oah = originalancestor->nodeHandle();
+    if (oah == client->rootnodes.files || oah == client->rootnodes.inbox || oah == client->rootnodes.rubbish || originalancestor->inshare)
     {
         nc = subnodeCounts();
         gotnc = true;
@@ -1029,8 +1028,8 @@ bool Node::setparent(Node* p)
     }
 
     const Node* newancestor = firstancestor();
-    handle nah = newancestor->nodehandle;
-    if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
+    NodeHandle nah = newancestor->nodeHandle();
+    if (nah == client->rootnodes.files || nah == client->rootnodes.inbox || nah == client->rootnodes.rubbish || newancestor->inshare)
     {
         if (!gotnc)
         {
