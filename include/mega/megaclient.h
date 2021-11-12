@@ -298,6 +298,7 @@ public:
     // TODO nodes on demand remove
     MegaClient& getMegaClient();
 
+    // return null if counter is not available for that handle
     const NodeCounter* getCounter(const NodeHandle& h) const;
     NodeCounter getCounterForSubtree(const NodeHandle& h);
     NodeCounter getCounterOfRootNodes(); // return sum of counters from all root nodes

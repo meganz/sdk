@@ -538,8 +538,10 @@ bool SqliteAccountState::processSqlQueryNodeMap(sqlite3_stmt *stmt, std::map<meg
     {
         NodeHandle nodeHandle;
         nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
+
         NodeSerialized node;
         node.mDecrypted = sqlite3_column_int(stmt, 1);
+
         const void* data = sqlite3_column_blob(stmt, 2);
         int size = sqlite3_column_bytes(stmt, 2);
         if (data && size)

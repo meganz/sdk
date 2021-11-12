@@ -16989,7 +16989,19 @@ uint64_t NodeManager::getNodeCount()
         return 0;
     }
 
-    return mTable->getNumberOfNodes();
+    uint64_t count = 0;
+    // it assumes that node counters are only available for rootnodes and inshares
+    for (auto &counter : mNodeCounters)
+    {
+        // TODO check if it should consider versions, as well
+        count += counter.second.files + counter.second.folders;
+    }
+
+#ifdef DEBUG
+    assert(count == mTable->getNumberOfNodes());
+#endif
+
+    return count;
 }
 
 node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
@@ -17345,10 +17357,10 @@ void NodeManager::cleanNodes()
     }
 
     mNodes.clear();
+    mNodeCounters.clear();
+
     if (mTable)
         mTable->removeNodes();
-
-    mNodeCounters.clear();
 }
 
 // parse serialized node and return Node object - updates nodes hash and parent
