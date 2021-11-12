@@ -9209,9 +9209,9 @@ bool MegaApiImpl::isInRootnode(MegaNode *node, int index)
 
     if (MegaNode *rootnode = getRootNode(node))
     {
-        ret = index == 0 && rootnode->getHandle() == client->rootnodes.files.as8byte() ||
-              index == 1 && rootnode->getHandle() == client->rootnodes.inbox.as8byte() ||
-              index == 2 && rootnode->getHandle() == client->rootnodes.rubbish.as8byte();
+        ret = (index == 0 && rootnode->getHandle() == client->rootnodes.files.as8byte()) ||
+              (index == 1 && rootnode->getHandle() == client->rootnodes.inbox.as8byte()) ||
+              (index == 2 && rootnode->getHandle() == client->rootnodes.rubbish.as8byte());
         delete rootnode;
     }
 
