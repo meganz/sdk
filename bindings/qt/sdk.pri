@@ -226,7 +226,7 @@ CONFIG(USE_MEDIAINFO) {
 CONFIG(USE_LIBRAW) {
     DEFINES += HAVE_LIBRAW
 
-    vcpkg:LIBS += -lraw$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX
+    vcpkg:LIBS += -lraw_r$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX
     vcpkg:win32:LIBS += -ljpeg$$DEBUG_SUFFIX
     vcpkg:!win32:LIBS += -ljpeg
     vcpkg:unix:!macx:LIBS += -lgomp
@@ -561,7 +561,7 @@ else {
         -lIexMath-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_5$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_5$$UNDERSCORE_DEBUG_SUFFIX \
         -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
         -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX -lHalf-2_5$$UNDERSCORE_DEBUG_SUFFIX \
-        -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw$$DEBUG_SUFFIX -lopenjp2
+        -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX -lopenjp2
     }
     else {
         macx{
