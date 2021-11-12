@@ -7452,7 +7452,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
     {
         Node *prevRoot = getrootnode(prevParent);
         Node *newRoot = getrootnode(p);
-        handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+        handle rubbishHandle = rootnodes.rubbish.as8byte();
         nameid rrname = AttrMap::string2nameid("rr");
 
         if (prevRoot->nodehandle != rubbishHandle &&
@@ -14500,7 +14500,7 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
 
 Node* MegaClient::getOrCreateSyncdebrisFolder()
 {
-    Node* binNode = nodebyhandle(rootnodes[RUBBISHNODE - ROOTNODE]);
+    Node* binNode = nodeByHandle(rootnodes.rubbish);
     if (!binNode)
     {
         return nullptr;

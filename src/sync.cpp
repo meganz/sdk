@@ -9105,7 +9105,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         if (isInTrash)
         {
-            *isInTrash = n->firstancestor()->nodehandle == mClient.rootnodes[RUBBISHNODE - ROOTNODE];
+            *isInTrash = n->firstancestor()->nodeHandle() == mClient.rootnodes.rubbish;
         }
 
         if (cloudPath) *cloudPath = n->displaypath();
