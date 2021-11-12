@@ -7374,8 +7374,6 @@ void MegaClient::notifypurge(void)
                     n->inshare->user->sharing.erase(n->nodehandle);
                     notifyuser(n->inshare->user);
                 }
-
-                mNodeManager.subtractFromRootCounter(*n);
             }
             else
             {
@@ -17659,6 +17657,7 @@ void NodeManager::notifyPurge(Node *node)
         mTable->remove(node->nodeHandle());
 
         // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
+        subtractFromRootCounter(*node);
         mNodeCounters.erase(node->nodeHandle());    // will apply only to rootnodes and inshares, currently
 
         // effectively delete node from RAM
