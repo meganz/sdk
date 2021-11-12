@@ -253,7 +253,7 @@ public:
     // Take node ownership
     bool addNode(Node* node, bool notify, bool isFetching = false);
     bool updateNode(Node* node);
-    bool removeNode(Node *node);
+    // removeNode() --> it's done through notifypurge()
 
     // if node is not available in memory, it's loaded from DB
     Node *getNodeByHandle(NodeHandle handle);
@@ -288,8 +288,9 @@ public:
     Node* unserializeNode(const string*, bool decrypted = true);
 
     void applyKeys(uint32_t appliedKeys);
-    // TODO nodes on demand check name
-    void confirmNode(Node* node);
+
+    // process notified/changed nodes from 'mPendingConfirmNodes': dump changes to DB
+    void notifyPurge(Node* node);
 
     // Returns if cache has been loaded
     bool hasCacheLoaded();

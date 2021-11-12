@@ -7384,7 +7384,7 @@ void MegaClient::notifypurge(void)
                 n->tag = 0;
             }
 
-            mNodeManager.confirmNode(n);
+            mNodeManager.notifyPurge(n);
 
         }
 
@@ -9169,7 +9169,7 @@ void MegaClient::procph(JSON *j)
                         if (n)
                         {
                             n->setpubliclink(ph, cts, ets, takendown, authKey);
-                            mNodeManager.updateNode(n);  // DB
+                            mNodeManager.updateNode(n);
                         }
                         else
                         {
@@ -16901,22 +16901,6 @@ bool NodeManager::updateNode(Node *node)
     return true;
 }
 
-bool NodeManager::removeNode(Node *node)
-{
-    if (!mTable)
-    {
-        assert(false);
-        return false;
-    }
-
-    mPendingConfirmNodes.erase(node);
-    mNodes.erase(node->nodeHandle());
-    mTable->remove(node->nodeHandle());
-    delete node;
-
-    return true;
-}
-
 Node *NodeManager::getNodeByHandle(NodeHandle handle)
 {
     if (!mTable)
@@ -17650,7 +17634,7 @@ void NodeManager::applyKeys(uint32_t appliedKeys)
     }
 }
 
-void NodeManager::confirmNode(Node *node)
+void NodeManager::notifyPurge(Node *node)
 {
     if (!mTable)
     {
@@ -17658,18 +17642,18 @@ void NodeManager::confirmNode(Node *node)
         return;
     }
 
+    mPendingConfirmNodes.erase(node);
+
     if (node->changed.removed)
     {
-        removeNode(node);
+        mTable->remove(node->nodeHandle());
+
+        // effectively delete node from RAM
+        mNodes.erase(node->nodeHandle());
+        delete node;
     }
     else
     {
-        auto nodeIt = mPendingConfirmNodes.find(node);
-        if (nodeIt != mPendingConfirmNodes.end())
-        {
-            mPendingConfirmNodes.erase(nodeIt);
-        }
-
         mTable->put(node);
     }
 }
