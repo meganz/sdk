@@ -6544,14 +6544,25 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
 // todo: also update Upload's localname in case of moves
 
-                // Set the fs-side synced id.
-                // Once the upload completes, potentially the local fs item may have moved.
-                // If that's the case, having this synced fsid set lets us track the local move
-                // and move the uploadPtr from the old LN to the new one.
-                SYNC_verbose << syncname << "Considering this file synced on the fs side: " << toHandle(row.fsNode->fsid) << logTriplet(row, fullPath);
-                row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
-                row.syncNode->syncedFingerprint  = row.fsNode->fingerprint;
-                statecacheadd(row.syncNode);
+                if (row.syncNode->syncedCloudNodeHandle.isUndef() && !row.fsNode)
+                {
+                    // Set the fs-side synced id.
+                    // Once the upload completes, potentially the local fs item may have moved.
+                    // If that's the case, having this synced fsid set lets us track the local move
+                    // and move the uploadPtr from the old LN to the new one.
+
+                    // todo:
+                    // Note that the case where the row was already synced is more complex
+                    // We may need to generate a 2nd LocalNode for the same Localnode
+                    // and these two could operate in parallel - after all, one might
+                    // be a move away from this location, and then simulataneous
+                    // upload of a replacement file.
+
+                    SYNC_verbose << syncname << "Considering this file synced on the fs side: " << toHandle(row.fsNode->fsid) << logTriplet(row, fullPath);
+                    row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
+                    row.syncNode->syncedFingerprint  = row.fsNode->fingerprint;
+                    statecacheadd(row.syncNode);
+                }
             }
             else
             {
