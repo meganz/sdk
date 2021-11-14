@@ -6014,6 +6014,7 @@ const char* MegaSyncStall::cloudPath()  const { return ""; }
 MegaSyncStall::SyncStallReason MegaSyncStall::reason() const { return MegaSyncStall::SyncStallReason::Unknown; }
 bool MegaSyncStall::isCloud() const { return false; }
 bool MegaSyncStall::isImmediate() const { return false; }
+const char*  MegaSyncStall::reasonString() const { return ""; }
 
 MegaSyncStallList::MegaSyncStallList(){}
 MegaSyncStallList::~MegaSyncStallList(){}

@@ -2106,6 +2106,7 @@ class MegaSyncStallImpl : public MegaSyncStall {
         SyncStallReason reason() const override { return SyncStallReason::Unknown; }
         bool isCloud() const override {return mIsCloud; }
         bool isImmediate() const override { return mIsImmediate; }
+        const char* reasonString() const override;
 
     protected:
         const std::string mIndexPath;
@@ -2134,6 +2135,8 @@ class MegaSyncStallListImpl : public MegaSyncStallList {
         std::vector<MegaSyncStallImpl> stalls;
         void addCloudStalls(const SyncStallInfo& syncStalls);
         void addLocalStalls(const SyncStallInfo& syncStalls);
+        MegaSyncStall::SyncStallReason 
+        syncStallReasonMapping(SyncWaitReason reason) const;
 };
 
 class MegaApiImpl : public MegaApp

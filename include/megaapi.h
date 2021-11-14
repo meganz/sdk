@@ -5473,17 +5473,39 @@ class MegaSyncStall {
         virtual const char* cloudPath()  const;
 
         /**
-         * @brief Why a conflict. The end user should take some action.
+         * @brief Why a sync stall. The end user should take some action.
          *
          * To be interpreted in the context of a MegaSyncStall (a.k.a. stall)
          */
         enum class SyncStallReason {
             Unknown = 0,
+            NoReason,
+            ApplyMoveNeedsOtherSideParentFolderToExist,
+            ApplyMoveIsBlockedByExistingItem,
+            ApplyMoveIsWaitingForScanning,
+            MoveNeedsDestinationNodeProcessing,
+            UpsyncNeedsTargetFolder,
+            DownsyncNeedsTargetFolder,
+            DeleteOrMoveWaitingOnScanning,
+            DeleteWaitingOnMoves,
+            WatiingForFileToStopChanging,
+            MovingDownloadToTarget,
+            MovingExistingDownloadTargetToDebris,
+            LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
+            CouldNotMoveToLocalDebrisFolder,
             LocalFolderNotScannable,
             SymlinksNotSupported,
             FolderMatchedAgainstFile,
+            MatchedAgainstUnidentifiedItem,
+            MoveOrRenameFailed,
+            CreateFolderFailed,
+            UnknownExclusionState,
             UnableToLoadIgnoreFile,
-            LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+            MoveTargetNameTooLong,
+            DownloadTargetNameTooLong,
+            CreateFolderNameTooLong,
+            ItemHasReservedName,
+            MoveTargetHasReservedName,
         };
 
         /**
@@ -5497,6 +5519,8 @@ class MegaSyncStall {
         virtual bool isCloud() const;
 
         virtual bool isImmediate() const;
+
+        virtual const char* reasonString() const;
 };
 
 /**
