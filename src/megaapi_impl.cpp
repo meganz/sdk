@@ -1365,7 +1365,7 @@ MegaSyncStallListImpl::MegaSyncStallListImpl(const SyncStallInfo& stalls){
 /**
  * A simple output of stall reason to begin with
  */
-std::ostream& operator<<(std::ostream& os, const StallInfo_t& si) {
+std::ostream& operator<<(std::ostream& os, const SyncStallEntry& si) {
     os << "Local path: " << si.involvedLocalPath.toPath()
        << " Cloud path: " << si.involvedCloudPath
        << " Reason: " << syncWaitReasonString(si.reason);

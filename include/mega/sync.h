@@ -687,16 +687,16 @@ private:
  * A Synchronization operation detected a problem and is
  * not able to continue (a stall)
  */
-typedef struct StallInfo_t {
+typedef struct SyncStallEntry {
     SyncWaitReason reason = SyncWaitReason::NoReason;
     string involvedCloudPath;    ///<! remote path representation
     LocalPath involvedLocalPath;
-} StallInfo_t;
+} SyncStallEntry;
 
 struct SyncStallInfo
 {
-    using CloudStallInfoMap = map<string, StallInfo_t>;
-    using LocalStallInfoMap = map<LocalPath, StallInfo_t>;
+    using CloudStallInfoMap = map<string, SyncStallEntry>;
+    using LocalStallInfoMap = map<LocalPath, SyncStallEntry>;
 
     /** No stalls detected */
     bool empty() const;
