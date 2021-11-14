@@ -59,6 +59,7 @@ configure_cross_options=""
 openssl_cross_option=""
 status_dir=""
 persistent_path="/opt/persistent"
+warning_as_error=0
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -1086,6 +1087,11 @@ build_sdk() {
     fi
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        # Gcc, CLang warnings as errors
+        if [ ${warning_as_error} -eq 1 ];
+        then
+            export CXXFLAGS="${CXXFLAGS} -Werror"
+        fi
         local configure_flags="\
             $configure_cross_options \
             $static_flags \
@@ -1161,7 +1167,7 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-N] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z]"
+    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-N] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z] [-0] [-E]"
     echo ""
     echo "By the default this script builds static megacli executable."
     echo "This script can be run with numerous options to configure and build MEGA SDK."
@@ -1197,6 +1203,7 @@ display_help() {
     echo " -q : Use Crypto++"
     echo " -z : Disable libz"
     echo " -0 : Turn off optimisations (in case of issues on old compilers)"  
+    echo " -E : Treat compiler warnings as errors for the SDK code)"
     echo ""
 }
 
@@ -1210,7 +1217,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:nNo:p:rRsS:tuvyx:XC:O:wWqz0" opt; do
+    while getopts ":habcdefgiIlm:nNo:p:rRsS:tuvyx:XC:O:wWqz0E" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1344,6 +1351,10 @@ main() {
             0)
                 no_optimisation=1
                 echo "* Disabling compiler optimisations."  # some older versions of gcc have optimisations problems with eg. OpenSSL - rsa_test suite can fail
+                ;;
+            E)
+                warning_as_error=1
+                echo "* Treat Compiler Warnings as Errors for the SDK code"
                 ;;
             \?)
                 display_help $0

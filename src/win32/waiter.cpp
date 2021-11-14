@@ -27,11 +27,7 @@ dstime Waiter::ds;
 
 WinWaiter::WinWaiter()
 {
-#ifndef WINDOWS_PHONE
     externalEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-#else
-    externalEvent = CreateEventEx(NULL, NULL, 0, EVENT_ALL_ACCESS);
-#endif
     pcsHTTP = NULL;
 }
 

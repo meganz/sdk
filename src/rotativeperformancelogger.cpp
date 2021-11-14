@@ -559,7 +559,7 @@ void RotativePerformanceLogger::initialize(const char * logsPath, const char * l
     mLogToStdout = logToStdout;
 
     unique_ptr<MegaFileSystemAccess> fsAccess(new MegaFileSystemAccess());
-    fsAccess->mkdirlocal(logsPathLocalPath, false);
+    fsAccess->mkdirlocal(logsPathLocalPath, false, false);
 
     mLoggingThread.reset(new RotativePerformanceLoggerLoggingThread());
     mLoggingThread->startLoggingThread(logsPathLocalPath, logFileNameLocalPath);

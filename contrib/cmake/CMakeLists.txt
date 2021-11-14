@@ -22,6 +22,7 @@ endif()
 
 project(MegaSDK)
 
+set( CMAKE_EXPORT_COMPILE_COMMANDS ON) # Generates compile_commands.json with the compilers calls for all translations units
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
 if (CMAKE_HOST_APPLE AND NOT IOS)

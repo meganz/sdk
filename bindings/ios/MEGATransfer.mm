@@ -184,4 +184,12 @@ using namespace mega;
     return self.megaTransfer ? self.megaTransfer->getPriority() : 0;
 }
 
+- (long long)notificationNumber {
+    return self.megaTransfer ? self.megaTransfer->getNotificationNumber() : 0;
+}
+
+- (BOOL)targetOverride {
+    return self.megaTransfer ? self.megaTransfer->getTargetOverride() : NO;
+}
+
 @end

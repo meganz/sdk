@@ -492,11 +492,6 @@ char *MegaNode::getBase64Key()
     return NULL;
 }
 
-int MegaNode::getTag()
-{
-    return 0;
-}
-
 int64_t MegaNode::getExpirationTime()
 {
     return -1;
@@ -603,11 +598,6 @@ bool MegaNode::isForeign()
 }
 
 string *MegaNode::getNodeKey()
-{
-    return NULL;
-}
-
-string *MegaNode::getAttrString()
 {
     return NULL;
 }
@@ -2102,13 +2092,6 @@ void MegaApi::addEntropy(char *data, unsigned int size)
 {
     pImpl->addEntropy(data, size);
 }
-
-#ifdef WINDOWS_PHONE
-void MegaApi::setStatsID(const char *id)
-{
-    MegaApiImpl::setStatsID(id);
-}
-#endif
 
 void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
@@ -3806,11 +3789,6 @@ void MegaApi::queryDNS(const char *hostname, MegaRequestListener *listener)
     pImpl->queryDNS(hostname, listener);
 }
 
-void MegaApi::queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener)
-{
-    pImpl->queryGeLB(service, timeoutds, maxretries, listener);
-}
-
 void MegaApi::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
 {
     pImpl->downloadFile(url, dstpath, listener);
@@ -5175,12 +5153,12 @@ char *MegaApi::getMimeType(const char *extension)
 #ifdef ENABLE_CHAT
 void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
 {
-    pImpl->createChat(group, false, peers, NULL, title, listener);
+    pImpl->createChat(group, false, peers, NULL, title, false, listener);
 }
 
-void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, MegaRequestListener *listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, MegaRequestListener *listener)
 {
-    pImpl->createChat(true, true, peers, userKeyMap, title, listener);
+    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
@@ -5243,9 +5221,9 @@ void MegaApi::sendChatStats(const char *data, int port, MegaRequestListener *lis
     pImpl->sendChatStats(data, port, listener);
 }
 
-void MegaApi::sendChatLogs(const char *data, const char *aid, int port, MegaRequestListener *listener)
+void MegaApi::sendChatLogs(const char *data, MegaHandle userid, MegaHandle callid, int port, MegaRequestListener *listener)
 {
-    pImpl->sendChatLogs(data, aid, port, listener);
+    pImpl->sendChatLogs(data, userid, callid, port, listener);
 }
 
 MegaTextChatList* MegaApi::getChatList()
@@ -5316,6 +5294,21 @@ void MegaApi::chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, Mega
 bool MegaApi::isChatNotifiable(MegaHandle chatid)
 {
     return pImpl->isChatNotifiable(chatid);
+}
+
+void MegaApi::startChatCall(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->startChatCall(chatid, listener);
+}
+
+void MegaApi::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)
+{
+    pImpl->joinChatCall(chatid, callid, listener);
+}
+
+void MegaApi::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, MegaRequestListener *listener)
+{
+    pImpl->endChatCall(chatid, callid, reason, listener);
 }
 
 #endif
@@ -6497,6 +6490,11 @@ bool MegaTextChat::isArchived() const
 }
 
 bool MegaTextChat::isPublicChat() const
+{
+    return false;
+}
+
+bool MegaTextChat::isMeeting() const
 {
     return false;
 }

@@ -68,9 +68,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeCreationDesc,
     MEGASortOrderTypeModificationAsc,
     MEGASortOrderTypeModificationDesc,
-    MEGASortOrderTypeAlphabeticalAsc,
-    MEGASortOrderTypeAlphabeticalDesc,
-    MEGASortOrderTypePhotoAsc,
+    MEGASortOrderTypePhotoAsc = 11,
     MEGASortOrderTypePhotoDesc,
     MEGASortOrderTypeVideoAsc,
     MEGASortOrderTypeVideoDesc,
@@ -1312,7 +1310,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * It's recommended to call this function before the usage of [MEGASdk loginToFolder]
  *
- * @param auth Authentication token used to identify the account of the user.
+ * @param accountAuth Authentication token used to identify the account of the user.
  * You can get it using [MEGASdk accountAuth] with an instance of MEGASdk logged into
  * an account.
  */
@@ -1498,6 +1496,60 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 
 #pragma mark - Create account and confirm account Requests
 
+/**
+ * @brief Resume a registration process for an Ephemeral++ account
+ *
+ * When a user begins the account registration process by calling
+ * [MEGASdk createEphemeralAccountPlusPlus] an ephemeral++ account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see [MEGASdk sendSignupLink] and also to receive notifications in case the
+ * user confirms the account using another client ([MegaGlobalListener onAccountUpdate] or
+ * [MEGADelegate onAccountUpdate]. It is also possible to cancel the registration process by
+ * [MEGASdk cancelCreateAccount], which invalidates the signup link associated to the ephemeral
+ * session (the session will be still valid).
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MegaRequest getSessionKey] - Returns the session id to resume the process
+ * - [MegaRequest getParamType] - Returns the value 4
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MEGAErrorTypeApiEArgs.
+ *
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ */
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname;
+
+/**
+ * @brief Resume a registration process for an Ephemeral++ account
+ *
+ * When a user begins the account registration process by calling
+ * [MEGASdk createEphemeralAccountPlusPlus] an ephemeral++ account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see [MEGASdk sendSignupLink] and also to receive notifications in case the
+ * user confirms the account using another client ([MegaGlobalListener onAccountUpdate] or
+ * [MEGADelegate onAccountUpdate]. It is also possible to cancel the registration process by
+ * [MEGASdk cancelCreateAccount], which invalidates the signup link associated to the ephemeral
+ * session (the session will be still valid).
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MegaRequest getSessionKey] - Returns the session id to resume the process
+ * - [MegaRequest getParamType] - Returns the value 4
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MEGAErrorTypeApiEArgs
+ *
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ * @param delegate Delegate to track this request.
+ */
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate;
 /**
  * @brief Initialize the creation of a new MEGA account.
  *
@@ -5308,6 +5360,40 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)getCameraUploadsFolder;
 
 /**
+ * @brief Gets My Backups target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
+ * - [MEGARequest flag] - Returns NO
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
+ *
+ * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets My Backups target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
+ * - [MEGARequest flag] - Returns NO
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
+ *
+ * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
+ */
+- (void)getMyBackupsFolder;
+
+/**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
@@ -6737,12 +6823,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Same behavior than MEGASortOrderTypeDefaultAsc
- *
- * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Same behavior than MEGASortOrderTypeDefaultDesc
- *
  * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
@@ -6760,20 +6840,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeLinkCreationDesc = 16
  *
  * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending
+ * Sort by color label, ascending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending
+ * Sort by color label, descending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last
- *
- * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
- * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
- * They will be eventually removed.
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @return List with all child MEGANode objects.
  */
@@ -6878,12 +6954,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Same behavior than MEGASortOrderTypeDefaultAsc
- *
- * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Same behavior than MEGASortOrderTypeDefaultDesc
- *
  * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
@@ -6901,20 +6971,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeLinkCreationDesc = 16
  *
  * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending
+ * Sort by color label, ascending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending
+ * Sort by color label, descending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last
- *
- * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
- * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
- * They will be eventually removed.
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @return Lists with files and folders child MegaNode objects
  */
@@ -7305,27 +7371,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (MEGAShareType)accessLevelForNode:(MEGANode *)node;
 
-/**
- * @brief Check if a node has an access level.
- *
- * @deprecated Use checkAccessErrorExtendedForNode
- *
- * @param node Node to check.
- * @param level Access level to check.
- * Valid values for this parameter are:
- * - MEGAShareTypeAccessOwner
- * - MEGAShareTypeAccessFull
- * - MEGAShareTypeAccessReadWrite
- * - MEGAShareTypeAccessRead
- *
- * @return MEGAError object with the result.
- * Valid values for the error code are:
- * - MEGAErrorTypeApiOk - The node has the required access level
- * - MEGAErrorTypeApiEAccess - The node doesn't have the required access level
- * - MEGAErrorTypeApiENoent - The node doesn't exist in the account
- * - MEGAErrorTypeApiEArgs - Invalid parameters
- */
-- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level;
 
 /**
  * @brief Check if a node has an access level
@@ -7346,23 +7391,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGAErrorTypeApiEArgs - Invalid parameters
  */
 - (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level;
-
-/**
- * @brief Check if a node can be moved to a target node.
- *
- * @deprecated User checkMoveErrorExtendedForNode
- *
- * @param node Node to check.
- * @param target Target for the move operation.
- * @return MEGAError object with the result:
- * Valid values for the error code are:
- * - MEGAErrorTypeApiOk - The node can be moved to the target
- * - MEGAErrorTypeApiEAccess - The node can't be moved because of permissions problems
- * - MEGAErrorTypeApiECircular - The node can't be moved because that would create a circular linkage
- * - MEGAErrorTypeApiENoent - The node or the target doesn't exist in the account
- * - MEGAErrorTypeApiEArgs - Invalid parameters
- */
-- (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target;
 
 /**
  * @brief Check if a node can be moved to a target node.
@@ -7440,12 +7468,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Same behavior than MEGASortOrderTypeDefaultAsc
- *
- * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Same behavior than MEGASortOrderTypeDefaultDesc
- *
  * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
@@ -7463,20 +7485,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeLinkCreationDesc = 16
  *
  * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending
+ * Sort by color label, ascending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending
+ * Sort by color label, descending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last
- *
- * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
- * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
- * They will be eventually removed.
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @return List of nodes that contain the desired string in their name.
  */
@@ -7535,12 +7553,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Same behavior than MEGASortOrderTypeDefaultAsc
- *
- * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Same behavior than MEGASortOrderTypeDefaultDesc
- *
  * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
@@ -7552,6 +7564,22 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
+ * 
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending. With this order, folders are returned first, then files
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending. With this order, folders are returned first, then files
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @param nodeFormatType Type of nodes requested in the search
  * Valid values for this parameter are:
@@ -8791,7 +8819,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param message Event message
  * @param delegate Delegate to track this request
  *
- * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+ * @warning This function is for internal usage of MEGA apps for debug purposes. This info
  * is sent to MEGA servers.
  *
  * @note Event types are restricted to the following ranges:
@@ -8815,7 +8843,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 * @param eventType Event type
 * @param message Event message
 *
-* @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+* @warning This function is for internal usage of MEGA apps for debug purposes. This info
 * is sent to MEGA servers.
 *
 * @note Event types are restricted to the following ranges:

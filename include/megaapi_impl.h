@@ -60,9 +60,6 @@
 //If you selected QT for threads and mutexes, it will be also used for thumbnails and previews
 //You can create a subclass of MegaGfxProcessor and pass it to the constructor of MegaApi
 //#define USE_FREEIMAGE
-
-//Define WINDOWS_PHONE if you want to build the MEGA SDK for Windows Phone
-//#define WINDOWS_PHONE
 /////////////////////////// END OF SETTINGS ///////////////////////////
 
 namespace mega
@@ -85,14 +82,10 @@ class MegaGfxProc : public GfxProcExternal {};
 #endif
 
 #ifdef WIN32
-    #ifndef WINDOWS_PHONE
     #ifdef USE_CURL
     class MegaHttpIO : public CurlHttpIO {};
     #else
     class MegaHttpIO : public WinHttpIO {};
-    #endif
-    #else
-    class MegaHttpIO : public CurlHttpIO {};
     #endif
 	class MegaFileSystemAccess : public WinFileSystemAccess {};
 	class MegaWaiter : public WinWaiter {};
@@ -433,7 +426,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
-                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring, std::string *fileattrstring,
+                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
                         bool isForeign = false, const char *chatauth = NULL);
@@ -465,11 +458,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getParentHandle() override;
         std::string* getNodeKey() override;
         char *getBase64Key() override;
-        std::string* getAttrString() override;
         char* getFileAttrString() override;
-
-        int getTag() override;
-
         int64_t getExpirationTime() override;
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
@@ -528,13 +517,11 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle parenthandle;
         MegaHandle restorehandle;
         std::string nodekey;
-        std::string attrstring;
         std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
         std::string mDeviceId;
         const char *chatAuth;
-        int tag;
         int changed;
         struct {
             bool thumbnailAvailable : 1;
@@ -1255,7 +1242,7 @@ protected:
 class MegaEventPrivate : public MegaEvent
 {
 public:
-    MegaEventPrivate(int type);
+    MegaEventPrivate(int atype);
     MegaEventPrivate(MegaEventPrivate *event);
     virtual ~MegaEventPrivate();
     MegaEvent *copy() override;
@@ -1266,6 +1253,7 @@ public:
     MegaHandle getHandle() const override;
     const char *getEventString() const override;
 
+    std::string getValidDataToString() const;
     static const char* getEventString(int type);
 
     void setText(const char* text);
@@ -1274,9 +1262,9 @@ public:
 
 protected:
     int type;
-    const char* text;
-    int64_t number;
-    MegaHandle mHandle;
+    const char* text = nullptr;
+    int64_t number = -1;
+    MegaHandle mHandle = INVALID_HANDLE;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -1548,24 +1536,25 @@ public:
     MegaTextChatPrivate(const TextChat *);
 
     virtual ~MegaTextChatPrivate();
-    virtual MegaTextChat *copy() const;
+    MegaTextChat *copy() const override;
 
-    virtual MegaHandle getHandle() const;
-    virtual int getOwnPrivilege() const;
-    virtual int getShard() const;
-    virtual const MegaTextChatPeerList *getPeerList() const;
-    virtual void setPeerList(const MegaTextChatPeerList *peers);
-    virtual bool isGroup() const;
-    virtual MegaHandle getOriginatingUser() const;
-    virtual const char *getTitle() const;
-    virtual const char *getUnifiedKey() const;
-    virtual int64_t getCreationTime() const;
-    virtual bool isArchived() const;
-    virtual bool isPublicChat() const;
+    MegaHandle getHandle() const override;
+    int getOwnPrivilege() const override;
+    int getShard() const override;
+    const MegaTextChatPeerList *getPeerList() const override;
+    void setPeerList(const MegaTextChatPeerList *peers) override;
+    bool isGroup() const override;
+    MegaHandle getOriginatingUser() const override;
+    const char *getTitle() const override;
+    const char *getUnifiedKey() const override;
+    int64_t getCreationTime() const override;
+    bool isArchived() const override;
+    bool isPublicChat() const override;
+    bool isMeeting() const override;
 
-    virtual bool hasChanged(int changeType) const;
-    virtual int getChanges() const;
-    virtual int isOwnChange() const;
+    bool hasChanged(int changeType) const override;
+    int getChanges() const override;
+    int isOwnChange() const override;
 
 private:
     handle id;
@@ -1582,6 +1571,7 @@ private:
     bool archived;
     bool publicchat;
     int64_t ts;
+    bool meeting;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -2146,9 +2136,6 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToLongName(int);
         static int userAttributeFromString(const char *name);
         static char userAttributeToScope(int);
-#ifdef WINDOWS_PHONE
-        void setStatsID(const char *id);
-#endif
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
@@ -2561,7 +2548,6 @@ class MegaApiImpl : public MegaApp
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
-        void queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener = NULL);
         void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
@@ -2713,7 +2699,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
@@ -2726,7 +2712,7 @@ class MegaApiImpl : public MegaApp
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         void sendChatStats(const char *data, int port, MegaRequestListener *listener = NULL);
-        void sendChatLogs(const char *data, const char *aid, int port, MegaRequestListener *listener = NULL);
+         void sendChatLogs(const char *data, MegaHandle userid, MegaHandle callid = INVALID_HANDLE, int port = 0, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
@@ -2745,6 +2731,9 @@ class MegaApiImpl : public MegaApp
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
         bool isChatNotifiable(MegaHandle chatid);
+        void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
+        void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
+        void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
@@ -2902,7 +2891,6 @@ protected:
         // sc requests to close existing wsc and immediately retrieve pending actionpackets
         RequestQueue scRequestQueue;
 
-        std::unique_ptr<BackupMonitor> mHeartBeatMonitor;
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
@@ -2917,6 +2905,7 @@ protected:
         set<MegaScheduledCopyListener *> backupListeners;
 
 #ifdef ENABLE_SYNC
+        std::unique_ptr<BackupMonitor> mHeartBeatMonitor;
         MegaSyncPrivate* cachedMegaSyncPrivateByBackupId(const SyncConfig&);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
 #endif
@@ -3151,7 +3140,7 @@ protected:
         void chats_updated(textchat_map *, int) override;
         void richlinkrequest_result(string*, error) override;
         void chatlink_result(handle, error) override;
-        void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error) override;
+        void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, handle, error) override;
         void chatlinkclose_result(error) override;
         void chatlinkjoin_result(error) override;
 #endif

@@ -776,25 +776,6 @@ class MegaNode
         virtual char* getBase64Key();
 
         /**
-         * @brief Returns the tag of the operation that created/modified this node in MEGA
-         *
-         * Every request and every transfer has a tag that identifies it.
-         * When a request creates or modifies a node, the tag is associated with the node
-         * at runtime, this association is lost after a reload of the filesystem or when
-         * the SDK is closed.
-         *
-         * This tag is specially useful to know if a node reported in MegaListener::onNodesUpdate or
-         * MegaGlobalListener::onNodesUpdate was modified by a local operation (tag != 0) or by an
-         * external operation, made by another MEGA client (tag == 0).
-         *
-         * If the node hasn't been created/modified during the current execution, this function returns 0
-         *
-         * @return The tag associated with the node.
-         * @deprecated This function will be removed in future releases, it was unreliable due to race conditions
-         */
-        virtual int getTag();
-
-        /**
          * @brief Returns the expiration time of a public link, if any
          *
          * @return The expiration time as an Epoch timestamp. Returns 0 for non-expire
@@ -1071,22 +1052,6 @@ class MegaNode
          * Use MegaNode::getBase64Key instead
          */
         virtual std::string* getNodeKey();
-
-        /**
-         * @brief Returns a string that contains the encrypted attributes of the file (in binary format)
-         *
-         * The return value is only valid for public nodes or undecrypted nodes. In all other cases this function
-         * will return an empty string.
-         *
-         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
-         * of the MegaNode object.
-         *
-         * @return Encrypted attributes of the file (in binary format)
-         * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-         * Use MegaNode::getName and MegaNode::getModificationTime and MegaApi::getFingerprint. They provide the same information,
-         * decrypted and in a manageable format.
-         */
-        virtual std::string* getAttrString();
 
         /**
          * @brief Returns the file attributes related to the node
@@ -2177,6 +2142,12 @@ public:
      * @return True if this chat is public
      */
     virtual bool isPublicChat() const;
+
+    /**
+     * @brief Returns whether this chat is a meeting room
+     * @return True if this chat is a meeting room
+     */
+    virtual bool isMeeting() const;
 };
 
 /**
@@ -3104,7 +3075,7 @@ class MegaRequest
             TYPE_GET_LOCAL_SSL_CERT                                         = 82,
             TYPE_SEND_SIGNUP_LINK                                           = 83,
             TYPE_QUERY_DNS                                                  = 84,
-            TYPE_QUERY_GELB                                                 = 85,
+            TYPE_QUERY_GELB                                                 = 85,   // (obsolete)
             TYPE_CHAT_STATS                                                 = 86,
             TYPE_DOWNLOAD_FILE                                              = 87,
             TYPE_QUERY_TRANSFER_QUOTA                                       = 88,
@@ -3161,7 +3132,10 @@ class MegaRequest
             TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS                                = 139,
             TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS                               = 140,
             TYPE_GET_DOWNLOAD_URLS                                          = 141,
-            TOTAL_OF_REQUEST_TYPES                                          = 142,
+            TYPE_START_CHAT_CALL                                            = 142,
+            TYPE_JOIN_CHAT_CALL                                             = 143,
+            TYPE_END_CHAT_CALL                                              = 144,
+            TOTAL_OF_REQUEST_TYPES                                          = 145,
         };
 
         virtual ~MegaRequest();
@@ -3256,6 +3230,8 @@ class MegaRequest
          * - MegaApi::setScheduledCopy - Returns the target node of the backup
          * - MegaApi::updateBackup - Returns the target node of the backup
          * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
+         * - MegaApi::getChatLinkURL - Returns the public handle
+         * - MegaApi::sendChatLogs - Returns the user handle
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3312,6 +3288,8 @@ class MegaRequest
          * - MegaApi::sendBackupHeartbeat - Returns the backupId
          * - MegaApi::syncFolder - Returns the backupId asociated with the sync
          * - MegaApi::copySyncDataToCache - Returns the backupId asociated with the sync
+         * - MegaApi::getChatLinkURL - Returns the chatid
+         * - MegaApi::sendChatLogs - Returns the callid (if exits)
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3562,6 +3540,8 @@ class MegaRequest
          * - MegaApi::setScheduledCopy - Returns the cron like time string to define period
          * - MegaApi::getUploadURL - Returns the upload IPv6
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv6 of the server in the URL(s)
+         * - MegaApi::startChatCall - Returns the url sfu
+         * - MegaApi::joinChatCall - Returns the url sfu
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3599,6 +3579,7 @@ class MegaRequest
          * - MegaApi::sendChatStats - Returns the connection port
          * - MegaApi::dismissBanner - Returns the timestamp of the request
          * - MegaApi::sendBackupHeartbeat - Returns the time associated with the request
+         * - MegaApi::createPublicChat - Returns if chat room is a meeting room
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3632,6 +3613,8 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns true (it means that it's an automatic move)
          * - MegaApi::moveTransferBefore - Returns false (it means that it's a manual move)
          * - MegaApi::moveTransferBeforeByTag - Returns false (it means that it's a manual move)
+         * - MegaApi::setBackup - Returns if backups that should have happen in the past should be taken care of
+         * - MegaApi::getChatLinkURL - Returns a vector with one element (callid), if call doesn't exit it will be NULL
          * - MegaApi::setScheduledCopy - Returns if backups that should have happen in the past should be taken care of
          *
          * This value is valid for these request in onRequestFinish when the
@@ -3924,6 +3907,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::getFavourites - A list of MegaHandle objects
+         * - MegaApi::getChatLinkURL - Returns a vector with the callid (if call exits in other case it will be NULL)
          *
          * @return MegaHandle list
          */
@@ -3954,9 +3938,9 @@ public:
         EVENT_KEY_MODIFIED              = 10,
         EVENT_MISC_FLAGS_READY          = 11,
 #ifdef ENABLE_SYNC
-        EVENT_FIRST_SYNC_RESUMING       = 12, // (deprecated) when a first sync is about to be resumed
-        EVENT_SYNCS_DISABLED            = 13, // after restoring syncs
-        EVENT_SYNCS_RESTORED            = 14, // after restoring syncs
+        //EVENT_FIRST_SYNC_RESUMING       = 12, // (deprecated) when a first sync is about to be resumed
+        EVENT_SYNCS_DISABLED            = 13, // Syncs were bulk-disabled due to a situation encountered, eg storage overquota
+        EVENT_SYNCS_RESTORED            = 14, // Indicate to the app that the process of starting existing syncs after login+fetchnodes is complete.
 #endif
     };
 
@@ -8130,7 +8114,7 @@ class MegaApi
          * @param base64string The base 64 encoded string to decode.
          * @param binary A pointer to a pointer to assign with a `new unsigned char[]`
          *        allocated buffer containing the decoded binary data.
-         * @param size A pointer to a variable that will be assigned the size of the buffer allocated.
+         * @param binarysize A pointer to a variable that will be assigned the size of the buffer allocated.
          */
         static void base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize);
 
@@ -8144,19 +8128,6 @@ class MegaApi
          * @param size Size of the byte array (in bytes)
          */
         void addEntropy(char* data, unsigned int size);
-
-#ifdef WINDOWS_PHONE
-        /**
-         * @brief Set the ID for statistics
-         *
-         * Call this function one time only per MegaApi, before using that MegaApi
-         *
-         * The id parameter is hashed before being used
-         *
-         * @param id ID for statistics
-         */
-        static void setStatsID(const char *id);
-#endif
 
         /**
          * @brief Retry all pending requests
@@ -9056,7 +9027,7 @@ class MegaApi
          * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
          * to confirm, and the MegaRequest::getName will return the name.
          *
-         * @param link Confirmation link (#confirm) or new signup link (#newsignup)
+         * @param link Confirmation link (confirm) or new signup link (newsignup)
          * @param listener MegaRequestListener to track this request
          */
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
@@ -9149,7 +9120,7 @@ class MegaApi
          * - MegaRequest::getEmail - Return the email associated with the link
          * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
          *
-         * @param link Recovery link (#recover)
+         * @param link Recovery link (recover)
          * @param listener MegaRequestListener to track this request
          */
         void queryResetPasswordLink(const char *link, MegaRequestListener *listener = NULL);
@@ -9211,7 +9182,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Return the email associated with the link
          *
-         * @param link Cancel link (#cancel)
+         * @param link Cancel link (cancel)
          * @param listener MegaRequestListener to track this request
          */
         void queryCancelLink(const char *link, MegaRequestListener *listener = NULL);
@@ -9292,7 +9263,7 @@ class MegaApi
          * If the account is logged-in into a different account than the account for which the link
          * was generated, onRequestFinish will be called with the error code MegaError::API_EACCESS.
          *
-         * @param link Change-email link (#verify)
+         * @param link Change-email link (verify)
          * @param listener MegaRequestListener to track this request
          */
         void queryChangeEmailLink(const char *link, MegaRequestListener *listener = NULL);
@@ -12219,7 +12190,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path to the drive
          *
          * @param pathToDrive Path to the root of the external drive
-         * @param deviceName String with drive name
+         * @param driveName String with drive name
          * @param listener MegaRequestListener to track this request
          */
         void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
@@ -14540,16 +14511,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
@@ -14610,16 +14581,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List with all child MegaNode objects
          */
@@ -14720,16 +14691,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return Lists with files and folders child MegaNode objects
          */
@@ -14790,7 +14761,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param node MegaNode for which the path will be returned
+         * @param handle MegaNode handle for which the path will be returned
          * @return The path of the node
          */
         char* getNodePathByNodeHandle(MegaHandle handle);
@@ -15205,7 +15176,7 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @param originalfingerprint Original Fingerprint to check
+         * @param originalFingerprint Original Fingerprint to check
          * @param parent Only return nodes below this specified parent folder. Pass NULL to consider all nodes.
          * @return List of nodes with the same original fingerprint
          */
@@ -15586,16 +15557,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -15669,16 +15640,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -15750,16 +15721,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -15836,16 +15807,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -15918,16 +15889,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -16000,16 +15971,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -16082,16 +16053,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -16173,16 +16144,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param type Type of nodes requested in the search
          * Valid values for this parameter are:
@@ -16409,25 +16380,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief queryGeLB Query the GeLB server for a given service
-         *
-         * The associated request type with this request is MegaRequest::TYPE_QUERY_GELB
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Return the HTTP status code from the GeLB server
-         * - MegaRequest::getText - Returns the JSON response from the GeLB server
-         * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
-         *
-         * @param service Service to check
-         * @param timeoutds Timeout for the request, including all possible retries (in deciseconds)
-         * A value <= 0 means no (or infinite) timeout.
-         * @param maxretries Maximum number of retries for the request
-         * @param listener MegaRequestListener to track this request
-         */
-        void queryGeLB(const char *service, int timeoutds = 40, int maxretries = 4, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Download a file using a HTTP GET request
@@ -17598,7 +17550,6 @@ class MegaApi
          * The ftp link will no longer be valid.
          *
          * @param handle Handle of the node to stop serving
-         * @return URL to the node in the local FTP server, otherwise NULL
          */
         void ftpServerRemoveAllowedNode(MegaHandle handle);
 
@@ -17756,6 +17707,7 @@ class MegaApi
          * - MegaChatRequest::getMegaChatPeerList - List of participants and their privilege level
          * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
          * - MegaRequest::getText - Returns the title of the chat.
+         * - MegaRequest::getNumber - Returns if chat room is a meeting room
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -17767,10 +17719,10 @@ class MegaApi
          * @param peers MegaChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
-         *
+         * @param meetingRoom Boolean indicating if room is a meeting room
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
@@ -18049,7 +18001,8 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CHAT_STATS
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the data provided.
-         * - MegaRequest::getSessionKey - Returns the aid provided
+         * - MegaRequest::getNodeHandle - Returns the userid
+         * - MegaRequest::getParentHandle - Returns the provided callid
          * - MegaRequest::getParamType - Returns number 2
          * - MegaRequest::getNumber - Returns the connection port
          *
@@ -18060,11 +18013,12 @@ class MegaApi
          * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
          *
          * @param data JSON data to send to the logs server
-         * @param aid User's anonymous identifier for logging
+         * @param userid handle of the user
+         * @param callid handle of the call
          * @param port Server port to connect
          * @param listener MegaRequestListener to track this request
          */
-        void sendChatLogs(const char *data, const char *aid, int port = 0, MegaRequestListener *listener = NULL);
+        void sendChatLogs(const char *data, MegaHandle userid, MegaHandle callid = INVALID_HANDLE, int port = 0, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the list of chatrooms for this account
@@ -18164,7 +18118,7 @@ class MegaApi
         /**
          * @brief Query if there is a chat link for this chatroom
          *
-         * This function can be called by a chat operator to check and retrieve the current
+         * This function can be called by any chat member to check and retrieve the current
          * public handle for the specified chat without creating it.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_HANDLE.
@@ -18246,12 +18200,15 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Returns the public hanle
          * - MegaRequest::getLink - Returns the URL to connect to chatd for the chat link
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getAccess - Returns the shard
          * - MegaRequest::getText - Returns the chat-topic (if any)
          * - MegaRequest::getNumDetails - Returns the current number of participants
          * - MegaRequest::getNumber - Returns the creation timestamp
+         * - MegaRequest::getFlag - Returns if chatRoom is a meeting Room
+         * - MegaRequest::getMegaHandleList - Returns a vector with one element (callid), if call doesn't exit it will be NULL
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - If the public handle is not valid or the chatroom does not exists.
@@ -18324,6 +18281,70 @@ class MegaApi
          * @return true if notification has to be created
          */
         bool isChatNotifiable(MegaHandle chatid);
+
+        /**
+         * @brief Allows to start chat call in a chat room
+         *
+         * The associated request type with this request is MegaRequest::TYPE_START_CHAT_CALL
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the sfu url
+         * - MegaRequest::getNodeHandle - Returns the call identifier
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the chatid is invalid
+         * - MegaError::API_EEXIST - If there is a call in the chatroom
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Allow to join chat call
+         *
+         * The associated request type with this request is MegaRequest::TYPE_JOIN_CHAT_CALL
+         *
+         * * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the call identifier
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the sfu url
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the chatid or callid is invalid
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param callid MegaHandle that identifies the call
+         * @param listener MegaRequestListener to track this request
+         */
+        void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Allow to end chat call
+         *
+         * The associated request type with this request is MegaRequest::TYPE_END_CHAT_CALL
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the call identifier
+         * - MegaRequest::getAccess - Returns the reason to end call
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the chatid or callid is invalid
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param callid MegaHandle that identifies the call
+         * @param reason Reason to end call (Valid value END_CALL_REASON_REJECTED)
+         * @param listener MegaRequestListener to track this request
+         */
+        void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
 
 #endif
 
@@ -18708,7 +18729,7 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the last node handle to be synced
          *
          * @param backupId backup id identifying the backup
-         * @param state backup state
+         * @param status backup status
          * @param progress backup progress
          * @param ups Number of pending upload transfers
          * @param downs Number of pending download transfers
@@ -19133,7 +19154,7 @@ public:
     virtual int64_t getSubscriptionRenewTime();
 
     /**
-     * @brief Get the subscryption method
+     * @brief Get the subscription method
      *
      * You take the ownership of the returned value
      *

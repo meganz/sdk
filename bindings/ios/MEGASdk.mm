@@ -827,6 +827,17 @@ using namespace mega;
 
 #pragma mark - Create account and confirm account Requests
 
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname {
+    if (self.megaApi) {
+        self.megaApi->createEphemeralAccountPlusPlus(firstname.UTF8String, lastname.UTF8String);
+    }
+}
+
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->createEphemeralAccountPlusPlus(firstname.UTF8String, lastname.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname {
     if (self.megaApi) {
@@ -2011,6 +2022,18 @@ using namespace mega;
     }
 }
 
+- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getMyBackupsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)getMyBackupsFolder {
+    if (self.megaApi) {
+        self.megaApi->getMyBackupsFolder();
+    }
+}
+
 - (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -2845,12 +2868,6 @@ using namespace mega;
     return (MEGAShareType) self.megaApi->getAccess([node getCPtr]);
 }
 
-- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level {
-    if (node == nil || self.megaApi == nil) return nil;
-    
-    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccess(node.getCPtr, (int) level).copy() cMemoryOwn:YES];
-}
-
 - (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level {
     if (self.megaApi == nil) return nil;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccessErrorExtended(node.getCPtr, (int)level) cMemoryOwn:YES];
@@ -2859,11 +2876,6 @@ using namespace mega;
 - (BOOL)isNodeInRubbish:(MEGANode *)node {
     if (self.megaApi == nil) return NO;
     return self.megaApi->isInRubbish(node.getCPtr);
-}
-
-- (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target {
-    if (self.megaApi == nil) return nil;
-    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMove(node.getCPtr, target.getCPtr).copy() cMemoryOwn:YES];
 }
 
 - (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {

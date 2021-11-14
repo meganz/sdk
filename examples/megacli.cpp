@@ -59,6 +59,10 @@
 #include "mega/gfx/freeimage.h"
 #endif
 
+#ifdef WIN32
+#include <winioctl.h>
+#endif
+
 namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
@@ -772,7 +776,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
 {
     if (e)
     {
@@ -833,31 +837,15 @@ void DemoApp::printChatInformation(TextChat *chat)
     cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
     cout << "\tCreation ts: " << chat->ts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
-    if (chat->group)
-    {
-        cout << "\tGroup chat: yes" << endl;
-    }
-    else
-    {
-        cout << "\tGroup chat: no" << endl;
-    }
-    if (chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE))
-    {
-        cout << "\tArchived chat: yes" << endl;
-    }
-    else
-    {
-        cout << "\tArchived chat: no" << endl;
-    }
+    cout << "\tGroup chat: " << ((chat->group) ? "yes" : "no") << endl;
+    cout << "\tArchived chat: " << ((chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE)) ? "yes" : "no") << endl;
+    cout << "\tPublic chat: " << ((chat->publicchat) ? "yes" : "no") << endl;
     if (chat->publicchat)
     {
-        cout << "\tPublic chat: yes" << endl;
         cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
+        cout << "\tMeeting room: " << ((chat->meeting) ? "yes" : "no") << endl;
     }
-    else
-    {
-        cout << "\tPublic chat: no" << endl;
-    }
+
     cout << "\tPeers:";
 
     if (chat->userpriv)
@@ -874,14 +862,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     {
         cout << " no peers (only you as participant)" << endl;
     }
-    if (chat->tag)
-    {
-        cout << "\tIs own change: yes" << endl;
-    }
-    else
-    {
-        cout << "\tIs own change: no" << endl;
-    }
+    cout << "\tIs own change: " << ((chat->tag) ? "yes" : "no") << endl;
     if (!chat->title.empty())
     {
         cout << "\tTitle: " << chat->title.c_str() << endl;
@@ -1002,7 +983,7 @@ void DemoApp::fetchnodes_result(const Error& e)
             }
             else
             {
-                assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
+                assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
                 cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
@@ -1317,11 +1298,6 @@ static NodeHandle cwd;
 // Where we were on the local filesystem when megacli started.
 static unique_ptr<LocalPath> startDir(new LocalPath);
 
-static const char* rootnodenames[] =
-{ "ROOT", "INBOX", "RUBBISH" };
-static const char* rootnodepaths[] =
-{ "/", "//in", "//bin" };
-
 static void nodestats(int* c, const char* action)
 {
     if (c[FILENODE])
@@ -1346,12 +1322,17 @@ static void nodestats(int* c, const char* action)
 // list available top-level nodes and contacts/incoming shares
 static void listtrees()
 {
-    for (int i = 0; i < (int) (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    if (!client->rootnodes.files.isUndef())
     {
-        if (client->rootnodes[i] != UNDEF)
-        {
-            cout << rootnodenames[i] << " on " << rootnodepaths[i] << endl;
-        }
+        cout << "ROOT on /" << endl;
+    }
+    if (!client->rootnodes.inbox.isUndef())
+    {
+        cout << "INBOX on //in" << endl;
+    }
+    if (!client->rootnodes.rubbish.isUndef())
+    {
+        cout << "RUBBISH on //bin" << endl;
     }
 
     for (user_map::iterator uit = client->users.begin(); uit != client->users.end(); uit++)
@@ -1372,9 +1353,9 @@ static void listtrees()
         }
     }
 
-    if (clientFolder && !ISUNDEF(clientFolder->rootnodes[0]))
+    if (clientFolder && !clientFolder->rootnodes.files.isUndef())
     {
-        Node *n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
+        Node *n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
         if (n)
         {
             cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
@@ -1503,7 +1484,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 return NULL;
             }
 
-            n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
+            n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
             if (c.size() == 2 && c[1].empty())
             {
                 return n;
@@ -1553,11 +1534,11 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodebyhandle(client->rootnodes[1]);
+                    n = client->nodeByHandle(client->rootnodes.inbox);
                 }
                 else if (c[2] == "bin")
                 {
-                    n = client->nodebyhandle(client->rootnodes[2]);
+                    n = client->nodeByHandle(client->rootnodes.rubbish);
                 }
                 else
                 {
@@ -1568,7 +1549,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             }
             else
             {
-                n = client->nodebyhandle(client->rootnodes[0]);
+                n = client->nodeByHandle(client->rootnodes.files);
 
                 l = 1;
             }
@@ -2336,7 +2317,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 
     std::vector<Node*> emptyFolders;
     bool empty = true;
-    Node* trash = client->nodebyhandle(client->rootnodes[2]);
+    Node* trash = client->nodeByHandle(client->rootnodes.rubbish);
     for (auto c : n->children)
     {
         bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
@@ -2591,6 +2572,46 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     {
         cout << "invalid directory: " << p.u8string() << endl;
     }
+}
+
+void exec_generatesparsefile(autocomplete::ACState& s)
+{
+    int64_t filesize = int64_t(2) * 1024 * 1024 * 1024 * 1024;
+    string param;
+    if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
+
+    fs::path p = pathFromLocalPath(s.words[1].s, false);
+    std::ofstream(p).put('a');
+    cout << "File size:  " << fs::file_size(p) << '\n'
+        << "Free space: " << fs::space(p).free << '\n';
+
+#ifdef WIN32
+    HANDLE hFile = CreateFileW((LPCWSTR)p.u16string().data(),
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_WRITE | FILE_SHARE_READ,
+        NULL,
+        OPEN_ALWAYS,
+        0,
+        NULL);
+    DWORD bytesReturned = 0;
+    if (!DeviceIoControl(
+        hFile,                             // handle to a file
+        FSCTL_SET_SPARSE,                  // dwIoControlCode
+        (PFILE_SET_SPARSE_BUFFER) NULL,    // input buffer
+        (DWORD) 0,                         // size of input buffer
+        NULL,                              // lpOutBuffer
+        0,                                 // nOutBufferSize
+        &bytesReturned,                    // number of bytes returned
+        NULL))                              // OVERLAPPED structure
+    {
+        cout << "Set sparse file operation failed." << endl;
+    }
+    CloseHandle(hFile);
+#endif //WIN32
+
+    fs::resize_file(p, filesize);
+    cout << "File size:  " << fs::file_size(p) << '\n'
+        << "Free space: " << fs::space(p).free << '\n';
 }
 
 void exec_lreplace(autocomplete::ACState& s)
@@ -2940,6 +2961,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                     cout << "  sync state: " << d.syncState << endl;
                     cout << "  sync substate: " << d.syncSubstate << endl;
                     cout << "  extra: " << d.extra << endl;
+                    cout << "    backup name: " << d.backupName << endl;
                     cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
                     cout << "  heartbeat status: " << d.hbStatus << endl;
                     cout << "  heartbeat progress: " << d.hbProgress << endl;
@@ -3110,8 +3132,11 @@ autocomplete::ACN autocompleteSyntax()
                     text("add"),
                     opt(flag("-backup")),
                     opt(sequence(flag("-external"), param("drivePath"))),
+                    opt(sequence(flag("-name"), param("syncname"))),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
+
+    p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
 
     p->Add(exec_syncclosedrive,
            sequence(text("sync"),
@@ -3209,10 +3234,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_test, sequence(text("test"), opt(param("data"))));
     p->Add(exec_fingerprint, sequence(text("fingerprint"), localFSFile("localfile")));
 #ifdef ENABLE_CHAT
-    p->Add(exec_chats, sequence(text("chats")));
+    p->Add(exec_chats, sequence(text("chats"), opt(param("chatid"))));
     p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
     p->Add(exec_chati, sequence(text("chati"), param("chatid"), contactEmail(client), either(text("ro"), text("sta"), text("mod"))));
-    p->Add(exec_chatcp, sequence(text("chatcp"), param("mownkey"), opt(sequence(text("t"), param("title64"))), repeat(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod"))))));
+    p->Add(exec_chatcp, sequence(text("chatcp"), flag("-meeting"), param("mownkey"), opt(sequence(text("t"), param("title64"))),
+                                 repeat(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod"))))));
     p->Add(exec_chatr, sequence(text("chatr"), param("chatid"), opt(contactEmail(client))));
     p->Add(exec_chatu, sequence(text("chatu"), param("chatid")));
     p->Add(exec_chatup, sequence(text("chatup"), param("chatid"), param("userhandle"), either(text("ro"), text("sta"), text("mod"))));
@@ -3255,11 +3281,13 @@ autocomplete::ACN autocompleteSyntax()
 
 #ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
-    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"), repeat(either(sequence(flag("-folderdepth"), param("depth")),
-                                                                                                   sequence(flag("-folderwidth"), param("width")),
-                                                                                                   sequence(flag("-filecount"), param("count")),
-                                                                                                   sequence(flag("-filesize"), param("size")),
-                                                                                                   sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
+    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"),
+        repeat(either(  sequence(flag("-folderdepth"), param("depth")),
+                        sequence(flag("-folderwidth"), param("width")),
+                        sequence(flag("-filecount"), param("count")),
+                        sequence(flag("-filesize"), param("size")),
+                        sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
+    p->Add(exec_generatesparsefile, sequence(text("generatesparsefile"), opt(sequence(flag("-filesize"), param("size"))), localFSFile("targetfile")));
     p->Add(exec_lreplace, sequence(text("lreplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content")));
     p->Add(exec_lrenamereplace, sequence(text("lrenamereplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content"), localFSPath("renamed")));
 
@@ -3641,7 +3669,7 @@ void exec_cd(autocomplete::ACState& s)
     }
     else
     {
-        cwd = NodeHandle().set6byte(client->rootnodes[0]);
+        cwd = client->rootnodes.files;
     }
 }
 
@@ -4171,7 +4199,7 @@ void exec_get(autocomplete::ACState& s)
                     // node from public folder link
                     if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
                     {
-                        handle h = clientFolder->rootnodes[0];
+                        handle h = clientFolder->rootnodes.files.as8byte();
                         char *pubauth = new char[12];
                         Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
                         f->pubauth = pubauth;
@@ -4736,17 +4764,12 @@ void exec_share(autocomplete::ACState& s)
     case 1:		// list all shares (incoming and outgoing)
     {
         TreeProcListOutShares listoutshares;
-        Node* n;
 
         cout << "Shared folders:" << endl;
 
-        for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
-        {
-            if ((n = client->nodebyhandle(client->rootnodes[i])))
-            {
-                client->proctree(n, &listoutshares);
-            }
-        }
+        client->proctree(client->nodeByHandle(client->rootnodes.files), &listoutshares);
+        client->proctree(client->nodeByHandle(client->rootnodes.inbox), &listoutshares);
+        client->proctree(client->nodeByHandle(client->rootnodes.rubbish), &listoutshares);
 
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)
@@ -5342,14 +5365,14 @@ void exec_email(autocomplete::ACState& s)
         {
             string link = s.words[1].s;
 
-            size_t pos = link.find("#verify");
+            size_t pos = link.find(MegaClient::verifyLinkPrefix());
             if (pos == link.npos)
             {
                 cout << "Invalid email change link." << endl;
                 return;
             }
 
-            changecode.assign(link.substr(pos + strlen("#verify")));
+            changecode.assign(link.substr(pos + strlen(MegaClient::verifyLinkPrefix())));
             client->queryrecoverylink(changecode.c_str());
         }
     }
@@ -5762,9 +5785,9 @@ void exec_signup(autocomplete::ACState& s)
         const char* ptr = s.words[1].s.c_str();
         const char* tptr;
 
-        if ((tptr = strstr(ptr, "#confirm")))
+        if ((tptr = strstr(ptr, "confirm")))
         {
-            ptr = tptr + 8;
+            ptr = tptr + 7;
 
             std::string code = Base64::atob(std::string(ptr));
             if (!code.empty())
@@ -6145,6 +6168,7 @@ void exec_chatlj(autocomplete::ACState& s)
 
 void exec_chatcp(autocomplete::ACState& s)
 {
+    bool meeting = s.extractflag("-meeting");
     size_t wordscount = s.words.size();
     userpriv_vector *userpriv = new userpriv_vector;
     string_map *userkeymap = new string_map;
@@ -6223,7 +6247,7 @@ void exec_chatcp(autocomplete::ACState& s)
     Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
     ownHandleB64[11] = '\0';
     userkeymap->insert(std::pair<string, string>(ownHandleB64, mownkey));
-    client->createChat(true, true, userpriv, userkeymap, title);
+    client->createChat(true, true, userpriv, userkeymap, title, meeting);
     delete userpriv;
     delete userkeymap;
 }
@@ -6251,14 +6275,14 @@ void exec_cancel(autocomplete::ACState& s)
     {
         string link = s.words[1].s;
 
-        size_t pos = link.find("#cancel");
+        size_t pos = link.find(MegaClient::cancelLinkPrefix());
         if (pos == link.npos)
         {
             cout << "Invalid cancellation link." << endl;
             return;
         }
 
-        client->confirmcancellink(link.substr(pos + strlen("#cancel")).c_str());
+        client->confirmcancellink(link.substr(pos + strlen(MegaClient::cancelLinkPrefix())).c_str());
     }
 }
 
@@ -6365,13 +6389,13 @@ void exec_recover(autocomplete::ACState& s)
     {
         string link = s.words[1].s;
 
-        size_t pos = link.find("#recover");
+        size_t pos = link.find(MegaClient::recoverLinkPrefix());
         if (pos == link.npos)
         {
             cout << "Invalid recovery link." << endl;
         }
 
-        recoverycode.assign(link.substr(pos + strlen("#recover")));
+        recoverycode.assign(link.substr(pos + strlen(MegaClient::recoverLinkPrefix())));
         client->queryrecoverylink(recoverycode.c_str());
     }
 }
@@ -6623,7 +6647,7 @@ void exec_mediainfo(autocomplete::ACState& s)
     }
     else if (!client->mediaFileInfo.mediaCodecsReceived)
     {
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
         cout << "Mediainfo lookups requested" << endl;
     }
 
@@ -7506,7 +7530,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     {
         if (pdf_to_import)
         {
-            n = client->nodebyhandle(client->rootnodes[0]);
+            n = client->nodeByHandle(client->rootnodes.files);
         }
         else
         {
@@ -7759,7 +7783,7 @@ void DemoApp::nodes_updated(Node** n, int count)
 
     if (cwd.isUndef())
     {
-        cwd = NodeHandle().set6byte(client->rootnodes[0]);
+        cwd = client->rootnodes.files;
     }
 }
 
@@ -7882,6 +7906,12 @@ void DemoApp::contactlinkdelete_result(error e)
     }
 }
 
+void reportNodeStorage(NodeStorage* ns, const string& rootnodename)
+{
+    cout << "\t\tIn " << rootnodename << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
+    cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
+}
+
 // display account details/history
 void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, bool pro, bool purchases,
                               bool transactions, bool sessions)
@@ -7892,13 +7922,9 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
-        for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
-        {
-            NodeStorage* ns = &ad->storage[client->rootnodes[i]];
-
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
-            cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
-        }
+        reportNodeStorage(&ad->storage[client->rootnodes.files.as8byte()], "/");
+        reportNodeStorage(&ad->storage[client->rootnodes.inbox.as8byte()], "//in");
+        reportNodeStorage(&ad->storage[client->rootnodes.rubbish.as8byte()], "//bin");
     }
 
     if (transfer)
@@ -8689,18 +8715,18 @@ void exec_banner(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
-void sync_completion(UnifiedSync* us, const SyncError&, error result)
+void sync_completion(error result, const SyncError& se, handle backupId)
 {
-    if (!us)
+    if (backupId == UNDEF)
     {
         cerr << "Sync could not be added: "
              << errorstring(result)
              << endl;
     }
-    else if (us->mSync)
+    else if (result == API_OK && se == NO_SYNC_ERROR)
     {
         cerr << "Sync added and running: "
-             << toHandle(us->mConfig.mBackupId)
+             << toHandle(backupId)
              << endl;
     }
     else
@@ -8720,9 +8746,10 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
-    string drive;
+    string drive, syncname;
     bool backup = s.extractflag("-backup");
     bool external = s.extractflagparam("-external", drive);
+    bool named = s.extractflagparam("-name", syncname);
 
     // sync add source target
     LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
@@ -8746,9 +8773,9 @@ void exec_syncadd(autocomplete::ACState& s)
     // Create a suitable sync config.
     auto config =
       SyncConfig(sourcePath,
-                 sourcePath.leafName().toPath(*client->fsaccess),
+                 named ? syncname : sourcePath.leafName().toPath(*client->fsaccess),
                  NodeHandle().set6byte(targetNode->nodehandle),
-                 targetPath,
+                 targetNode->displaypath(),
                  0,
                  external ? std::move(drivePath) : LocalPath(),
                  true,
@@ -8780,7 +8807,31 @@ void exec_syncadd(autocomplete::ACState& s)
 
     // Try and add the new sync.
 	// All validation is performed in this function.
-    client->addsync(config, false, sync_completion);
+    client->addsync(config, false, sync_completion, "");
+}
+
+void exec_syncrename(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate backup syncs."
+            << endl;
+        return;
+    }
+
+    // get id
+    handle backupId = 0;
+    Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
+
+    string newname = s.words[3].s;
+
+    client->syncs.renameSync(backupId, newname,
+        [&](Error e)
+        {
+            if (!e) cout << "Rename succeeded" << endl;
+            else cout << "Rename failed: " << e << endl;
+        });
 }
 
 void exec_syncclosedrive(autocomplete::ACState& s)
@@ -8933,69 +8984,73 @@ void exec_synclist(autocomplete::ACState& s)
         return;
     }
 
-    if (client->syncs.numSyncs() == 0)
+    SyncConfigVector configs = client->syncs.allConfigs();
+
+    if (configs.empty())
     {
         cout << "No syncs configured yet" << endl;
         return;
     }
 
-    client->syncs.forEachUnifiedSync(
-      [](UnifiedSync& us)
-      {
-          // Convenience.
-          auto& config = us.mConfig;
-          auto& sync = us.mSync;
+    for (SyncConfig& config : configs)
+    {
 
-          // Display name.
-          cout << "Sync "
-               << toHandle(config.mBackupId)
-               << ": "
-               << config.mName
-               << "\n";
+        // Display name.
+        cout << "Sync "
+            << toHandle(config.mBackupId)
+            << ": "
+            << config.mName
+            << "\n";
 
-          // Display source/target mapping.
-          cout << "  Mapping: "
-               << config.mLocalPath.toPath(*client->fsaccess)
-               << " -> "
-               << config.mOriginalPathOfRemoteRootNode
-               << "\n";
+        auto cloudnode = client->nodeByHandle(config.getRemoteNode());
+        string cloudpath = cloudnode ? cloudnode->displaypath() : "<null>";
 
-          if (sync)
-          {
-              // Display status info.
-              cout << "  State: "
-                   << SyncConfig::syncstatename(sync->state())
-                   << "\n";
+        // Display source/target mapping.
+        cout << "  Mapping: "
+            << config.mLocalPath.toPath(*client->fsaccess)
+            << " -> "
+            << cloudpath
+            << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")
+            << "\n";
 
-              // Display some usage stats.
-              cout << "  Statistics: "
-                   << sync->localbytes
-                   << " byte(s) across "
-                   << sync->localnodes[FILENODE]
-                   << " file(s) and "
-                   << sync->localnodes[FOLDERNODE]
-                   << " folder(s).\n";
-          }
-          else
-          {
-              // Display what status info we can.
-              auto msg = config.syncErrorToStr();
-              cout << "  Enabled: "
-                   << config.getEnabled()
-                   << "\n"
-                   << "  Last Error: "
-                   << msg
-                   << "\n";
-          }
+        //if (sync)
+        //{
+        //    // Display status info.
+        //    cout << "  State: "
+        //        << SyncConfig::syncstatename(sync->state)
+        //        << (sync->isSyncPaused() ? " (paused)" : "")
+        //        << "\n";
 
-          // Display sync type.
-          cout << "  Type: "
-               << (config.isExternal() ? "EX" : "IN")
-               << "TERNAL "
-               << SyncConfig::synctypename(config.getType())
-               << "\n"
-               << endl;
-      });
+        //    // Display some usage stats.
+        //    cout << "  Statistics: "
+        //         //<< sync->localbytes
+        //         //<< " byte(s) across "
+        //         << sync->localnodes[FILENODE]
+        //         << " file(s) and "
+        //         << sync->localnodes[FOLDERNODE]
+        //         << " folder(s).\n";
+        //}
+        //else
+        {
+            // Display what status info we can.
+            auto msg = config.syncErrorToStr();
+            cout << "  Enabled: "
+                << config.getEnabled()
+                << "\n"
+                << "  Last Error: "
+                << msg
+                << "\n";
+        }
+
+        // Display sync type.
+
+        cout << "  Type: "
+            << (config.isExternal() ? "EX" : "IN")
+            << "TERNAL "
+            << SyncConfig::synctypename(config.getType())
+            << "\n"
+            << endl;
+      }
 }
 
 void exec_syncremove(autocomplete::ACState& s)
@@ -9087,25 +9142,25 @@ void exec_syncxable(autocomplete::ACState& s)
                 return config.getBackupId() == backupId;
             },
             true, // disable is fail
-                static_cast<SyncError>(error),
-                false,
-                [](size_t nFailed){
-                cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
-            });
+            static_cast<SyncError>(error),
+            false,
+            [](size_t nFailed){
+            cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
+        });
     }
     else    // command == "disable"
     {
         client->syncs.disableSelectedSyncs(
-            [backupId](SyncConfig& config, Sync*)
-            {
-                return config.getBackupId() == backupId;
-            },
-            false,
-                static_cast<SyncError>(error),
-                false,
-                [](size_t nDisabled){
-                cout << "disablement complete. Count disabled: " << nDisabled << endl;
-            });
+          [backupId](SyncConfig& config, Sync*)
+          {
+              return config.getBackupId() == backupId;
+          },
+          false,
+          static_cast<SyncError>(error),
+          false,
+          [](size_t nDisabled){
+            cout << "disablement complete. Count disabled: " << nDisabled << endl;
+          });
     }
 }
 
