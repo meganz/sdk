@@ -162,12 +162,11 @@ if (USE_QT)
         ELSE()
             set (QT_DIR "/Users/Shared/Qt/${MEGA_QT_VERSION}/clang_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
         ENDIF()
-        set(QT_DIR "${QT_DIR}/lib/cmake/Qt5")
     ENDIF()
-	
-	if (NOT DEFINED CMAKE_PREFIX_PATH)
-		set(CMAKE_PREFIX_PATH "${QT_DIR}/lib/cmake/Qt5")
-	endif()
+
+    if (NOT DEFINED CMAKE_PREFIX_PATH)
+        set(CMAKE_PREFIX_PATH "${QT_DIR}/lib/cmake/Qt5")
+    endif()
 
     message(STATUS "CMAKE_PREFIX_PATH (should contain the QT install path): ${CMAKE_PREFIX_PATH}")
     message(STATUS "QT_DIR: ${QT_DIR}")
