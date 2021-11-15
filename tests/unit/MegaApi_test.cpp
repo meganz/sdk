@@ -301,7 +301,8 @@ TEST(MegaApi, MegaSyncStallList_constructor){
     ASSERT_EQ(strcmp(localStallPtr->reasonString(), 
                 MegaSyncStallPrivate::reasonString(
                     MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose)),0);
-    ASSERT_EQ(localStallPtr->isCloud(), false);
+    ASSERT_FALSE(localStallPtr->isCloud());
+    ASSERT_TRUE(localStallPtr->isImmediate());
 
     // Check The cloud stall object
     ASSERT_EQ(theRemotePath.compare(cloudStallPtr->indexPath()),0);

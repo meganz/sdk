@@ -1358,9 +1358,7 @@ MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const {
 }
 
 void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls){
-    //std::cout << "void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls)\n";
     const bool itIsCloud = true;
-    const bool itIsInmmediate = false; // @TODO: Change this
     for(auto& stall : syncStalls.cloud) {
         stalls.emplace_back(
             stall.first,
@@ -1368,15 +1366,13 @@ void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls){
             stall.second.involvedCloudPath,
             syncStallReasonMapping(stall.second.reason),
             itIsCloud,
-            itIsInmmediate
+            syncWaitReasonAlwaysNeedsUserIntervention(stall.second.reason) // is it immediate ?
         );
     }
 }
 
 void MegaSyncStallListPrivate::addLocalStalls(const SyncStallInfo& syncStalls){
-    //std::cout << "void MegaSyncStallListPrivate::addLocalStalls(const SyncStallInfo& syncStalls)\n";
     const bool itIsCloud = false;
-    const bool itIsInmmediate = false; // @TODO: Change this
     for(auto& stall : syncStalls.local) {
         stalls.emplace_back(
             stall.first.toPath(),
@@ -1384,7 +1380,7 @@ void MegaSyncStallListPrivate::addLocalStalls(const SyncStallInfo& syncStalls){
             stall.second.involvedCloudPath,
             syncStallReasonMapping(stall.second.reason),
             itIsCloud,
-            itIsInmmediate
+            syncWaitReasonAlwaysNeedsUserIntervention(stall.second.reason) // is it immediate ?
         );
     }
 }
@@ -1396,6 +1392,7 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncStallInfo& stalls){
 
 /**
  * A simple output of stall reason to begin with
+ * @TODO: To be replaced shortly
  */
 std::ostream& operator<<(std::ostream& os, const SyncStallEntry& si) {
     os << "Local path: " << si.involvedLocalPath.toPath()
@@ -1404,6 +1401,7 @@ std::ostream& operator<<(std::ostream& os, const SyncStallEntry& si) {
     return os;
 }
 
+// Synchronous request
 size_t MegaApiImpl::getSyncStalls(MegaSyncStallList** conflicts) {
     assert(conflicts);
     auto stallInfo = make_unique<SyncStallInfo>();
