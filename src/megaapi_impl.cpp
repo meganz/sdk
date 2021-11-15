@@ -1268,7 +1268,7 @@ void MegaApiImpl::getNameConflicts(MegaRequestListener* listener)
     waiter->notify();
 }
 
-MegaSyncStallImpl::MegaSyncStallImpl(
+MegaSyncStallPrivate::MegaSyncStallPrivate(
     const string& indexPath,
     const string& localPath,
     const string& cloudPath,
@@ -1283,7 +1283,7 @@ MegaSyncStallImpl::MegaSyncStallImpl(
 ,mIsImmediate(isImmediate) {}
 
 MegaSyncStall::SyncStallReason
-MegaSyncStallListImpl::syncStallReasonMapping(SyncWaitReason reason) const {
+MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const {
     switch(reason) {
         case SyncWaitReason::NoReason:                                                 return MegaSyncStall::SyncStallReason::NoReason;
         case SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist:               return MegaSyncStall::SyncStallReason::ApplyMoveNeedsOtherSideParentFolderToExist;
@@ -1317,7 +1317,7 @@ MegaSyncStallListImpl::syncStallReasonMapping(SyncWaitReason reason) const {
 }
 
 const char*
-MegaSyncStallImpl::reasonString(MegaSyncStall::SyncStallReason reason) {
+MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason) {
     switch(reason) {
         case MegaSyncStall::SyncStallReason::NoReason:                                      return "NoReason";
         case MegaSyncStall::SyncStallReason::ApplyMoveNeedsOtherSideParentFolderToExist:    return "ApplyMoveNeedsOtherSideParentFolderToExist";
@@ -1350,15 +1350,15 @@ MegaSyncStallImpl::reasonString(MegaSyncStall::SyncStallReason reason) {
     }
 }
 
-MegaSyncStall* MegaSyncStallListImpl::get(size_t i) const {
+MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const {
     if( i >= stalls.size()){
         return nullptr;
     }
-    return new MegaSyncStallImpl(stalls[i]);
+    return new MegaSyncStallPrivate(stalls[i]);
 }
 
-void MegaSyncStallListImpl::addCloudStalls(const SyncStallInfo& syncStalls){
-    //std::cout << "void MegaSyncStallListImpl::addCloudStalls(const SyncStallInfo& syncStalls)\n";
+void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls){
+    //std::cout << "void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls)\n";
     const bool itIsCloud = true;
     const bool itIsInmmediate = false; // @TODO: Change this
     for(auto& stall : syncStalls.cloud) {
@@ -1373,8 +1373,8 @@ void MegaSyncStallListImpl::addCloudStalls(const SyncStallInfo& syncStalls){
     }
 }
 
-void MegaSyncStallListImpl::addLocalStalls(const SyncStallInfo& syncStalls){
-    //std::cout << "void MegaSyncStallListImpl::addLocalStalls(const SyncStallInfo& syncStalls)\n";
+void MegaSyncStallListPrivate::addLocalStalls(const SyncStallInfo& syncStalls){
+    //std::cout << "void MegaSyncStallListPrivate::addLocalStalls(const SyncStallInfo& syncStalls)\n";
     const bool itIsCloud = false;
     const bool itIsInmmediate = false; // @TODO: Change this
     for(auto& stall : syncStalls.local) {
@@ -1389,7 +1389,7 @@ void MegaSyncStallListImpl::addLocalStalls(const SyncStallInfo& syncStalls){
     }
 }
 
-MegaSyncStallListImpl::MegaSyncStallListImpl(const SyncStallInfo& stalls){
+MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncStallInfo& stalls){
     addLocalStalls(stalls);
     addCloudStalls(stalls);
 }
@@ -1417,7 +1417,11 @@ size_t MegaApiImpl::getSyncStalls(MegaSyncStallList** conflicts) {
 // Testable interface
 size_t MegaApiImpl::getSyncStalls(std::unique_ptr<SyncStallInfo> syncStallInfo,
         MegaSyncStallList** conflicts) {
-    const auto mSLPtr = *conflicts = new MegaSyncStallListImpl(*syncStallInfo);
+    if(syncStallInfo->local.size() == 0 && syncStallInfo->cloud.size() == 0 ){
+        *conflicts = nullptr;
+        return 0u;
+    }
+    const auto mSLPtr = *conflicts = new MegaSyncStallListPrivate(*syncStallInfo);
     return static_cast<size_t>(mSLPtr->size());
 }
 

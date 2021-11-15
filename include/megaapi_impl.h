@@ -2098,9 +2098,9 @@ class TransferQueue
  * It Could wrap a single synchronization conflict or a reference to it
  * if we know the MegaSyncStallList container is kept around.
  */
-class MegaSyncStallImpl : public MegaSyncStall {
+class MegaSyncStallPrivate : public MegaSyncStall {
     public:
-        MegaSyncStallImpl(
+        MegaSyncStallPrivate(
             const string& indexPath,
             const string& localPath,
             const string& cloudPath,
@@ -2109,7 +2109,7 @@ class MegaSyncStallImpl : public MegaSyncStall {
             bool isImmediate
         );
 
-        virtual ~MegaSyncStallImpl(){ /*std::cout << "MegaSyncStallImpl::~MegaSyncStallImpl()\n";*/ }
+        virtual ~MegaSyncStallPrivate(){ /*std::cout << "MegaSyncStallPrivate::~MegaSyncStallPrivate()\n";*/ }
         const char* indexPath()  const override { return mIndexPath.c_str(); }
         const char* localPath()  const override { return mLocalPath.c_str(); }
         const char* cloudPath()  const override { return mCloudPath.c_str(); }
@@ -2133,17 +2133,17 @@ class MegaSyncStallImpl : public MegaSyncStall {
 /**
  * A thin wrapper to make them look like a List
  */
-class MegaSyncStallListImpl : public MegaSyncStallList {
+class MegaSyncStallListPrivate : public MegaSyncStallList {
     public:
-        MegaSyncStallListImpl(const SyncStallInfo& stalls);
-        virtual ~MegaSyncStallListImpl(){ /*std::cout << "MegaSyncStallListImpl::~MegaSyncStallListImpl()\n";*/ }
+        MegaSyncStallListPrivate(const SyncStallInfo& stalls);
+        virtual ~MegaSyncStallListPrivate(){ /*std::cout << "MegaSyncStallListPrivate::~MegaSyncStallListPrivate()\n";*/ }
         /**
          * @return a new heap allocated MegaSyncStall object 
          */
         MegaSyncStall* get(size_t i) const override;
         size_t size() const override { return stalls.size(); }
     protected:
-        std::vector<MegaSyncStallImpl> stalls;
+        std::vector<MegaSyncStallPrivate> stalls;
         void addCloudStalls(const SyncStallInfo& syncStalls);
         void addLocalStalls(const SyncStallInfo& syncStalls);
         MegaSyncStall::SyncStallReason 

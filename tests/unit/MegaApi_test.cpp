@@ -283,7 +283,7 @@ TEST(MegaApi, MegaSyncStallList_constructor){
         SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
     );
 
-    MegaSyncStallListImpl syncStallList(syncStallInfo);
+    MegaSyncStallListPrivate syncStallList(syncStallInfo);
     ASSERT_EQ(syncStallList.size(), 2u);
 
     MegaSyncStall* localStallPtr = syncStallList.get(0);
@@ -299,7 +299,7 @@ TEST(MegaApi, MegaSyncStallList_constructor){
     ASSERT_EQ(localStallPtr->reason(), 
             MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
     ASSERT_EQ(strcmp(localStallPtr->reasonString(), 
-                MegaSyncStallImpl::reasonString(
+                MegaSyncStallPrivate::reasonString(
                     MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose)),0);
     ASSERT_EQ(localStallPtr->isCloud(), false);
 
