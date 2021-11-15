@@ -16032,13 +16032,6 @@ void MegaClient::setmaxconnections(direction_t d, int num)
     }
 }
 
-Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
-{
-    // TODO Nodes on demand check if mFingerprints is required
-    //return mFingerprints.nodebyfingerprint(fingerprint);
-    return mNodeManager.getNodeByFingerprint(*fingerprint);
-}
-
 #ifdef ENABLE_SYNC
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 {
@@ -16096,21 +16089,6 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
     return *remoteNode;
 }
 #endif /* ENABLE_SYNC */
-
-node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
-{
-    // TODO Nodes on demand check if mFingerprints is required
-    //return mFingerprints.nodesbyfingerprint(fingerprint);
-    node_vector nodesByFingerPrint = mNodeManager.getNodesByFingerprint(*fingerprint);
-    node_vector *nodes = new node_vector();
-
-    for (Node* node : nodesByFingerPrint)
-    {
-        nodes->push_back(node);
-    }
-
-    return nodes;
-}
 
 // TODO nodes on demand check if we it's necessary when SDK-1753 will be implemented
 //static bool nodes_ctime_less(const Node* a, const Node* b)
@@ -16367,19 +16345,6 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
     // sort buckets in the vector
     std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
     return rav;
-}
-
-
-void MegaClient::nodesbyoriginalfingerprint(const char* originalfingerprint, Node* parent, node_vector *nv)
-{
-    node_vector nodes = mNodeManager.getNodesByOrigFingerprint(originalfingerprint);
-    for (auto node : nodes)
-    {
-        if (!parent || (parent && mNodeManager.isAncestor(node->nodeHandle(), parent->nodeHandle())))
-        {
-            nv->push_back(node);
-        }
-    }
 }
 
 // a chunk transfer request failed: record failed protocol & host
@@ -17052,7 +17017,8 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
 
 node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprint)
 {
-    // TODO Nodes on demand: Review Fingerprints MegaClient::mFingerprints;
+    // TODO Nodes on demand check if mFingerprints is required
+    //return mFingerprints.nodesbyfingerprint(fingerprint);
 
     node_vector nodes;
     if (!mTable)
@@ -17082,7 +17048,7 @@ node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprin
     return nodes;
 }
 
-node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprint)
+node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprint, Node *parent)
 {
     node_vector nodes;
     if (!mTable)
@@ -17106,7 +17072,10 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
             n = nodeIt->second;
         }
 
-        nodes.push_back(n);
+        if (n && (!parent || (parent && isAncestor(n->nodeHandle(), parent->nodeHandle()))))
+        {
+            nodes.push_back(n);
+        }
     }
 
     return nodes;
@@ -17114,6 +17083,9 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
 
 Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
 {
+    // TODO Nodes on demand check if mFingerprints is required
+    //return mFingerprints.nodebyfingerprint(fingerprint);
+
     if (!mTable)
     {
         assert(false);

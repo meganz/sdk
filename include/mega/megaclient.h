@@ -257,26 +257,36 @@ public:
 
     // if node is not available in memory, it's loaded from DB
     Node *getNodeByHandle(NodeHandle handle);
+
+    // read children from DB and load them in memory
     node_list getChildren(Node* parent);
-    // Returns the number of account nodes
+
+    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
+
     // Search a node by name
     node_vector search(NodeHandle nodeHandle, const char *searchString);
+
     node_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
-    node_vector getNodesByOrigFingerprint(const std::string& fingerprint);
+    node_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
     Node *getNodeByFingerprint(const FileFingerprint& fingerprint);
+
     // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE
     node_vector getRootNodes();
+
     node_vector getNodesWithInShares();
     node_vector getNodesWithOutShares();
     node_vector getNodesWithPendingOutShares();
     node_vector getNodesWithLinks();
+
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
     NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile = false);
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     int getNumberOfChildrenFromNode(NodeHandle parentHandle);
+
     // Returns true when nodes on demand is ready to operate after load a session with old cache
     bool isNodesOnDemandReady();
+
     // Returns first ancestor available in cache
     NodeHandle getFirstAncestor(NodeHandle node);
     bool isAncestor(NodeHandle node, NodeHandle ancestor);
@@ -288,8 +298,10 @@ public:
     // Remove all nodes from all caches
     void cleanNodes();
 
+    // reads from DB and loads the node in memory
     Node* unserializeNode(const string*, bool decrypted = true);
 
+    // attempt to apply received keys to decrypt node's keys
     void applyKeys(uint32_t appliedKeys);
 
     // process notified/changed nodes from 'mPendingConfirmNodes': dump changes to DB
@@ -324,8 +336,12 @@ private:
     NodeCounterMap mNodeCounters;
 
     bool mKeepAllNodeInMemory = false;
+
+    // nodes that have changed and are pending to notify to app and dump to DB
     std::set<Node*> mPendingConfirmNodes;
-    std::map<NodeHandle, node_set> mNodesWithMissingParent;  // Parent
+
+    // holds references to unknown parent nodes until those are received (delayed-parents: dp)
+    std::map<NodeHandle, node_set> mNodesWithMissingParent;
 
     Node* getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(Node* node, bool notify);
@@ -1542,9 +1558,6 @@ public:
 #ifdef ENABLE_SYNC
     Node* nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
-
-    node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
-    void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
     node_vector getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin);

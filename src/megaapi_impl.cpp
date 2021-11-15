@@ -12116,10 +12116,9 @@ MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
     }
 
     sdkMutex.lock();
-    node_vector *nodes = client->nodesbyfingerprint(fp);
-    MegaNodeList *result = new MegaNodeListPrivate(nodes->data(), int(nodes->size()));
+    node_vector nodes = client->mNodeManager.getNodesByFingerprint(*fp);
+    MegaNodeList *result = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
     delete fp;
-    delete nodes;
     sdkMutex.unlock();
     return result;
 }
@@ -12134,10 +12133,8 @@ MegaNodeList *MegaApiImpl::getNodesByOriginalFingerprint(const char *originalfin
         return new MegaNodeListPrivate();
     }
 
-    node_vector *nodes = new node_vector;
-    client->nodesbyoriginalfingerprint(originalfingerprint, parent, nodes);
-    MegaNodeList *result = new MegaNodeListPrivate(nodes->data(), int(nodes->size()));
-    delete nodes;
+    node_vector nodes = client->mNodeManager.getNodesByOrigFingerprint(originalfingerprint, parent);
+    MegaNodeList *result = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
     return result;
 }
 
@@ -12152,10 +12149,9 @@ MegaNode *MegaApiImpl::getExportableNodeByFingerprint(const char *fingerprint, c
     }
 
     sdkMutex.lock();
-    node_vector *nodes = client->nodesbyfingerprint(fp);
-    for (unsigned int i = 0; i < nodes->size(); i++)
+    node_vector nodes = client->mNodeManager.getNodesByFingerprint(*fp);
+    for (auto &node : nodes)
     {
-        Node *node = nodes->at(i);
         if ((!name || !strcmp(name, node->displayname())) &&
                 client->checkaccess(node, OWNER))
         {
@@ -12181,7 +12177,6 @@ MegaNode *MegaApiImpl::getExportableNodeByFingerprint(const char *fingerprint, c
     }
 
     delete fp;
-    delete nodes;
     sdkMutex.unlock();
     return result;
 }
@@ -12478,15 +12473,14 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
         }
         MegaTransferPrivate* transfer = file->getTransfer();
         Node *parent = client->nodebyhandle(transfer->getParentHandle());
-        node_vector *nodes = client->nodesbyfingerprint(file);
+        node_vector nodes = client->mNodeManager.getNodesByFingerprint(*file);
         const char *name = transfer->getFileName();
-        if (parent && nodes && name)
+        if (parent && name)
         {
             // Get previous node if any
             file->previousNode = client->childnodebyname(parent, name, true);
-            for (unsigned int i = 0; i < nodes->size(); i++)
+            for (auto &node : nodes)
             {
-                Node* node = nodes->at(i);
                 if (node->parent == parent && !strcmp(node->displayname(), name))
                 {
                     // don't resume the upload if the node already exist in the target folder
@@ -12498,7 +12492,6 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
                 }
             }
         }
-        delete nodes;
         break;
     }
     default:
@@ -17818,7 +17811,7 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
     }
 
     sdkMutex.lock();
-    Node *n  = client->nodebyfingerprint(fp);
+    Node *n  = client->mNodeManager.getNodeByFingerprint(*fp);
     sdkMutex.unlock();
 
     delete fp;
@@ -17836,17 +17829,17 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *p
 
     Node *n = NULL;
     sdkMutex.lock();
-    node_vector *nodes = client->nodesbyfingerprint(fp);
-    if (nodes->size())
+    node_vector nodes = client->mNodeManager.getNodesByFingerprint(*fp);
+    if (nodes.size())
     {
-        n = nodes->at(0);
+        n = nodes.at(0);
     }
 
     if (n && parent && n->parent != parent)
     {
-        for (unsigned int i = 1; i < nodes->size(); i++)
+        for (unsigned int i = 1; i < nodes.size(); i++)
         {
-            Node* node = nodes->at(i);
+            Node* node = nodes.at(i);
             if (node->parent == parent)
             {
                 n = node;
@@ -17855,7 +17848,6 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *p
         }
     }
     delete fp;
-    delete nodes;
     sdkMutex.unlock();
 
     return n;
@@ -18136,7 +18128,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     // If has been found by name and it's necessary force upload, it isn't necessary look for it again
                     if (!forceToUpload)
                     {
-                        Node *samenode = client->nodebyfingerprint(&fp);
+                        Node *samenode = client->mNodeManager.getNodeByFingerprint(fp);
                         if (samenode && samenode->nodekey().size() && !hasToForceUpload(*samenode, *transfer))
                         {
                             pendingUploads++;
