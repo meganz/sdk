@@ -3138,7 +3138,8 @@ class MegaRequest
             TYPE_START_CHAT_CALL                                            = 142,
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
-            TOTAL_OF_REQUEST_TYPES                                          = 145,
+            TYPE_GET_NAME_CONFLICTS                                         = 145,
+            TOTAL_OF_REQUEST_TYPES                                          = 146,
         };
 
         virtual ~MegaRequest();
@@ -3915,6 +3916,22 @@ class MegaRequest
          * @return MegaHandle list
          */
         virtual MegaHandleList* getMegaHandleList() const;
+
+#ifdef ENABLE_SYNC
+
+        /**
+         * @brief
+         * Returns a reference to this request's list of name conflicts.
+         *
+         * This value is valid for the following requests:
+         * - MegaApi::getNameConflicts
+         *
+         * @return
+         * A reference to this request's list of name conflicts.
+         */
+        virtual MegaNameConflictList* getMegaNameConflictList() const;
+
+#endif // ENABLE_SYNC
 };
 
 /**
@@ -14204,6 +14221,16 @@ class MegaApi
          */
         char *getBlockedPath();
 
+        /**
+         * @brief
+         * Retrieve the list of name conflicts detected by the sync engine.
+         *
+         * The type of this request is MegaRequest::TYPE_GET_NAME_CONFLICTS.
+         *
+         * @param listener
+         * A MegaRequestListener with which to track the request.
+         */
+        void getNameConflicts(MegaRequestListener* listener);
 
         /**
          * @brief
@@ -20053,14 +20080,49 @@ class MegaNameConflict
 public:
     virtual ~MegaNameConflict();
 
+    /**
+     * @brief
+     * Retrieve a reference to a list of conflicting cloud names.
+     *
+     * @return
+     * A reference to a list of conflicting cloud names.
+     */
     virtual MegaStringList* cloudNames() const = 0;
 
+    /**
+     * @brief
+     * Retrieve a reference to the cloud path of this conflict.
+     *
+     * @return
+     * A reference to the cloud path of this conflict.
+     */
     virtual const char* cloudPath() const = 0;
 
+    /**
+     * @brief
+     * Create a deep copy of this conflict.
+     *
+     * @return
+     * A deep copy of this conflict.
+     */
     virtual MegaNameConflict* copy() const = 0;
 
+    /**
+     * @brief
+     * Retrieve a reference to a list of conflicting local names.
+     *
+     * @return
+     * A reference to a list of conflicting local names.
+     */
     virtual MegaStringList* localNames() const = 0;
 
+    /**
+     * @brief
+     * Retrieve a reference to the local path of this conflict.
+     *
+     * @return
+     * A reference to the local path of this conflict.
+     */
     virtual const char* localPath() const = 0;
 
 protected:
@@ -20072,10 +20134,34 @@ class MegaNameConflictList
 public:
     virtual ~MegaNameConflictList();
 
+    /**
+     * @brief
+     * Create a deep copy of this list of conflicts.
+     *
+     * @return
+     * A deep copy of this list of conflicts.
+     */
     virtual MegaNameConflictList* copy() const = 0;
 
+    /**
+     * @brief
+     * Retrieve a reference to the specified conflict.
+     *
+     * @param index
+     * The index of the conflict you'd like to retrieve.
+     *
+     * @return
+     * A reference to the specified conflict.
+     */
     virtual MegaNameConflict* get(int index) const = 0;
 
+    /**
+     * @brief
+     * Query how many conflicts are contained by this list.
+     *
+     * @return
+     * The number of conflicts contained by this list.
+     */
     virtual int size() const = 0;
 
 protected:

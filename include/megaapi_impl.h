@@ -1161,6 +1161,11 @@ class MegaRequestPrivate : public MegaRequest
         MegaStringList *getMegaStringList() const override;
         MegaHandleList* getMegaHandleList() const override;
 
+#ifdef ENABLE_SYNC
+        MegaNameConflictList* getMegaNameConflictList() const override;
+        void setMegaNameConflictList(unique_ptr<MegaNameConflictList> conflicts);
+#endif // ENABLE_SYNC
+
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
         void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
@@ -1237,6 +1242,9 @@ protected:
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
+#ifdef ENABLE_SYNC
+        unique_ptr<MegaNameConflictList> mNameConflictList;
+#endif // ENABLE_SYNC
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -2479,6 +2487,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
+        void getNameConflicts(MegaRequestListener* listener);
 
         bool conflictsDetected(const char** parentName,
                                const char** parentPath,

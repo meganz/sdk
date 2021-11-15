@@ -1056,6 +1056,15 @@ MegaHandleList* MegaRequest::getMegaHandleList() const
     return nullptr;
 }
 
+#ifdef ENABLE_SYNC
+
+MegaNameConflictList* MegaRequest::getMegaNameConflictList() const
+{
+    return nullptr;
+}
+
+#endif // ENABLE_SYNC
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -3447,6 +3456,11 @@ long long MegaApi::getNumLocalNodes()
 char *MegaApi::getBlockedPath()
 {
     return pImpl->getBlockedPath();
+}
+
+void MegaApi::getNameConflicts(MegaRequestListener* listener)
+{
+    return pImpl->getNameConflicts(listener);
 }
 
 bool MegaApi::conflictsDetected(const char** parentName,

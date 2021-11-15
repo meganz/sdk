@@ -1257,6 +1257,17 @@ char *MegaApiImpl::getBlockedPath()
     return path;
 }
 
+void MegaApiImpl::getNameConflicts(MegaRequestListener* listener)
+{
+    auto type = MegaRequest::TYPE_GET_NAME_CONFLICTS;
+    auto request = make_unique<MegaRequestPrivate>(type, listener);
+
+    requestQueue.push(request.get());
+    request.release();
+
+    waiter->notify();
+}
+
 bool MegaApiImpl::conflictsDetected(const char* *outParentName,
                                     const char** outParentPath,
                                     MegaStringList** outNames,
@@ -3430,6 +3441,20 @@ MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
     return mHandleList.get();
 }
 
+#ifdef ENABLE_SYNC
+
+MegaNameConflictList* MegaRequestPrivate::getMegaNameConflictList() const
+{
+    return mNameConflictList.get();
+}
+
+void MegaRequestPrivate::setMegaNameConflictList(unique_ptr<MegaNameConflictList> conflicts)
+{
+    mNameConflictList = std::move(conflicts);
+}
+
+#endif // ENABLE_SYNC
+
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList *MegaRequestPrivate::getMegaTextChatPeerList() const
 {
@@ -4089,6 +4114,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
+        case TYPE_GET_NAME_CONFLICTS: return "GET_NAME_CONFLICTS";
     }
     return "UNKNOWN";
 }
@@ -21587,6 +21613,20 @@ void MegaApiImpl::sendPendingRequests()
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(nDisabled ? API_OK : API_ENOENT));
                 });
 
+            break;
+        }
+        case MegaRequest::TYPE_GET_NAME_CONFLICTS:
+        {
+            auto completion = [this, request](list<NameConflict>&& conflicts) {
+                auto error = ::mega::make_unique<MegaErrorPrivate>(API_OK);
+                auto list = ::mega::make_unique<MegaNameConflictListPrivate>(conflicts);
+
+                request->setMegaNameConflictList(std::move(list));
+
+                fireOnRequestFinish(request, std::move(error));
+            };
+
+            client->syncs.collectSyncNameConflicts(UNDEF, std::move(completion), true);
             break;
         }
 #endif  // ENABLE_SYNC
