@@ -9,6 +9,7 @@
 #include "stdfs.h"
 
 std::string logTime();
+void WaitMillisec(unsigned n);
 
 class LogStream
 {

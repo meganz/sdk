@@ -20,6 +20,27 @@ bool gOutputToCout = false;
 int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
+void WaitMillisec(unsigned n)
+{
+#ifdef _WIN32
+    if (n > 1000)
+    {
+        for (int i = 0; i < 10; ++i)
+        {
+            // better for debugging, with breakpoints, pauses, etc
+            Sleep(n/10);
+        }
+    }
+    else
+    {
+        Sleep(n);
+    }
+#else
+    usleep(n * 1000);
+#endif
+}
+
+
 LogStream::~LogStream()
 {
     auto data = mBuffer.str();

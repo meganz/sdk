@@ -58,11 +58,7 @@ shared_promise<T> makeSharedPromise()
 
 #ifdef ENABLE_SYNC
 
-namespace {
-
 bool suppressfiles = false;
-
-typedef ::mega::byte byte;
 
 #define NO_SIZE_FILTER 1
 
@@ -134,25 +130,8 @@ string parentpath(const string& p)
     return n == string::npos ? "" : p.substr(0, n-1);
 }
 
-void WaitMillisec(unsigned n)
-{
-#ifdef _WIN32
-    if (n > 1000)
-    {
-        for (int i = 0; i < 10; ++i)
-        {
-            // better for debugging, with breakpoints, pauses, etc
-            Sleep(n/10);
-        }
-    }
-    else
-    {
-        Sleep(n);
-    }
-#else
-    usleep(n * 1000);
-#endif
-}
+struct StandardClient;
+bool CatchupClients(StandardClient* c1, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr);
 
 bool createFile(const fs::path &path, const void *data, const size_t data_length)
 {
@@ -1463,7 +1442,7 @@ struct StandardClient : public MegaApp
         ASSERT_FALSE(user.empty());
         ASSERT_FALSE(pwd.empty());
 
-        byte pwkey[SymmCipher::KEYLENGTH];
+        ::mega::byte pwkey[SymmCipher::KEYLENGTH];
 
         resultproc.prepresult(LOGIN, ++next_request_tag,
             [&](){
@@ -3456,6 +3435,10 @@ struct StandardClient : public MegaApp
         {
             EXPECT_TRUE(uploadFile(fsBasePath / ".megaignore", ".megaignore", "/mega_test_sync/" + remotesyncrootfolder));
         }
+        else
+        {
+            CatchupClients(this);
+        }
 
         auto fb = thread_do<handle>([=](StandardClient& mc, PromiseHandleSP pb)
             {
@@ -3901,8 +3884,6 @@ bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
     return true;
 }
 #endif
-
-} // anonymous
 
 class SyncFingerprintCollision
   : public ::testing::Test
@@ -9094,7 +9075,7 @@ struct TwoWaySyncSymmetryCase
     }
 };
 
-void CatchupClients(StandardClient* c1, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr)
+bool CatchupClients(StandardClient* c1, StandardClient* c2, StandardClient* c3)
 {
     out() << "Catching up";
     auto pb1 = makeSharedPromise<bool>();
@@ -9103,10 +9084,20 @@ void CatchupClients(StandardClient* c1, StandardClient* c2 = nullptr, StandardCl
     if (c1) c1->catchup(pb1);
     if (c2) c2->catchup(pb2);
     if (c3) c3->catchup(pb3);
-    ASSERT_TRUE((!c1 || pb1->get_future().get()) &&
-                (!c2 || pb2->get_future().get()) &&
-                (!c3 || pb3->get_future().get()));
+
+    auto f1 = pb1->get_future();
+    auto f2 = pb2->get_future();
+    auto f3 = pb3->get_future();
+
+    if (c1 && f1.wait_for(chrono::seconds(10)) == future_status::timeout) return false;
+    if (c2 && f2.wait_for(chrono::seconds(10)) == future_status::timeout) return false;
+    if (c3 && f3.wait_for(chrono::seconds(10)) == future_status::timeout) return false;
+
+    EXPECT_TRUE((!c1 || f1.get()) &&
+                (!c2 || f2.get()) &&
+                (!c3 || f3.get()));
     out() << "Caught up";
+    return true;
 }
 
 void PrepareForSync(StandardClient& client)

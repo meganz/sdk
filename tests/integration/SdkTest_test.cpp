@@ -151,16 +151,6 @@ std::string megaApiCacheFolder(int index)
     return p;
 }
 
-
-void WaitMillisec(unsigned n)
-{
-#ifdef _WIN32
-    Sleep(n);
-#else
-    usleep(n * 1000);
-#endif
-}
-
 template<typename Predicate>
 bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
 {
