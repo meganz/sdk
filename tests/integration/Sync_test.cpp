@@ -65,7 +65,7 @@ bool suppressfiles = false;
 typedef ::mega::byte byte;
 
 // Don't use filesystem notifications.
-#define NO_FILESYSTEM_NOTIFICATIONS 1
+//#define NO_FILESYSTEM_NOTIFICATIONS 1
 #define SCAN_INTERVAL_SEC 600
 
 // Don't use size filters.
