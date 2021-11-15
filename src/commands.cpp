@@ -4831,14 +4831,11 @@ bool CommandGetUserQuota::procresult(Result r)
             case MAKENAMEID6('s', 'g', 'w', 'i', 'd', 's'):
                 if (client->json.enterarray())
                 {
-                    m_off_t t;
-                    
-                    while (client->json.isnumeric() && (t = client->json.getint()) != -1)
+                    details->subscription_method_id = static_cast<int>(client->json.getint());
+                    while (!client->json.leavearray())
                     {
-                        details->subscription_method_id = (int)t;
+                        client->json.storeobject();
                     }
-                    
-                    client->json.leavearray();
                 }
                 break;
 
