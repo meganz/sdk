@@ -282,7 +282,6 @@ public:
     node_vector getNodesWithLinks();
 
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
-    NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile = false);
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     int getNumberOfChildrenFromNode(NodeHandle parentHandle);
 
@@ -291,10 +290,14 @@ public:
 
     // Returns first ancestor available in cache
     NodeHandle getFirstAncestor(NodeHandle node);
+
+    // true if 'node' is a child node of 'ancestor', false otherwise.
     bool isAncestor(NodeHandle node, NodeHandle ancestor);
+
+    // true if 'node' is a file (note: it checks the type in DB)
     bool isFileNode(NodeHandle node);
 
-    // Clean `changed` flag from all nodes
+    // Clean 'changed' flag from all nodes
     void removeChanges();
 
     // Remove all nodes from all caches
@@ -315,12 +318,28 @@ public:
     // TODO nodes on demand remove
     MegaClient& getMegaClient();
 
-    // return null if counter is not available for that handle
+
+    // ===--- Node Counters ---===
+
+    // returns the counter for 'node', recursively, accessing to DB
+    NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile = false);
+
+    // return the counter for 'h' if available in memory. Otherwise, nullptr
     const NodeCounter* getCounter(const NodeHandle& h) const;
+
+    // return the counter for 'h' (for other than rootnodes, it requires DB query)
     NodeCounter getCounterForSubtree(const NodeHandle& h);
-    NodeCounter getCounterOfRootNodes(); // return sum of counters from all root nodes
-    void updateCounter(const NodeHandle& h); // calculate for given node
+
+    // return the counter for all root nodes (cloud+inbox+rubbish), without DB query
+    NodeCounter getCounterOfRootNodes();
+
+    // update the counter for 'h' (must be available in memory, or it will be loaded)
+    void updateCounter(const NodeHandle& h);
+
+    // subtract the counter of 'n' (calculated from DB) from its first antecesor, which must be a rootnode
     void subtractFromRootCounter(const Node& n);
+
+    // moves the counter of 'h' from one counter ('oldRoot') to another counter ('newRoot')
     void movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, bool oldInShare,
                                                     const NodeHandle& newRoot, bool newInShare);
 
@@ -334,10 +353,15 @@ private:
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     node_map mNodes;
 
-    // keep track of user storage, inshare storage, file/folder counts per root node.
+    // keep track of user storage, inshare storage and file/folder/versions counts (only for root nodes and inshares)
     NodeCounterMap mNodeCounters;
 
-    bool mKeepAllNodeInMemory = false;
+    // flag to force all nodes to be loaded in memory
+#ifdef ENABLE_SYNC
+    bool mKeepAllNodeInMemory = true;
+#else
+    bool mKeepAllNodesInMemory = false;
+#endif
 
     // nodes that have changed and are pending to notify to app and dump to DB
     std::set<Node*> mPendingConfirmNodes;

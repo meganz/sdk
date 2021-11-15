@@ -16831,7 +16831,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     }
 
     bool saveNodeMemory = false;
-    if (mKeepAllNodeInMemory || node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE || !isFetching)
+    if (mKeepAllNodesInMemory || node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE || !isFetching)
     {
         saveNodeMemory = true;
         if (node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE)
