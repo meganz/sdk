@@ -6024,6 +6024,7 @@ const char*  MegaSyncStall::reasonString() const { return ""; }
 
 MegaSyncStallList::MegaSyncStallList(){}
 MegaSyncStallList::~MegaSyncStallList(){}
+MegaSyncStallList* MegaSyncStallList::copy() const { return nullptr; }
 size_t MegaSyncStallList::size() const { return 0; }
 MegaSyncStall* MegaSyncStallList::get(size_t i) const { return nullptr; }
 

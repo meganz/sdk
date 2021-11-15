@@ -5563,6 +5563,7 @@ class MegaSyncStallList
         //static MegaSyncStalls * createInstance();
         MegaSyncStallList();
         virtual ~MegaSyncStallList();
+        virtual MegaSyncStallList* copy() const;
         /**
          * @param index of the request element in the list.
          * @return pointer to a MegaSyncStal allocated object that the user MUST RELEASE after use.
