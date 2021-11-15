@@ -342,7 +342,7 @@ struct MockClient
         mega::PrnGen gen;
         mt::DefaultedDbTable *defaultTable = new mt::DefaultedDbTable(gen);
         cli->sctable.reset(defaultTable);
-        cli->mNodeManager.init(defaultTable);
+        cli->mNodeManager.setTable(defaultTable);
     }
 };
 

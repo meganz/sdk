@@ -245,8 +245,10 @@ class MEGA_API NodeManager
 {
 public:
     NodeManager(MegaClient& client);
+
     // set interface to access to "nodes" table
-    void init(DBTableNodes *table);
+    void setTable(DBTableNodes *table);
+
     // set interface to access to "nodes" table to nullptr, it's called just after sctable.reset()
     void reset();
 

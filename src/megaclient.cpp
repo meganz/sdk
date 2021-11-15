@@ -9811,7 +9811,7 @@ void MegaClient::opensctable()
             {
                 DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
                 assert(nodeTable);
-                mNodeManager.init(nodeTable);
+                mNodeManager.setTable(nodeTable);
 
                 // DB connection always has a transaction started (applies to both tables, statecache and nodes)
                 // We only commit once we have an up to date SCSN and the table state matches it.
@@ -16804,14 +16804,14 @@ NodeManager::NodeManager(MegaClient& client)
 #endif
 }
 
-void NodeManager::init(DBTableNodes *table)
+void NodeManager::setTable(DBTableNodes *table)
 {
     mTable = table;
 }
 
 void NodeManager::reset()
 {
-    init(nullptr);
+    setTable(nullptr);
 
     cleanNodes();
 }
