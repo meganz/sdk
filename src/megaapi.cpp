@@ -7211,4 +7211,8 @@ MegaSyncNameConflictList::~MegaSyncNameConflictList() = default;
 
 MegaSyncNameConflictList::MegaSyncNameConflictList() = default;
 
+MegaSyncProblems::~MegaSyncProblems() = default;
+
+MegaSyncProblems::MegaSyncProblems() = default;
+
 }

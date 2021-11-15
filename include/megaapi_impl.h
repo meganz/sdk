@@ -3943,6 +3943,31 @@ private:
     MegaSyncNameConflictVector mConflicts;
 }; // MegaSyncNameConflictListPrivate
 
+class MegaSyncProblemsPrivate
+  : public MegaSyncProblems
+{
+public:
+    explicit MegaSyncProblemsPrivate(const SyncProblems& problems);
+
+    MegaSyncProblemsPrivate(const MegaSyncProblemsPrivate& other);
+
+    bool anyNameConflictsDetected() const override;
+
+    bool anyStallsDetected() const override;
+
+    MegaSyncProblems* copy() const override;
+
+    MegaSyncNameConflictList* nameConflicts() const override;
+
+    MegaSyncStallList* stalls() const override;
+
+private:
+    unique_ptr<MegaSyncNameConflictList> mConflicts;
+    unique_ptr<MegaSyncStallList> mStalls;
+    bool mConflictsDetected;
+    bool mStallsDetected;
+}; // MegaSyncProblemsPrivate
+
 #endif // ENABLE_SYNC
 
 }

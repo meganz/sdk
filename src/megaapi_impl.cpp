@@ -33981,6 +33981,52 @@ int MegaSyncNameConflictListPrivate::size() const
     return static_cast<int>(mConflicts.size());
 }
 
+MegaSyncProblemsPrivate::MegaSyncProblemsPrivate(const SyncProblems& problems)
+  : mConflicts()
+  , mStalls()
+  , mConflictsDetected(problems.mConflictsDetected)
+  , mStallsDetected(problems.mStallsDetected)
+{
+    if (!problems.mConflicts.empty())
+        mConflicts.reset(new MegaSyncNameConflictListPrivate(problems.mConflicts));
+
+    if (!problems.mStalls.empty())
+        mStalls.reset(new MegaSyncStallListPrivate(problems.mStalls));
+}
+
+MegaSyncProblemsPrivate::MegaSyncProblemsPrivate(const MegaSyncProblemsPrivate& other)
+  : mConflicts(other.mConflicts->copy())
+  , mStalls(other.mStalls->copy())
+  , mConflictsDetected(other.mConflictsDetected)
+  , mStallsDetected(other.mStallsDetected)
+{
+}
+
+bool MegaSyncProblemsPrivate::anyNameConflictsDetected() const
+{
+    return mConflictsDetected;
+}
+
+bool MegaSyncProblemsPrivate::anyStallsDetected() const
+{
+    return mStallsDetected;
+}
+
+MegaSyncProblems* MegaSyncProblemsPrivate::copy() const
+{
+    return new MegaSyncProblemsPrivate(*this);
+}
+
+MegaSyncNameConflictList* MegaSyncProblemsPrivate::nameConflicts() const
+{
+    return mConflicts.get();
+}
+
+MegaSyncStallList* MegaSyncProblemsPrivate::stalls() const
+{
+    return mStalls.get();
+}
+
 #endif // ENABLE_SYNC
 
 }

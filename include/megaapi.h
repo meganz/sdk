@@ -88,6 +88,7 @@ class MegaSyncStallList;
 class MegaSemaphore;
 class MegaSyncNameConflict;
 class MegaSyncNameConflictList;
+class MegaSyncProblems;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -20164,6 +20165,60 @@ public:
 protected:
     MegaSyncNameConflictList();
 };
+
+class MegaSyncProblems
+{
+public:
+    virtual ~MegaSyncProblems();
+
+    /**
+     * @brief
+     * Query whether the sync engine has detected any name conflicts.
+     * 
+     * @return
+     * True if the sync engine has detected any name conflicts.
+     */
+    virtual bool anyNameConflictsDetected() const = 0;
+
+    /**
+     * @brief
+     * Query whether the sync engine has detected any stall states.
+     *
+     * @return
+     * True if the sync engine has detected any stall states.
+     */
+    virtual bool anyStallsDetected() const = 0;
+
+    /**
+     * @brief
+     * Create a deep copy of this MegaSyncProblems instance.
+     *
+     * @return
+     * A deep copy of this MegaSyncProblems instance.
+     */
+    virtual MegaSyncProblems* copy() const = 0;
+
+    /**
+     * @brief
+     * Query what name conflicts the sync engine has detected.
+     *
+     * @return
+     * A reference to a list of name conflicts.
+     */
+    virtual MegaSyncNameConflictList* nameConflicts() const = 0;
+
+    /**
+     * @brief
+     * Query what stall states the sync engine has detected.
+     *
+     * @return
+     * A reference to a list of stalls.
+     */
+    virtual MegaSyncStallList* stalls() const = 0;
+
+protected:
+    MegaSyncProblems();
+}; // MegaSyncProblems
 
 #endif // ENABLE_SYNC
 
