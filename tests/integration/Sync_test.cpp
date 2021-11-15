@@ -2437,7 +2437,7 @@ struct StandardClient : public MegaApp
 
         // second iter greater then cmpValue
         auto iter2 = iter1;
-        while (iter2 != ns.end() && compareUtf(iter1->first, unescapeMap, cmpValue, unescapeValue, caseInsensitive) <= 0) ++iter2;
+        while (iter2 != ns.end() && compareUtf(iter2->first, unescapeMap, cmpValue, unescapeValue, caseInsensitive) <= 0) ++iter2;
 
         return {iter1, iter2};
     }
