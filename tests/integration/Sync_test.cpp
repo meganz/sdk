@@ -2201,6 +2201,11 @@ struct StandardClient : public MegaApp
             config.mOriginalPathOfRemoteRootNode.front() == '/')
             << "config.mOriginalPathOfRemoteRootNode: " << config.mOriginalPathOfRemoteRootNode.c_str();
 
+#ifdef NO_FILESYSTEM_NOTIFICATIONS
+                config.mChangeDetectionMethod = CDM_PERIODIC_SCANNING;
+                config.mScanIntervalSec = SCAN_INTERVAL_SEC;
+#endif // NO_FILESYSTEM_NOTIFICATIONS
+
         // Try and add the backup.
         return client.addsync(config, true, completion, logname) == API_OK;
     }
@@ -3793,7 +3798,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
         WaitMillisec(400);
 
-        if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(5))
+        if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(1))
         {
             out() << "Waiting for syncing to stop timed out at 5 minutes";
             return result;
@@ -4026,6 +4031,7 @@ TEST_F(SyncFingerprintCollision, DISABLED_DifferentMacSameName)
     data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
 
     ASSERT_TRUE(createDataFile(path0, data0));
+    client0->triggerFullScan(backupId0);
     waitOnSyncs();
 
     auto result0 =
@@ -4036,6 +4042,8 @@ TEST_F(SyncFingerprintCollision, DISABLED_DifferentMacSameName)
                                  path1,
                                  data1,
                                  fs::last_write_time(path0)));
+
+                             client0->triggerFullScan(backupId0);
                          });
 
     ASSERT_TRUE(waitonresults(&result0));
@@ -4060,6 +4068,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
     data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
 
     ASSERT_TRUE(createDataFile(path0, data0));
+    client0->triggerFullScan(backupId0);
     waitOnSyncs();
 
     auto result0 =
@@ -4070,6 +4079,8 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
                                  path1,
                                  data1,
                                  fs::last_write_time(path0)));
+
+                             client0->triggerFullScan(backupId0);
                          });
 
     ASSERT_TRUE(waitonresults(&result0));
@@ -4091,6 +4102,7 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     const auto path1 = localRoot0() / "d_0" / "b";
 
     ASSERT_TRUE(createDataFile(path0, data0));
+    client0->triggerFullScan(backupId0);
     waitOnSyncs();
 
     auto result0 =
@@ -4101,6 +4113,8 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
                                  path1,
                                  data0,
                                  fs::last_write_time(path0)));
+
+                            client0->triggerFullScan(backupId0);
                          });
 
     ASSERT_TRUE(waitonresults(&result0));
@@ -10202,10 +10216,24 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     // Log callbacks.
     cb.logcb = true;
 
+    // So we can pause execution until al the syncs are restored.
+    promise<void> notifier;
+
+    // Hook the onAutoResumeResult callback.
+    cb.onAutoResumeResult = [&](const SyncConfig&, bool, bool error) {
+        // Shouldn't encounter any errors while resuming.
+        EXPECT_FALSE(error);
+
+        // Let waiters know we've restored the sync.
+        notifier.set_value();
+    };
+
     // Log in client, resuming prior session.
     ASSERT_TRUE(cb.login_fetchnodes(sessionID));
 
-    WaitMillisec(3000);
+    // Wait for the sync to be restored.
+    ASSERT_NE(notifier.get_future().wait_for(std::chrono::seconds(8)),
+              future_status::timeout);
 
     // Check config has been resumed.
     ASSERT_TRUE(cb.syncByBackupId(id));
@@ -10913,6 +10941,9 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
     // So we know when f has started transferring.
     std::atomic<bool> uploading{false};
 
+    // Sync ID defined here so we can capture it.
+    handle id = UNDEF;
+
     // Exclude "f" once it begins downloading.
     cdu->mOnFileAdded = [&](File& file) {
         string name;
@@ -10927,8 +10958,11 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
 
         // Change the filter rules.
         ASSERT_TRUE(createFile(root(*cdu) / "root" / ".megaignore",
-                         ignoreFile.data(),
-                         ignoreFile.size()));
+                               ignoreFile.data(),
+                               ignoreFile.size()));
+
+        // Trigger a full scan.
+        cdu->triggerFullScan(id);
     };
 
     // Remove download limit once .megaignore is uploaded.
@@ -10952,7 +10986,7 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
     };
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "x", false);
+    id = setupSync(*cdu, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -10988,6 +11022,9 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
     // Set upload speed limit to 1kbps.
     cdu->client.setmaxuploadspeed(1024);
 
+    // So we can capture the id in the callback.
+    handle id = UNDEF;
+
     cdu->mOnFileAdded =
       [&](File& file)
       {
@@ -11007,11 +11044,13 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
               ASSERT_TRUE(createFile(root(*cdu) / "root" / ".megaignore",
                                      ignoreFile.data(),
                                      ignoreFile.size()));
+
+              cdu->triggerFullScan(id);
           }
       };
 
     // Add and start sync.
-    auto id = setupSync(*cdu, "root", "x", false);
+    id = setupSync(*cdu, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -11288,6 +11327,8 @@ TEST_F(FilterFailureFixture, ResolveBrokenIgnoreFile)
     model0.addfile(".megaignore", "bad");
     model0.generate(root(*cdu) / "s0");
 
+    cdu->triggerFullScan(id0);
+
     // Wait for the stall to be recognized.
     ASSERT_TRUE(cdu->waitFor(SyncStallState(true), TIMEOUT));
 
@@ -11303,6 +11344,7 @@ TEST_F(FilterFailureFixture, ResolveBrokenIgnoreFile)
     fs::remove(root(*cdu) / "s1" / "f0");
 
     // Wait for the sync to complete.
+    cdu->triggerFullScan(id1);
     waitOnSyncs(cdu.get());
 
     // Was the change synchronized?
@@ -11325,6 +11367,7 @@ TEST_F(FilterFailureFixture, ResolveBrokenIgnoreFile)
     model1.generate(root(*cdu) / "s1");
 
     // Give the sync some time to process changes.
+    cdu->triggerFullScan(id1);
     waitOnSyncs(cdu.get());
 
     // File should only be uploaded is s1 is operational.
@@ -11347,6 +11390,7 @@ TEST_F(FilterFailureFixture, ResolveBrokenIgnoreFile)
     model1.generate(root(*cdu) / "s1");
 
     // Give the engine some time to process our change.
+    cdu->triggerFullScan(id1);
     waitOnSyncs(cdu.get());
 
     // f1 should exist in the cloud if the second sync is running.
@@ -11541,6 +11585,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntMoveIgnoredNodes)
     localFS.generate(root(*cu) / "root");
 
     // Wait for the ignore file to be processed.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // 0/fx should remain in the cloud.
@@ -11557,6 +11602,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntMoveIgnoredNodes)
                root(*cu) / "root" / "1"/ "fx");
 
     // Wait for sync to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -11609,6 +11655,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntRenameIgnoredNodes)
                root(*cu) / "root" / "fu");
 
     // Wait for sync to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -11657,6 +11704,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntRubbishIgnoredNodes)
     ASSERT_TRUE(fs::remove(root(*cu) / "root" / "fx"));
 
     // Wait for sync to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -11730,6 +11778,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
     //
     // This is expected as size filters have no effect if a file that
     // would be excluded exists locally and in the cloud.
+    cu.triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Remove the file locally.
@@ -11741,6 +11790,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
 #endif // ! NO_SIZE_FILTER
 
     // Wait for the sync to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Everything as we expect?
@@ -11799,6 +11849,7 @@ TEST_F(LocalToCloudFilterFixture, ExcludedIgnoreFile)
     remoteTree.addfile("f/.megaignore", "#");
 
     // Wait for the sync to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Check that the newly included ignore files were uploaded.
@@ -11843,6 +11894,7 @@ TEST_F(LocalToCloudFilterFixture, FilterAdded)
     remoteTree.removenode("fxx");
 
     // Wait for and confirm sync.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     ASSERT_TRUE(confirm(*cu, id, localFS));
@@ -11891,6 +11943,7 @@ TEST_F(LocalToCloudFilterFixture, FilterChanged)
     remoteTree = localFS;
 
     // Wait for and confirm sync.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     ASSERT_TRUE(confirm(*cu, id, localFS));
@@ -11908,6 +11961,7 @@ TEST_F(LocalToCloudFilterFixture, FilterChanged)
                root(*cu) / "root" / "d" / ".megaignore");
 
     // Wait for and confirm sync.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     ASSERT_TRUE(confirm(*cu, id, localFS));
@@ -11926,6 +11980,7 @@ TEST_F(LocalToCloudFilterFixture, FilterChanged)
     fs::remove(root(*cu) / "root" / "fx");
 
     // Wait for and confirm sync.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     ASSERT_TRUE(confirm(*cu, id, localFS));
@@ -11976,6 +12031,7 @@ TEST_F(LocalToCloudFilterFixture, FilterDeferredChange)
 
     // Wait for sync.
     // This should be a no-op as our changes are to ignored nodes.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -11987,6 +12043,8 @@ TEST_F(LocalToCloudFilterFixture, FilterDeferredChange)
     // Remove .megaignore.
     // This should perform any pending filter reloads.
     ASSERT_TRUE(fs::remove(root(*cu) / "root" / ".megaignore"));
+
+    cu->triggerFullScan(id);
 
     ASSERT_TRUE(cu->waitForNodesUpdated(30)) << " no actionpacket received in cu for remove";
 
@@ -12044,6 +12102,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedAcrossHierarchy)
     remoteTree = localFS;
 
     // Wait for synchronization.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -12125,6 +12184,8 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedBetweenSyncs)
                root(*cdu) / "s1" / "d" / ".megaignore");
 
     // Wait for synchronization to complete.
+    cdu->triggerFullScan(id0);
+    cdu->triggerFullScan(id1);
     waitOnSyncs(cdu.get());
 
     // .megaignore no longer exists in cdu/s0.
@@ -12163,6 +12224,8 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedBetweenSyncs)
     s1RemoteTree.addfile("d/y");
 
     // Wait for synchronization to complete.
+    cdu->triggerFullScan(id0);
+    cdu->triggerFullScan(id1);
     waitOnSyncs(cdu.get());
 
     // Confirm models.
@@ -12177,6 +12240,8 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedBetweenSyncs)
                root(*cdu) / "s1" / "d" / ".megaignore");
 
     // Wait for synchronization to complete.
+    cdu->triggerFullScan(id0);
+    cdu->triggerFullScan(id1);
     waitOnSyncs(cdu.get());
 
     // .megaignore no longer exists in cdu/s0/d.
@@ -12252,6 +12317,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedDownHierarchy)
                root(*cu) / "root" / "2" / "0" / ".megaignore");
 
     // Wait for synchronization.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -12298,6 +12364,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedIntoExcluded)
     remoteTree = localFS;
 
     // Wait for sync to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -12356,6 +12423,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedUpHierarchy)
                root(*cu) / "root" / "2" / ".megaignore");
 
     // Wait for synchronization.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -12405,6 +12473,7 @@ TEST_F(LocalToCloudFilterFixture, FilterOverwritten)
     remoteTree = localFS;
 
     // Wait for synchronization to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -12448,6 +12517,7 @@ TEST_F(LocalToCloudFilterFixture, FilterRemoved)
     remoteTree = localFS;
 
     // Wait for and confirm sync.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     ASSERT_TRUE(confirm(*cu, id, localFS));
@@ -12510,6 +12580,7 @@ TEST_F(LocalToCloudFilterFixture, MoveToIgnoredRubbishesRemote)
 #endif // ! NO_SIZE_FILTER
 
     // Wait for sync to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -12559,6 +12630,7 @@ TEST_F(LocalToCloudFilterFixture, OverwriteExcluded)
     remoteTree = localFS;
 
     // Wait for sync to complete.
+    cdu->triggerFullScan(id);
     waitOnSyncs(cdu.get());
 
     // Confirm.
@@ -12576,6 +12648,7 @@ TEST_F(LocalToCloudFilterFixture, OverwriteExcluded)
     remoteTree.removenode("d/f");
 
     // Wait for sync to complete.
+    cdu->triggerFullScan(id);
     waitOnSyncs(cdu.get());
 
     // Confirm.
@@ -12628,6 +12701,7 @@ TEST_F(LocalToCloudFilterFixture, RenameIgnoredToAnomalous)
     remoteTree.addfile("y:", "x");
 
     // Wait for sync to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Did our file make it into the cloud?
@@ -12684,6 +12758,7 @@ TEST_F(LocalToCloudFilterFixture, RenameToIgnoredRubbishesRemote)
     remoteTree.removenode("u");
 
     // Wait for sync to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Confirm models.
@@ -12716,6 +12791,7 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
     model.generate(root);
 
     // Wait for initial sync to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Make sure our hierarchy made it the cloud.
@@ -12736,6 +12812,7 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
     }
 
     // Wait for synchronization to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Did the changes make it to the cloud?
@@ -12756,6 +12833,7 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
     }
 
     // Wait for synchronization to complete.
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     // Did the changes make it to the cloud?
@@ -12771,6 +12849,7 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
     ASSERT_TRUE(createDataFile(root / "d0" / "x", "x"));
     ASSERT_TRUE(createDataFile(root / "d1" / "y", "y"));
 
+    cu->triggerFullScan(id);
     waitOnSyncs(cu.get());
 
     ASSERT_TRUE(confirm(*cu, id, localFS));
@@ -12940,6 +13019,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntMoveIgnoredNodes)
     remoteTree = localFS;
 
     // Wait for sync to complete.
+    cdu->triggerFullScan(id);
     waitOnSyncs(cdu.get());
 
     // Confirm models.
@@ -13000,6 +13080,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntRenameIgnoredNodes)
     remoteTree = localFS;
 
     // Wait for sync to complete.
+    cdu->triggerFullScan(id);
     waitOnSyncs(cdu.get());
 
     // Confirm models.
@@ -13067,6 +13148,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntRubbishIgnoredNodes)
     remoteTree = localFS;
 
     // Wait for sync to complete.
+    cdu->triggerFullScan(id);
     waitOnSyncs(cdu.get());
 
     // Confirm models.
@@ -13293,6 +13375,7 @@ TEST_F(CloudToLocalFilterFixture, FilterAdded)
     remoteTree = localFS;
 
     // Wait for synchronization to complete.
+    cu->triggerFullScan(cuId);
     waitOnSyncs(cu.get(), cd.get());
 
     // Confirm models.
@@ -13382,6 +13465,7 @@ TEST_F(CloudToLocalFilterFixture, FilterChanged)
     remoteTree = localFS;
 
     // Wait for synchronization to complete.
+    cu->triggerFullScan(cuId);
     waitOnSyncs(cu.get(), cd.get());
 
     // Confirm models.
@@ -14057,6 +14141,7 @@ TEST_F(CloudToLocalFilterFixture, OverwriteExcluded)
     remoteTree = localFS;
 
     // Wait for synchronization to complete.
+    cdu->triggerFullScan(id);
     waitOnSyncs(cdu.get());
 
     // Confirm.
