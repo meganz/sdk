@@ -3463,14 +3463,6 @@ void MegaApi::getNameConflicts(MegaRequestListener* listener)
     return pImpl->getNameConflicts(listener);
 }
 
-bool MegaApi::conflictsDetected(const char** parentName,
-                                const char** parentPath,
-                                MegaStringList** names,
-                                bool* remote)
-{
-    return pImpl->conflictsDetected(parentName, parentPath, names, remote);
-}
-
 size_t MegaApi::getSyncStalls(MegaStringList** syncStallList)
 {
     return pImpl->getSyncStalls(syncStallList);

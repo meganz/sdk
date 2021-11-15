@@ -14233,30 +14233,6 @@ class MegaApi
         void getNameConflicts(MegaRequestListener* listener);
 
         /**
-         * @brief
-         * Retrieves information about any detected name conflicts.
-         *
-         * @param parentName
-         * The name of the directory containing the name conflicts.
-         *
-         * @param parentPath
-         * The path of the directory containing the name conflicts.
-         *
-         * @param names
-         * The names that have conflicted.
-         *
-         * @param remote
-         * Whether the name conflict was detected in the cloud.
-         *
-         * @return
-         * True if any name conflicts have been detected.
-         */
-        bool conflictsDetected(const char** parentName,
-                               const char** parentPath,
-                               MegaStringList** names,
-                               bool* remote);
-
-        /**
          * @brief Retrieves information involving any Local <-> Cloud synchronization stall conflict
          * These conflicts requires user intervention to be solved.
          *

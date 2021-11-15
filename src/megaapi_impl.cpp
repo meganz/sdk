@@ -1268,53 +1268,6 @@ void MegaApiImpl::getNameConflicts(MegaRequestListener* listener)
     waiter->notify();
 }
 
-bool MegaApiImpl::conflictsDetected(const char* *outParentName,
-                                    const char** outParentPath,
-                                    MegaStringList** outNames,
-                                    bool* outRemote)
-{
-    assert(outParentName);
-    assert(outParentPath);
-    assert(outNames);
-    assert(outRemote);
-
-    // @TODO: make this properly async
-    // Get the list of conflicts from the client.
-    list<NameConflict> conflicts;
-    client->syncs.syncRun([&](){
-        client->syncs.conflictsDetected(conflicts);
-    });
-
-    SdkMutexGuard guard(sdkMutex);
-
-    // Translate the information into a form useful to the caller.
-    // For now, just supply the first conflict. @TODO: maybe the caller would like everything?
-    for (auto& c : conflicts)
-    {
-        if (!c.cloudPath.empty() && !c.clashingCloudNames.empty())
-        {
-            // todo: do we need both? *outParentName = MegaApi::strdup(parentName.c_str());
-            *outParentPath = MegaApi::strdup(c.cloudPath.c_str());
-            string_vector v;
-            for (auto& n : c.clashingCloudNames) v.push_back(n);
-            *outNames = new MegaStringListPrivate(move(v));
-            *outRemote = true;
-        }
-        if (!c.localPath.empty() && !c.clashingLocalNames.empty())
-        {
-            // todo: do we need both? *outParentName = MegaApi::strdup(parentName.c_str());
-            *outParentPath = MegaApi::strdup(c.localPath.toPath().c_str());
-            string_vector v;
-            for (auto& n : c.clashingLocalNames) v.push_back(n.toPath());
-            *outNames = new MegaStringListPrivate(move(v));
-            *outRemote = false;
-        }
-    }
-
-    // got nothing after all
-    return false;
-}
-
 MegaSyncStallImpl::MegaSyncStallImpl(
     const string indexPath,
     const string localPath,

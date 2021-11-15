@@ -2489,11 +2489,6 @@ class MegaApiImpl : public MegaApp
         char *getBlockedPath();
         void getNameConflicts(MegaRequestListener* listener);
 
-        bool conflictsDetected(const char** parentName,
-                               const char** parentPath,
-                               MegaStringList** names,
-                               bool* remote);
-
         size_t getSyncStalls(MegaStringList** conflicts);
         size_t static getSyncStalls(std::unique_ptr<SyncStallInfo> si, MegaStringList** conflicts);
 
