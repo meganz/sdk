@@ -1058,7 +1058,7 @@ MegaHandleList* MegaRequest::getMegaHandleList() const
 
 #ifdef ENABLE_SYNC
 
-MegaNameConflictList* MegaRequest::getMegaNameConflictList() const
+MegaSyncNameConflictList* MegaRequest::getMegaSyncNameConflictList() const
 {
     return nullptr;
 }
@@ -3458,9 +3458,9 @@ char *MegaApi::getBlockedPath()
     return pImpl->getBlockedPath();
 }
 
-void MegaApi::getNameConflicts(MegaRequestListener* listener)
+void MegaApi::getSyncNameConflicts(MegaRequestListener* listener)
 {
-    return pImpl->getNameConflicts(listener);
+    return pImpl->getSyncNameConflicts(listener);
 }
 
 size_t MegaApi::getSyncStalls(MegaSyncStallList** syncStallList)
@@ -7168,12 +7168,12 @@ MegaCurrency *MegaCurrency::copy()
     return nullptr;
 }
 
-MegaNameConflict::~MegaNameConflict() = default;
+MegaSyncNameConflict::~MegaSyncNameConflict() = default;
 
-MegaNameConflict::MegaNameConflict() = default;
+MegaSyncNameConflict::MegaSyncNameConflict() = default;
 
-MegaNameConflictList::~MegaNameConflictList() = default;
+MegaSyncNameConflictList::~MegaSyncNameConflictList() = default;
 
-MegaNameConflictList::MegaNameConflictList() = default;
+MegaSyncNameConflictList::MegaSyncNameConflictList() = default;
 
 }
