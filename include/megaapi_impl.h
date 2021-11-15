@@ -2091,22 +2091,25 @@ class TransferQueue
 class MegaSyncStallImpl : public MegaSyncStall {
     public:
         MegaSyncStallImpl(
-            const string indexPath,
-            const string localPath,
-            const string cloudPath,
+            const string& indexPath,
+            const string& localPath,
+            const string& cloudPath,
             SyncStallReason reason,
             bool isCloud,
             bool isImmediate
         );
 
-        virtual ~MegaSyncStallImpl(){ std::cout << "MegaSyncStallImpl::~MegaSyncStallImpl()\n"; }
+        virtual ~MegaSyncStallImpl(){ /*std::cout << "MegaSyncStallImpl::~MegaSyncStallImpl()\n";*/ }
         const char* indexPath()  const override { return mIndexPath.c_str(); }
         const char* localPath()  const override { return mLocalPath.c_str(); }
         const char* cloudPath()  const override { return mCloudPath.c_str(); }
-        SyncStallReason reason() const override { return SyncStallReason::Unknown; }
+        SyncStallReason reason() const override { return mReason; }
         bool isCloud() const override {return mIsCloud; }
         bool isImmediate() const override { return mIsImmediate; }
-        const char* reasonString() const override;
+        const char* reasonString() const override { return reasonString(mReason); }
+
+        static const char*
+        reasonString(MegaSyncStall::SyncStallReason reason);
 
     protected:
         const std::string mIndexPath;
@@ -2122,16 +2125,14 @@ class MegaSyncStallImpl : public MegaSyncStall {
  */
 class MegaSyncStallListImpl : public MegaSyncStallList {
     public:
-        //MegaSyncStallListImpl( std::unique_ptr<SyncStallInfo> stalls):syncStalls(move(stalls)){}
-        MegaSyncStallListImpl( const SyncStallInfo& stalls);
-        virtual ~MegaSyncStallListImpl(){ std::cout << "MegaSyncStallListImpl::~MegaSyncStallListImpl()\n"; }
+        MegaSyncStallListImpl(const SyncStallInfo& stalls);
+        virtual ~MegaSyncStallListImpl(){ /*std::cout << "MegaSyncStallListImpl::~MegaSyncStallListImpl()\n";*/ }
         /**
          * @return a new heap allocated MegaSyncStall object 
          */
         MegaSyncStall* get(size_t i) const override;
         size_t size() const override { return stalls.size(); }
     protected:
-        //std::unique_ptr<SyncStallInfo> syncStalls; // Store
         std::vector<MegaSyncStallImpl> stalls;
         void addCloudStalls(const SyncStallInfo& syncStalls);
         void addLocalStalls(const SyncStallInfo& syncStalls);

@@ -5460,22 +5460,29 @@ class MegaSyncList
 };
 
 /**
- * @brief A synchronization conflict that requires user intervension to be solved
- *
- * @TODO: Document interface
+ * @brief A synchronization conflict that requires user intervention to be solved
  */
 class MegaSyncStall {
     public:
         MegaSyncStall();
         virtual ~MegaSyncStall();
+        /**
+         * @return path representing the sync stall 
+         */
         virtual const char* indexPath()  const;
+        /**
+         * @return local path involved in the sync stall
+         */
         virtual const char* localPath()  const;
+        /**
+         *  @return cloud path involved in the sync stall
+         */
         virtual const char* cloudPath()  const;
 
         /**
-         * @brief Why a sync stall. The end user should take some action.
+         * @brief The reason of the sync stall.
          *
-         * To be interpreted in the context of a MegaSyncStall (a.k.a. stall)
+         * To be interpreted in the context of a MegaSyncStall path information 
          */
         enum class SyncStallReason {
             Unknown = 0,
@@ -5509,24 +5516,28 @@ class MegaSyncStall {
         };
 
         /**
-         * @brief Reason for the sync stall
+         * @return reason for the sync stall
          */
         virtual SyncStallReason reason() const;
 
         /**
-         * @brief Where the conflict was detected
+         * @return true if the conflict was detected in the cloud side
          */
         virtual bool isCloud() const;
 
+        /**
+         * @return true if the end user is required to take actions to solve the sync stall
+         */
         virtual bool isImmediate() const;
 
+        /**
+         * @return a human readable representation of the sync stall reason. @see SyncStallReason
+         */
         virtual const char* reasonString() const;
 };
 
 /**
- * @brief A list of synchronization conflicts @see MegaSyncStall
- *
- * @TODO: Document interface
+ * @brief A list of synchronization stall conflicts @see MegaSyncStall
  */
 class MegaSyncStallList
 {
@@ -5534,7 +5545,15 @@ class MegaSyncStallList
         //static MegaSyncStalls * createInstance();
         MegaSyncStallList();
         virtual ~MegaSyncStallList();
-        virtual MegaSyncStall* get(size_t i) const;
+        /**
+         * @param index of the request element in the list.
+         * @return pointer to a MegaSyncStal allocated object that the user MUST RELEASE after use.
+         *         nullptr is index is out of bound
+         */
+        virtual MegaSyncStall* get(size_t index) const;
+        /**
+         * @return number of elements in the list.
+         */
         virtual size_t size() const;
 };
 

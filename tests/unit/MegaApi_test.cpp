@@ -296,13 +296,18 @@ TEST(MegaApi, MegaSyncStallList_constructor){
     ASSERT_EQ(theLocalPath.compare( localStallPtr->indexPath()),0);
     ASSERT_EQ(theLocalPath.compare( localStallPtr->localPath()),0);
     ASSERT_EQ(theRemotePath.compare(localStallPtr->cloudPath()),0);
-    ASSERT_FALSE(localStallPtr->isCloud());
+    ASSERT_EQ(localStallPtr->reason(), 
+            MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
+    ASSERT_EQ(strcmp(localStallPtr->reasonString(), 
+                MegaSyncStallImpl::reasonString(
+                    MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose)),0);
+    ASSERT_EQ(localStallPtr->isCloud(), false);
 
     // Check The cloud stall object
     ASSERT_EQ(theRemotePath.compare(cloudStallPtr->indexPath()),0);
     ASSERT_EQ(theLocalPath.compare( cloudStallPtr->localPath()),0);
     ASSERT_EQ(theRemotePath.compare(cloudStallPtr->cloudPath()),0);
-    ASSERT_TRUE(cloudStallPtr->isCloud());
+    ASSERT_EQ(cloudStallPtr->isCloud(), true);
 
     // Remove objects
     delete localStallPtr;

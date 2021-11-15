@@ -1305,9 +1305,9 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
 }
 
 MegaSyncStallImpl::MegaSyncStallImpl(
-    const string indexPath,
-    const string localPath,
-    const string cloudPath,
+    const string& indexPath,
+    const string& localPath,
+    const string& cloudPath,
     MegaSyncStall::SyncStallReason reason,
     bool isCloud,
     bool isImmediate)
@@ -1317,13 +1317,6 @@ MegaSyncStallImpl::MegaSyncStallImpl(
 ,mReason(reason)
 ,mIsCloud(isCloud)
 ,mIsImmediate(isImmediate) {}
-
-MegaSyncStall* MegaSyncStallListImpl::get(size_t i) const {
-    if( i >= stalls.size()){
-        return nullptr;
-    }
-    return new MegaSyncStallImpl(stalls[i]);
-}
 
 MegaSyncStall::SyncStallReason
 MegaSyncStallListImpl::syncStallReasonMapping(SyncWaitReason reason) const {
@@ -1360,8 +1353,8 @@ MegaSyncStallListImpl::syncStallReasonMapping(SyncWaitReason reason) const {
 }
 
 const char*
-MegaSyncStallImpl::reasonString() const {
-    switch(mReason) {
+MegaSyncStallImpl::reasonString(MegaSyncStall::SyncStallReason reason) {
+    switch(reason) {
         case MegaSyncStall::SyncStallReason::NoReason:                                      return "NoReason";
         case MegaSyncStall::SyncStallReason::ApplyMoveNeedsOtherSideParentFolderToExist:    return "ApplyMoveNeedsOtherSideParentFolderToExist";
         case MegaSyncStall::SyncStallReason::ApplyMoveIsBlockedByExistingItem:              return "ApplyMoveIsBlockedByExistingItem";
@@ -1393,8 +1386,15 @@ MegaSyncStallImpl::reasonString() const {
     }
 }
 
+MegaSyncStall* MegaSyncStallListImpl::get(size_t i) const {
+    if( i >= stalls.size()){
+        return nullptr;
+    }
+    return new MegaSyncStallImpl(stalls[i]);
+}
+
 void MegaSyncStallListImpl::addCloudStalls(const SyncStallInfo& syncStalls){
-    std::cout << "void MegaSyncStallListImpl::addCloudStalls(const SyncStallInfo& syncStalls)\n";
+    //std::cout << "void MegaSyncStallListImpl::addCloudStalls(const SyncStallInfo& syncStalls)\n";
     const bool itIsCloud = true;
     const bool itIsInmmediate = false; // @TODO: Change this
     for(auto& stall : syncStalls.cloud) {
@@ -1410,7 +1410,7 @@ void MegaSyncStallListImpl::addCloudStalls(const SyncStallInfo& syncStalls){
 }
 
 void MegaSyncStallListImpl::addLocalStalls(const SyncStallInfo& syncStalls){
-    std::cout << "void MegaSyncStallListImpl::addLocalStalls(const SyncStallInfo& syncStalls)\n";
+    //std::cout << "void MegaSyncStallListImpl::addLocalStalls(const SyncStallInfo& syncStalls)\n";
     const bool itIsCloud = false;
     const bool itIsInmmediate = false; // @TODO: Change this
     for(auto& stall : syncStalls.local) {
