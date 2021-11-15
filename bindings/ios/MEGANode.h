@@ -348,8 +348,17 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * - MEGANodeChangeTypeOutShare            = 0x40
  * Check if the node is a new or modified outshare
  *
- * - MEGANodeChangeTypeParent          = 0x80
+ * - MEGANodeChangeTypeParent              = 0x80
  * Check if the parent of the node has changed
+ *
+ *  - MEGANodeChangeTypePendingShare       = 0x100
+ * Check if the pending share of the node has changed
+ *
+ * - MEGANodeChangeTypePublicLink          = 0x200
+ * Check if the public link of the node has changed
+ *
+ * - MEGANodeChangeTypeNew                 = 0x400
+ * Check if the node is new
  *
  * @return YES if this node has an specific change
  */
@@ -385,9 +394,17 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * - MEGANodeChangeTypeOutShare            = 0x40
  * The node is a new or modified outshare
  *
- * - MEGANodeChangeTypeParent               = 0x80
- * The parent of the node has changed
+ * - MEGANodeChangeTypeParent              = 0x80
+ * Check if the parent of the node has changed
  *
+ *  - MEGANodeChangeTypePendingShare       = 0x100
+ * Check if the pending share of the node has changed
+ *
+ * - MEGANodeChangeTypePublicLink          = 0x200
+ * Check if the public link of the node has changed
+ *
+ * - MEGANodeChangeTypeNew                 = 0x400
+ * Check if the node is new
  */
 - (MEGANodeChangeType)getChanges;
 

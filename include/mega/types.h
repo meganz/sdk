@@ -582,7 +582,7 @@ struct NodeCounter
     void operator -= (const NodeCounter&);
 };
 
-typedef std::map<handle, NodeCounter> NodeCounterMap;
+typedef std::map<NodeHandle, NodeCounter> NodeCounterMap;
 
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;

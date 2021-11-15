@@ -309,6 +309,45 @@ public:
 };
 
 
+class SyncThreadsafeState
+{
+    // This class contains things that are read/written from either the Syncs thread,
+    // or the MegaClient thread.  A mutex is used to keep the data consistent.
+    // Referred to by shared_ptr so transfers etc don't have awkward lifetime issues.
+    mutex mMutex;
+
+    // If we make a LocalNode for an upload we created ourselves,
+    // it's because the local file is no longer at the matching position
+    // and we need to set it up to be moved correspondingly
+    map<string, weak_ptr<SyncUpload_inClient>> mExpectedUploads;
+
+    // track uploads/downloads
+    struct TransferCounts
+    {
+        int32_t queued = 0;
+        int32_t completed = 0;
+        m_off_t queuedBytes = 0;
+        m_off_t completedBytes = 0;
+    };
+    TransferCounts mUploads;
+    TransferCounts mDownloads;
+
+public:
+
+    // Remember which Nodes we created from upload,
+    // until the corresponding LocalNodes are updated.
+    void addExpectedUpload(NodeHandle parentHandle, const string& name, weak_ptr<SyncUpload_inClient>);
+    void removeExpectedUpload(NodeHandle parentHandle, const string& name);
+    shared_ptr<SyncUpload_inClient> isNodeAnExpectedUpload(NodeHandle parentHandle, const string& name);
+
+    // Transfers update these from the client thread
+    void adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes);
+
+};
+
+
+
+
 class MEGA_API Sync
 {
 public:
@@ -409,7 +448,7 @@ public:
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
-    bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter);
     bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists);
     bool resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
@@ -513,6 +552,8 @@ private:
 
     // Name of this sync's state cache.
     string mStateCacheName;
+
+    shared_ptr<SyncThreadsafeState> threadSafeState;
 };
 
 class SyncConfigIOContext;

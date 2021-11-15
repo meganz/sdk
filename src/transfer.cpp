@@ -999,7 +999,8 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 }
             }
 
-            if (!isOpen || f->genfingerprint(fa.get()))
+            if (!f->syncxfer &&  // for syncs, it's ok if the file moved/renamed elsewhere since
+               (!isOpen || f->genfingerprint(fa.get())))
             {
                 if (!isOpen)
                 {
