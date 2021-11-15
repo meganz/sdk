@@ -17797,6 +17797,7 @@ NodeCounter NodeManager::getCounterOfRootNodes()
 
 void NodeManager::updateCounter(const NodeHandle& h)
 {
+    assert(mNodeCounters.find(h) != mNodeCounters.end());
     mNodeCounters[h] = getNodeCounter(h);
 }
 
@@ -17817,6 +17818,7 @@ NodeCounter NodeManager::getCounterForSubtree(const NodeHandle& h)
     if (h == rootnode(0) || h == rootnode(1) || h == rootnode(2))
     {
         // node counters for rootnodes are always loaded upon fetchsc()
+        assert(mNodeCounters.find(h) != mNodeCounters.end());
         return mNodeCounters[h];
     }
 
@@ -17826,6 +17828,9 @@ NodeCounter NodeManager::getCounterForSubtree(const NodeHandle& h)
 void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, bool oldInShare,
                                                              const NodeHandle& newRoot, bool newInShare)
 {
+    assert(mNodeCounters.find(oldRoot) != mNodeCounters.end());
+    assert(mNodeCounters.find(newRoot) != mNodeCounters.end());
+
     bool subTreeCalculated = false;
     NodeCounter nc;
 
