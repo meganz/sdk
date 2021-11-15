@@ -49,8 +49,8 @@ public:
         mWhat = std::move(mLastValue);
     }
 
-    MEGA_DISABLE_COPY(ScopedValue);
-    MEGA_DEFAULT_MOVE(ScopedValue);
+    MEGA_DISABLE_COPY(ScopedValue)
+    MEGA_DEFAULT_MOVE(ScopedValue)
 
 private:
     T mLastValue;
@@ -5612,7 +5612,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
                                   "%3f%40%5b%5c%5d%5e%5f%60%7b%7c%7d%7e"));
         delete [] name;
     }
-#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+#elif defined(_WIN32) || defined(_WIN64)
     if (fileSystemAccess.getlocalfstype(aux) == FS_NTFS)
     {
         // Escape set of characters and check if it's the expected one

@@ -7,7 +7,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the rules set forth in the Terms of Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -3519,14 +3519,16 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
 
     // client1 should send a rename command to the API
     // both client1 and client2 should receive the corresponding actionpacket
-    const char* s = nullptr;
+    const char* s = nullptr; // Maybe intended for an ASSERT ?
     if (!clientA1.waitForNodesUpdated(60))
     {
         s = " no actionpacket received in clientA1 for rename";
+        out() << s;
     }
     if (!clientA2.waitForNodesUpdated(60))
     {
         s = " no actionpacket received in clientA2 for rename";
+        out() << s;
     }
     out() << "----- wait for actionpackets ended -----";
 
@@ -5896,7 +5898,7 @@ TEST_F(SyncTest, AnomalousSyncDownload)
     ASSERT_TRUE(cd.confirmModel_mainthread(model.root.get(), id));
 
     // Two anomalies should be reported.
-    ASSERT_EQ(reporter->mAnomalies.size(), 2);
+    ASSERT_EQ(reporter->mAnomalies.size(), 2u);
 
     auto anomaly = reporter->mAnomalies.begin();
 
@@ -5973,7 +5975,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
     // There should be a single anomaly.
-    ASSERT_EQ(reporter->mAnomalies.size(), 1);
+    ASSERT_EQ(reporter->mAnomalies.size(), 1u);
     {
         auto& anomaly = reporter->mAnomalies.back();
 
@@ -6080,7 +6082,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
     // There should be a single anomaly.
-    ASSERT_EQ(reporter->mAnomalies.size(), 1);
+    ASSERT_EQ(reporter->mAnomalies.size(), 1u);
     {
         auto& anomaly = reporter->mAnomalies.back();
 
@@ -6130,7 +6132,7 @@ TEST_F(SyncTest, AnomalousSyncUpload)
     ASSERT_TRUE(cu.confirmModel_mainthread(model.root.get(), id));
 
     // Two anomalies should've been reported.
-    ASSERT_EQ(reporter->mAnomalies.size(), 2);
+    ASSERT_EQ(reporter->mAnomalies.size(), 2u);
 
     auto anomaly = reporter->mAnomalies.begin();
 

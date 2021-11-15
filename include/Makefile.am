@@ -10,6 +10,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/console.h \
 	mega/command.h \
 	mega/db.h \
+	mega/drivenotify.h \
 	mega/gfx.h \
 	mega/fileattributefetch.h \
 	mega/filefingerprint.h \

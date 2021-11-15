@@ -2093,13 +2093,6 @@ void MegaApi::addEntropy(char *data, unsigned int size)
     pImpl->addEntropy(data, size);
 }
 
-#ifdef WINDOWS_PHONE
-void MegaApi::setStatsID(const char *id)
-{
-    MegaApiImpl::setStatsID(id);
-}
-#endif
-
 void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     pImpl->fastLogin(email, stringHash, base64pwkey,listener);

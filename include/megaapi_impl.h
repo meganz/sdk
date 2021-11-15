@@ -60,9 +60,6 @@
 //If you selected QT for threads and mutexes, it will be also used for thumbnails and previews
 //You can create a subclass of MegaGfxProcessor and pass it to the constructor of MegaApi
 //#define USE_FREEIMAGE
-
-//Define WINDOWS_PHONE if you want to build the MEGA SDK for Windows Phone
-//#define WINDOWS_PHONE
 /////////////////////////// END OF SETTINGS ///////////////////////////
 
 namespace mega
@@ -85,14 +82,10 @@ class MegaGfxProc : public GfxProcExternal {};
 #endif
 
 #ifdef WIN32
-    #ifndef WINDOWS_PHONE
     #ifdef USE_CURL
     class MegaHttpIO : public CurlHttpIO {};
     #else
     class MegaHttpIO : public WinHttpIO {};
-    #endif
-    #else
-    class MegaHttpIO : public CurlHttpIO {};
     #endif
 	class MegaFileSystemAccess : public WinFileSystemAccess {};
 	class MegaWaiter : public WinWaiter {};
@@ -1249,7 +1242,7 @@ protected:
 class MegaEventPrivate : public MegaEvent
 {
 public:
-    MegaEventPrivate(int type);
+    MegaEventPrivate(int atype);
     MegaEventPrivate(MegaEventPrivate *event);
     virtual ~MegaEventPrivate();
     MegaEvent *copy() override;
@@ -1260,6 +1253,7 @@ public:
     MegaHandle getHandle() const override;
     const char *getEventString() const override;
 
+    std::string getValidDataToString() const;
     static const char* getEventString(int type);
 
     void setText(const char* text);
@@ -1268,9 +1262,9 @@ public:
 
 protected:
     int type;
-    const char* text;
-    int64_t number;
-    MegaHandle mHandle;
+    const char* text = nullptr;
+    int64_t number = -1;
+    MegaHandle mHandle = INVALID_HANDLE;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -2142,9 +2136,6 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToLongName(int);
         static int userAttributeFromString(const char *name);
         static char userAttributeToScope(int);
-#ifdef WINDOWS_PHONE
-        void setStatsID(const char *id);
-#endif
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();

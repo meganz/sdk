@@ -56,10 +56,7 @@
 #endif
 
 #ifdef _WIN32
-#ifndef WINDOWS_PHONE
 #include <shlwapi.h>
-#endif
-
 #endif
 
 #ifdef USE_OPENSSL
@@ -1448,7 +1445,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
         request->setName(backupName.c_str()); // use this in putnodes_result()
     }
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     if (!PathIsRelativeA(localPath.c_str()) && ((localPath.size() < 2) || localPath.compare(0, 2, "\\\\")))
     {
         localPath.insert(0, "\\\\?\\");
@@ -5373,7 +5370,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     }
     client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     httpio->unlock();
 #endif
 
@@ -5968,14 +5965,6 @@ char MegaApiImpl::userAttributeToScope(int type)
     return scope;
 }
 
-#ifdef WINDOWS_PHONE
-void MegaApiImpl::setStatsID(const char *id)
-{
-    SdkMutexGuard g(sdkMutex);
-    client->statsid = id;
-}
-#endif
-
 bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()
 {
     return client->ssrs_enabled;
@@ -6383,7 +6372,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener
 
     string localurl;
 
-#if defined(WINDOWS_PHONE) || (defined(_WIN32) && defined(USE_CURL))
+#if defined(_WIN32) && defined(USE_CURL)
     localurl = url;
 #else
     fsAccess->path2local(&url, &localurl);
@@ -6399,7 +6388,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener
 
         string localusername;
 
-#if defined(WINDOWS_PHONE) || (defined(_WIN32) && defined(USE_CURL))
+#if defined(_WIN32) && defined(USE_CURL)
         localusername = username;
 #else
         fsAccess->path2local(&username, &localusername);
@@ -6411,7 +6400,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener
 
         string localpassword;
 
-#if defined(WINDOWS_PHONE) || (defined(_WIN32) && defined(USE_CURL))
+#if defined(_WIN32) && defined(USE_CURL)
         localpassword = password;
 #else
         fsAccess->path2local(&password, &localpassword);
@@ -6448,24 +6437,7 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
 
 void MegaApiImpl::loop()
 {
-#if defined(WINDOWS_PHONE)
-    // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
-    string servers;
-
-    while (true)
-    {
-        client->httpio->getMEGADNSservers(&servers, false);
-
-        if (servers.size())
-            break;
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-
-    LOG_debug << "Using DNS servers " << servers;
-    sdkMutex.lock();
-    httpio->setdnsservers(servers.c_str());
-    sdkMutex.unlock();
-#elif _WIN32
+#ifdef _WIN32
     httpio->lock();
 #endif
 
@@ -7410,7 +7382,7 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
     if(dstFilePath)
     {
         string path(dstFilePath);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
@@ -7495,7 +7467,7 @@ void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char 
     if (type == MegaApi::USER_ATTR_AVATAR && dstFilePath)
     {
         string path(dstFilePath);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
@@ -7529,7 +7501,7 @@ void MegaApiImpl::getChatUserAttr(const char *email_or_handle, int type, const c
     if (type == MegaApi::USER_ATTR_AVATAR && dstFilePath)
     {
         string path(dstFilePath);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
@@ -8378,7 +8350,7 @@ void MegaApiImpl::setScheduledCopy(const char* localFolder, MegaNode* parent, bo
     if(localFolder)
     {
         string path(localFolder);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
@@ -8430,7 +8402,7 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
     if(localPath)
     {
         string path(localPath);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
@@ -8500,7 +8472,7 @@ void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* loc
 
     if(localPath)
     {
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         string path(localPath);
         if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
@@ -8640,7 +8612,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     SdkMutexGuard g(sdkMutex);
 
     string utf8path = path;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if(!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
             utf8path.insert(0, "\\\\?\\");
 #endif
@@ -8668,7 +8640,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
 
 int MegaApiImpl::syncPathState(string* path)
 {
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     string prefix("\\\\?\\");
     string localPrefix;
     fsAccess->path2local(&prefix, &localPrefix);
@@ -8787,7 +8759,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
     if(localFolder)
     {
         string path(localFolder);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
@@ -8807,7 +8779,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
     if (driveRootIfExternal)
     {
         string driveRoot(driveRootIfExternal);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if (!PathIsRelativeA(driveRoot.c_str()) && ((driveRoot.size() < 2) || driveRoot.compare(0, 2, "\\\\")))
             driveRoot.insert(0, "\\\\?\\");
 #endif
@@ -8845,7 +8817,7 @@ void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name,
     if(localFolder)
     {
         string path(localFolder);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
         if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             path.insert(0, "\\\\?\\");
 #endif
@@ -9032,7 +9004,7 @@ void MegaApiImpl::setExcludedPaths(vector<string> *excludedPaths)
         fsAccess->normalize(&path);
         if (path.size())
         {
-    #if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    #if defined(_WIN32)
             if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
             {
                 path.insert(0, "\\\\?\\");
@@ -9090,7 +9062,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
     }
 
     string utf8path = path;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     if (!PathIsRelativeA(utf8path.c_str()) && ((utf8path.size()<2) || utf8path.compare(0, 2, "\\\\")))
     {
         utf8path.insert(0, "\\\\?\\");
@@ -16555,7 +16527,7 @@ void MegaApiImpl::fireOnReloadNeeded()
 
 void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 {
-    LOG_debug << "Sending EVENT " << event->getType() << " to app: " << event->getText();
+    LOG_debug << "Sending " << event->getEventString() << " to app." << event->getValidDataToString();
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
@@ -32821,20 +32793,17 @@ long long MegaSizeProcessor::getTotalBytes()
     return totalBytes;
 }
 
-MegaEventPrivate::MegaEventPrivate(int type)
+MegaEventPrivate::MegaEventPrivate(int atype)
+    :type(atype)
 {
-    this->type = type;
-    this->text = NULL;
-    this->number = 0;
 }
 
 MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
 {
-    this->text = NULL;
-
     this->type = event->getType();
     this->setText(event->getText());
     this->setNumber(event->getNumber());
+    this->setHandle(event->getHandle());
 }
 
 MegaEventPrivate::~MegaEventPrivate()
@@ -32902,9 +32871,33 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_BUSINESS_STATUS: return "BUSINESS_STATUS";
         case MegaEvent::EVENT_KEY_MODIFIED: return "KEY_MODIFIED";
         case MegaEvent::EVENT_MISC_FLAGS_READY: return "MISC_FLAGS_READY";
+#ifdef ENABLE_SYNC
+        case MegaEvent::EVENT_SYNCS_DISABLED: return "SYNCS_DISABLED";
+        case MegaEvent::EVENT_SYNCS_RESTORED: return "SYNCS_RESTORED";
+#endif
     }
 
     return "UNKNOWN";
+}
+
+std::string MegaEventPrivate::getValidDataToString() const
+{
+    std::string msg;
+    if (getText())
+    {
+        msg.append(" text: ").append(getText());
+    }
+
+    if (getNumber() >= 0)
+    {
+        msg.append(" number: ").append(std::to_string(getNumber()));
+    }
+
+    if (getHandle() != INVALID_HANDLE)
+    {
+        msg.append(" handle: ").append(Base64Str<sizeof(MegaHandle)>(getHandle()));
+    }
+    return msg;
 }
 
 void MegaEventPrivate::setHandle(const MegaHandle &handle)
