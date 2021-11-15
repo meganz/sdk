@@ -281,7 +281,6 @@ public:
     node_vector getNodesWithPendingOutShares();
     node_vector getNodesWithLinks();
 
-    std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     int getNumberOfChildrenFromNode(NodeHandle parentHandle);
 
@@ -374,6 +373,7 @@ private:
     void saveNodeInDataBase(Node* node);
     const NodeHandle& rootnode(int idx) const;
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
+    std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
 };
 
 class MEGA_API MegaClient
