@@ -2098,7 +2098,8 @@ class TransferQueue
  * It Could wrap a single synchronization conflict or a reference to it
  * if we know the MegaSyncStallList container is kept around.
  */
-class MegaSyncStallPrivate : public MegaSyncStall {
+class MegaSyncStallPrivate : public MegaSyncStall
+{
     public:
         MegaSyncStallPrivate(
             const string& indexPath,
@@ -2109,14 +2110,42 @@ class MegaSyncStallPrivate : public MegaSyncStall {
             bool isImmediate
         );
 
-        virtual ~MegaSyncStallPrivate(){ /*std::cout << "MegaSyncStallPrivate::~MegaSyncStallPrivate()\n";*/ }
-        const char* indexPath()  const override { return mIndexPath.c_str(); }
-        const char* localPath()  const override { return mLocalPath.c_str(); }
-        const char* cloudPath()  const override { return mCloudPath.c_str(); }
-        SyncStallReason reason() const override { return mReason; }
-        bool isCloud() const override {return mIsCloud; }
-        bool isImmediate() const override { return mIsImmediate; }
-        const char* reasonString() const override { return reasonString(mReason); }
+        virtual ~MegaSyncStallPrivate() = default;
+
+        const char* indexPath()  const override
+        {
+            return mIndexPath.c_str();
+        }
+
+        const char* localPath()  const override
+        {
+            return mLocalPath.c_str();
+        }
+
+        const char* cloudPath() const override
+        {
+            return mCloudPath.c_str();
+        }
+
+        SyncStallReason reason() const override
+        {
+            return mReason;
+        }
+
+        bool isCloud() const override
+        {
+            return mIsCloud;
+        }
+
+        bool isImmediate() const override
+        {
+            return mIsImmediate;
+        }
+
+        const char* reasonString() const override
+        {
+            return reasonString(mReason);
+        }
 
         static const char*
         reasonString(MegaSyncStall::SyncStallReason reason);
@@ -2133,17 +2162,21 @@ class MegaSyncStallPrivate : public MegaSyncStall {
 /**
  * A thin wrapper to make them look like a List
  */
-class MegaSyncStallListPrivate : public MegaSyncStallList {
+class MegaSyncStallListPrivate : public MegaSyncStallList
+{
     public:
         MegaSyncStallListPrivate(const SyncStallInfo& stalls);
-        virtual ~MegaSyncStallListPrivate(){ /*std::cout << "MegaSyncStallListPrivate::~MegaSyncStallListPrivate()\n";*/ }
+        virtual ~MegaSyncStallListPrivate() = default;
         /**
          * @return a new heap allocated MegaSyncStall object 
          */
         MegaSyncStall* get(size_t i) const override;
-        size_t size() const override { return stalls.size(); }
+        size_t size() const override
+        {
+            return mStalls.size();
+        }
     protected:
-        std::vector<MegaSyncStallPrivate> stalls;
+        std::vector<MegaSyncStallPrivate> mStalls;
         void addCloudStalls(const SyncStallInfo& syncStalls);
         void addLocalStalls(const SyncStallInfo& syncStalls);
         MegaSyncStall::SyncStallReason 

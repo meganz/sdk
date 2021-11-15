@@ -6012,20 +6012,50 @@ void MegaSyncList::addSync(MegaSync *sync)
 
 }
 
-MegaSyncStall::MegaSyncStall(){}
-MegaSyncStall::~MegaSyncStall(){}
-const char* MegaSyncStall::indexPath()  const { return ""; }
-const char* MegaSyncStall::localPath()  const { return ""; }
-const char* MegaSyncStall::cloudPath()  const { return ""; }
-MegaSyncStall::SyncStallReason MegaSyncStall::reason() const { return MegaSyncStall::SyncStallReason::Unknown; }
-bool MegaSyncStall::isCloud() const { return false; }
-bool MegaSyncStall::isImmediate() const { return false; }
-const char*  MegaSyncStall::reasonString() const { return ""; }
+const char* MegaSyncStall::indexPath() const
+{ 
+    return "";
+}
 
-MegaSyncStallList::MegaSyncStallList(){}
-MegaSyncStallList::~MegaSyncStallList(){}
-size_t MegaSyncStallList::size() const { return 0; }
-MegaSyncStall* MegaSyncStallList::get(size_t i) const { return nullptr; }
+const char* MegaSyncStall::localPath() const
+{
+    return "";
+}
+
+const char* MegaSyncStall::cloudPath() const
+{
+    return "";
+}
+
+MegaSyncStall::SyncStallReason MegaSyncStall::reason() const
+{
+    return MegaSyncStall::SyncStallReason::Unknown;
+}
+
+bool MegaSyncStall::isCloud() const
+{ 
+    return false;
+}
+
+bool MegaSyncStall::isImmediate() const
+{
+    return false;
+}
+
+const char*  MegaSyncStall::reasonString() const
+{ 
+    return "";
+}
+
+size_t MegaSyncStallList::size() const
+{ 
+    return 0;
+}
+
+MegaSyncStall* MegaSyncStallList::get(size_t i) const
+{ 
+    return nullptr;
+}
 
 #endif
 

@@ -5480,10 +5480,11 @@ class MegaSyncList
 /**
  * @brief A synchronization conflict that requires user intervention to be solved
  */
-class MegaSyncStall {
+class MegaSyncStall 
+{
     public:
-        MegaSyncStall();
-        virtual ~MegaSyncStall();
+        MegaSyncStall() = default;
+        virtual ~MegaSyncStall() = default;
         /**
          * @return path representing the sync stall 
          */
@@ -5502,7 +5503,8 @@ class MegaSyncStall {
          *
          * To be interpreted in the context of a MegaSyncStall path information 
          */
-        enum class SyncStallReason {
+        enum class SyncStallReason 
+        {
             Unknown = 0,
             NoReason,
             ApplyMoveNeedsOtherSideParentFolderToExist,
@@ -5560,9 +5562,8 @@ class MegaSyncStall {
 class MegaSyncStallList
 {
     public:
-        //static MegaSyncStalls * createInstance();
-        MegaSyncStallList();
-        virtual ~MegaSyncStallList();
+        MegaSyncStallList() = default;
+        virtual ~MegaSyncStallList() = default;
         /**
          * @param index of the request element in the list.
          * @return pointer to a MegaSyncStal allocated object that the user MUST RELEASE after use.

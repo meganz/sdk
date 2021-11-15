@@ -1283,84 +1283,147 @@ MegaSyncStallPrivate::MegaSyncStallPrivate(
 ,mIsImmediate(isImmediate) {}
 
 MegaSyncStall::SyncStallReason
-MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const {
-    switch(reason) {
-        case SyncWaitReason::NoReason:                                                 return MegaSyncStall::SyncStallReason::NoReason;
-        case SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist:               return MegaSyncStall::SyncStallReason::ApplyMoveNeedsOtherSideParentFolderToExist;
-        case SyncWaitReason::ApplyMoveIsBlockedByExistingItem:                         return MegaSyncStall::SyncStallReason::ApplyMoveIsBlockedByExistingItem;
-        case SyncWaitReason::ApplyMoveIsWaitingForScanning:                            return MegaSyncStall::SyncStallReason::ApplyMoveIsWaitingForScanning;
-        case SyncWaitReason::MoveNeedsDestinationNodeProcessing:                       return MegaSyncStall::SyncStallReason::MoveNeedsDestinationNodeProcessing;
-        case SyncWaitReason::UpsyncNeedsTargetFolder:                                  return MegaSyncStall::SyncStallReason::UpsyncNeedsTargetFolder;
-        case SyncWaitReason::DownsyncNeedsTargetFolder:                                return MegaSyncStall::SyncStallReason::DownsyncNeedsTargetFolder;
-        case SyncWaitReason::DeleteOrMoveWaitingOnScanning:                            return MegaSyncStall::SyncStallReason::DeleteOrMoveWaitingOnScanning;
-        case SyncWaitReason::DeleteWaitingOnMoves:                                     return MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves;
-        case SyncWaitReason::WatiingForFileToStopChanging:                             return MegaSyncStall::SyncStallReason::WatiingForFileToStopChanging;
-        case SyncWaitReason::MovingDownloadToTarget:                                   return MegaSyncStall::SyncStallReason::MovingDownloadToTarget;
-        case SyncWaitReason::MovingExistingDownloadTargetToDebris:                     return MegaSyncStall::SyncStallReason::MovingExistingDownloadTargetToDebris;
-        case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose;
-        case SyncWaitReason::CouldNotMoveToLocalDebrisFolder:                          return MegaSyncStall::SyncStallReason::CouldNotMoveToLocalDebrisFolder;
-        case SyncWaitReason::LocalFolderNotScannable:                                  return MegaSyncStall::SyncStallReason::LocalFolderNotScannable;
-        case SyncWaitReason::SymlinksNotSupported:                                     return MegaSyncStall::SyncStallReason::SymlinksNotSupported;
-        case SyncWaitReason::FolderMatchedAgainstFile:                                 return MegaSyncStall::SyncStallReason::FolderMatchedAgainstFile;
-        case SyncWaitReason::MatchedAgainstUnidentifiedItem:                           return MegaSyncStall::SyncStallReason::MatchedAgainstUnidentifiedItem;
-        case SyncWaitReason::MoveOrRenameFailed:                                       return MegaSyncStall::SyncStallReason::MoveOrRenameFailed;
-        case SyncWaitReason::CreateFolderFailed:                                       return MegaSyncStall::SyncStallReason::CreateFolderFailed;
-        case SyncWaitReason::UnknownExclusionState:                                    return MegaSyncStall::SyncStallReason::UnknownExclusionState;
-        case SyncWaitReason::UnableToLoadIgnoreFile:                                   return MegaSyncStall::SyncStallReason::UnableToLoadIgnoreFile;
-        case SyncWaitReason::MoveTargetNameTooLong:                                    return MegaSyncStall::SyncStallReason::MoveTargetNameTooLong;
-        case SyncWaitReason::DownloadTargetNameTooLong:                                return MegaSyncStall::SyncStallReason::DownloadTargetNameTooLong;
-        case SyncWaitReason::CreateFolderNameTooLong:                                  return MegaSyncStall::SyncStallReason::CreateFolderNameTooLong;
-        case SyncWaitReason::ItemHasReservedName:                                      return MegaSyncStall::SyncStallReason::ItemHasReservedName;
-        case SyncWaitReason::MoveTargetHasReservedName:                                return MegaSyncStall::SyncStallReason::MoveTargetHasReservedName;
-        default: return MegaSyncStall::SyncStallReason::Unknown;
+MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
+{
+    switch(reason)
+    {
+        case SyncWaitReason::NoReason:
+            return MegaSyncStall::SyncStallReason::NoReason;
+        case SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist:
+            return MegaSyncStall::SyncStallReason::ApplyMoveNeedsOtherSideParentFolderToExist;
+        case SyncWaitReason::ApplyMoveIsBlockedByExistingItem:
+            return MegaSyncStall::SyncStallReason::ApplyMoveIsBlockedByExistingItem;
+        case SyncWaitReason::ApplyMoveIsWaitingForScanning:
+            return MegaSyncStall::SyncStallReason::ApplyMoveIsWaitingForScanning;
+        case SyncWaitReason::MoveNeedsDestinationNodeProcessing:
+            return MegaSyncStall::SyncStallReason::MoveNeedsDestinationNodeProcessing;
+        case SyncWaitReason::UpsyncNeedsTargetFolder:
+            return MegaSyncStall::SyncStallReason::UpsyncNeedsTargetFolder;
+        case SyncWaitReason::DownsyncNeedsTargetFolder:
+            return MegaSyncStall::SyncStallReason::DownsyncNeedsTargetFolder;
+        case SyncWaitReason::DeleteOrMoveWaitingOnScanning:
+            return MegaSyncStall::SyncStallReason::DeleteOrMoveWaitingOnScanning;
+        case SyncWaitReason::DeleteWaitingOnMoves:
+            return MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves;
+        case SyncWaitReason::WatiingForFileToStopChanging:
+            return MegaSyncStall::SyncStallReason::WatiingForFileToStopChanging;
+        case SyncWaitReason::MovingDownloadToTarget:
+            return MegaSyncStall::SyncStallReason::MovingDownloadToTarget;
+        case SyncWaitReason::MovingExistingDownloadTargetToDebris:
+            return MegaSyncStall::SyncStallReason::MovingExistingDownloadTargetToDebris;
+        case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose:
+            return MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose;
+        case SyncWaitReason::CouldNotMoveToLocalDebrisFolder:
+            return MegaSyncStall::SyncStallReason::CouldNotMoveToLocalDebrisFolder;
+        case SyncWaitReason::LocalFolderNotScannable:
+            return MegaSyncStall::SyncStallReason::LocalFolderNotScannable;
+        case SyncWaitReason::SymlinksNotSupported:
+            return MegaSyncStall::SyncStallReason::SymlinksNotSupported;
+        case SyncWaitReason::FolderMatchedAgainstFile:
+            return MegaSyncStall::SyncStallReason::FolderMatchedAgainstFile;
+        case SyncWaitReason::MatchedAgainstUnidentifiedItem:
+            return MegaSyncStall::SyncStallReason::MatchedAgainstUnidentifiedItem;
+        case SyncWaitReason::MoveOrRenameFailed:
+            return MegaSyncStall::SyncStallReason::MoveOrRenameFailed;
+        case SyncWaitReason::CreateFolderFailed:
+            return MegaSyncStall::SyncStallReason::CreateFolderFailed;
+        case SyncWaitReason::UnknownExclusionState:
+            return MegaSyncStall::SyncStallReason::UnknownExclusionState;
+        case SyncWaitReason::UnableToLoadIgnoreFile:
+            return MegaSyncStall::SyncStallReason::UnableToLoadIgnoreFile;
+        case SyncWaitReason::MoveTargetNameTooLong:
+            return MegaSyncStall::SyncStallReason::MoveTargetNameTooLong;
+        case SyncWaitReason::DownloadTargetNameTooLong:
+            return MegaSyncStall::SyncStallReason::DownloadTargetNameTooLong;
+        case SyncWaitReason::CreateFolderNameTooLong:
+            return MegaSyncStall::SyncStallReason::CreateFolderNameTooLong;
+        case SyncWaitReason::ItemHasReservedName:
+            return MegaSyncStall::SyncStallReason::ItemHasReservedName;
+        case SyncWaitReason::MoveTargetHasReservedName:
+            return MegaSyncStall::SyncStallReason::MoveTargetHasReservedName;
+        default:
+            return MegaSyncStall::SyncStallReason::Unknown;
      }
 }
 
 const char*
-MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason) {
-    switch(reason) {
-        case MegaSyncStall::SyncStallReason::NoReason:                                      return "NoReason";
-        case MegaSyncStall::SyncStallReason::ApplyMoveNeedsOtherSideParentFolderToExist:    return "ApplyMoveNeedsOtherSideParentFolderToExist";
-        case MegaSyncStall::SyncStallReason::ApplyMoveIsBlockedByExistingItem:              return "ApplyMoveIsBlockedByExistingItem";
-        case MegaSyncStall::SyncStallReason::ApplyMoveIsWaitingForScanning:                 return "ApplyMoveIsWaitingForScanning";
-        case MegaSyncStall::SyncStallReason::MoveNeedsDestinationNodeProcessing:            return "MoveNeedsDestinationNodeProcessing";
-        case MegaSyncStall::SyncStallReason::UpsyncNeedsTargetFolder:                       return "UpsyncNeedsTargetFolder";
-        case MegaSyncStall::SyncStallReason::DownsyncNeedsTargetFolder:                     return "DownsyncNeedsTargetFolder";
-        case MegaSyncStall::SyncStallReason::DeleteOrMoveWaitingOnScanning:                 return "DeleteOrMoveWaitingOnScanning";
-        case MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
-        case MegaSyncStall::SyncStallReason::WatiingForFileToStopChanging:                  return "WatiingForFileToStopChanging";
-        case MegaSyncStall::SyncStallReason::MovingDownloadToTarget:                        return "MovingDownloadToTarget";
-        case MegaSyncStall::SyncStallReason::MovingExistingDownloadTargetToDebris:          return "MovingExistingDownloadTargetToDebris";
-        case MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
-        case MegaSyncStall::SyncStallReason::CouldNotMoveToLocalDebrisFolder:               return "CouldNotMoveToLocalDebrisFolder";
-        case MegaSyncStall::SyncStallReason::LocalFolderNotScannable:                       return "LocalFolderNotScannable";
-        case MegaSyncStall::SyncStallReason::SymlinksNotSupported:                          return "SymlinksNotSupported";
-        case MegaSyncStall::SyncStallReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
-        case MegaSyncStall::SyncStallReason::MatchedAgainstUnidentifiedItem:                return "MatchedAgainstUnidentifiedItem";
-        case MegaSyncStall::SyncStallReason::MoveOrRenameFailed:                            return "MoveOrRenameFailed";
-        case MegaSyncStall::SyncStallReason::CreateFolderFailed:                            return "CreateFolderFailed";
-        case MegaSyncStall::SyncStallReason::UnknownExclusionState:                         return "UnknownExclusionState";
-        case MegaSyncStall::SyncStallReason::UnableToLoadIgnoreFile:                        return "UnableToLoadIgnoreFile";
-        case MegaSyncStall::SyncStallReason::MoveTargetNameTooLong:                         return "MoveTargetNameTooLong";
-        case MegaSyncStall::SyncStallReason::DownloadTargetNameTooLong:                     return "DownloadTargetNameTooLong";
-        case MegaSyncStall::SyncStallReason::CreateFolderNameTooLong:                       return "CreateFolderNameTooLong";
-        case MegaSyncStall::SyncStallReason::ItemHasReservedName:                           return "ItemHasReservedName";
-        case MegaSyncStall::SyncStallReason::MoveTargetHasReservedName:                     return "MoveTargetHasReservedName";
+MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
+{
+    switch(reason)
+    {
+        case MegaSyncStall::SyncStallReason::NoReason:
+            return "NoReason";
+        case MegaSyncStall::SyncStallReason::ApplyMoveNeedsOtherSideParentFolderToExist:
+            return "ApplyMoveNeedsOtherSideParentFolderToExist";
+        case MegaSyncStall::SyncStallReason::ApplyMoveIsBlockedByExistingItem:
+            return "ApplyMoveIsBlockedByExistingItem";
+        case MegaSyncStall::SyncStallReason::ApplyMoveIsWaitingForScanning:
+            return "ApplyMoveIsWaitingForScanning";
+        case MegaSyncStall::SyncStallReason::MoveNeedsDestinationNodeProcessing:
+            return "MoveNeedsDestinationNodeProcessing";
+        case MegaSyncStall::SyncStallReason::UpsyncNeedsTargetFolder:
+            return "UpsyncNeedsTargetFolder";
+        case MegaSyncStall::SyncStallReason::DownsyncNeedsTargetFolder:
+            return "DownsyncNeedsTargetFolder";
+        case MegaSyncStall::SyncStallReason::DeleteOrMoveWaitingOnScanning:
+            return "DeleteOrMoveWaitingOnScanning";
+        case MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves:
+            return "DeleteWaitingOnMoves";
+        case MegaSyncStall::SyncStallReason::WatiingForFileToStopChanging:
+            return "WatiingForFileToStopChanging";
+        case MegaSyncStall::SyncStallReason::MovingDownloadToTarget:
+            return "MovingDownloadToTarget";
+        case MegaSyncStall::SyncStallReason::MovingExistingDownloadTargetToDebris:
+            return "MovingExistingDownloadTargetToDebris";
+        case MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose:
+            return "BothChangedSinceLastSynced";
+        case MegaSyncStall::SyncStallReason::CouldNotMoveToLocalDebrisFolder:
+            return "CouldNotMoveToLocalDebrisFolder";
+        case MegaSyncStall::SyncStallReason::LocalFolderNotScannable:
+            return "LocalFolderNotScannable";
+        case MegaSyncStall::SyncStallReason::SymlinksNotSupported:
+            return "SymlinksNotSupported";
+        case MegaSyncStall::SyncStallReason::FolderMatchedAgainstFile:
+            return "FolderMatchedAgainstFile";
+        case MegaSyncStall::SyncStallReason::MatchedAgainstUnidentifiedItem:
+            return "MatchedAgainstUnidentifiedItem";
+        case MegaSyncStall::SyncStallReason::MoveOrRenameFailed:
+            return "MoveOrRenameFailed";
+        case MegaSyncStall::SyncStallReason::CreateFolderFailed:
+            return "CreateFolderFailed";
+        case MegaSyncStall::SyncStallReason::UnknownExclusionState:
+            return "UnknownExclusionState";
+        case MegaSyncStall::SyncStallReason::UnableToLoadIgnoreFile:
+            return "UnableToLoadIgnoreFile";
+        case MegaSyncStall::SyncStallReason::MoveTargetNameTooLong:
+            return "MoveTargetNameTooLong";
+        case MegaSyncStall::SyncStallReason::DownloadTargetNameTooLong:
+            return "DownloadTargetNameTooLong";
+        case MegaSyncStall::SyncStallReason::CreateFolderNameTooLong:
+            return "CreateFolderNameTooLong";
+        case MegaSyncStall::SyncStallReason::ItemHasReservedName:
+            return "ItemHasReservedName";
+        case MegaSyncStall::SyncStallReason::MoveTargetHasReservedName:
+            return "MoveTargetHasReservedName";
         default: return "Unknown";
     }
 }
 
-MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const {
-    if( i >= stalls.size()){
+MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const
+{
+    if( i >= mStalls.size())
+    {
         return nullptr;
     }
-    return new MegaSyncStallPrivate(stalls[i]);
+    return new MegaSyncStallPrivate(mStalls[i]);
 }
 
-void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls){
+void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls)
+{
     const bool itIsCloud = true;
-    for(auto& stall : syncStalls.cloud) {
-        stalls.emplace_back(
+    for(auto& stall : syncStalls.cloud)
+    {
+        mStalls.emplace_back(
             stall.first,
             stall.second.involvedLocalPath.toPath(),
             stall.second.involvedCloudPath,
@@ -1371,10 +1434,12 @@ void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls){
     }
 }
 
-void MegaSyncStallListPrivate::addLocalStalls(const SyncStallInfo& syncStalls){
+void MegaSyncStallListPrivate::addLocalStalls(const SyncStallInfo& syncStalls)
+{
     const bool itIsCloud = false;
-    for(auto& stall : syncStalls.local) {
-        stalls.emplace_back(
+    for(auto& stall : syncStalls.local)
+    {
+        mStalls.emplace_back(
             stall.first.toPath(),
             stall.second.involvedLocalPath.toPath(),
             stall.second.involvedCloudPath,
@@ -1385,7 +1450,8 @@ void MegaSyncStallListPrivate::addLocalStalls(const SyncStallInfo& syncStalls){
     }
 }
 
-MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncStallInfo& stalls){
+MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncStallInfo& stalls)
+{
     addLocalStalls(stalls);
     addCloudStalls(stalls);
 }
@@ -1394,7 +1460,8 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncStallInfo& stalls){
  * A simple output of stall reason to begin with
  * @TODO: To be replaced shortly
  */
-std::ostream& operator<<(std::ostream& os, const SyncStallEntry& si) {
+std::ostream& operator<<(std::ostream& os, const SyncStallEntry& si)
+{
     os << "Local path: " << si.involvedLocalPath.toPath()
        << " Cloud path: " << si.involvedCloudPath
        << " Reason: " << syncWaitReasonString(si.reason);
@@ -1402,7 +1469,8 @@ std::ostream& operator<<(std::ostream& os, const SyncStallEntry& si) {
 }
 
 // Synchronous request
-size_t MegaApiImpl::getSyncStalls(MegaSyncStallList** conflicts) {
+size_t MegaApiImpl::getSyncStalls(MegaSyncStallList** conflicts)
+{
     assert(conflicts);
     auto stallInfo = make_unique<SyncStallInfo>();
     client->syncs.syncStallDetected(*stallInfo);
@@ -1412,7 +1480,8 @@ size_t MegaApiImpl::getSyncStalls(MegaSyncStallList** conflicts) {
 // Testable interface
 size_t MegaApiImpl::getSyncStalls(std::unique_ptr<SyncStallInfo> syncStallInfo,
         MegaSyncStallList** conflicts) {
-    if(syncStallInfo->local.size() == 0 && syncStallInfo->cloud.size() == 0 ){
+    if(syncStallInfo->local.size() == 0 && syncStallInfo->cloud.size() == 0 )
+    {
         *conflicts = nullptr;
         return 0u;
     }
