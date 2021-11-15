@@ -33851,5 +33851,95 @@ const vector<handle>& FavouriteProcessor::getHandles() const
     return handles;
 }
 
+#ifdef ENABLE_SYNC
+
+MegaNameConflictPrivate::MegaNameConflictPrivate(const NameConflict& conflict)
+  : mCloudNames()
+  , mLocalNames()
+  , mCloudPath(conflict.cloudPath)
+  , mLocalPath(conflict.localPath.toPath())
+{
+    string_vector cloudNames = conflict.clashingCloudNames;
+    string_vector localNames;
+
+    localNames.reserve(conflict.clashingLocalNames.size());
+
+    for (auto& name : conflict.clashingLocalNames)
+        localNames.emplace_back(name.toPath());
+
+    mCloudNames.reset(new MegaStringListPrivate(std::move(cloudNames)));
+    mLocalNames.reset(new MegaStringListPrivate(std::move(localNames)));
+}
+
+MegaNameConflictPrivate::MegaNameConflictPrivate(const MegaNameConflictPrivate& other)
+  : mCloudNames(other.mCloudNames->copy())
+  , mLocalNames(other.mLocalNames->copy())
+  , mCloudPath(other.mCloudPath)
+  , mLocalPath(other.mLocalPath)
+{
+}
+
+MegaStringList* MegaNameConflictPrivate::cloudNames() const
+{
+    return mCloudNames.get();
+}
+
+const char* MegaNameConflictPrivate::cloudPath() const
+{
+    return mCloudPath.c_str();
+}
+
+MegaNameConflict* MegaNameConflictPrivate::copy() const
+{
+    return new MegaNameConflictPrivate(*this);
+}
+
+MegaStringList* MegaNameConflictPrivate::localNames() const
+{
+    return mLocalNames.get();
+}
+
+const char* MegaNameConflictPrivate::localPath() const
+{
+    return mLocalPath.c_str();
+}
+
+MegaNameConflictListPrivate::MegaNameConflictListPrivate(const list<NameConflict>& conflicts)
+  : mConflicts()
+{
+    mConflicts.reserve(conflicts.size());
+
+    for (auto& conflict : conflicts)
+        mConflicts.emplace_back(new MegaNameConflictPrivate(conflict));
+}
+
+MegaNameConflictListPrivate::MegaNameConflictListPrivate(const MegaNameConflictListPrivate& other)
+  : mConflicts()
+{
+    mConflicts.reserve(other.mConflicts.size());
+
+    for (auto& conflict : other.mConflicts)
+        mConflicts.emplace_back(conflict->copy());
+}
+
+MegaNameConflictList* MegaNameConflictListPrivate::copy() const
+{
+    return new MegaNameConflictListPrivate(*this);
+}
+
+MegaNameConflict* MegaNameConflictListPrivate::get(int index) const
+{
+    if (index < 0 || index >= size())
+        return nullptr;
+
+    return mConflicts[index].get();
+}
+
+int MegaNameConflictListPrivate::size() const
+{
+    return static_cast<int>(mConflicts.size());
+}
+
+#endif // ENABLE_SYNC
 
 }

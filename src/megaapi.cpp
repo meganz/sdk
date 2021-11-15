@@ -7162,4 +7162,12 @@ MegaCurrency *MegaCurrency::copy()
     return nullptr;
 }
 
+MegaNameConflict::~MegaNameConflict() = default;
+
+MegaNameConflict::MegaNameConflict() = default;
+
+MegaNameConflictList::~MegaNameConflictList() = default;
+
+MegaNameConflictList::MegaNameConflictList() = default;
+
 }

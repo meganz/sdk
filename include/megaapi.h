@@ -85,8 +85,9 @@ class MegaCancelToken;
 class MegaApi;
 class MegaSyncStall;
 class MegaSyncStallList;
-
 class MegaSemaphore;
+class MegaNameConflict;
+class MegaNameConflictList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -20044,6 +20045,44 @@ public:
      */
     virtual bool isCancelled() const;
 };
+
+#ifdef ENABLE_SYNC
+
+class MegaNameConflict
+{
+public:
+    virtual ~MegaNameConflict();
+
+    virtual MegaStringList* cloudNames() const = 0;
+
+    virtual const char* cloudPath() const = 0;
+
+    virtual MegaNameConflict* copy() const = 0;
+
+    virtual MegaStringList* localNames() const = 0;
+
+    virtual const char* localPath() const = 0;
+
+protected:
+    MegaNameConflict();
+};
+
+class MegaNameConflictList
+{
+public:
+    virtual ~MegaNameConflictList();
+
+    virtual MegaNameConflictList* copy() const = 0;
+
+    virtual MegaNameConflict* get(int index) const = 0;
+
+    virtual int size() const = 0;
+
+protected:
+    MegaNameConflictList();
+};
+
+#endif // ENABLE_SYNC
 
 }
 
