@@ -728,11 +728,11 @@ private:
  * A Synchronization operation detected a problem and is
  * not able to continue (a stall)
  */
-typedef struct SyncStallEntry {
+struct SyncStallEntry {
     SyncWaitReason reason = SyncWaitReason::NoReason;
     string involvedCloudPath;    ///<! remote path representation
     LocalPath involvedLocalPath;
-} SyncStallEntry;
+};
 
 struct SyncStallInfo
 {
