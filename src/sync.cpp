@@ -5265,6 +5265,9 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     // Do we need to scan this node?
     if (row.syncNode->scanAgain >= TREE_ACTION_HERE)
     {
+        // not stalling, so long as we are still scanning.  Destructor resets stall state
+        ProgressingMonitor monitor(syncs);
+
         syncs.mSyncFlags->reachableNodesAllScannedThisPass = false;
         syncHere = row.syncNode->processBackgroundFolderScan(row, fullPath);
     }
@@ -8724,14 +8727,16 @@ void Syncs::syncLoop()
             }
         }
 
-        lastRecurseMs = unsigned(std::chrono::duration_cast<std::chrono::milliseconds>(
-                        std::chrono::high_resolution_clock::now() - recurseStart).count());
 #ifdef MEGA_MEASURE_CODE
-
-        LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
-                    << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "");
         rst.complete();
 #endif
+        lastRecurseMs = unsigned(std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::high_resolution_clock::now() - recurseStart).count());
+
+        LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
+                    << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "")
+                    << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "");
+
 
         waiter.bumpds();
         mSyncFlags->recursiveSyncLastCompletedDs = waiter.ds;
