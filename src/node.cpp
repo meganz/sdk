@@ -140,11 +140,11 @@ Node::~Node()
 
 int Node::getShareType() const
 {
-    int shareType = DBTableNodes::NO_SHARES;
+    int shareType = ShareType_t::NO_SHARES;
 
     if (inshare)
     {
-        shareType |= DBTableNodes::IN_SHARES;
+        shareType |= ShareType_t::IN_SHARES;
     }
     else
     {
@@ -155,18 +155,18 @@ int Node::getShareType() const
                 Share *share = it->second;
                 if (share->user)    // folder links are shares without user
                 {
-                    shareType |= DBTableNodes::OUT_SHARES;
+                    shareType |= ShareType_t::OUT_SHARES;
                     break;
                 }
             }
         }
         if (pendingshares && pendingshares->size())
         {
-            shareType |= DBTableNodes::PENDING_OUTSHARES;
+            shareType |= ShareType_t::PENDING_OUTSHARES;
         }
         if (plink)
         {
-            shareType |= DBTableNodes::LINK;
+            shareType |= ShareType_t::LINK;
         }
     }
 

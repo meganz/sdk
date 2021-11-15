@@ -2777,9 +2777,6 @@ protected:
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
-        // Generic method to get outShares nodes or pending outShares
-        // pending is true if we want receive pending outShares, false for outShares
-        MegaShareList *getOutSharesOrPending(int order, bool pending);
         node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
         bool isValidTypeNode(Node *node, int type);
 
@@ -3179,6 +3176,10 @@ protected:
 private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
+
+        // Generic method to get outShares nodes or pending outShares
+        // pending is true if we want receive pending outShares, false for outShares
+        MegaShareList *getOutSharesOrPending(int order, bool pending);
 #ifdef ENABLE_SYNC
         error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
 #endif

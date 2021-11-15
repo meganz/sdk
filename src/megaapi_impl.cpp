@@ -10997,7 +10997,7 @@ MegaShareList *MegaApiImpl::getOutSharesOrPending(int order, bool pending)
 {
     sdkMutex.lock();
 
-    node_vector nodes = client->mNodeManager.getNodesWithSharesOrLink(pending ? DBTableNodes::ShareType_t::PENDING_OUTSHARES : DBTableNodes::ShareType_t::OUT_SHARES);
+    node_vector nodes = pending ? client->mNodeManager.getNodesWithPendingOutShares() :  client->mNodeManager.getNodesWithOutShares();
     vector<Share *> shares;
     for (const Node* n : nodes)
     {
@@ -11125,7 +11125,7 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 {
     sdkMutex.lock();
 
-    node_vector nodes = client->mNodeManager.getNodesWithSharesOrLink(DBTableNodes::ShareType_t::LINK);
+    node_vector nodes = client->mNodeManager.getNodesWithLinks();
     sortByComparatorFunction(nodes, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 
@@ -11966,7 +11966,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
             // Search on public links
-            node_vector publicLinks = client->mNodeManager.getNodesWithSharesOrLink(DBTableNodes::ShareType_t::LINK);
+            node_vector publicLinks = client->mNodeManager.getNodesWithLinks();
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {

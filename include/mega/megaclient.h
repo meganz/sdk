@@ -267,7 +267,10 @@ public:
     Node *getNodeByFingerprint(const FileFingerprint& fingerprint);
     // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE
     node_vector getRootNodes();
-    node_vector getNodesWithSharesOrLink(DBTableNodes::ShareType_t shareType);
+    node_vector getNodesWithInShares();
+    node_vector getNodesWithOutShares();
+    node_vector getNodesWithPendingOutShares();
+    node_vector getNodesWithLinks();
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
     NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile = false);
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
@@ -328,6 +331,7 @@ private:
     void saveNodeInRAM(Node* node, bool notify);
     void saveNodeInDataBase(Node* node);
     const NodeHandle& rootnode(int idx) const;
+    node_vector getNodesWithSharesOrLink(ShareType_t shareType);
 };
 
 class MEGA_API MegaClient

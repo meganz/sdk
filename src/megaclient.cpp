@@ -12085,10 +12085,10 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
 #else
         mNodeManager.getRootNodes();
-        mNodeManager.getNodesWithSharesOrLink(DBTableNodes::ShareType_t::IN_SHARES);
+        mNodeManager.getNodesWithInShares();
 
         // TODO Nodes on Demand: Review to remove. mPublicLinks has been removed
-        mNodeManager.getNodesWithSharesOrLink(DBTableNodes::ShareType_t::LINK);
+        mNodeManager.getNodesWithLinks();
 
 
         //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
@@ -17175,7 +17175,27 @@ node_vector NodeManager::getRootNodes()
     return nodes;
 }
 
-node_vector NodeManager::getNodesWithSharesOrLink(DBTableNodes::ShareType_t shareType)
+node_vector NodeManager::getNodesWithInShares()
+{
+    return getNodesWithSharesOrLink(ShareType_t::IN_SHARES);
+}
+
+node_vector NodeManager::getNodesWithOutShares()
+{
+    return getNodesWithSharesOrLink(ShareType_t::OUT_SHARES);
+}
+
+node_vector NodeManager::getNodesWithPendingOutShares()
+{
+    return getNodesWithSharesOrLink(ShareType_t::PENDING_OUTSHARES);
+}
+
+node_vector NodeManager::getNodesWithLinks()
+{
+    return getNodesWithSharesOrLink(ShareType_t::LINK);
+}
+
+node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
 {
     node_vector nodes;
     if (!mTable)

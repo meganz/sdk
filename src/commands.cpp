@@ -2166,7 +2166,7 @@ bool CommandSetPendingContact::procresult(Result r)
 
                 // remove pending shares related to the deleted PCR
                 // TODO Nodes on demand Review if it has same behavior
-                node_vector nodes = client->mNodeManager.getNodesWithSharesOrLink(DBTableNodes::PENDING_OUTSHARES);
+                node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
                 for (Node* n : nodes)
                 {
                     if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())

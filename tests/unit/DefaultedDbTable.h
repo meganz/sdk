@@ -75,7 +75,7 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, mega::NodeSerialized>& nodes, ShareType_t) override
+    bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, mega::NodeSerialized>& nodes, mega::ShareType_t) override
     {
         return false;
         //throw NotImplemented(__func__);
