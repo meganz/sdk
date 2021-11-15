@@ -2484,8 +2484,8 @@ class MegaApiImpl : public MegaApp
                                MegaStringList** names,
                                bool* remote);
 
-        size_t getSyncStalls(MegaStringList** conflicts);
-        size_t static getSyncStalls(std::unique_ptr<SyncStallInfo> si, MegaStringList** conflicts);
+        size_t getSyncStalls(MegaSyncStallList** conflicts);
+        size_t static getSyncStalls(std::unique_ptr<SyncStallInfo> si, MegaSyncStallList** conflicts);
 
 #endif // ENABLE_SYNC
 

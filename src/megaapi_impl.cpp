@@ -1440,7 +1440,7 @@ std::ostream& operator<<(std::ostream& os, const SyncStallEntry& si) {
     return os;
 }
 
-size_t MegaApiImpl::getSyncStalls(MegaStringList** conflicts) {
+size_t MegaApiImpl::getSyncStalls(MegaSyncStallList** conflicts) {
     assert(conflicts);
     auto stallInfo = make_unique<SyncStallInfo>();
     {
@@ -1452,28 +1452,8 @@ size_t MegaApiImpl::getSyncStalls(MegaStringList** conflicts) {
 
 // Testable interface
 size_t MegaApiImpl::getSyncStalls(std::unique_ptr<SyncStallInfo> syncStallInfo,
-        MegaStringList** conflicts) {
-
-    if (!syncStallInfo->hasImmediateStallReason()) {
-        *conflicts = nullptr;
-        return 0; // No user acction required
-    }
-
-    string_vector strVec;
-    for(auto& conflict : syncStallInfo->cloud) {
-        std::stringstream buffer;
-        auto& info = conflict.second; // stall information
-        buffer << "Cloud: " << conflict.first << " " << info;
-        strVec.push_back( buffer.str());
-    }
-
-    for(auto& conflict : syncStallInfo->local) {
-        std::stringstream buffer;
-        auto& info = conflict.second; // stall information
-        buffer << "Local: " << conflict.first.toPath() << " " << info;
-        strVec.push_back( buffer.str());
-    }
-    const auto mSLPtr = *conflicts = new MegaStringListPrivate(move(strVec));
+        MegaSyncStallList** conflicts) {
+    const auto mSLPtr = *conflicts = new MegaSyncStallListImpl(*syncStallInfo);
     return static_cast<size_t>(mSLPtr->size());
 }
 

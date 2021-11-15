@@ -3457,7 +3457,7 @@ bool MegaApi::conflictsDetected(const char** parentName,
     return pImpl->conflictsDetected(parentName, parentPath, names, remote);
 }
 
-size_t MegaApi::getSyncStalls(MegaStringList** syncStallList)
+size_t MegaApi::getSyncStalls(MegaSyncStallList** syncStallList)
 {
     return pImpl->getSyncStalls(syncStallList);
 }

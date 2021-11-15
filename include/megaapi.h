@@ -14256,10 +14256,10 @@ class MegaApi
          * folder E was moved inside folder C. (E->C) in the cloud
          * When the synchronization is re-enabled there could be interpreted as a conflict
          *
-         * @param syncStallList MegaStringList of sync stall description
+         * @param syncStallList MegaSyncStallList of sync stalls 
          * @return number of conflicts reported.
          */
-        size_t getSyncStalls(MegaStringList** syncStallList);
+        size_t getSyncStalls(MegaSyncStallList** syncStallList);
 
 #endif // ENABLE_SYNC
 
