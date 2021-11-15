@@ -1405,10 +1405,7 @@ std::ostream& operator<<(std::ostream& os, const SyncStallEntry& si) {
 size_t MegaApiImpl::getSyncStalls(MegaSyncStallList** conflicts) {
     assert(conflicts);
     auto stallInfo = make_unique<SyncStallInfo>();
-    {
-        SdkMutexGuard guard(sdkMutex); // exclusive access to SDK
-        client->syncs.syncStallDetected(*stallInfo);
-    }
+    client->syncs.syncStallDetected(*stallInfo);
     return getSyncStalls(move(stallInfo), conflicts);
 }
 
