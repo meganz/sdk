@@ -85,8 +85,9 @@ class MegaCancelToken;
 class MegaApi;
 class MegaSyncStall;
 class MegaSyncStallList;
-
 class MegaSemaphore;
+class MegaNameConflict;
+class MegaNameConflictList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -3137,7 +3138,8 @@ class MegaRequest
             TYPE_START_CHAT_CALL                                            = 142,
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
-            TOTAL_OF_REQUEST_TYPES                                          = 145,
+            TYPE_GET_NAME_CONFLICTS                                         = 145,
+            TOTAL_OF_REQUEST_TYPES                                          = 146,
         };
 
         virtual ~MegaRequest();
@@ -3914,6 +3916,22 @@ class MegaRequest
          * @return MegaHandle list
          */
         virtual MegaHandleList* getMegaHandleList() const;
+
+#ifdef ENABLE_SYNC
+
+        /**
+         * @brief
+         * Returns a reference to this request's list of name conflicts.
+         *
+         * This value is valid for the following requests:
+         * - MegaApi::getNameConflicts
+         *
+         * @return
+         * A reference to this request's list of name conflicts.
+         */
+        virtual MegaNameConflictList* getMegaNameConflictList() const;
+
+#endif // ENABLE_SYNC
 };
 
 /**
@@ -14222,30 +14240,16 @@ class MegaApi
          */
         char *getBlockedPath();
 
-
         /**
          * @brief
-         * Retrieves information about any detected name conflicts.
+         * Retrieve the list of name conflicts detected by the sync engine.
          *
-         * @param parentName
-         * The name of the directory containing the name conflicts.
+         * The type of this request is MegaRequest::TYPE_GET_NAME_CONFLICTS.
          *
-         * @param parentPath
-         * The path of the directory containing the name conflicts.
-         *
-         * @param names
-         * The names that have conflicted.
-         *
-         * @param remote
-         * Whether the name conflict was detected in the cloud.
-         *
-         * @return
-         * True if any name conflicts have been detected.
+         * @param listener
+         * A MegaRequestListener with which to track the request.
          */
-        bool conflictsDetected(const char** parentName,
-                               const char** parentPath,
-                               MegaStringList** names,
-                               bool* remote);
+        void getNameConflicts(MegaRequestListener* listener);
 
         /**
          * @brief Retrieves information involving any Local <-> Cloud synchronization stall conflict
@@ -20063,6 +20067,103 @@ public:
      */
     virtual bool isCancelled() const;
 };
+
+#ifdef ENABLE_SYNC
+
+class MegaNameConflict
+{
+public:
+    virtual ~MegaNameConflict();
+
+    /**
+     * @brief
+     * Retrieve a reference to a list of conflicting cloud names.
+     *
+     * @return
+     * A reference to a list of conflicting cloud names.
+     */
+    virtual MegaStringList* cloudNames() const = 0;
+
+    /**
+     * @brief
+     * Retrieve a reference to the cloud path of this conflict.
+     *
+     * @return
+     * A reference to the cloud path of this conflict.
+     */
+    virtual const char* cloudPath() const = 0;
+
+    /**
+     * @brief
+     * Create a deep copy of this conflict.
+     *
+     * @return
+     * A deep copy of this conflict.
+     */
+    virtual MegaNameConflict* copy() const = 0;
+
+    /**
+     * @brief
+     * Retrieve a reference to a list of conflicting local names.
+     *
+     * @return
+     * A reference to a list of conflicting local names.
+     */
+    virtual MegaStringList* localNames() const = 0;
+
+    /**
+     * @brief
+     * Retrieve a reference to the local path of this conflict.
+     *
+     * @return
+     * A reference to the local path of this conflict.
+     */
+    virtual const char* localPath() const = 0;
+
+protected:
+    MegaNameConflict();
+};
+
+class MegaNameConflictList
+{
+public:
+    virtual ~MegaNameConflictList();
+
+    /**
+     * @brief
+     * Create a deep copy of this list of conflicts.
+     *
+     * @return
+     * A deep copy of this list of conflicts.
+     */
+    virtual MegaNameConflictList* copy() const = 0;
+
+    /**
+     * @brief
+     * Retrieve a reference to the specified conflict.
+     *
+     * @param index
+     * The index of the conflict you'd like to retrieve.
+     *
+     * @return
+     * A reference to the specified conflict.
+     */
+    virtual MegaNameConflict* get(int index) const = 0;
+
+    /**
+     * @brief
+     * Query how many conflicts are contained by this list.
+     *
+     * @return
+     * The number of conflicts contained by this list.
+     */
+    virtual int size() const = 0;
+
+protected:
+    MegaNameConflictList();
+};
+
+#endif // ENABLE_SYNC
 
 }
 

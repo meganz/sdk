@@ -1161,6 +1161,11 @@ class MegaRequestPrivate : public MegaRequest
         MegaStringList *getMegaStringList() const override;
         MegaHandleList* getMegaHandleList() const override;
 
+#ifdef ENABLE_SYNC
+        MegaNameConflictList* getMegaNameConflictList() const override;
+        void setMegaNameConflictList(unique_ptr<MegaNameConflictList> conflicts);
+#endif // ENABLE_SYNC
+
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
         void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
@@ -1237,6 +1242,9 @@ protected:
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
+#ifdef ENABLE_SYNC
+        unique_ptr<MegaNameConflictList> mNameConflictList;
+#endif // ENABLE_SYNC
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -1658,6 +1666,8 @@ protected:
     MegaStringListPrivate(const MegaStringListPrivate& stringList) = default;
     string_vector mList;
 };
+
+using MegaStringListPtr = unique_ptr<MegaStringList>;
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs);
 
@@ -2478,11 +2488,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
-
-        bool conflictsDetected(const char** parentName,
-                               const char** parentPath,
-                               MegaStringList** names,
-                               bool* remote);
+        void getNameConflicts(MegaRequestListener* listener);
 
         size_t getSyncStalls(MegaSyncStallList** conflicts);
         size_t static getSyncStalls(std::unique_ptr<SyncStallInfo> si, MegaSyncStallList** conflicts);
@@ -3854,9 +3860,57 @@ public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
 
-
-
 #endif
+
+#ifdef ENABLE_SYNC
+
+class MegaNameConflictPrivate
+  : public MegaNameConflict
+{
+public:
+    MegaNameConflictPrivate(const NameConflict &conflict);
+
+    MegaNameConflictPrivate(const MegaNameConflictPrivate& other);
+
+    MegaStringList* cloudNames() const override;
+
+    const char* cloudPath() const override;
+
+    MegaNameConflict* copy() const override;
+
+    MegaStringList* localNames() const override;
+
+    const char* localPath() const override;
+
+private:
+    MegaStringListPtr mCloudNames;
+    MegaStringListPtr mLocalNames;
+    string mCloudPath;
+    string mLocalPath;
+}; // MegaNameConflictPrivate
+
+using MegaNameConflictPtr = unique_ptr<MegaNameConflict>;
+using MegaNameConflictVector = vector<MegaNameConflictPtr>;
+
+class MegaNameConflictListPrivate
+  : public MegaNameConflictList
+{
+public:
+    MegaNameConflictListPrivate(const list<NameConflict>& conflicts);
+
+    MegaNameConflictListPrivate(const MegaNameConflictListPrivate& other);
+
+    MegaNameConflictList* copy() const override;
+
+    MegaNameConflict* get(int index) const override;
+
+    int size() const override;
+
+private:
+    MegaNameConflictVector mConflicts;
+}; // MegaNameConflictListPrivate
+
+#endif // ENABLE_SYNC
 
 }
 

@@ -1056,6 +1056,15 @@ MegaHandleList* MegaRequest::getMegaHandleList() const
     return nullptr;
 }
 
+#ifdef ENABLE_SYNC
+
+MegaNameConflictList* MegaRequest::getMegaNameConflictList() const
+{
+    return nullptr;
+}
+
+#endif // ENABLE_SYNC
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -3449,12 +3458,9 @@ char *MegaApi::getBlockedPath()
     return pImpl->getBlockedPath();
 }
 
-bool MegaApi::conflictsDetected(const char** parentName,
-                                const char** parentPath,
-                                MegaStringList** names,
-                                bool* remote)
+void MegaApi::getNameConflicts(MegaRequestListener* listener)
 {
-    return pImpl->conflictsDetected(parentName, parentPath, names, remote);
+    return pImpl->getNameConflicts(listener);
 }
 
 size_t MegaApi::getSyncStalls(MegaSyncStallList** syncStallList)
@@ -7161,5 +7167,13 @@ MegaCurrency *MegaCurrency::copy()
 {
     return nullptr;
 }
+
+MegaNameConflict::~MegaNameConflict() = default;
+
+MegaNameConflict::MegaNameConflict() = default;
+
+MegaNameConflictList::~MegaNameConflictList() = default;
+
+MegaNameConflictList::MegaNameConflictList() = default;
 
 }
