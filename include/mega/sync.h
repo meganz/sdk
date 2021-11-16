@@ -857,6 +857,11 @@ struct Syncs
     Syncs(MegaClient& mc, unique_ptr<FileSystemAccess> notification_fsa);
     ~Syncs();
 
+    void getSyncProblems(std::function<void(SyncProblems&)> completion,
+                         bool completionInClient,
+                         bool detailed);
+
+    void getSyncProblems_inThread(SyncProblems& problems, bool detailed);
 
     /**
      * @brief
