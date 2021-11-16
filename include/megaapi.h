@@ -3140,7 +3140,8 @@ class MegaRequest
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_SYNC_NAME_CONFLICTS                                    = 145,
-            TOTAL_OF_REQUEST_TYPES                                          = 146,
+            TYPE_GET_SYNC_PROBLEMS                                          = 146,
+            TOTAL_OF_REQUEST_TYPES                                          = 147,
         };
 
         virtual ~MegaRequest();
@@ -3931,6 +3932,18 @@ class MegaRequest
          * A reference to this request's list of name conflicts.
          */
         virtual MegaSyncNameConflictList* getMegaSyncNameConflictList() const;
+
+        /**
+         * @brief
+         * Returns a reference to this request's MegaSyncProblems instance.
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getSyncProblems
+         *
+         * @return
+         * A reference to this request's MegaSyncProblems instance.
+         */
+        virtual MegaSyncProblems* getMegaSyncProblems() const;
 
 #endif // ENABLE_SYNC
 };
@@ -14253,6 +14266,28 @@ class MegaApi
          * A MegaRequestListener with which to track the request.
          */
         void getSyncNameConflicts(MegaRequestListener* listener);
+
+        /**
+         * @brief
+         * Query whether the sync engine has detected any problems.
+         *
+         * The type of this request is MegaRequest::TYPE_GET_SYNC_PROBLEMS.
+         *
+         * @param listener
+         * A MegaRequestListener with which to track the request.
+         *
+         * @param detailed
+         * Set to true if you want to receive as much information as
+         * possible detailing any problems the sync engine has detected.
+         *
+         * If this flag is false, the engine will tell you whether it had
+         * detected any name conflicts or stalls but it will not include any
+         * information about those conflicts or stalls.
+         *
+         * If the flag is true, the engine will include detailed information
+         * about any detected name conflicts or stalls.
+         */
+        void getSyncProblems(MegaRequestListener* listener, bool detailed);
 
         /**
          * @brief Retrieves information involving any Local <-> Cloud synchronization stall conflict

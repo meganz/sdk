@@ -1268,6 +1268,19 @@ void MegaApiImpl::getSyncNameConflicts(MegaRequestListener* listener)
     waiter->notify();
 }
 
+void MegaApiImpl::getSyncProblems(MegaRequestListener* listener, bool detailed)
+{
+    auto type = MegaRequest::TYPE_GET_SYNC_PROBLEMS;
+    auto request = make_unique<MegaRequestPrivate>(type, listener);
+
+    request->setNumDetails(detailed);
+
+    requestQueue.push(request.get());
+    request.release();
+
+    waiter->notify();
+}
+
 MegaSyncStallPrivate::MegaSyncStallPrivate(
     const string& indexPath,
     const string& localPath,
@@ -3449,9 +3462,19 @@ MegaSyncNameConflictList* MegaRequestPrivate::getMegaSyncNameConflictList() cons
     return mNameConflictList.get();
 }
 
+MegaSyncProblems* MegaRequestPrivate::getMegaSyncProblems() const
+{
+    return mProblems.get();
+}
+
 void MegaRequestPrivate::setMegaSyncNameConflictList(unique_ptr<MegaSyncNameConflictList> conflicts)
 {
     mNameConflictList = std::move(conflicts);
+}
+
+void MegaRequestPrivate::setMegaSyncProblems(unique_ptr<MegaSyncProblems> problems)
+{
+    mProblems = std::move(problems);
 }
 
 #endif // ENABLE_SYNC
@@ -4116,6 +4139,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
         case TYPE_GET_SYNC_NAME_CONFLICTS: return "GET_SYNC_NAME_CONFLICTS";
+        case TYPE_GET_SYNC_PROBLEMS: return "GET_SYNC_PROBLEMS";
     }
     return "UNKNOWN";
 }
@@ -21628,6 +21652,22 @@ void MegaApiImpl::sendPendingRequests()
             };
 
             client->syncs.collectSyncNameConflicts(UNDEF, std::move(completion), true);
+            break;
+        }
+        case MegaRequest::TYPE_GET_SYNC_PROBLEMS:
+        {
+            auto completion = [this, request](SyncProblems& problems) {
+                auto error = ::mega::make_unique<MegaErrorPrivate>(API_OK);
+                auto probs = ::mega::make_unique<MegaSyncProblemsPrivate>(problems);
+
+                request->setMegaSyncProblems(std::move(probs));
+
+                fireOnRequestFinish(request, std::move(error));
+            };
+
+            bool detailed = request->getNumDetails();
+
+            client->syncs.getSyncProblems(std::move(completion), true, detailed);
             break;
         }
 #endif  // ENABLE_SYNC

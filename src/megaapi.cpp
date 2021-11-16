@@ -1063,6 +1063,11 @@ MegaSyncNameConflictList* MegaRequest::getMegaSyncNameConflictList() const
     return nullptr;
 }
 
+MegaSyncProblems* MegaRequest::getMegaSyncProblems() const
+{
+    return nullptr;
+}
+
 #endif // ENABLE_SYNC
 
 MegaTransfer::~MegaTransfer() { }
@@ -3461,6 +3466,11 @@ char *MegaApi::getBlockedPath()
 void MegaApi::getSyncNameConflicts(MegaRequestListener* listener)
 {
     return pImpl->getSyncNameConflicts(listener);
+}
+
+void MegaApi::getSyncProblems(MegaRequestListener* listener, bool detailed)
+{
+    pImpl->getSyncProblems(listener, detailed);
 }
 
 size_t MegaApi::getSyncStalls(MegaSyncStallList** syncStallList)
