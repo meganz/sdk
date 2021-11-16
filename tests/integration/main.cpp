@@ -84,9 +84,7 @@ LogStream out()
     return LogStream();
 }
 
-namespace {
-
-class MegaLogger : public Logger
+class TestMegaLogger : public Logger
 {
     mutex logMutex;
 public:
@@ -223,8 +221,6 @@ public:
     }
 }; // GTestLogger
 
-} // anonymous
-
 int main (int argc, char *argv[])
 {
     if (!getenv("MEGA_EMAIL") || !getenv("MEGA_PWD") || !getenv("MEGA_EMAIL_AUX") || !getenv("MEGA_PWD_AUX"))
@@ -288,7 +284,7 @@ int main (int argc, char *argv[])
         }
     }
 
-    MegaLogger megaLogger;
+    TestMegaLogger megaLogger;
 
     SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&megaLogger);
