@@ -776,25 +776,6 @@ class MegaNode
         virtual char* getBase64Key();
 
         /**
-         * @brief Returns the tag of the operation that created/modified this node in MEGA
-         *
-         * Every request and every transfer has a tag that identifies it.
-         * When a request creates or modifies a node, the tag is associated with the node
-         * at runtime, this association is lost after a reload of the filesystem or when
-         * the SDK is closed.
-         *
-         * This tag is specially useful to know if a node reported in MegaListener::onNodesUpdate or
-         * MegaGlobalListener::onNodesUpdate was modified by a local operation (tag != 0) or by an
-         * external operation, made by another MEGA client (tag == 0).
-         *
-         * If the node hasn't been created/modified during the current execution, this function returns 0
-         *
-         * @return The tag associated with the node.
-         * @deprecated This function will be removed in future releases, it was unreliable due to race conditions
-         */
-        virtual int getTag();
-
-        /**
          * @brief Returns the expiration time of a public link, if any
          *
          * @return The expiration time as an Epoch timestamp. Returns 0 for non-expire
@@ -1071,22 +1052,6 @@ class MegaNode
          * Use MegaNode::getBase64Key instead
          */
         virtual std::string* getNodeKey();
-
-        /**
-         * @brief Returns a string that contains the encrypted attributes of the file (in binary format)
-         *
-         * The return value is only valid for public nodes or undecrypted nodes. In all other cases this function
-         * will return an empty string.
-         *
-         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
-         * of the MegaNode object.
-         *
-         * @return Encrypted attributes of the file (in binary format)
-         * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-         * Use MegaNode::getName and MegaNode::getModificationTime and MegaApi::getFingerprint. They provide the same information,
-         * decrypted and in a manageable format.
-         */
-        virtual std::string* getAttrString();
 
         /**
          * @brief Returns the file attributes related to the node
@@ -8209,7 +8174,7 @@ class MegaApi
          * @param base64string The base 64 encoded string to decode.
          * @param binary A pointer to a pointer to assign with a `new unsigned char[]`
          *        allocated buffer containing the decoded binary data.
-         * @param size A pointer to a variable that will be assigned the size of the buffer allocated.
+         * @param binarysize A pointer to a variable that will be assigned the size of the buffer allocated.
          */
         static void base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize);
 
@@ -8223,19 +8188,6 @@ class MegaApi
          * @param size Size of the byte array (in bytes)
          */
         void addEntropy(char* data, unsigned int size);
-
-#ifdef WINDOWS_PHONE
-        /**
-         * @brief Set the ID for statistics
-         *
-         * Call this function one time only per MegaApi, before using that MegaApi
-         *
-         * The id parameter is hashed before being used
-         *
-         * @param id ID for statistics
-         */
-        static void setStatsID(const char *id);
-#endif
 
         /**
          * @brief Retry all pending requests
@@ -9135,7 +9087,7 @@ class MegaApi
          * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
          * to confirm, and the MegaRequest::getName will return the name.
          *
-         * @param link Confirmation link (#confirm) or new signup link (#newsignup)
+         * @param link Confirmation link (confirm) or new signup link (newsignup)
          * @param listener MegaRequestListener to track this request
          */
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
@@ -9228,7 +9180,7 @@ class MegaApi
          * - MegaRequest::getEmail - Return the email associated with the link
          * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
          *
-         * @param link Recovery link (#recover)
+         * @param link Recovery link (recover)
          * @param listener MegaRequestListener to track this request
          */
         void queryResetPasswordLink(const char *link, MegaRequestListener *listener = NULL);
@@ -9290,7 +9242,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Return the email associated with the link
          *
-         * @param link Cancel link (#cancel)
+         * @param link Cancel link (cancel)
          * @param listener MegaRequestListener to track this request
          */
         void queryCancelLink(const char *link, MegaRequestListener *listener = NULL);
@@ -9371,7 +9323,7 @@ class MegaApi
          * If the account is logged-in into a different account than the account for which the link
          * was generated, onRequestFinish will be called with the error code MegaError::API_EACCESS.
          *
-         * @param link Change-email link (#verify)
+         * @param link Change-email link (verify)
          * @param listener MegaRequestListener to track this request
          */
         void queryChangeEmailLink(const char *link, MegaRequestListener *listener = NULL);
@@ -11729,7 +11681,7 @@ class MegaApi
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Cancel credit card subscriptions if the account
+         * @brief Cancel credit card subscriptions of the account
          *
          * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
          * @param reason Reason for the cancellation. It can be NULL.
@@ -12298,7 +12250,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path to the drive
          *
          * @param pathToDrive Path to the root of the external drive
-         * @param deviceName String with drive name
+         * @param driveName String with drive name
          * @param listener MegaRequestListener to track this request
          */
         void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
@@ -14675,16 +14627,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
@@ -14745,16 +14697,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List with all child MegaNode objects
          */
@@ -14855,16 +14807,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return Lists with files and folders child MegaNode objects
          */
@@ -14945,7 +14897,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param node MegaNode for which the path will be returned
+         * @param handle MegaNode handle for which the path will be returned
          * @return The path of the node
          */
         char* getNodePathByNodeHandle(MegaHandle handle);
@@ -15360,7 +15312,7 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @param originalfingerprint Original Fingerprint to check
+         * @param originalFingerprint Original Fingerprint to check
          * @param parent Only return nodes below this specified parent folder. Pass NULL to consider all nodes.
          * @return List of nodes with the same original fingerprint
          */
@@ -15741,16 +15693,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -15824,16 +15776,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -15905,16 +15857,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -15991,16 +15943,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -16073,16 +16025,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -16155,16 +16107,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -16237,16 +16189,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -16328,16 +16280,16 @@ class MegaApi
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
-         * Sort by color label, ascending
+         * Sort by color label, ascending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
-         * Sort by color label, descending
+         * Sort by color label, descending. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_ASC = 19
-         * Sort nodes with favourite attr first
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
          *
          * - MegaApi::ORDER_FAV_DESC = 20
-         * Sort nodes with favourite attr last
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param type Type of nodes requested in the search
          * Valid values for this parameter are:
@@ -17734,7 +17686,6 @@ class MegaApi
          * The ftp link will no longer be valid.
          *
          * @param handle Handle of the node to stop serving
-         * @return URL to the node in the local FTP server, otherwise NULL
          */
         void ftpServerRemoveAllowedNode(MegaHandle handle);
 
@@ -18914,7 +18865,7 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the last node handle to be synced
          *
          * @param backupId backup id identifying the backup
-         * @param state backup state
+         * @param status backup status
          * @param progress backup progress
          * @param ups Number of pending upload transfers
          * @param downs Number of pending download transfers
@@ -19339,7 +19290,7 @@ public:
     virtual int64_t getSubscriptionRenewTime();
 
     /**
-     * @brief Get the subscryption method
+     * @brief Get the subscription method
      *
      * You take the ownership of the returned value
      *

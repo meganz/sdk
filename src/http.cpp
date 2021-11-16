@@ -26,7 +26,7 @@
 #include "mega/base64.h"
 #include "mega/testhooks.h"
 
-#if defined(WIN32) && !defined(WINDOWS_PHONE)
+#if defined(WIN32)
 #include <winhttp.h>
 #endif
 
@@ -148,7 +148,7 @@ Proxy *HttpIO::getautoproxy()
     Proxy* proxy = new Proxy();
     proxy->setProxyType(Proxy::NONE);
 
-#if defined(WIN32) && !defined(WINDOWS_PHONE)
+#if defined(WIN32)
     WINHTTP_CURRENT_USER_IE_PROXY_CONFIG ieProxyConfig = { 0 };
 
     if (WinHttpGetIEProxyConfigForCurrentUser(&ieProxyConfig) == TRUE)
@@ -724,7 +724,8 @@ void EncryptByChunks::updateCRC(byte* data, unsigned size, unsigned offset)
         size -= ll;
         while (ll--)
         {
-            crc[ol++] ^= *data++;
+            crc[ol++] ^= *data;
+            ++data;
         }
     }
 
@@ -761,12 +762,13 @@ bool EncryptByChunks::encrypt(m_off_t pos, m_off_t npos, string& urlSuffix)
     m_off_t chunksize = endpos - startpos;
     while (chunksize)
     {
-        byte mac[SymmCipher::BLOCKSIZE] = { 0 };
         buf = nextbuffer(unsigned(chunksize));
         if (!buf) return false;
-        key->ctr_crypt(buf, unsigned(chunksize), startpos, ctriv, mac, 1);
-        memcpy((*macs)[startpos].mac, mac, sizeof mac);
-        (*macs)[startpos].finished = false;  // finished is only set true after confirmation of the chunk uploading.
+
+        // The chunk is fully encrypted but finished==false for now,
+        // we only set finished after confirmation of the chunk uploading.
+        macs->ctr_encrypt(startpos, key, buf, unsigned(chunksize), startpos, ctriv, false);
+
         LOG_debug << "Encrypted chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
 
         updateCRC(buf, unsigned(chunksize), unsigned(startpos - pos));

@@ -30,17 +30,17 @@ unsigned char Base64::to64(byte c)
 
     if (c < 26)
     {
-        return c + 'A';
+        return static_cast<unsigned char>(c + 'A');
     }
 
     if (c < 52)
     {
-        return c - 26 + 'a';
+        return static_cast<unsigned char>(c - 26 + 'a');
     }
 
     if (c < 62)
     {
-        return c - 52 + '0';
+        return static_cast<unsigned char>(c - 52 + '0');
     }
 
     if (c == 62)
@@ -55,30 +55,30 @@ unsigned char Base64::from64(byte c)
 {
     if ((c >= 'A') && (c <= 'Z'))
     {
-        return c - 'A';
+        return static_cast<unsigned char>(c - 'A');
     }
 
     if ((c >= 'a') && (c <= 'z'))
     {
-        return c - 'a' + 26;
+        return static_cast<unsigned char>(c - 'a' + 26);
     }
 
     if ((c >= '0') && (c <= '9'))
     {
-        return c - '0' + 52;
+        return static_cast<unsigned char>(c - '0' + 52);
     }
 
     if (c == '-' || c == '+')
     {
-        return 62;
+        return static_cast<unsigned char>(62);
     }
 
     if (c == '_' || c == '/')
     {
-        return 63;
+        return static_cast<unsigned char>(63);
     }
 
-    return 255;
+    return static_cast<unsigned char>(255);
 }
 
 
@@ -101,11 +101,9 @@ std::string Base64::atob(const std::string &in)
 
 int Base64::atob(const char* a, byte* b, int blen)
 {
-    byte c[4];
+    byte c[4]={};
     int i;
     int p = 0;
-
-    c[3] = 0;
 
     for (;;)
     {
@@ -122,21 +120,21 @@ int Base64::atob(const char* a, byte* b, int blen)
             return p;
         }
 
-        b[p++] = (c[0] << 2) | ((c[1] & 0x30) >> 4);
+        b[p++] = static_cast<byte>((c[0] << 2) | ((c[1] & 0x30) >> 4));
 
         if ((p >= blen) || (i < 3))
         {
             return p;
         }
 
-        b[p++] = (c[1] << 4) | ((c[2] & 0x3c) >> 2);
+        b[p++] = static_cast<byte>((c[1] << 4) | ((c[2] & 0x3c) >> 2));
 
         if ((p >= blen) || (i < 4))
         {
             return p;
         }
 
-        b[p++] = (c[2] << 6) | c[3];
+        b[p++] = static_cast<byte>((c[2] << 6) | c[3]);
     }
 }
 
@@ -232,15 +230,15 @@ int Base64::btoa(const byte* b, int blen, char* a)
             break;
         }
 
-        a[p++] = to64(*b >> 2);
-        a[p++] = to64((*b << 4) | (((blen > 1) ? b[1] : 0) >> 4));
+        a[p++] = to64(static_cast<byte>(*b >> 2));
+        a[p++] = to64(static_cast<byte>((*b << 4) | (((blen > 1) ? b[1] : 0) >> 4)));
 
         if (blen < 2)
         {
             break;
         }
 
-        a[p++] = to64(b[1] << 2 | (((blen > 2) ? b[2] : 0) >> 6));
+        a[p++] = to64(static_cast<byte>(b[1] << 2 | (((blen > 2) ? b[2] : 0) >> 6)));
 
         if (blen < 3)
         {
@@ -264,25 +262,25 @@ byte Base32::to32(byte c)
 
     if (c < 26)
     {
-        return c + 'a';
+        return static_cast<byte>(c + 'a');
     }
 
-    return c - 26 + '2';
+    return static_cast<byte>(c - 26 + '2');
 }
 
 byte Base32::from32(byte c)
 {
     if ((c >= 'a') && (c <= 'z'))
     {
-        return c - 'a';
+        return static_cast<byte>(c - 'a');
     }
 
     if ((c >= '2') && (c <= '9'))
     {
-        return c - '2' + 26;
+        return static_cast<byte>(c - '2' + 26);
     }
 
-    return 255;
+    return static_cast<byte>(255);
 }
 
 int Base32::btoa(const byte *b, int blen, char *a)
@@ -296,31 +294,31 @@ int Base32::btoa(const byte *b, int blen, char *a)
             break;
         }
 
-        a[p++] = to32( *b >> 3);
-        a[p++] = to32((*b << 2) | (((blen > 1) ? b[1] : 0) >> 6));
+        a[p++] = to32( static_cast<byte>(*b >> 3));
+        a[p++] = to32( static_cast<byte>((*b << 2) | (((blen > 1) ? b[1] : 0) >> 6)));
 
         if (blen < 2)
         {
             break;
         }
 
-        a[p++] = to32(b[1] >> 1);
-        a[p++] = to32(b[1] << 4 | (((blen > 2) ? b[2] : 0) >> 4));
+        a[p++] = to32(static_cast<byte>(b[1] >> 1));
+        a[p++] = to32(static_cast<byte>(b[1] << 4 | (((blen > 2) ? b[2] : 0) >> 4)));
 
         if (blen < 3)
         {
             break;
         }
 
-        a[p++] = to32((b[2] << 1) | (((blen > 3) ? b[3] : 0) >> 7));
+        a[p++] = to32(static_cast<byte>((b[2] << 1) | (((blen > 3) ? b[3] : 0) >> 7)));
 
         if (blen < 4)
         {
             break;
         }
 
-        a[p++] = to32(b[3] >> 2);
-        a[p++] = to32(b[3] << 3 | (((blen > 4) ? b[4] : 0) >> 5));
+        a[p++] = to32(static_cast<byte>(b[3] >> 2));
+        a[p++] = to32(static_cast<byte>(b[3] << 3 | (((blen > 4) ? b[4] : 0) >> 5)));
 
         if (blen < 5)
         {
@@ -340,11 +338,9 @@ int Base32::btoa(const byte *b, int blen, char *a)
 
 int Base32::atob(const char *a, byte *b, int blen)
 {
-    byte c[8];
+    byte c[8]={};
     int i;
     int p = 0;
-
-    c[7] = 0;
 
     for (;;)
     {
@@ -361,35 +357,35 @@ int Base32::atob(const char *a, byte *b, int blen)
             return p;
         }
 
-        b[p++] = (c[0] << 3) | ((c[1] & 0x1C) >> 2);
+        b[p++] = static_cast<byte>((c[0] << 3) | ((c[1] & 0x1C) >> 2));
 
         if ((p >= blen) || (i < 4))
         {
             return p;
         }
 
-        b[p++] = (c[1] << 6) | (c[2] << 1) | ((c[3] & 0x10) >> 4);
+        b[p++] = static_cast<byte>((c[1] << 6) | (c[2] << 1) | ((c[3] & 0x10) >> 4));
 
         if ((p >= blen) || (i < 5))
         {
             return p;
         }
 
-        b[p++] = (c[3] << 4) | ((c[4] & 0x1E) >> 1);
+        b[p++] = static_cast<byte>((c[3] << 4) | ((c[4] & 0x1E) >> 1));
 
         if ((p >= blen) || (i < 7))
         {
             return p;
         }
 
-        b[p++] = (c[4] << 7) | (c[5] << 2) | ((c[6] & 0x18) >> 3);
+        b[p++] = static_cast<byte>((c[4] << 7) | (c[5] << 2) | ((c[6] & 0x18) >> 3));
 
         if ((p >= blen) || (i < 8))
         {
             return p;
         }
 
-        b[p++] = (c[6] << 5) | c[7];
+        b[p++] = static_cast<byte>((c[6] << 5) | c[7]);
     }
 }
 

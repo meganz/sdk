@@ -1213,6 +1213,9 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     config.setError(newSyncError);
     config.setEnabled(newEnableFlag);
 
+    bool makeActiveCallback = false;
+    bool nowActive = false;
+
     if (newstate != state())
     {
         auto oldstate = state();
@@ -1222,10 +1225,10 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
         if (notifyApp)
         {
             bool wasActive = oldstate == SYNC_ACTIVE || oldstate == SYNC_INITIALSCAN;
-            bool nowActive = newstate == SYNC_ACTIVE;
+            nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
-                mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
+                makeActiveCallback = true;
             }
         }
     }
@@ -1233,6 +1236,12 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     if (newstate != SYNC_CANCELED)
     {
         mUnifiedSync.changedConfigState(notifyApp);
+    }
+
+    if (makeActiveCallback)
+    {
+        // Per MegaApi documentation, this callback occurs after the changed-state callback
+        mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
     }
 }
 
@@ -2297,8 +2306,8 @@ m_off_t Sync::getInflightProgress()
 }
 
 
-UnifiedSync::UnifiedSync(MegaClient& mc, const SyncConfig& c)
-    : mClient(mc), mConfig(c)
+UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
+    : syncs(s), mClient(s.mClient), mConfig(c)
 {
     mNextHeartbeat.reset(new HeartBeatSyncInfo());
 }
@@ -2316,9 +2325,9 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
 
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
-    Node* remotenode;
+    string remotenodename;
     bool inshare, isnetwork;
-    error e = mClient.checkSyncConfig(mConfig, rootpath, openedLocalFolder, remotenode, inshare, isnetwork);
+    error e = mClient.checkSyncConfig(mConfig, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
 
     if (e)
     {
@@ -2327,7 +2336,7 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
         return e;
     }
 
-    e = startSync(&mClient, DEBRISFOLDER, nullptr, remotenode, inshare, isnetwork, rootpath, openedLocalFolder);
+    e = startSync(&mClient, DEBRISFOLDER, nullptr, mConfig.mRemoteNode, inshare, isnetwork, rootpath, openedLocalFolder);
     mClient.syncactivity = true;
     changedConfigState(notifyApp);
 
@@ -2376,43 +2385,17 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
 
 
-error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare,
-                             bool isNetwork, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder)
+error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* localdebris,
+    NodeHandle rootNodeHandle, bool inshare, bool isNetwork, LocalPath& rootpath,
+    std::unique_ptr<FileAccess>& openedLocalFolder)
 {
-    //check we are not in any blocking situation
-    using CType = CacheableStatus::Type;
-    bool overStorage = client->mCachedStatus.lookup(CType::STATUS_STORAGE, STORAGE_UNKNOWN) >= STORAGE_RED;
-    bool businessExpired = client->mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) == BIZ_STATUS_EXPIRED;
-    bool blocked = client->mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1;
-
-    mConfig.mError = NO_SYNC_ERROR;
-    mConfig.mEnabled = true;
-
-    // the order is important here: a user needs to resolve blocked in order to resolve storage
-    if (overStorage)
-    {
-        mConfig.mError = STORAGE_OVERQUOTA;
-        mConfig.mEnabled = false;
-    }
-    else if (businessExpired)
-    {
-        mConfig.mError = BUSINESS_EXPIRED;
-        mConfig.mEnabled = false;
-    }
-    else if (blocked)
-    {
-        mConfig.mError = ACCOUNT_BLOCKED;
-        mConfig.mEnabled = false;
-    }
-
-    if (mConfig.mError)
-    {
-        // save configuration but avoid creating active sync:
-        mClient.syncs.saveSyncConfig(mConfig);
-        return API_EFAILED;
-    }
-
     auto prevFingerprint = mConfig.getLocalFingerprint();
+
+    Node* remotenode = client->nodeByHandle(rootNodeHandle);
+    if (!remotenode)
+    {
+        return API_EEXIST;
+    }
 
     assert(!mSync);
     mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare));
@@ -2483,7 +2466,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
 Syncs::Syncs(MegaClient& mc)
   : mClient(mc)
 {
-    mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
+    mHeartBeatMonitor.reset(new BackupMonitor(*this));
 }
 
 SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
@@ -2601,24 +2584,32 @@ error Syncs::backupOpenDrive(LocalPath drivePath)
         // Create a unified sync for each backup config.
         for (auto& config : configs)
         {
-            // Make sure there aren't any syncs with this backup id.
-            if (syncConfigByBackupId(config.mBackupId))
-            {
-                LOG_err << "Skipping restore of backup "
-                        << config.mLocalPath.toPath(fsAccess)
-                        << " on "
-                        << drivePath.toPath(fsAccess)
-                        << " as a sync already exists with the backup id "
-                        << toHandle(config.mBackupId);
+            lock_guard<mutex> g(mSyncVecMutex);
 
-                continue;
+            bool skip = false;
+            for (auto& us : mSyncVec)
+            {
+                // Make sure there aren't any syncs with this backup id.
+                if (config.mBackupId == us->mConfig.mBackupId)
+                {
+				    skip = true;
+                    LOG_err << "Skipping restore of backup "
+                            << config.mLocalPath.toPath(fsAccess)
+                            << " on "
+                            << drivePath.toPath(fsAccess)
+                            << " as a sync already exists with the backup id "
+                            << toHandle(config.mBackupId);
+                }
             }
 
-            // Create the unified sync.
-            mSyncVec.emplace_back(new UnifiedSync(mClient, config));
+            if (!skip)
+            {
+                // Create the unified sync.
+                mSyncVec.emplace_back(new UnifiedSync(*this, config));
 
-            // Track how many configs we've restored.
-            ++numRestored;
+                // Track how many configs we've restored.
+                ++numRestored;
+            }
         }
 
         // Log how many backups we could restore.
@@ -2861,7 +2852,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
             auto& deviceHash = context->mDeviceHash;
 
             // Backup Info.
-            auto state = BackupInfoSync::getSyncState(config, &client);
+            auto state = BackupInfoSync::getSyncState(config, context->mSyncs->mDownloadsPaused, context->mSyncs->mUploadsPaused);
             auto info  = BackupInfoSync(config, deviceHash, UNDEF, state);
 
             LOG_debug << "Generating backup ID for config "
@@ -3385,7 +3376,7 @@ vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
 {
     isEmpty = false;
-    mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mc, c)));
+    mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
 
     saveSyncConfig(c);
 
@@ -3404,17 +3395,31 @@ Sync* Syncs::runningSyncByBackupId(handle backupId) const
     return nullptr;
 }
 
-SyncConfig* Syncs::syncConfigByBackupId(handle backupId) const
+bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
 {
+    // returns a copy for thread safety
+
+    lock_guard<mutex> g(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mConfig.getBackupId() == backupId)
         {
-            return &s->mConfig;
+            c = s->mConfig;
+
+            // double check we updated fsfp_t
+            if (s->mSync)
+            {
+                assert(c.mLocalFingerprint == s->mSync->fsfp);
+
+                // just in case, for now
+                c.mLocalFingerprint = s->mSync->fsfp;
+            }
+
+            return true;
         }
     }
 
-    return nullptr;
+    return false;
 }
 
 void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
@@ -3422,6 +3427,19 @@ void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
     for (auto& s : mSyncVec)
     {
         f(*s);
+    }
+}
+
+void Syncs::transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused)
+{
+    lock_guard<mutex> g(mSyncVecMutex);
+
+    mDownloadsPaused = downloadsPaused;
+    mUploadsPaused = uploadsPaused;
+
+    for (auto& us : mSyncVec)
+    {
+        mHeartBeatMonitor->updateOrRegisterSync(*us);
     }
 }
 
@@ -3536,6 +3554,28 @@ void Syncs::purgeRunningSyncs()
             s->mSync.reset();
         }
     }
+}
+
+void Syncs::renameSync(handle backupId, const string& newname, std::function<void(Error e)> completion)
+{
+    for (auto &i : mSyncVec)
+    {
+        if (i->mConfig.mBackupId == backupId)
+        {
+            i->mConfig.mName = newname;
+
+            // cause an immediate `sp` command to update the backup/sync heartbeat master record
+            mHeartBeatMonitor->updateOrRegisterSync(*i);
+
+            // queue saving the change locally
+            if (mSyncConfigStore) mSyncConfigStore->markDriveDirty(i->mConfig.mExternalDrivePath);
+
+            completion(API_OK);
+            return;
+        }
+    }
+
+    completion(API_EEXIST);
 }
 
 void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
@@ -3718,7 +3758,7 @@ void Syncs::resumeResumableSyncsOnStartup()
 
     for (auto& config : configs)
     {
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, config)));
+        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
         isEmpty = false;
     }
 
@@ -4449,7 +4489,6 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
     const auto TYPE_SYNC_TYPE       = MAKENAMEID2('s', 't');
     const auto TYPE_TARGET_HANDLE   = MAKENAMEID2('t', 'h');
     const auto TYPE_TARGET_PATH     = MAKENAMEID2('t', 'p');
-    const auto TYPE_EXCLUSION_RULES = MAKENAMEID2('e', 'r');
 
     for ( ; ; )
     {

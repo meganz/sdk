@@ -97,13 +97,13 @@ TEST(Crypto, xxTea)
     }
 
     {
-        int32_t key2[4] = { 0, -1, (-1 << 24) - 1, (-2<<24)-1 };
+        uint32_t key2[4] = { 0, 0xFFFFFFFF,  0xFEFFFFFF, 0xFDFFFFFF };
         uint32_t data2[16];
         for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--; ) data2[i] = -(int32_t)i;
         uint32_t encCmpData2[16] = { 1331968695, 2520133218, 2881973170, 783802011, 1812010991, 1359505125, 15067484, 3344073997, 4210258643, 824383226, 3584459687, 2866083302, 881254637, 502181030, 680349945, 1722488731 };
-        xxteaEncrypt(data2, 16, (uint32_t*)key2);
+        xxteaEncrypt(data2, 16, key2);
         ASSERT_TRUE(0 == memcmp(data2, encCmpData2, sizeof(data2)));
-        xxteaDecrypt(data2, 16, (uint32_t*)key2);
+        xxteaDecrypt(data2, 16, key2);
         for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--; )
         {
             ASSERT_TRUE(data2[i] == uint32_t(-(int)i));

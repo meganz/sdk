@@ -1351,7 +1351,7 @@ bool CommandMoveNode::procresult(Result r)
                 {
                     Node *tn = NULL;
                     if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
-                            || !(tn = client->nodebyhandle(client->rootnodes[RUBBISHNODE - ROOTNODE])))
+                            || !(tn = client->nodeByHandle(client->rootnodes.rubbish)))
                     {
                         LOG_err << "Error moving node to the Rubbish Bin";
                         syncn->syncdeleted = SYNCDEL_NONE;
@@ -4727,7 +4727,7 @@ bool CommandGetUserQuota::procresult(Result r)
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        auto iter = client->mNodeCounters.find(h);
+                        auto iter = client->mNodeCounters.find(NodeHandle().set6byte(h));
                         if (iter != client->mNodeCounters.end())
                         {
                             LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
@@ -5226,7 +5226,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->parenthandle = UNDEF;
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
-                        client->putnodes(NodeHandle().set6byte(client->rootnodes[0]), move(newnodes), nullptr, 0);
+                        client->putnodes(client->rootnodes.files, move(newnodes), nullptr, 0);
                     }
                     else if (havekey)
                     {
@@ -8576,13 +8576,13 @@ bool CommandBackupPut::procresult(Result r)
     return r.wasStrictlyError() || r.hasJsonItem();
 }
 
-CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, SPHBStatus status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
     : mCompletion(f)
 {
     cmd("sphb");
 
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
-    arg("s", status);
+    arg("s", uint8_t(status));
     if (progress != -1)
     {
         arg("p", progress);
@@ -8675,10 +8675,11 @@ bool CommandBackupSyncFetch::procresult(Result r)
                 case MAKENAMEID1('s'):          d.syncState = client->json.getint32(); break;
                 case MAKENAMEID2('s', 's'):     d.syncSubstate = client->json.getint32(); break;
                 case MAKENAMEID1('e'):          client->json.storeobject(&d.extra);
-                                                d.extra = client->decypherTLVTextWithMasterKey("ed", d.extra);
+                                                d.backupName = client->decypherTLVTextWithMasterKey("bn", d.extra);
                                                 break;
                 case MAKENAMEID2('h', 'b'):
                 {
+
                     if (client->json.enterobject())
                     {
                         for (;;)

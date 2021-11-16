@@ -526,7 +526,7 @@ std::string MediaProperties::encodeMediaPropertiesAttributes(MediaProperties vp,
 
         memset(v, 0, sizeof v);
         v[3] = (vp.audiocodecid >> 4) & 255;
-        v[2] = ((vp.videocodecid >> 8) & 15) + ((vp.audiocodecid & 15) << 4);
+        v[2] = static_cast<byte>(((vp.videocodecid >> 8) & 15) + ((vp.audiocodecid & 15) << 4));
         v[1] = vp.videocodecid & 255;
         v[0] = byte(vp.containerid);
         result.append("/");

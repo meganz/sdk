@@ -193,4 +193,12 @@ using namespace mega;
     return stageString ? [NSString stringWithUTF8String:stageString] : nil;
 }
 
+- (long long)notificationNumber {
+    return self.megaTransfer ? self.megaTransfer->getNotificationNumber() : 0;
+}
+
+- (BOOL)targetOverride {
+    return self.megaTransfer ? self.megaTransfer->getTargetOverride() : NO;
+}
+
 @end
