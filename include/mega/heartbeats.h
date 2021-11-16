@@ -79,26 +79,7 @@ protected:
     friend class BackupMonitor;
 };
 
-/**
- * @brief Backup info controlled by transfers
- * progress is advanced with transfer progress
- * by holding the count of total and transferred bytes
- *
- */
-class HeartBeatTransferProgressedInfo : public HeartBeatBackupInfo
-{
-public:
-    double progress() const override;
-
-    void adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes);
-
-private:
-    friend class BackupMonitor;
-    long long mTotalBytes = 0;
-    long long mTransferredBytes = 0;
-};
-
-class HeartBeatSyncInfo : public HeartBeatTransferProgressedInfo
+class HeartBeatSyncInfo : public HeartBeatBackupInfo
 {
 public:
     void updateSPHBStatus(UnifiedSync& us);

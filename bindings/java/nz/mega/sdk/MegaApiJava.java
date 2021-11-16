@@ -7952,16 +7952,16 @@ public class MegaApiJava {
      *               Sort with videos first, then by date descending
      *
      *               - MegaApi::ORDER_LABEL_ASC = 17
-     *               Sort by color label, ascending
+     *               Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_LABEL_DESC = 18
-     *               Sort by color label, descending
+     *               Sort by color label, descending. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_FAV_ASC = 19
-     *               Sort nodes with favourite attr first
+     *               Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_FAV_DESC = 20
-     *               Sort nodes with favourite attr last
+     *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      *               Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
      *               are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
@@ -8025,16 +8025,16 @@ public class MegaApiJava {
      *                    Sort with videos first, then by date descending
      *
      *                    - MegaApi::ORDER_LABEL_ASC = 17
-     *                    Sort by color label, ascending
+     *                    Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                    - MegaApi::ORDER_LABEL_DESC = 18
-     *                    Sort by color label, descending
+     *                    Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                    - MegaApi::ORDER_FAV_ASC = 19
-     *                    Sort nodes with favourite attr first
+     *                    Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                    - MegaApi::ORDER_FAV_DESC = 20
-     *                    Sort nodes with favourite attr last
+     *                    Sort nodes with favourite attr last. With this order, folders are returned first, then files
      * @return List with all child MegaNode objects
      */
     public ArrayList<MegaNode> getChildren(MegaNodeList parentNodes, int order) {
@@ -8144,16 +8144,16 @@ public class MegaApiJava {
      *               Sort with videos first, then by date descending
      *
      *               - MegaApi::ORDER_LABEL_ASC = 17
-     *               Sort by color label, ascending
+     *               Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_LABEL_DESC = 18
-     *               Sort by color label, descending
+     *               Sort by color label, descending. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_FAV_ASC = 19
-     *               Sort nodes with favourite attr first
+     *               Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_FAV_DESC = 20
-     *               Sort nodes with favourite attr last
+     *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return Lists with files and folders child MegaNode objects
      */
@@ -9046,16 +9046,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9131,16 +9131,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9214,16 +9214,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9302,16 +9302,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9386,16 +9386,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9470,16 +9470,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9554,16 +9554,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9647,16 +9647,17 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     *
      * @param type         Type of nodes requested in the search
      *                     Valid values for this parameter are:
      *                     - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
@@ -9739,16 +9740,16 @@ public class MegaApiJava {
      * Sort with videos first, then by date descending
      *
      * - MegaApi::ORDER_LABEL_ASC = 17
-     * Sort by color label, ascending
+     * Sort by color label, ascending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_LABEL_DESC = 18
-     * Sort by color label, descending
+     * Sort by color label, descending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_ASC = 19
-     * Sort nodes with favourite attr first
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_DESC = 20
-     * Sort nodes with favourite attr last
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @param type Type of nodes requested in the search
      * Valid values for this parameter are:
@@ -9848,16 +9849,16 @@ public class MegaApiJava {
      * Sort with videos first, then by date descending
      *
      * - MegaApi::ORDER_LABEL_ASC = 17
-     * Sort by color label, ascending
+     * Sort by color label, ascending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_LABEL_DESC = 18
-     * Sort by color label, descending
+     * Sort by color label, descending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_ASC = 19
-     * Sort nodes with favourite attr first
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_DESC = 20
-     * Sort nodes with favourite attr last
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @param type Type of nodes requested in the search
      * Valid values for this parameter are:
@@ -9941,16 +9942,16 @@ public class MegaApiJava {
      * Sort with videos first, then by date descending
      *
      * - MegaApi::ORDER_LABEL_ASC = 17
-     * Sort by color label, ascending
+     * Sort by color label, ascending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_LABEL_DESC = 18
-     * Sort by color label, descending
+     * Sort by color label, descending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_ASC = 19
-     * Sort nodes with favourite attr first
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_DESC = 20
-     * Sort nodes with favourite attr last
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that match with the search parameters
      */

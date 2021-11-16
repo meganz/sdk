@@ -4754,7 +4754,7 @@ bool CommandGetUserQuota::procresult(Result r)
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        auto iter = client->mNodeCounters.find(h);
+                        auto iter = client->mNodeCounters.find(NodeHandle().set6byte(h));
                         if (iter != client->mNodeCounters.end())
                         {
                             LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
@@ -5253,7 +5253,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
 
-                        client->putnodes(NodeHandle().set6byte(client->rootnodes[0]), move(newnodes), nullptr, 0);
+                        client->putnodes(client->rootnodes.files, move(newnodes), nullptr, 0);
                     }
                     else if (havekey)
                     {

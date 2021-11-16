@@ -237,7 +237,13 @@ public:
     string uid;
 
     // root nodes (files, incoming, rubbish)
-    handle rootnodes[3];
+    struct Rootnodes
+    {
+        NodeHandle files;
+        NodeHandle inbox;
+        NodeHandle rubbish;
+    } rootnodes;
+
 
     // all nodes
     node_map nodes;

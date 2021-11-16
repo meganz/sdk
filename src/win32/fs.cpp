@@ -657,11 +657,6 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
     if (!write)
     {
         size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
-        if (!size)
-        {
-            LOG_debug << "Zero-byte file. mtime: " << mtime << "  ctime: " << FileTime_to_POSIX(&fad.ftCreationTime)
-                      << "  attrs: " << fad.dwFileAttributes << "  access: " << FileTime_to_POSIX(&fad.ftLastAccessTime);
-        }
     }
 
     return true;

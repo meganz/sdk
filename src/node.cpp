@@ -34,7 +34,7 @@
 
 namespace mega {
 
-Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
+Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {
     client = cclient;
@@ -43,8 +43,8 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     tag = 0;
     appdata = NULL;
 
-    nodehandle = h;
-    parenthandle = ph;
+    nodehandle = h.as8byte();
+    parenthandle = ph.as8byte();
 
     parent = NULL;
 
@@ -67,16 +67,15 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     Node* p;
 
-    client->nodes[NodeHandle().set6byte(h)] = this;
+    client->nodes[h] = this;
 
-    if (t >= ROOTNODE && t <= RUBBISHNODE)
-    {
-        client->rootnodes[t - ROOTNODE] = h;
-    }
+    if (t == ROOTNODE) client->rootnodes.files = h;
+    if (t == INCOMINGNODE) client->rootnodes.inbox = h;
+    if (t == RUBBISHNODE) client->rootnodes.rubbish = h;
 
     // set parent linkage or queue for delayed parent linkage in case of
     // out-of-order delivery
-    if ((p = client->nodebyhandle(ph, true)))
+    if ((p = client->nodeByHandle(ph, true)))
     {
         setparent(p);
     }
@@ -135,15 +134,15 @@ Node::~Node()
         }
 
         const Node* fa = firstancestor();
-        handle ancestor = fa->nodehandle;
-        if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+        NodeHandle ancestor = fa->nodeHandle();
+        if (ancestor == client->rootnodes.files || ancestor == client->rootnodes.inbox || ancestor == client->rootnodes.rubbish || fa->inshare)
         {
-            client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+            client->mNodeCounters[firstancestor()->nodeHandle()] -= subnodeCounts();
         }
 
         if (inshare)
         {
-            client->mNodeCounters.erase(nodehandle);
+            client->mNodeCounters.erase(nodeHandle());
         }
 
         // delete child-parent associations (normally not used, as nodes are
@@ -392,7 +391,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+    n = new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
 
     if (k)
     {
@@ -898,7 +897,7 @@ bool Node::applykey()
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
-    handle me = client->loggedin() ? client->me : *client->rootnodes;
+    handle me = client->loggedin() ? client->me : client->rootnodes.files.as8byte();
 
     while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {
@@ -1005,8 +1004,8 @@ bool Node::setparent(Node* p)
     bool gotnc = false;
 
     const Node *originalancestor = firstancestor();
-    handle oah = originalancestor->nodehandle;
-    if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
+    NodeHandle oah = originalancestor->nodeHandle();
+    if (oah == client->rootnodes.files || oah == client->rootnodes.inbox || oah == client->rootnodes.rubbish || originalancestor->inshare)
     {
         nc = subnodeCounts();
         gotnc = true;
@@ -1029,8 +1028,8 @@ bool Node::setparent(Node* p)
     }
 
     const Node* newancestor = firstancestor();
-    handle nah = newancestor->nodehandle;
-    if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
+    NodeHandle nah = newancestor->nodeHandle();
+    if (nah == client->rootnodes.files || nah == client->rootnodes.inbox || nah == client->rootnodes.rubbish || newancestor->inshare)
     {
         if (!gotnc)
         {
@@ -1294,7 +1293,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
         }
     }
 
-    ln->transferSP = move(transferSP);
+    ln->resetTransfer(move(transferSP));
 
     LocalTreeProcUpdateTransfers tput;
     tput.proc(*sync->syncs.fsaccess, ln);
@@ -1329,6 +1328,8 @@ LocalNode::LocalNode(Sync* csync)
 , parentSetContainsConflicts(false)
 , fsidSyncedReused(false)
 , fsidScannedReused(false)
+, confirmDeleteCount(0)
+, certainlyOrphaned(0)
 {
     fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
@@ -1354,6 +1355,8 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     parentSetContainsConflicts = false;
     fsidSyncedReused = false;
     fsidScannedReused = false;
+    confirmDeleteCount = 0;
+    certainlyOrphaned = 0;
     scanInProgress = false;
     scanObsolete = false;
     slocalname = NULL;
@@ -2182,30 +2185,101 @@ void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
 {
     if (transferSP)
     {
-        // this flag allows in-progress transfers to self-cancel
-        transferSP->wasRequesterAbandoned = true;
+        if (!transferSP->wasTerminated &&
+            !transferSP->wasCompleted)
+        {
+            LOG_debug << "Abandoning old transfer, and queueing its cancel on client thread";
 
-        // also queue an operation on the client thread to cancel it if it's queued
-        auto tsp = transferSP;
-        sync->syncs.queueClient([tsp](MegaClient& mc, DBTableTransactionCommitter& committer)
-            {
-                mc.nextreqtag();
-                mc.stopxfer(tsp.get(), &committer);
-            });
+            // this flag allows in-progress transfers to self-cancel
+            transferSP->wasRequesterAbandoned = true;
+
+            // also queue an operation on the client thread to cancel it if it's queued
+            auto tsp = transferSP;
+            sync->syncs.queueClient([tsp](MegaClient& mc, DBTableTransactionCommitter& committer)
+                {
+                    mc.nextreqtag();
+                    mc.stopxfer(tsp.get(), &committer);
+                });
+        }
     }
 
     if (p) p->selfKeepAlive = p;
     transferSP = move(p);
 }
 
-void LocalNode::checkTransferCompleted()
+// we probably don't need this logic anymore
+void LocalNode::checkTransferCompleted(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
-    if (auto upload = dynamic_cast<SyncUpload_inClient*>(transferSP.get()))
+    if (auto upload = std::dynamic_pointer_cast<SyncUpload_inClient>(transferSP))
     {
-        if (transferSP->wasTerminated ||
-            (transferSP->wasCompleted && upload->wasPutnodesCompleted))
+        if (transferSP->wasTerminated)
         {
             resetTransfer(nullptr);
+        }
+        else if (transferSP->wasCompleted && upload->wasPutnodesCompleted)
+        {
+            // Ensure a move/rename during upload or during putnodes is adjusted for
+
+            CloudNode cloudNode;
+            string nodePath;
+            bool found = sync->syncs.lookupCloudNode(upload->putnodesResultHandle, cloudNode, &nodePath, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION);
+            bool nameMatch = found && 0 == platformCompareUtf(localname, true, cloudNode.name, true);
+
+            if (found && nameMatch && parentRow.cloudNode && cloudNode.parentHandle == parentRow.cloudNode->handle)
+            {
+                // operation fully complete, file is uploaded and in the right place
+                resetTransfer(nullptr);
+            }
+            else if (found && parentRow.cloudNode)
+            {
+                if (!upload->renameInProgress)
+                {
+                    // node exists but its name or location is old
+                    // send the command to move the node
+                    LOG_debug << sync->syncname << "Moving uplaoded node: " << nodePath
+                        << " to " << fullPath.cloudPath;
+
+                    auto fromHandle = upload->putnodesResultHandle.load();
+                    auto toParentHandle = parentRow.cloudNode->handle;
+                    auto newName = localname.toName(*sync->syncs.fsaccess);
+
+                    upload->renameInProgress = true;
+                    sync->syncs.queueClient([upload, fromHandle, toParentHandle, newName](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        {
+                            auto fromNode = mc.nodeByHandle(fromHandle);
+                            auto toNode = mc.nodeByHandle(toParentHandle);
+
+                            if (fromNode && toNode)
+                            {
+                                auto err = mc.rename(fromNode, toNode,
+                                    SYNCDEL_NONE,
+                                    NodeHandle(),
+                                    newName.empty() ? nullptr : newName.c_str(),
+                                    [upload](NodeHandle, Error err){
+                                        upload->renameInProgress = false;
+                                    });
+
+                                if (err)
+                                {
+                                    upload->renameInProgress = false;
+                                }
+                            }
+                            else
+                            {
+                                upload->renameInProgress = false;
+                            }
+                        });
+                }
+            }
+            else if (!found)
+            {
+                LOG_debug << "Uploaded file's node is not found despite being created. Full operation reset. " << upload->putnodesResultHandle;
+                resetTransfer(nullptr);
+            }
+            else // !parentRow.cloudNode
+            {
+                LOG_debug << "Uploade node needs to be moved but the cloud parent folder doesn't exist yet, waiting.";
+            }
         }
     }
     else if (transferSP)
@@ -2237,9 +2311,12 @@ void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
 {
     // todo: should we be more accurate than just fingerprint?
     if (transferSP && (
+        transferSP->wasTerminated ||
         dir != (dynamic_cast<SyncUpload_inClient*>(transferSP.get()) ? PUT : GET) ||
         !(transferSP->fingerprint() == fingerprint)))
     {
+        // todo: could there be a race where we already sent putnodes and it hasn't completed,
+        // then we discover something that means we should abandon the transfer
         LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname().toPath();
         resetTransfer(nullptr);
     }
@@ -2247,9 +2324,6 @@ void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
 
 void SyncTransfer_inClient::terminated()
 {
-    //todo: put this somewhere
-    //localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
-
     File::terminated();
 
     wasTerminated = true;
@@ -2258,16 +2332,15 @@ void SyncTransfer_inClient::terminated()
 
 void SyncTransfer_inClient::completed(Transfer* t, putsource_t source)
 {
-    //todo: put this somewhere
-    //localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
-
     File::completed(t, source);
 
     wasCompleted = true;
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
-SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath, const string& nodeName, const FileFingerprint& ff)
+SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
+        const string& nodeName, const FileFingerprint& ff, shared_ptr<SyncThreadsafeState> stss,
+        handle fsid, const LocalPath& localname)
 {
     *static_cast<FileFingerprint*>(this) = ff;
 
@@ -2288,8 +2361,11 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
     transfer = nullptr;
     tag = 0;
 
-    //todo: put this somewhere
-    //localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, size, 0);
+    syncThreadSafeState = move(stss);
+    syncThreadSafeState->adjustTransferCounts(true, 1, 0, size, 0);
+
+    sourceFsid = fsid;
+    sourceLocalname = localname;
 }
 
 SyncUpload_inClient::~SyncUpload_inClient()
@@ -2299,6 +2375,17 @@ SyncUpload_inClient::~SyncUpload_inClient()
         assert(wasRequesterAbandoned);
         transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
     }
+
+    if (wasCompleted && wasPutnodesCompleted)
+    {
+        syncThreadSafeState->adjustTransferCounts(true, -1, 1, -size, size);
+    }
+    else
+    {
+        syncThreadSafeState->adjustTransferCounts(true, -1, 0, -size, 0);
+    }
+
+    syncThreadSafeState->removeExpectedUpload(h, name);
 }
 
 void SyncUpload_inClient::prepare(FileSystemAccess&)

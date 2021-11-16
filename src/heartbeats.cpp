@@ -92,32 +92,6 @@ m_time_t HeartBeatBackupInfo::lastBeat() const
     return mLastBeat;
 }
 
-////////// HeartBeatTransferProgressedInfo ////////
-double HeartBeatTransferProgressedInfo::progress() const
-{
-    return mProgressInvalid ? -1.0 : std::max(0., std::min(1., static_cast<double>((mTransferredBytes)) / static_cast<double>(mTotalBytes)));
-}
-
-void HeartBeatTransferProgressedInfo::adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes)
-{
-    if (mProgressInvalid &&
-        !mPendingUps && !mPendingDowns &&
-        mTotalBytes == mTransferredBytes)
-    {
-        mProgressInvalid = false;
-        mPendingUps = 0;
-        mPendingDowns = 0;
-        mTotalBytes = 0;
-        mTransferredBytes = 0;
-    }
-
-    mPendingUps += upcount;
-    mPendingDowns += downcount;
-    mTotalBytes += totalBytes;
-    mTransferredBytes += transferBytes;
-    updateLastActionTime();
-}
-
 void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 {
     SPHBStatus status = CommandBackupPutHeartBeat::INACTIVE;
