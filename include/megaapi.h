@@ -20217,6 +20217,18 @@ public:
 
     /**
      * @brief
+     * Query whether the sync engine has detected any problems.
+     *
+     * @return
+     * True if the sync engine has detected any problems.
+     *
+     * @see MegaSyncProblems::anyNameConflictsDetected
+     * @see MegaSyncProblems::anyStallsDetected
+     */
+    virtual bool anyProblems() const;
+
+    /**
+     * @brief
      * Query whether the sync engine has detected any stall states.
      *
      * @return

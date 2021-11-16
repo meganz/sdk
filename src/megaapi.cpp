@@ -7225,4 +7225,9 @@ MegaSyncProblems::~MegaSyncProblems() = default;
 
 MegaSyncProblems::MegaSyncProblems() = default;
 
+bool MegaSyncProblems::anyProblems() const
+{
+    return anyNameConflictsDetected() || anyStallsDetected();
+}
+
 }
