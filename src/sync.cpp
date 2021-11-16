@@ -2929,6 +2929,42 @@ Syncs::~Syncs()
     if (syncThread.joinable()) syncThread.join();
 }
 
+void Syncs::getSyncProblems(std::function<void(SyncProblems&)> completion,
+                            bool completionInClient,
+                            bool detailed)
+{
+    using MC = MegaClient;
+    using DBTC = DBTableTransactionCommitter;
+
+    if (completionInClient)
+    {
+        completion = [this, completion](SyncProblems& problems) {
+            queueClient([completion, problems](MC&, DBTC&) mutable {
+                completion(problems);
+            });
+        };
+    }
+
+    queueSync([this, detailed, completion]() mutable {
+        SyncProblems problems;
+        getSyncProblems_inThread(problems, detailed);
+        completion(problems);
+    });
+}
+
+void Syncs::getSyncProblems_inThread(SyncProblems& problems, bool detailed)
+{
+    assert(onSyncThread());
+
+    problems.mConflictsDetected = conflictsFlagged();
+    problems.mStallsDetected = syncStallState;
+
+    if (!detailed) return;
+
+    conflictsDetected(problems.mConflicts);
+    problems.mStalls = stallReport;
+}
+
 SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 {
     assert(onSyncThread() || !onSyncThread());

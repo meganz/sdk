@@ -1164,6 +1164,9 @@ class MegaRequestPrivate : public MegaRequest
 #ifdef ENABLE_SYNC
         MegaSyncNameConflictList* getMegaSyncNameConflictList() const override;
         void setMegaSyncNameConflictList(unique_ptr<MegaSyncNameConflictList> conflicts);
+
+        MegaSyncProblems* getMegaSyncProblems() const override;
+        void setMegaSyncProblems(unique_ptr<MegaSyncProblems> problems);
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT
@@ -1244,6 +1247,7 @@ protected:
         unique_ptr<MegaBannerListPrivate> mBannerList;
 #ifdef ENABLE_SYNC
         unique_ptr<MegaSyncNameConflictList> mNameConflictList;
+        unique_ptr<MegaSyncProblems> mProblems;
 #endif // ENABLE_SYNC
 };
 
@@ -2532,6 +2536,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
         void getSyncNameConflicts(MegaRequestListener* listener);
+        void getSyncProblems(MegaRequestListener* listener, bool detailed);
 
         size_t getSyncStalls(MegaSyncStallList** conflicts);
         size_t static getSyncStalls(std::unique_ptr<SyncStallInfo> si, MegaSyncStallList** conflicts);
@@ -3952,6 +3957,31 @@ public:
 private:
     MegaSyncNameConflictVector mConflicts;
 }; // MegaSyncNameConflictListPrivate
+
+class MegaSyncProblemsPrivate
+  : public MegaSyncProblems
+{
+public:
+    explicit MegaSyncProblemsPrivate(const SyncProblems& problems);
+
+    MegaSyncProblemsPrivate(const MegaSyncProblemsPrivate& other);
+
+    bool anyNameConflictsDetected() const override;
+
+    bool anyStallsDetected() const override;
+
+    MegaSyncProblems* copy() const override;
+
+    MegaSyncNameConflictList* nameConflicts() const override;
+
+    MegaSyncStallList* stalls() const override;
+
+private:
+    unique_ptr<MegaSyncNameConflictList> mConflicts;
+    unique_ptr<MegaSyncStallList> mStalls;
+    bool mConflictsDetected;
+    bool mStallsDetected;
+}; // MegaSyncProblemsPrivate
 
 #endif // ENABLE_SYNC
 

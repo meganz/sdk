@@ -88,6 +88,7 @@ class MegaSyncStallList;
 class MegaSemaphore;
 class MegaSyncNameConflict;
 class MegaSyncNameConflictList;
+class MegaSyncProblems;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -3139,7 +3140,8 @@ class MegaRequest
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_SYNC_NAME_CONFLICTS                                    = 145,
-            TOTAL_OF_REQUEST_TYPES                                          = 146,
+            TYPE_GET_SYNC_PROBLEMS                                          = 146,
+            TOTAL_OF_REQUEST_TYPES                                          = 147,
         };
 
         virtual ~MegaRequest();
@@ -3930,6 +3932,18 @@ class MegaRequest
          * A reference to this request's list of name conflicts.
          */
         virtual MegaSyncNameConflictList* getMegaSyncNameConflictList() const;
+
+        /**
+         * @brief
+         * Returns a reference to this request's MegaSyncProblems instance.
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getSyncProblems
+         *
+         * @return
+         * A reference to this request's MegaSyncProblems instance.
+         */
+        virtual MegaSyncProblems* getMegaSyncProblems() const;
 
 #endif // ENABLE_SYNC
 };
@@ -14263,6 +14277,28 @@ class MegaApi
         void getSyncNameConflicts(MegaRequestListener* listener);
 
         /**
+         * @brief
+         * Query whether the sync engine has detected any problems.
+         *
+         * The type of this request is MegaRequest::TYPE_GET_SYNC_PROBLEMS.
+         *
+         * @param listener
+         * A MegaRequestListener with which to track the request.
+         *
+         * @param detailed
+         * Set to true if you want to receive as much information as
+         * possible detailing any problems the sync engine has detected.
+         *
+         * If this flag is false, the engine will tell you whether it had
+         * detected any name conflicts or stalls but it will not include any
+         * information about those conflicts or stalls.
+         *
+         * If the flag is true, the engine will include detailed information
+         * about any detected name conflicts or stalls.
+         */
+        void getSyncProblems(MegaRequestListener* listener, bool detailed);
+
+        /**
          * @brief Retrieves information involving any Local <-> Cloud synchronization stall conflict
          * These conflicts requires user intervention to be solved.
          *
@@ -20173,6 +20209,72 @@ public:
 protected:
     MegaSyncNameConflictList();
 };
+
+class MegaSyncProblems
+{
+public:
+    virtual ~MegaSyncProblems();
+
+    /**
+     * @brief
+     * Query whether the sync engine has detected any name conflicts.
+     * 
+     * @return
+     * True if the sync engine has detected any name conflicts.
+     */
+    virtual bool anyNameConflictsDetected() const = 0;
+
+    /**
+     * @brief
+     * Query whether the sync engine has detected any problems.
+     *
+     * @return
+     * True if the sync engine has detected any problems.
+     *
+     * @see MegaSyncProblems::anyNameConflictsDetected
+     * @see MegaSyncProblems::anyStallsDetected
+     */
+    virtual bool anyProblems() const;
+
+    /**
+     * @brief
+     * Query whether the sync engine has detected any stall states.
+     *
+     * @return
+     * True if the sync engine has detected any stall states.
+     */
+    virtual bool anyStallsDetected() const = 0;
+
+    /**
+     * @brief
+     * Create a deep copy of this MegaSyncProblems instance.
+     *
+     * @return
+     * A deep copy of this MegaSyncProblems instance.
+     */
+    virtual MegaSyncProblems* copy() const = 0;
+
+    /**
+     * @brief
+     * Query what name conflicts the sync engine has detected.
+     *
+     * @return
+     * A reference to a list of name conflicts.
+     */
+    virtual MegaSyncNameConflictList* nameConflicts() const = 0;
+
+    /**
+     * @brief
+     * Query what stall states the sync engine has detected.
+     *
+     * @return
+     * A reference to a list of stalls.
+     */
+    virtual MegaSyncStallList* stalls() const = 0;
+
+protected:
+    MegaSyncProblems();
+}; // MegaSyncProblems
 
 #endif // ENABLE_SYNC
 
