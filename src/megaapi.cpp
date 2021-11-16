@@ -3181,24 +3181,9 @@ void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const 
     pImpl->startUpload(false, localPath, parent, fileName, nullptr, -1, 0, false, appData, isSourceTemporary, true, FS_UNKNOWN, nullptr, listener);
 }
 
-void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
+void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    pImpl->startDownload(node, localFolder, listener);
-}
-
-void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
-{
-    pImpl->startDownload(false, node, localPath, 0, appData, listener);
-}
-
-void MegaApi::startDownloadWithDataAndCancellation(MegaNode* node, const char* localPath, const char *customName, const char *appData,  MegaCancelToken *cancelToken, MegaTransferListener *listener)
-{
-    pImpl->startDownloadWithCancelToken(false, node, localPath, customName, 0, appData, cancelToken, listener);
-}
-
-void MegaApi::startDownloadWithTopPriority(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
-{
-    pImpl->startDownload(true, node, localPath, 0, appData, listener);
+    pImpl->startDownload(startFirst, node, localPath, customName, 0, appData, cancelToken, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
