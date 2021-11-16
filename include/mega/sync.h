@@ -759,6 +759,14 @@ struct SyncStallInfo
     bool hasImmediateStallReason() const;
 };
 
+struct SyncProblems
+{
+    list<NameConflict> mConflicts;
+    SyncStallInfo mStalls;
+    bool mConflictsDetected = false;
+    bool mStallsDetected = false;
+}; // SyncProblems
+
 struct SyncFlags
 {
     // we can only perform moves after scanning is complete
