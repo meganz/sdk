@@ -86,8 +86,8 @@ class MegaApi;
 class MegaSyncStall;
 class MegaSyncStallList;
 class MegaSemaphore;
-class MegaNameConflict;
-class MegaNameConflictList;
+class MegaSyncNameConflict;
+class MegaSyncNameConflictList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -3138,7 +3138,7 @@ class MegaRequest
             TYPE_START_CHAT_CALL                                            = 142,
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
-            TYPE_GET_NAME_CONFLICTS                                         = 145,
+            TYPE_GET_SYNC_NAME_CONFLICTS                                    = 145,
             TOTAL_OF_REQUEST_TYPES                                          = 146,
         };
 
@@ -3924,12 +3924,12 @@ class MegaRequest
          * Returns a reference to this request's list of name conflicts.
          *
          * This value is valid for the following requests:
-         * - MegaApi::getNameConflicts
+         * - MegaApi::getSyncNameConflicts
          *
          * @return
          * A reference to this request's list of name conflicts.
          */
-        virtual MegaNameConflictList* getMegaNameConflictList() const;
+        virtual MegaSyncNameConflictList* getMegaSyncNameConflictList() const;
 
 #endif // ENABLE_SYNC
 };
@@ -5564,6 +5564,7 @@ class MegaSyncStallList
     public:
         MegaSyncStallList() = default;
         virtual ~MegaSyncStallList() = default;
+        virtual MegaSyncStallList* copy() const;
         /**
          * @param index of the request element in the list.
          * @return pointer to a MegaSyncStal allocated object that the user MUST RELEASE after use.
@@ -14245,12 +14246,12 @@ class MegaApi
          * @brief
          * Retrieve the list of name conflicts detected by the sync engine.
          *
-         * The type of this request is MegaRequest::TYPE_GET_NAME_CONFLICTS.
+         * The type of this request is MegaRequest::TYPE_GET_SYNC_NAME_CONFLICTS.
          *
          * @param listener
          * A MegaRequestListener with which to track the request.
          */
-        void getNameConflicts(MegaRequestListener* listener);
+        void getSyncNameConflicts(MegaRequestListener* listener);
 
         /**
          * @brief Retrieves information involving any Local <-> Cloud synchronization stall conflict
@@ -20071,10 +20072,10 @@ public:
 
 #ifdef ENABLE_SYNC
 
-class MegaNameConflict
+class MegaSyncNameConflict
 {
 public:
-    virtual ~MegaNameConflict();
+    virtual ~MegaSyncNameConflict();
 
     /**
      * @brief
@@ -20101,7 +20102,7 @@ public:
      * @return
      * A deep copy of this conflict.
      */
-    virtual MegaNameConflict* copy() const = 0;
+    virtual MegaSyncNameConflict* copy() const = 0;
 
     /**
      * @brief
@@ -20122,13 +20123,13 @@ public:
     virtual const char* localPath() const = 0;
 
 protected:
-    MegaNameConflict();
+    MegaSyncNameConflict();
 };
 
-class MegaNameConflictList
+class MegaSyncNameConflictList
 {
 public:
-    virtual ~MegaNameConflictList();
+    virtual ~MegaSyncNameConflictList();
 
     /**
      * @brief
@@ -20137,7 +20138,7 @@ public:
      * @return
      * A deep copy of this list of conflicts.
      */
-    virtual MegaNameConflictList* copy() const = 0;
+    virtual MegaSyncNameConflictList* copy() const = 0;
 
     /**
      * @brief
@@ -20149,7 +20150,7 @@ public:
      * @return
      * A reference to the specified conflict.
      */
-    virtual MegaNameConflict* get(int index) const = 0;
+    virtual MegaSyncNameConflict* get(int index) const = 0;
 
     /**
      * @brief
@@ -20161,7 +20162,7 @@ public:
     virtual int size() const = 0;
 
 protected:
-    MegaNameConflictList();
+    MegaSyncNameConflictList();
 };
 
 #endif // ENABLE_SYNC

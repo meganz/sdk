@@ -1162,8 +1162,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaHandleList* getMegaHandleList() const override;
 
 #ifdef ENABLE_SYNC
-        MegaNameConflictList* getMegaNameConflictList() const override;
-        void setMegaNameConflictList(unique_ptr<MegaNameConflictList> conflicts);
+        MegaSyncNameConflictList* getMegaSyncNameConflictList() const override;
+        void setMegaSyncNameConflictList(unique_ptr<MegaSyncNameConflictList> conflicts);
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT
@@ -1243,7 +1243,7 @@ protected:
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
 #ifdef ENABLE_SYNC
-        unique_ptr<MegaNameConflictList> mNameConflictList;
+        unique_ptr<MegaSyncNameConflictList> mNameConflictList;
 #endif // ENABLE_SYNC
 };
 
@@ -2521,7 +2521,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
-        void getNameConflicts(MegaRequestListener* listener);
+        void getSyncNameConflicts(MegaRequestListener* listener);
 
         size_t getSyncStalls(MegaSyncStallList** conflicts);
         size_t static getSyncStalls(std::unique_ptr<SyncStallInfo> si, MegaSyncStallList** conflicts);
@@ -3897,19 +3897,19 @@ public:
 
 #ifdef ENABLE_SYNC
 
-class MegaNameConflictPrivate
-  : public MegaNameConflict
+class MegaSyncNameConflictPrivate
+  : public MegaSyncNameConflict
 {
 public:
-    MegaNameConflictPrivate(const NameConflict &conflict);
+    MegaSyncNameConflictPrivate(const NameConflict &conflict);
 
-    MegaNameConflictPrivate(const MegaNameConflictPrivate& other);
+    MegaSyncNameConflictPrivate(const MegaSyncNameConflictPrivate& other);
 
     MegaStringList* cloudNames() const override;
 
     const char* cloudPath() const override;
 
-    MegaNameConflict* copy() const override;
+    MegaSyncNameConflict* copy() const override;
 
     MegaStringList* localNames() const override;
 
@@ -3920,28 +3920,28 @@ private:
     MegaStringListPtr mLocalNames;
     string mCloudPath;
     string mLocalPath;
-}; // MegaNameConflictPrivate
+}; // MegaSyncNameConflictPrivate
 
-using MegaNameConflictPtr = unique_ptr<MegaNameConflict>;
-using MegaNameConflictVector = vector<MegaNameConflictPtr>;
+using MegaSyncNameConflictPtr = unique_ptr<MegaSyncNameConflict>;
+using MegaSyncNameConflictVector = vector<MegaSyncNameConflictPtr>;
 
-class MegaNameConflictListPrivate
-  : public MegaNameConflictList
+class MegaSyncNameConflictListPrivate
+  : public MegaSyncNameConflictList
 {
 public:
-    MegaNameConflictListPrivate(const list<NameConflict>& conflicts);
+    MegaSyncNameConflictListPrivate(const list<NameConflict>& conflicts);
 
-    MegaNameConflictListPrivate(const MegaNameConflictListPrivate& other);
+    MegaSyncNameConflictListPrivate(const MegaSyncNameConflictListPrivate& other);
 
-    MegaNameConflictList* copy() const override;
+    MegaSyncNameConflictList* copy() const override;
 
-    MegaNameConflict* get(int index) const override;
+    MegaSyncNameConflict* get(int index) const override;
 
     int size() const override;
 
 private:
-    MegaNameConflictVector mConflicts;
-}; // MegaNameConflictListPrivate
+    MegaSyncNameConflictVector mConflicts;
+}; // MegaSyncNameConflictListPrivate
 
 #endif // ENABLE_SYNC
 
