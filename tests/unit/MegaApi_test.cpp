@@ -314,3 +314,45 @@ TEST(MegaApi, MegaSyncStallList_constructor){
     delete localStallPtr;
     delete cloudStallPtr;
 }
+
+TEST(MegaApi, MegaSyncStallList_copy_constructor){
+    SyncStallInfo syncStallInfo;
+
+    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
+    const auto localPath = LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+    const auto localPathOther = LocalPath::fromPlatformEncodedAbsolute("/here/there/be/Other/Egg" );
+
+    syncStallInfo.waitingLocal(
+        localPath,
+        localPath,
+        theRemotePath,
+        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+    );
+
+    syncStallInfo.waitingLocal(
+        localPathOther,
+        localPathOther,
+        theRemotePath,
+        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+    );
+
+    MegaSyncStallListPrivate syncStallList(syncStallInfo);
+
+    auto copyOfList = syncStallList.copy();
+
+    ASSERT_EQ(copyOfList->size(), 2u);
+    ASSERT_EQ(syncStallList.size(), 2u);
+
+    for(size_t i=0; i<copyOfList->size();++i){
+        auto copy = copyOfList->get(i);
+        auto orig = syncStallList.get(i);
+        ASSERT_NE(copy, orig); // Are copies
+        ASSERT_NE(copy->indexPath(),orig->indexPath()); // Are copies
+        ASSERT_EQ(strcmp(copy->indexPath(),orig->indexPath()),0); // Same information
+        delete copy; delete orig;
+    }
+
+    delete copyOfList;
+    ASSERT_EQ(syncStallList.size(), 2u);
+}

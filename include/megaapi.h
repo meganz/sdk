@@ -5485,6 +5485,15 @@ class MegaSyncStall
     public:
         MegaSyncStall() = default;
         virtual ~MegaSyncStall() = default;
+
+        /**
+         * @brief Creates a copy of this MegaSyncStall object
+         *
+         * You are the owner of the returned object
+         *
+         * @return Copy of the MegaSyncStall object
+         */
+        virtual MegaSyncStall* copy() const;
         /**
          * @return path representing the sync stall 
          */

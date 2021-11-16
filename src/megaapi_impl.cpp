@@ -1282,6 +1282,19 @@ MegaSyncStallPrivate::MegaSyncStallPrivate(
 ,mIsCloud(isCloud)
 ,mIsImmediate(isImmediate) {}
 
+MegaSyncStallPrivate::MegaSyncStallPrivate(const MegaSyncStallPrivate& other)
+ :mIndexPath(other.mIndexPath)
+,mLocalPath(other.mLocalPath)
+,mCloudPath(other.mCloudPath)
+,mReason(other.mReason)
+,mIsCloud(other.mIsCloud)
+,mIsImmediate(other.mIsImmediate) {}
+
+MegaSyncStallPrivate* MegaSyncStallPrivate::copy() const
+{
+    return new MegaSyncStallPrivate(*this);
+}
+
 MegaSyncStall::SyncStallReason
 MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
 {
@@ -1407,6 +1420,17 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "MoveTargetHasReservedName";
         default: return "Unknown";
     }
+}
+
+MegaSyncStallListPrivate::MegaSyncStallListPrivate(const MegaSyncStallListPrivate& other) {
+    mStalls.reserve(other.size());
+    for(const auto& s: other.mStalls){
+        mStalls.emplace_back(MegaSyncStallPrivate(s));
+    }
+}
+
+MegaSyncStallListPrivate* MegaSyncStallListPrivate::copy() const {
+    return new MegaSyncStallListPrivate(*this);
 }
 
 MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const

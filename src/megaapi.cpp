@@ -6012,6 +6012,10 @@ void MegaSyncList::addSync(MegaSync *sync)
 
 }
 
+MegaSyncStall* MegaSyncStall::copy() const {
+    return nullptr; // @see implementation
+}
+
 const char* MegaSyncStall::indexPath() const
 { 
     return "";

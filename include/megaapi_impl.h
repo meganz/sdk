@@ -2110,7 +2110,11 @@ class MegaSyncStallPrivate : public MegaSyncStall
             bool isImmediate
         );
 
+        MegaSyncStallPrivate(const MegaSyncStallPrivate& other);
+
         virtual ~MegaSyncStallPrivate() = default;
+
+        MegaSyncStallPrivate* copy() const override;
 
         const char* indexPath()  const override
         {
@@ -2167,10 +2171,16 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
     public:
         MegaSyncStallListPrivate(const SyncStallInfo& stalls);
         virtual ~MegaSyncStallListPrivate() = default;
+
+        MegaSyncStallListPrivate(const MegaSyncStallListPrivate& other);
+
+        MegaSyncStallListPrivate* copy() const override;
         /**
          * @return a new heap allocated MegaSyncStall object 
          */
         MegaSyncStall* get(size_t i) const override;
+
+
         size_t size() const override
         {
             return mStalls.size();
