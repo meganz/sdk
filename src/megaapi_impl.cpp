@@ -3454,6 +3454,14 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->backgroundMediaUpload = NULL;
     this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
     this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
+
+#ifdef ENABLE_SYNC
+    if (request->mNameConflictList)
+        mNameConflictList.reset(request->mNameConflictList->copy());
+
+    if (request->mProblems)
+        mProblems.reset(request->mProblems->copy());
+#endif // ENABLE_SYNC
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -34095,11 +34103,16 @@ MegaSyncProblemsPrivate::MegaSyncProblemsPrivate(const SyncProblems& problems)
 }
 
 MegaSyncProblemsPrivate::MegaSyncProblemsPrivate(const MegaSyncProblemsPrivate& other)
-  : mConflicts(other.mConflicts->copy())
-  , mStalls(other.mStalls->copy())
+  : mConflicts()
+  , mStalls()
   , mConflictsDetected(other.mConflictsDetected)
   , mStallsDetected(other.mStallsDetected)
 {
+    if (other.mConflicts)
+        mConflicts.reset(other.mConflicts->copy());
+
+    if (other.mStalls)
+        mStalls.reset(other.mStalls->copy());
 }
 
 bool MegaSyncProblemsPrivate::anyNameConflictsDetected() const
