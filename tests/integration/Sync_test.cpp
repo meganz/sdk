@@ -13901,9 +13901,5 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
-TEST_F(SyncTest, DBV)
-{
-}
-
 #endif
 
