@@ -5353,6 +5353,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     //SYNC_verbose << syncname << "sync/recurse here: " << syncHere << recurseHere;
 
     // reset this node's sync flag. It will be set again below or while recursing if anything remains to be done.
+    auto originalScanAgain = row.syncNode->scanAgain;
     auto originalSyncAgain = row.syncNode->syncAgain;
     row.syncNode->syncAgain = TREE_RESOLVED;
 
@@ -5474,6 +5475,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     if (syncs.mSyncFlags->earlyRecurseExitRequested)
                     {
                         // restore flags to at least what they were, for when we revisit on next full recurse
+                        row.syncNode->scanAgain = std::max<TreeState>(row.syncNode->scanAgain, originalScanAgain);
                         row.syncNode->syncAgain = std::max<TreeState>(row.syncNode->syncAgain, originalSyncAgain);
                         row.syncNode->checkMovesAgain = std::max<TreeState>(row.syncNode->checkMovesAgain, originalCheckMovesAgain);
                         row.syncNode->conflicts = std::max<TreeState>(row.syncNode->conflicts, originalConflicsFlag);
