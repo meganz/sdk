@@ -1594,7 +1594,7 @@ public:
 
     // unlink the LocalNode from the corresponding node
     // if the associated local file or folder still exists
-    void unlinkifexists(LocalNode*, FileAccess*, LocalPath& reuseBuffer);
+    void unlinkifexists(LocalNode*, FileAccess*);
 #endif
 
     // recursively cancel transfers in a subtree

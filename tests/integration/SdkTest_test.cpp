@@ -4065,7 +4065,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
 
     FSACCESS_CLASS fsa(makeFsAccess());
     string name = "testfile";
-    LocalPath localname = LocalPath::fromRelativePath(name);
+    LocalPath localname = LocalPath::fromAbsolutePath(name);
 
     int value = 0x01020304;
     for (int i = sizeof filesizes / sizeof filesizes[0]; i--; )

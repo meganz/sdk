@@ -2924,12 +2924,11 @@ void MegaClient::exec()
                         if (localsyncnotseen.size() && !synccreate.size())
                         {
                             // ... execute all pending deletions
-                            LocalPath path;
                             auto fa = fsaccess->newfileaccess();
                             while (localsyncnotseen.size())
                             {
                                 LocalNode* l = *localsyncnotseen.begin();
-                                unlinkifexists(l, fa.get(), path);
+                                unlinkifexists(l, fa.get());
                                 delete l;
                             }
                         }
@@ -15481,11 +15480,12 @@ void MegaClient::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     tp->proc(this, n);
 }
 
-void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, LocalPath& reuseBuffer)
+void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa)
 {
     // sdisable = true for this call.  In the case where we are doing a full scan due to fs notifications failing,
     // and a file was renamed but retains the same shortname, we would check the presence of the wrong file.
     // Also shortnames are slowly being deprecated by Microsoft, so using full names is now the normal case anyway.
+    LocalPath reuseBuffer;
     l->getlocalpath(reuseBuffer);
     if (fa->fopen(reuseBuffer) || fa->type == FOLDERNODE)
     {
