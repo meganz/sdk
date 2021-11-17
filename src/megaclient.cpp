@@ -14425,44 +14425,6 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink, std::function<void(Node
     }
 }
 
-void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, LocalPath& reuseBuffer)
-{
-    // sdisable = true for this call.  In the case where we are doing a full scan due to fs notifications failing,
-    // and a file was renamed but retains the same shortname, we would check the presence of the wrong file.
-    // Also shortnames are slowly being deprecated by Microsoft, so using full names is now the normal case anyway.
-    l->getlocalpath(reuseBuffer);
-    if (fa->fopen(reuseBuffer) || fa->type == FOLDERNODE)
-    {
-        LOG_warn << "Deletion of existing file avoided";
-        static bool reported99446 = false;
-        if (!reported99446)
-        {
-            sendevent(99446, "Deletion of existing file avoided", 0);
-            reported99446 = true;
-        }
-
-        // The local file or folder seems to be still there, but invisible
-        // for the sync engine, so we just stop syncing it
-        //LocalTreeProcUnlinkNodes tpunlink;
-        //proclocaltree(l, &tpunlink);
-    }
-#ifdef _WIN32
-    else if (fa->errorcode != ERROR_FILE_NOT_FOUND && fa->errorcode != ERROR_PATH_NOT_FOUND)
-    {
-        LOG_warn << "Unexpected error code for deleted file: " << fa->errorcode;
-        static bool reported99447 = false;
-        if (!reported99447)
-        {
-            ostringstream oss;
-            oss << fa->errorcode;
-            string message = oss.str();
-            sendevent(99447, message.c_str(), 0);
-            reported99447 = true;
-        }
-    }
-#endif
-}
-
 void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion)
 {
     error err = unlink(n, false, 0, move(completion));

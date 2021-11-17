@@ -26142,7 +26142,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
     }
     else
     {
-        path = LocalPath::fromRelativePath(".");
+        path = LocalPath::fromAbsolutePath(".");
         path.appendWithSeparator(LocalPath::fromRelativePath(""), true);
     }
 
