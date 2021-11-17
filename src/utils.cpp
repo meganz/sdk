@@ -84,6 +84,11 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
     }
 }
 
+SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp)
+{
+    return s << lp.toPath();
+}
+
 
 string backupTypeToStr(BackupType type)
 {

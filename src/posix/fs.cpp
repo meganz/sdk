@@ -119,28 +119,6 @@ const string& adjustBasePath(const LocalPath& name)
 
 #endif /* ! USE_IOS */
 
-LocalPath NormalizeAbsolute(const LocalPath& path)
-{
-    LocalPath result = path;
-
-    // Convenience.
-    string& raw = result.localpath;
-
-    // Append the root separator if path is empty.
-    if (raw.empty())
-    {
-        raw.push_back('/');
-    }
-
-    // Remove trailing separator if we're not the root.
-    if (raw.size() > 1 && raw.back() == '/')
-    {
-        raw.pop_back();
-    }
-
-    return result;
-}
-
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, false);
@@ -798,9 +776,7 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
 
 bool PosixFileSystemAccess::cwd(LocalPath& path) const
 {
-    string& buf = path.localpath;
-
-    buf.resize(128);
+    string buf(128, '\0');
 
     while (!getcwd(&buf[0], buf.size()))
     {
@@ -813,6 +789,8 @@ bool PosixFileSystemAccess::cwd(LocalPath& path) const
     }
 
     buf.resize(strlen(buf.c_str()));
+
+    path = LocalPath::fromPlatformEncodedAbsolute(std::move(buf));
 
     return true;
 }
@@ -1134,22 +1112,7 @@ void PosixFileSystemAccess::tmpnamelocal(LocalPath& localname) const
 
     sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), tmpindex++);
 
-    localname = LocalPath::fromPlatformEncoded(buf);
-}
-
-void PosixFileSystemAccess::path2local(const string* path, string* local) const
-{
-#ifdef __MACH__
-    path2localMac(path, local);
-#else
-    *local = *path;
-#endif
-}
-
-void PosixFileSystemAccess::local2path(const string* local, string* path) const
-{
-    *path = *local;
-    normalize(path);
+    localname = LocalPath::fromPlatformEncodedRelative(buf);
 }
 
 // no legacy DOS garbage here...
@@ -1311,7 +1274,7 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
                 {
                     ScopedLengthRestore restore(name);
 
-                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
+                    name.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
 #ifdef USE_IOS
                     const string nameStr = adjustBasePath(name);
@@ -1471,43 +1434,41 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string 
     return false;
 }
 
-bool PosixFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolutepathArg)
+bool PosixFileSystemAccess::expanselocalpath(LocalPath& source, LocalPath& destination)
 {
-    std::string* path = &pathArg.localpath;
-    std::string* absolutepath = &absolutepathArg.localpath;
+    // Sanity.
+    assert(!source.empty());
 
-    ostringstream os;
-    if (path->at(0) == '/')
+    // At worst, the destination mirrors the source.
+    destination = source;
+
+    // Are we dealing with a relative path?
+    if (!source.isAbsolute())
     {
-        *absolutepath = *path;
-        char canonical[PATH_MAX];
-        if (realpath(absolutepath->c_str(),canonical) != NULL)
-        {
-            absolutepath->assign(canonical);
-        }
-        return true;
-    }
-    else
-    {
-        char cCurrentPath[PATH_MAX];
-        if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
-        {
-            *absolutepath = *path;
+        // Sanity.
+        assert(source.localpath[0] != '/');
+
+        // Retrieve current working directory.
+        if (!cwd(destination))
             return false;
-        }
 
-        *absolutepath = cCurrentPath;
-        absolutepath->append("/");
-        absolutepath->append(*path);
-
-        char canonical[PATH_MAX];
-        if (realpath(absolutepath->c_str(),canonical) != NULL)
-        {
-            absolutepath->assign(canonical);
-        }
-
-        return true;
+        // Compute absolute path.
+        destination.appendWithSeparator(source, false);
     }
+
+    // Sanity.
+    assert(destination.isAbsolute());
+    assert(destination.localpath[0] == '/');
+
+    // Canonicalize the path.
+    char buffer[PATH_MAX];
+
+    if (!realpath(destination.localpath.c_str(), buffer))
+        return destination = source, false;
+
+    destination.localpath.assign(buffer);
+
+    return true;
 }
 
 #ifdef __linux__
@@ -2050,7 +2011,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
                 if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evaluates false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
-                    name = LocalPath::fromPlatformEncoded(globbuf.gl_pathv[globindex]);
+                    name = LocalPath::fromPlatformEncodedAbsolute(globbuf.gl_pathv[globindex]);
                     *type = (statbuf.st_mode & S_IFREG) ? FILENODE : FOLDERNODE;
 
                     globindex++;
@@ -2073,7 +2034,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
+            path.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
 #ifdef USE_IOS
             const string pathStr = adjustBasePath(path);
@@ -2098,7 +2059,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
                 if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evalves false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
-                    name = LocalPath::fromPlatformEncoded(d->d_name);
+                    name = LocalPath::fromPlatformEncodedRelative(d->d_name);
 
                     if (type)
                     {

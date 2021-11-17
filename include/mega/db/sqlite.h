@@ -50,8 +50,6 @@ public:
     ~SqliteDbTable();
 
     bool inTransaction() const override;
-
-    LocalPath dbFile() const;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

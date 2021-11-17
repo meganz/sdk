@@ -97,9 +97,6 @@ public:
 
     void tmpnamelocal(LocalPath&) const override;
 
-    void local2path(const string*, string*) const override;
-    void path2local(const string*, string*) const override;
-
     bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(const LocalPath&, const LocalPath&, bool) override;

@@ -65,12 +65,6 @@ public:
 
     void tmpnamelocal(LocalPath&) const override;
 
-    void path2local(const std::string*, std::string*) const override;
-    void local2path(const std::string*, std::string*) const override;
-
-    void local2path(const std::wstring*, std::string*) const override;
-    void path2local(const std::string*, std::wstring*) const override;
-
     bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
@@ -87,6 +81,9 @@ public:
 
     static bool istransient(DWORD);
     bool istransientorexists(DWORD);
+
+    bool exists(const LocalPath& path) const;
+    bool isPathError(DWORD error) const;
 
     void osversion(string*, bool includeArchExtraInfo) const override;
     void statsid(string*) const override;

@@ -67,16 +67,27 @@ public:
     ~ScopedLengthRestore();
 };
 
+extern CodeCounter::ScopeStats g_compareUtfTimings;
+
 class MEGA_API LocalPath
 {
-#if defined(_WIN32)
-    wstring localpath;
-#else
-    string localpath;
-#endif
+#ifdef WIN32
+    using string_type = wstring;
+#else // _WIN32
+    using string_type = string;
+#endif // ! _WIN32
+
+    // The actual path.  For windows, this is UTF16
+    string_type localpath;
+
+    // Track whether this LocalPath is from the root of a filesystem (ie, an absolute path)
+    // It makes a big difference for windows, where we must prepend \\?\ prefix
+    // to be able to access long paths, paths ending with space or `.`, etc
+    bool isFromRoot = false;
 
     // only functions that need to call the OS or 3rdParty libraries - normal code should have no access (or accessor) to localpath
     friend class ScopedLengthRestore;
+    friend class ScopedSyncPathRestore;
     friend class WinFileSystemAccess;
     friend class PosixFileSystemAccess;
     friend struct WinDirAccess;
@@ -84,8 +95,6 @@ class MEGA_API LocalPath
     friend class PosixDirNotify;
     friend class WinFileAccess;
     friend class PosixFileAccess;
-    friend LocalPath NormalizeAbsolute(const LocalPath& path);
-    friend LocalPath NormalizeRelative(const LocalPath& path);
     friend void RemoveHiddenFileAttribute(LocalPath& path);
     friend void AddHiddenFileAttribute(LocalPath& path);
     friend class GfxProcFreeImage;
@@ -109,16 +118,39 @@ class MEGA_API LocalPath
     friend bool isPotentiallyInaccessiblePath(const FileSystemAccess&, const LocalPath&, nodetype_t);
 #endif // ! _WIN32
 
+    // helper functions to ensure proper format especially on windows
+    void normalizeAbsolute();
+    void removeTrailingSeparators();
+    bool invariant() const;
+
+    // path2local / local2path are much more natural here than in FileSystemAccess
+    // convert MEGA path (UTF-8) to local format
+    // there is still at least one use from outside this class
+public:
+    static void path2local(const string*, string*);
+    static void local2path(const string*, string*);
+#if defined(_WIN32)
+    static void local2path(const std::wstring*, string*);
+    static void path2local(const string*, std::wstring*);
+#endif
+
 public:
     LocalPath() {}
 
 #ifdef _WIN32
     typedef wchar_t separator_t;
     const static separator_t localPathSeparator = L'\\';
+    const static char localPathSeparator_utf8 = '\\';
 #else
     typedef char separator_t;
     const static separator_t localPathSeparator = '/';
+    const static char localPathSeparator_utf8 = '/';
 #endif
+
+    bool isAbsolute() const { return isFromRoot; };
+
+    // UTF-8 normalization
+    static void utf8_normalize(string *);
 
     // returns the internal representation copied into a string buffer, for backward compatibility
     string platformEncoded() const;
@@ -140,39 +172,45 @@ public:
     size_t reportSize() const { return localpath.size() * sizeof(separator_t); } // only for reporting, not logic
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
-    size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
+    size_t getLeafnameByteIndex() const;
     bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
     LocalPath subpathFrom(size_t bytePos) const;
     LocalPath subpathTo(size_t bytePos) const;
 
-    LocalPath insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess);
+    // Return a path denoting this path's parent.
+    //
+    // Result is undefined if this path is a "root."
+    LocalPath parentPath() const;
 
-    void ensureWinExtendedPathLenPrefix();
+    LocalPath insertFilenameCounter(unsigned counter);
 
     bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
+    bool hasNextPathComponent(size_t index) const;
 
-    // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
+    // Return a utf8 representation of the LocalPath
     // No escaping or unescaping is done.
-    string toPath(const FileSystemAccess& fsaccess) const;
     string toPath() const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
     // Those characters are converted back (unescaped).  fsaccess is used to do the conversion.
-    std::string toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const;
+    std::string toName(const FileSystemAccess& fsaccess) const;
 
     // Create a Localpath from a utf8 string where no character conversions or escaping is necessary.
-    static LocalPath fromPath(const string& path, const FileSystemAccess& fsaccess);
+    static LocalPath fromAbsolutePath(const string& path);
+    static LocalPath fromRelativePath(const string& path);
 
     // Create a LocalPath from a utf8 string, making any character conversions (escaping) necessary
     // for characters that are disallowed on that filesystem.  fsaccess is used to do the conversion.
-    static LocalPath fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType);
+    static LocalPath fromRelativeName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType);
 
     // Create a LocalPath from a string that was already converted to be appropriate for a local file path.
-    static LocalPath fromPlatformEncoded(string localname);
+    static LocalPath fromPlatformEncodedAbsolute(string localname);
+    static LocalPath fromPlatformEncodedRelative(string localname);
 #ifdef WIN32
-    static LocalPath fromPlatformEncoded(wstring&& localname);
+    static LocalPath fromPlatformEncodedAbsolute(wstring&& localname);
+    static LocalPath fromPlatformEncodedRelative(wstring&& localname);
     wchar_t driveLetter();
 #endif
 
@@ -196,27 +234,17 @@ void RemoveHiddenFileAttribute(mega::LocalPath& path);
 
 /**
  * @brief
- * Ensures that a path does not end with a separator.
- *
- * @param path
- * An absolute path to normalize.
+ * Checks whether a contains b.
  *
  * @return
- * A normalized path.
+ * True if a contains b.
  */
-LocalPath NormalizeAbsolute(const LocalPath& path);
+bool IsContainingLocalPathOf(const string& a, const string& b);
+bool IsContainingLocalPathOf(const string& a, const char* b, size_t bLength);
 
-/**
- * @brief
- * Ensures that a path does not begin or end with a separator.
- *
- * @param path
- * A relative path to normalize.
- *
- * @return
- * A normalized path.
- */
-LocalPath NormalizeRelative(const LocalPath& path);
+bool IsContainingCloudPathOf(const string& a, const string& b);
+bool IsContainingCloudPathOf(const string& a, const char* b, size_t bLength);
+
 
 inline LocalPath operator+(LocalPath& a, LocalPath& b)
 {
@@ -389,6 +417,8 @@ struct MEGA_API DirAccess
     virtual ~DirAccess() { }
 };
 
+#ifdef ENABLE_SYNC
+
 struct Notification
 {
     dstime timestamp;
@@ -416,7 +446,6 @@ struct NotificationDeque : ThreadSafeDeque<Notification>
     }
 };
 
-#ifdef ENABLE_SYNC
 // filesystem change notification, highly coupled to Syncs and LocalNodes.
 struct MEGA_API DirNotify
 {
@@ -499,31 +528,18 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot);
 #endif
 
-    // check if character is lowercase hex ASCII
-    bool isControlChar(unsigned char c) const;
+    // Extracts the character encoded by the escape sequence %ab at s,
+    // if it is one,
+    // which must be part of a null terminated c-style string
+    bool decodeEscape(const char* s, char& escapedChar) const;
+
     bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
     const char *fstypetostring(FileSystemType type) const;
     virtual bool getlocalfstype(const LocalPath& path, FileSystemType& type) const = 0;
     FileSystemType getlocalfstype(const LocalPath& path) const;
-    void unescapefsincompatible(string*,FileSystemType) const;
-
-    // convert MEGA path (UTF-8) to local format
-    virtual void path2local(const string*, string*) const = 0;
-    virtual void local2path(const string*, string*) const = 0;
-
-#if defined(_WIN32)
-    // convert MEGA-formatted filename (UTF-8) to local filesystem name
-    virtual void local2path(const std::wstring*, string*) const = 0;
-    virtual void path2local(const string*, std::wstring*) const = 0;
-#endif
-
-    // returns a const char pointer that contains the separator character for the target system
-    static const char *getPathSeparator();
-
-    //Normalize UTF-8 string
-    static void normalize(string *);
+    void unescapefsincompatible(string*) const;
 
     // generate local temporary file name
     virtual void tmpnamelocal(LocalPath&) const = 0;
@@ -575,6 +591,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // convenience function for getting filesystem shortnames
     std::unique_ptr<LocalPath> fsShortname(const LocalPath& localpath);
 
+    // convenience function for testing file existence at a path
+    bool fileExistsAt(const LocalPath&);
+
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error = false;
 
@@ -588,6 +607,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails because the target already exists
     bool target_exists = false;
 
+    // Set when an operation fails because the target file name is too long.
+    bool target_name_too_long = false;
+
     // append local operating system version information to string.
     // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is via the WOW subsystem)
     virtual void osversion(string*, bool includeArchExtraInfo) const { }
@@ -598,6 +620,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     MegaClient* client = nullptr;
 
     FileSystemAccess();
+
+    MEGA_DISABLE_COPY_MOVE(FileSystemAccess);
+
     virtual ~FileSystemAccess() { }
 
     // Get the current working directory.
@@ -617,7 +642,7 @@ class FilenameAnomalyReporter
 public:
     virtual ~FilenameAnomalyReporter() { };
 
-    virtual void anomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath) = 0;
+    virtual void anomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath) = 0;
 }; // FilenameAnomalyReporter
 
 bool isCaseInsensitive(const FileSystemType type);

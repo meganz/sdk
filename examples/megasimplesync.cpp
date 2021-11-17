@@ -233,7 +233,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
                     if(!name.size())
                     {
                         name =  c[1];
-                        n->client->fsaccess->normalize(&name);
+                        LocalPath::utf8_normalize(&name);
                     }
 
                     if (!strcmp(name.c_str(), n->displayname()))
@@ -430,7 +430,7 @@ void SyncApp::fetchnodes_result(const Error &e)
             else
             {
 #ifdef ENABLE_SYNC
-                SyncConfig syncConfig(LocalPath::fromPath(local_folder, *client->fsaccess), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
+                SyncConfig syncConfig(LocalPath::fromAbsolutePath(local_folder), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
                 client->addsync(syncConfig, false,
                                 [](error err, const SyncError& serr, handle backupId) {
                     if (err)
@@ -526,7 +526,7 @@ int main(int argc, char *argv[])
     }
 
     // Needed so we can get our hands on the cwd.
-    auto fsAccess = new FSACCESS_CLASS();
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 
     // Where are we?
     LocalPath currentDir;
@@ -542,7 +542,7 @@ int main(int argc, char *argv[])
     client = new MegaClient(app,
                             new WAIT_CLASS,
                             new HTTPIO_CLASS,
-                            fsAccess,
+                            fsAccess.get(),
                         #ifdef DBACCESS_CLASS
                             new DBACCESS_CLASS(currentDir),
                         #else

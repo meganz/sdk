@@ -1940,7 +1940,7 @@ public:
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
-    void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
+    void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);
     unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
 
 private:

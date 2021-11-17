@@ -138,6 +138,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // follow the parent links all the way to the top
     const Node* firstancestor() const;
 
+    // If this is a file, and has a file for a parent, it's not the latest version
+    const Node* latestFileVersion() const;
+
     // try to resolve node key string
     bool applykey();
 
@@ -149,6 +152,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // display name (UTF-8)
     const char* displayname() const;
+
+    // check if the name matches (UTF-8)
+    bool hasName(const string&) const;
 
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;
@@ -384,7 +390,6 @@ struct MEGA_API LocalNode : public File
     // build full local path to this node
     void getlocalpath(LocalPath&) const;
     LocalPath getLocalPath() const;
-    string localnodedisplaypath(FileSystemAccess& fsa) const;
 
     // return child node by name
     LocalNode* childbyname(LocalPath*);

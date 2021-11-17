@@ -81,6 +81,10 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
+#ifdef __APPLE__
+int gFilesystemEventsFd = -1;
+#endif
+
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
@@ -238,6 +242,50 @@ const char* errorstring(error e)
     }
 }
 
+
+struct ConsoleLock
+{
+    static std::recursive_mutex outputlock;
+    std::ostream& os;
+    bool locking = false;
+    inline ConsoleLock(std::ostream& o)
+        : os(o), locking(true)
+    {
+        outputlock.lock();
+    }
+    ConsoleLock(ConsoleLock&& o)
+        : os(o.os), locking(o.locking)
+    {
+        o.locking = false;
+    }
+    ~ConsoleLock()
+    {
+        if (locking)
+        {
+            outputlock.unlock();
+        }
+    }
+
+    template<class T>
+    std::ostream& operator<<(T&& arg)
+    {
+        return os << std::forward<T>(arg);
+    }
+};
+
+std::recursive_mutex ConsoleLock::outputlock;
+
+ConsoleLock conlock(std::ostream& o)
+{
+    // Returns a temporary object that has locked a mutex.  The temporary's destructor will unlock the object.
+    // So you can get multithreaded non-interleaved console output with just conlock(cout) << "some " << "strings " << endl;
+    // (as the temporary's destructor will run at the end of the outermost enclosing expression).
+    // Or, move-assign the temporary to an lvalue to control when the destructor runs (to lock output over several statements).
+    // Be careful not to have cout locked across a g_megaApi member function call, as any callbacks that also log could then deadlock.
+    return ConsoleLock(o);
+}
+
+
 AppFile::AppFile()
 {
     static int nextseqno;
@@ -293,7 +341,7 @@ AppFilePut::~AppFilePut()
 
 void AppFilePut::displayname(string* dname)
 {
-    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getlocalfstype(localname));
+    *dname = localname.toName(*transfer->client->fsaccess);
 }
 
 // transfer progress callback
@@ -316,7 +364,7 @@ static void displaytransferdetails(Transfer* t, const char* action)
         cout << name;
     }
 
-    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
+    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action << ": " << t->localfilename.toPath();
 }
 
 // a new transfer was added
@@ -387,13 +435,13 @@ void DemoApp::transfer_prepare(Transfer* t)
 
 void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 {
-    cout << "Sync config updated: " << toHandle(config.mBackupId) << endl;
+    conlock(cout) << "Sync config updated: " << toHandle(config.mBackupId) << endl;
 }
 
 
 void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
 {
-    cout << "Sync is now active: " << active << endl;
+    conlock(cout) << "Sync is now active: " << active << endl;
 }
 
 void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
@@ -401,13 +449,13 @@ void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, 
     handle backupId = config.getBackupId();
     if (attempted)
     {
-        cout << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
+        conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath()  << " enabled: "
              << config.getEnabled()  << " syncError: " << config.getError()
              << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
     else
     {
-        cout << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath(*client->fsaccess) << " enabled: "
+        conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
             << config.getEnabled() << " syncError: " << config.getError()
             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
@@ -415,7 +463,7 @@ void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, 
 
 void DemoApp::sync_removed(const SyncConfig& config)
 {
-    cout << "Sync - removed: " << toHandle(config.mBackupId) << endl;
+    conlock(cout) << "Sync - removed: " << toHandle(config.mBackupId) << endl;
 
 }
 
@@ -440,11 +488,11 @@ void DemoApp::syncupdate_local_lockretry(bool locked)
 {
     if (locked)
     {
-        cout << "Sync - waiting for local filesystem lock" << endl;
+        conlock(cout) << "Sync - waiting for local filesystem lock" << endl;
     }
     else
     {
-        cout << "Sync - local filesystem lock issue resolved, continuing..." << endl;
+        conlock(cout) << "Sync - local filesystem lock issue resolved, continuing..." << endl;
     }
 }
 
@@ -471,7 +519,7 @@ void DemoApp::syncupdate_treestate(const SyncConfig &, const LocalPath& lp, tree
     {
         if (type != FILENODE)
         {
-            cout << "Sync - state change of folder " << lp.toPath() << " to " << treestatename(ts) << endl;
+            conlock(cout) << "Sync - state change of folder " << lp.toPath() << " to " << treestatename(ts) << endl;
         }
     }
 }
@@ -524,12 +572,13 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
         name = *cfilename;
     }
 
-    localname = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromPath(name, *client->fsaccess)));
+    auto ln = LocalPath::fromRelativeName(name, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(targetfolder)));
     if (!targetfolder.empty())
     {
         string s = targetfolder;
-        localname.prependWithSeparator(LocalPath::fromPath(s, *client->fsaccess));
+        ln.prependWithSeparator(LocalPath::fromAbsolutePath(s));
     }
+    localname = ln;
 }
 
 AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)
@@ -543,10 +592,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* c
     // target user
     targetuser = ctargetuser;
 
-    // erase path component
-    auto fileSystemType = client->fsaccess->getlocalfstype(clocalname);
-
-    name = clocalname.leafName().toName(*client->fsaccess, fileSystemType);
+    name = clocalname.leafName().toName(*client->fsaccess);
 }
 
 // user addition/update (users never get deleted)
@@ -1363,6 +1409,9 @@ static void listtrees()
     }
 }
 
+bool handles_on = false;
+bool showattrs = false;
+
 // returns node pointer determined by path relative to cwd
 // path naming conventions:
 // * path is relative to cwd
@@ -1385,6 +1434,15 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     int folderlink = 0;
     Node* n = nullptr;
     Node* nn;
+
+
+    // special case access by handle, same syntax as megacmd
+    if (handles_on && ptr && strlen(ptr) == 10 && *ptr == 'H' && ptr[1] == ':')
+    {
+        handle h8=0;
+        Base64::atob(ptr+2, (byte*)&h8, MegaClient::NODEHANDLE);
+        return client->nodeByHandle(NodeHandle().set6byte(h8));
+    }
 
     // split path by / or :
     do {
@@ -1507,7 +1565,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                     if(!name.size())
                     {
                         name =  c[1];
-                        n->client->fsaccess->normalize(&name);
+                        LocalPath::utf8_normalize(&name);
                     }
 
                     if (!strcmp(name.c_str(), n->displayname()))
@@ -1634,9 +1692,6 @@ void TreeProcListOutShares::proc(MegaClient*, Node* n)
 {
     listnodeshares(n);
 }
-
-bool handles_on = false;
-bool showattrs = false;
 
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
@@ -1860,6 +1915,8 @@ static int pw_buf_pos;
 
 static void setprompt(prompttype p)
 {
+    auto cl = conlock(cout); // use this wherever we might have output threading issues
+
     prompt = p;
 
     if (p == COMMAND)
@@ -2392,7 +2449,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     }
 
     std::string path = p.u8string();
-    auto fileSystemType = client->fsaccess->getlocalfstype(LocalPath::fromPath(path, *client->fsaccess));
+    auto fileSystemType = client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(path));
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
     for (auto& m : mn->children)
@@ -2495,9 +2552,6 @@ void exec_codeTimings(autocomplete::ACState& s)
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
     fs::path p = s.empty() ? fs::current_path() : fs::u8path(s);
-#ifdef WIN32
-    p = fs::u8path("\\\\?\\" + p.u8string());
-#endif
     if (mustexist && !fs::exists(p))
     {
         cout << "local path not found: '" << s << "'";
@@ -2769,6 +2823,8 @@ void exec_setmaxconnections(autocomplete::ACState& s)
 class MegaCLILogger : public ::mega::Logger {
 public:
     ofstream mLogFile;
+    string mLogFileName;
+    bool logToConsole = false;
 
     void log(const char*, int loglevel, const char*, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
@@ -2776,61 +2832,56 @@ public:
 #endif
     ) override
     {
+        using namespace std::chrono;
+        auto et =system_clock::now().time_since_epoch();
+        auto millisec_since_epoch =  duration_cast<milliseconds>(et).count();
+        auto sec_since_epoch = duration_cast<seconds>(et).count();
+        char ts[50];
+        auto t = std::time(NULL);
+        t = (m_time_t) sec_since_epoch;
+        if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
+        {
+            ts[0] = '\0';
+        }
+
+        auto ms = std::to_string(unsigned(millisec_since_epoch - 1000*sec_since_epoch));
+        string s;
+        s.reserve(1024);
+        s += ts;
+        s += "." + string(3 - std::min<size_t>(3, ms.size()), '0') + ms;
+        s += " ";
+        if (message) s += message;
+#ifdef ENABLE_LOG_PERFORMANCE
+        for (unsigned i = 0; i < numberMessages; ++i) s.append(directMessages[i], directMessagesSizes[i]);
+#endif
+
+        if (logToConsole)
+        {
+            std::cout << s << std::endl;
+        }
+
         if (mLogFile.is_open())
         {
-            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": ";
-            if (message) mLogFile << message;
-#ifdef ENABLE_LOG_PERFORMANCE
-            for (unsigned i = 0; i < numberMessages; ++i) mLogFile.write(directMessages[i], directMessagesSizes[i]);
-#endif
-            mLogFile << std::endl;
+            mLogFile << s << std::endl;
         }
-        else
-        {
-#ifdef _WIN32
-            using namespace std::chrono;
-            auto et =system_clock::now().time_since_epoch();
-            auto millisec_since_epoch =  duration_cast<milliseconds>(et).count();
-            auto sec_since_epoch = duration_cast<seconds>(et).count();
-            char ts[50];
-            auto t = std::time(NULL);
-            t = (m_time_t) sec_since_epoch;
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
-            {
-                ts[0] = '\0';
-            }
 
-            auto ms = std::to_string(unsigned(millisec_since_epoch - 1000*sec_since_epoch));
-            string s;
-            s.reserve(1024);
-            s += ts;
-            s += "." + string(3 - std::min<size_t>(3, ms.size()), '0') + ms;
-            s += " ";
-            if (message) s += message;
-#ifdef ENABLE_LOG_PERFORMANCE
-            for (unsigned i = 0; i < numberMessages; ++i) s.append(directMessages[i], directMessagesSizes[i]);
+#ifdef WIN32
+        // Supply the log strings to Visual Studio Output window, regardless of toconsole/file settings
+        s += "\r\n";
+        OutputDebugStringA(s.c_str());
 #endif
-            s += "\r\n";
-            OutputDebugStringA(s.c_str());
-#else
-            if (loglevel >= SimpleLogger::logCurrentLevel)
-            {
-                auto t = std::time(NULL);
-                char ts[50];
-                if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
-                {
-                    ts[0] = '\0';
-                }
-                std::cout << "[" << ts << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
-        }
-#endif
-        }
     }
 };
 
+LocalPath localPathArg(string s)
+{
+    if (s.empty()) return LocalPath();
+    return LocalPath::fromAbsolutePath(s);
+}
+
 void exec_fingerprint(autocomplete::ACState& s)
 {
-    auto localfilepath = LocalPath::fromPath(s.words[1].s, *client->fsaccess);
+    auto localfilepath = localPathArg(s.words[1].s);
     auto fa = client->fsaccess->newfileaccess();
 
     if (fa->fopen(localfilepath, true, false, nullptr))
@@ -2873,7 +2924,7 @@ void exec_showattrs(autocomplete::ACState& s)
 void exec_timelocal(autocomplete::ACState& s)
 {
     bool get = s.words[1].s == "get";
-    auto localfilepath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+    auto localfilepath = localPathArg(s.words[2].s);
 
     if ((get && s.words.size() != 3) || (!get && s.words.size() != 4))
     {
@@ -2928,12 +2979,12 @@ void exec_timelocal(autocomplete::ACState& s)
         }
         else
         {
-            cout << "fingerprint generation failed: " << localfilepath.toPath(*client->fsaccess) << endl;
+            cout << "fingerprint generation failed: " << localfilepath.toPath() << endl;
         }
     }
     else
     {
-        cout << "fopen failed: " << localfilepath.toPath(*client->fsaccess) << endl;
+        cout << "fopen failed: " << localfilepath.toPath() << endl;
     }
 
 }
@@ -2983,47 +3034,47 @@ void exec_backupcentre(autocomplete::ACState& s)
     }
 }
 
+class AnomalyReporter
+    : public FilenameAnomalyReporter
+{
+public:
+    void anomalyDetected(FilenameAnomalyType type,
+                            const LocalPath& localPath,
+                            const string& remotePath) override
+    {
+        string typeName;
+
+        switch (type)
+        {
+        case FILENAME_ANOMALY_NAME_MISMATCH:
+            typeName = "NAME_MISMATCH";
+            break;
+        case FILENAME_ANOMALY_NAME_RESERVED:
+            typeName = "NAME_RESERVED";
+            break;
+        default:
+            assert(!"Unknown anomaly type!");
+            typeName = "UNKNOWN";
+            break;
+        }
+
+        cout << "Filename anomaly detected: type: "
+                << typeName
+                << ": local path: "
+                << localPath.toPath()
+                << ": remote path: "
+                << remotePath
+                << endl;
+    }
+}; // AnomalyReporter
+
 void exec_logFilenameAnomalies(autocomplete::ACState& s)
 {
-    class Reporter
-      : public FilenameAnomalyReporter
-    {
-    public:
-        void anomalyDetected(FilenameAnomalyType type,
-                             const string& localPath,
-                             const string& remotePath) override
-        {
-            string typeName;
-
-            switch (type)
-            {
-            case FILENAME_ANOMALY_NAME_MISMATCH:
-                typeName = "NAME_MISMATCH";
-                break;
-            case FILENAME_ANOMALY_NAME_RESERVED:
-                typeName = "NAME_RESERVED";
-                break;
-            default:
-                assert(!"Unknown anomaly type!");
-                typeName = "UNKNOWN";
-                break;
-            }
-
-            cout << "Filename anomaly detected: type: "
-                 << typeName
-                 << ": local path: "
-                 << localPath
-                 << ": remote path: "
-                 << remotePath
-                 << endl;
-        }
-    }; // Reporter
-
     unique_ptr<FilenameAnomalyReporter> reporter;
 
     if (s.words[1].s == "on")
     {
-        reporter.reset(new Reporter());
+        reporter.reset(new AnomalyReporter());
     }
 
     cout << "Filename anomaly reporting is "
@@ -3224,8 +3275,10 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_locallogout, sequence(text("locallogout")));
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
-    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off"), flag("-verbose"))), opt(localFSFile())));
-    p->Add(exec_verbose, sequence(text("verbose"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_debug, sequence(text("debug"),
+                opt(either(flag("-on"), flag("-off"), flag("-verbose"))),
+                opt(either(flag("-console"), flag("-noconsole"))),
+                opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile())))));
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
@@ -3759,7 +3812,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // rename
-                            client->fsaccess->normalize(&newname);
+                            LocalPath::utf8_normalize(&newname);
 
                             if ((e = client->setattr(n, attr_map('n', newname), 0, nullptr, setattr_result)))
                             {
@@ -3926,7 +3979,7 @@ void exec_cp(autocomplete::ACState& s)
             if (newname.size())
             {
                 sname = newname;
-                client->fsaccess->normalize(&sname);
+                LocalPath::utf8_normalize(&sname);
             }
             else
             {
@@ -4336,7 +4389,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName().toPath(*client->fsaccess);
+    return itemlocalname.leafName().toPath();
 }
 
 void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
@@ -4403,7 +4456,7 @@ void exec_put(autocomplete::ACState& s)
         cout << "Sorry, can't send recursively to a user" << endl;
     }
 
-    auto localname = LocalPath::fromPath(s.words[1].s, *client->fsaccess);
+    auto localname = localPathArg(s.words[1].s);
 
     DirAccess* da = client->fsaccess->newdiraccess();
 
@@ -4442,7 +4495,7 @@ void exec_pwd(autocomplete::ACState& s)
 
 void exec_lcd(autocomplete::ACState& s)
 {
-    LocalPath localpath = LocalPath::fromPath(s.words[1].s, *client->fsaccess);
+    LocalPath localpath = localPathArg(s.words[1].s);
 
     if (!client->fsaccess->chdirlocal(localpath))
     {
@@ -4576,12 +4629,19 @@ void exec_open(autocomplete::ACState& s)
             auto gfx = new GFX_CLASS;
             gfx->startProcessingThread();
 #endif
+
+#ifdef __APPLE__
+            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
+#else
+            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+#endif
+
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
             clientFolder = new MegaClient(new DemoAppFolder,
                                           client->waiter,
                                           client->httpio,
-                                          new FSACCESS_CLASS,
+                                          fsAccess.release(),
                 #ifdef DBACCESS_CLASS
                                           new DBACCESS_CLASS(*startDir),
                 #else
@@ -5112,7 +5172,7 @@ void exec_putua(autocomplete::ACState& s)
         else if (s.words[2].s == "load")
         {
             string data;
-            auto localpath = LocalPath::fromPath(s.words[3].s, *client->fsaccess);
+            auto localpath = localPathArg(s.words[3].s);
 
             if (loadfile(localpath, &data))
             {
@@ -5269,6 +5329,8 @@ void exec_debug(autocomplete::ACState& s)
     if (s.extractflag("-off"))
     {
         SimpleLogger::setLogLevel(logWarning);
+        gLogger.logToConsole = false;
+        gLogger.mLogFile.close();
     }
     if (s.extractflag("-on"))
     {
@@ -5278,41 +5340,42 @@ void exec_debug(autocomplete::ACState& s)
     {
         SimpleLogger::setLogLevel(logMax);
     }
+    if (s.extractflag("-console"))
+    {
+        gLogger.logToConsole = true;
 
-    if (s.words.size() > 1)
+    }
+    if (s.extractflag("-noconsole"))
+    {
+        gLogger.logToConsole = false;
+    }
+    if (s.extractflag("-nofile"))
     {
         gLogger.mLogFile.close();
-        if (!s.words[1].s.empty())
+    }
+    string filename;
+    if (s.extractflagparam("-file", filename))
+    {
+        gLogger.mLogFile.close();
+        if (!filename.empty())
         {
-            gLogger.mLogFile.open(s.words[1].s.c_str());
-            if (!gLogger.mLogFile.is_open())
+            gLogger.mLogFile.open(filename.c_str());
+            if (gLogger.mLogFile.is_open())
             {
-                cout << "Log file open failed: '" << s.words[1].s << "'" << endl;
+                gLogger.mLogFileName = filename;
+
+            }
+            else
+            {
+                cout << "Log file open failed: '" << filename << "'" << endl;
             }
         }
     }
 
-    cout << "Debug mode " << SimpleLogger::logCurrentLevel << endl;
-}
+    cout << "Debug level set to " << SimpleLogger::logCurrentLevel << endl;
+    cout << "Log to console: " << (gLogger.logToConsole ? "on" : "off") << endl;
+    cout << "Log to file: " << (gLogger.mLogFile.is_open() ? gLogger.mLogFileName : "<off>") << endl;
 
-void exec_verbose(autocomplete::ACState& s)
-{
-    bool turnon = s.extractflag("-on");
-    bool turnoff = s.extractflag("-off");
-
-    if (turnon)
-    {
-        gVerboseMode = true;
-    }
-    else if (turnoff)
-    {
-        gVerboseMode = false;
-    }
-    else
-    {
-        gVerboseMode = !gVerboseMode;
-    }
-    cout << "Verbose mode " << (gVerboseMode ? "on" : "off") << endl;
 }
 
 #if defined(WIN32) && defined(NO_READLINE)
@@ -6654,7 +6717,7 @@ void exec_mediainfo(autocomplete::ACState& s)
     if (s.words.size() == 3 && s.words[1].s == "calc")
     {
         MediaProperties mp;
-        auto localFilename = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+        auto localFilename = localPathArg(s.words[2].s);
 
         string ext;
         if (client->fsaccess->getextension(localFilename, ext) && MediaProperties::isMediaFilenameExt(ext))
@@ -7567,7 +7630,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 
             if (name == 'n')
             {
-                client->fsaccess->normalize(t);
+                LocalPath::utf8_normalize(t);
             }
         }
 
@@ -7648,7 +7711,7 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
             attr_map::iterator it = attrs.map.find('n');
             if (it != attrs.map.end() && !it->second.empty())
             {
-                client->fsaccess->normalize(&(it->second));
+                LocalPath::utf8_normalize(&(it->second));
                 fileName = it->second.c_str();
             }
 
@@ -8300,7 +8363,10 @@ void megacli()
             string dynamicpromptstr = dynamicprompt.str();
 
 #if defined(WIN32) && defined(NO_READLINE)
-            static_cast<WinConsole*>(console)->updateInputPrompt(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND]);
+            {
+                auto cl = conlock(cout);
+                static_cast<WinConsole*>(console)->updateInputPrompt(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND]);
+            }
 #else
             rl_callback_handler_install(!dynamicpromptstr.empty() ? dynamicpromptstr.c_str() : prompts[prompt], store_line);
 
@@ -8456,7 +8522,7 @@ static void registerSignalHandlers()
 
 #endif // ! NO_READLINE
 
-int main()
+int main(int argc, char* argv[])
 {
 #if defined(_WIN32) && defined(_DEBUG)
     _CrtSetBreakAlloc(124);  // set this to an allocation number to hunt leaks.  Prior to 124 and prior are from globals/statics so won't be detected by this
@@ -8466,12 +8532,29 @@ int main()
     registerSignalHandlers();
 #endif // NO_READLINE
 
-#ifdef _WIN32
-    SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
-    SimpleLogger::setOutputClass(&gLogger);
-#else
-    SimpleLogger::setOutputClass(&gLogger);
+
+
+    std::vector<char*> myargv1(argv, argv + argc);
+
+    for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
+    {
+#ifdef __APPLE__
+        if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
+        {
+            int fseventsFd = std::stoi(std::string(*it).substr(13));
+            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
+                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
+                return 1;
+            }
+
+            gFilesystemEventsFd = fseventsFd;
+            std::cout << "Using filesystem events notification handle passed from loader: " << gFilesystemEventsFd << std::endl;
+        }
 #endif
+    }
+
+    SimpleLogger::setLogLevel(logMax);
+    SimpleLogger::setOutputClass(&gLogger);
 
     console = new CONSOLE_CLASS;
 
@@ -8483,7 +8566,11 @@ int main()
 #endif
 
     // Needed so we can get the cwd.
-    auto fsAccess = new FSACCESS_CLASS();
+#ifdef __APPLE__
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
+#else
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+#endif
 
     // Where are we?
     if (!fsAccess->cwd(*startDir))
@@ -8515,7 +8602,7 @@ int main()
     client = new MegaClient(demoApp,
                             waiter,
                             httpIO,
-                            fsAccess,
+                            fsAccess.get(),
                             dbAccess,
                             gfx,
                             "Gk8DyQBS",
@@ -8530,14 +8617,15 @@ int main()
 #endif
 
     clientFolder = NULL;    // additional for folder links
+
+    client->mFilenameAnomalyReporter.reset(new AnomalyReporter()); // on by default
+
     megacli();
 
     delete client;
     delete waiter;
     delete httpIO;
     delete gfx;
-    //delete dbAccess; // already deleted
-    delete fsAccess;
     delete demoApp;
     acs.reset();
     autocompleteTemplate.reset();
@@ -8646,7 +8734,7 @@ void exec_metamac(autocomplete::ACState& s)
 
     auto ifAccess = client->fsaccess->newfileaccess();
     {
-        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromPath(s.words[1].s, *client->fsaccess)));
+        auto localPath = localPathArg(s.words[1].s);
         if (!ifAccess->fopen(localPath, 1, 0))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;
@@ -8752,8 +8840,8 @@ void exec_syncadd(autocomplete::ACState& s)
     bool named = s.extractflagparam("-name", syncname);
 
     // sync add source target
-    LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
-    LocalPath sourcePath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+    LocalPath drivePath = localPathArg(drive);
+    LocalPath sourcePath = localPathArg(s.words[2].s);
     string targetPath = s.words[3].s;
 
     // Does the target node exist?
@@ -8767,13 +8855,10 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
-    // Necessary so that we can reliably extract the leaf name.
-    sourcePath = NormalizeAbsolute(sourcePath);
-
     // Create a suitable sync config.
     auto config =
       SyncConfig(sourcePath,
-                 named ? syncname : sourcePath.leafName().toPath(*client->fsaccess),
+                 named ? syncname : sourcePath.leafName().toPath(),
                  NodeHandle().set6byte(targetNode->nodehandle),
                  targetNode->displaypath(),
                  0,
@@ -8846,7 +8931,7 @@ void exec_syncclosedrive(autocomplete::ACState& s)
 
     // sync backup remove drive
     const auto drivePath =
-      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+        localPathArg(s.words[2].s);
 
     const auto result = client->syncs.backupCloseDrive(drivePath);
 
@@ -8960,7 +9045,7 @@ void exec_syncopendrive(autocomplete::ACState& s)
 
     // sync backup restore drive
     const auto drivePath =
-      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+        localPathArg(s.words[2].s);
 
     auto result = client->syncs.backupOpenDrive(drivePath);
 
@@ -9007,7 +9092,7 @@ void exec_synclist(autocomplete::ACState& s)
 
         // Display source/target mapping.
         cout << "  Mapping: "
-            << config.mLocalPath.toPath(*client->fsaccess)
+            << config.mLocalPath.toPath()
             << " -> "
             << cloudpath
             << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")

@@ -264,7 +264,10 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     memcpy(t->transferkey.data(), ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
-    t->localfilename = LocalPath::fromPlatformEncoded(std::string(filepath, ll));
+    if (ll > 0)
+    {
+        t->localfilename = LocalPath::fromPlatformEncodedAbsolute(std::string(filepath, ll));
+    }
 
     if (!t->chunkmacs.unserialize(ptr, end))
     {
@@ -807,7 +810,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                             do
                             {
                                 num++;
-                                localnewname = localname.insertFilenameCounter(num, *client->fsaccess);
+                                localnewname = localname.insertFilenameCounter(num);
                             } while (fa->fopen(localnewname) || fa->type == FOLDERNODE);
 
 
@@ -907,7 +910,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                         if (type != FILENAME_ANOMALY_NONE)
                         {
-                            client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
+                            client->filenameAnomalyDetected(type, path, node->displaypath());
                         }
                     }
 
@@ -1019,7 +1022,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                << (node->parent ? "/" : "")
                                << f->name;
 
-                    client->filenameAnomalyDetected(type, localpath->toPath(), remotepath.str());
+                    client->filenameAnomalyDetected(type, *localpath, remotepath.str());
                 }
             }
 
