@@ -151,16 +151,6 @@ std::string megaApiCacheFolder(int index)
     return p;
 }
 
-
-void WaitMillisec(unsigned n)
-{
-#ifdef _WIN32
-    Sleep(n);
-#else
-    usleep(n * 1000);
-#endif
-}
-
 template<typename Predicate>
 bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
 {
@@ -187,8 +177,6 @@ MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAg
     return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
 #endif
 }
-
-FSACCESS_CLASS makeFsAccess() { return makeFsAccess_<FSACCESS_CLASS>(); }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 
@@ -3085,14 +3073,14 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         std::map<std::string, FileAccessFields > plain_follow_fopen;
         std::map<std::string, FileAccessFields > iterate_follow_fopen;
 
-        FSACCESS_CLASS fsa(makeFsAccess());
+        auto fsa = makeFsAccess();
         auto localdir = fspathToLocal(iteratePath);
 
-        std::unique_ptr<FileAccess> fopen_directory(fsa.newfileaccess(false));  // false = don't follow symlinks
+        std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
         ASSERT_TRUE(fopen_directory->fopen(localdir, true, false));
 
         // now open and iterate the directory, not following symlinks (either by name or fopen'd directory)
-        std::unique_ptr<DirAccess> da(fsa.newdiraccess());
+        std::unique_ptr<DirAccess> da(fsa->newdiraccess());
         if (da->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory.get(), false))
         {
             nodetype_t type;
@@ -3101,8 +3089,8 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             {
                 string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname);
 
-                std::unique_ptr<FileAccess> plain_fopen_fa(fsa.newfileaccess(false));
-                std::unique_ptr<FileAccess> iterate_fopen_fa(fsa.newfileaccess(false));
+                std::unique_ptr<FileAccess> plain_fopen_fa(fsa->newfileaccess(false));
+                std::unique_ptr<FileAccess> iterate_fopen_fa(fsa->newfileaccess(false));
 
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
@@ -3115,11 +3103,11 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             }
         }
 
-        std::unique_ptr<FileAccess> fopen_directory2(fsa.newfileaccess(true));  // true = follow symlinks
+        std::unique_ptr<FileAccess> fopen_directory2(fsa->newfileaccess(true));  // true = follow symlinks
         ASSERT_TRUE(fopen_directory2->fopen(localdir, true, false));
 
         // now open and iterate the directory, following symlinks (either by name or fopen'd directory)
-        std::unique_ptr<DirAccess> da_follow(fsa.newdiraccess());
+        std::unique_ptr<DirAccess> da_follow(fsa->newdiraccess());
         if (da_follow->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory2.get(), false))
         {
             nodetype_t type;
@@ -3128,8 +3116,8 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             {
                 string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname);
 
-                std::unique_ptr<FileAccess> plain_follow_fopen_fa(fsa.newfileaccess(true));
-                std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa.newfileaccess(true));
+                std::unique_ptr<FileAccess> plain_follow_fopen_fa(fsa->newfileaccess(true));
+                std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa->newfileaccess(true));
 
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
@@ -3209,7 +3197,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
 
         // check the glob flag
         auto localdirGlob = fspathToLocal(iteratePath / "glob1*");
-        std::unique_ptr<DirAccess> da2(fsa.newdiraccess());
+        std::unique_ptr<DirAccess> da2(fsa->newdiraccess());
         if (da2->dopen(&localdirGlob, NULL, true))
         {
             nodetype_t type;
@@ -4063,7 +4051,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
         "GA4CWmAdW1TwQ-bddEIKTmSDv0b2QQAypo7",
     };
 
-    FSACCESS_CLASS fsa(makeFsAccess());
+    auto fsa = makeFsAccess();
     string name = "testfile";
     LocalPath localname = LocalPath::fromAbsolutePath(name);
 
@@ -4078,13 +4066,13 @@ TEST_F(SdkTest, SdkTestFingerprint)
             ofs.write((char*)&value, filesizes[i] % sizeof(value));
         }
 
-        fsa.setmtimelocal(localname, 1000000000);
+        fsa->setmtimelocal(localname, 1000000000);
 
         string streamfp, filefp;
         {
             m_time_t mtime = 0;
             {
-                auto nfa = fsa.newfileaccess();
+                auto nfa = fsa->newfileaccess();
                 nfa->fopen(localname);
                 mtime = nfa->mtime;
             }
@@ -5568,8 +5556,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     LOG_info << "___TEST invalidFileNames___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    FSACCESS_CLASS fsa(makeFsAccess());
-    auto aux = LocalPath::fromRelativePath(fs::current_path().u8string());
+    auto aux = LocalPath::fromAbsolutePath(fs::current_path().u8string());
 
 #if defined (__linux__) || defined (__ANDROID__)
     if (fileSystemAccess.getlocalfstype(aux) == FS_EXT)

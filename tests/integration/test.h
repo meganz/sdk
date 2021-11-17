@@ -3,10 +3,26 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <functional>
+#include <stdio.h>
+#include <map>
+#include <future>
+#include <fstream>
+#include <atomic>
+#include <random>
 
+#include "gtest/gtest.h"
+
+#include <mega.h>
+#include <megaapi_impl.h>
 #include "stdfs.h"
 
+using namespace ::mega;
+using namespace ::std;
+
+
 std::string logTime();
+void WaitMillisec(unsigned n);
 
 class LogStream
 {
@@ -54,6 +70,8 @@ extern bool gTestingInvalidArgs;
 extern bool gResumeSessions;
 extern int gFseventsFd;
 
+extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
+
 LogStream out();
 
 enum { THREADS_PER_MEGACLIENT = 3 };
@@ -93,12 +111,5 @@ private:
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
 
-template<class FsAccessClass>
-FsAccessClass makeFsAccess_()
-{
-    return FsAccessClass(
-#ifdef __APPLE__
-                gFseventsFd
-#endif
-                );
-}
+std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
+

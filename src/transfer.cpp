@@ -589,7 +589,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 
             // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
             MediaProperties vp;
-            vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess);
+            vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess.get());
 
             if (type == PUT)
             {

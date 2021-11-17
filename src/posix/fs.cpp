@@ -867,7 +867,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                     LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
                                     lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                            lastlocalnode,
-                                                                           LocalPath::fromPlatformEncoded(lastname));
+                                                                           LocalPath::fromPlatformEncodedRelative(lastname));
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -896,7 +896,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                     LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
                                     it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                         it->second,
-                                                                        LocalPath::fromPlatformEncoded(std::string(in->name, insize)));
+                                                                        LocalPath::fromPlatformEncodedRelative(std::string(in->name, insize)));
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -920,7 +920,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
                 lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                        lastlocalnode,
-                                                       LocalPath::fromPlatformEncoded(lastname));
+                                                       LocalPath::fromPlatformEncodedRelative(lastname));
 
                 r |= Waiter::NEEDEXEC;
             }

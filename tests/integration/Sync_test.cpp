@@ -114,26 +114,6 @@ string parentpath(const string& p)
     return n == string::npos ? "" : p.substr(0, n-1);
 }
 
-void WaitMillisec(unsigned n)
-{
-#ifdef _WIN32
-    if (n > 1000)
-    {
-        for (int i = 0; i < 10; ++i)
-        {
-            // better for debugging, with breakpoints, pauses, etc
-            Sleep(n/10);
-        }
-    }
-    else
-    {
-        Sleep(n);
-    }
-#else
-    usleep(n * 1000);
-#endif
-}
-
 bool createFile(const fs::path &path, const void *data, const size_t data_length)
 {
 #if (__cplusplus >= 201700L)
@@ -676,7 +656,6 @@ struct StandardClient : public MegaApp
 
     string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
-    std::unique_ptr<FileSystemAccess> fsaccess;
     std::recursive_mutex clientMutex;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
@@ -801,11 +780,10 @@ struct StandardClient : public MegaApp
     StandardClient(const fs::path& basepath, const string& name)
         : client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
-        , fsaccess(new FSACCESS_CLASS(makeFsAccess_<FSACCESS_CLASS>()))
         , client(this,
                  &waiter,
                  httpio.get(),
-                 fsaccess.get(),
+                 makeFsAccess(),
 #ifdef DBACCESS_CLASS
                  new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
 #else

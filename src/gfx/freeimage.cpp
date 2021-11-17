@@ -443,12 +443,12 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
     }
     else
     {
-        workingDir = LocalPath::fromPlatformEncoded(tmpPath.c_str());
+        workingDir = LocalPath::fromPlatformEncodedAbsolute(tmpPath.c_str());
     }
 
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess, workingDir);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess.get(), workingDir);
 #else
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess.get());
 #endif
 
     if (!data || !w || !h)

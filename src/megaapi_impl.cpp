@@ -5361,7 +5361,9 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     {
         this->appKey = appKey;
     }
-    client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
+
+    // We keep the fsAccess raw pointer but MegaClient has ownership.  Valid until we destroy MegaClient.
+    client = new MegaClient(this, waiter, httpio, unique_ptr<FileSystemAccess>(fsAccess), dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
 
 #if defined(_WIN32)
     httpio->unlock();
@@ -5390,7 +5392,6 @@ MegaApiImpl::~MegaApiImpl()
     assert(transferMap.empty());
 
     delete gfxAccess;
-    delete fsAccess;
     delete waiter;
 
 #ifndef DONT_RELEASE_HTTPIO

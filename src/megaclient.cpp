@@ -1233,7 +1233,7 @@ void MegaClient::init()
     mOptimizePurgeNodes = false;
 }
 
-MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
+MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAccess>&& f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
    : mAsyncQueue(*w, workerThreadCount)
    , mCachedStatus(this)
    , useralerts(*this)
@@ -1339,7 +1339,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     waiter = w;
     httpio = h;
-    fsaccess = f;
+    fsaccess = move(f);
     dbaccess = d;
 
     if ((gfx = g))
@@ -3540,7 +3540,7 @@ int MegaClient::preparewait()
     }
 #endif
 
-    waiter->wakeupby(fsaccess, Waiter::NEEDEXEC);
+    waiter->wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
 
 #ifdef MEGA_MEASURE_CODE
     if (waiter->maxds == 0 && !reasonGiven)

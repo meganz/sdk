@@ -4641,7 +4641,7 @@ void exec_open(autocomplete::ACState& s)
             clientFolder = new MegaClient(new DemoAppFolder,
                                           client->waiter,
                                           client->httpio,
-                                          fsAccess.release(),
+                                          move(fsAccess),
                 #ifdef DBACCESS_CLASS
                                           new DBACCESS_CLASS(*startDir),
                 #else
@@ -6722,7 +6722,7 @@ void exec_mediainfo(autocomplete::ACState& s)
         string ext;
         if (client->fsaccess->getextension(localFilename, ext) && MediaProperties::isMediaFilenameExt(ext))
         {
-            mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess);
+            mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess.get());
                                 uint32_t dummykey[4] = { 1, 2, 3, 4 };  // check encode/decode
                                 string attrs = mp.convertMediaPropertyFileAttributes(dummykey, client->mediaFileInfo);
                                 MediaProperties dmp = MediaProperties::decodeMediaPropertiesAttributes(":" + attrs, dummykey);
@@ -8602,7 +8602,7 @@ int main(int argc, char* argv[])
     client = new MegaClient(demoApp,
                             waiter,
                             httpIO,
-                            fsAccess.get(),
+                            move(fsAccess),
                             dbAccess,
                             gfx,
                             "Gk8DyQBS",
