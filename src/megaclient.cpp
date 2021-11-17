@@ -1366,6 +1366,7 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete badhostcs;
     delete dbaccess;
+    delete fsaccess;
     LOG_debug << clientname << "~MegaClient completing";
 }
 
