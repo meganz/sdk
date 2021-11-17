@@ -1097,13 +1097,6 @@ void LocalPath::clear()
     assert(invariant());
 }
 
-void LocalPath::erase(size_t pos, size_t count)
-{
-    assert(invariant());
-    localpath.erase(pos, count);
-    assert(invariant());
-}
-
 void LocalPath::truncate(size_t bytePos)
 {
     assert(invariant());

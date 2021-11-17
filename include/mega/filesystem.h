@@ -157,7 +157,6 @@ public:
 
     bool empty() const;
     void clear();
-    void erase(size_t pos = 0, size_t count = string::npos);
     void truncate(size_t bytePos);
     LocalPath leafName() const;
     void append(const LocalPath& additionalPath);

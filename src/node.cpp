@@ -1684,7 +1684,7 @@ void LocalNode::getlocalpath(LocalPath& path) const
         return;
     }
 
-    path.erase();
+    path.clear();
 
     for (const LocalNode* l = this; l != nullptr; l = l->parent)
     {
