@@ -41,9 +41,8 @@ shared_promise<T> makeSharedPromise()
 
 bool suppressfiles = false;
 
-// Don't use filesystem notifications.
-//#define NO_FILESYSTEM_NOTIFICATIONS 1
-#define SCAN_INTERVAL_SEC 600
+// dgw: TODO: Perhaps make this a runtime parameter?
+#define SCAN_INTERVAL_SEC 3600
 
 // Don't use size filters.
 #define NO_SIZE_FILTER 1
@@ -1952,10 +1951,11 @@ bool StandardClient::backupAdd_inthread(const string& drivePath,
         config.mOriginalPathOfRemoteRootNode.front() == '/')
         << "config.mOriginalPathOfRemoteRootNode: " << config.mOriginalPathOfRemoteRootNode.c_str();
 
-#ifdef NO_FILESYSTEM_NOTIFICATIONS
-                config.mChangeDetectionMethod = CDM_PERIODIC_SCANNING;
-                config.mScanIntervalSec = SCAN_INTERVAL_SEC;
-#endif // NO_FILESYSTEM_NOTIFICATIONS
+    if (gScanOnly)
+    {
+        config.mChangeDetectionMethod = CDM_PERIODIC_SCANNING;
+        config.mScanIntervalSec = SCAN_INTERVAL_SEC;
+    }
 
     // Try and add the backup.
     return client.addsync(config, true, completion, logname) == API_OK;
@@ -2014,10 +2014,11 @@ bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::p
                         syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
                 << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
 
-#ifdef NO_FILESYSTEM_NOTIFICATIONS
+            if (gScanOnly)
+            {
                 syncConfig.mChangeDetectionMethod = CDM_PERIODIC_SCANNING;
                 syncConfig.mScanIntervalSec = SCAN_INTERVAL_SEC;
-#endif // NO_FILESYSTEM_NOTIFICATIONS
+            }
 
             error e = client.addsync(syncConfig, true, addSyncCompletion, logname);
             return !e;
