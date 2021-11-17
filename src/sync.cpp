@@ -2965,6 +2965,34 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems, bool detailed)
     problems.mStalls = stallReport;
 }
 
+void Syncs::getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> completionClosure,
+        bool completionInClient)
+{
+    using MC = MegaClient;
+    using DBTC = DBTableTransactionCommitter;
+
+    if (completionInClient)
+    {
+        completionClosure = [this, completionClosure](SyncStallInfo& syncStallInfo) {
+            queueClient([completionClosure, syncStallInfo](MC&, DBTC&) mutable {
+                completionClosure(syncStallInfo);
+            });
+        };
+    }
+
+    queueSync([this, completionClosure]() mutable {
+        SyncStallInfo syncStallInfo;
+        getSyncStallsInSyncThread(syncStallInfo);
+        completionClosure(syncStallInfo);
+    });
+}
+
+void Syncs::getSyncStallsInSyncThread(SyncStallInfo& syncStallInfo)
+{
+    assert(onSyncThread());
+    syncStallDetected(syncStallInfo); // Collect sync stalls
+}
+
 SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 {
     assert(onSyncThread() || !onSyncThread());

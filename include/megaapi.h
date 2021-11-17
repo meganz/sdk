@@ -3141,7 +3141,8 @@ class MegaRequest
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_SYNC_NAME_CONFLICTS                                    = 145,
             TYPE_GET_SYNC_PROBLEMS                                          = 146,
-            TOTAL_OF_REQUEST_TYPES                                          = 147,
+            TYPE_GET_SYNC_STALLS                                            = 147,
+            TOTAL_OF_REQUEST_TYPES                                          = 148,
         };
 
         virtual ~MegaRequest();
@@ -3944,6 +3945,18 @@ class MegaRequest
          * A reference to this request's MegaSyncProblems instance.
          */
         virtual MegaSyncProblems* getMegaSyncProblems() const;
+
+        /**
+         * @brief
+         * Returns a reference to this request's list of sync stalls.
+         *
+         * This value is valid for the following requests:
+         * - MegaApi::getSyncStalls
+         *
+         * @return
+         * A reference to this request's list of sync stalls.
+         */
+        virtual MegaSyncStallList* getMegaSyncStallList() const;
 
 #endif // ENABLE_SYNC
 };
@@ -14297,6 +14310,17 @@ class MegaApi
          * about any detected name conflicts or stalls.
          */
         void getSyncProblems(MegaRequestListener* listener, bool detailed);
+
+        /**
+         * @brief
+         * Retrieve the list of synchronization stalls detected by the sync engine.
+         *
+         * The type of this request is MegaRequest::TYPE_GET_SYNC_STALLS.
+         *
+         * @param listener
+         * A MegaRequestListener with which to track the request.
+         */
+        void getSyncStalls(MegaRequestListener* listener);
 
         /**
          * @brief Retrieves information involving any Local <-> Cloud synchronization stall conflict

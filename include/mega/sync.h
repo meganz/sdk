@@ -864,6 +864,17 @@ struct Syncs
     void getSyncProblems_inThread(SyncProblems& problems, bool detailed);
 
     /**
+     * @brief route the request to the sync thread for fulfillment.
+     */
+    void getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> completionClosure, 
+            bool completionInClient);
+
+    /**
+     * @brief retrieve sync stall information from within sync thread
+     */
+    void getSyncStallsInSyncThread(SyncStallInfo& syncStallInfo);
+
+    /**
      * @brief
      * Removes previously opened backup databases from that drive from memory.
      *

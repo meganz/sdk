@@ -1281,6 +1281,17 @@ void MegaApiImpl::getSyncProblems(MegaRequestListener* listener, bool detailed)
     waiter->notify();
 }
 
+void MegaApiImpl::getSyncStalls(MegaRequestListener* listener)
+{
+    auto type = MegaRequest::TYPE_GET_SYNC_STALLS;
+    auto request = make_unique<MegaRequestPrivate>(type, listener);
+
+    requestQueue.push(request.get());
+    request.release();
+
+    waiter->notify();
+}
+
 MegaSyncStallPrivate::MegaSyncStallPrivate(
     const string& indexPath,
     const string& localPath,
@@ -3491,6 +3502,11 @@ MegaSyncProblems* MegaRequestPrivate::getMegaSyncProblems() const
     return mProblems.get();
 }
 
+MegaSyncStallList* MegaRequestPrivate::getMegaSyncStallList() const
+{
+    return mSyncStallList.get();
+}
+
 void MegaRequestPrivate::setMegaSyncNameConflictList(unique_ptr<MegaSyncNameConflictList> conflicts)
 {
     mNameConflictList = std::move(conflicts);
@@ -3499,6 +3515,11 @@ void MegaRequestPrivate::setMegaSyncNameConflictList(unique_ptr<MegaSyncNameConf
 void MegaRequestPrivate::setMegaSyncProblems(unique_ptr<MegaSyncProblems> problems)
 {
     mProblems = std::move(problems);
+}
+
+void MegaRequestPrivate::setMegaSyncStallList(unique_ptr<MegaSyncStallList> stallList)
+{
+    mSyncStallList = std::move(stallList);
 }
 
 #endif // ENABLE_SYNC
@@ -4164,6 +4185,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
         case TYPE_GET_SYNC_NAME_CONFLICTS: return "GET_SYNC_NAME_CONFLICTS";
         case TYPE_GET_SYNC_PROBLEMS: return "GET_SYNC_PROBLEMS";
+        case TYPE_GET_SYNC_STALLS: return "GET_SYNC_STALLS";
     }
     return "UNKNOWN";
 }
@@ -21692,6 +21714,20 @@ void MegaApiImpl::sendPendingRequests()
             bool detailed = request->getNumDetails();
 
             client->syncs.getSyncProblems(std::move(completion), true, detailed);
+            break;
+        }
+        case MegaRequest::TYPE_GET_SYNC_STALLS:
+        {
+            auto completionClosure = [this, request](const SyncStallInfo& syncStallInfo) {
+                auto error = ::mega::make_unique<MegaErrorPrivate>(API_OK);
+                auto syncStallList  = ::mega::make_unique<MegaSyncStallListPrivate>(syncStallInfo);
+
+                request->setMegaSyncStallList(std::move(syncStallList));
+
+                fireOnRequestFinish(request, std::move(error));
+            };
+            const bool completeInClient = true;
+            client->syncs.getSyncStalls(std::move(completionClosure), completeInClient);
             break;
         }
 #endif  // ENABLE_SYNC

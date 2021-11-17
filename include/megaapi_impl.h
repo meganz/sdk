@@ -1167,6 +1167,9 @@ class MegaRequestPrivate : public MegaRequest
 
         MegaSyncProblems* getMegaSyncProblems() const override;
         void setMegaSyncProblems(unique_ptr<MegaSyncProblems> problems);
+
+        MegaSyncStallList* getMegaSyncStallList() const override;
+        void setMegaSyncStallList(unique_ptr<MegaSyncStallList> syncStallList);
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT
@@ -1248,6 +1251,7 @@ protected:
 #ifdef ENABLE_SYNC
         unique_ptr<MegaSyncNameConflictList> mNameConflictList;
         unique_ptr<MegaSyncProblems> mProblems;
+        unique_ptr<MegaSyncStallList> mSyncStallList;
 #endif // ENABLE_SYNC
 };
 
@@ -2537,6 +2541,7 @@ class MegaApiImpl : public MegaApp
         char *getBlockedPath();
         void getSyncNameConflicts(MegaRequestListener* listener);
         void getSyncProblems(MegaRequestListener* listener, bool detailed);
+        void getSyncStalls(MegaRequestListener* listener);
 
         size_t getSyncStalls(MegaSyncStallList** conflicts);
         size_t static getSyncStalls(std::unique_ptr<SyncStallInfo> si, MegaSyncStallList** conflicts);
