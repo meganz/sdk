@@ -229,6 +229,15 @@ struct syncRow
     vector<CloudNode*> cloudClashingNames;
     vector<FSNode*> fsClashingNames;
 
+    // True if we've recorded any clashing names.
+    bool hasClashes() const;
+
+    // True if this row exists in the cloud.
+    bool hasCloudPresence() const;
+
+    // True if this row exists on disk.
+    bool hasLocalPresence() const;
+
     bool suppressRecursion = false;
     bool itemProcessed = false;
 
