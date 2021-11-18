@@ -750,7 +750,7 @@ struct MEGA_API LocalNode
     bool isBelow(const LocalNode& other) const;
 
     // Create a watch for this node if necessary.
-    bool watch(const LocalPath& path, handle fsid);
+    WatchResult watch(const LocalPath& path, handle fsid);
 
     void ignoreFilterPresenceChanged(bool present, FSNode* fsNode);
 

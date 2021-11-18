@@ -47,6 +47,35 @@ std::atomic<size_t> ScanService::mNumServices(0);
 std::unique_ptr<ScanService::Worker> ScanService::mWorker;
 std::mutex ScanService::mWorkerLock;
 
+ChangeDetectionMethod changeDetectionMethodFromString(const string& method)
+{
+    static const auto notifications =
+      changeDetectionMethodToString(CDM_NOTIFICATIONS);
+    static const auto scanning =
+      changeDetectionMethodToString(CDM_PERIODIC_SCANNING);
+
+    if (method == notifications)
+        return CDM_NOTIFICATIONS;
+
+    if (method == scanning)
+        return CDM_PERIODIC_SCANNING;
+
+    return CDM_UNKNOWN;
+}
+
+string changeDetectionMethodToString(const ChangeDetectionMethod method)
+{
+    switch (method)
+    {
+    case CDM_NOTIFICATIONS:
+        return "notifications";
+    case CDM_PERIODIC_SCANNING:
+        return "scanning";
+    default:
+        return "unknown";
+    }
+}
+
 ScanService::ScanService(Waiter& waiter)
   : mWaiter(waiter)
 {
@@ -705,6 +734,12 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Unable to read sync configs from disk.";
     case UNKNOWN_DRIVE_PATH:
         return "Unknown drive path.";
+    case INVALID_SCAN_INTERVAL:
+        return "Invalid scan interval specified.";
+    case NOTIFICATION_SYSTEM_UNAVAILABLE:
+        return "Filesystem notification subsystem unavailable.";
+    case UNABLE_TO_ADD_WATCH:
+        return "Unable to add filesystem watch.";
     default:
         return "Undefined error";
     }
@@ -787,6 +822,11 @@ SyncError SyncConfig::knownError() const
     return mKnownError;
 }
 
+bool SyncConfig::isScanOnly() const
+{
+    return mChangeDetectionMethod == CDM_PERIODIC_SCANNING;
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const string& cdebris,
@@ -838,8 +878,13 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
         localdebrisname = clocaldebris.leafName();
         localdebris = clocaldebris;
     }
-    // notifications may be queueing from this moment
-    dirnotify.reset(syncs.fsaccess->newdirnotify(*localroot, mLocalPath, &syncs.waiter));
+
+    // Should this sync make use of filesystem notifications?
+    if (us.mConfig.mChangeDetectionMethod == CDM_NOTIFICATIONS)
+    {
+        // Notifications may be queueing from this moment
+        dirnotify.reset(syncs.fsaccess->newdirnotify(*localroot, mLocalPath, &syncs.waiter));
+    }
 
     // set specified fsfp or get from fs if none
     const auto cfsfp = mUnifiedSync.mConfig.getLocalFingerprint();
@@ -849,14 +894,11 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     }
     else
     {
-        fsfp = dirnotify->fsfingerprint();
+        fsfp = syncs.fsaccess->fsFingerprint(mLocalPath);
     }
 
-    fsstableids = dirnotify->fsstableids();
+    fsstableids = syncs.fsaccess->fsStableIDs(mLocalPath);
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
-
-    // Always create a watch for the root node.
-    localroot->watch(mLocalPath, UNDEF);
 
     // load LocalNodes from cache (only for internal syncs)
     // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
@@ -2253,6 +2295,10 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             LOG_debug << syncname << "Move-target moved to local debris: " << path;
 
+            // Rescan the parent if we're operating in periodic scan mode.
+            if (!dirnotify)
+                parentRow.syncNode->setScanAgain(false, true, false, 0);
+
             // Therefore there is nothing in the local subfolder anymore
             // And we should delete the localnodes corresponding to the items we moved to debris.
             // BUT what if the move is coming from inside that folder ?!!
@@ -2346,6 +2392,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 dstime Sync::procextraq()
 {
     assert(syncs.onSyncThread());
+    assert(dirnotify.get());
 
     Notification notification;
     NotificationDeque& queue = dirnotify->fsDelayedNetworkEventq;
@@ -2417,6 +2464,7 @@ dstime Sync::procextraq()
 dstime Sync::procscanq()
 {
     assert(syncs.onSyncThread());
+    assert(dirnotify.get());
 
     NotificationDeque& queue = dirnotify->fsEventq;
 
@@ -2864,16 +2912,32 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     us.mSync.reset(new Sync(us, debris, localdebris, rootNodeHandle, rootNodeName, inshare, logname));
     us.mConfig.setLocalFingerprint(us.mSync->fsfp);
 
-    error e;
-    if (prevFingerprint && prevFingerprint != us.mConfig.getLocalFingerprint())
-    {
-        LOG_err << "New sync local fingerprint mismatch. Previous: " << prevFingerprint
-            << "  Current: " << us.mConfig.getLocalFingerprint();
-        us.mSync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH, false, true);
-        us.mConfig.mError = LOCAL_FINGERPRINT_MISMATCH;
+    // Assume we'll encounter an error.
+    error e = API_EFAILED;
+
+    // Reduce duplication.
+    auto signalError = [&](SyncError error) {
+        us.mSync->changestate(SYNC_FAILED, error, false, true);
+        us.mConfig.mError = error;
         us.mConfig.mEnabled = false;
         us.mSync.reset();
-        e = API_EFAILED;
+    };
+
+    if (us.mSync->localroot->watch(us.mConfig.getLocalPath(), UNDEF) != WR_SUCCESS)
+    {
+        LOG_err << "Unable to add a watch for the sync root: "
+                << us.mConfig.getLocalPath();
+
+        signalError(UNABLE_TO_ADD_WATCH);
+    }
+    else if (prevFingerprint && prevFingerprint != us.mConfig.getLocalFingerprint())
+    {
+        LOG_err << "New sync local fingerprint mismatch. Previous: "
+                << prevFingerprint
+                << "  Current: "
+                << us.mConfig.getLocalFingerprint();
+
+        signalError(LOCAL_FINGERPRINT_MISMATCH);
     }
     else
     {
@@ -3550,6 +3614,13 @@ void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
     writer.arg_stringWithEscapes("name", name);
     writer.arg_stringWithEscapes("remotePath", remotePath);
     writer.arg_stringWithEscapes("type", type);
+
+    const auto changeMethod =
+      changeDetectionMethodToString(config.mChangeDetectionMethod);
+
+    writer.arg_stringWithEscapes("changeMethod", changeMethod);
+    writer.arg("scanInterval", config.mScanIntervalSec);
+
     writer.endobject();
 }
 
@@ -3557,17 +3628,24 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
 {
     assert(!onSyncThread());
 
-    static const string TYPE_LOCAL_PATH  = "localPath";
-    static const string TYPE_NAME        = "name";
-    static const string TYPE_REMOTE_PATH = "remotePath";
-    static const string TYPE_TYPE        = "type";
+    static const string TYPE_CHANGE_METHOD = "changeMethod";
+    static const string TYPE_LOCAL_PATH    = "localPath";
+    static const string TYPE_NAME          = "name";
+    static const string TYPE_REMOTE_PATH   = "remotePath";
+    static const string TYPE_SCAN_INTERVAL = "scanInterval";
+    static const string TYPE_TYPE          = "type";
 
     LOG_debug << "Attempting to parse config object: "
               << reader.pos;
 
+    // Default to notification change detection method.
+    string changeMethod =
+      changeDetectionMethodToString(CDM_NOTIFICATIONS);
+
     string localPath;
     string name;
     string remotePath;
+    string scanInterval;
     string type;
 
     // Parse config properties.
@@ -3592,6 +3670,10 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
             return false;
         }
 
+        if (key == TYPE_CHANGE_METHOD)
+        {
+            changeMethod = std::move(value);
+        }
         if (key == TYPE_LOCAL_PATH)
         {
             localPath = std::move(value);
@@ -3603,6 +3685,10 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
         else if (key == TYPE_REMOTE_PATH)
         {
             remotePath = std::move(value);
+        }
+        else if (key == TYPE_SCAN_INTERVAL)
+        {
+            scanInterval = std::move(value);
         }
         else if (key == TYPE_TYPE)
         {
@@ -3664,6 +3750,38 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
                 << remotePath;
 
         return false;
+    }
+
+    // Set change detection method.
+    config.mChangeDetectionMethod =
+      changeDetectionMethodFromString(changeMethod);
+
+    if (config.mChangeDetectionMethod == CDM_UNKNOWN)
+    {
+        LOG_err << "Invalid config: "
+                << "unknown change detection method: "
+                << changeMethod;
+
+        return false;
+    }
+
+    // Set scan interval.
+    if (config.mChangeDetectionMethod == CDM_PERIODIC_SCANNING)
+    {
+        std::istringstream istream(scanInterval);
+
+        istream >> config.mScanIntervalSec;
+
+        auto failed = istream.fail() || !istream.eof();
+
+        if (failed || !config.mScanIntervalSec)
+        {
+            LOG_err << "Invalid config: "
+                    << "malformed scan interval: "
+                    << scanInterval;
+
+            return false;
+        }
     }
 
     // Set type.
@@ -5235,6 +5353,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     //SYNC_verbose << syncname << "sync/recurse here: " << syncHere << recurseHere;
 
     // reset this node's sync flag. It will be set again below or while recursing if anything remains to be done.
+    auto originalScanAgain = row.syncNode->scanAgain;
     auto originalSyncAgain = row.syncNode->syncAgain;
     row.syncNode->syncAgain = TREE_RESOLVED;
 
@@ -5356,6 +5475,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     if (syncs.mSyncFlags->earlyRecurseExitRequested)
                     {
                         // restore flags to at least what they were, for when we revisit on next full recurse
+                        row.syncNode->scanAgain = std::max<TreeState>(row.syncNode->scanAgain, originalScanAgain);
                         row.syncNode->syncAgain = std::max<TreeState>(row.syncNode->syncAgain, originalSyncAgain);
                         row.syncNode->checkMovesAgain = std::max<TreeState>(row.syncNode->checkMovesAgain, originalCheckMovesAgain);
                         row.syncNode->conflicts = std::max<TreeState>(row.syncNode->conflicts, originalConflicsFlag);
@@ -5518,7 +5638,11 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // Add watches as necessary.
                             if (childRow.fsNode)
                             {
-                                childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
+                                auto result = childRow.syncNode->watch(fullPath.localPath, childRow.fsNode->fsid);
+
+                                // Any fatal errors while adding the watch?
+                                if (result == WR_FATAL)
+                                    changestate(SYNC_FAILED, UNABLE_TO_ADD_WATCH, false, true);
                             }
 
                             if (!recursiveSync(childRow, fullPath, belowRemovedCloudNode || childRow.recurseBelowRemovedCloudNode, belowRemovedFsNode || childRow.recurseBelowRemovedFsNode, depth+1))
@@ -6791,6 +6915,14 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     SYNC_verbose << syncname << "Download complete, but move failed" << logTriplet(row, fullPath);
                     row.syncNode->resetTransfer(nullptr);
                 }
+
+                // Rescan our parent if we're operating in periodic scan mode.
+                //
+                // The reason we're issuing a scan in almost all cases is
+                // that we can't tell whether we were able to move any
+                // existing file at the donwload target into the debris.
+                if (!fsAccess.target_name_too_long && !dirnotify.get())
+                    parentRow.syncNode->setScanAgain(false, true, false, 0);
             }
             else
             {
@@ -7113,8 +7245,12 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, 
 
         if (filesystemSync)
         {
-            auto fp1 = it->second->sync->dirnotify->fsfingerprint();
-            auto fp2 = filesystemSync->dirnotify->fsfingerprint();
+            const auto& root1 = it->second->sync->localroot->localname;
+            const auto& root2 = filesystemSync->localroot->localname;
+
+            auto fp1 = fsaccess->fsFingerprint(root1);
+            auto fp2 = fsaccess->fsFingerprint(root2);
+
             if (!fp1 || !fp2 || fp1 != fp2)
             {
                 continue;
@@ -7170,8 +7306,12 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type,
 
         if (filesystemSync)
         {
-            auto fp1 = it->second->sync->dirnotify->fsfingerprint();
-            auto fp2 = filesystemSync->dirnotify->fsfingerprint();
+            const auto& root1 = it->second->sync->localroot->localname;
+            const auto& root2 = filesystemSync->localroot->localname;
+
+            auto fp1 = fsaccess->fsFingerprint(root1);
+            auto fp2 = fsaccess->fsFingerprint(root2);
+
             if (!fp1 || !fp2 || fp1 != fp2)
             {
                 continue;
@@ -7536,6 +7676,37 @@ bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
     assert(fsn.fingerprint.isvalid);
     return ln.syncedFingerprint.isvalid &&
             fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
+}
+
+std::future<bool> Syncs::triggerFullScan(handle backupID)
+{
+    assert(!onSyncThread());
+
+    auto notifier = std::make_shared<std::promise<bool>>();
+    auto result = notifier->get_future();
+
+    queueSync([backupID, notifier, this]() {
+        lock_guard<mutex> guard(mSyncVecMutex);
+
+        for (auto& us : mSyncVec)
+        {
+            auto* s = us->mSync.get();
+
+            if (!s || us->mConfig.mBackupId != backupID)
+                continue;
+
+            if (us->mConfig.isScanOnly())
+                s->localroot->setScanAgain(false, true, true, 0);
+
+            notifier->set_value(true);
+
+            return;
+        }
+
+        notifier->set_value(false);
+    });
+
+    return result;
 }
 
 void Syncs::triggerSync(NodeHandle h, bool recurse)
@@ -8308,11 +8479,13 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
 {
     const auto TYPE_BACKUP_ID       = MAKENAMEID2('i', 'd');
     const auto TYPE_BACKUP_STATE    = MAKENAMEID2('b', 's');
+    const auto TYPE_CHANGE_METHOD   = MAKENAMEID2('c', 'm');
     const auto TYPE_ENABLED         = MAKENAMEID2('e', 'n');
     const auto TYPE_FINGERPRINT     = MAKENAMEID2('f', 'p');
     const auto TYPE_LAST_ERROR      = MAKENAMEID2('l', 'e');
     const auto TYPE_LAST_WARNING    = MAKENAMEID2('l', 'w');
     const auto TYPE_NAME            = MAKENAMEID1('n');
+    const auto TYPE_SCAN_INTERVAL   = MAKENAMEID2('s', 'i');
     const auto TYPE_SOURCE_PATH     = MAKENAMEID2('s', 'p');
     const auto TYPE_SYNC_TYPE       = MAKENAMEID2('s', 't');
     const auto TYPE_TARGET_HANDLE   = MAKENAMEID2('t', 'h');
@@ -8325,6 +8498,11 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
         case EOO:
             // success if we reached the end of the object
             return *reader.pos == '}';
+
+        case TYPE_CHANGE_METHOD:
+            config.mChangeDetectionMethod =
+              static_cast<ChangeDetectionMethod>(reader.getint32());
+            break;
 
         case TYPE_ENABLED:
             config.mEnabled = reader.getbool();
@@ -8367,6 +8545,10 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
 
             break;
         }
+
+        case TYPE_SCAN_INTERVAL:
+            config.mScanIntervalSec =reader.getuint32();
+            break;
 
         case TYPE_SYNC_TYPE:
             config.mSyncType =
@@ -8452,6 +8634,8 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg("st", config.mSyncType);
     writer.arg("en", config.mEnabled);
     writer.arg("bs", config.mBackupState);
+    writer.arg("cm", config.mChangeDetectionMethod);
+    writer.arg("si", config.mScanIntervalSec);
     writer.endobject();
 }
 
@@ -8516,7 +8700,7 @@ void Syncs::syncLoop()
             {
                 if (sync->state() != SYNC_FAILED && sync->fsfp)
                 {
-                    fsfp_t current = sync->dirnotify->fsfingerprint();
+                    fsfp_t current = fsaccess->fsFingerprint(sync->localroot->localname);
                     if (sync->fsfp != current)
                     {
                         LOG_err << "Local fingerprint mismatch. Previous: " << sync->fsfp
@@ -8594,12 +8778,18 @@ void Syncs::syncLoop()
 
         waiter.bumpds();
 
+        // Process filesystem notifications.
         for (auto& us : mSyncVec)
         {
+            // Only process active syncs.
             if (Sync* sync = us->mSync.get())
             {
-                sync->procextraq();
-                sync->procscanq();
+                // And only those that make use of filesystem events.
+                if (sync->dirnotify)
+                {
+                    sync->procextraq();
+                    sync->procscanq();
+                }
             }
         }
 
@@ -8608,11 +8798,29 @@ void Syncs::syncLoop()
         waiter.bumpds();
 
         // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
-        if (!mClient.actionpacketsCurrent ||
-           (!syncStallState && !isAnySyncSyncing(true)))
-        {
-            // nothing to do, go back to waiting
+        if (!mClient.actionpacketsCurrent)
             continue;
+
+        // Does it look like we have no work to do?
+        if (!syncStallState && !isAnySyncSyncing(true))
+        {
+            auto mustScan = false;
+
+            // Check if any syncs need a periodic scan.
+            for (auto& us : mSyncVec)
+            {
+                auto* sync = us->mSync.get();
+
+                // Only active syncs without a notifier.
+                if (!sync || sync->dirnotify)
+                    continue;
+
+                mustScan |= sync->syncscanbt.armed();
+            }
+
+            // No work to do.
+            if (!mustScan)
+                continue;
         }
 
         if (syncStallState &&
@@ -8636,7 +8844,7 @@ void Syncs::syncLoop()
             mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass && !mSyncFlags->isInitialPass;
             mSyncFlags->reachableNodesAllScannedThisPass = true;
             mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves(false); // paused syncs do not participate in move detection
-            mSyncFlags->noProgress = true;
+            mSyncFlags->noProgress = mSyncFlags->reachableNodesAllScannedLastPass;
         }
 
         unsigned skippedForScanning = 0;
@@ -8647,24 +8855,54 @@ void Syncs::syncLoop()
 
             if (sync && sync->state() >= SYNC_INITIALSCAN)
             {
-
-                if (sync->dirnotify->mErrorCount.load())
+                // Does this sync rely on filesystem notifications?
+                if (auto* notifier = sync->dirnotify.get())
                 {
-                    LOG_err << "Sync " << toHandle(sync->getConfig().getBackupId()) << " had a filesystem notification buffer overflow.  Triggering full scan.";
-                    sync->dirnotify->mErrorCount.store(0);
-                    sync->localroot->setScanAgain(false, true, true, 5);
+                    // Has it encountered a recoverable error?
+                    if (notifier->mErrorCount.load() > 0)
+                    {
+                        // Then issue a full scan.
+                        LOG_err << "Sync "
+                                << toHandle(sync->getConfig().getBackupId())
+                                << " had a filesystem notification buffer overflow. Triggering full scan.";
+
+                        // Reset the error counter.
+                        notifier->mErrorCount.store(0);
+                        
+                        // Rescan everything from the root down.
+                        sync->localroot->setScanAgain(false, true, true, 5);
+                    }
+
+                    string reason;
+
+                    // Has it encountered an unrecoverable error?
+                    if (notifier->getFailed(reason))
+                    {
+                        // Then fail the sync.
+                        LOG_err << "Sync "
+                                << toHandle(sync->getConfig().getBackupId())
+                                << " notifications failed or were not available (reason: "
+                                << reason
+                                << ")";
+
+                        sync->changestate(SYNC_FAILED, NOTIFICATION_SYSTEM_UNAVAILABLE, false, true);
+                    }
                 }
-
-                string failReason;
-                if (sync->dirnotify->getFailed(failReason))
+                else
                 {
+                    // No notifier.
+
+                    // Is it time to issue a rescan?
                     if (sync->syncscanbt.armed())
                     {
-                        LOG_warn << "Sync " << toHandle(sync->getConfig().getBackupId()) <<  " notifications failed or were not available (reason: " << failReason << " and it's time for another full scan";
-                        auto totalnodes = sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
-                        dstime backoff = 300 + totalnodes / 128;
-                        sync->syncscanbt.backoff(backoff);
-                        LOG_warn << "Sync " << toHandle(sync->getConfig().getBackupId()) << " next full scan in " << backoff << " ds";
+                        // Issue full rescan.
+                        sync->localroot->setScanAgain(false, true, true, 0);
+
+                        // Translate interval into deciseconds.
+                        auto intervalDs = sync->getConfig().mScanIntervalSec * 10;
+
+                        // Queue next scan.
+                        sync->syncscanbt.backoff(intervalDs);
                     }
                 }
 

@@ -66,7 +66,13 @@ class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 public:
     using FileSystemAccess::getlocalfstype;
 
-    int notifyfd;
+    int notifyfd = -1;
+
+    // Used to store any errors that might be returned by the system when we
+    // try and create a filesystem monitor.
+    //
+    // Say, the reason why we couldn't create an inotify instance.
+    int mNotificationError = 0;
 
 #ifdef USE_INOTIFY
     WatchMap mWatches;
@@ -81,7 +87,6 @@ public:
     static char *appbasepath;
 #endif
 
-    bool notifyerr;
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
@@ -89,6 +94,14 @@ public:
     DirAccess* newdiraccess() override;
 #ifdef ENABLE_SYNC
     DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter) override;
+
+    // Track notifiers created by this FSA.
+    //
+    // Necessary so that we can correctly report transient failures.
+    //
+    // Say, if the event buffer has overflowed. In that case, we need to
+    // signal to each sync that they need to perform a rescan.
+    list<DirNotify*> mNotifiers;
 #endif
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
@@ -126,6 +139,10 @@ public:
     ~PosixFileSystemAccess();
 
     bool cwd(LocalPath& path) const override;
+
+    fsfp_t fsFingerprint(const LocalPath& path) const override;
+
+    bool fsStableIDs(const LocalPath& path) const override;
 };
 
 #ifdef HAVE_AIO_RT
@@ -193,15 +210,12 @@ class MEGA_API PosixDirNotify : public DirNotify
 public:
     PosixFileSystemAccess* fsaccess;
 
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
-
     PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root, const LocalPath& rootPath);
 
     ~PosixDirNotify();
 
 #if defined(ENABLE_SYNC) && defined(USE_INOTIFY)
-    pair<WatchMapIterator, bool> addWatch(LocalNode& node, const LocalPath& path, handle fsid);
+    pair<WatchMapIterator, WatchResult> addWatch(LocalNode& node, const LocalPath& path, handle fsid);
     void removeWatch(WatchMapIterator entry);
 #endif // ENABLE_SYNC && USE_INOTIFY
 
@@ -210,6 +224,9 @@ private:
     // Our position in the PFSA::mRoots map.
     map<string, Sync*>::iterator mRootsIt;
 #endif // __MACH__
+
+    // Our position in the PFSA::mNotifiers list.
+    list<DirNotify*>::iterator mNotifiersIt;
 };
 #endif
 

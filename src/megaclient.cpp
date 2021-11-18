@@ -12997,6 +12997,19 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
+    // Has the user requested the sync operate in periodic scanning mode?
+    if (syncConfig.mChangeDetectionMethod == CDM_PERIODIC_SCANNING)
+    {
+        // Have they specfied a valid scan interval?
+        if (!syncConfig.mScanIntervalSec)
+        {
+            syncConfig.mEnabled = false;
+            syncConfig.mError = INVALID_SCAN_INTERVAL;
+
+            return API_EARGS;
+        }
+    }
+
     if (syncConfig.isExternal())
     {
         // Currently only possible for backup syncs.

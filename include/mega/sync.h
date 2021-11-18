@@ -37,6 +37,29 @@ class BackupInfoSync;
 class BackupMonitor;
 class MegaClient;
 
+// How should the sync engine detect filesystem changes?
+enum ChangeDetectionMethod
+{
+    // Via filesystem event notifications.
+    //
+    // If the filesystem notification subsystem encounters an unrecoverable
+    // error then all asssociated syncs will be failed unless the user has
+    // specified a scan frequency.
+    CDM_NOTIFICATIONS,
+    // Via periodic rescanning.
+    //
+    // The user must specify a scan frequency in order to use this mode.
+    CDM_PERIODIC_SCANNING,
+    // Unknown change detection method.
+    //
+    // A possible result of importing a user-edited sync config.
+    CDM_UNKNOWN
+}; // ChangeDetectionMethod
+
+ChangeDetectionMethod changeDetectionMethodFromString(const string& method);
+
+string changeDetectionMethodToString(const ChangeDetectionMethod method);
+
 class SyncConfig
 {
 public:
@@ -155,12 +178,23 @@ public:
     // Current running state.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
     syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no assoicated mSync
 
+    // How should the engine detect filesystem changes?
+    ChangeDetectionMethod mChangeDetectionMethod = CDM_NOTIFICATIONS;
+
+    // How often should the engine rescan the filesystem?
+    //
+    // Only meaningful when a sync is effectively operating in periodic-scan mode.
+    unsigned mScanIntervalSec = 0;
+
     // enum to string conversion
     static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
     static bool synctypefromname(const string& name, Type& type);
 
     SyncError knownError() const;
+
+    // True if this sync is operating in scan-only mode.
+    bool isScanOnly() const;
 
 private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
@@ -962,6 +996,9 @@ public:
 
     // Update remote location
     bool updateSyncRemoteLocation(UnifiedSync&, bool exists, string cloudPath);
+    
+    // Trigger a full scan on the specified sync.
+    std::future<bool> triggerFullScan(handle backupID);
 
     // mark nodes as needing to be checked for sync actions
     void triggerSync(NodeHandle, bool recurse = false);

@@ -68,6 +68,7 @@ extern std::string USER_AGENT;
 extern bool gRunningInCI;
 extern bool gTestingInvalidArgs;
 extern bool gResumeSessions;
+extern bool gScanOnly;
 extern int gFseventsFd;
 
 extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
@@ -581,6 +582,8 @@ struct StandardClient : public ::mega::MegaApp
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
     void wouldBeEscapedOnDownload(fs::path root, string remoteName, PromiseBoolSP result);
     bool wouldBeEscapedOnDownload(fs::path root, string remoteName);
+    void triggerFullScan(handle backupID);
+
 };
 
 

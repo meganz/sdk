@@ -569,13 +569,6 @@ public:
 
     void notify(NotificationDeque&, LocalNode *, Notification::ScanRequirement, LocalPath&&, bool = false);
 
-    // filesystem fingerprint
-    virtual fsfp_t fsfingerprint() const;
-
-    // Returns true if the filesystem's IDs are stable (e.g. never change between mounts).
-    // This should return false for any FAT filesystem.
-    virtual bool fsstableids() const;
-
     DirNotify(const LocalPath& rootPath);
     virtual ~DirNotify() {}
 
@@ -698,6 +691,12 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // Get the current working directory.
     virtual bool cwd(LocalPath& path) const = 0;
+
+    // Retrieve the fingerprint of the filesystem containing the specified path.
+    virtual fsfp_t fsFingerprint(const LocalPath& path) const;
+
+    // True if the filesystem indicated by the specified path has stable FSIDs.
+    virtual bool fsStableIDs(const LocalPath& path) const;
 };
 
 enum FilenameAnomalyType

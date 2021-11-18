@@ -3235,6 +3235,8 @@ autocomplete::ACN autocompleteSyntax()
                     opt(flag("-backup")),
                     opt(sequence(flag("-external"), param("drivePath"))),
                     opt(sequence(flag("-name"), param("syncname"))),
+                    opt(flag("-scan-only")),
+                    opt(sequence(flag("-scan-interval"), param("interval-secs"))),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
 
@@ -8925,10 +8927,12 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
-    string drive, syncname;
+    string drive, syncname, scanInterval;
     bool backup = s.extractflag("-backup");
     bool external = s.extractflagparam("-external", drive);
     bool named = s.extractflagparam("-name", syncname);
+    bool scanOnly = s.extractflag("-scan-only");
+    bool scanIntervalSpecified = s.extractflagparam("-scan-interval", scanInterval);
 
     // sync add source target
     LocalPath drivePath = localPathArg(drive);
@@ -8957,6 +8961,20 @@ void exec_syncadd(autocomplete::ACState& s)
                  true,
                  backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
+    // Scan interval
+    if (scanIntervalSpecified)
+    {
+        auto i = atoi(scanInterval.c_str());
+
+        if (i >= 0)
+            config.mScanIntervalSec = static_cast<unsigned>(i);
+    }
+
+    // Scan only.
+    if (scanOnly)
+        config.mChangeDetectionMethod = CDM_PERIODIC_SCANNING;
+
+    // Drive ID.
     if (external)
     {
         if (!backup)
@@ -9219,12 +9237,21 @@ void exec_synclist(autocomplete::ACState& s)
         }
 
         // Display sync type.
-
         cout << "  Type: "
             << (config.isExternal() ? "EX" : "IN")
             << "TERNAL "
             << SyncConfig::synctypename(config.getType())
             << "\n";
+
+        // Display change detection method.
+        cout << "  Change Detection Method: "
+             << changeDetectionMethodToString(config.mChangeDetectionMethod)
+             << "\n";
+
+        // Display scan interval.
+        cout << "  Scan Interval (seconds): "
+             << config.mScanIntervalSec
+             << "\n";
 
         std::promise<bool> synchronous;
         client->syncs.collectSyncNameConflicts(config.mBackupId, [&synchronous](list<NameConflict>&& conflicts){

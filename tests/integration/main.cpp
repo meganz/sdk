@@ -15,6 +15,7 @@ using namespace ::mega;
 
 bool gRunningInCI = false;
 bool gResumeSessions = false;
+bool gScanOnly = false;
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
 int gFseventsFd = -1;
@@ -247,6 +248,11 @@ int main (int argc, char *argv[])
         else if (std::string(*it) == "--COUT")
         {
             gOutputToCout = true;
+            argc -= 1;
+        }
+        else if (std::string(*it) == "--SCANONLY")
+        {
+            gScanOnly = true;
             argc -= 1;
         }
         else if (std::string(*it).substr(0, 9) == "--APIURL:")

@@ -2589,8 +2589,12 @@ bool LocalNode::WatchHandle::operator==(handle fsid) const
     return fsid == mEntry->second.second;
 }
 
-bool LocalNode::watch(const LocalPath& path, handle fsid)
+WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
 {
+    // Can't add a watch if we don't have a notifier.
+    if (!sync->dirnotify)
+        return WR_SUCCESS;
+
     // Do we need to (re)create a watch?
     if (mWatchHandle == fsid)
     {
@@ -2598,7 +2602,7 @@ bool LocalNode::watch(const LocalPath& path, handle fsid)
                     << " watch for path: " << path.toPath()
                     << " with mWatchHandle == fsid == " << fsid
                     << " Already in place";
-        return true;
+        return WR_SUCCESS;
     }
 
     // Get our hands on the notifier.
@@ -2626,10 +2630,10 @@ WatchMap LocalNode::WatchHandle::mSentinel;
 
 #else // USE_INOTIFY
 
-bool LocalNode::watch(const LocalPath&, handle)
+WatchResult LocalNode::watch(const LocalPath&, handle)
 {
     // Only inotify requires us to create watches for each node.
-    return true;
+    return WR_SUCCESS;
 }
 
 #endif // ! USE_INOTIFY

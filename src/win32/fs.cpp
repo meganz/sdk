@@ -32,6 +32,68 @@
 
 namespace mega {
 
+class ScopedFileHandle
+{
+public:
+    ScopedFileHandle()
+      : mHandle(INVALID_HANDLE_VALUE)
+    {
+    }
+
+    ScopedFileHandle(HANDLE handle)
+      : mHandle(handle)
+    {
+    }
+
+    MEGA_DISABLE_COPY(ScopedFileHandle);
+
+    ScopedFileHandle(ScopedFileHandle&& other)
+      : mHandle(other.mHandle)
+    {
+        other.mHandle = INVALID_HANDLE_VALUE;
+    }
+
+    ~ScopedFileHandle()
+    {
+        if (mHandle != INVALID_HANDLE_VALUE)
+            CloseHandle(mHandle);
+    }
+
+    ScopedFileHandle& operator=(ScopedFileHandle&& rhs)
+    {
+        using std::swap;
+
+        ScopedFileHandle temp(std::move(rhs));
+
+        swap(*this, temp);
+
+        return *this;
+    }
+
+    operator bool() const
+    {
+        return mHandle != INVALID_HANDLE_VALUE;
+    }
+
+    HANDLE get() const
+    {
+        return mHandle;
+    }
+
+    void reset(HANDLE handle)
+    {
+        operator=(ScopedFileHandle(handle));
+    }
+
+    void reset()
+    {
+        operator=(ScopedFileHandle());
+    }
+
+private:
+    HANDLE mHandle;
+};
+
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, true);
@@ -1103,10 +1165,23 @@ void WinFileSystemAccess::statsid(string *id) const
 
 #ifdef ENABLE_SYNC
 
-fsfp_t WinDirNotify::fsfingerprint() const
+fsfp_t WinFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
-	BY_HANDLE_FILE_INFORMATION fi;
-	if (!GetFileInformationByHandle(hDirectory, &fi))
+    ScopedFileHandle hDirectory =
+        CreateFileW(path.localpath.c_str(),
+                    FILE_LIST_DIRECTORY,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    NULL,
+                    OPEN_EXISTING,
+                    FILE_FLAG_BACKUP_SEMANTICS,
+                    NULL);
+
+    if (!hDirectory)
+        return 0;
+
+    BY_HANDLE_FILE_INFORMATION fi;
+
+	if (!GetFileInformationByHandle(hDirectory.get(), &fi))
     {
         LOG_err << "Unable to get fsfingerprint. Error code: " << GetLastError();
         return 0;
@@ -1115,10 +1190,10 @@ fsfp_t WinDirNotify::fsfingerprint() const
     return fi.dwVolumeSerialNumber + 1;
 }
 
-bool WinDirNotify::fsstableids() const
+bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
     TCHAR volume[MAX_PATH + 1];
-    if (GetVolumePathNameW(localbasepath.localpath.data(), volume, MAX_PATH + 1))
+    if (GetVolumePathNameW(path.localpath.data(), volume, MAX_PATH + 1))
     {
         TCHAR fs[MAX_PATH + 1];
         if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))

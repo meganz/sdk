@@ -446,7 +446,10 @@ enum SyncError {
     COULD_NOT_MOVE_CLOUD_NODES = 32,        // rename() failed
     COULD_NOT_CREATE_IGNORE_FILE = 33,      // Couldn't create a sync's initial ignore file.
     SYNC_CONFIG_READ_FAILURE = 34,          // Couldn't read sync configs from disk.
-    UNKNOWN_DRIVE_PATH = 35                 // Sync's drive path isn't known.
+    UNKNOWN_DRIVE_PATH = 35,                // Sync's drive path isn't known.
+    INVALID_SCAN_INTERVAL = 36,             // The user's specified an invalid scan interval.
+    NOTIFICATION_SYSTEM_UNAVAILABLE = 37,   // Filesystem notification subsystem has encountered an unrecoverable error.
+    UNABLE_TO_ADD_WATCH = 38                // Unable to add a filesystem watch.
 };
 
 enum SyncWarning {
@@ -480,6 +483,16 @@ using WatchMap = multimap<int, WatchEntry>;
 using WatchMapIterator = WatchMap::iterator;
 
 #endif // USE_INOTIFY
+
+enum WatchResult
+{
+    // Unable to add a watch due to bad path, etc.
+    WR_FAILURE,
+    // Unable to add a watch due to resource limits.
+    WR_FATAL,
+    // Successfully added a watch.
+    WR_SUCCESS
+}; // WatchResult
 
 typedef set<Node*> node_set;
 
