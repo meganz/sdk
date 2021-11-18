@@ -8710,17 +8710,14 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                             && n->type == FILENODE
                             && nn_nni.ovhandle != UNDEF)
                     {
-                        /* if file versioning is disabled, and new node (type == FILENODE) has a valid ovhandle,
-                         * it means that old node has been overwritten by new one, because both of them had the
-                         * same parent node, the same name, but different file fingerprint */
+                        /* The API replace the existing node ('ov') by the new node, so
+                         * the old one needs to be removed effectively */
                         Node *ovNode = nodebyhandle(nn_nni.ovhandle);
                         if (ovNode)
                         {
                             TreeProcDel td;
                             proctree(ovNode, &td, false, true);
-                            char ovhandle64[12];
-                            Base64::btoa((byte*)&nn_nni.ovhandle, MegaClient::NODEHANDLE, ovhandle64);
-                            LOG_debug << "file versioning disabled, removing overwritten file node: " << ovhandle64 << "\n";
+                            LOG_debug << "File " << Base64Str<MegaClient::NODEHANDLE>(nn_nni.ovhandle) << " replaced by " << Base64Str<MegaClient::NODEHANDLE>(h);
                         }
                     }
 
