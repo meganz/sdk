@@ -2233,7 +2233,7 @@ void LocalNode::checkTransferCompleted(syncRow& row, syncRow& parentRow, SyncPat
             }
             else if (!found)
             {
-                LOG_debug << "Uploaded file's node is not found despite being created. Full operation reset. " << upload->putnodesResultHandle;
+                LOG_debug << "Uploaded file's node is not found despite being created. Full operation reset. " << upload->putnodesResultHandle.load();
                 resetTransfer(nullptr);
             }
             else // !parentRow.cloudNode
