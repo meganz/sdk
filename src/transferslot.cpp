@@ -60,7 +60,7 @@ const dstime TransferSlot::XFERTIMEOUT = 600;
 const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 
 // max request size for downloads
-#if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(USE_IOS)
     const m_off_t TransferSlot::MAX_REQ_SIZE = 2097152; // 2 MB
 #elif defined (_WIN32) || defined(HAVE_AIO_RT)
     const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB
@@ -78,7 +78,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     lastprogressreport = 0;
     progressreported = 0;
     speed = meanSpeed = 0;
-    progresscontiguous = 0;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -98,7 +97,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     slots_it = transfer->client->tslots.end();
 
     maxRequestSize = MAX_REQ_SIZE;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     MEMORYSTATUSEX statex;
     memset(&statex, 0, sizeof (statex));
     statex.dwLength = sizeof (statex);
@@ -1403,23 +1402,23 @@ void TransferSlot::progress()
     }
 }
 
-void TransferSlot::updatecontiguousprogress()
+m_off_t TransferSlot::updatecontiguousprogress()
 {
-    chunkmac_map::iterator pcit;
-    chunkmac_map &pcchunkmacs = transfer->chunkmacs;
-    while ((pcit = pcchunkmacs.find(progresscontiguous)) != pcchunkmacs.end()
-           && pcit->second.finished)
-    {
-        progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, transfer->size);
-    }
+    m_off_t contiguousProgress = transfer->chunkmacs.updateContiguousProgress(transfer->size);
+
+    // Since that is updated, we may have a chance to consolidate the macsmac calculation so far also
+    transfer->chunkmacs.updateMacsmacProgress(transfer->transfercipher());
+
     if (!transferbuf.tempUrlVector().empty() && transferbuf.isRaid())
     {
-        LOG_debug << "Contiguous progress: " << progresscontiguous;
+        LOG_debug << "Contiguous progress: " << contiguousProgress;
     }
     else
     {
-        LOG_debug << "Contiguous progress: " << progresscontiguous << " (" << (transfer->pos - progresscontiguous) << ")";
+        LOG_debug << "Contiguous progress: " << contiguousProgress << " (" << (transfer->pos - contiguousProgress) << ")";
     }
+
+    return contiguousProgress;
 }
 
 } // namespace

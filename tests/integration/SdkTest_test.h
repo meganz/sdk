@@ -57,8 +57,8 @@ struct TransferTracker : public ::mega::MegaTransferListener
     std::atomic<bool> finished = { false };
     std::atomic<int> result = { INT_MAX };
     std::promise<int> promiseResult;
-    std::future<int> futureResult;
     MegaApi *mApi;
+    std::future<int> futureResult;
     std::shared_ptr<TransferTracker> selfDeleteOnFinalCallback;
 
     TransferTracker(MegaApi *api): mApi(api), futureResult(promiseResult.get_future())
@@ -241,6 +241,21 @@ public:
 
     std::mutex lastEventMutex;
     std::unique_ptr<MegaEvent> lastEvent;
+    std::set<int> lastEvents;
+
+    void resetlastEvent()
+    {
+        lock_guard<mutex> g(lastEventMutex);
+        lastEvent.reset();
+        lastEvents.clear();
+    }
+
+    bool lastEventsContains(int type)
+    {
+        lock_guard<mutex> g(lastEventMutex);
+        return lastEvents.find(type) != lastEvents.end();
+    }
+
 
     MegaHandle mBackupId = UNDEF;
     unique_ptr<MegaHandleList> mMegaFavNodeList;

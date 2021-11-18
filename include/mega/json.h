@@ -110,7 +110,7 @@ class MEGA_API JSONWriter
 public:
     JSONWriter();
 
-    MEGA_DEFAULT_COPY_MOVE(JSONWriter);
+    MEGA_DEFAULT_COPY_MOVE(JSONWriter)
 
     void cmd(const char*);
     void notself(MegaClient*);

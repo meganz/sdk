@@ -53,7 +53,6 @@ public:
      * @param buf The buffer that takes the generated random bytes. Ensure that
      *     the buffer is of sufficient size to take `len` bytes.
      * @param len The number of random bytes to generate.
-     * @return Void.
      */
     void genblock(byte* buf, size_t len);
 
@@ -116,7 +115,6 @@ public:
      * @param dst Target buffer to encrypt to. If NULL, encrypt in-place (to `data`).
      * @param len Length of data to be encrypted in bytes. Defaults to
      *     SymCipher::BLOCKSIZE.
-     * @return Void.
      */
     void ecb_encrypt(byte*, byte* = NULL, size_t = BLOCKSIZE);
 
@@ -126,7 +124,6 @@ public:
      * @param data Data to be decrypted (in-place).
      * @param len Length of data to be decrypted in bytes. Defaults to
      *     SymCipher::BLOCKSIZE.
-     * @return Void.
      */
     void ecb_decrypt(byte*, size_t = BLOCKSIZE);
 
@@ -137,9 +134,7 @@ public:
      *
      * @param data Data to be encrypted (encryption in-place).
      * @param len Length of data to be encrypted in bytes.
-     * @param iv Initialisation vector to use. Choose randomly and never re-use.
-     * @return Void.
-     */
+     * @param iv Initialisation vector to use. Choose randomly and never re-use.     */
     void cbc_encrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
@@ -150,7 +145,6 @@ public:
      * @param data Data to be decrypted (encryption in-place).
      * @param len Length of cipher text to be decrypted in bytes.
      * @param iv Initialisation vector.
-     * @return Void.
      */
     void cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
 
@@ -162,7 +156,6 @@ public:
      * @param data Data to be encrypted
      * @param iv Initialisation vector.
      * @param result Encrypted message
-     * @return Void.
      */
     void cbc_encrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
 
@@ -318,7 +311,7 @@ public:
      */
     void serializekeyforjs(std::string *);
 
-    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool, bool initmac = true);
+    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *mac, bool encrypt, bool initmac = true);
 
     static void setint64(int64_t, byte*);
 
@@ -431,7 +424,6 @@ public:
      * @param d String to take the key.
      * @param keytype Key type indication by number of integers for key type
      *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
-     * @return Void.
      */
     void serializekey(std::string* d, int keytype);
 
@@ -442,7 +434,6 @@ public:
      * of the key, at reception from server, indicates it has zero-padding.
      *
      * @param d String to take the serialized key without size-headers
-     * @return Void.
      */
     void serializekeyforjs(std::string& d);
 
@@ -453,7 +444,6 @@ public:
      * @param privk Private key.
      * @param pubk Public key.
      * @param size Size of key to generate in bits (key strength).
-     * @return Always returns 1.
      */
     void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
 };

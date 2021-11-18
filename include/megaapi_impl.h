@@ -60,9 +60,6 @@
 //If you selected QT for threads and mutexes, it will be also used for thumbnails and previews
 //You can create a subclass of MegaGfxProcessor and pass it to the constructor of MegaApi
 //#define USE_FREEIMAGE
-
-//Define WINDOWS_PHONE if you want to build the MEGA SDK for Windows Phone
-//#define WINDOWS_PHONE
 /////////////////////////// END OF SETTINGS ///////////////////////////
 
 namespace mega
@@ -85,14 +82,10 @@ class MegaGfxProc : public GfxProcExternal {};
 #endif
 
 #ifdef WIN32
-    #ifndef WINDOWS_PHONE
     #ifdef USE_CURL
     class MegaHttpIO : public CurlHttpIO {};
     #else
     class MegaHttpIO : public WinHttpIO {};
-    #endif
-    #else
-    class MegaHttpIO : public CurlHttpIO {};
     #endif
 	class MegaFileSystemAccess : public WinFileSystemAccess {};
 	class MegaWaiter : public WinWaiter {};
@@ -433,7 +426,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
-                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring, std::string *fileattrstring,
+                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
                         bool isForeign = false, const char *chatauth = NULL);
@@ -465,11 +458,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getParentHandle() override;
         std::string* getNodeKey() override;
         char *getBase64Key() override;
-        std::string* getAttrString() override;
         char* getFileAttrString() override;
-
-        int getTag() override;
-
         int64_t getExpirationTime() override;
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
@@ -528,13 +517,11 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle parenthandle;
         MegaHandle restorehandle;
         std::string nodekey;
-        std::string attrstring;
         std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
         std::string mDeviceId;
         const char *chatAuth;
-        int tag;
         int changed;
         struct {
             bool thumbnailAvailable : 1;
@@ -1255,7 +1242,7 @@ protected:
 class MegaEventPrivate : public MegaEvent
 {
 public:
-    MegaEventPrivate(int type);
+    MegaEventPrivate(int atype);
     MegaEventPrivate(MegaEventPrivate *event);
     virtual ~MegaEventPrivate();
     MegaEvent *copy() override;
@@ -1266,6 +1253,7 @@ public:
     MegaHandle getHandle() const override;
     const char *getEventString() const override;
 
+    std::string getValidDataToString() const;
     static const char* getEventString(int type);
 
     void setText(const char* text);
@@ -1274,9 +1262,9 @@ public:
 
 protected:
     int type;
-    const char* text;
-    int64_t number;
-    MegaHandle mHandle;
+    const char* text = nullptr;
+    int64_t number = -1;
+    MegaHandle mHandle = INVALID_HANDLE;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -2057,9 +2045,6 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToLongName(int);
         static int userAttributeFromString(const char *name);
         static char userAttributeToScope(int);
-#ifdef WINDOWS_PHONE
-        void setStatsID(const char *id);
-#endif
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
@@ -2818,7 +2803,6 @@ protected:
         // sc requests to close existing wsc and immediately retrieve pending actionpackets
         RequestQueue scRequestQueue;
 
-        std::unique_ptr<BackupMonitor> mHeartBeatMonitor;
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
@@ -2833,6 +2817,7 @@ protected:
         set<MegaScheduledCopyListener *> backupListeners;
 
 #ifdef ENABLE_SYNC
+        std::unique_ptr<BackupMonitor> mHeartBeatMonitor;
         MegaSyncPrivate* cachedMegaSyncPrivateByBackupId(const SyncConfig&);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
 #endif

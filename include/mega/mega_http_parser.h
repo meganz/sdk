@@ -210,14 +210,17 @@ enum http_errno {
 /* Get an http_errno value from an http_parser */
 #define HTTP_PARSER_ERRNO(p)            ((enum http_errno) (p)->http_errno)
 
+/* Forward declaration for enums defined in the implementation file */
+enum state : uint8_t;
+enum header_states : uint8_t;
 
 struct http_parser {
   /** PRIVATE **/
-  unsigned int type : 2;         /* enum http_parser_type */
-  unsigned int flags : 7;        /* F_* values from 'flags' enum; semi-public */
-  unsigned int state : 7;        /* enum state from http_parser.c */
-  unsigned int header_state : 8; /* enum header_state from http_parser.c */
-  unsigned int index : 8;        /* index into current matcher */
+  enum http_parser_type type : 2;      /* enum http_parser_type */
+  unsigned int flags : 7;              /* F_* values from 'flags' enum; semi-public */
+  enum state state;                    /* enum state from http_parser.c */
+  enum header_states header_state : 8; /* enum header_state from http_parser.c */
+  unsigned int index : 8;              /* index into current matcher */
 
   uint32_t nread;          /* # bytes read in various scenarios */
   uint64_t content_length; /* # bytes in body (0 if no Content-Length header) */

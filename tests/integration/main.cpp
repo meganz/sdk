@@ -37,7 +37,8 @@ std::string getCurrentTimestamp()
 {
     using std::chrono::system_clock;
     auto currentTime = std::chrono::system_clock::now();
-    char buffer[80];
+    constexpr const auto buffSz = 80;
+    char buffer[buffSz];
 
     auto transformed = currentTime.time_since_epoch().count() / 1000000;
 
@@ -46,8 +47,8 @@ std::string getCurrentTimestamp()
     std::time_t tt;
     tt = system_clock::to_time_t ( currentTime );
     auto timeinfo = localtime (&tt);
-    strftime (buffer,80,"%H:%M:%S",timeinfo);
-    sprintf(buffer, "%s:%03d",buffer,(int)millis);
+    size_t timeStrSz = strftime (buffer, buffSz,"%H:%M:%S",timeinfo);
+    snprintf(buffer + timeStrSz , buffSz - timeStrSz, ":%03d",(int)millis);
 
     return std::string(buffer);
 }

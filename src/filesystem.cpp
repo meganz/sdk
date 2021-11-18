@@ -432,7 +432,7 @@ const char *FileSystemAccess::getPathSeparator()
 {
 #if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__) || defined (USE_IOS)
     return "/";
-#elif defined(_WIN32) || defined(WINDOWS_PHONE)
+#elif defined(_WIN32)
     return "\\";
 #else
     // Default case
@@ -1084,7 +1084,7 @@ LocalPath LocalPath::subpathFrom(size_t bytePos) const
 
 void LocalPath::ensureWinExtendedPathLenPrefix()
 {
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     if (!PathIsRelativeW(localpath.c_str()) && ((localpath.size() < 2) || memcmp(localpath.data(), L"\\\\", 4)))
     {
         localpath.insert(0, L"\\\\?\\", 4);

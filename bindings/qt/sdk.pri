@@ -357,6 +357,9 @@ CONFIG(USE_FFMPEG) {
             exists(/usr/lib/liblzma.so*):exists(/etc/arch-release) {
                 LIBS += -llzma #required in arch ffmpeg compilation
             }
+            CONFIG(FFMPEG_WITH_LZMA) {
+                LIBS += -llzma #required in fedora >= 35 ffmpeg compilation
+            }
         }
     }
     else { #win/mac

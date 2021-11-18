@@ -148,9 +148,9 @@ void PurgeAcc::logout()
 {
     logoutReceived = false;
 #ifdef ENABLE_SYNC
-    megaApi->logout(this, nullptr);
+    megaApi->logout(false, this);
 #else
-    megaApi->logout(nullptr);
+    megaApi->logout(this);
 #endif
     waitForResponse(&logoutReceived);
 }
