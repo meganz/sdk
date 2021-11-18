@@ -236,7 +236,12 @@ public:
     string uid;
 
     // root nodes (files, incoming, rubbish)
-    NodeHandle rootnodes[3];
+    struct Rootnodes
+    {
+        NodeHandle files;
+        NodeHandle inbox;
+        NodeHandle rubbish;
+    } rootnodes;
 
     // Not all nodes are loaded
     node_map mNodes;
@@ -962,6 +967,21 @@ public:
 
     // root URL for Website
     static const string MEGAURL;
+
+    // newsignup link URL prefix
+    static const char* newsignupLinkPrefix();
+
+    // confirm link URL prefix
+    static const char* confirmLinkPrefix();
+
+    // verify link URL prefix
+    static const char* verifyLinkPrefix();
+
+    // recover link URL prefix
+    static const char* recoverLinkPrefix();
+
+    // cancel link URL prefix
+    static const char* cancelLinkPrefix();
 
     // file that is blocking the sync engine
     LocalPath blockedfile;

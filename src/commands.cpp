@@ -1351,7 +1351,7 @@ bool CommandMoveNode::procresult(Result r)
                 {
                     Node *tn = NULL;
                     if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
-                            || !(tn = client->nodeByHandle(client->rootnodes[RUBBISHNODE - ROOTNODE])))
+                            || !(tn = client->nodeByHandle(client->rootnodes.rubbish)))
                     {
                         LOG_err << "Error moving node to the Rubbish Bin";
                         syncn->syncdeleted = SYNCDEL_NONE;
@@ -5227,7 +5227,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
 
-                        client->putnodes(client->rootnodes[0], move(newnodes), nullptr, 0);
+                        client->putnodes(client->rootnodes.files, move(newnodes), nullptr, 0);
                     }
                     else if (havekey)
                     {

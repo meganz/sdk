@@ -269,7 +269,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool serialize(string*) override;
     static Node* unserialize(MegaClient*, const string*, node_vector*, bool decrypted = true);
 
-    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t, bool addToMemory = true);
+    Node(MegaClient*, vector<Node*>*, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t, bool addToMemory = true);
     ~Node();
 
 #ifdef ENABLE_SYNC

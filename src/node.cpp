@@ -33,7 +33,7 @@
 
 namespace mega {
 
-Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
+Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts, bool addToMemory)
 {
     mInMemory = addToMemory;
@@ -44,8 +44,8 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     tag = 0;
     appdata = NULL;
 
-    nodehandle = h;
-    parenthandle = ph;
+    nodehandle = h.as8byte();
+    parenthandle = ph.as8byte();
 
     parent = NULL;
 
@@ -78,12 +78,12 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     if (mInMemory)
     {
-        client->mNodes[NodeHandle().set6byte(h)] = this;
+        client->mNodes[h] = this;
 
         // set parent linkage or queue for delayed parent linkage in case of
         // out-of-order delivery
         //TODO nodes on demand check if it's neccessary
-        if ((p = client->nodebyhandle(ph)))
+        if ((p = client->nodeByHandle(ph)))
         {
             setparent(p);
         }
@@ -126,9 +126,9 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     // folder link access: first returned record defines root node and
     // identity
-    if (client->rootnodes[0].isUndef())
+    if (client->rootnodes.files.isUndef())
     {
-        client->rootnodes[0].set6byte(h);
+        client->rootnodes.files = h;
 
         if (client->loggedIntoWritableFolder())
         {
@@ -138,10 +138,9 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
         }
     }
 
-    if (t >= ROOTNODE && t <= RUBBISHNODE)
-    {
-        client->rootnodes[t - ROOTNODE].set6byte(h);
-    }
+    if (t == ROOTNODE) client->rootnodes.files = h;
+    else if (t == INCOMINGNODE) client->rootnodes.inbox = h;
+    else if (t == RUBBISHNODE) client->rootnodes.rubbish = h;
 }
 
 Node::~Node()
@@ -429,7 +428,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
         skey = NULL;
     }
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+    n = new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
 
     if (k)
     {
@@ -997,7 +996,7 @@ bool Node::applykey()
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
-    handle me = client->loggedin() ? client->me : client->rootnodes[0].as8byte();
+    handle me = client->loggedin() ? client->me : client->rootnodes.files.as8byte();
 
     while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {
@@ -1109,7 +1108,7 @@ bool Node::setparent(Node* p)
         parent->mChildrenInMemory.erase(nodeHandle());
         const Node *originalancestor = firstancestor();
         NodeHandle oah = originalancestor->nodeHandle();
-        if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
+        if (oah == client->rootnodes.files || oah == client->rootnodes.inbox || oah == client->rootnodes.rubbish || originalancestor->inshare)
         {
             nc = subnodeCounts();
             gotnc = true;
@@ -1128,10 +1127,8 @@ bool Node::setparent(Node* p)
     parent->mChildrenInMemory.insert(nodeHandle());
 
     const Node* newancestor = firstancestor();
-    NodeHandle nah;
-    nah.set6byte(newancestor->nodehandle);
-
-    if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
+    NodeHandle nah = newancestor->nodeHandle();
+    if (nah == client->rootnodes.files || nah == client->rootnodes.inbox || nah == client->rootnodes.rubbish || newancestor->inshare)
     {
         if (!gotnc)
         {
@@ -1832,7 +1829,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     // exist or is newer
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
-        h = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
+        h = t->client->rootnodes.rubbish;
     }
     else
     {
