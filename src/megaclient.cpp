@@ -8706,6 +8706,21 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     nn_nni.added = true;
                     nn_nni.mAddedHandle = h;
 
+                    if (versions_disabled
+                            && n->type == FILENODE
+                            && nn_nni.ovhandle != UNDEF)
+                    {
+                        /* The API replace the existing node ('ov') by the new node, so
+                         * the old one needs to be removed effectively */
+                        Node *ovNode = nodebyhandle(nn_nni.ovhandle);
+                        if (ovNode)
+                        {
+                            TreeProcDel td;
+                            proctree(ovNode, &td, false, true);
+                            LOG_debug << "File " << Base64Str<MegaClient::NODEHANDLE>(nn_nni.ovhandle) << " replaced by " << Base64Str<MegaClient::NODEHANDLE>(h);
+                        }
+                    }
+
 #ifdef ENABLE_SYNC
                     if (source == PUTNODES_SYNC)
                     {
