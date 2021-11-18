@@ -4827,15 +4827,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp;
 
 /**
- * @brief Cancel credit card subscriptions of the account
- *
- * The associated request type with this request is MEGARequestTypeCreditCardCancelSubscriptions
- * @param reason Reason for the cancellation.
- * @param delegate MEGARequestDelegate to track this request
- */
-- (void)creditCardCancelSubscriptions:(nullable NSString *)reason delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
  * @brief Change the password of the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeChangePassword.
