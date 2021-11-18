@@ -16951,7 +16951,7 @@ node_list NodeManager::getChildren(Node *parent)
 
     // get children's handles and serialized nodes from cache
     std::map<NodeHandle, NodeSerialized> childrenMap;
-    mTable->getChildrenFromNode(parent->nodeHandle(), childrenMap);
+    mTable->getChildren(parent->nodeHandle(), childrenMap);
 
     // get children nodes loaded in RAM (which may not be in cache yet)
     // (upon node's creation, nodes are added to the notification queue, `nodenotify` (in NodeManage::mPendingConfirmNodes), but
@@ -17249,7 +17249,7 @@ std::vector<NodeHandle> NodeManager::getChildrenHandlesFromNode(NodeHandle node)
         return nodes;
     }
 
-    mTable->getChildrenHandlesFromNode(node, nodes);
+    mTable->getChildrenHandles(node, nodes);
 
     return nodes;
 }
@@ -17307,7 +17307,7 @@ std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, u
         return nodeHandles;
     }
 
-    mTable->getFavouritesNodeHandles(node, count, nodeHandles);
+    mTable->getFavouritesHandles(node, count, nodeHandles);
     return nodeHandles;
 }
 
@@ -17319,7 +17319,7 @@ int NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
         return -1;
     }
 
-    return mTable->getNumberOfChildrenFromNode(parentHandle);
+    return mTable->getNumberOfChildren(parentHandle);
 }
 
 bool NodeManager::isNodesOnDemandReady()

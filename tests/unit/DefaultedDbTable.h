@@ -80,12 +80,12 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getChildrenFromNode(mega::NodeHandle, std::map<mega::NodeHandle, mega::NodeSerialized>&) override
+    bool getChildren(mega::NodeHandle, std::map<mega::NodeHandle, mega::NodeSerialized>&) override
     {
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getChildrenHandlesFromNode(mega::NodeHandle, std::vector<mega::NodeHandle>&) override
+    bool getChildrenHandles(mega::NodeHandle, std::vector<mega::NodeHandle>&) override
     {
         return false;
         //throw NotImplemented(__func__);
@@ -95,7 +95,7 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getFavouritesNodeHandles(mega::NodeHandle, uint32_t, std::vector<mega::NodeHandle>&) override
+    bool getFavouritesHandles(mega::NodeHandle, uint32_t, std::vector<mega::NodeHandle>&) override
     {
         return false;
     }
@@ -105,7 +105,7 @@ public:
         return nc;
         //throw NotImplemented(__func__);
     }
-    int getNumberOfChildrenFromNode(mega::NodeHandle) override
+    int getNumberOfChildren(mega::NodeHandle) override
     {
         return 0;
         //throw NotImplemented(__func__);

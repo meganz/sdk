@@ -525,7 +525,7 @@ void SqliteDbTable::remove()
 }
 
 SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
-    : SqliteDbTable(rng,  pdb, fsAccess, path, checkAlwaysTransacted)
+    : SqliteDbTable(rng, pdb, fsAccess, path, checkAlwaysTransacted)
 {
 
 }
@@ -839,7 +839,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::map<mega::NodeHandle, meg
     return result;
 }
 
-bool SqliteAccountState::getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized> &children)
+bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized> &children)
 {
     if (!db)
     {
@@ -862,7 +862,7 @@ bool SqliteAccountState::getChildrenFromNode(NodeHandle parentHandle, std::map<N
     return result;
 }
 
-bool SqliteAccountState::getChildrenHandlesFromNode(mega::NodeHandle parentHandle, std::vector<NodeHandle> & children)
+bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::vector<NodeHandle> & children)
 {
     if (!db)
     {
@@ -915,7 +915,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::
 }
 
 
-bool SqliteAccountState::getFavouritesNodeHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle> &nodes)
+bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle> &nodes)
 {
     if (!db)
     {
@@ -945,7 +945,7 @@ bool SqliteAccountState::getFavouritesNodeHandles(NodeHandle node, uint32_t coun
     return true;
 }
 
-int SqliteAccountState::getNumberOfChildrenFromNode(NodeHandle parentHandle)
+int SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
 {
     if (!db)
     {

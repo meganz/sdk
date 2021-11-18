@@ -100,34 +100,44 @@ class MEGA_API DBTableNodes
 {
 public:
 
+    // add or update a node
+    virtual bool put(Node* node) = 0;
+
+    // remove one node from 'nodes' table
+    virtual bool remove(NodeHandle nodehandle) = 0;
+
+    // remove all nodes from 'nodes' table (truncate)
+    virtual bool removeNodes() = 0;
+
     // get nodes and queries about nodes
     virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
     virtual bool getNodes(std::vector<NodeSerialized>& nodes) = 0;
     virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
     virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
     virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node, NodeHandle& nodeHandle) = 0;
+    virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
+
     virtual bool getRootNodes(std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
     virtual bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, NodeSerialized>&, ShareType_t shareType) = 0;
-    virtual bool getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
-    virtual bool getChildrenHandlesFromNode(NodeHandle node, std::vector<NodeHandle>& nodes) = 0;
-    virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
-    virtual NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile) = 0;
-    virtual bool getFavouritesNodeHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
-    virtual int getNumberOfChildrenFromNode(NodeHandle parentHandle) = 0;
-    //
+    virtual bool getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
+    virtual bool getChildrenHandles(NodeHandle parentHandle, std::vector<NodeHandle>& nodes) = 0;
+    virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
+    virtual int getNumberOfChildren(NodeHandle parentHandle) = 0;
+
+    // true if 'nodes' table is already populated -> legacy DB has been migrated to new schema for NOD
     virtual bool isNodesOnDemandDb() = 0;
-    virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
+
     virtual bool isNodeInDB(NodeHandle node) = 0;
-    virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
     virtual bool isFileNode(NodeHandle node) = 0;
+
+    virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
+    virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
+
+    // count of items in 'nodes' table. Returns 0 if error
     virtual uint64_t getNumberOfNodes() = 0;
 
-    // update or add a node
-    virtual bool put(Node* node) = 0;
+    virtual NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile) = 0;
 
-    // Remove nodes
-    virtual bool remove(NodeHandle nodehandle) = 0;
-    virtual bool removeNodes() = 0;
 };
 
 class MEGA_API DBTableTransactionCommitter
