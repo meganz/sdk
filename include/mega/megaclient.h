@@ -1552,9 +1552,6 @@ public:
     // unlink queued nodes directly (for inbound share syncing)
     void execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion);
 
-    // unlink the LocalNode from the corresponding node
-    // if the associated local file or folder still exists
-    void unlinkifexists(LocalNode*, FileAccess*, LocalPath& reuseBuffer);
 #endif
 
     // recursively cancel transfers in a subtree
