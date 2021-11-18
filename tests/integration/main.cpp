@@ -20,6 +20,27 @@ bool gOutputToCout = false;
 int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
+void WaitMillisec(unsigned n)
+{
+#ifdef _WIN32
+    if (n > 1000)
+    {
+        for (int i = 0; i < 10; ++i)
+        {
+            // better for debugging, with breakpoints, pauses, etc
+            Sleep(n/10);
+        }
+    }
+    else
+    {
+        Sleep(n);
+    }
+#else
+    usleep(n * 1000);
+#endif
+}
+
+
 LogStream::~LogStream()
 {
     auto data = mBuffer.str();
@@ -63,9 +84,7 @@ LogStream out()
     return LogStream();
 }
 
-namespace {
-
-class MegaLogger : public Logger
+class TestMegaLogger : public Logger
 {
     mutex logMutex;
 public:
@@ -202,8 +221,6 @@ public:
     }
 }; // GTestLogger
 
-} // anonymous
-
 int main (int argc, char *argv[])
 {
     if (!getenv("MEGA_EMAIL") || !getenv("MEGA_PWD") || !getenv("MEGA_EMAIL_AUX") || !getenv("MEGA_PWD_AUX"))
@@ -267,7 +284,7 @@ int main (int argc, char *argv[])
         }
     }
 
-    MegaLogger megaLogger;
+    TestMegaLogger megaLogger;
 
     SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&megaLogger);

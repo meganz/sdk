@@ -186,46 +186,6 @@ bool Node::hasChildWithName(const string& name) const
     return false;
 }
 
-/// it's a nice idea but too simple - what about cases where the key is missing or just not available yet (and hence attrs not decrypted yet), etc
-//string Node::name() const
-//{
-//    auto it = attrs.map.find('n');
-//
-//    if (it != attrs.map.end())
-//    {
-//        return it->second;
-//    }
-//
-//    return "";
-//}
-
-//bool Node::syncable(const LocalNode& parent) const
-//{
-//    // Not syncable if we're deleted.
-//    if (syncdeleted != SYNCDEL_NONE)
-//    {
-//        return false;
-//    }
-//
-//    // Not syncable if we aren't decrypted.
-//    if (attrstring)
-//    {
-//        return false;
-//    }
-//
-//    auto it = attrs.map.find('n');
-//
-//    // Not syncable if we don't have a valid name.
-//    if (it == attrs.map.end() || it->second.empty())
-//    {
-//        return false;
-//    }
-//
-//    // We're syncable if we're not the sync debris.
-//    return parent.parent || parent.sync->debris != it->second;
-//}
-
-
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
