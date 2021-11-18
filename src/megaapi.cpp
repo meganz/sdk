@@ -6081,7 +6081,7 @@ size_t MegaSyncStallList::size() const
     return 0;
 }
 
-MegaSyncStall* MegaSyncStallList::get(size_t i) const
+const MegaSyncStall* MegaSyncStallList::get(size_t i) const
 { 
     return nullptr;
 }

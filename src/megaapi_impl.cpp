@@ -1457,13 +1457,13 @@ MegaSyncStallListPrivate* MegaSyncStallListPrivate::copy() const {
     return new MegaSyncStallListPrivate(*this);
 }
 
-MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const
+const MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const
 {
     if( i >= mStalls.size())
     {
         return nullptr;
     }
-    return new MegaSyncStallPrivate(mStalls[i]);
+    return &mStalls[i];
 }
 
 void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls)

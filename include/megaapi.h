@@ -5603,10 +5603,9 @@ class MegaSyncStallList
         virtual MegaSyncStallList* copy() const;
         /**
          * @param index of the request element in the list.
-         * @return pointer to a MegaSyncStal allocated object that the user MUST RELEASE after use.
-         *         nullptr is index is out of bound
+         * @return constant pointer to a MegaSyncStall stored in the container.
          */
-        virtual MegaSyncStall* get(size_t index) const;
+        virtual const MegaSyncStall* get(size_t index) const;
         /**
          * @return number of elements in the list.
          */

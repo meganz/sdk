@@ -2186,7 +2186,7 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
         /**
          * @return a new heap allocated MegaSyncStall object 
          */
-        MegaSyncStall* get(size_t i) const override;
+        const MegaSyncStall* get(size_t i) const override;
 
 
         size_t size() const override

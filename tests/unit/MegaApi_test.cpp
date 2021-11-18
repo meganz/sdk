@@ -286,33 +286,29 @@ TEST(MegaApi, MegaSyncStallList_constructor){
     MegaSyncStallListPrivate syncStallList(syncStallInfo);
     ASSERT_EQ(syncStallList.size(), 2u);
 
-    MegaSyncStall* localStallPtr = syncStallList.get(0);
-    MegaSyncStall* cloudStallPtr = syncStallList.get(1);
+    const MegaSyncStall* localStallConstPtr = syncStallList.get(0);
+    const MegaSyncStall* cloudStallConstPtr = syncStallList.get(1);
 
-    ASSERT_NE(localStallPtr, nullptr);
-    ASSERT_NE(cloudStallPtr, nullptr);
+    ASSERT_NE(localStallConstPtr, nullptr);
+    ASSERT_NE(cloudStallConstPtr, nullptr);
 
     // Check The local stall object
-    ASSERT_EQ(theLocalPath.compare( localStallPtr->indexPath()),0);
-    ASSERT_EQ(theLocalPath.compare( localStallPtr->localPath()),0);
-    ASSERT_EQ(theRemotePath.compare(localStallPtr->cloudPath()),0);
-    ASSERT_EQ(localStallPtr->reason(), 
+    ASSERT_EQ(theLocalPath.compare( localStallConstPtr->indexPath()),0);
+    ASSERT_EQ(theLocalPath.compare( localStallConstPtr->localPath()),0);
+    ASSERT_EQ(theRemotePath.compare(localStallConstPtr->cloudPath()),0);
+    ASSERT_EQ(localStallConstPtr->reason(), 
             MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
-    ASSERT_EQ(strcmp(localStallPtr->reasonString(), 
+    ASSERT_EQ(strcmp(localStallConstPtr->reasonString(), 
                 MegaSyncStallPrivate::reasonString(
                     MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose)),0);
-    ASSERT_FALSE(localStallPtr->isCloud());
-    ASSERT_TRUE(localStallPtr->isImmediate());
+    ASSERT_FALSE(localStallConstPtr->isCloud());
+    ASSERT_TRUE(localStallConstPtr->isImmediate());
 
     // Check The cloud stall object
-    ASSERT_EQ(theRemotePath.compare(cloudStallPtr->indexPath()),0);
-    ASSERT_EQ(theLocalPath.compare( cloudStallPtr->localPath()),0);
-    ASSERT_EQ(theRemotePath.compare(cloudStallPtr->cloudPath()),0);
-    ASSERT_EQ(cloudStallPtr->isCloud(), true);
-
-    // Remove objects
-    delete localStallPtr;
-    delete cloudStallPtr;
+    ASSERT_EQ(theRemotePath.compare(cloudStallConstPtr->indexPath()),0);
+    ASSERT_EQ(theLocalPath.compare( cloudStallConstPtr->localPath()),0);
+    ASSERT_EQ(theRemotePath.compare(cloudStallConstPtr->cloudPath()),0);
+    ASSERT_EQ(cloudStallConstPtr->isCloud(), true);
 }
 
 TEST(MegaApi, MegaSyncStallList_copy_constructor){
@@ -345,12 +341,11 @@ TEST(MegaApi, MegaSyncStallList_copy_constructor){
     ASSERT_EQ(syncStallList.size(), 2u);
 
     for(size_t i=0; i<copyOfList->size();++i){
-        auto copy = copyOfList->get(i);
-        auto orig = syncStallList.get(i);
-        ASSERT_NE(copy, orig); // Are copies
-        ASSERT_NE(copy->indexPath(),orig->indexPath()); // Are copies
-        ASSERT_EQ(strcmp(copy->indexPath(),orig->indexPath()),0); // Same information
-        delete copy; delete orig;
+        const MegaSyncStall* fromCopyPtr = copyOfList->get(i);
+        const MegaSyncStall* fromOrigPtr = syncStallList.get(i);
+        ASSERT_NE(fromCopyPtr, fromOrigPtr); // Are copies
+        ASSERT_NE(fromCopyPtr->indexPath(),fromOrigPtr->indexPath()); // Are copies
+        ASSERT_EQ(strcmp(fromCopyPtr->indexPath(),fromOrigPtr->indexPath()),0); // Same information
     }
 
     delete copyOfList;
