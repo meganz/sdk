@@ -2982,15 +2982,9 @@ void Syncs::getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> comp
 
     queueSync([this, completionClosure]() mutable {
         SyncStallInfo syncStallInfo;
-        getSyncStallsInSyncThread(syncStallInfo);
+        syncStallDetected(syncStallInfo); // Collect sync stalls
         completionClosure(syncStallInfo);
     });
-}
-
-void Syncs::getSyncStallsInSyncThread(SyncStallInfo& syncStallInfo)
-{
-    assert(onSyncThread());
-    syncStallDetected(syncStallInfo); // Collect sync stalls
 }
 
 SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const

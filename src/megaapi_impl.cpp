@@ -3461,6 +3461,9 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 
     if (request->mProblems)
         mProblems.reset(request->mProblems->copy());
+
+    if (request->mSyncStallList)
+        mSyncStallList.reset(request->mSyncStallList->copy());
 #endif // ENABLE_SYNC
 }
 
@@ -21734,8 +21737,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 fireOnRequestFinish(request, std::move(error));
             };
-            const bool completeInClient = true;
-            client->syncs.getSyncStalls(std::move(completionClosure), completeInClient);
+            client->syncs.getSyncStalls(std::move(completionClosure), true);
             break;
         }
 #endif  // ENABLE_SYNC

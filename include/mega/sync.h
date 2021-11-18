@@ -870,11 +870,6 @@ struct Syncs
             bool completionInClient);
 
     /**
-     * @brief retrieve sync stall information from within sync thread
-     */
-    void getSyncStallsInSyncThread(SyncStallInfo& syncStallInfo);
-
-    /**
      * @brief
      * Removes previously opened backup databases from that drive from memory.
      *
