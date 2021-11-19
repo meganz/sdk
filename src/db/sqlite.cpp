@@ -80,7 +80,10 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 
     // Create specific table for handle nodes
-    std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, type int, size int64, share int, decrypted int, fav int, node BLOB NOT NULL)";
+    std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
+                      "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
+                      "type tinyint, size int64, share tinyint, decrypted tinyint, fav tinyint, "
+                      "node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -591,7 +594,9 @@ bool SqliteAccountState::put(Node *node)
     checkTransaction();
 
     sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, name, fingerprint, origFingerprint, type, size, share, decrypted, fav, node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
+                                        "name, fingerprint, origFingerprint, type, size, share, decrypted, fav, node) "
+                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         string nodeSerialized;
