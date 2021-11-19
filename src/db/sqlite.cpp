@@ -912,11 +912,12 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
                            "FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.parenthandle = E.nodehandle)) SELECT * "
                            "FROM nodesCTE where fav = 1;";
 
+    int result = SQLITE_ERROR;
     if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
         {
-            while (sqlite3_step(stmt) == SQLITE_ROW && (nodes.size() < count || count == 0))
+            while ((result = sqlite3_step(stmt) == SQLITE_ROW) && (nodes.size() < count || count == 0))
             {
                 nodes.push_back(NodeHandle().set6byte(sqlite3_column_int64(stmt, 0)));
             }
@@ -924,7 +925,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
     }
 
     sqlite3_finalize(stmt);
-    return true;
+    return result == SQLITE_DONE ? true : false;;
 }
 
 int SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
