@@ -12530,6 +12530,23 @@ void MegaApiImpl::file_complete(File *f)
     }
 }
 
+bool MegaApiImpl::file_isCancelled(File *f)
+{
+    assert(f);
+    MegaTransferPrivate *transfer = getMegaTransferPrivate(f->tag);
+    if (transfer)
+    {
+        if ((transfer->getType() <= MegaTransfer::TYPE_UPLOAD)
+                && !transfer->isStreamingTransfer()
+                && transfer->getState() < MegaTransfer::STATE_COMPLETED
+                && transfer->getCancelToken() && transfer->getCancelToken()->isCancelled())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void MegaApiImpl::transfer_complete(Transfer *t)
 {
     MegaTransferPrivate* transfer = getMegaTransferPrivate(t->tag);
