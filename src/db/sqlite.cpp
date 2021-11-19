@@ -816,7 +816,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::map<mega::NodeHandle, meg
     }
 
     sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
+    bool result = false;
     if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int(stmt, 1, static_cast<int>(shareType)) == SQLITE_OK)
