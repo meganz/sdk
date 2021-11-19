@@ -597,7 +597,8 @@ bool SqliteAccountState::put(Node *node)
     if (sqlResult == SQLITE_OK)
     {
         string nodeSerialized;
-        assert(node->serialize(&nodeSerialized));
+        node->serialize(&nodeSerialized);
+        assert(nodeSerialized.size());
 
         sqlite3_bind_int64(stmt, 1, node->nodehandle);
         sqlite3_bind_int64(stmt, 2, node->parenthandle);
