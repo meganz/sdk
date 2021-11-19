@@ -2993,6 +2993,64 @@ Syncs::~Syncs()
     if (syncThread.joinable()) syncThread.join();
 }
 
+void Syncs::getSyncProblems(std::function<void(SyncProblems&)> completion,
+                            bool completionInClient,
+                            bool detailed)
+{
+    using MC = MegaClient;
+    using DBTC = DBTableTransactionCommitter;
+
+    if (completionInClient)
+    {
+        completion = [this, completion](SyncProblems& problems) {
+            queueClient([completion, problems](MC&, DBTC&) mutable {
+                completion(problems);
+            });
+        };
+    }
+
+    queueSync([this, detailed, completion]() mutable {
+        SyncProblems problems;
+        getSyncProblems_inThread(problems, detailed);
+        completion(problems);
+    });
+}
+
+void Syncs::getSyncProblems_inThread(SyncProblems& problems, bool detailed)
+{
+    assert(onSyncThread());
+
+    problems.mConflictsDetected = conflictsFlagged();
+    problems.mStallsDetected = syncStallState;
+
+    if (!detailed) return;
+
+    conflictsDetected(problems.mConflicts);
+    problems.mStalls = stallReport;
+}
+
+void Syncs::getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> completionClosure,
+        bool completionInClient)
+{
+    using MC = MegaClient;
+    using DBTC = DBTableTransactionCommitter;
+
+    if (completionInClient)
+    {
+        completionClosure = [this, completionClosure](SyncStallInfo& syncStallInfo) {
+            queueClient([completionClosure, syncStallInfo](MC&, DBTC&) mutable {
+                completionClosure(syncStallInfo);
+            });
+        };
+    }
+
+    queueSync([this, completionClosure]() mutable {
+        SyncStallInfo syncStallInfo;
+        syncStallDetected(syncStallInfo); // Collect sync stalls
+        completionClosure(syncStallInfo);
+    });
+}
+
 SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 {
     assert(onSyncThread() || !onSyncThread());
@@ -4804,27 +4862,31 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, 
 
     for (auto& childRow : childRows)
     {
-        if (!childRow.cloudClashingNames.empty() ||
-            !childRow.fsClashingNames.empty())
+        if (childRow.hasClashes())
         {
             NameConflict nc;
-            if (!childRow.cloudClashingNames.empty())
-            {
-                nc.cloudPath = row.cloudNode ? fullPath.cloudPath : "";
-                for (CloudNode* n : childRow.cloudClashingNames)
-                {
-                    nc.clashingCloudNames.push_back(n->name);
-                }
-            }
-            if (!childRow.fsClashingNames.empty())
-            {
-                nc.localPath = row.syncNode ? row.syncNode->getLocalPath() : LocalPath();
-                for (FSNode* n : childRow.fsClashingNames)
-                {
-                    nc.clashingLocalNames.push_back(n->localname);
-                }
-            }
-            ncs.push_back(std::move(nc));
+
+            if (childRow.hasCloudPresence())
+                nc.cloudPath = fullPath.cloudPath;
+
+            if (childRow.hasLocalPresence())
+                nc.localPath = fullPath.localPath;
+
+            // Only meaningful if there are no cloud clashes.
+            if (auto* c = childRow.cloudNode)
+                nc.clashingCloudNames.emplace_back(c->name);
+
+            // Only meaningful if there are no local clashes.
+            if (auto* f = childRow.fsNode)
+                nc.clashingLocalNames.emplace_back(f->localname);
+
+            for (auto* c : childRow.cloudClashingNames)
+                nc.clashingCloudNames.emplace_back(c->name);
+
+            for (auto* f : childRow.fsClashingNames)
+                nc.clashingLocalNames.emplace_back(f->localname);
+
+            ncs.emplace_back(std::move(nc));
         }
 
         // recurse after dealing with all items, so any renames within the folder have been completed
@@ -4844,6 +4906,21 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, 
             recursiveCollectNameConflicts(childRow, ncs, fullPath);
         }
     }
+}
+
+bool syncRow::hasClashes() const
+{
+    return !cloudClashingNames.empty() || !fsClashingNames.empty();
+}
+
+bool syncRow::hasCloudPresence() const
+{
+    return cloudNode || !cloudClashingNames.empty();
+}
+
+bool syncRow::hasLocalPresence() const
+{
+    return fsNode || !fsClashingNames.empty();
 }
 
 const LocalPath& syncRow::comparisonLocalname() const

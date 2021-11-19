@@ -218,3 +218,136 @@ TEST(MegaApi, getMimeType)
 
     ASSERT_EQ(600, successCount);
 }
+
+TEST(MegaApi, getNoSyncStall)
+{
+    auto syncStallInfo = std::make_unique<SyncStallInfo>();
+
+    MegaSyncStallList sentinel;
+    MegaSyncStallList* megaSyncStallListPtr = &sentinel;
+    ASSERT_EQ(megaSyncStallListPtr, &sentinel);
+
+    size_t numConflicts = MegaApiImpl::getSyncStalls(std::move(syncStallInfo), &megaSyncStallListPtr);
+    ASSERT_EQ(numConflicts, 0u); // No conflict
+    ASSERT_EQ(megaSyncStallListPtr, nullptr); // List not allocated
+}
+
+TEST(MegaApi, getLocalSyncStall)
+{
+    auto syncStallInfo = std::make_unique<SyncStallInfo>();
+
+    MegaSyncStallList sentinel;
+    MegaSyncStallList* megaSyncStallListPtr = &sentinel;
+    ASSERT_EQ(megaSyncStallListPtr, &sentinel);
+
+    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
+    const auto localPath = LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+
+    syncStallInfo->waitingLocal(  
+        localPath, 
+        localPath,
+        theRemotePath,
+        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+    );
+
+    size_t numConflicts = MegaApiImpl::getSyncStalls(std::move(syncStallInfo), &megaSyncStallListPtr);
+
+    ASSERT_EQ(numConflicts, 1u); // conflict
+    ASSERT_NE(megaSyncStallListPtr, nullptr); // List allocated
+    ASSERT_NE(megaSyncStallListPtr, &sentinel); // List is not sentinel
+
+    delete megaSyncStallListPtr; // Release owned list
+}
+
+TEST(MegaApi, MegaSyncStallList_constructor){
+    SyncStallInfo syncStallInfo;
+
+    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
+    const auto localPath = LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+
+    // Simulate a stall detected locally
+    syncStallInfo.waitingLocal(
+        localPath,
+        localPath,
+        theRemotePath,
+        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+    );
+
+    // Simulate a stall detected remotelly
+    syncStallInfo.waitingCloud(
+        theRemotePath,
+        theRemotePath,
+        localPath,
+        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+    );
+
+    MegaSyncStallListPrivate syncStallList(syncStallInfo);
+    ASSERT_EQ(syncStallList.size(), 2u);
+
+    const MegaSyncStall* localStallConstPtr = syncStallList.get(0);
+    const MegaSyncStall* cloudStallConstPtr = syncStallList.get(1);
+
+    ASSERT_NE(localStallConstPtr, nullptr);
+    ASSERT_NE(cloudStallConstPtr, nullptr);
+
+    // Check The local stall object
+    ASSERT_EQ(theLocalPath.compare( localStallConstPtr->indexPath()),0);
+    ASSERT_EQ(theLocalPath.compare( localStallConstPtr->localPath()),0);
+    ASSERT_EQ(theRemotePath.compare(localStallConstPtr->cloudPath()),0);
+    ASSERT_EQ(localStallConstPtr->reason(), 
+            MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
+    ASSERT_EQ(strcmp(localStallConstPtr->reasonString(), 
+                MegaSyncStallPrivate::reasonString(
+                    MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose)),0);
+    ASSERT_FALSE(localStallConstPtr->isCloud());
+    ASSERT_TRUE(localStallConstPtr->isImmediate());
+
+    // Check The cloud stall object
+    ASSERT_EQ(theRemotePath.compare(cloudStallConstPtr->indexPath()),0);
+    ASSERT_EQ(theLocalPath.compare( cloudStallConstPtr->localPath()),0);
+    ASSERT_EQ(theRemotePath.compare(cloudStallConstPtr->cloudPath()),0);
+    ASSERT_EQ(cloudStallConstPtr->isCloud(), true);
+}
+
+TEST(MegaApi, MegaSyncStallList_copy_constructor){
+    SyncStallInfo syncStallInfo;
+
+    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
+    const auto localPath = LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+    const auto localPathOther = LocalPath::fromPlatformEncodedAbsolute("/here/there/be/Other/Egg" );
+
+    syncStallInfo.waitingLocal(
+        localPath,
+        localPath,
+        theRemotePath,
+        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+    );
+
+    syncStallInfo.waitingLocal(
+        localPathOther,
+        localPathOther,
+        theRemotePath,
+        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+    );
+
+    MegaSyncStallListPrivate syncStallList(syncStallInfo);
+
+    auto copyOfList = syncStallList.copy();
+
+    ASSERT_EQ(copyOfList->size(), 2u);
+    ASSERT_EQ(syncStallList.size(), 2u);
+
+    for(size_t i=0; i<copyOfList->size();++i){
+        const MegaSyncStall* fromCopyPtr = copyOfList->get(i);
+        const MegaSyncStall* fromOrigPtr = syncStallList.get(i);
+        ASSERT_NE(fromCopyPtr, fromOrigPtr); // Are copies
+        ASSERT_NE(fromCopyPtr->indexPath(),fromOrigPtr->indexPath()); // Are copies
+        ASSERT_EQ(strcmp(fromCopyPtr->indexPath(),fromOrigPtr->indexPath()),0); // Same information
+    }
+
+    delete copyOfList;
+    ASSERT_EQ(syncStallList.size(), 2u);
+}

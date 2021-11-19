@@ -1056,6 +1056,25 @@ MegaHandleList* MegaRequest::getMegaHandleList() const
     return nullptr;
 }
 
+#ifdef ENABLE_SYNC
+
+MegaSyncNameConflictList* MegaRequest::getMegaSyncNameConflictList() const
+{
+    return nullptr;
+}
+
+MegaSyncProblems* MegaRequest::getMegaSyncProblems() const
+{
+    return nullptr;
+}
+
+MegaSyncStallList* MegaRequest::getMegaSyncStallList() const
+{
+    return nullptr;
+}
+
+#endif // ENABLE_SYNC
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -3449,12 +3468,24 @@ char *MegaApi::getBlockedPath()
     return pImpl->getBlockedPath();
 }
 
-bool MegaApi::conflictsDetected(const char** parentName,
-                                const char** parentPath,
-                                MegaStringList** names,
-                                bool* remote)
+void MegaApi::getSyncNameConflicts(MegaRequestListener* listener)
 {
-    return pImpl->conflictsDetected(parentName, parentPath, names, remote);
+    return pImpl->getSyncNameConflicts(listener);
+}
+
+void MegaApi::getSyncProblems(MegaRequestListener* listener, bool detailed)
+{
+    pImpl->getSyncProblems(listener, detailed);
+}
+
+void MegaApi::getSyncStalls(MegaRequestListener* listener)
+{
+    return pImpl->getSyncStalls(listener);
+}
+
+size_t MegaApi::getSyncStalls(MegaSyncStallList** syncStallList)
+{
+    return pImpl->getSyncStalls(syncStallList);
 }
 
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
@@ -6001,6 +6032,60 @@ void MegaSyncList::addSync(MegaSync *sync)
 
 }
 
+MegaSyncStall* MegaSyncStall::copy() const {
+    return nullptr; // @see implementation
+}
+
+const char* MegaSyncStall::indexPath() const
+{ 
+    return "";
+}
+
+const char* MegaSyncStall::localPath() const
+{
+    return "";
+}
+
+const char* MegaSyncStall::cloudPath() const
+{
+    return "";
+}
+
+MegaSyncStall::SyncStallReason MegaSyncStall::reason() const
+{
+    return MegaSyncStall::SyncStallReason::Unknown;
+}
+
+bool MegaSyncStall::isCloud() const
+{ 
+    return false;
+}
+
+bool MegaSyncStall::isImmediate() const
+{
+    return false;
+}
+
+const char*  MegaSyncStall::reasonString() const
+{ 
+    return "";
+}
+
+MegaSyncStallList* MegaSyncStallList::copy() const
+{ 
+    return nullptr;
+}
+
+size_t MegaSyncStallList::size() const
+{ 
+    return 0;
+}
+
+const MegaSyncStall* MegaSyncStallList::get(size_t i) const
+{ 
+    return nullptr;
+}
+
 #endif
 
 
@@ -7140,6 +7225,23 @@ MegaCurrency::~MegaCurrency()
 MegaCurrency *MegaCurrency::copy()
 {
     return nullptr;
+}
+
+MegaSyncNameConflict::~MegaSyncNameConflict() = default;
+
+MegaSyncNameConflict::MegaSyncNameConflict() = default;
+
+MegaSyncNameConflictList::~MegaSyncNameConflictList() = default;
+
+MegaSyncNameConflictList::MegaSyncNameConflictList() = default;
+
+MegaSyncProblems::~MegaSyncProblems() = default;
+
+MegaSyncProblems::MegaSyncProblems() = default;
+
+bool MegaSyncProblems::anyProblems() const
+{
+    return anyNameConflictsDetected() || anyStallsDetected();
 }
 
 }

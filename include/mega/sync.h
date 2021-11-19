@@ -7,7 +7,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the rules set forth in the Terms of Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -28,7 +28,7 @@
 #include "megawaiter.h"
 
 #ifdef ENABLE_SYNC
-
+#include "node.h"
 
 namespace mega {
 
@@ -262,6 +262,15 @@ struct syncRow
 
     vector<CloudNode*> cloudClashingNames;
     vector<FSNode*> fsClashingNames;
+
+    // True if we've recorded any clashing names.
+    bool hasClashes() const;
+
+    // True if this row exists in the cloud.
+    bool hasCloudPresence() const;
+
+    // True if this row exists on disk.
+    bool hasLocalPresence() const;
 
     bool suppressRecursion = false;
     bool itemProcessed = false;
@@ -758,22 +767,22 @@ private:
     HMACSHA256 mSigner;
 }; // SyncConfigIOContext
 
+/**
+ * A Synchronization operation detected a problem and is
+ * not able to continue (a stall)
+ */
+struct SyncStallEntry {
+    SyncWaitReason reason = SyncWaitReason::NoReason;
+    string involvedCloudPath;    ///<! remote path representation
+    LocalPath involvedLocalPath;
+};
+
 struct SyncStallInfo
 {
-    struct CloudStallInfo
-    {
-        SyncWaitReason reason = SyncWaitReason::NoReason;
-        string involvedCloudPath;
-        LocalPath involvedLocalPath;
-    };
-    struct LocalStallInfo {
-        SyncWaitReason reason = SyncWaitReason::NoReason;
-        LocalPath involvedLocalPath;
-        string involvedCloudPath;
-    };
-    typedef map<string, CloudStallInfo> CloudStallInfoMap;
-    typedef map<LocalPath, LocalStallInfo> LocalStallInfoMap;
+    using CloudStallInfoMap = map<string, SyncStallEntry>;
+    using LocalStallInfoMap = map<LocalPath, SyncStallEntry>;
 
+    /** No stalls detected */
     bool empty() const;
 
     bool waitingCloud(const string& cloudPath1,
@@ -789,8 +798,17 @@ struct SyncStallInfo
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
 
+    /** Requires user action to resolve */
     bool hasImmediateStallReason() const;
 };
+
+struct SyncProblems
+{
+    list<NameConflict> mConflicts;
+    SyncStallInfo mStalls;
+    bool mConflictsDetected = false;
+    bool mStallsDetected = false;
+}; // SyncProblems
 
 struct SyncFlags
 {
@@ -882,6 +900,17 @@ struct Syncs
     Syncs(MegaClient& mc, unique_ptr<FileSystemAccess> notification_fsa);
     ~Syncs();
 
+    void getSyncProblems(std::function<void(SyncProblems&)> completion,
+                         bool completionInClient,
+                         bool detailed);
+
+    void getSyncProblems_inThread(SyncProblems& problems, bool detailed);
+
+    /**
+     * @brief route the request to the sync thread for fulfillment.
+     */
+    void getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> completionClosure, 
+            bool completionInClient);
 
     /**
      * @brief

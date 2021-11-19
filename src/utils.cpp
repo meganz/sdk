@@ -2837,7 +2837,8 @@ bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason r)
     return r == SyncWaitReason::LocalFolderNotScannable ||
            r == SyncWaitReason::SymlinksNotSupported ||
            r == SyncWaitReason::FolderMatchedAgainstFile ||
-           r == SyncWaitReason::UnableToLoadIgnoreFile;
+           r == SyncWaitReason::UnableToLoadIgnoreFile ||
+           r == SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose;
 }
 
 UploadHandle UploadHandle::next()
