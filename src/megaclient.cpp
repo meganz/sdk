@@ -3850,6 +3850,7 @@ void MegaClient::dispatchTransfers()
                 {
                     (*it)->prepare();
                 }
+                assert(nexttransfer->localfilename.isAbsolute());
 
                 // app-side transfer preparations (populate localname, create thumbnail...)
                 app->transfer_prepare(nexttransfer);

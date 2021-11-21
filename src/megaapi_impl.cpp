@@ -5088,6 +5088,7 @@ void MegaFileGet::prepare()
     if (transfer->localfilename.empty())
     {
         transfer->localfilename = localname;
+        assert(transfer->localfilename.isAbsolute());
 
         size_t leafIndex = transfer->localfilename.getLeafnameByteIndex();
         transfer->localfilename.truncate(leafIndex);

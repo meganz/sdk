@@ -426,7 +426,11 @@ void DemoApp::transfer_prepare(Transfer* t)
         // only set localfilename if the engine has not already done so
         if (t->localfilename.empty())
         {
-            client->fsaccess->tmpnamelocal(t->localfilename);
+            LocalPath relative;
+            client->fsaccess->tmpnamelocal(relative);
+
+            t->localfilename = LocalPath::fromAbsolutePath(".");
+            t->localfilename.appendWithSeparator(relative, true);
         }
     }
 }
@@ -572,13 +576,9 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
         name = *cfilename;
     }
 
-    auto ln = LocalPath::fromRelativeName(name, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(targetfolder)));
-    if (!targetfolder.empty())
-    {
-        string s = targetfolder;
-        ln.prependWithSeparator(LocalPath::fromAbsolutePath(s));
-    }
-    localname = ln;
+    localname = LocalPath::fromAbsolutePath(targetfolder.empty() ? "." : targetfolder);
+    auto fsType = client->fsaccess->getlocalfstype(localname);
+    localname.appendWithSeparator(LocalPath::fromRelativeName(name, *client->fsaccess, fsType), false);
 }
 
 AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)

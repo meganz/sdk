@@ -966,6 +966,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         {
             state = TRANSFERSTATE_COMPLETED;
             localfilename = localname;
+            assert(localfilename.isAbsolute());
             finished = true;
             client->looprequested = true;
             client->app->transfer_complete(this);

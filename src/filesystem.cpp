@@ -314,6 +314,7 @@ void LocalPath::removeTrailingSeparators()
 
 void LocalPath::normalizeAbsolute()
 {
+    assert(!localpath.empty());
     isFromRoot = true;
 
 #ifdef WIN32
@@ -384,6 +385,7 @@ bool LocalPath::invariant() const
 {
     if (isFromRoot)
     {
+        assert(!localpath.empty());
         #ifdef WIN32
             // must contain a drive letter
             if (localpath.find(L":") == string_type::npos) return false;
@@ -1331,6 +1333,7 @@ string LocalPath::toName(const FileSystemAccess& fsaccess) const
 
 LocalPath LocalPath::fromAbsolutePath(const string& path)
 {
+    assert(!path.empty());
     LocalPath p;
     path2local(&path, &p.localpath);
     p.normalizeAbsolute();

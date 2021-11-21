@@ -1711,6 +1711,8 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
 void LocalNode::prepare()
 {
     getlocalpath(transfer->localfilename);
+    assert(transfer->localfilename.isAbsolute());
+
 
     // is this transfer in progress? update file's filename.
     if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
