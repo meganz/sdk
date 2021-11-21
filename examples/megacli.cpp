@@ -8532,8 +8532,9 @@ int main(int argc, char* argv[])
     registerSignalHandlers();
 #endif // NO_READLINE
 
-
-
+    // On Mac, we need to be passed a special file descriptor that has permissions allowing filesystem notifications.
+    // This is how MEGAsync and the integration tests work.  (running a sudo also works but then the program has too much power)
+    // The program megacli_fsloader in CMakeLists is the one that gets the special descriptor and starts megacli (mac only).
     std::vector<char*> myargv1(argv, argv + argc);
 
     for (auto it = myargv1.begin(); it != myargv1.end(); ++it)

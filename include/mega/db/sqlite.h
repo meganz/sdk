@@ -31,7 +31,7 @@ class MEGA_API SqliteDbTable : public DbTable
 {
     sqlite3* db;
     sqlite3_stmt* pStmt;
-    string dbfile;
+    LocalPath dbfile;
     FileSystemAccess *fsaccess;
 
 public:
@@ -46,7 +46,7 @@ public:
     void abort() override;
     void remove() override;
 
-    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
+    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted);
     ~SqliteDbTable();
 
     bool inTransaction() const override;

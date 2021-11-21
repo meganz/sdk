@@ -109,13 +109,12 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
 
     if (upgraded)
     {
-        LOG_debug << "Using an upgraded DB: " << dbPath.toPath();
+        LOG_debug << "Using an upgraded DB: " << dbPath;
         currentDbVersion = DB_VERSION;
     }
 
-    const string dbPathStr = dbPath.toPath();
     sqlite3* db;
-    int result = sqlite3_open_v2(dbPathStr.c_str(), &db,
+    int result = sqlite3_open_v2(dbPath.toPath().c_str(), &db,
         SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
         | SQLITE_OPEN_NOMUTEX // The new database connection will use the "multi-thread" threading mode. This means that separate threads are allowed to use SQLite at the same time, as long as each thread is using a different database connection.
         , nullptr);
@@ -155,7 +154,7 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
     return new SqliteDbTable(rng,
                              db,
                              fsAccess,
-                             dbPathStr,
+                             dbPath,
                              (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
 }
 
@@ -180,7 +179,7 @@ const LocalPath& SqliteDbAccess::rootPath() const
     return mRootPath;
 }
 
-SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
+SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted)
   : DbTable(rng, checkAlwaysTransacted)
   , db(db)
   , pStmt(nullptr)
@@ -481,8 +480,7 @@ void SqliteDbTable::remove()
 
     db = NULL;
 
-    auto localpath = LocalPath::fromAbsolutePath(dbfile);
-    fsaccess->unlinklocal(localpath);
+    fsaccess->unlinklocal(dbfile);
 }
 } // namespace
 
