@@ -80,7 +80,10 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 
     // Create specific table for handle nodes
-    std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, type int, size int64, share int, decrypted int, fav int, node BLOB NOT NULL)";
+    std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
+                      "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
+                      "type tinyint, size int64, share tinyint, decrypted tinyint, fav tinyint, "
+                      "node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -323,8 +326,6 @@ bool SqliteDbTable::get(uint32_t index, string* data)
     {
         return false;
     }
-
-    checkTransaction();
 
     sqlite3_stmt *stmt;
     int rc;
@@ -593,7 +594,9 @@ bool SqliteAccountState::put(Node *node)
     checkTransaction();
 
     sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, name, fingerprint, origFingerprint, type, size, share, decrypted, fav, node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
+                                        "name, fingerprint, origFingerprint, type, size, share, decrypted, fav, node) "
+                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         string nodeSerialized;
@@ -647,8 +650,6 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
         return false;
     }
 
-    checkTransaction();
-
     nodeSerialized.mNode.clear();
     nodeSerialized.mDecrypted = true;
 
@@ -681,8 +682,6 @@ bool SqliteAccountState::getNodes(std::vector<NodeSerialized> &nodes)
         return false;
     }
 
-    checkTransaction();
-
     sqlite3_stmt *stmt;
     int result = SQLITE_ERROR;
     if (sqlite3_prepare(db, "SELECT decrypted, node FROM nodes", -1, &stmt, NULL) == SQLITE_OK)
@@ -713,8 +712,6 @@ bool SqliteAccountState::getNodesByFingerprint(const FileFingerprint &fingerprin
         return false;
     }
 
-    checkTransaction();
-
     sqlite3_stmt *stmt;
     bool result = false;
     if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
@@ -738,8 +735,6 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
         return false;
     }
 
-    checkTransaction();
-
     sqlite3_stmt *stmt;
     bool result = false;
     if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE origFingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
@@ -760,8 +755,6 @@ bool SqliteAccountState::getNodeByFingerprint(const FileFingerprint &fingerprint
     {
         return false;
     }
-
-    checkTransaction();
 
     node.mNode.clear();
     node.mDecrypted = true;
@@ -800,8 +793,6 @@ bool SqliteAccountState::getRootNodes(std::map<mega::NodeHandle, NodeSerialized>
         return false;
     }
 
-    checkTransaction();
-
     sqlite3_stmt *stmt;
     bool result = false;
     if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
@@ -824,10 +815,8 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::map<mega::NodeHandle, meg
         return false;
     }
 
-    checkTransaction();
-
     sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
+    bool result = false;
     if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int(stmt, 1, static_cast<int>(shareType)) == SQLITE_OK)
@@ -846,8 +835,6 @@ bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::map<NodeHandl
     {
         return false;
     }
-
-    checkTransaction();
 
     sqlite3_stmt *stmt;
     bool result = false;
@@ -869,8 +856,6 @@ bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::
     {
         return false;
     }
-
-    checkTransaction();
 
     sqlite3_stmt *stmt;
     int result = SQLITE_ERROR;
@@ -897,8 +882,6 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::
         return false;
     }
 
-    checkTransaction();
-
     std::string sqlQuery = "SELECT nodehandle, decrypted, node FROM nodes WHERE LOWER(name) LIKE LOWER(";
     sqlQuery.append("'%")
             .append(name)
@@ -923,19 +906,18 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
         return false;
     }
 
-    checkTransaction();
-
     sqlite3_stmt *stmt;
     std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle, fav) AS (SELECT nodehandle, parenthandle, fav "
                            "FROM nodes WHERE parenthandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle, A.fav "
                            "FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.parenthandle = E.nodehandle)) SELECT * "
                            "FROM nodesCTE where fav = 1;";
 
+    int result = SQLITE_ERROR;
     if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
         {
-            while (sqlite3_step(stmt) == SQLITE_ROW && (nodes.size() < count || count == 0))
+            while ((result = sqlite3_step(stmt) == SQLITE_ROW) && (nodes.size() < count || count == 0))
             {
                 nodes.push_back(NodeHandle().set6byte(sqlite3_column_int64(stmt, 0)));
             }
@@ -943,7 +925,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
     }
 
     sqlite3_finalize(stmt);
-    return true;
+    return result == SQLITE_DONE ? true : false;;
 }
 
 int SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
@@ -952,8 +934,6 @@ int SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
     {
         return false;
     }
-
-    checkTransaction();
 
     sqlite3_stmt *stmt;
     int numChildren = 0;
@@ -980,8 +960,6 @@ NodeCounter SqliteAccountState::getNodeCounter(NodeHandle node, bool parentIsFil
     {
         return nodeCounter;
     }
-
-    checkTransaction();
 
     sqlite3_stmt *stmt;
     int64_t size = 0;
@@ -1026,8 +1004,6 @@ bool SqliteAccountState::isNodesOnDemandDb()
         return false;
     }
 
-    checkTransaction();
-
     int numRows = -1;
     sqlite3_stmt *stmt;
     if (sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL) == SQLITE_OK)
@@ -1050,8 +1026,6 @@ NodeHandle SqliteAccountState::getFirstAncestor(NodeHandle node)
     {
         return ancestor;
     }
-
-    checkTransaction();
 
     std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) "
             "AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? "
@@ -1082,8 +1056,6 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
     {
         return result;
     }
-
-    checkTransaction();
 
     std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) "
             "AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? "
@@ -1118,8 +1090,6 @@ bool SqliteAccountState::isFileNode(NodeHandle node)
         return isFileNode;
     }
 
-    checkTransaction();
-
     sqlite3_stmt *stmt;
     if (sqlite3_prepare(db, "SELECT type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
@@ -1144,8 +1114,6 @@ bool SqliteAccountState::isNodeInDB(NodeHandle node)
         return inDb;
     }
 
-    checkTransaction();
-
     sqlite3_stmt *stmt;
     if (sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
@@ -1169,8 +1137,6 @@ uint64_t SqliteAccountState::getNumberOfNodes()
     {
         return nodeNumber;
     }
-
-    checkTransaction();
 
     sqlite3_stmt *stmt;
     if (sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL) == SQLITE_OK)

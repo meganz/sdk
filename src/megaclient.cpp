@@ -16978,7 +16978,6 @@ Node *NodeManager::getNodeByHandle(NodeHandle handle)
     }
 
     NodeSerialized nodeSerialized;
-    node_vector nodeVector;
     if (mTable->getNode(handle, nodeSerialized))
     {
         node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
