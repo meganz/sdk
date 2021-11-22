@@ -1027,7 +1027,9 @@ public:
     bool updateSyncRemoteLocation(UnifiedSync&, bool exists, string cloudPath);
     
     // Trigger a full scan on the specified sync.
-    std::future<bool> triggerFullScan(handle backupID);
+    //
+    // If backupID is UNDEF, trigger a scan on all active periodic syncs.
+    std::future<size_t> triggerFullScan(handle backupID);
 
     // mark nodes as needing to be checked for sync actions
     void triggerSync(NodeHandle, bool recurse = false);

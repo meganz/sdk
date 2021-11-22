@@ -3358,9 +3358,9 @@ bool StandardClient::wouldBeEscapedOnDownload(fs::path root, string remoteName)
     return result.get();
 }
 
-void StandardClient::triggerFullScan(handle backupID)
+size_t StandardClient::triggerFullScan(handle backupID)
 {
-    client.syncs.triggerFullScan(backupID).get();
+    return client.syncs.triggerFullScan(backupID).get();
 }
 
 using SyncWaitPredicate = std::function<bool(StandardClient&)>;
@@ -10647,9 +10647,6 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
     // So we know when f has started transferring.
     std::atomic<bool> uploading{false};
 
-    // Sync ID defined here so we can capture it.
-    handle id = UNDEF;
-
     // Exclude "f" once it begins downloading.
     cdu->mOnFileAdded = [&](File& file) {
         string name;
@@ -10668,7 +10665,7 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
                                ignoreFile.size()));
 
         // Trigger a full scan.
-        cdu->triggerFullScan(id);
+        cdu->triggerFullScan(UNDEF);
     };
 
     // Remove download limit once .megaignore is uploaded.
@@ -10692,7 +10689,7 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
     };
 
     // Add and start sync.
-    id = setupSync(*cdu, "root", "x", false);
+    auto id = setupSync(*cdu, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -10728,9 +10725,6 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
     // Set upload speed limit to 1kbps.
     cdu->client.setmaxuploadspeed(1024);
 
-    // So we can capture the id in the callback.
-    handle id = UNDEF;
-
     cdu->mOnFileAdded =
       [&](File& file)
       {
@@ -10751,12 +10745,12 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
                                      ignoreFile.data(),
                                      ignoreFile.size()));
 
-              cdu->triggerFullScan(id);
+              cdu->triggerFullScan(UNDEF);
           }
       };
 
     // Add and start sync.
-    id = setupSync(*cdu, "root", "x", false);
+    auto id = setupSync(*cdu, "root", "x", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
@@ -11114,31 +11108,28 @@ TEST_F(FilterFailureFixture, TriggersFailureEvent)
     // Log in the client.
     ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
 
-    // Populated later, here so we can capture.
-    handle id = UNDEF;
-
     // Hook the filter failure event.
-    std::promise<void> notifier;
+    std::promise<handle> notifier;
 
     cu->mOnFilterError = [&](const SyncConfig& config) {
-        // Make sure the correct origin is reported.
-        if (config.mBackupId != id)
-            return;
-
         // Notify the waiter.
-        notifier.set_value();
+        notifier.set_value(config.mBackupId);
 
         // Detach the callback.
         cu->mOnFilterError = nullptr;
     };
 
     // Add and start a sync.
-    id = setupSync(*cu, "root", "cu", false);
+    auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for the sync to signal the event.
-    ASSERT_NE(notifier.get_future().wait_for(std::chrono::seconds(8)),
+    auto result = notifier.get_future();
+
+    ASSERT_NE(result.wait_for(std::chrono::seconds(8)),
               future_status::timeout);
+
+    ASSERT_EQ(result.get(), id);
 }
 
 TEST_F(FilterFailureFixture, TriggersStall)

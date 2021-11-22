@@ -7755,32 +7755,38 @@ bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
             fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
 }
 
-std::future<bool> Syncs::triggerFullScan(handle backupID)
+std::future<size_t> Syncs::triggerFullScan(handle backupID)
 {
     assert(!onSyncThread());
 
-    auto notifier = std::make_shared<std::promise<bool>>();
+    auto indiscriminate = backupID == UNDEF;
+    auto notifier = std::make_shared<std::promise<size_t>>();
     auto result = notifier->get_future();
 
-    queueSync([backupID, notifier, this]() {
+    queueSync([backupID, indiscriminate, notifier, this]() {
         lock_guard<mutex> guard(mSyncVecMutex);
+        size_t count = 0;
 
         for (auto& us : mSyncVec)
         {
             auto* s = us->mSync.get();
 
-            if (!s || us->mConfig.mBackupId != backupID)
+            if (!s)
+                continue;
+
+            if (!indiscriminate && us->mConfig.mBackupId != backupID)
                 continue;
 
             if (us->mConfig.isScanOnly())
                 s->localroot->setScanAgain(false, true, true, 0);
 
-            notifier->set_value(true);
+            ++count;
 
-            return;
+            if (!indiscriminate)
+                break;
         }
 
-        notifier->set_value(false);
+        notifier->set_value(count);
     });
 
     return result;

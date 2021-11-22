@@ -582,7 +582,7 @@ struct StandardClient : public ::mega::MegaApp
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
     void wouldBeEscapedOnDownload(fs::path root, string remoteName, PromiseBoolSP result);
     bool wouldBeEscapedOnDownload(fs::path root, string remoteName);
-    void triggerFullScan(handle backupID);
+    size_t triggerFullScan(handle backupID);
 
 };
 
