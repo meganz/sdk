@@ -133,7 +133,7 @@ namespace mega
         RETRY_SERVERS_BUSY  = 2,
         RETRY_API_LOCK      = 3,
         RETRY_RATE_LIMIT    = 4,
-        RETRY_LOCAL_LOCK    = 5,
+        //RETRY_LOCAL_LOCK    = 5,
         RETRY_UNKNOWN       = 6
     };
 

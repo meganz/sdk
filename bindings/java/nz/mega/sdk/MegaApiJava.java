@@ -151,7 +151,7 @@ public class MegaApiJava {
     public final static int RETRY_SERVERS_BUSY = MegaApi.RETRY_SERVERS_BUSY;
     public final static int RETRY_API_LOCK = MegaApi.RETRY_API_LOCK;
     public final static int RETRY_RATE_LIMIT = MegaApi.RETRY_RATE_LIMIT;
-    public final static int RETRY_LOCAL_LOCK = MegaApi.RETRY_LOCAL_LOCK;
+    //public final static int RETRY_LOCAL_LOCK = MegaApi.RETRY_LOCAL_LOCK;
     public final static int RETRY_UNKNOWN = MegaApi.RETRY_UNKNOWN;
 
     public final static int KEEP_ALIVE_CAMERA_UPLOADS = MegaApi.KEEP_ALIVE_CAMERA_UPLOADS;
