@@ -538,7 +538,7 @@ bool MegaClient::isValidFolderLink()
 {
     if (!ISUNDEF(mFolderLink.mPublicHandle))
     {
-        NodeHandle h = rootnodes[0];   // is the actual rootnode handle received?
+        NodeHandle h = rootnodes.files;   // is the actual rootnode handle received?
         if (!h.isUndef())
         {
             Node *n = nodeByHandle(h);
@@ -577,7 +577,7 @@ bool MegaClient::isPrivateNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode == rootnodes[0] || rootnode == rootnodes[1] || rootnode == rootnodes[2]);
+    return (rootnode == rootnodes.files || rootnode == rootnodes.inbox || rootnode == rootnodes.rubbish);
 }
 
 bool MegaClient::isForeignNode(NodeHandle h)
@@ -589,7 +589,7 @@ bool MegaClient::isForeignNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode != rootnodes[0] && rootnode != rootnodes[1] && rootnode != rootnodes[2]);
+    return (rootnode != rootnodes.files && rootnode != rootnodes.inbox && rootnode != rootnodes.rubbish);
 }
 
 SCSN::SCSN()
@@ -1218,10 +1218,9 @@ void MegaClient::init()
     syncs.clear();
 #endif
 
-    for (int i = sizeof rootnodes / sizeof *rootnodes; i--; )
-    {
-        rootnodes[i].setUndef();
-    }
+    rootnodes.files = NodeHandle();
+    rootnodes.inbox = NodeHandle();
+    rootnodes.rubbish = NodeHandle();
 
     pendingsc.reset();
     pendingscUserAlerts.reset();
@@ -7304,7 +7303,7 @@ void MegaClient::notifypurge(void)
 #ifdef ENABLE_SYNC
 
         //update sync root node location and trigger failing cases
-        NodeHandle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+        NodeHandle rubbishHandle = rootnodes.rubbish;
         // check for renamed/moved sync root folders
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
@@ -7332,7 +7331,7 @@ void MegaClient::notifypurge(void)
                     auto p = n->parent;
                     while (p)
                     {
-                        if (p->nodehandle == rubbishHandle.as8byte())
+                        if (p->nodeHandle() == rubbishHandle)
                         {
                             syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
                             break;
@@ -7659,11 +7658,11 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             {
                 if (c[2] == "in")
                 {
-                    n = nodeByHandle(rootnodes[1]);
+                    n = nodeByHandle(rootnodes.inbox);
                 }
                 else if (c[2] == "bin")
                 {
-                    n = nodeByHandle(rootnodes[2]);
+                    n = nodeByHandle(rootnodes.rubbish);
                 }
                 else
                 {
@@ -7674,7 +7673,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             }
             else
             {
-                n = nodeByHandle(rootnodes[0]);
+                n = nodeByHandle(rootnodes.files);
                 l = 1;
             }
         }
@@ -8098,11 +8097,11 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         {
             Node *prevRoot = getrootnode(prevParent);
             Node *newRoot = getrootnode(p);
-            NodeHandle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+            NodeHandle rubbishHandle = rootnodes.rubbish;
             nameid rrname = AttrMap::string2nameid("rr");
 
-            if (rubbishHandle.ne(prevRoot->nodehandle) &&
-                rubbishHandle.eq(newRoot->nodehandle))
+            if (prevRoot->nodeHandle() != rubbishHandle &&
+                newRoot->nodeHandle() == rubbishHandle)
             {
                 // deleted node
                 char base64Handle[12];
@@ -8113,8 +8112,8 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
                     attrUpdates[rrname] = base64Handle;
                 }
             }
-            else if (rubbishHandle.eq(prevRoot->nodehandle)
-                     && rubbishHandle.ne(newRoot->nodehandle))
+            else if (prevRoot->nodeHandle() == rubbishHandle
+                     && newRoot->nodeHandle() != rubbishHandle)
             {
                 // undeleted node
                 attr_map::iterator it = n->attrs.map.find(rrname);
@@ -8660,9 +8659,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 // folder link access: first returned record defines root node and identity
 				// (this code used to be in Node::Node but is not suitable for session resume)
-                if (rootnodes[0].isUndef())
+
+                if (rootnodes.files.isUndef())
                 {
-                    rootnodes[0].set6byte(h);
+                    rootnodes.files.set6byte(h);
 
                     if (loggedIntoWritableFolder())
                     {
@@ -9208,7 +9208,9 @@ void MegaClient::applykeys()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
-    int noKeyExpected = (rootnodes[0] != UNDEF) + (rootnodes[1] != UNDEF) + (rootnodes[2] != UNDEF);
+    int noKeyExpected = (rootnodes.files.isUndef() ? 0 : 1)
+                      + (rootnodes.inbox.isUndef() ? 0 : 1)
+                      + (rootnodes.rubbish.isUndef() ? 0 : 1);
 
     mNodeManager.applyKeys(uint32_t(mAppliedKeyNodeCount + noKeyExpected));
 
@@ -9635,7 +9637,7 @@ void MegaClient::login(string session)
             mFolderLink.mWriteAuth = writeAuth;
             mFolderLink.mAccountAuth = accountAuth;
 
-            rootnodes[0].set6byte(rootnode);
+            rootnodes.files.set6byte(rootnode);
             key.setkey(k, FOLDERNODE);
 
             checkForResumeableSCDatabase();
@@ -9713,7 +9715,7 @@ int MegaClient::dumpsession(string& session)
 
         cw.serializebyte(2);
         cw.serializenodehandle(mFolderLink.mPublicHandle);
-        cw.serializenodehandle(rootnodes[0].as8byte());
+        cw.serializenodehandle(rootnodes.files.as8byte());
         cw.serializebinary(key.key, sizeof(key.key));
         cw.serializeexpansionflags(!mFolderLink.mWriteAuth.empty(), !mFolderLink.mAccountAuth.empty(), true);
 
@@ -10190,6 +10192,8 @@ void MegaClient::resetKeyring()
 // process node tree (bottom up)
 void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipversions)
 {
+    if (!n) return;
+
     if (!skipversions || n->type != FILENODE)
     {
         node_list nodeList = getChildren(n);
@@ -12106,14 +12110,13 @@ bool MegaClient::fetchsc(DbTable* sctable)
         // TODO Nodes on Demand: Review to remove. mPublicLinks has been removed
         mNodeManager.getNodesWithLinks();
 
-
         //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
         // TODO nodes on demand Check ROOTNODE - ROOTNODE set to 0 or define an enum
-        NodeHandle rootHandle = rootnodes[ROOTNODE - ROOTNODE];
+        NodeHandle rootHandle = rootnodes.files;
         mNodeManager.updateCounter(rootHandle);
-        NodeHandle inboxHandle = rootnodes[INCOMINGNODE - ROOTNODE];
+        NodeHandle inboxHandle = rootnodes.inbox;
         mNodeManager.updateCounter(inboxHandle);
-        NodeHandle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+        NodeHandle rubbishHandle = rootnodes.rubbish;
         mNodeManager.updateCounter(rubbishHandle);
 #endif
 
@@ -12508,7 +12511,7 @@ void MegaClient::fetchnodes(bool nocache)
             {
                 // If logged into writable folder, we need the sharekey set in the root node
                 // so as to include it in subsequent put nodes
-                if (Node* n = nodeByHandle(*rootnodes))
+                if (Node* n = nodeByHandle(rootnodes.files))
                 {
                     n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
                 }
@@ -13611,8 +13614,6 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     Node* n = remotenode;
     bool inshare = false;
 
-    NodeHandle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
-
     do {
         bool anyAbove = false;
         syncs.forEachRunningSync([&](Sync* sync) {
@@ -13649,7 +13650,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
             inshare = true;
         }
 
-        if (n->nodehandle == rubbishHandle.as8byte())
+        if (n->nodeHandle() == rootnodes.rubbish)
         {
             if(syncError)
             {
@@ -15587,7 +15588,7 @@ void MegaClient::execmovetosyncdebris()
     // - //bin
 
     // (if no rubbish bin is found, we should probably reload...)
-    if (!(tn = nodeByHandle(rootnodes[RUBBISHNODE - ROOTNODE])))
+    if (!(tn = nodeByHandle(rootnodes.rubbish)))
     {
         return;
     }
@@ -16743,6 +16744,36 @@ bool MegaClient::driveMonitorEnabled()
 #endif
 }
 
+const char* MegaClient::newsignupLinkPrefix()
+{
+    static constexpr const char* prefix = "newsignup";
+    return prefix;
+}
+
+const char* MegaClient::confirmLinkPrefix()
+{
+    static constexpr const char* prefix = "confirm";
+    return prefix;
+}
+
+const char* MegaClient::verifyLinkPrefix()
+{
+    static constexpr const char* prefix = "verify";
+    return prefix;
+}
+
+const char* MegaClient::recoverLinkPrefix()
+{
+    static constexpr const char* prefix = "recover";
+    return prefix;
+}
+
+const char* MegaClient::cancelLinkPrefix()
+{
+    static constexpr const char* prefix = "cancel";
+    return prefix;
+}
+
 #ifdef MEGA_MEASURE_CODE
 std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs)
 {
@@ -16859,6 +16890,24 @@ void NodeManager::reset()
     cleanNodes();
 }
 
+bool NodeManager::setrootnode(Node* node)
+{
+    switch (node->type)
+    {
+    case ROOTNODE:
+        mClient.rootnodes.files = node->nodeHandle();
+        return true;
+    case INCOMINGNODE:
+        mClient.rootnodes.inbox = node->nodeHandle();
+        return true;
+    case RUBBISHNODE:
+        mClient.rootnodes.rubbish = node->nodeHandle();
+        return true;
+    }
+
+    return false;
+}
+
 bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 {
     // 'isFetching' is true only when CommandFetchNodes is in flight and/or it has been received,
@@ -16877,10 +16926,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     if (mKeepAllNodesInMemory || node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE || !isFetching)
     {
         saveNodeMemory = true;
-        if (node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE)
-        {
-            mClient.rootnodes[node->type - ROOTNODE] = node->nodeHandle();
-        }
+        setrootnode(node);
     }
     else
     {
@@ -17184,7 +17230,7 @@ node_vector NodeManager::getRootNodes()
             getChildren(n);
         }
 
-        mClient.rootnodes[n->type - ROOTNODE] = n->nodeHandle();
+        setrootnode(n);
     }
 
     return nodes;
@@ -17823,7 +17869,18 @@ const NodeCounter* NodeManager::getCounter(const NodeHandle& h) const
 const NodeHandle& NodeManager::rootnode(int idx) const
 {
     // This should be replaced with something better
-    return mClient.rootnodes[idx];
+    switch (idx)
+    {
+    case 0:
+        return mClient.rootnodes.files;
+    case 1:
+        return mClient.rootnodes.inbox;
+    case 2:
+        return mClient.rootnodes.rubbish;
+    }
+
+    assert(idx >= 0 && idx <= 2);
+    return mClient.rootnodes.files; // it should not get here, but just return something meaningful for the compiler
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()

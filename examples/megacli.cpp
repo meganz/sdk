@@ -983,7 +983,7 @@ void DemoApp::fetchnodes_result(const Error& e)
             }
             else
             {
-                assert(client->nodeByHandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
+                assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
                 cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
@@ -1298,20 +1298,20 @@ static NodeHandle cwd;
 // Where we were on the local filesystem when megacli started.
 static unique_ptr<LocalPath> startDir(new LocalPath);
 
-static const char* rootnodenames[] =
-{ "ROOT", "INBOX", "RUBBISH" };
-static const char* rootnodepaths[] =
-{ "/", "//in", "//bin" };
-
 // list available top-level nodes and contacts/incoming shares
 static void listtrees()
 {
-    for (int i = 0; i < (int) (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    if (!client->rootnodes.files.isUndef())
     {
-        if (client->rootnodes[i] != UNDEF)
-        {
-            cout << rootnodenames[i] << " on " << rootnodepaths[i] << endl;
-        }
+        cout << "ROOT on /" << endl;
+    }
+    if (!client->rootnodes.inbox.isUndef())
+    {
+        cout << "INBOX on //in" << endl;
+    }
+    if (!client->rootnodes.rubbish.isUndef())
+    {
+        cout << "RUBBISH on //bin" << endl;
     }
 
     for (user_map::iterator uit = client->users.begin(); uit != client->users.end(); uit++)
@@ -1332,9 +1332,9 @@ static void listtrees()
         }
     }
 
-    if (clientFolder && !clientFolder->rootnodes[0].isUndef())
+    if (clientFolder && !clientFolder->rootnodes.files.isUndef())
     {
-        Node *n = clientFolder->nodeByHandle(clientFolder->rootnodes[0]);
+        Node *n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
         if (n)
         {
             cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
@@ -1463,7 +1463,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 return NULL;
             }
 
-            n = clientFolder->nodeByHandle(clientFolder->rootnodes[0]);
+            n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
             if (c.size() == 2 && c[1].empty())
             {
                 return n;
@@ -1513,11 +1513,11 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodeByHandle(client->rootnodes[1]);
+                    n = client->nodeByHandle(client->rootnodes.inbox);
                 }
                 else if (c[2] == "bin")
                 {
-                    n = client->nodeByHandle(client->rootnodes[2]);
+                    n = client->nodeByHandle(client->rootnodes.rubbish);
                 }
                 else
                 {
@@ -1528,7 +1528,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             }
             else
             {
-                n = client->nodeByHandle(client->rootnodes[0]);
+                n = client->nodeByHandle(client->rootnodes.files);
 
                 l = 1;
             }
@@ -2296,7 +2296,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 
     std::vector<Node*> emptyFolders;
     bool empty = true;
-    Node* trash = client->nodeByHandle(client->rootnodes[2]);
+    Node* trash = client->nodeByHandle(client->rootnodes.rubbish);
     for (auto c : client->getChildren(n))
     {
         bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
@@ -2641,8 +2641,8 @@ void exec_lrenamereplace(autocomplete::ACState& s)
 void exec_getcloudstorageused(autocomplete::ACState& s)
 {
     // TODO Nodes on demand ROOTNODE - ROOTNODE
-    m_off_t rootNodeSize = client->mNodeManager.getNodeCounter(client->rootnodes[ROOTNODE - ROOTNODE]).storage;
-    m_off_t rubbishSize = client->mNodeManager.getNodeCounter(client->rootnodes[RUBBISHNODE - ROOTNODE]).storage;
+    m_off_t rootNodeSize = client->mNodeManager.getNodeCounter(client->rootnodes.files).storage;
+    m_off_t rubbishSize = client->mNodeManager.getNodeCounter(client->rootnodes.rubbish).storage;
     cout << rootNodeSize + rubbishSize << endl;
 }
 
@@ -3651,7 +3651,7 @@ void exec_cd(autocomplete::ACState& s)
     }
     else
     {
-        cwd = client->rootnodes[0];
+        cwd = client->rootnodes.files;
     }
 }
 
@@ -4181,7 +4181,7 @@ void exec_get(autocomplete::ACState& s)
                     // node from public folder link
                     if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
                     {
-                        handle h = clientFolder->rootnodes[0].as8byte();
+                        handle h = clientFolder->rootnodes.files.as8byte();
                         char *pubauth = new char[12];
                         Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
                         f->pubauth = pubauth;
@@ -4746,17 +4746,12 @@ void exec_share(autocomplete::ACState& s)
     case 1:		// list all shares (incoming and outgoing)
     {
         TreeProcListOutShares listoutshares;
-        Node* n;
 
         cout << "Shared folders:" << endl;
 
-        for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
-        {
-            if ((n = client->nodeByHandle(client->rootnodes[i])))
-            {
-                client->proctree(n, &listoutshares);
-            }
-        }
+        client->proctree(client->nodeByHandle(client->rootnodes.files), &listoutshares);
+        client->proctree(client->nodeByHandle(client->rootnodes.inbox), &listoutshares);
+        client->proctree(client->nodeByHandle(client->rootnodes.rubbish), &listoutshares);
 
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)
@@ -5352,14 +5347,14 @@ void exec_email(autocomplete::ACState& s)
         {
             string link = s.words[1].s;
 
-            size_t pos = link.find("#verify");
+            size_t pos = link.find(MegaClient::verifyLinkPrefix());
             if (pos == link.npos)
             {
                 cout << "Invalid email change link." << endl;
                 return;
             }
 
-            changecode.assign(link.substr(pos + strlen("#verify")));
+            changecode.assign(link.substr(pos + strlen(MegaClient::verifyLinkPrefix())));
             client->queryrecoverylink(changecode.c_str());
         }
     }
@@ -5772,9 +5767,9 @@ void exec_signup(autocomplete::ACState& s)
         const char* ptr = s.words[1].s.c_str();
         const char* tptr;
 
-        if ((tptr = strstr(ptr, "#confirm")))
+        if ((tptr = strstr(ptr, "confirm")))
         {
-            ptr = tptr + 8;
+            ptr = tptr + 7;
 
             std::string code = Base64::atob(std::string(ptr));
             if (!code.empty())
@@ -6262,14 +6257,14 @@ void exec_cancel(autocomplete::ACState& s)
     {
         string link = s.words[1].s;
 
-        size_t pos = link.find("#cancel");
+        size_t pos = link.find(MegaClient::cancelLinkPrefix());
         if (pos == link.npos)
         {
             cout << "Invalid cancellation link." << endl;
             return;
         }
 
-        client->confirmcancellink(link.substr(pos + strlen("#cancel")).c_str());
+        client->confirmcancellink(link.substr(pos + strlen(MegaClient::cancelLinkPrefix())).c_str());
     }
 }
 
@@ -6376,13 +6371,13 @@ void exec_recover(autocomplete::ACState& s)
     {
         string link = s.words[1].s;
 
-        size_t pos = link.find("#recover");
+        size_t pos = link.find(MegaClient::recoverLinkPrefix());
         if (pos == link.npos)
         {
             cout << "Invalid recovery link." << endl;
         }
 
-        recoverycode.assign(link.substr(pos + strlen("#recover")));
+        recoverycode.assign(link.substr(pos + strlen(MegaClient::recoverLinkPrefix())));
         client->queryrecoverylink(recoverycode.c_str());
     }
 }
@@ -7519,7 +7514,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     {
         if (pdf_to_import)
         {
-            n = client->nodeByHandle(client->rootnodes[0]);
+            n = client->nodeByHandle(client->rootnodes.files);
         }
         else
         {
@@ -7745,7 +7740,7 @@ void DemoApp::nodes_updated(Node** /*n*/, int /*count*/)
 {
     if (cwd.isUndef())
     {
-        cwd = client->rootnodes[0];
+        cwd = client->rootnodes.files;
     }
 }
 
@@ -7868,6 +7863,12 @@ void DemoApp::contactlinkdelete_result(error e)
     }
 }
 
+void reportNodeStorage(NodeStorage* ns, const string& rootnodename)
+{
+    cout << "\t\tIn " << rootnodename << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
+    cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
+}
+
 // display account details/history
 void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, bool pro, bool purchases,
                               bool transactions, bool sessions)
@@ -7878,13 +7879,9 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
-        for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
-        {
-            NodeStorage* ns = &ad->storage[client->rootnodes[i].as8byte()];
-
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
-            cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
-        }
+        reportNodeStorage(&ad->storage[client->rootnodes.files.as8byte()], "/");
+        reportNodeStorage(&ad->storage[client->rootnodes.inbox.as8byte()], "//in");
+        reportNodeStorage(&ad->storage[client->rootnodes.rubbish.as8byte()], "//bin");
     }
 
     if (transfer)

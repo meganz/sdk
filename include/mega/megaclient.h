@@ -372,6 +372,7 @@ private:
     void saveNodeInRAM(Node* node, bool notify);
     void saveNodeInDataBase(Node* node);
     const NodeHandle& rootnode(int idx) const;
+    bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
 };
@@ -384,7 +385,12 @@ public:
     string uid;
 
     // root nodes (files, incoming, rubbish)
-    NodeHandle rootnodes[3];
+    struct Rootnodes
+    {
+        NodeHandle files;
+        NodeHandle inbox;
+        NodeHandle rubbish;
+    } rootnodes;
 
     // all users
     user_map users;
@@ -1101,6 +1107,21 @@ public:
 
     // root URL for Website
     static const string MEGAURL;
+
+    // newsignup link URL prefix
+    static const char* newsignupLinkPrefix();
+
+    // confirm link URL prefix
+    static const char* confirmLinkPrefix();
+
+    // verify link URL prefix
+    static const char* verifyLinkPrefix();
+
+    // recover link URL prefix
+    static const char* recoverLinkPrefix();
+
+    // cancel link URL prefix
+    static const char* cancelLinkPrefix();
 
     // file that is blocking the sync engine
     LocalPath blockedfile;
