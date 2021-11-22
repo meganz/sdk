@@ -577,7 +577,7 @@ bool MegaClient::isPrivateNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode == rootnodes.files || rootnode == rootnodes.inbox || rootnode == rootnodes.rubbish);
+    return mNodeManager.isRootNode(rootnode);
 }
 
 bool MegaClient::isForeignNode(NodeHandle h)
@@ -589,7 +589,7 @@ bool MegaClient::isForeignNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode != rootnodes.files && rootnode != rootnodes.inbox && rootnode != rootnodes.rubbish);
+    return !mNodeManager.isRootNode(rootnode);
 }
 
 SCSN::SCSN()
@@ -17865,30 +17865,25 @@ const NodeCounter* NodeManager::getCounter(const NodeHandle& h) const
     return it == mNodeCounters.end() ? nullptr : &(it->second);
 }
 
-const NodeHandle& NodeManager::rootnode(int idx) const
+bool NodeManager::isRootNode(NodeHandle h) const
 {
-    // This should be replaced with something better
-    switch (idx)
-    {
-    case 0:
-        return mClient.rootnodes.files;
-    case 1:
-        return mClient.rootnodes.inbox;
-    case 2:
-        return mClient.rootnodes.rubbish;
-    }
-
-    assert(idx >= 0 && idx <= 2);
-    return mClient.rootnodes.files; // it should not get here, but just return something meaningful for the compiler
+    return h == mClient.rootnodes.files
+            || h == mClient.rootnodes.inbox
+            || h == mClient.rootnodes.rubbish;
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
 {
-    NodeHandle h = rootnode(0);
+    NodeHandle h = mClient.rootnodes.files;
+    assert(mNodeCounters.find(h) != mNodeCounters.end());
     NodeCounter c = mNodeCounters[h];
-    h = rootnode(1);
+
+    h = mClient.rootnodes.inbox;
+    assert(mNodeCounters.find(h) != mNodeCounters.end());
     c += mNodeCounters[h];
-    h = rootnode(2);
+
+    h = mClient.rootnodes.rubbish;
+    assert(mNodeCounters.find(h) != mNodeCounters.end());
     c += mNodeCounters[h];
 
     return c;

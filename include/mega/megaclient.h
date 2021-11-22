@@ -341,6 +341,8 @@ public:
     // moves the counter of 'h' from one counter ('oldRoot') to another counter ('newRoot')
     void movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, const NodeHandle& newRoot);
 
+    // true if 'h' is a rootnode: cloud, inbox or rubbish bin
+    bool isRootNode(NodeHandle h) const;
 
 private:
     // TODO Nodes on demand remove reference
@@ -371,7 +373,6 @@ private:
     Node* getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(Node* node, bool notify);
     void saveNodeInDataBase(Node* node);
-    const NodeHandle& rootnode(int idx) const;
     bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
