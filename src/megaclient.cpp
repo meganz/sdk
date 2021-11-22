@@ -16897,15 +16897,19 @@ bool NodeManager::setrootnode(Node* node)
     case ROOTNODE:
         mClient.rootnodes.files = node->nodeHandle();
         return true;
+
     case INCOMINGNODE:
         mClient.rootnodes.inbox = node->nodeHandle();
         return true;
+
     case RUBBISHNODE:
         mClient.rootnodes.rubbish = node->nodeHandle();
         return true;
-    }
 
-    return false;
+    default:
+        assert(false);
+        return false;
+    }
 }
 
 bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
