@@ -882,10 +882,14 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::
         return false;
     }
 
+    // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
+    // (with or without any additional char at the beginning and/or end of the name). The '%' is the wildcard in SQL
     std::string sqlQuery = "SELECT nodehandle, decrypted, node FROM nodes WHERE LOWER(name) LIKE LOWER(";
     sqlQuery.append("'%")
             .append(name)
             .append("%')");
+    // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
+    // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
 
     sqlite3_stmt *stmt;
     bool result = false;
