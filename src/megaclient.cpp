@@ -17072,8 +17072,11 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
 
     std::map<mega::NodeHandle, NodeSerialized> nodeMap;
     mTable->getNodesByName(searchString, nodeMap);
-    if (nodeHandle.isUndef())
+    if (!nodeHandle.isUndef())  // filter results by subtree (nodeHandle)
     {
+        // TODO possible improvement is to pass to SQL the 'nodeHandle', so the 'nodeMap'
+        // only contains matches inside the corresponding tree. However, it might result
+        // in worst performance, since it needs to check every parent upwards
         for (auto it = nodeMap.begin(); it != nodeMap.end(); )
         {
             if (!isAncestor(it->first, nodeHandle))
