@@ -12432,7 +12432,7 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
         Node *parent = client->nodebyhandle(transfer->getParentHandle());
         node_vector nodes = client->mNodeManager.getNodesByFingerprint(*file);
         const char *name = transfer->getFileName();
-        if (parent && name)
+        if (parent && nodes.size() && name)
         {
             // Get previous node if any
             file->previousNode = client->childnodebyname(parent, name, true);
