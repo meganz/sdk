@@ -12085,6 +12085,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
         assert(mNodeManager.getNodeCount());
         std::vector<NodeSerialized> nodes;
 #ifdef ENABLE_SYNC
+        // TODO Nodes on demand check if mFingerprints is required
+#if 0
         sctable->getNodes(nodes);
         for (const NodeSerialized& node : nodes)
         {
@@ -12102,6 +12104,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 dp[i]->setparent(n);
             }
         }
+#endif // TODO Nodes on demand check if mFingerprints is required
 
 #else
         mNodeManager.getRootNodes();
@@ -13335,7 +13338,8 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 #ifdef ENABLE_SYNC
     todebris.clear();
     tounlink.clear();
-    mFingerprints.clear();
+    // TODO Nodes on demand check if mFingerprints is required
+    //mFingerprints.clear();
 #endif
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -15424,7 +15428,8 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
         {
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
-                mFingerprints.remove(n);
+                // TODO Nodes on demand check if mFingerprints is required
+                //mFingerprints.remove(n);
             }
         }
         else if (nn[nni].localnode && (n = nn[nni].localnode->node))
@@ -16073,7 +16078,14 @@ void MegaClient::setmaxconnections(direction_t d, int num)
     }
 }
 
+Node* MegaClient::nodebyfingerprint(FileFingerprint* fp)
+{
+    return fp ? mNodeManager.getNodeByFingerprint(*fp) : nullptr;
+}
+
 #ifdef ENABLE_SYNC
+// TODO Nodes on demand check if mFingerprints is required
+#if 0
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 {
     std::unique_ptr<const node_vector>
@@ -16129,6 +16141,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     return *remoteNode;
 }
+#endif // TODO Nodes on demand check if mFingerprints is required
 #endif /* ENABLE_SYNC */
 
 // TODO nodes on demand check if we it's necessary when SDK-1753 will be implemented
@@ -16873,9 +16886,6 @@ void FetchNodesStats::toJsonArray(string *json)
 NodeManager::NodeManager(MegaClient& client)
     : mClient(client)
 {
-#ifdef ENABLE_SYNC
-    mKeepAllNodeInMemory = true;
-#endif
 }
 
 void NodeManager::setTable(DBTableNodes *table)

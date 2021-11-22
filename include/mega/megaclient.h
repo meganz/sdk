@@ -359,7 +359,7 @@ private:
 
     // flag to force all nodes to be loaded in memory
 #ifdef ENABLE_SYNC
-    bool mKeepAllNodeInMemory = true;
+    bool mKeepAllNodesInMemory = true;
 #else
     bool mKeepAllNodesInMemory = false;
 #endif
@@ -1596,7 +1596,8 @@ public:
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
-    Node* nodebyfingerprint(LocalNode*);
+    // TODO Nodes on demand check if mFingerprints is required
+    //Node* nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
 
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
