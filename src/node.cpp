@@ -773,8 +773,7 @@ bool Node::setparent(Node* p)
     NodeHandle nah;
     nah.set6byte(newancestor->nodehandle);
 
-    client->mNodeManager.movedSubtreeToNewRoot(nodeHandle(), oah, originalancestor ? originalancestor->inshare : nullptr,
-                                                             nah, newancestor->inshare);
+    client->mNodeManager.movedSubtreeToNewRoot(nodeHandle(), oah, nah);
 
 #ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers

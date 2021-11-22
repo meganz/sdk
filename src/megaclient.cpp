@@ -17924,26 +17924,24 @@ NodeCounter NodeManager::getCounterForSubtree(const NodeHandle& h)
     return getNodeCounter(h);
 }
 
-void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, bool oldInShare,
-                                                             const NodeHandle& newRoot, bool newInShare)
+void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, const NodeHandle& newRoot)
 {
-    assert(mNodeCounters.find(oldRoot) != mNodeCounters.end());
-    assert(mNodeCounters.find(newRoot) != mNodeCounters.end());
-
-    bool subTreeCalculated = false;
+    bool subTreeCalculated = false; // is the subtree available in the node's counter for old root?
     NodeCounter nc;
 
-    if (!oldRoot.isUndef() && (oldRoot == rootnode(0) || oldRoot == rootnode(1) || oldRoot == rootnode(2) || oldInShare))
+    auto itOld = mNodeCounters.find(oldRoot);
+    if (itOld != mNodeCounters.end())
     {
         // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
         nc = getCounterForSubtree(h);
-        mNodeCounters[oldRoot] -= nc;
+        itOld->second -= nc;
         subTreeCalculated = true;
     }
 
-    if (newRoot == rootnode(0) || newRoot == rootnode(1) || newRoot == rootnode(2) || newInShare)
+    auto itNew = mNodeCounters.find(newRoot);
+    if (itNew != mNodeCounters.end())
     {
-        mNodeCounters[newRoot] += subTreeCalculated ? nc : getCounterForSubtree(h);
+        itNew->second += subTreeCalculated ? nc : getCounterForSubtree(h);
     }
 }
 

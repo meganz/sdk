@@ -339,8 +339,8 @@ public:
     void subtractFromRootCounter(const Node& n);
 
     // moves the counter of 'h' from one counter ('oldRoot') to another counter ('newRoot')
-    void movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, bool oldInShare,
-                                                    const NodeHandle& newRoot, bool newInShare);
+    void movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, const NodeHandle& newRoot);
+
 
 private:
     // TODO Nodes on demand remove reference
