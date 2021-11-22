@@ -17904,21 +17904,19 @@ void NodeManager::subtractFromRootCounter(const Node& n)
 {
     NodeHandle firstValidAntecestor = getFirstAncestor(n.nodeHandle());
     assert(firstValidAntecestor != UNDEF);
-    if (firstValidAntecestor == rootnode(0) ||
-        firstValidAntecestor == rootnode(1) ||
-        firstValidAntecestor == rootnode(2))
+    auto it = mNodeCounters.find(firstValidAntecestor);
+    if (it != mNodeCounters.end())
     {
-        mNodeCounters[firstValidAntecestor] -= getNodeCounter(n.nodeHandle(), n.type == FILENODE);
+        it->second -= getNodeCounter(n.nodeHandle(), n.type == FILENODE);
     }
 }
 
 NodeCounter NodeManager::getCounterForSubtree(const NodeHandle& h)
 {
-    if (h == rootnode(0) || h == rootnode(1) || h == rootnode(2))
+    auto it = mNodeCounters.find(h);
+    if (it != mNodeCounters.end())
     {
-        // node counters for rootnodes are always loaded upon fetchsc()
-        assert(mNodeCounters.find(h) != mNodeCounters.end());
-        return mNodeCounters[h];
+        return it->second;
     }
 
     return getNodeCounter(h);
