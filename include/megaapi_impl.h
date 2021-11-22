@@ -2101,6 +2101,8 @@ class TransferQueue
         int getLastPushedTag() const;
 };
 
+#ifdef ENABLE_SYNC
+
 /**
  * Implementation for a Sync stall conflict (immutable)
  * It Could wrap a single synchronization conflict or a reference to it
@@ -2200,6 +2202,8 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
         MegaSyncStall::SyncStallReason 
         syncStallReasonMapping(SyncWaitReason reason) const;
 };
+
+#endif // ENABLE_SYNC
 
 class MegaApiImpl : public MegaApp
 {

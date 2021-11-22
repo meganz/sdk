@@ -7227,6 +7227,8 @@ MegaCurrency *MegaCurrency::copy()
     return nullptr;
 }
 
+#ifdef ENABLE_SYNC
+
 MegaSyncNameConflict::~MegaSyncNameConflict() = default;
 
 MegaSyncNameConflict::MegaSyncNameConflict() = default;
@@ -7243,5 +7245,7 @@ bool MegaSyncProblems::anyProblems() const
 {
     return anyNameConflictsDetected() || anyStallsDetected();
 }
+
+#endif // ENABLE_SYNC
 
 }

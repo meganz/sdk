@@ -219,6 +219,8 @@ TEST(MegaApi, getMimeType)
     ASSERT_EQ(600, successCount);
 }
 
+#ifdef ENABLE_SYNC
+
 TEST(MegaApi, getNoSyncStall)
 {
     auto syncStallInfo = std::make_unique<SyncStallInfo>();
@@ -351,3 +353,5 @@ TEST(MegaApi, MegaSyncStallList_copy_constructor){
     delete copyOfList;
     ASSERT_EQ(syncStallList.size(), 2u);
 }
+
+#endif // ENABLE_SYNC
