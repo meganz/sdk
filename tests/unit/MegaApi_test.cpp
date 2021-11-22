@@ -223,7 +223,7 @@ TEST(MegaApi, getMimeType)
 
 TEST(MegaApi, getNoSyncStall)
 {
-    auto syncStallInfo = std::make_unique<SyncStallInfo>();
+    auto syncStallInfo = ::mega::make_unique<SyncStallInfo>();
 
     MegaSyncStallList sentinel;
     MegaSyncStallList* megaSyncStallListPtr = &sentinel;
@@ -236,7 +236,7 @@ TEST(MegaApi, getNoSyncStall)
 
 TEST(MegaApi, getLocalSyncStall)
 {
-    auto syncStallInfo = std::make_unique<SyncStallInfo>();
+    auto syncStallInfo = ::mega::make_unique<SyncStallInfo>();
 
     MegaSyncStallList sentinel;
     MegaSyncStallList* megaSyncStallListPtr = &sentinel;

@@ -723,7 +723,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     // been passed to the constructor
     int fd = fseventsfd;
 
-    if (fd < 0 && (fd = open("/dev/fsevents", O_RDONLY) < 0)
+    if (fd < 0 && (fd = open("/dev/fsevents", O_RDONLY)) < 0)
     {
         mNotificationError = errno;
         return;
