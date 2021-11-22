@@ -3463,11 +3463,6 @@ long long MegaApi::getNumLocalNodes()
     return pImpl->getNumLocalNodes();
 }
 
-char *MegaApi::getBlockedPath()
-{
-    return pImpl->getBlockedPath();
-}
-
 void MegaApi::getSyncNameConflicts(MegaRequestListener* listener)
 {
     return pImpl->getSyncNameConflicts(listener);
@@ -4293,6 +4288,11 @@ void MegaApi::update()
 int MegaApi::isWaiting()
 {
     return pImpl->isWaiting();
+}
+
+bool MegaApi::isSyncStalled()
+{
+    return pImpl->isSyncStalled();
 }
 
 void MegaApi::removeRecursively(const char *path)

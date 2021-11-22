@@ -2534,11 +2534,11 @@ class MegaApiImpl : public MegaApp
         bool isSyncing();
 
         bool receivedStallFlag = false;
+        bool receivedNameConflictsFlag = false;
 
         MegaSync *getSyncByBackupId(mega::MegaHandle backupId);
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
-        char *getBlockedPath();
         void getSyncNameConflicts(MegaRequestListener* listener);
         void getSyncProblems(MegaRequestListener* listener, bool detailed);
         void getSyncStalls(MegaRequestListener* listener);
@@ -2554,6 +2554,7 @@ class MegaApiImpl : public MegaApp
 
         void update();
         int isWaiting();
+        bool isSyncStalled();
 
         //Statistics
         int getNumPendingUploads();

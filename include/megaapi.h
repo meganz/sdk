@@ -7795,7 +7795,7 @@ class MegaApi
             RETRY_SERVERS_BUSY = 2,
             RETRY_API_LOCK = 3,
             RETRY_RATE_LIMIT = 4,
-            RETRY_LOCAL_LOCK = 5,
+            //RETRY_LOCAL_LOCK = 5,  // deprecated
             RETRY_UNKNOWN = 6
         };
 
@@ -14268,16 +14268,6 @@ class MegaApi
         long long getNumLocalNodes();
 
         /**
-         * @brief Get the path if the file/folder that is blocking the sync engine
-         *
-         * If the sync engine is not blocked, this function returns NULL
-         * You take the ownership of the returned value
-         *
-         * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
-         */
-        char *getBlockedPath();
-
-        /**
          * @brief
          * Retrieve the list of name conflicts detected by the sync engine.
          *
@@ -14395,14 +14385,21 @@ class MegaApi
          * - MegaApi::RETRY_RATE_LIMIT = 4,
          * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
          *
-         * - MegaApi::RETRY_LOCAL_LOCK = 5
-         * SDK is waiting for a local locked file
-         *
-         * - MegaApi::RETRY_UNKNOWN = 6
+         * - any other value:
          * SDK is waiting for the server to complete a request with unknown reason
          *
          */
         int isWaiting();
+
+        /**
+        * @brief Find out if the syncs need User intervention for some files/folders
+        *
+        * use getMegaSyncProblems() to find out what needs attention.
+        *
+        * @return true if the User is needs to intervene.
+        *
+        */
+        bool isSyncStalled();
 
         /**
          * @brief Get the number of pending uploads

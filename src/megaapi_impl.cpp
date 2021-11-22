@@ -1243,20 +1243,6 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
     return nullptr;
 }
 
-char *MegaApiImpl::getBlockedPath()
-{
-//todo: get all blocked
-
-    char *path = NULL;
-    //sdkMutex.lock();
-    //if (!client->blockedfile.empty())
-    //{
-    //    path = MegaApi::strdup(client->blockedfile.toPath(*fsAccess).c_str());
-    //}
-    //sdkMutex.unlock();
-    return path;
-}
-
 void MegaApiImpl::getSyncNameConflicts(MegaRequestListener* listener)
 {
     auto type = MegaRequest::TYPE_GET_SYNC_NAME_CONFLICTS;
@@ -13284,6 +13270,7 @@ void MegaApiImpl::syncupdate_stalled(bool stalled)
 
 void MegaApiImpl::syncupdate_conflicts(bool conflicts)
 {
+    receivedNameConflictsFlag = conflicts;
     fireOnGlobalSyncStateChanged();
 }
 
@@ -23157,14 +23144,19 @@ void MegaApiImpl::update()
     waiter->notify();
 }
 
+bool MegaApiImpl::isSyncStalled()
+{
+    // no need to lock sdkMutex for these simple flags
+#ifdef ENABLE_SYNC
+    if (receivedStallFlag) return true;
+    if (receivedNameConflictsFlag) return true;
+#endif
+    return false;
+}
+
 int MegaApiImpl::isWaiting()
 {
-#ifdef ENABLE_SYNC
-    SdkMutexGuard g(sdkMutex);
-
-    if (receivedStallFlag) return RETRY_LOCAL_LOCK;
-#endif
-
+    // no need to lock sdkMutex for these simple flags
     if (waitingRequest)
     {
         LOG_debug << "SDK waiting for a request. Reason: " << waitingRequest;
