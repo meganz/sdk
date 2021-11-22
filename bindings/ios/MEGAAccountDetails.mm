@@ -103,6 +103,10 @@ using namespace mega;
     return ret;    
 }
 
+- (MEGAPaymentMethod)subscriptionMethodId {
+    return (MEGAPaymentMethod) (self.accountDetails ? self.accountDetails->getSubscriptionMethodId() : 0);
+}
+
 - (NSString *)subscriptionCycle {
     return self.accountDetails ? [[NSString alloc] initWithUTF8String:self.accountDetails->getSubscriptionCycle()] : nil;
 }
