@@ -17050,12 +17050,6 @@ node_list NodeManager::getChildren(Node *parent)
 
 uint64_t NodeManager::getNodeCount()
 {
-    if (!mTable)
-    {
-        assert(false);
-        return 0;
-    }
-
     uint64_t count = 0;
     // it assumes that node counters are only available for rootnodes and inshares
     for (auto &counter : mNodeCounters)
@@ -17891,9 +17885,21 @@ bool NodeManager::isRootNode(NodeHandle h) const
 
 NodeCounter NodeManager::getCounterOfRootNodes()
 {
+    NodeCounter c;
+
+    // if not logged in yet, node counters are not available
+    if (mNodeCounters.empty())
+    {
+        assert(mClient.rootnodes.files.isUndef()
+               && mClient.rootnodes.inbox.isUndef()
+               && mClient.rootnodes.rubbish.isUndef());
+
+        return c;
+    }
+
     NodeHandle h = mClient.rootnodes.files;
     assert(mNodeCounters.find(h) != mNodeCounters.end());
-    NodeCounter c = mNodeCounters[h];
+    c = mNodeCounters[h];
 
     h = mClient.rootnodes.inbox;
     assert(mNodeCounters.find(h) != mNodeCounters.end());
