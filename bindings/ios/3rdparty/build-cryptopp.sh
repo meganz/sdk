@@ -13,13 +13,14 @@ then
 curl -LO "https://github.com/weidai11/cryptopp/archive/${CRYPTOPP_VERSION}.tar.gz"
 fi
 
-ARCHS="x86_64 armv7 armv7s arm64"
+ARCHS="x86_64 arm64"
 
 for ARCH in ${ARCHS}
 do
 tar zxf ${CRYPTOPP_VERSION}.tar.gz
 pushd cryptopp-${CRYPTOPP_VERSION}
 source setenv-ios.sh ${ARCH}
+sed -i '' $'s/IOS_FLAGS=\"\$IOS_FLAGS -DCRYPTOPP_DISABLE_ASM\"/IOS_FLAGS=\"\$IOS_FLAGS -DCRYPTOPP_DISABLE_ASM -miphoneos-version-min=7\"/' setenv-ios.sh
 mkdir -p "${CURRENTPATH}/bin/${ARCH}.sdk"
 make -f GNUmakefile-cross lean -j ${NPROCESSORS}
 mv libcryptopp.a "${CURRENTPATH}/bin/${ARCH}.sdk"
@@ -29,7 +30,7 @@ done
 
 mkdir -p lib
 
-lipo -create "${CURRENTPATH}/bin/x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/armv7.sdk/libcryptopp.a" "${CURRENTPATH}/bin/armv7s.sdk/libcryptopp.a" "${CURRENTPATH}/bin/arm64.sdk/libcryptopp.a" -output "${CURRENTPATH}/libcryptopp.a"
+lipo -create "${CURRENTPATH}/bin/x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/arm64.sdk/libcryptopp.a" -output "${CURRENTPATH}/libcryptopp.a"
 
 tar zxf ${CRYPTOPP_VERSION}.tar.gz
 mkdir -p include/cryptopp || true
