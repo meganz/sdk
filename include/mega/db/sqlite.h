@@ -75,7 +75,7 @@ public:
     bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     int getNumberOfChildren(mega::NodeHandle parentHandle) override;
-    NodeCounter getNodeCounter(mega::NodeHandle node, bool parentIsFile) override;
+    m_off_t getNodeSize(mega::NodeHandle node) override;
     bool isNodesOnDemandDb() override;
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor) override;
     bool isFileNode(NodeHandle node) override;

@@ -16895,16 +16895,28 @@ bool NodeManager::setrootnode(Node* node)
     switch (node->type)
     {
     case ROOTNODE:
+    {
         mClient.rootnodes.files = node->nodeHandle();
+        auto ret = mNodeCounters.emplace(node->nodeHandle(), NodeCounter());
+        assert(ret.second);
         return true;
+    }
 
     case INCOMINGNODE:
+    {
         mClient.rootnodes.inbox = node->nodeHandle();
+        auto ret = mNodeCounters.emplace(node->nodeHandle(), NodeCounter());
+        assert(ret.second);
         return true;
+    }
 
     case RUBBISHNODE:
+    {
         mClient.rootnodes.rubbish = node->nodeHandle();
+        auto ret = mNodeCounters.emplace(node->nodeHandle(), NodeCounter());
+        assert(ret.second);
         return true;
+    }
 
     default:
         assert(false);
@@ -16930,7 +16942,11 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     if (mKeepAllNodesInMemory || node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE || !isFetching)
     {
         saveNodeMemory = true;
-        setrootnode(node);
+
+        if (node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE)
+        {
+            setrootnode(node);
+        }
     }
     else
     {
@@ -17044,8 +17060,7 @@ uint64_t NodeManager::getNodeCount()
     // it assumes that node counters are only available for rootnodes and inshares
     for (auto &counter : mNodeCounters)
     {
-        // TODO check if it should consider versions, as well
-        count += counter.second.files + counter.second.folders;
+        count += counter.second.files + counter.second.folders + counter.second.versions;
     }
 
 #ifdef DEBUG
@@ -17319,26 +17334,24 @@ NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle, bool parentIsFile
         nc += getNodeCounter(h, isFileNode);
     }
 
-    if (node)
+    if (isFileNode)
     {
-        if (isFileNode)
+        m_off_t nodeSize = node ? node->size : mTable->getNodeSize(nodehandle);
+
+        if (parentIsFile == FILENODE)
+        {
+            nc.versions++;
+            nc.versionStorage += nodeSize;
+        }
+        else
         {
             nc.files++;
-            nc.storage += node->size;
-            if (node->parent->type == FILENODE)
-            {
-                nc.versions++;
-                nc.versionStorage += node->size;
-            }
-        }
-        else if (node->type == FOLDERNODE)
-        {
-            nc.folders++;
+            nc.storage += nodeSize;
         }
     }
-    else
+    else if (node->type == FOLDERNODE)
     {
-        nc += mTable->getNodeCounter(nodehandle, parentIsFile);
+        nc.folders++;
     }
 
     return nc;
@@ -17747,8 +17760,6 @@ void NodeManager::notifyPurge(Node *node)
 
     if (node->changed.removed)
     {
-        mTable->remove(node->nodeHandle());
-
         // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
         subtractFromRootCounter(*node);
         mNodeCounters.erase(node->nodeHandle());    // will apply only to rootnodes and inshares, currently
@@ -17756,6 +17767,8 @@ void NodeManager::notifyPurge(Node *node)
         // effectively delete node from RAM
         mNodes.erase(node->nodeHandle());
         delete node;
+
+        mTable->remove(node->nodeHandle());
     }
     else
     {
@@ -17841,8 +17854,16 @@ void NodeManager::saveNodeInDataBase(Node *node)
     {
         if (node->type == FILENODE)
         {
-            mNodeCounters[firstValidAncestor].files++;
-            mNodeCounters[firstValidAncestor].storage += node->size;
+            if (isFileNode(node->parentHandle()))   // is a version? (returns false for unknown parents)
+            {
+                mNodeCounters[firstValidAncestor].versions++;
+                mNodeCounters[firstValidAncestor].versionStorage += node->size;
+            }
+            else
+            {
+                mNodeCounters[firstValidAncestor].files++;
+                mNodeCounters[firstValidAncestor].storage += node->size;
+            }
         }
         else if (node->type == FOLDERNODE)
         {
@@ -17852,9 +17873,22 @@ void NodeManager::saveNodeInDataBase(Node *node)
         auto it = mNodeCounters.find(node->nodeHandle());
         if (it != mNodeCounters.end())
         {
+            if (node->type == FILENODE)
+            {
+                // file versions may have been counted as files instead of versions upon
+                // processing fetchnodes from API. In result, if the parent was unknown (not
+                // processed yet), it's not possible to differentiate between a file and a version
+                // --> if this node is a file, child nodes were versions
+                it->second.versions += it->second.files;
+                it->second.versionStorage += it->second.storage;
+                it->second.files = 0;
+                it->second.storage = 0;
+            }
             mNodeCounters[firstValidAncestor].files += it->second.files;
             mNodeCounters[firstValidAncestor].storage += it->second.storage;
             mNodeCounters[firstValidAncestor].folders += it->second.folders;
+            mNodeCounters[firstValidAncestor].versions += it->second.versions;
+            mNodeCounters[firstValidAncestor].versionStorage += it->second.versionStorage;
             mNodeCounters.erase(it);
         }
     }
@@ -17915,7 +17949,7 @@ void NodeManager::subtractFromRootCounter(const Node& n)
     auto it = mNodeCounters.find(firstValidAntecestor);
     if (it != mNodeCounters.end())
     {
-        it->second -= getNodeCounter(n.nodeHandle(), n.type == FILENODE);
+        it->second -= getNodeCounter(n.nodeHandle(), n.parent->type == FILENODE);
     }
 }
 
