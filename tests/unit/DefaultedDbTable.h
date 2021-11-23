@@ -128,9 +128,9 @@ public:
     {
         return false;
     }
-    bool isFileNode(mega::NodeHandle) override
+    mega::nodetype_t getNodeType(mega::NodeHandle) override
     {
-        return false;
+        return mega::TYPE_UNKNOWN;
     }
     uint64_t getNumberOfNodes() override
     {
