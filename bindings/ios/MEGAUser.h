@@ -56,7 +56,7 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypeUserAlias               = 0x1000000,
     MEGAUserChangeTypeUnshareableKey          = 0x2000000,
     MEGAUserChangeTypeDeviceNames             = 0x4000000,
-    MEGAUserChangeTypeBackupNames             = 0x8000000,
+    MEGAUserChangeTypeBackupFolder             = 0x8000000,
     MEGAUserChangeTypeCookieSetting           = 0x10000000,
 };
 
