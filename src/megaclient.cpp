@@ -7249,7 +7249,10 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     if (!versions_disabled)
     {
         string name(utf8Name);
-        newnode->ovhandle = getovhandle(parentNode, &name);
+        if (Node* ovn = getovnode(parentNode, &name))
+        {
+            newnode->ovhandle = ovn->nodeHandle();
+        }
     }
     return e;
 }
@@ -15327,18 +15330,13 @@ m_off_t MegaClient::getmaxuploadspeed()
     return httpio->getmaxuploadspeed();
 }
 
-handle MegaClient::getovhandle(Node *parent, string *name)
+Node* MegaClient::getovnode(Node *parent, string *name)
 {
-    handle ovhandle = UNDEF;
     if (parent && name)
     {
-        Node *ovn = childnodebyname(parent, name->c_str(), true);
-        if (ovn)
-        {
-            ovhandle = ovn->nodehandle;
-        }
+        return childnodebyname(parent, name->c_str(), true);
     }
-    return ovhandle;
+    return nullptr;
 }
 
 bool MegaClient::loggedIntoFolder() const

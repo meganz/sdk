@@ -116,7 +116,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     // The sync system keeps a shared_ptr to it.  Whichever system finishes with it last actually deletes it
     SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
             const string& nodeName, const FileFingerprint& ff, shared_ptr<SyncThreadsafeState> stss,
-            handle fsid, const LocalPath& localname);
+            handle fsid, const LocalPath& localname, bool fromInshare);
     ~SyncUpload_inClient();
 
     void prepare(FileSystemAccess&) override;
@@ -139,7 +139,7 @@ struct MEGA_API NewNode : public NodeCore
 
     newnodesource_t source = NEW_NODE;
 
-    handle ovhandle = UNDEF;
+    NodeHandle ovhandle;
     UploadHandle uploadhandle;
     byte uploadtoken[UPLOADTOKENLEN]{};
 

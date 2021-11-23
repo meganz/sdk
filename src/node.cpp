@@ -2300,7 +2300,7 @@ void SyncTransfer_inClient::completed(Transfer* t, putsource_t source)
 
 SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
         const string& nodeName, const FileFingerprint& ff, shared_ptr<SyncThreadsafeState> stss,
-        handle fsid, const LocalPath& localname)
+        handle fsid, const LocalPath& localname, bool fromInshare)
 {
     *static_cast<FileFingerprint*>(this) = ff;
 
@@ -2316,6 +2316,7 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
     hprivate = false;
     hforeign = false;
     syncxfer = true;
+    fromInsycShare = fromInshare;
     temporaryfile = false;
     chatauth = nullptr;
     transfer = nullptr;

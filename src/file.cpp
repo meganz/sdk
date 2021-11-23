@@ -357,34 +357,49 @@ void File::completed(Transfer* t, putsource_t source)
             {
                 th = t->client->rootnodes.rubbish;
             }
-///todo:
-//#ifdef ENABLE_SYNC
-//            if (l)
-//            {
-//                if (l->parent)
-//                {
-//                    // tag the previous version in the synced folder (if any) or move to SyncDebris
-//                    Node* prevSyncedNode = t->client->nodeByHandle(l->syncedCloudNodeHandle);
-//                    Node* parentPrevSyncedNode = t->client->nodeByHandle(l->parent->syncedCloudNodeHandle);
-//                    if (prevSyncedNode && parentPrevSyncedNode &&
-//                        prevSyncedNode->parent == parentPrevSyncedNode)
-//                    {
-//                        if (t->client->versions_disabled)
-//                        {
-//                            t->client->movetosyncdebris(prevSyncedNode, l->sync->inshare);
-//                            t->client->execsyncdeletions();
-//                        }
-//                        else
-//                        {
-//                            newnode->ovhandle = prevSyncedNode->nodehandle;
-//                        }
-//                    }
-//                }
-//            }
-//#endif
-            if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
+
+#ifdef ENABLE_SYNC
+            if (syncxfer)
             {
-                newnode->ovhandle = t->client->getovhandle(t->client->nodeByHandle(th), &name);
+                if (Node* existingFile = t->client->getovnode(t->client->nodeByHandle(th), &name))
+                {
+
+                    if (t->client->versions_disabled)
+                    {
+                        auto c = t->client;
+                        auto localTag = tag;
+                        auto newnodesSP = ::std::make_shared<vector<NewNode>>(move(newnodes));
+                        t->client->movetosyncdebris(existingFile, fromInsycShare, [c, th, newnodesSP, localTag, source](NodeHandle, Error){
+                            c->reqs.add(new CommandPutNodes(c,
+                                th, NULL,
+                                move(*newnodesSP),
+                                localTag,
+                                source, nullptr, nullptr));
+                        });
+
+                        // putnodes will be executed after or simultaneous with the
+                        // move to sync debris
+                        return;
+                    }
+                    else
+                    {
+                        if (Node* ovNode = t->client->getovnode(t->client->nodeByHandle(th), &name))
+                        {
+                            newnode->ovhandle = ovNode->nodeHandle();
+                        }
+                    }
+                }
+            }
+#endif
+            if (!syncxfer)
+            {
+                // for manual upload, let the API apply the `ov` according to the global versions_disabled flag.
+                // with versions on, the API will make the ov the first version of this new node
+                // with versions off, the API will permanently delete `ov`, replacing it with this (and attaching the ov's old versions)
+                if (Node* ovNode = t->client->getovnode(t->client->nodeByHandle(th), &name))
+                {
+                    newnode->ovhandle = ovNode->nodeHandle();
+                }
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,

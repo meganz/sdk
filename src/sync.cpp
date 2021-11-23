@@ -6722,7 +6722,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
                 auto upload = std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle,
                     fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
-                    row.fsNode->fsid, row.fsNode->localname);
+                    row.fsNode->fsid, row.fsNode->localname, inshare);
 
                 threadSafeState->addExpectedUpload(parentRow.cloudNode->handle, nodeName, upload);
 
