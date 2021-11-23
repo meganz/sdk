@@ -262,12 +262,31 @@ TEST(MegaApi, getLocalSyncStall)
     delete megaSyncStallListPtr; // Release owned list
 }
 
-TEST(MegaApi, MegaSyncStallList_constructor){
+TEST(MegaApi, MegaSyncStallList_constructor)
+{
     SyncStallInfo syncStallInfo;
 
-    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+    const auto localPath = ([]() {
+        FSACCESS_CLASS fsAccess;
+        LocalPath path;
+        const std::string fragments[] = {
+            "here",
+            "there",
+            "be",
+            "Chicken",
+            "Egg"
+        };
+
+        fsAccess.cwd(path);
+
+        for (auto& fragment : fragments)
+            path.appendWithSeparator(LocalPath::fromRelativePath(fragment), false);
+
+        return path;
+    })();
+
     const std::string theRemotePath = "/here/there/be/Egg/Chicken";
-    const auto localPath = LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+    const std::string theLocalPath = localPath.toPath();
 
     // Simulate a stall detected locally
     syncStallInfo.waitingLocal(
@@ -295,9 +314,9 @@ TEST(MegaApi, MegaSyncStallList_constructor){
     ASSERT_NE(cloudStallConstPtr, nullptr);
 
     // Check The local stall object
-    ASSERT_EQ(theLocalPath.compare( localStallConstPtr->indexPath()),0);
-    ASSERT_EQ(theLocalPath.compare( localStallConstPtr->localPath()),0);
-    ASSERT_EQ(theRemotePath.compare(localStallConstPtr->cloudPath()),0);
+    ASSERT_EQ(theLocalPath.compare(localStallConstPtr->indexPath()), 0);
+    ASSERT_EQ(theLocalPath.compare(localStallConstPtr->localPath()), 0);
+    ASSERT_EQ(theRemotePath.compare(localStallConstPtr->cloudPath()), 0);
     ASSERT_EQ(localStallConstPtr->reason(), 
             MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
     ASSERT_EQ(strcmp(localStallConstPtr->reasonString(), 
