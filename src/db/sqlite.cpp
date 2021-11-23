@@ -56,6 +56,72 @@ LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
 
 SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
 {
+    sqlite3 *db = nullptr;
+    std::string dbPathStr;
+    if (!openDBAndCreateStatecache(&db, fsAccess, name, dbPathStr, flags))
+    {
+        return nullptr;
+    }
+
+    return new SqliteDbTable(rng,
+                             db,
+                             fsAccess,
+                             dbPathStr,
+                             (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
+}
+
+DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags)
+{
+    sqlite3 *db = nullptr;
+    std::string dbPathStr;
+    if (!openDBAndCreateStatecache(&db, fsAccess, name, dbPathStr, flags))
+    {
+        return nullptr;
+    }
+
+    // Create specific table for handle nodes
+    std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
+                      "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
+                      "type tinyint, size int64, share tinyint, decrypted tinyint, fav tinyint, "
+                      "node BLOB NOT NULL)";
+    int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_debug << "Data base error: " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    return new SqliteAccountState(rng,
+                                db,
+                                fsAccess,
+                                dbPathStr,
+                                (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
+}
+
+bool SqliteDbAccess::probe(FileSystemAccess& fsAccess, const string& name) const
+{
+    auto fileAccess = fsAccess.newfileaccess();
+
+    LocalPath dbPath = databasePath(fsAccess, name, DB_VERSION);
+
+    if (fileAccess->isfile(dbPath))
+    {
+        return true;
+    }
+
+    dbPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
+
+    return fileAccess->isfile(dbPath);
+}
+
+const LocalPath& SqliteDbAccess::rootPath() const
+{
+    return mRootPath;
+}
+
+bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &fsAccess, const string &name, std::string &dbPathStr, const int flags)
+{
     auto dbPath = databasePath(fsAccess, name, DB_VERSION);
     auto upgraded = true;
 
@@ -113,9 +179,8 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
         currentDbVersion = DB_VERSION;
     }
 
-    const string dbPathStr = dbPath.toPath(fsAccess);
-    sqlite3* db;
-    int result = sqlite3_open_v2(dbPathStr.c_str(), &db,
+    dbPathStr = dbPath.toPath(fsAccess);
+    int result = sqlite3_open_v2(dbPathStr.c_str(), db,
         SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
         | SQLITE_OPEN_NOMUTEX // The new database connection will use the "multi-thread" threading mode. This means that separate threads are allowed to use SQLite at the same time, as long as each thread is using a different database connection.
         , nullptr);
@@ -124,72 +189,31 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
     {
         if (db)
         {
-            sqlite3_close(db);
+            sqlite3_close(*db);
         }
 
-        return nullptr;
+        return false;
     }
 
 #if !(TARGET_OS_IPHONE)
-    result = sqlite3_exec(db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    result = sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
     if (result)
     {
-        sqlite3_close(db);
-        return nullptr;
+        sqlite3_close(*db);
+        return false;
     }
 #endif /* ! TARGET_OS_IPHONE */
 
     string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
 
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    result = sqlite3_exec(*db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
-        sqlite3_close(db);
-        return nullptr;
+        sqlite3_close(*db);
+        return false;
     }
 
-    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, type int, size int64, share int, decrypted int, fav int, node BLOB NOT NULL)";
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
-    {
-        sqlite3_close(db);
-        return nullptr;
-    }
-
-    sql = "CREATE TABLE IF NOT EXISTS vars(name text PRIMARY KEY NOT NULL, value BLOB)";
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
-    {
-        sqlite3_close(db);
-        return nullptr;
-    }
-
-    return new SqliteDbTable(rng,
-                             db,
-                             fsAccess,
-                             dbPathStr,
-                             (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
-}
-
-bool SqliteDbAccess::probe(FileSystemAccess& fsAccess, const string& name) const
-{
-    auto fileAccess = fsAccess.newfileaccess();
-
-    LocalPath dbPath = databasePath(fsAccess, name, DB_VERSION);
-
-    if (fileAccess->isfile(dbPath))
-    {
-        return true;
-    }
-
-    dbPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
-
-    return fileAccess->isfile(dbPath);
-}
-
-const LocalPath& SqliteDbAccess::rootPath() const
-{
-    return mRootPath;
+    return true;
 }
 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
@@ -303,8 +327,6 @@ bool SqliteDbTable::get(uint32_t index, string* data)
         return false;
     }
 
-    checkTransaction();
-
     sqlite3_stmt *stmt;
     int rc;
 
@@ -332,620 +354,6 @@ bool SqliteDbTable::get(uint32_t index, string* data)
     }
 
     return rc == SQLITE_ROW;
-}
-
-bool SqliteDbTable::getNode(NodeHandle nodehandle, NodeSerialized &nodeSerialized)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    nodeSerialized.mNode.clear();
-    nodeSerialized.mDecrypted = true;
-
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare(db, "SELECT decrypted, node FROM nodes  WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int64(stmt, 1, nodehandle.as8byte()) == SQLITE_OK)
-        {
-            if((sqlite3_step(stmt) == SQLITE_ROW))
-            {
-                nodeSerialized.mDecrypted = sqlite3_column_int(stmt, 0);
-                const void* data = sqlite3_column_blob(stmt, 1);
-                int size = sqlite3_column_bytes(stmt, 1);
-                if (data && size)
-                {
-                    nodeSerialized.mNode.assign(static_cast<const char*>(data), size);
-                }
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return nodeSerialized.mNode.size() ? true : false;
-}
-
-bool SqliteDbTable::getNodes(std::vector<NodeSerialized> &nodes)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT decrypted, node FROM nodes", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        while ((result = sqlite3_step(stmt) == SQLITE_ROW))
-        {
-            NodeSerialized node;
-            node.mDecrypted = sqlite3_column_int(stmt, 0);
-
-            const void* data = sqlite3_column_blob(stmt, 1);
-            int size = sqlite3_column_bytes(stmt, 1);
-            if (data && size)
-            {
-                node.mNode = std::string(static_cast<const char*>(data), size);
-                nodes.push_back(node);
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result == SQLITE_DONE ? true : false;
-}
-
-bool SqliteDbTable::getNodesByFingerprint(const FileFingerprint &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        string fp;
-        fingerprint.serializefingerprint(&fp);
-        if (sqlite3_bind_blob(stmt, 1, fp.data(), (int)fp.size(), SQLITE_STATIC) == SQLITE_OK)
-        {
-            while ((result = sqlite3_step(stmt) == SQLITE_ROW))
-            {
-                NodeHandle nodeHandle;
-                nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
-                NodeSerialized node;
-                node.mDecrypted = sqlite3_column_int(stmt, 1);
-                const void* data = sqlite3_column_blob(stmt, 2);
-                int size = sqlite3_column_bytes(stmt, 2);
-                if (data && size)
-                {
-                    node.mNode = std::string(static_cast<const char*>(data), size);
-                    nodes[nodeHandle] = node;
-                }
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result == SQLITE_DONE ? true : false;
-}
-
-bool SqliteDbTable::getNodesByOrigFingerprint(const std::string &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE origFingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_blob(stmt, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC) == SQLITE_OK)
-        {
-            while ((result = sqlite3_step(stmt) == SQLITE_ROW))
-            {
-                NodeHandle nodeHandle;
-                nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
-                NodeSerialized node;
-                node.mDecrypted = sqlite3_column_int(stmt, 1);
-                const void* data = sqlite3_column_blob(stmt, 2);
-                int size = sqlite3_column_bytes(stmt, 2);
-                if (data && size)
-                {
-                    node.mNode = std::string(static_cast<const char*>(data), size);
-                    nodes[nodeHandle] = node;
-                }
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result == SQLITE_DONE ? true : false;
-}
-
-bool SqliteDbTable::getNodeByFingerprint(const FileFingerprint &fingerprint, NodeSerialized &node)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    node.mNode.clear();
-    node.mDecrypted = true;
-
-    sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT decrypted, node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        string fp;
-        fingerprint.serializefingerprint(&fp);
-        if (sqlite3_bind_blob(stmt, 1, fp.data(), (int)fp.size(), SQLITE_STATIC) == SQLITE_OK)
-        {
-            if ((result = sqlite3_step(stmt) == SQLITE_ROW))
-            {
-                node.mDecrypted = sqlite3_column_int(stmt, 0);
-                const void* data = sqlite3_column_blob(stmt, 1);
-                int size = sqlite3_column_bytes(stmt, 1);
-                if (data && size)
-                {
-                    node.mNode = std::string(static_cast<const char*>(data), size);
-                    result = SQLITE_DONE;
-                }
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result == SQLITE_DONE ? true : false;
-}
-
-bool SqliteDbTable::getNodesWithoutParent(std::vector<NodeSerialized> &nodes)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT decrypted, node FROM nodes WHERE parenthandle = -1", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        while ((result = sqlite3_step(stmt) == SQLITE_ROW))
-        {
-            NodeSerialized node;
-            node.mDecrypted = sqlite3_column_int(stmt, 0);
-            const void* data = sqlite3_column_blob(stmt, 1);
-            int size = sqlite3_column_bytes(stmt, 1);
-            if (data && size)
-            {
-                node.mNode = std::string(static_cast<const char*>(data), size);
-                nodes.push_back(node);
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result == SQLITE_DONE ? true : false;
-}
-
-bool SqliteDbTable::getNodesWithSharesOrLink(std::vector<NodeSerialized> &nodes, ShareType_t shareType)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT decrypted, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int(stmt, 1, static_cast<int>(shareType)) == SQLITE_OK)
-        {
-            while ((result = sqlite3_step(stmt) == SQLITE_ROW))
-            {
-                NodeSerialized node;
-                node.mDecrypted = sqlite3_column_int(stmt, 0);
-                const void* data = sqlite3_column_blob(stmt, 1);
-                int size = sqlite3_column_bytes(stmt, 1);
-                if (data && size)
-                {
-                    node.mNode = std::string(static_cast<const char*>(data), size);
-                    nodes.push_back(node);
-                }
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result == SQLITE_DONE ? true : false;
-}
-
-bool SqliteDbTable::getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized> &children)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int64(stmt, 1, parentHandle.as8byte()) == SQLITE_OK)
-        {
-            while ((result = sqlite3_step(stmt) == SQLITE_ROW))
-            {
-                NodeHandle childHandle;
-                childHandle.set6byte(sqlite3_column_int64(stmt, 0));
-                NodeSerialized child;
-                child.mDecrypted = sqlite3_column_int(stmt, 1);
-                const void* data = sqlite3_column_blob(stmt, 2);
-                int size = sqlite3_column_bytes(stmt, 2);
-                if (data && size)
-                {
-                    child.mNode = std::string(static_cast<const char*>(data), size);
-                    children[childHandle] = child;
-                }
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result == SQLITE_DONE ? true : false;
-}
-
-bool SqliteDbTable::getChildrenHandlesFromNode(mega::NodeHandle parentHandle, std::vector<NodeHandle> & children)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int64(stmt, 1, parentHandle.as8byte()) == SQLITE_OK)
-        {
-            while ((result = sqlite3_step(stmt) == SQLITE_ROW))
-            {
-                int64_t h = sqlite3_column_int64(stmt, 0);
-                children.push_back(NodeHandle().set6byte(h));
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result == SQLITE_DONE ? true : false;
-}
-
-bool SqliteDbTable::getNodesByName(const std::string &name, std::map<mega::NodeHandle, NodeSerialized> &nodes)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    std::string sqlQuery = "SELECT nodehandle, decrypted, node FROM nodes WHERE LOWER(name) LIKE LOWER(";
-    sqlQuery.append("'%")
-            .append(name)
-            .append("%')");
-
-    sqlite3_stmt *stmt;
-    int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
-    {
-        while ((result = sqlite3_step(stmt) == SQLITE_ROW))
-        {
-            NodeHandle nodeHandle;
-            nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
-            NodeSerialized node;
-            node.mDecrypted = sqlite3_column_int(stmt, 1);;
-            const void* data = sqlite3_column_blob(stmt, 2);
-            int size = sqlite3_column_bytes(stmt, 2);
-            if (data && size)
-            {
-                node.mNode = std::string(static_cast<const char*>(data), size);
-                nodes[nodeHandle] = node;
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result == SQLITE_DONE ? true : false;
-}
-
-
-bool SqliteDbTable::getFavouritesNodeHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle> &nodes)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle, fav) AS (SELECT nodehandle, parenthandle, fav "
-                           "FROM nodes WHERE parenthandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle, A.fav "
-                           "FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.parenthandle = E.nodehandle)) SELECT * "
-                           "FROM nodesCTE where fav = 1;";
-
-    if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
-        {
-            while (sqlite3_step(stmt) == SQLITE_ROW && (nodes.size() < count || count == 0))
-            {
-                nodes.push_back(NodeHandle().set6byte(sqlite3_column_int64(stmt, 0)));
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return true;
-}
-
-int SqliteDbTable::getNumberOfChildrenFromNode(NodeHandle parentHandle)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    int numChildren = 0;
-    if (sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int64(stmt, 1, parentHandle.as8byte()) == SQLITE_OK)
-        {
-            int result;
-            if ((result = sqlite3_step(stmt) == SQLITE_ROW))
-            {
-               numChildren = sqlite3_column_int(stmt, 0);
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return numChildren;
-}
-
-NodeCounter SqliteDbTable::getNodeCounter(NodeHandle node, bool parentIsFile)
-{
-    NodeCounter nodeCounter;
-    if (!db)
-    {
-        return nodeCounter;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    int64_t size = 0;
-    int type = TYPE_UNKNOWN;
-
-    if (sqlite3_prepare(db, "SELECT size, type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
-        {
-            if ((sqlite3_step(stmt) == SQLITE_ROW))
-            {
-                size = sqlite3_column_int64(stmt, 0);
-                type = sqlite3_column_int(stmt, 1);
-            }
-        }
-    }
-    sqlite3_finalize(stmt);
-
-    if (type == FILENODE)
-    {
-        nodeCounter.files = 1;
-        nodeCounter.storage = size;
-        if (parentIsFile) // the child has to be a version
-        {
-            nodeCounter.versions = 1;
-            nodeCounter.versionStorage = size;
-        }
-    }
-    else
-    {
-        nodeCounter.folders = 1;
-        assert(!parentIsFile);
-    }
-
-    return nodeCounter;
-}
-
-bool SqliteDbTable::isNodesOnDemandDb()
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    int numRows = -1;
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        int result;
-        if ((result = sqlite3_step(stmt) == SQLITE_ROW))
-        {
-           numRows = sqlite3_column_int(stmt, 0);
-        }
-    }
-    sqlite3_finalize(stmt);
-
-    return numRows > 0 ? true : false;
-}
-
-NodeHandle SqliteDbTable::getFirstAncestor(NodeHandle node)
-{
-    NodeHandle ancestor;
-    if (!db)
-    {
-        return ancestor;
-    }
-
-    checkTransaction();
-
-    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) "
-            "AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? "
-            "UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE "
-            "AS E ON (A.nodehandle = E.parenthandle)) "
-            "SELECT * FROM nodesCTE";
-
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
-        {
-            while (sqlite3_step(stmt) == SQLITE_ROW)
-            {
-                ancestor.set6byte(sqlite3_column_int64(stmt, 0));
-            }
-        }
-    }
-    sqlite3_finalize(stmt);
-
-    return ancestor;
-}
-
-bool SqliteDbTable::isAncestor(NodeHandle node, NodeHandle ancestor)
-{
-    bool result = false;
-    if (!db)
-    {
-        return result;
-    }
-
-    checkTransaction();
-
-    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) "
-            "AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? "
-            "UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE "
-            "AS E ON (A.nodehandle = E.parenthandle)) "
-            "SELECT * FROM nodesCTE WHERE parenthandle = ?";
-
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
-        {
-            if (sqlite3_bind_int64(stmt, 2, ancestor.as8byte()) == SQLITE_OK)
-            {
-                if (sqlite3_step(stmt) == SQLITE_ROW)
-                {
-                    result = true;
-                }
-            }
-        }
-    }
-    sqlite3_finalize(stmt);
-
-    return result;
-}
-
-bool SqliteDbTable::isFileNode(NodeHandle node)
-{
-    bool isFileNode = false;
-    if (!db)
-    {
-        return isFileNode;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare(db, "SELECT type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
-        {
-            if (sqlite3_step(stmt) == SQLITE_ROW)
-            {
-               isFileNode = sqlite3_column_int(stmt, 0) == FILENODE;
-            }
-        }
-    }
-    sqlite3_finalize(stmt);
-
-    return isFileNode;
-}
-
-bool SqliteDbTable::isNodeInDB(NodeHandle node)
-{
-    bool inDb = false;
-    if (!db)
-    {
-        return inDb;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_bind_int64(stmt, 1, node.as8byte()) == SQLITE_OK)
-        {
-            if (sqlite3_step(stmt) == SQLITE_ROW)
-            {
-               inDb = sqlite3_column_int(stmt, 0);
-            }
-        }
-    }
-    sqlite3_finalize(stmt);
-
-    return inDb;
-}
-
-uint64_t SqliteDbTable::getNumberOfNodes()
-{
-    uint64_t nodeNumber = 0;
-    if (!db)
-    {
-        return nodeNumber;
-    }
-
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL) == SQLITE_OK)
-    {
-        if (sqlite3_step(stmt) == SQLITE_ROW)
-        {
-            nodeNumber = sqlite3_column_int64(stmt, 0);
-        }
-    }
-    sqlite3_finalize(stmt);
-
-    return nodeNumber;
 }
 
 // add/update record by index
@@ -992,62 +400,7 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
     return result;
 }
 
-bool SqliteDbTable::put(Node *node)
-{
-    bool result = false;
-    if (!db)
-    {
-        return result;
-    }
 
-    checkTransaction();
-
-    sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, name, fingerprint, origFingerprint, type, size, share, decrypted, fav, node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        string nodeSerialized;
-        assert(node->serialize(&nodeSerialized));
-
-        sqlite3_bind_int64(stmt, 1, node->nodehandle);
-        sqlite3_bind_int64(stmt, 2, node->parenthandle);
-
-        std::string name = node->displayname();
-        sqlite3_bind_text(stmt, 3, name.c_str(), static_cast<int>(name.length()), SQLITE_STATIC);
-
-        string fp;
-        node->serializefingerprint(&fp);
-        sqlite3_bind_blob(stmt, 4, fp.data(), static_cast<int>(fp.size()), SQLITE_STATIC);
-
-        std::string origFingerprint;
-        attr_map::const_iterator attrIt = node->attrs.map.find(MAKENAMEID2('c', '0'));
-        if (attrIt != node->attrs.map.end())
-        {
-           origFingerprint = attrIt->second;
-        }
-        sqlite3_bind_blob(stmt, 5, origFingerprint.data(), static_cast<int>(origFingerprint.size()), SQLITE_STATIC);
-
-        sqlite3_bind_int(stmt, 6, node->type);
-        sqlite3_bind_int64(stmt, 7, node->size);
-
-        int shareType = getShareType(node);
-        sqlite3_bind_int(stmt, 8, shareType);
-
-        sqlite3_bind_int(stmt, 9, !node->attrstring);
-        nameid favId = AttrMap::string2nameid("fav");
-        bool fav = (node->attrs.map.find(favId) != node->attrs.map.end());
-        sqlite3_bind_int(stmt, 10, fav);
-        sqlite3_bind_blob(stmt, 11, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
-
-        if (sqlite3_step(stmt) == SQLITE_DONE)
-        {
-            result = true;
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    return result;
-}
 // delete record by index
 bool SqliteDbTable::del(uint32_t index)
 {
@@ -1073,34 +426,6 @@ bool SqliteDbTable::del(uint32_t index)
     }
 
     return true;
-}
-
-bool SqliteDbTable::del(NodeHandle nodehandle)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    char buf[64];
-
-    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
-
-    return !sqlite3_exec(db, buf, 0, 0, NULL);
-}
-
-bool SqliteDbTable::removeNodes()
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    checkTransaction();
-
-    return !sqlite3_exec(db, "TRUNCATE TABLE nodes", 0, 0, NULL);
 }
 
 // truncate table
@@ -1199,38 +524,90 @@ void SqliteDbTable::remove()
     auto localpath = LocalPath::fromPath(dbfile, *fsaccess);
     fsaccess->unlinklocal(localpath);
 }
-std::string SqliteDbTable::getVar(const std::string& name)
+
+SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
+    : SqliteDbTable(rng, pdb, fsAccess, path, checkAlwaysTransacted)
 {
-    if (!db)
-    {
-        return "";
-    }
 
-    std::string value;
-    checkTransaction();
+}
 
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare(db, "SELECT value FROM vars WHERE name = ?", -1, &stmt, NULL) == SQLITE_OK)
+bool SqliteAccountState::processSqlQueryNodeMap(sqlite3_stmt *stmt, std::map<mega::NodeHandle, NodeSerialized> &nodes)
+{
+    assert(stmt);
+    int sqlResult = SQLITE_ERROR;
+    while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW))
     {
-        if (sqlite3_bind_text(stmt, 1, name.c_str(), (int)name.length(), SQLITE_STATIC) == SQLITE_OK)
+        NodeHandle nodeHandle;
+        nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
+
+        NodeSerialized node;
+        node.mDecrypted = sqlite3_column_int(stmt, 1);
+
+        const void* data = sqlite3_column_blob(stmt, 2);
+        int size = sqlite3_column_bytes(stmt, 2);
+        if (data && size)
         {
-            if((sqlite3_step(stmt) == SQLITE_ROW))
-            {
-                const void* data = sqlite3_column_blob(stmt, 0);
-                int size = sqlite3_column_bytes(stmt, 0);
-                if (data && size)
-                {
-                    value.assign(static_cast<const char*>(data), size);
-                }
-            }
+            node.mNode = std::string(static_cast<const char*>(data), size);
+            nodes[nodeHandle] = node;
         }
     }
 
-    sqlite3_finalize(stmt);
-    return value;
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to processSqlQueryNodeMap from database: " << dbfile << err;
+        assert(!"Unable to processSqlQueryNodeMap from database.");
+        return false;
+    }
+
+    return true;
 }
 
-bool SqliteDbTable::setVar(const std::string& name, const std::string& value)
+bool SqliteAccountState::remove(NodeHandle nodehandle)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    char buf[64];
+
+    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
+
+    int sqlResult = sqlite3_exec(db, buf, 0, 0, NULL);
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to remove a node from database: " << dbfile << err;
+        assert(!"Unable to remove a node from database.");
+    }
+
+    return sqlResult == SQLITE_OK;
+}
+
+bool SqliteAccountState::removeNodes()
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    int sqlResult = sqlite3_exec(db, "DELETE FROM nodes", 0, 0, NULL);
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to remove all nodes from database: " << dbfile << err;
+        assert(!"Unable to remove all nodes from database.");
+    }
+
+    return sqlResult == SQLITE_OK;
+}
+
+bool SqliteAccountState::put(Node *node)
 {
     if (!db)
     {
@@ -1240,15 +617,607 @@ bool SqliteDbTable::setVar(const std::string& name, const std::string& value)
     checkTransaction();
 
     sqlite3_stmt *stmt;
-    bool result = false;
-
-    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO vars (name, value) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
+                                        "name, fingerprint, origFingerprint, type, size, share, decrypted, fav, node) "
+                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
     {
-        if (sqlite3_bind_text(stmt, 1, name.c_str(), (int)name.length(), SQLITE_STATIC) == SQLITE_OK)
+        string nodeSerialized;
+        node->serialize(&nodeSerialized);
+        assert(nodeSerialized.size());
+
+        sqlite3_bind_int64(stmt, 1, node->nodehandle);
+        sqlite3_bind_int64(stmt, 2, node->parenthandle);
+
+        std::string name = node->displayname();
+        sqlite3_bind_text(stmt, 3, name.c_str(), static_cast<int>(name.length()), SQLITE_STATIC);
+
+        string fp;
+        node->serializefingerprint(&fp);
+        sqlite3_bind_blob(stmt, 4, fp.data(), static_cast<int>(fp.size()), SQLITE_STATIC);
+
+        std::string origFingerprint;
+        attr_map::const_iterator attrIt = node->attrs.map.find(MAKENAMEID2('c', '0'));
+        if (attrIt != node->attrs.map.end())
         {
-            if (sqlite3_bind_blob(stmt, 2, value.data(), (int)value.size(), SQLITE_STATIC) == SQLITE_OK)
+           origFingerprint = attrIt->second;
+        }
+        sqlite3_bind_blob(stmt, 5, origFingerprint.data(), static_cast<int>(origFingerprint.size()), SQLITE_STATIC);
+
+        sqlite3_bind_int(stmt, 6, node->type);
+        sqlite3_bind_int64(stmt, 7, node->size);
+
+        int shareType = node->getShareType();
+        sqlite3_bind_int(stmt, 8, shareType);
+
+        sqlite3_bind_int(stmt, 9, !node->attrstring);
+        nameid favId = AttrMap::string2nameid("fav");
+        bool fav = (node->attrs.map.find(favId) != node->attrs.map.end());
+        sqlite3_bind_int(stmt, 10, fav);
+        sqlite3_bind_blob(stmt, 11, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+
+        sqlResult = sqlite3_step(stmt);
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to put a node from database: " << dbfile << err;
+        assert(!"Unable to put a node from database.");
+        return false;
+    }
+
+    return true;
+}
+
+bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSerialized)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    nodeSerialized.mNode.clear();
+    nodeSerialized.mDecrypted = true;
+
+    int sqlResult = SQLITE_ERROR;
+    sqlite3_stmt *stmt;
+    if ((sqlResult = sqlite3_prepare(db, "SELECT decrypted, node FROM nodes  WHERE nodehandle = ?", -1, &stmt, NULL)) == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, nodehandle.as8byte())) == SQLITE_OK)
+        {
+            if((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
             {
-                if (sqlite3_step(stmt) == SQLITE_DONE)
+                nodeSerialized.mDecrypted = sqlite3_column_int(stmt, 0);
+                const void* data = sqlite3_column_blob(stmt, 1);
+                int size = sqlite3_column_bytes(stmt, 1);
+                if (data && size)
+                {
+                    nodeSerialized.mNode.assign(static_cast<const char*>(data), size);
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get a node from database: " << dbfile << err;
+        assert(!"Unable to get a node from database.");
+    }
+
+    return nodeSerialized.mNode.size() ? true : false;
+}
+
+bool SqliteAccountState::getNodes(std::vector<NodeSerialized> &nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    int sqlResult = SQLITE_ERROR;
+    if ((sqlResult = sqlite3_prepare(db, "SELECT decrypted, node FROM nodes", -1, &stmt, NULL)) == SQLITE_OK)
+    {
+        while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+        {
+            NodeSerialized node;
+            node.mDecrypted = sqlite3_column_int(stmt, 0);
+
+            const void* data = sqlite3_column_blob(stmt, 1);
+            int size = sqlite3_column_bytes(stmt, 1);
+            if (data && size)
+            {
+                node.mNode = std::string(static_cast<const char*>(data), size);
+                nodes.push_back(node);
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get all nodes from database: " << dbfile << err;
+        assert(!"Unable to get all nodes from database.");
+        return false;
+    }
+
+    return true;
+}
+
+bool SqliteAccountState::getNodesByFingerprint(const FileFingerprint &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        string fp;
+        fingerprint.serializefingerprint(&fp);
+        if ((sqlResult = sqlite3_bind_blob(stmt, 1, fp.data(), (int)fp.size(), SQLITE_STATIC)) == SQLITE_OK)
+        {
+            result = processSqlQueryNodeMap(stmt, nodes);
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get nodes by fingerprint from database: " << dbfile << err;
+        assert(!"Unable to get nodes by fingerprint from database.");
+    }
+
+    return result;
+}
+
+bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE origfingerprint = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_blob(stmt, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
+        {
+            result = processSqlQueryNodeMap(stmt, nodes);
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get nodes by origfingerprint from database: " << dbfile << err;
+        assert(!"Unable to get nodes by origfingerprint from database.");
+    }
+
+    return result;
+}
+
+bool SqliteAccountState::getNodeByFingerprint(const FileFingerprint &fingerprint, NodeSerialized &node, NodeHandle &nodeHandle)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    node.mNode.clear();
+    node.mDecrypted = true;
+
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        string fp;
+        fingerprint.serializefingerprint(&fp);
+        if ((sqlResult = sqlite3_bind_blob(stmt, 1, fp.data(), (int)fp.size(), SQLITE_STATIC)) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+            {
+                nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
+                node.mDecrypted = sqlite3_column_int(stmt, 1);
+                const void* data = sqlite3_column_blob(stmt, 2);
+                int size = sqlite3_column_bytes(stmt, 2);
+                if (data && size)
+                {
+                    node.mNode = std::string(static_cast<const char*>(data), size);
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get node by fingerprint from database: " << dbfile << err;
+        assert(!"Unable to get node by fingerprint from database.");
+        return false;
+    }
+
+
+    return true;
+}
+
+bool SqliteAccountState::getRootNodes(std::map<mega::NodeHandle, NodeSerialized> &nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        NodeHandle nodeHandleUndef; // By default is set as undef
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, nodeHandleUndef.as8byte())) == SQLITE_OK)
+        {
+            result = processSqlQueryNodeMap(stmt, nodes);
+        }
+    }
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get root nodes from database: " << dbfile << err;
+        assert(!"Unable to get root nodes from database.");
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
+bool SqliteAccountState::getNodesWithSharesOrLink(std::map<mega::NodeHandle, mega::NodeSerialized> &nodes, ShareType_t shareType)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int(stmt, 1, static_cast<int>(shareType))) == SQLITE_OK)
+        {
+            result = processSqlQueryNodeMap(stmt, nodes);
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get root nodes from database: " << dbfile << err;
+        assert(!"Unable to get root nodes from database.");
+    }
+
+    return result;
+}
+
+bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized> &children)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
+        {
+            result = processSqlQueryNodeMap(stmt, children);
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get children from database: " << dbfile << err;
+        assert(!"Unable to get children from database.");
+    }
+
+    return result;
+}
+
+bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::vector<NodeHandle> & children)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
+        {
+            while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW))
+            {
+                int64_t h = sqlite3_column_int64(stmt, 0);
+                children.push_back(NodeHandle().set6byte(h));
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get children handle from database: " << dbfile << err;
+        assert(!"Unable to get children handle from database.");
+        return false;
+    }
+
+    return true;
+}
+
+bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::NodeHandle, NodeSerialized> &nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
+    // (with or without any additional char at the beginning and/or end of the name). The '%' is the wildcard in SQL
+    std::string sqlQuery = "SELECT nodehandle, decrypted, node FROM nodes WHERE LOWER(name) LIKE LOWER(";
+    sqlQuery.append("'%")
+            .append(name)
+            .append("%')");
+    // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
+    // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+    int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        result = processSqlQueryNodeMap(stmt, nodes);
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get nodes by name from database: " << dbfile << err;
+        assert(!"Unable to get nodes by name from database.");
+        return false;
+    }
+
+    return result;
+}
+
+bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle> &nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle, fav) AS (SELECT nodehandle, parenthandle, fav "
+                           "FROM nodes WHERE parenthandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle, A.fav "
+                           "FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.parenthandle = E.nodehandle)) SELECT * "
+                           "FROM nodesCTE where fav = 1;";
+
+    int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
+        {
+            while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW) && (nodes.size() < count || count == 0))
+            {
+                nodes.push_back(NodeHandle().set6byte(sqlite3_column_int64(stmt, 0)));
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get favourites from database: " << dbfile << err;
+        assert(!"Unable to get favourites from database.");
+        return false;
+    }
+
+    return true;
+}
+
+int SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    int numChildren = 0;
+    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+            {
+               numChildren = sqlite3_column_int(stmt, 0);
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get number of children from database: " << dbfile << err;
+        assert(!"Unable to get number of children from database.");
+    }
+
+    return numChildren;
+}
+
+m_off_t SqliteAccountState::getNodeSize(NodeHandle node)
+{
+    if (!db)
+    {
+        return -1;
+    }
+
+    sqlite3_stmt *stmt;
+    m_off_t size = -1;
+
+    int sqlResult = sqlite3_prepare(db, "SELECT size FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+            {
+                size = sqlite3_column_int64(stmt, 0);
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get node counter from database: " << dbfile << err;
+        //assert(!"Unable to get node counter from database.");
+        return -1;
+    }
+
+    return size;
+}
+
+bool SqliteAccountState::isNodesOnDemandDb()
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    int numRows = -1;
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+        {
+           numRows = sqlite3_column_int(stmt, 0);
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to know if data base is nodes on demand: " << dbfile << err;
+        assert(!"Unable to know if data base is nodes on demand.");
+    }
+
+    return numRows > 0 ? true : false;
+}
+
+NodeHandle SqliteAccountState::getFirstAncestor(NodeHandle node)
+{
+    NodeHandle ancestor;
+    if (!db)
+    {
+        return ancestor;
+    }
+
+    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) "
+            "AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? "
+            "UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE "
+            "AS E ON (A.nodehandle = E.parenthandle)) "
+            "SELECT * FROM nodesCTE";
+
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
+        {
+            while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+            {
+                ancestor.set6byte(sqlite3_column_int64(stmt, 0));
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get first ancestor from database: " << dbfile << err;
+        assert(!"Unable to get first ancestor from database.");
+    }
+
+    return ancestor;
+}
+
+bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
+{
+    bool result = false;
+    if (!db)
+    {
+        return result;
+    }
+
+    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) "
+            "AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? "
+            "UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE "
+            "AS E ON (A.nodehandle = E.parenthandle)) "
+            "SELECT * FROM nodesCTE WHERE parenthandle = ?";
+
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_bind_int64(stmt, 2, ancestor.as8byte())) == SQLITE_OK)
+            {
+                if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
                 {
                     result = true;
                 }
@@ -1257,8 +1226,118 @@ bool SqliteDbTable::setVar(const std::string& name, const std::string& value)
     }
 
     sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get `isAncestor` from database: " << dbfile << err;
+        assert(!"Unable to get `isAncestor` from database.");
+    }
+
     return result;
 }
+
+nodetype_t SqliteAccountState::getNodeType(NodeHandle node)
+{
+    nodetype_t nodeType = TYPE_UNKNOWN;
+    if (!db)
+    {
+        return TYPE_UNKNOWN;
+    }
+
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, "SELECT type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+            {
+               nodeType = (nodetype_t)sqlite3_column_int(stmt, 0);
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get `isFileNode` from database: " << dbfile << err;
+        assert(!"Unable to get `isFileNode` from database.");
+    }
+
+    return nodeType;
+}
+
+bool SqliteAccountState::isNodeInDB(NodeHandle node)
+{
+    bool inDb = false;
+    if (!db)
+    {
+        return inDb;
+    }
+
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+            {
+               inDb = sqlite3_column_int(stmt, 0);
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get `isNodeInDB` from database: " << dbfile << err;
+        assert(!"Unable to get `isNodeInDB` from database.");
+    }
+
+    return inDb;
+}
+
+uint64_t SqliteAccountState::getNumberOfNodes()
+{
+    uint64_t nodeNumber = 0;
+    if (!db)
+    {
+        return nodeNumber;
+    }
+
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE type = ? OR type = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int(stmt, 1, FILENODE)) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_bind_int(stmt, 2, FOLDERNODE)) == SQLITE_OK)
+            {
+                if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+                {
+                    nodeNumber = sqlite3_column_int64(stmt, 0);
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get number of nodes from database: " << dbfile << err;
+        assert(!"Unable to get number of nodes from database.");
+    }
+
+    return nodeNumber;
+}
+
 } // namespace
 
 #endif

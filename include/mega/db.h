@@ -50,8 +50,6 @@ protected:
     void resetCommitter();
 
 public:
-    typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
-
     // for a full sequential get: rewind to first record
     virtual void rewind() = 0;
 
@@ -62,39 +60,13 @@ public:
     // get specific record by key
     virtual bool get(uint32_t, string*) = 0;
 
-    // get nodes and queries about nodes
-    virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
-    virtual bool getNodes(std::vector<NodeSerialized>& nodes) = 0;
-    virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
-    virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
-    virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node) = 0;
-    virtual bool getNodesWithoutParent(std::vector<NodeSerialized>& nodes) = 0;
-    virtual bool getNodesWithSharesOrLink(std::vector<NodeSerialized>& nodes, ShareType_t shareType) = 0;
-    virtual bool getChildrenFromNode(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
-    virtual bool getChildrenHandlesFromNode(NodeHandle node, std::vector<NodeHandle>& nodes) = 0;
-    virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
-    virtual NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile) = 0;
-    virtual bool getFavouritesNodeHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
-    virtual int getNumberOfChildrenFromNode(NodeHandle parentHandle) = 0;
-    virtual bool isNodesOnDemandDb() = 0;
-    virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
-    virtual bool isNodeInDB(NodeHandle node) = 0;
-    virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
-    virtual bool isFileNode(NodeHandle node) = 0;
-    virtual uint64_t getNumberOfNodes() = 0;
-
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;
     bool put(uint32_t, string*);
     bool put(uint32_t, Cacheable *, SymmCipher*);
-    // update or add a node
-    virtual bool put(Node* node) = 0;
 
     // delete specific record
     virtual bool del(uint32_t) = 0;
-    // Remove nodes
-    virtual bool del(NodeHandle nodehandle) = 0;
-    virtual bool removeNodes() = 0;
 
     // delete all records
     virtual void truncate() = 0;
@@ -111,16 +83,10 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
-    // Get/Set values in data base with string as key
-    virtual std::string getVar(const std::string& name) = 0;
-    virtual bool setVar(const std::string& name, const std::string& value) = 0;
-
     // whether an unmatched begin() has been issued
     virtual bool inTransaction() const = 0;
 
     void checkCommitter(DBTableTransactionCommitter*);
-
-    static int getShareType(Node *);
 
     // autoincrement
     uint32_t nextid;
@@ -128,6 +94,53 @@ public:
     DbTable(PrnGen &rng, bool alwaysTransacted);
     virtual ~DbTable() { }
     DBTableTransactionCommitter *getTransactionCommitter() const;
+};
+
+class MEGA_API DBTableNodes
+{
+public:
+
+    // add or update a node
+    virtual bool put(Node* node) = 0;
+
+    // remove one node from 'nodes' table
+    virtual bool remove(NodeHandle nodehandle) = 0;
+
+    // remove all nodes from 'nodes' table (truncate)
+    virtual bool removeNodes() = 0;
+
+    // get nodes and queries about nodes
+    virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
+    virtual bool getNodes(std::vector<NodeSerialized>& nodes) = 0;
+    virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
+    virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
+    virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node, NodeHandle& nodeHandle) = 0;
+    virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
+
+    virtual bool getRootNodes(std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
+    virtual bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, NodeSerialized>&, ShareType_t shareType) = 0;
+    virtual bool getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
+    virtual bool getChildrenHandles(NodeHandle parentHandle, std::vector<NodeHandle>& nodes) = 0;
+    virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
+    virtual int getNumberOfChildren(NodeHandle parentHandle) = 0;
+
+    // true if 'nodes' table is already populated -> legacy DB has been migrated to new schema for NOD
+    virtual bool isNodesOnDemandDb() = 0;
+
+    virtual bool isNodeInDB(NodeHandle node) = 0;
+
+    virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
+    virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
+
+    // count of items in 'nodes' table. Returns 0 if error
+    virtual uint64_t getNumberOfNodes() = 0;
+
+
+    // -- get node properties --
+
+    virtual m_off_t getNodeSize(NodeHandle node) = 0;
+    virtual nodetype_t getNodeType(NodeHandle node) = 0;
+
 };
 
 class MEGA_API DBTableTransactionCommitter
@@ -211,6 +224,9 @@ struct MEGA_API DbAccess
     virtual ~DbAccess() { }
 
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
+
+    // use this method to get a `DbTable` that also implements `DbTableNodes` interface
+    virtual DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
 

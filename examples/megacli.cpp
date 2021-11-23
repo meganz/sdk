@@ -1298,27 +1298,6 @@ static NodeHandle cwd;
 // Where we were on the local filesystem when megacli started.
 static unique_ptr<LocalPath> startDir(new LocalPath);
 
-static void nodestats(int* c, const char* action)
-{
-    if (c[FILENODE])
-    {
-        cout << c[FILENODE] << ((c[FILENODE] == 1) ? " file" : " files");
-    }
-    if (c[FILENODE] && c[FOLDERNODE])
-    {
-        cout << " and ";
-    }
-    if (c[FOLDERNODE])
-    {
-        cout << c[FOLDERNODE] << ((c[FOLDERNODE] == 1) ? " folder" : " folders");
-    }
-
-    if (c[FILENODE] || c[FOLDERNODE])
-    {
-        cout << " " << action << endl;
-    }
-}
-
 // list available top-level nodes and contacts/incoming shares
 static void listtrees()
 {
@@ -2659,9 +2638,11 @@ void exec_lrenamereplace(autocomplete::ACState& s)
 
 #endif
 
-void exec_getcloudstorageused(autocomplete::ACState& s)
+void exec_getcloudstorageused(autocomplete::ACState&)
 {
-    cout << client->mFingerprints.getSumSizes() << endl;
+    m_off_t filesSize = client->mNodeManager.getNodeCounter(client->rootnodes.files).storage;
+    m_off_t rubbishSize = client->mNodeManager.getNodeCounter(client->rootnodes.rubbish).storage;
+    cout << filesSize + rubbishSize << endl;
 }
 
 void exec_getuserquota(autocomplete::ACState& s)
@@ -7754,35 +7735,8 @@ void DemoApp::clearing()
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
 // at which point their pointers will become invalid at that point.)
-void DemoApp::nodes_updated(Node** n, int count)
+void DemoApp::nodes_updated(Node** /*n*/, int /*count*/)
 {
-    int c[2][6] = { { 0 } };
-
-    if (n)
-    {
-        while (count--)
-        {
-            if ((*n)->type < 6)
-            {
-                c[!(*n)->changed.removed][(*n)->type]++;
-                n++;
-            }
-        }
-    }
-    else
-    {
-        for (node_map::iterator it = client->mNodes.begin(); it != client->mNodes.end(); it++)
-        {
-            if (it->second->type < 6)
-            {
-                c[1][it->second->type]++;
-            }
-        }
-    }
-
-    nodestats(c[1], "added or updated");
-    nodestats(c[0], "removed");
-
     if (cwd.isUndef())
     {
         cwd = client->rootnodes.files;
@@ -8604,34 +8558,8 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoAppFolder::nodes_updated(Node **n, int count)
+void DemoAppFolder::nodes_updated(Node **/*n*/, int /*count*/)
 {
-    int c[2][6] = { { 0 } };
-
-    if (n)
-    {
-        while (count--)
-        {
-            if ((*n)->type < 6)
-            {
-                c[!(*n)->changed.removed][(*n)->type]++;
-                n++;
-            }
-        }
-    }
-    else
-    {
-        for (node_map::iterator it = clientFolder->mNodes.begin(); it != clientFolder->mNodes.end(); it++)
-        {
-            if (it->second->type < 6)
-            {
-                c[1][it->second->type]++;
-            }
-        }
-    }
-
-    cout << "The folder link contains ";
-    nodestats(c[1], "");
 }
 
 void exec_metamac(autocomplete::ACState& s)

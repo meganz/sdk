@@ -123,6 +123,7 @@ struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
+class NodeManager;
 struct NewNode;
 struct Node;
 struct NodeCore;
@@ -342,6 +343,8 @@ typedef list<struct File*> file_list;
 // RUBBISH - rubbish bin
 typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
 
+typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
+
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
 
@@ -549,6 +552,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
+// TODO Nodes on demand convertir Node* en unique_ptr
 typedef map<NodeHandle, Node*> node_map;
 
 struct NodeCounter

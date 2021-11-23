@@ -1726,6 +1726,7 @@ bool CommandLogin::procresult(Result r)
                     {
                         client->sctable->remove();
                         client->sctable.reset();
+                        client->mNodeManager.reset();
                         client->pendingsccommit = false;
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
@@ -2164,10 +2165,10 @@ bool CommandSetPendingContact::procresult(Result r)
                 client->notifypcr(pcr);
 
                 // remove pending shares related to the deleted PCR
-                Node *n;
-                for (node_map::iterator it = client->mNodes.begin(); it != client->mNodes.end(); it++)
+                // TODO Nodes on demand Review if it has same behavior
+                node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
+                for (Node* n : nodes)
                 {
-                    n = it->second;
                     if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
                     {
                         client->newshares.push_back(
@@ -4727,12 +4728,12 @@ bool CommandGetUserQuota::procresult(Result r)
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        auto iter = client->mNodeCounters.find(NodeHandle().set6byte(h));
-                        if (iter != client->mNodeCounters.end())
+                        const NodeCounter* counter = client->mNodeManager.getCounter(NodeHandle().set6byte(h));
+                        if (counter)
                         {
-                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
-                                      << iter->second.versionStorage << " " << ns->version_bytes << " " << iter->second.versions << " " << ns->version_files
-                                      << (iter->second.storage == ns->bytes && iter->second.files == ns->files && iter->second.folders == ns->folders && iter->second.versionStorage == ns->version_bytes && iter->second.versions == ns->version_files
+                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << counter->storage << " " << ns->bytes << " " << counter->files << " " << ns->files << " " << counter->folders << " " << ns->folders << " "
+                                      << counter->versionStorage << " " << ns->version_bytes << " " << counter->versions << " " << ns->version_files
+                                      << (counter->storage == ns->bytes && counter->files == ns->files && counter->folders == ns->folders && counter->versionStorage == ns->version_bytes && counter->versions == ns->version_files
                                           ? "" : " ******************************************* mismatch *******************************************");
                         }
 #endif
@@ -5692,7 +5693,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5703,7 +5704,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5726,7 +5727,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readusers(&client->json, false))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5747,7 +5748,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->scsn.setScsn(&client->json))
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5785,7 +5786,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->scsn.ready())
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5798,14 +5799,14 @@ bool CommandFetchNodes::procresult(Result r)
 
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
-                client->fnstats.nodesCached = client->mNodes.size();
+                client->fnstats.nodesCached = client->mNodeManager.getNodeCount();
                 return true;
             }
             default:
                 if (!client->json.storeobject())
                 {
                     client->fetchingnodes = false;
-                    client->cleanNodesFromDb();
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }

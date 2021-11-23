@@ -33,19 +33,20 @@
 
 namespace mega {
 
-Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
-           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts, bool addToMemory)
+Node::Node(MegaClient& cclient, handle h, handle ph,
+           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
+    : client(&cclient)
 {
-    mInMemory = addToMemory;
-    fingerprint_it = cclient->mFingerprints.end();
-    client = cclient;
+    // TODO Nodes on demand check if mFingerprints is required
+    //fingerprint_it = mNodeManager.getMegaClient().mFingerprints.end();
+    //client = cclient;
     outshares = NULL;
     pendingshares = NULL;
     tag = 0;
     appdata = NULL;
 
-    nodehandle = h.as8byte();
-    parenthandle = ph.as8byte();
+    nodehandle = h;
+    parenthandle = ph;
 
     parent = NULL;
 
@@ -73,74 +74,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
     plink = NULL;
 
     memset(&changed, 0, sizeof changed);
-
-    Node* p;
-
-    if (mInMemory)
-    {
-        client->mNodes[h] = this;
-
-        // set parent linkage or queue for delayed parent linkage in case of
-        // out-of-order delivery
-        //TODO nodes on demand check if it's neccessary
-        if ((p = client->nodeByHandle(ph)))
-        {
-            setparent(p);
-        }
-        else
-        {
-            dp->push_back(this);
-        }
-
-        client->mFingerprints.newnode(this);
-    }
-    else
-    {
-        NodeHandle parentNodeHandle;
-        parentNodeHandle.set6byte(parenthandle);
-        NodeHandle firstValidAncestor = client->sctable->getFirstAncestor(parentNodeHandle);
-        firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : parentNodeHandle;
-
-        if (firstValidAncestor != UNDEF)
-        {
-            if (type == FILENODE)
-            {
-                client->mNodeCounters[firstValidAncestor].files++;
-                client->mNodeCounters[firstValidAncestor].storage += size;
-            }
-            else if (type == FOLDERNODE)
-            {
-                client->mNodeCounters[firstValidAncestor].folders++;
-            }
-
-            auto it = client->mNodeCounters.find(nodeHandle());
-            if (it != client->mNodeCounters.end())
-            {
-                client->mNodeCounters[firstValidAncestor].files += it->second.files;
-                client->mNodeCounters[firstValidAncestor].storage += it->second.storage;
-                client->mNodeCounters[firstValidAncestor].folders += it->second.folders;
-                client->mNodeCounters.erase(it);
-            }
-        }
-    }
-
-    // folder link access: first returned record defines root node and
-    // identity
-    if (client->rootnodes.files.isUndef())
-    {
-        client->rootnodes.files = h;
-
-        if (client->loggedIntoWritableFolder())
-        {
-            // If logged into writable folder, we need the sharekey set in the root node
-            // so as to include it in subsequent put nodes
-            sharekey = new SymmCipher(client->key); //we use the "master key", in this case the secret share key
-        }
-    }
-
-    if (t == ROOTNODE) client->rootnodes.files = h;
-    else if (t == INCOMINGNODE) client->rootnodes.inbox = h;
-    else if (t == RUBBISHNODE) client->rootnodes.rubbish = h;
 }
 
 Node::~Node()
@@ -153,17 +86,6 @@ Node::~Node()
 
     // abort pending direct reads
     client->preadabort(this);
-
-    if (!client->mOptimizePurgeNodes && parent)
-    {
-        parent->mChildrenInMemory.erase(nodeHandle());
-    }
-
-    // remove node's fingerprint from hash
-    if (!client->mOptimizePurgeNodes)
-    {
-        client->mFingerprints.remove(this);
-    }
 
 #ifdef ENABLE_SYNC
     // remove from todebris node_set
@@ -199,11 +121,6 @@ Node::~Node()
         delete pendingshares;
     }
 
-    if (plink)
-    {
-        client->mPublicLinks.erase(nodehandle);
-    }
-
     delete plink;
     delete inshare;
     delete sharekey;
@@ -219,18 +136,41 @@ Node::~Node()
     // in case this node is currently being transferred for syncing: abort transfer
     delete syncget;
 #endif
+}
 
-    if (!client->mOptimizePurgeNodes)
+int Node::getShareType() const
+{
+    int shareType = ShareType_t::NO_SHARES;
+
+    if (inshare)
     {
-        for (auto& childHandle : mChildrenInMemory)
+        shareType |= ShareType_t::IN_SHARES;
+    }
+    else
+    {
+        if (outshares)
         {
-            Node* child = client->nodeByHandleInRam(childHandle);
-            if (child)
+            for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
             {
-                child->parent = nullptr;
+                Share *share = it->second;
+                if (share->user)    // folder links are shares without user
+                {
+                    shareType |= ShareType_t::OUT_SHARES;
+                    break;
+                }
             }
         }
+        if (pendingshares && pendingshares->size())
+        {
+            shareType |= ShareType_t::PENDING_OUTSHARES;
+        }
+        if (plink)
+        {
+            shareType |= ShareType_t::LINK;
+        }
     }
+
+    return shareType;
 }
 
 #ifdef ENABLE_SYNC
@@ -253,6 +193,11 @@ void Node::setkeyfromjson(const char* k)
     assert(client->mAppliedKeyNodeCount >= 0);
 }
 
+void Node::setUndecryptedKey(const std::string& undecryptedKey)
+{
+    nodekeydata = undecryptedKey;
+}
+
 // update node key and decrypt attributes
 void Node::setkey(const byte* newkey)
 {
@@ -265,283 +210,6 @@ void Node::setkey(const byte* newkey)
     }
 
     setattr();
-}
-
-// parse serialized node and return Node object - updates nodes hash and parent
-// mismatch vector
-Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bool decrypted)
-{
-    handle h, ph;
-    nodetype_t t;
-    m_off_t s;
-    handle u;
-    const byte* k = NULL;
-    const char* fa;
-    m_time_t ts;
-    const byte* skey;
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-    unsigned short ll;
-    Node* n;
-    int i;
-    char isExported = '\0';
-    char hasLinkCreationTs = '\0';
-
-    if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
-    {
-        return NULL;
-    }
-
-    s = MemAccess::get<m_off_t>(ptr);
-    ptr += sizeof s;
-
-    if (s < 0 && s >= -RUBBISHNODE)
-    {
-        t = (nodetype_t)-s;
-    }
-    else
-    {
-        t = FILENODE;
-    }
-
-    h = 0;
-    memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
-    ptr += MegaClient::NODEHANDLE;
-
-    ph = 0;
-    memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
-    ptr += MegaClient::NODEHANDLE;
-
-    if (!ph)
-    {
-        ph = UNDEF;
-    }
-
-    u = 0;
-    memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
-    ptr += MegaClient::USERHANDLE;
-
-    // FIME: use m_time_t / Serialize64 instead
-    ptr += sizeof(time_t);
-
-    ts = (uint32_t)MemAccess::get<time_t>(ptr);
-    ptr += sizeof(time_t);
-
-    std::string undecryptedKey;
-    if (decrypted)
-    {
-        if ((t == FILENODE) || (t == FOLDERNODE))
-        {
-            int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
-
-            if (ptr + keylen + 8 + sizeof(short) > end)
-            {
-                return NULL;
-            }
-
-            k = (const byte*)ptr;
-            ptr += keylen;
-        }
-    }
-    else
-    {
-        ll = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof ll;
-
-        if (ptr + ll > end)
-        {
-            return NULL;
-        }
-
-        k = nullptr;
-        undecryptedKey = std::string(ptr, ll);
-        ptr += ll;
-    }
-
-    if (t == FILENODE)
-    {
-        ll = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof ll;
-
-        if (ptr + ll > end)
-        {
-            return NULL;
-        }
-
-        fa = ptr;
-        ptr += ll;
-    }
-    else
-    {
-        fa = NULL;
-    }
-
-    if (ptr + sizeof isExported + sizeof hasLinkCreationTs > end)
-    {
-        return NULL;
-    }
-
-    isExported = MemAccess::get<char>(ptr);
-    ptr += sizeof(isExported);
-
-    hasLinkCreationTs = MemAccess::get<char>(ptr);
-    ptr += sizeof(hasLinkCreationTs);
-
-    auto authKeySize = MemAccess::get<char>(ptr);
-
-    ptr += sizeof authKeySize;
-    const char *authKey = nullptr;
-    if (authKeySize)
-    {
-        authKey = ptr;
-        ptr += authKeySize;
-    }
-
-    for (i = 5; i--;)
-    {
-        if (ptr + (unsigned char)*ptr < end)
-        {
-            ptr += (unsigned char)*ptr + 1;
-        }
-    }
-
-    if (ptr + sizeof(short) > end)
-    {
-        return NULL;
-    }
-
-    short numshares = MemAccess::get<short>(ptr);
-    ptr += sizeof(numshares);
-
-    if (numshares)
-    {
-        if (ptr + SymmCipher::KEYLENGTH > end)
-        {
-            return NULL;
-        }
-
-        skey = (const byte*)ptr;
-        ptr += SymmCipher::KEYLENGTH;
-    }
-    else
-    {
-        skey = NULL;
-    }
-
-    n = new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
-
-    if (k)
-    {
-        n->setkey(k);
-    }
-    else if (!decrypted)
-    {
-        n->nodekeydata = undecryptedKey;
-    }
-
-    // read inshare, outshares, or pending shares
-    while (numshares)   // inshares: -1, outshare/s: num_shares
-    {
-        int direction = (numshares > 0) ? -1 : 0;
-        NewShare *newShare = Share::unserialize(direction, h, skey, &ptr, end);
-        if (!newShare)
-        {
-            LOG_err << "Failed to unserialize Share";
-            break;
-        }
-
-        // Recovering nodes from DB, 'updateDb' is false. Nodes are updated and it isn't necessary to update in Db
-        client->mergenewshare(newShare, false, n, false);
-        if (numshares > 0)  // outshare/s
-        {
-            numshares--;
-        }
-        else    // inshare
-        {
-            break;
-        }
-    }
-
-    if (decrypted)
-    {
-        ptr = n->attrs.unserialize(ptr, end);
-        if (!ptr)
-        {
-            delete n;
-            return NULL;
-        }
-    }
-    else
-    {
-        ll = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof ll;
-
-        if (ptr + ll > end)
-        {
-            return NULL;
-        }
-
-        n->attrstring = make_unique<std::string>(ptr, ll);
-        ptr += ll;
-        n->applykey();
-        n->setattr();
-    }
-
-    // It's needed to re-normalize node names because
-    // the updated version of utf8proc doesn't provide
-    // exactly the same output as the previous one that
-    // we were using
-    attr_map::iterator it = n->attrs.map.find('n');
-    if (it != n->attrs.map.end())
-    {
-        client->fsaccess->normalize(&(it->second));
-    }
-
-    PublicLink *plink = NULL;
-    if (isExported)
-    {
-        if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
-        {
-            delete n;
-            return NULL;
-        }
-
-        handle ph = 0;
-        memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
-        ptr += MegaClient::NODEHANDLE;
-        m_time_t ets = MemAccess::get<m_time_t>(ptr);
-        ptr += sizeof(ets);
-        bool takendown = MemAccess::get<bool>(ptr);
-        ptr += sizeof(takendown);
-
-        m_time_t cts = 0;
-        if (hasLinkCreationTs)
-        {
-            cts = MemAccess::get<m_time_t>(ptr);
-            ptr += sizeof(cts);
-        }
-
-        plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
-        client->mPublicLinks[n->nodehandle] = plink->ph;
-    }
-    n->plink = plink;
-
-    n->setfingerprint();
-
-    if (ptr == end)
-    {
-        if (!decrypted && !n->attrstring)
-        {
-            client->sctable->put(n);
-        }
-
-        return n;
-    }
-    else
-    {
-        delete n;
-        return NULL;
-    }
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
@@ -839,7 +507,8 @@ void Node::setfingerprint()
 {
     if (type == FILENODE && nodekeydata.size() >= sizeof crc)
     {
-        client->mFingerprints.remove(this);
+        // TODO Nodes on demand check if mFingerprints is required
+        //client->mFingerprints.remove(this);
 
         attr_map::iterator it = attrs.map.find('c');
 
@@ -859,10 +528,11 @@ void Node::setfingerprint()
             mtime = ctime;
         }
 
-        if (mInMemory)
-        {
-            client->mFingerprints.add(this);
-        }
+        // TODO Nodes on demand check if mFingerprints is required
+//        if (mInMemory)
+//        {
+//            client->mFingerprints.add(this);
+//        }
     }
 }
 
@@ -1070,11 +740,7 @@ bool Node::applykey()
 
     if (applied)
     {
-        // If node in DB update if not we can wait until it will save in DB
-        if (client->sctable->isNodeInDB(nodeHandle()))
-        {
-            client->sctable->put(this);
-        }
+        client->mNodeManager.updateNode(this);
     }
 
     return applied;
@@ -1082,14 +748,7 @@ bool Node::applykey()
 
 NodeCounter Node::subnodeCounts() const
 {
-    if (type == FILENODE)
-    {
-        return client->getTreeInfoFromFile(nodeHandle());
-    }
-    else
-    {
-        return client->getTreeInfoFromFolder(nodeHandle());
-    }
+    return client->getTreeInfoFromNode(nodeHandle());
 }
 
 // returns whether node was moved
@@ -1100,43 +759,21 @@ bool Node::setparent(Node* p)
         return false;
     }
 
-    NodeCounter nc;
-    bool gotnc = false;
-
-    if (parent)
-    {
-        parent->mChildrenInMemory.erase(nodeHandle());
-        const Node *originalancestor = firstancestor();
-        NodeHandle oah = originalancestor->nodeHandle();
-        if (oah == client->rootnodes.files || oah == client->rootnodes.inbox || oah == client->rootnodes.rubbish || originalancestor->inshare)
-        {
-            nc = subnodeCounts();
-            gotnc = true;
-
-            // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
-            client->mNodeCounters[oah] -= nc;
-        }
-    }
+    const Node* originalancestor = parent ? firstancestor() : nullptr;
+    const NodeHandle& oah = originalancestor ? originalancestor->nodeHandle() : NodeHandle();
 
 #ifdef ENABLE_SYNC
     Node *oldparent = parent;
 #endif
 
-    parenthandle = p->nodehandle;
+    parenthandle = p ? p->nodehandle : UNDEF;
     parent = p;
-    parent->mChildrenInMemory.insert(nodeHandle());
 
     const Node* newancestor = firstancestor();
-    NodeHandle nah = newancestor->nodeHandle();
-    if (nah == client->rootnodes.files || nah == client->rootnodes.inbox || nah == client->rootnodes.rubbish || newancestor->inshare)
-    {
-        if (!gotnc)
-        {
-            nc = subnodeCounts();
-        }
+    NodeHandle nah;
+    nah.set6byte(newancestor->nodehandle);
 
-        client->mNodeCounters[nah] += nc;
-    }
+    client->mNodeManager.movedSubtreeToNewRoot(nodeHandle(), oah, nah);
 
 #ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers
@@ -1176,7 +813,6 @@ const Node* Node::firstancestor() const
     while (n->parent != NULL)
     {
         n = n->parent;
-        return this;
     }
 
     return n;
@@ -1227,19 +863,16 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
 {
     if (!plink) // creation
     {
-        assert(client->mPublicLinks.find(nodehandle) == client->mPublicLinks.end());
         plink = new PublicLink(ph, cts, ets, takendown, authKey.empty() ? nullptr : authKey.c_str());
     }
     else            // update
     {
-        assert(client->mPublicLinks.find(nodehandle) != client->mPublicLinks.end());
         plink->ph = ph;
         plink->cts = cts;
         plink->ets = ets;
         plink->takendown = takendown;
         plink->mAuthKey = authKey;
     }
-    client->mPublicLinks[nodehandle] = ph;
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
@@ -2011,48 +1644,18 @@ Node* Fingerprints::nodebyfingerprint(FileFingerprint* fingerprint)
         return static_cast<Node*>(*it);
     }
 
-    NodeSerialized nodeSerialized;
-    if (mClient.sctable->getNodeByFingerprint(*fingerprint, nodeSerialized))
-    {
-        node_vector nodeVector;
-        Node* node = Node::unserialize(&mClient, &nodeSerialized.mNode, &nodeVector, nodeSerialized.mDecrypted);
-        return node;
-    }
-
-    return nullptr;
+    Node *node = mClient.mNodeManager.getNodeByFingerprint(*fingerprint);
+    return node;
 }
 
 node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
 {
+    node_vector nodesByFingerPrint = mClient.mNodeManager.getNodesByFingerprint(*fingerprint);
     node_vector *nodes = new node_vector();
-    auto p = mFingerprints.equal_range(fingerprint);
-    for (iterator it = p.first; it != p.second; ++it)
-    {
-        nodes->push_back(static_cast<Node*>(*it));
-    }
 
-    std::map<NodeHandle, NodeSerialized> nodeMap;
-    if (mClient.sctable->getNodesByFingerprint(*fingerprint, nodeMap))
+    for (Node* node : nodesByFingerPrint)
     {
-        for (auto nodeIt : nodeMap)
-        {
-            bool found = false;
-            for (int i = 0; i < nodes->size(); i++)
-            {
-                if (nodes->at(i)->nodeHandle().eq(nodeIt.first))
-                {
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                node_vector nodeVector;
-                Node* node = Node::unserialize(&mClient, &nodeIt.second.mNode, &nodeVector, nodeIt.second.mDecrypted);
-                nodes->push_back(node);
-            }
-        }
+        nodes->push_back(node);
     }
 
     return nodes;
