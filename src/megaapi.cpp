@@ -5572,6 +5572,11 @@ char *MegaAccountDetails::getSubscriptionMethod()
     return NULL;
 }
 
+int MegaAccountDetails::getSubscriptionMethodId()
+{
+    return 0;
+}
+
 char *MegaAccountDetails::getSubscriptionCycle()
 {
     return NULL;

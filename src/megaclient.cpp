@@ -17349,7 +17349,7 @@ NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle, bool parentIsFile
     {
         m_off_t nodeSize = node ? node->size : mTable->getNodeSize(nodehandle);
 
-        if (parentIsFile == FILENODE)
+        if (parentIsFile)
         {
             nc.versions++;
             nc.versionStorage += nodeSize;
@@ -17783,9 +17783,8 @@ void NodeManager::notifyPurge(Node *node)
 
         // effectively delete node from RAM
         mNodes.erase(node->nodeHandle());
-        delete node;
-
         mTable->remove(node->nodeHandle());
+        delete node;
     }
     else
     {
