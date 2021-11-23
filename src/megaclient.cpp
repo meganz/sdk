@@ -17773,9 +17773,8 @@ void NodeManager::notifyPurge(Node *node)
 
         // effectively delete node from RAM
         mNodes.erase(node->nodeHandle());
-        delete node;
-
         mTable->remove(node->nodeHandle());
+        delete node;
     }
     else
     {
