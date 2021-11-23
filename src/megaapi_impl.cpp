@@ -25719,10 +25719,10 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 
     for (const auto& localpath : tree.files)
     {
-        MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, localpath.toPath(*fsaccess).c_str(),
+        MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.toPath(*fsaccess).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      -1, tag, false, NULL, false, false, tree.fsType, nullptr, this);
-        transferQueue.push(transfer);
+                                                                      -1, tag, false, NULL, false, false, tree.fsType, transfer->getCancelToken(), this);
+        transferQueue.push(subTransfer);
         pendingTransfers++;
     }
 
