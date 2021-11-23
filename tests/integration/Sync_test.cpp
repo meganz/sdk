@@ -1768,7 +1768,7 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
     std::list<NewNode> nodes;
     NewNode* nn = buildSubdirs(nodes, prefix, fanout, depth);
     nn->parenthandle = UNDEF;
-    nn->ovhandle = UNDEF;
+    nn->ovhandle = NodeHandle();
 
     Node* atnode = client.nodebyhandle(basefolderhandle);
     if (atnode && !atpath.empty())
@@ -6979,7 +6979,7 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
 
     model0.addfile("f0", "x");
     model0.generate(SYNCROOT0);
-    
+
     // Trigger full scan.
     c0.triggerFullScan(id0);
 
