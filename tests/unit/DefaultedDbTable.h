@@ -99,10 +99,9 @@ public:
     {
         return false;
     }
-    mega::NodeCounter getNodeCounter(mega::NodeHandle, bool) override
+    m_off_t getNodeSize(mega::NodeHandle) override
     {
-        mega::NodeCounter nc;
-        return nc;
+        return 0;
         //throw NotImplemented(__func__);
     }
     int getNumberOfChildren(mega::NodeHandle) override

@@ -2638,12 +2638,11 @@ void exec_lrenamereplace(autocomplete::ACState& s)
 
 #endif
 
-void exec_getcloudstorageused(autocomplete::ACState& s)
+void exec_getcloudstorageused(autocomplete::ACState&)
 {
-    // TODO Nodes on demand ROOTNODE - ROOTNODE
-    m_off_t rootNodeSize = client->mNodeManager.getNodeCounter(client->rootnodes.files).storage;
+    m_off_t filesSize = client->mNodeManager.getNodeCounter(client->rootnodes.files).storage;
     m_off_t rubbishSize = client->mNodeManager.getNodeCounter(client->rootnodes.rubbish).storage;
-    cout << rootNodeSize + rubbishSize << endl;
+    cout << filesSize + rubbishSize << endl;
 }
 
 void exec_getuserquota(autocomplete::ACState& s)

@@ -1090,19 +1090,17 @@ int SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
     return numChildren;
 }
 
-NodeCounter SqliteAccountState::getNodeCounter(NodeHandle node, bool parentIsFile)
+m_off_t SqliteAccountState::getNodeSize(NodeHandle node)
 {
-    NodeCounter nodeCounter;
     if (!db)
     {
-        return nodeCounter;
+        return -1;
     }
 
     sqlite3_stmt *stmt;
-    int64_t size = 0;
-    int type = TYPE_UNKNOWN;
+    m_off_t size = -1;
 
-    int sqlResult = sqlite3_prepare(db, "SELECT size, type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT size FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
@@ -1110,7 +1108,6 @@ NodeCounter SqliteAccountState::getNodeCounter(NodeHandle node, bool parentIsFil
             if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
             {
                 size = sqlite3_column_int64(stmt, 0);
-                type = sqlite3_column_int(stmt, 1);
             }
         }
     }
@@ -1121,27 +1118,11 @@ NodeCounter SqliteAccountState::getNodeCounter(NodeHandle node, bool parentIsFil
     {
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get node counter from database: " << dbfile << err;
-        assert(!"Unable to get node counter from database.");
-        return nodeCounter;
+        //assert(!"Unable to get node counter from database.");
+        return -1;
     }
 
-    if (type == FILENODE)
-    {
-        nodeCounter.files = 1;
-        nodeCounter.storage = size;
-        if (parentIsFile) // the child has to be a version
-        {
-            nodeCounter.versions = 1;
-            nodeCounter.versionStorage = size;
-        }
-    }
-    else
-    {
-        nodeCounter.folders = 1;
-        assert(!parentIsFile);
-    }
-
-    return nodeCounter;
+    return size;
 }
 
 bool SqliteAccountState::isNodesOnDemandDb()
@@ -1255,12 +1236,12 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
     return result;
 }
 
-bool SqliteAccountState::isFileNode(NodeHandle node)
+nodetype_t SqliteAccountState::getNodeType(NodeHandle node)
 {
-    bool isFileNode = false;
+    nodetype_t nodeType = TYPE_UNKNOWN;
     if (!db)
     {
-        return isFileNode;
+        return TYPE_UNKNOWN;
     }
 
     sqlite3_stmt *stmt;
@@ -1271,7 +1252,7 @@ bool SqliteAccountState::isFileNode(NodeHandle node)
         {
             if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
             {
-               isFileNode = sqlite3_column_int(stmt, 0) == FILENODE;
+               nodeType = (nodetype_t)sqlite3_column_int(stmt, 0);
             }
         }
     }
@@ -1285,7 +1266,7 @@ bool SqliteAccountState::isFileNode(NodeHandle node)
         assert(!"Unable to get `isFileNode` from database.");
     }
 
-    return isFileNode;
+    return nodeType;
 }
 
 bool SqliteAccountState::isNodeInDB(NodeHandle node)
@@ -1330,12 +1311,18 @@ uint64_t SqliteAccountState::getNumberOfNodes()
     }
 
     sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE type = ? OR type = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+        if ((sqlResult = sqlite3_bind_int(stmt, 1, FILENODE)) == SQLITE_OK)
         {
-            nodeNumber = sqlite3_column_int64(stmt, 0);
+            if ((sqlResult = sqlite3_bind_int(stmt, 2, FOLDERNODE)) == SQLITE_OK)
+            {
+                if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+                {
+                    nodeNumber = sqlite3_column_int64(stmt, 0);
+                }
+            }
         }
     }
 

@@ -128,7 +128,6 @@ public:
     virtual bool isNodesOnDemandDb() = 0;
 
     virtual bool isNodeInDB(NodeHandle node) = 0;
-    virtual bool isFileNode(NodeHandle node) = 0;
 
     virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
     virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
@@ -136,7 +135,11 @@ public:
     // count of items in 'nodes' table. Returns 0 if error
     virtual uint64_t getNumberOfNodes() = 0;
 
-    virtual NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile) = 0;
+
+    // -- get node properties --
+
+    virtual m_off_t getNodeSize(NodeHandle node) = 0;
+    virtual nodetype_t getNodeType(NodeHandle node) = 0;
 
 };
 
