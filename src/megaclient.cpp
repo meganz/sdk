@@ -12082,7 +12082,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     if (nodesOnDemandReady)
     {
-        assert(mNodeManager.getNodeCount());
         std::vector<NodeSerialized> nodes;
 #ifdef ENABLE_SYNC
         sctable->getNodes(nodes);
