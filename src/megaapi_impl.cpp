@@ -19557,10 +19557,9 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            // TODO Nodes on demand ROOTNODE - ROOTNODE
-            m_off_t rootNodeSize = client->mNodeManager.getNodeCounter(client->rootnodes.files).storage;
+            m_off_t filesSize = client->mNodeManager.getNodeCounter(client->rootnodes.files).storage;
             m_off_t rubbishSize = client->mNodeManager.getNodeCounter(client->rootnodes.rubbish).storage;
-            request->setNumber(rootNodeSize + rubbishSize);
+            request->setNumber(filesSize + rubbishSize);
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }

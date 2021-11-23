@@ -17327,16 +17327,16 @@ NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle, bool parentIsFile
     }
 
     Node* node = getNodeInRAM(nodehandle);
-    bool isFileNode = node ? (node->type == FILENODE) : mTable->isFileNode(nodehandle);
+    nodetype_t nodeType = node ? node->type : mTable->getNodeType(nodehandle);
 
     std::vector<NodeHandle> children;
     children = getChildrenHandlesFromNode(nodehandle);
     for (const NodeHandle &h : children)
     {
-        nc += getNodeCounter(h, isFileNode);
+        nc += getNodeCounter(h, nodeType == FILENODE);
     }
 
-    if (isFileNode)
+    if (nodeType == FILENODE)
     {
         m_off_t nodeSize = node ? node->size : mTable->getNodeSize(nodehandle);
 
@@ -17351,7 +17351,7 @@ NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle, bool parentIsFile
             nc.storage += nodeSize;
         }
     }
-    else if (node->type == FOLDERNODE)
+    else if (nodeType == FOLDERNODE)
     {
         nc.folders++;
     }
@@ -17428,13 +17428,19 @@ bool NodeManager::isAncestor(NodeHandle node, NodeHandle ancestor)
 
 bool NodeManager::isFileNode(NodeHandle node)
 {
+    auto it = mNodes.find(node);
+    if (it != mNodes.end())
+    {
+        return it->second->type == FILENODE;
+    }
+
     if (!mTable)
     {
         assert(false);
         return false;
     }
 
-    return mTable->isFileNode(node);
+    return mTable->getNodeType(node) == FILENODE;
 }
 
 void NodeManager::removeChanges()

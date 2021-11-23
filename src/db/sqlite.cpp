@@ -1236,12 +1236,12 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
     return result;
 }
 
-bool SqliteAccountState::isFileNode(NodeHandle node)
+nodetype_t SqliteAccountState::getNodeType(NodeHandle node)
 {
-    bool isFileNode = false;
+    nodetype_t nodeType = TYPE_UNKNOWN;
     if (!db)
     {
-        return isFileNode;
+        return TYPE_UNKNOWN;
     }
 
     sqlite3_stmt *stmt;
@@ -1252,7 +1252,7 @@ bool SqliteAccountState::isFileNode(NodeHandle node)
         {
             if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
             {
-               isFileNode = sqlite3_column_int(stmt, 0) == FILENODE;
+               nodeType = (nodetype_t)sqlite3_column_int(stmt, 0);
             }
         }
     }
@@ -1266,7 +1266,7 @@ bool SqliteAccountState::isFileNode(NodeHandle node)
         assert(!"Unable to get `isFileNode` from database.");
     }
 
-    return isFileNode;
+    return nodeType;
 }
 
 bool SqliteAccountState::isNodeInDB(NodeHandle node)

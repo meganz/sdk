@@ -293,7 +293,7 @@ public:
     // true if 'node' is a child node of 'ancestor', false otherwise.
     bool isAncestor(NodeHandle node, NodeHandle ancestor);
 
-    // true if 'node' is a file (note: it checks the type in DB)
+    // true if 'node' is a file (note: requires DB query if not available in ram)
     bool isFileNode(NodeHandle node);
 
     // Clean 'changed' flag from all nodes
