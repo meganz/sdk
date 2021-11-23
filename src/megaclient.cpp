@@ -17339,7 +17339,7 @@ NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle, bool parentIsFile
     {
         m_off_t nodeSize = node ? node->size : mTable->getNodeSize(nodehandle);
 
-        if (parentIsFile == FILENODE)
+        if (parentIsFile)
         {
             nc.versions++;
             nc.versionStorage += nodeSize;
