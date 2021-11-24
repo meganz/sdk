@@ -314,6 +314,8 @@ public:
     // Returns if cache has been loaded
     bool hasCacheLoaded();
 
+    void loadNodes();
+
     // TODO nodes on demand remove
     MegaClient& getMegaClient();
 
