@@ -8715,9 +8715,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         Node *ovNode = nodebyhandle(nn_nni.ovhandle);
                         if (ovNode)
                         {
-                            if (ovNode->type == FILENODE && !ovNode->children.empty())
+                            if (ovNode->children.size()) // versions are child nodes of files
                             {
                                 assert(ovNode->children.size() == 1);
+                                assert(ovNode->type == FILENODE);
+                                assert(ovNode->children.back()->parent == ovNode);
+
                                 Node *version = ovNode->children.back();
                                 version->setparent(n);
                                 version->changed.parent = true;
