@@ -3640,7 +3640,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     syncs.locallogout(removecaches, keepSyncsConfigFile);
 
     // Process any lingering client actions.
-    if (syncs.clientThreadActions.empty())
+    if (!syncs.clientThreadActions.empty())
     {
         DBTableTransactionCommitter committer(tctable);
         Syncs::QueuedClientFunc func;
