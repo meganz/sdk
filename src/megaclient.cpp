@@ -8725,6 +8725,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                                 version->setparent(n);
                                 version->changed.parent = true;
                                 notifynode(version);
+                                prevVersion->parenthandle = n->nodehandle;
                             }
 
                             TreeProcDel td;
