@@ -19,8 +19,10 @@ for ARCH in ${ARCHS}
 do
 tar zxf ${CRYPTOPP_VERSION}.tar.gz
 pushd cryptopp-${CRYPTOPP_VERSION}
+if [ $ARCH = "x86_64" ]; then
+sed -i '' $'204s/IOS_FLAGS=\"\$IOS_FLAGS -DCRYPTOPP_DISABLE_ASM\"/IOS_FLAGS=\"\$IOS_FLAGS -DCRYPTOPP_DISABLE_ASM -miphoneos-version-min=7\"/' setenv-ios.sh
+fi;
 source setenv-ios.sh ${ARCH}
-sed -i '' $'s/IOS_FLAGS=\"\$IOS_FLAGS -DCRYPTOPP_DISABLE_ASM\"/IOS_FLAGS=\"\$IOS_FLAGS -DCRYPTOPP_DISABLE_ASM -miphoneos-version-min=7\"/' setenv-ios.sh
 mkdir -p "${CURRENTPATH}/bin/${ARCH}.sdk"
 make -f GNUmakefile-cross lean -j ${NPROCESSORS}
 mv libcryptopp.a "${CURRENTPATH}/bin/${ARCH}.sdk"
