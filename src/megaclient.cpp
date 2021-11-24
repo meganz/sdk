@@ -16083,14 +16083,11 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fp)
 }
 
 #ifdef ENABLE_SYNC
-// TODO Nodes on demand check if mFingerprints is required
-#if 0
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 {
-    std::unique_ptr<const node_vector>
-      remoteNodes(mFingerprints.nodesbyfingerprint(localNode));
+    const node_vector& remoteNodes = mNodeManager.getNodesByFingerprint(localNode->fingerprint());
 
-    if (remoteNodes->empty())
+    if (remoteNodes.empty())
         return nullptr;
 
     std::string localName =
@@ -16099,17 +16096,17 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
-      std::find_if(remoteNodes->begin(),
-                   remoteNodes->end(),
+      std::find_if(remoteNodes.begin(),
+                   remoteNodes.end(),
                    [&](const Node *remoteNode) -> bool
                    {
                        return localName == remoteNode->displayname();
                    });
 
-    if (remoteNode != remoteNodes->end())
+    if (remoteNode != remoteNodes.end())
         return *remoteNode;
 
-    remoteNode = remoteNodes->begin();
+    remoteNode = remoteNodes.begin();
 
     // Compare the local file's metamac against a random candidate.
     //
@@ -16140,7 +16137,6 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     return *remoteNode;
 }
-#endif // TODO Nodes on demand check if mFingerprints is required
 #endif /* ENABLE_SYNC */
 
 // TODO nodes on demand check if we it's necessary when SDK-1753 will be implemented

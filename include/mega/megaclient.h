@@ -1582,8 +1582,7 @@ public:
 
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
-    // TODO Nodes on demand check if mFingerprints is required
-    //Node* nodebyfingerprint(LocalNode*);
+    Node* nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
 
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
