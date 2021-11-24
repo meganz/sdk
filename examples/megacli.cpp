@@ -8138,7 +8138,7 @@ char* longestCommonPrefix(ac::CompletionState& acs)
     return strdup(s.c_str());
 }
 
-char** my_rl_completion(const char */*text*/, int /*start*/, int end)
+char** my_rl_completion(const char* /*text*/, int /*start*/, int end)
 {
     rl_attempted_completion_over = 1;
 
@@ -8558,7 +8558,7 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoAppFolder::nodes_updated(Node **/*n*/, int /*count*/)
+void DemoAppFolder::nodes_updated(Node** /*n*/, int /*count*/)
 {
 }
 
