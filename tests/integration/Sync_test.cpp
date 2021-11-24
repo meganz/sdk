@@ -1478,25 +1478,26 @@ bool StandardClient::uploadFolderTree(fs::path p, Node* n2)
     return future.get();
 }
 
-void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer)
+void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts, DBTableTransactionCommitter& committer)
 {
     unique_ptr<File> file(new FilePut());
 
     file->h = parent->nodeHandle();
     file->setLocalname(LocalPath::fromAbsolutePath(path.u8string()));
     file->name = name;
+    file->fixNameConflicts = fixNameConflicts;
 
     client.startxfer(PUT, file.release(), committer);
 }
 
-void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb)
+void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts, PromiseBoolSP pb)
 {
     resultproc.prepresult(PUTNODES,
                             ++next_request_tag,
                             [&]()
                             {
                                 DBTableTransactionCommitter committer(client.tctable);
-                                uploadFile(path, name, parent, committer);
+                                uploadFile(path, name, parent, fixNameConflicts, committer);
                             },
                             [pb](error e)
                             {
@@ -1505,12 +1506,12 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, Node* 
                             });
 }
 
-bool StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, int timeoutSeconds)
+bool StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts, int timeoutSeconds)
 {
     auto result =
         thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
             {
-                client.uploadFile(path, name, parent, pb);
+                client.uploadFile(path, name, parent, fixNameConflicts, pb);
             });
 
     if (result.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
@@ -1521,7 +1522,7 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, Node* 
     return result.get();
 }
 
-bool StandardClient::uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds)
+bool StandardClient::uploadFile(const fs::path& path, const string& name, string parentPath, bool fixNameConflicts, int timeoutSeconds)
 {
     auto result =
         thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
@@ -1532,7 +1533,7 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, string
                     LOG_warn << "nodeByPath found no node for parentPath " << parentPath << ", cannot call uploadFile";
                     return pb->set_value(false);
                 }
-                client.uploadFile(path, name, parent, pb);
+                client.uploadFile(path, name, parent, fixNameConflicts, pb);
             });
 
     if (result.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
@@ -1543,22 +1544,22 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, string
     return result.get();
 }
 
-bool StandardClient::uploadFile(const fs::path& path, Node* parent)
+bool StandardClient::uploadFile(const fs::path& path, Node* parent, bool fixNameConflicts, int timeoutSeconds)
 {
-    return uploadFile(path, path.filename().u8string(), parent);
+    return uploadFile(path, path.filename().u8string(), parent, fixNameConflicts, timeoutSeconds);
 }
 
-bool StandardClient::uploadFile(const fs::path& path, const string& parentPath)
+bool StandardClient::uploadFile(const fs::path& path, const string& parentPath, bool fixNameConflicts, int timeoutSeconds)
 {
-    return uploadFile(path, path.filename().u8string(), parentPath);
+    return uploadFile(path, path.filename().u8string(), parentPath, fixNameConflicts, timeoutSeconds);
 }
 
-void StandardClient::uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer)
+void StandardClient::uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, bool fixNameConflicts, DBTableTransactionCommitter& committer)
 {
     if (fs::is_regular_file(p))
     {
         ++inprogress;
-        uploadFile(p, p.filename().u8string(), target, committer);
+        uploadFile(p, p.filename().u8string(), target, fixNameConflicts, committer);
     }
     else if (fs::is_directory(p))
     {
@@ -1566,29 +1567,29 @@ void StandardClient::uploadFilesInTree_recurse(Node* target, const fs::path& p, 
         {
             for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
             {
-                uploadFilesInTree_recurse(newtarget, *i, inprogress, committer);
+                uploadFilesInTree_recurse(newtarget, *i, inprogress, fixNameConflicts, committer);
             }
         }
     }
 }
 
-bool StandardClient::uploadFilesInTree(fs::path p, Node* n2)
+bool StandardClient::uploadFilesInTree(fs::path p, Node* n2, bool fixNameConflicts)
 {
     auto promise = makeSharedPromise<bool>();
     auto future = promise->get_future();
 
     std::atomic_int dummy(0);
-    uploadFilesInTree(p, n2, dummy, std::move(promise));
+    uploadFilesInTree(p, n2, dummy, fixNameConflicts, std::move(promise));
 
     return future.get();
 }
 
-void StandardClient::uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb)
+void StandardClient::uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, bool fixNameConflicts, PromiseBoolSP pb)
 {
     resultproc.prepresult(PUTNODES, ++next_request_tag,
         [&](){
             DBTableTransactionCommitter committer(client.tctable);
-            uploadFilesInTree_recurse(n2, p, inprogress, committer);
+            uploadFilesInTree_recurse(n2, p, inprogress, fixNameConflicts, committer);
         },
         [pb, &inprogress](error e)
         {
@@ -5739,8 +5740,8 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     // Create a remote name clash.
     auto* node = client.drillchildnodebyname(client.gettestbasenode(), "x/d");
     ASSERT_TRUE(!!node);
-    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node));
-    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node));
+    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node, false));
+    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node, false));
 
     // Let the client attempt to synchronize.
     waitonsyncs(TIMEOUT, &client);
@@ -5818,8 +5819,8 @@ TEST_F(SyncTest, DoesntDownloadFilesWithClashingNames)
         ASSERT_TRUE(cu.uploadFolderTree(root / "dd", node));
 
         // Upload f twice, generate clash.
-        ASSERT_TRUE(cu.uploadFile(root / "f", node));
-        ASSERT_TRUE(cu.uploadFile(root / "f", node));
+        ASSERT_TRUE(cu.uploadFile(root / "f", node, false));
+        ASSERT_TRUE(cu.uploadFile(root / "f", node, false));
 
         // Upload ff once.
         ASSERT_TRUE(cu.uploadFile(root / "ff", node));

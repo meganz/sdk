@@ -39,6 +39,7 @@ File::File()
     hprivate = true;
     hforeign = false;
     syncxfer = false;
+    fixNameConflicts = true;
     temporaryfile = false;
     tag = 0;
 }
@@ -391,7 +392,7 @@ void File::completed(Transfer* t, putsource_t source)
                 }
             }
 #endif
-            if (!syncxfer)
+            if (!syncxfer && fixNameConflicts)
             {
                 // for manual upload, let the API apply the `ov` according to the global versions_disabled flag.
                 // with versions on, the API will make the ov the first version of this new node

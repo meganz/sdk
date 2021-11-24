@@ -85,6 +85,23 @@ struct MEGA_API File: public FileFingerprint
 
         // remember if the sync is from an inshare
         bool fromInsycShare : 1;
+
+        // true if we should fix name conflicts on manual upload.
+        //
+        // what happens when we upload a file that already exists in the
+        // cloud is usually controlled by whether the user is using
+        // versioning.
+        //
+        // if the user's using versioning, the file being uploaded will
+        // become the latest version in that file's history.
+        //
+        // if the user's not using versioning, the file will replace the
+        // existing file in the cloud.
+        //
+        // if this flag is false, we will always create a new node
+        // regardless of whether it already exists or whether the user is
+        // using versioning.
+        bool fixNameConflicts;
     };
 
     // private auth to access the node

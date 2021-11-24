@@ -387,15 +387,15 @@ struct StandardClient : public ::mega::MegaApp
     }; // FilePut
 
     bool uploadFolderTree(fs::path p, Node* n2);
-    void uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer);
-    void uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb);
-    bool uploadFile(const fs::path& path, const string& name, Node* parent, int timeoutSeconds = 30);
-    bool uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds = 30);
-    bool uploadFile(const fs::path& path, Node* parent);
-    bool uploadFile(const fs::path& path, const string& parentPath);
-    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer);
-    bool uploadFilesInTree(fs::path p, Node* n2);
-    void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb);
+    void uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts, DBTableTransactionCommitter& committer);
+    void uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts, PromiseBoolSP pb);
+    bool uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts = true, int timeoutSeconds = 30);
+    bool uploadFile(const fs::path& path, const string& name, string parentPath, bool fixNameConflicts = true, int timeoutSeconds = 30);
+    bool uploadFile(const fs::path& path, Node* parent, bool fixNameConflicts = true, int timeoutSeconds = 30);
+    bool uploadFile(const fs::path& path, const string& parentPath, bool fixNameConflicts = true, int timeoutSeconds = 30);
+    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, bool fixNameConflicts, DBTableTransactionCommitter& committer);
+    bool uploadFilesInTree(fs::path p, Node* n2, bool fixNameConflicts = true);
+    void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, bool fixNameConflicts, PromiseBoolSP pb);
 
     class TreeProcPrintTree : public TreeProc
     {
