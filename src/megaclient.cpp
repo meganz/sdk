@@ -8706,26 +8706,28 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     nn_nni.added = true;
                     nn_nni.mAddedHandle = h;
 
-                    if (versions_disabled
-                            && n->type == FILENODE
-                            && nn_nni.ovhandle != UNDEF)
+                    if (versions_disabled && nn_nni.ovhandle != UNDEF)
                     {
-                        /* The API replace the existing node ('ov') by the new node, so
-                         * the old one needs to be removed effectively */
+                        assert(n->type == FILENODE);
+
+                        // The API replace the existing node ('ov') by the new node, so
+                        // the existing one needs to be removed effectively, and previous
+                        // versions need to be chained to the new version
                         Node *ovNode = nodebyhandle(nn_nni.ovhandle);
                         if (ovNode)
                         {
-                            if (ovNode->children.size()) // versions are child nodes of files
+                            assert(ovNode->type == FILENODE);
+
+                            if (ovNode->children.size())    // versions are child nodes of files
                             {
                                 assert(ovNode->children.size() == 1);
-                                assert(ovNode->type == FILENODE);
-                                assert(ovNode->children.back()->parent == ovNode);
 
-                                Node *version = ovNode->children.back();
-                                version->setparent(n);
-                                version->changed.parent = true;
-                                notifynode(version);
+                                Node *prevVersion = ovNode->children.back();
+                                assert(prevVersion->parent == ovNode);
+                                prevVersion->setparent(n);
                                 prevVersion->parenthandle = n->nodehandle;
+                                prevVersion->changed.parent = true;
+                                notifynode(prevVersion);
                             }
 
                             TreeProcDel td;
