@@ -17761,10 +17761,13 @@ void NodeManager::loadNodes()
 
         for (const NodeSerialized& node : nodes)
         {
-            unserializeNode(&node.mNode, node.mDecrypted);
-        }
+            Node* n = unserializeNode(&node.mNode, node.mDecrypted);
 
-        getRootNodes();
+            if (n->type == ROOTNODE && n->type == INCOMINGNODE && n->type == RUBBISHNODE)
+            {
+                setrootnode(n);
+            }
+        }
     }
     else
     {
@@ -17775,7 +17778,6 @@ void NodeManager::loadNodes()
         getNodesWithLinks();
 
         //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
-        // TODO nodes on demand Check ROOTNODE - ROOTNODE set to 0 or define an enum
         NodeHandle rootHandle = mClient.rootnodes.files;
         updateCounter(rootHandle);
         NodeHandle inboxHandle = mClient.rootnodes.inbox;
