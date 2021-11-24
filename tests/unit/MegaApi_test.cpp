@@ -246,8 +246,8 @@ TEST(MegaApi, getLocalSyncStall)
     const std::string theRemotePath = "/here/there/be/Egg/Chicken";
     const auto localPath = LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
 
-    syncStallInfo->waitingLocal(  
-        localPath, 
+    syncStallInfo->waitingLocal(
+        localPath,
         localPath,
         theRemotePath,
         SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
@@ -262,75 +262,6 @@ TEST(MegaApi, getLocalSyncStall)
     delete megaSyncStallListPtr; // Release owned list
 }
 
-TEST(MegaApi, MegaSyncStallList_constructor)
-{
-    SyncStallInfo syncStallInfo;
-
-    const auto localPath = ([]() {
-        FSACCESS_CLASS fsAccess;
-        LocalPath path;
-        const std::string fragments[] = {
-            "here",
-            "there",
-            "be",
-            "Chicken",
-            "Egg"
-        };
-
-        fsAccess.cwd(path);
-
-        for (auto& fragment : fragments)
-            path.appendWithSeparator(LocalPath::fromRelativePath(fragment), false);
-
-        return path;
-    })();
-
-    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
-    const std::string theLocalPath = localPath.toPath();
-
-    // Simulate a stall detected locally
-    syncStallInfo.waitingLocal(
-        localPath,
-        localPath,
-        theRemotePath,
-        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
-    );
-
-    // Simulate a stall detected remotelly
-    syncStallInfo.waitingCloud(
-        theRemotePath,
-        theRemotePath,
-        localPath,
-        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
-    );
-
-    MegaSyncStallListPrivate syncStallList(syncStallInfo);
-    ASSERT_EQ(syncStallList.size(), 2u);
-
-    const MegaSyncStall* localStallConstPtr = syncStallList.get(0);
-    const MegaSyncStall* cloudStallConstPtr = syncStallList.get(1);
-
-    ASSERT_NE(localStallConstPtr, nullptr);
-    ASSERT_NE(cloudStallConstPtr, nullptr);
-
-    // Check The local stall object
-    ASSERT_EQ(theLocalPath.compare(localStallConstPtr->indexPath()), 0);
-    ASSERT_EQ(theLocalPath.compare(localStallConstPtr->localPath()), 0);
-    ASSERT_EQ(theRemotePath.compare(localStallConstPtr->cloudPath()), 0);
-    ASSERT_EQ(localStallConstPtr->reason(), 
-            MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
-    ASSERT_EQ(strcmp(localStallConstPtr->reasonString(), 
-                MegaSyncStallPrivate::reasonString(
-                    MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose)),0);
-    ASSERT_FALSE(localStallConstPtr->isCloud());
-    ASSERT_TRUE(localStallConstPtr->isImmediate());
-
-    // Check The cloud stall object
-    ASSERT_EQ(theRemotePath.compare(cloudStallConstPtr->indexPath()),0);
-    ASSERT_EQ(theLocalPath.compare( cloudStallConstPtr->localPath()),0);
-    ASSERT_EQ(theRemotePath.compare(cloudStallConstPtr->cloudPath()),0);
-    ASSERT_EQ(cloudStallConstPtr->isCloud(), true);
-}
 
 TEST(MegaApi, MegaSyncStallList_copy_constructor){
     SyncStallInfo syncStallInfo;
