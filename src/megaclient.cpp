@@ -8715,6 +8715,15 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         Node *ovNode = nodebyhandle(nn_nni.ovhandle);
                         if (ovNode)
                         {
+                            if (ovNode->type == FILENODE && !ovNode->children.empty())
+                            {
+                                assert(ovNode->children.size() == 1);
+                                Node *version = ovNode->children.back();
+                                version->setparent(n);
+                                version->changed.parent = true;
+                                notifynode(ovNode);
+                            }
+
                             TreeProcDel td;
                             proctree(ovNode, &td, false, true);
                             LOG_debug << "File " << Base64Str<MegaClient::NODEHANDLE>(nn_nni.ovhandle) << " replaced by " << Base64Str<MegaClient::NODEHANDLE>(h);
