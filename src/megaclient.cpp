@@ -3638,6 +3638,18 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
 #ifdef ENABLE_SYNC
     syncs.locallogout(removecaches, keepSyncsConfigFile);
+
+    // Process any lingering client actions.
+    if (syncs.clientThreadActions.empty())
+    {
+        DBTableTransactionCommitter committer(tctable);
+        Syncs::QueuedClientFunc func;
+
+        while (syncs.clientThreadActions.popFront(func))
+        {
+            func(*this, committer);
+        }
+    }
 #endif
 
     if (removecaches)
