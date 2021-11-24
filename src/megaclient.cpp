@@ -1269,8 +1269,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , syncnaglebt(rng)
     , syncextrabt(rng)
     , syncscanbt(rng)
-    , mSyncMonitorRetry(false)
     , mSyncMonitorTimer(rng)
+    , mSyncMonitorRetry(false)
 #endif
     , mNodeManager(*this)
 {
