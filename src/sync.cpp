@@ -1212,6 +1212,9 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     config.setError(newSyncError);
     config.setEnabled(newEnableFlag);
 
+    bool makeActiveCallback = false;
+    bool nowActive = false;
+
     if (newstate != state())
     {
         auto oldstate = state();
@@ -1221,10 +1224,10 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
         if (notifyApp)
         {
             bool wasActive = oldstate == SYNC_ACTIVE || oldstate == SYNC_INITIALSCAN;
-            bool nowActive = newstate == SYNC_ACTIVE;
+            nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
-                mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
+                makeActiveCallback = true;
             }
         }
     }
@@ -1232,6 +1235,12 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     if (newstate != SYNC_CANCELED)
     {
         mUnifiedSync.changedConfigState(notifyApp);
+    }
+
+    if (makeActiveCallback)
+    {
+        // Per MegaApi documentation, this callback occurs after the changed-state callback
+        mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
     }
 }
 
