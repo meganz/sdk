@@ -1262,6 +1262,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
    , btheartbeat(rng)
    , btsc(rng)
    , btpfa(rng)
+   , mNodeManager(*this)
 #ifdef ENABLE_SYNC
     , syncs(*this)
     , syncfslockretrybt(rng)
@@ -1269,10 +1270,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , syncnaglebt(rng)
     , syncextrabt(rng)
     , syncscanbt(rng)
-    , mSyncMonitorTimer(rng)
     , mSyncMonitorRetry(false)
+    , mSyncMonitorTimer(rng)
 #endif
-    , mNodeManager(*this)
 {
     mNodeManager.reset();
     sctable.reset();
