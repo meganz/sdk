@@ -1695,13 +1695,22 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
 
                 if (n->children.size())
                 {
-                    stream << ", has versions";
                     Node *version = n;
                     int i = 0;
                     while (version->children.size() && (version = version->children.back()))
                     {
-                        Base64Str<MegaClient::NODEHANDLE> handlestr(version->nodehandle);
-                        stream << " " << ++i << " " << handlestr.chars;
+                        i++;
+                        if (handles_on)
+                        {
+                            if (i == 1) stream << ", has versions: ";
+
+                            Base64Str<MegaClient::NODEHANDLE> handlestr(version->nodehandle);
+                            stream << " [" << i << "] " << handlestr.chars;
+                        }
+                    }
+                    if (!handles_on)
+                    {
+                        stream << ", has " << i << " versions";
                     }
                 }
 
