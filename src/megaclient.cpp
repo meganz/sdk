@@ -12078,51 +12078,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     sctable->rewind();
 
-    bool nodesOnDemandReady = mNodeManager.isNodesOnDemandReady();
-
-    if (nodesOnDemandReady)
-    {
-        std::vector<NodeSerialized> nodes;
-#ifdef ENABLE_SYNC
-        // TODO Nodes on demand check if mFingerprints is required
-#if 0
-        sctable->getNodes(nodes);
-        for (const NodeSerialized& node : nodes)
-        {
-            n = Node::unserialize(this, &node.mNode, &dp);
-            if (n->type == ROOTNODE)
-            {
-                getChildren(n);
-            }
-        }
-
-        for (size_t i = dp.size(); i--; )
-        {
-            if ((n = nodebyhandle(dp[i]->parenthandle)))
-            {
-                dp[i]->setparent(n);
-            }
-        }
-#endif // TODO Nodes on demand check if mFingerprints is required
-
-#else
-        mNodeManager.getRootNodes();
-        mNodeManager.getNodesWithInShares();
-
-        // TODO Nodes on Demand: Review to remove. mPublicLinks has been removed
-        mNodeManager.getNodesWithLinks();
-
-        //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
-        // TODO nodes on demand Check ROOTNODE - ROOTNODE set to 0 or define an enum
-        NodeHandle rootHandle = rootnodes.files;
-        mNodeManager.updateCounter(rootHandle);
-        NodeHandle inboxHandle = rootnodes.inbox;
-        mNodeManager.updateCounter(inboxHandle);
-        NodeHandle rubbishHandle = rootnodes.rubbish;
-        mNodeManager.updateCounter(rubbishHandle);
-#endif
-
-    }
+    mNodeManager.loadNodes();
 
     bool hasNext = sctable->next(&id, &data, &key);
     WAIT_CLASS::bumpds();
@@ -12144,7 +12100,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
             case CACHEDNODE:
                 LOG_info << "Loading nodes from old cache";
-                assert(!nodesOnDemandReady);
+                assert(!mNodeManager.isNodesOnDemandReady());
                 if ((n = mNodeManager.unserializeNode(&data, true)))
                 {
                    necessaryCommit = true;
@@ -17791,6 +17747,47 @@ void NodeManager::notifyPurge(Node *node)
 bool NodeManager::hasCacheLoaded()
 {
     return mNodes.size();
+}
+
+void NodeManager::loadNodes()
+{
+    if (!mTable)
+    {
+        assert(false);
+        return;
+    }
+
+    if (mKeepAllNodesInMemory)
+    {
+        std::vector<NodeSerialized> nodes;
+        mTable->getNodes(nodes);
+
+        for (const NodeSerialized& node : nodes)
+        {
+            Node* n = unserializeNode(&node.mNode, node.mDecrypted);
+
+            if (n->type == ROOTNODE && n->type == INCOMINGNODE && n->type == RUBBISHNODE)
+            {
+                setrootnode(n);
+            }
+        }
+    }
+    else
+    {
+        getRootNodes();
+        getNodesWithInShares();
+
+        // TODO Nodes on Demand: Review to remove. mPublicLinks has been removed
+        getNodesWithLinks();
+
+        //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
+        NodeHandle rootHandle = mClient.rootnodes.files;
+        updateCounter(rootHandle);
+        NodeHandle inboxHandle = mClient.rootnodes.inbox;
+        updateCounter(inboxHandle);
+        NodeHandle rubbishHandle = mClient.rootnodes.rubbish;
+        updateCounter(rubbishHandle);
+    }
 }
 
 MegaClient &NodeManager::getMegaClient()
