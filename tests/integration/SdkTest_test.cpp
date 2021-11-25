@@ -832,9 +832,6 @@ void SdkTest::deleteFile(string filename)
     fs::remove(p, ignoredEc);
 }
 
-string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
-string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
-
 void SdkTest::getAccountsForTest(unsigned howMany)
 {
     assert(howMany > 0 && howMany <= 3);

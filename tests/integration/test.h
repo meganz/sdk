@@ -21,6 +21,9 @@ using namespace ::mega;
 using namespace ::std;
 
 
+extern string_vector envVarAccount;
+extern string_vector envVarPass;
+
 std::string logTime();
 void WaitMillisec(unsigned n);
 
@@ -111,6 +114,7 @@ private:
 
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
+fs::path makeReusableClientFolder(const string& subfolder);
 
 std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
 
@@ -237,7 +241,7 @@ struct StandardClient : public ::mega::MegaApp
     std::thread clientthread;
 
     string ensureDir(const fs::path& p);
-    StandardClient(const fs::path& basepath, const string& name);
+    StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder = fs::path());
     ~StandardClient();
     void localLogout();
 
@@ -561,7 +565,9 @@ struct StandardClient : public ::mega::MegaApp
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool conflictsDetected(list<NameConflict>& conflicts);
     bool login_reset(bool noCache = false);
-    bool login_reset(const string& user, const string& pw, bool noCache = false);
+    bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
+    bool resetBaseFolderMulticlient(StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr);
+    void cleanupForTestReuse();
     bool login_reset_makeremotenodes(const string& prefix, int depth = 0, int fanout = 0, bool noCache = false);
     bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false);
     void ensureSyncUserAttributes(PromiseBoolSP result);
@@ -585,5 +591,61 @@ struct StandardClient : public ::mega::MegaApp
     size_t triggerFullScan(handle backupID);
 
 };
+
+
+struct StandardClientInUseEntry
+{
+    bool inUse = false;
+    shared_ptr<StandardClient> ptr;
+    string name;
+};
+
+
+class StandardClientInUse
+{
+    list<StandardClientInUseEntry>::iterator entry;
+
+public:
+
+    StandardClientInUse(list<StandardClientInUseEntry>::iterator i)
+    : entry(i)
+    {
+        assert(!entry->inUse);
+        entry->inUse = true;
+    }
+
+    ~StandardClientInUse()
+    {
+        entry->ptr->cleanupForTestReuse();
+        entry->inUse = false;
+    }
+
+    StandardClient* operator->()
+    {
+        return entry->ptr.get();
+    }
+
+    operator StandardClient*()
+    {
+        return entry->ptr.get();
+    }
+
+};
+
+class ClientManager
+{
+    // reuse the same client for subsequent tests, to save all the time of logging in, fetchnodes, etc.
+
+    map<int, list<StandardClientInUseEntry>> clients;
+
+public:
+
+    StandardClientInUse getCleanStandardClient(int loginIndex, fs::path workingFolder);
+
+
+
+};
+
+extern ClientManager g_clientManager;
 
 

@@ -21,6 +21,11 @@ bool gOutputToCout = false;
 int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
+string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
+string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
+
+ClientManager g_clientManager;
+
 void WaitMillisec(unsigned n)
 {
 #ifdef _WIN32
@@ -421,6 +426,24 @@ fs::path makeNewTestRoot()
     #ifndef NDEBUG
     bool b =
     #endif
+    fs::create_directories(p);
+    assert(b);
+    return p;
+}
+
+fs::path makeReusableClientFolder(const string& subfolder)
+{
+#ifdef WIN32
+    auto pid = GetCurrentProcessId();
+#else
+    auto pid = getpid();
+#endif
+
+    fs::path p = TestFS::GetTestBaseFolder() / ("clients_" + std::to_string(pid)) / subfolder;
+
+#ifndef NDEBUG
+    bool b =
+#endif
     fs::create_directories(p);
     assert(b);
     return p;
