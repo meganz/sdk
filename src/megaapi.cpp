@@ -3173,17 +3173,21 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, const char *fileName, const char *appData,  bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    pImpl->startUpload(startFirst, localPath, parent, fileName, NULL, mtime, 0, false, appData, isSourceTemporary, false, FS_UNKNOWN, cancelToken, listener);
+    pImpl->startUpload(startFirst, localPath, parent, fileName, NULL /*targetUser*/, mtime,
+                       0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
+                       false /*forceNewUpload*/, FS_UNKNOWN, cancelToken, listener);
 }
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, fileName, nullptr, -1, 0, false, appData, isSourceTemporary, true, FS_UNKNOWN, nullptr, listener);
+    pImpl->startUpload(false /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, -1 /*mtime*/,
+                       0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
+                       true /*forceNewUpload*/, FS_UNKNOWN, nullptr /*cancelToken*/, listener);
 }
 
 void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    pImpl->startDownload(startFirst, node, localPath, customName, 0, appData, cancelToken, listener);
+    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, cancelToken, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
