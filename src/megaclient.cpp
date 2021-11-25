@@ -5269,7 +5269,7 @@ void MegaClient::updatesc()
         }
         LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
 #else
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNumberPendingNotificationNodes() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -7269,7 +7269,7 @@ void MegaClient::notifypurge(void)
 
     if (scsn.ready()) tscsn = scsn.getHandle();
 
-    if (nodenotify.size() || usernotify.size() || pcrnotify.size()
+    if (mNodeManager.getNumberPendingNotificationNodes()|| usernotify.size() || pcrnotify.size()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -7291,118 +7291,7 @@ void MegaClient::notifypurge(void)
 #endif
     }
 
-    if ((t = int(nodenotify.size())))
-    {
-        applykeys();
-
-        if (!fetchingnodes)
-        {
-            app->nodes_updated(&nodenotify[0], t);
-        }
-
-#ifdef ENABLE_SYNC
-
-        //update sync root node location and trigger failing cases
-        NodeHandle rubbishHandle = rootnodes.rubbish;
-        // check for renamed/moved sync root folders
-        syncs.forEachUnifiedSync([&](UnifiedSync& us){
-
-            Node* n = nodeByHandle(us.mConfig.getRemoteNode());
-            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
-            {
-                bool removed = n->changed.removed;
-
-                // update path in sync configuration
-                bool pathChanged = us.updateSyncRemoteLocation(removed ? nullptr : n, false);
-
-                auto &activeSync = us.mSync;
-                if (!activeSync) // no active sync (already failed)
-                {
-                    return;
-                }
-
-                auto syncErr = NO_SYNC_ERROR;
-
-                // fail sync if required
-                if(n->changed.parent) //moved
-                {
-                    assert(pathChanged);
-                    // check if moved to rubbish
-                    auto p = n->parent;
-                    while (p)
-                    {
-                        if (p->nodeHandle() == rubbishHandle)
-                        {
-                            syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
-                            break;
-                        }
-                        p = p->parent;
-                    }
-
-                    if (syncErr == NO_SYNC_ERROR)
-                    {
-                        syncErr = REMOTE_PATH_HAS_CHANGED;
-                    }
-                }
-                else if (removed)
-                {
-                    syncErr = REMOTE_NODE_NOT_FOUND;
-                }
-                else if (pathChanged)
-                {
-                    syncErr = REMOTE_PATH_HAS_CHANGED;
-                }
-
-                if (syncErr != NO_SYNC_ERROR)
-                {
-                    syncs.disableSelectedSyncs(
-                        [&](SyncConfig&, Sync* s) { return s == activeSync.get(); },
-                        true, syncErr, false, nullptr);
-                }
-            }
-        });
-#endif
-        DBTableTransactionCommitter committer(tctable);
-
-        // check all notified nodes for removed status and purge
-        for (i = 0; i < t; i++)
-        {
-            Node* n = nodenotify[i];
-            if (n->attrstring)
-            {
-                // make this just a warning to avoid auto test failure
-                // this can happen if another client adds a folder in our share and the key for us is not available yet
-                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
-#ifdef ENABLE_SYNC
-                if (n->localnode)
-                {
-                    LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
-                }
-#endif
-            }
-
-            if (n->changed.removed)
-            {
-                // remove inbound share
-                if (n->inshare)
-                {
-                    n->inshare->user->sharing.erase(n->nodehandle);
-                    notifyuser(n->inshare->user);
-                }
-            }
-            else
-            {
-                n->notified = false;
-                memset(&(n->changed), 0, sizeof(n->changed));
-                n->tag = 0;
-            }
-
-            mNodeManager.notifyPurge(n);
-
-        }
-
-        nodenotify.clear();
-    }
+    mNodeManager.notifyNodes();
 
     if ((t = int(pcrnotify.size())))
     {
@@ -10759,7 +10648,7 @@ void MegaClient::notifynode(Node* n)
     if (!n->notified)
     {
         n->notified = true;
-        nodenotify.push_back(n);
+        mNodeManager.addNodeToNotify(n);
     }
 }
 
@@ -13315,7 +13204,6 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     }
 
     newshares.clear();
-    nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
     useralerts.clear();
@@ -16979,7 +16867,7 @@ node_list NodeManager::getChildren(Node *parent)
     // get children nodes loaded in RAM (which may not be in cache yet)
     // (upon node's creation, nodes are added to the notification queue, `nodenotify` (in NodeManage::mPendingConfirmNodes), but
     // they are not dumped to cache until the notification is done in `notifypurge()`)
-    for (Node* node : mPendingConfirmNodes)
+    for (Node* node : mPendingNotifyNodes)
     {
         if (parent->nodeHandle().eq(node->parenthandle))
         {
@@ -17416,6 +17304,7 @@ void NodeManager::cleanNodes()
         delete node.second;
     }
 
+    mPendingNotifyNodes.clear();
     mNodes.clear();
     mNodeCounters.clear();
 
@@ -17722,8 +17611,6 @@ void NodeManager::notifyPurge(Node *node)
         return;
     }
 
-    mPendingConfirmNodes.erase(node);
-
     if (node->changed.removed)
     {
         // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
@@ -17739,6 +17626,126 @@ void NodeManager::notifyPurge(Node *node)
     {
         mTable->put(node);
     }
+}
+
+void NodeManager::notifyNodes()
+{
+    if (mPendingNotifyNodes.size())
+    {
+        mClient.applykeys();
+
+        if (!mClient.fetchingnodes)
+        {
+
+            mClient.app->nodes_updated(&mPendingNotifyNodes.data()[0], mPendingNotifyNodes.size());
+        }
+
+#ifdef ENABLE_SYNC
+        //update sync root node location and trigger failing cases
+        NodeHandle rubbishHandle = rootnodes.rubbish;
+        // check for renamed/moved sync root folders
+        syncs.forEachUnifiedSync([&](UnifiedSync& us){
+
+            Node* n = nodeByHandle(us.mConfig.getRemoteNode());
+            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
+            {
+                bool removed = n->changed.removed;
+
+                // update path in sync configuration
+                bool pathChanged = us.updateSyncRemoteLocation(removed ? nullptr : n, false);
+
+                auto &activeSync = us.mSync;
+                if (!activeSync) // no active sync (already failed)
+                {
+                    return;
+                }
+
+                auto syncErr = NO_SYNC_ERROR;
+
+                // fail sync if required
+                if(n->changed.parent) //moved
+                {
+                    assert(pathChanged);
+                    // check if moved to rubbish
+                    auto p = n->parent;
+                    while (p)
+                    {
+                        if (p->nodeHandle() == rubbishHandle)
+                        {
+                            syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
+                            break;
+                        }
+                        p = p->parent;
+                    }
+
+                    if (syncErr == NO_SYNC_ERROR)
+                    {
+                        syncErr = REMOTE_PATH_HAS_CHANGED;
+                    }
+                }
+                else if (removed)
+                {
+                    syncErr = REMOTE_NODE_NOT_FOUND;
+                }
+                else if (pathChanged)
+                {
+                    syncErr = REMOTE_PATH_HAS_CHANGED;
+                }
+
+                if (syncErr != NO_SYNC_ERROR)
+                {
+                    syncs.disableSelectedSyncs(
+                                [&](SyncConfig&, Sync* s) { return s == activeSync.get(); },
+                    true, syncErr, false, nullptr);
+                }
+            }
+        });
+#endif
+        DBTableTransactionCommitter committer(mClient.tctable);
+
+        // check all notified nodes for removed status and purge
+        for (Node * n : mPendingNotifyNodes)
+        {
+            if (n->attrstring)
+            {
+                // make this just a warning to avoid auto test failure
+                // this can happen if another client adds a folder in our share and the key for us is not available yet
+                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
+#ifdef ENABLE_SYNC
+                if (n->localnode)
+                {
+                    LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
+                }
+#endif
+            }
+
+            if (n->changed.removed)
+            {
+                // remove inbound share
+                if (n->inshare)
+                {
+                    n->inshare->user->sharing.erase(n->nodehandle);
+                    mClient.notifyuser(n->inshare->user);
+                }
+            }
+            else
+            {
+                n->notified = false;
+                memset(&(n->changed), 0, sizeof(n->changed));
+                n->tag = 0;
+            }
+
+            notifyPurge(n);
+
+        }
+
+        mPendingNotifyNodes.clear();
+    }
+}
+
+void NodeManager::addNodeToNotify(Node *node)
+{
+    mPendingNotifyNodes.push_back(node);
 }
 
 bool NodeManager::hasCacheLoaded()
@@ -17800,26 +17807,15 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
         return itNode->second;
     }
 
-    for (Node* node : mPendingConfirmNodes)
-    {
-        if (node->nodeHandle().eq(handle))
-        {
-            return node;
-        }
-    }
-
     return nullptr;
 }
 
 void NodeManager::saveNodeInRAM(Node *node, bool notify)
 {
+    // wait for notifypurge() to dump to disk / DB
     mNodes[node->nodeHandle()] = node;
 
-    if (notify) // wait for notifypurge() to dump to disk / DB
-    {
-        mPendingConfirmNodes.insert(node);
-    }
-    else
+    if (!notify)
     {
         mTable->put(node);
     }
@@ -17989,6 +17985,11 @@ void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& o
     {
         itNew->second += subTreeCalculated ? nc : getCounterForSubtree(h);
     }
+}
+
+uint32_t NodeManager::getNumberPendingNotificationNodes() const
+{
+    return mPendingNotifyNodes.size();
 }
 
 } // namespace

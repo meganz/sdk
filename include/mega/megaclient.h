@@ -266,7 +266,8 @@ public:
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
 
-    // Search a node by name
+    // Search a node by name. Node returned are children from nodeHandle (at any level)
+    // If nodeHandle is UNDEF, search in all account
     node_vector search(NodeHandle nodeHandle, const char *searchString);
 
     node_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
@@ -310,6 +311,8 @@ public:
 
     // process notified/changed nodes from 'mPendingConfirmNodes': dump changes to DB
     void notifyPurge(Node* node);
+    void notifyNodes();
+    void addNodeToNotify(Node* node);
 
     // Returns if cache has been loaded
     bool hasCacheLoaded();
@@ -349,6 +352,8 @@ public:
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;
 
+    uint32_t getNumberPendingNotificationNodes() const;
+
 private:
     // TODO Nodes on demand remove reference
     MegaClient& mClient;
@@ -370,7 +375,7 @@ private:
 #endif
 
     // nodes that have changed and are pending to notify to app and dump to DB
-    std::set<Node*> mPendingConfirmNodes;
+    node_vector mPendingNotifyNodes;
 
     // holds references to unknown parent nodes until those are received (delayed-parents: dp)
     std::map<NodeHandle, node_set> mNodesWithMissingParent;
@@ -1551,7 +1556,6 @@ public:
     pcr_vector pcrnotify;
     void notifypcr(PendingContactRequest*);
 
-    node_vector nodenotify;
     void notifynode(Node*);
 
     // update transfer in the persistent cache
