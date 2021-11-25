@@ -7671,7 +7671,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         auto nodeFirstLevel = createFolder(0, folderName.c_str(), rootnodeA.get());
         ASSERT_NE(nodeFirstLevel, UNDEF);
         unique_ptr<MegaNode> folderFirstLevel(megaApi[0]->getNodeByHandle(nodeFirstLevel));
-        ASSERT_TRUE(!!folderFirstLevel);
+        ASSERT_TRUE(folderFirstLevel);
 
         for (unsigned int j = 0; j < numberFolderLevel2; j++)
         {
@@ -7679,7 +7679,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
             auto nodeSecondLevel = createFolder(0, subFolder.c_str(), folderFirstLevel.get());
             ASSERT_NE(nodeSecondLevel, UNDEF);
             unique_ptr<MegaNode> subFolderSecondLevel(megaApi[0]->getNodeByHandle(nodeSecondLevel));
-            ASSERT_TRUE(!!subFolderSecondLevel);
+            ASSERT_TRUE(subFolderSecondLevel);
 
             // Save handle from folder that it's going to be request children
             if (j == numberFolderLevel2 - 2)
