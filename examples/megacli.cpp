@@ -2666,7 +2666,7 @@ void setAppendAndUploadOnCompletedUploads(fs::path p, int count)
 
         DBTableTransactionCommitter committer(client->tctable);
         int total = 0;
-        uploadLocalPath(FILENODE, p.filename().u8string(), LocalPath::fromPath(p.u8string(), *client->fsaccess), client->nodeByHandle(cwd), "", committer, total, false);
+        uploadLocalPath(FILENODE, p.filename().u8string(), LocalPath::fromAbsolutePath(p.u8string()), client->nodeByHandle(cwd), "", committer, total, false);
 
         if (count > 0)
         {
