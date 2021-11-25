@@ -1262,6 +1262,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
    , btheartbeat(rng)
    , btsc(rng)
    , btpfa(rng)
+   , mNodeManager(*this)
 #ifdef ENABLE_SYNC
     , syncs(*this)
     , syncfslockretrybt(rng)
@@ -1272,7 +1273,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , mSyncMonitorRetry(false)
     , mSyncMonitorTimer(rng)
 #endif
-    , mNodeManager(*this)
 {
     mNodeManager.reset();
     sctable.reset();
@@ -13293,7 +13293,8 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 #ifdef ENABLE_SYNC
     todebris.clear();
     tounlink.clear();
-    mFingerprints.clear();
+    // TODO Nodes on demand check if mFingerprints is required
+    //mFingerprints.clear();
 #endif
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -15382,7 +15383,8 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
         {
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
-                mFingerprints.remove(n);
+                // TODO Nodes on demand check if mFingerprints is required
+                //mFingerprints.remove(n);
             }
         }
         else if (nn[nni].localnode && (n = nn[nni].localnode->node))
@@ -16031,13 +16033,17 @@ void MegaClient::setmaxconnections(direction_t d, int num)
     }
 }
 
+Node* MegaClient::nodebyfingerprint(FileFingerprint* fp)
+{
+    return fp ? mNodeManager.getNodeByFingerprint(*fp) : nullptr;
+}
+
 #ifdef ENABLE_SYNC
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 {
-    std::unique_ptr<const node_vector>
-      remoteNodes(mFingerprints.nodesbyfingerprint(localNode));
+    const node_vector& remoteNodes = mNodeManager.getNodesByFingerprint(*localNode);
 
-    if (remoteNodes->empty())
+    if (remoteNodes.empty())
         return nullptr;
 
     std::string localName =
@@ -16046,17 +16052,17 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
-      std::find_if(remoteNodes->begin(),
-                   remoteNodes->end(),
+      std::find_if(remoteNodes.begin(),
+                   remoteNodes.end(),
                    [&](const Node *remoteNode) -> bool
                    {
                        return localName == remoteNode->displayname();
                    });
 
-    if (remoteNode != remoteNodes->end())
+    if (remoteNode != remoteNodes.end())
         return *remoteNode;
 
-    remoteNode = remoteNodes->begin();
+    remoteNode = remoteNodes.begin();
 
     // Compare the local file's metamac against a random candidate.
     //
@@ -16831,9 +16837,6 @@ void FetchNodesStats::toJsonArray(string *json)
 NodeManager::NodeManager(MegaClient& client)
     : mClient(client)
 {
-#ifdef ENABLE_SYNC
-    mKeepAllNodeInMemory = true;
-#endif
 }
 
 void NodeManager::setTable(DBTableNodes *table)
@@ -17763,7 +17766,7 @@ void NodeManager::loadNodes()
         {
             Node* n = unserializeNode(&node.mNode, node.mDecrypted);
 
-            if (n->type == ROOTNODE && n->type == INCOMINGNODE && n->type == RUBBISHNODE)
+            if (n->type == ROOTNODE || n->type == INCOMINGNODE || n->type == RUBBISHNODE)
             {
                 setrootnode(n);
             }
