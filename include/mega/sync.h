@@ -367,11 +367,15 @@ class SyncThreadsafeState
     // track uploads/downloads
     struct TransferCounts
     {
-        int32_t queued = 0;
-        int32_t completed = 0;
+        size_t queued = 0;
+        size_t completed = 0;
         m_off_t queuedBytes = 0;
         m_off_t completedBytes = 0;
     };
+
+    // Transfers update these from the client thread
+    void adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes);
+
     TransferCounts mUploads;
     TransferCounts mDownloads;
 
@@ -383,9 +387,10 @@ public:
     void removeExpectedUpload(NodeHandle parentHandle, const string& name);
     shared_ptr<SyncUpload_inClient> isNodeAnExpectedUpload(NodeHandle parentHandle, const string& name);
 
-    // Transfers update these from the client thread
-    void adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes);
-
+    // Easier to understand interface to the above.
+    void transferBegin(direction_t direction, m_off_t numBytes);
+    void transferComplete(direction_t direction, m_off_t numBytes);
+    void transferFailed(direction_t direction, m_off_t numBytes);
 };
 
 

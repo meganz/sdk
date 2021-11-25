@@ -511,10 +511,29 @@ void SyncThreadsafeState::adjustTransferCounts(bool upload, int32_t adjustQueued
 {
     lock_guard<mutex> g(mMutex);
     TransferCounts& tc = upload ? mUploads : mDownloads;
+
+    assert(adjustQueued >= 0 || tc.queued);
+    assert(adjustCompleted >= 0 || tc.completed);
+
     tc.queued += adjustQueued;
     tc.completed += adjustCompleted;
     tc.queuedBytes += adjustQueuedBytes;
     tc.completedBytes += adjustCompletedBytes;
+}
+
+void SyncThreadsafeState::transferBegin(direction_t direction, m_off_t numBytes)
+{
+    adjustTransferCounts(direction == PUT, 1, 0, numBytes, 0);
+}
+
+void SyncThreadsafeState::transferComplete(direction_t direction, m_off_t numBytes)
+{
+    adjustTransferCounts(direction == PUT, -1, 1, 0, numBytes);
+}
+
+void SyncThreadsafeState::transferFailed(direction_t direction, m_off_t numBytes)
+{
+    adjustTransferCounts(direction == PUT, -1, 1, -numBytes, 0);
 }
 
 SyncConfig::SyncConfig(LocalPath localPath,

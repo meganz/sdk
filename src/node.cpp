@@ -2323,7 +2323,7 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
     tag = 0;
 
     syncThreadSafeState = move(stss);
-    syncThreadSafeState->adjustTransferCounts(true, 1, 0, size, 0);
+    syncThreadSafeState->transferBegin(PUT, size);
 
     sourceFsid = fsid;
     sourceLocalname = localname;
@@ -2339,11 +2339,11 @@ SyncUpload_inClient::~SyncUpload_inClient()
 
     if (wasCompleted && wasPutnodesCompleted)
     {
-        syncThreadSafeState->adjustTransferCounts(true, -1, 1, -size, size);
+        syncThreadSafeState->transferComplete(PUT, size);
     }
     else
     {
-        syncThreadSafeState->adjustTransferCounts(true, -1, 0, -size, 0);
+        syncThreadSafeState->transferFailed(PUT, size);
     }
 
     syncThreadSafeState->removeExpectedUpload(h, name);

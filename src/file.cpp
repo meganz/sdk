@@ -483,7 +483,7 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, LocalPath clocalname,
     setLocalname(clocalname);
 
     syncThreadSafeState = move(stss);
-    syncThreadSafeState->adjustTransferCounts(false, 1, 0, size, 0);
+    syncThreadSafeState->transferBegin(GET, size);
 }
 
 SyncDownload_inClient::~SyncDownload_inClient()
@@ -496,11 +496,11 @@ SyncDownload_inClient::~SyncDownload_inClient()
 
     if (wasCompleted)
     {
-        syncThreadSafeState->adjustTransferCounts(false, -1, 1, -size, size);
+        syncThreadSafeState->transferComplete(GET, size);
     }
     else
     {
-        syncThreadSafeState->adjustTransferCounts(false, -1, 0, -size, 0);
+        syncThreadSafeState->transferFailed(GET, size);
     }
 }
 
