@@ -4634,6 +4634,7 @@ bool CommandGetUserQuota::procresult(Result r)
     details->subscription_type = 'O';
     details->subscription_renew = 0;
     details->subscription_method.clear();
+    details->subscription_method_id = 0;
     memset(details->subscription_cycle, 0, sizeof(details->subscription_cycle));
 
     details->pro_until = 0;
@@ -4821,6 +4822,17 @@ bool CommandGetUserQuota::procresult(Result r)
                 {
                     client->json.storeobject(&details->subscription_method);
                     while(!client->json.leavearray())
+                    {
+                        client->json.storeobject();
+                    }
+                }
+                break;
+                
+            case MAKENAMEID6('s', 'g', 'w', 'i', 'd', 's'):
+                if (client->json.enterarray())
+                {
+                    details->subscription_method_id = static_cast<int>(client->json.getint());
+                    while (!client->json.leavearray())
                     {
                         client->json.storeobject();
                     }

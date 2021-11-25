@@ -80,6 +80,7 @@ struct MEGA_API AccountDetails
     char subscription_cycle[4];
     m_time_t subscription_renew = 0;
     string subscription_method;
+    int subscription_method_id = 0;
 
     m_time_t pro_until = 0;
 
