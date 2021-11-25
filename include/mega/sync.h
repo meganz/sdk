@@ -369,6 +369,8 @@ struct SyncTransferCounts
 
     bool operator!=(const SyncTransferCounts& rhs) const;
 
+    bool completed() const;
+
     double progress() const;
 
     SyncTransferCount mDownloads;

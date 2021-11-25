@@ -417,6 +417,18 @@ bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
     return !(*this == rhs);
 }
 
+bool SyncTransferCounts::completed() const
+{
+    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
+
+    if (!pending)
+        return true;
+
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes;
+
+    return completed >= pending;
+}
+
 double SyncTransferCounts::progress() const
 {
     auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
