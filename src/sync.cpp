@@ -394,6 +394,42 @@ ScopedSyncPathRestore::~ScopedSyncPathRestore()
     path.cloudPath.resize(length3);
 };
 
+bool SyncTransferCount::operator==(const SyncTransferCount& rhs) const
+{
+    return mCompleted == rhs.mCompleted
+           && mCompletedBytes == rhs.mCompletedBytes
+           && mPending == rhs.mPending
+           && mPendingBytes == rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator!=(const SyncTransferCount& rhs) const
+{
+    return !(*this == rhs);
+}
+
+bool SyncTransferCounts::operator==(const SyncTransferCounts& rhs) const
+{
+    return mDownloads == rhs.mDownloads && mUploads == rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
+{
+    return !(*this == rhs);
+}
+
+double SyncTransferCounts::progress() const
+{
+    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
+
+    if (!pending)
+        return 1.0;
+
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes;
+    auto progress = static_cast<double>(completed) / static_cast<double>(pending);
+
+    return std::min(1.0, progress);
+}
+
 string SyncPath::localPath_utf8() const
 {
     return localPath.toPath();
@@ -510,20 +546,23 @@ shared_ptr<SyncUpload_inClient> SyncThreadsafeState::isNodeAnExpectedUpload(Node
 void SyncThreadsafeState::adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes)
 {
     lock_guard<mutex> g(mMutex);
-    TransferCounts& tc = upload ? mUploads : mDownloads;
+    auto& tc = upload ? mTransferCounts.mUploads : mTransferCounts.mDownloads;
 
-    assert(adjustQueued >= 0 || tc.queued);
-    assert(adjustCompleted >= 0 || tc.completed);
+    assert(adjustQueued >= 0 || tc.mPending);
+    assert(adjustCompleted >= 0 || tc.mCompleted);
 
-    tc.queued += adjustQueued;
-    tc.completed += adjustCompleted;
-    tc.queuedBytes += adjustQueuedBytes;
-    tc.completedBytes += adjustCompletedBytes;
+    assert(adjustQueuedBytes >= 0 || tc.mPendingBytes);
+    assert(adjustCompletedBytes >= 0 || tc.mCompletedBytes);
 
-    if (!tc.queued && tc.completedBytes == tc.queuedBytes)
+    tc.mPending += adjustQueued;
+    tc.mCompleted += adjustCompleted;
+    tc.mPendingBytes += adjustQueuedBytes;
+    tc.mCompletedBytes += adjustCompletedBytes;
+
+    if (!tc.mPending && tc.mCompletedBytes == tc.mPendingBytes)
     {
-        tc.completedBytes = 0;
-        tc.queuedBytes = 0;
+        tc.mCompletedBytes = 0;
+        tc.mPendingBytes = 0;
     }
 }
 
@@ -540,6 +579,13 @@ void SyncThreadsafeState::transferComplete(direction_t direction, m_off_t numByt
 void SyncThreadsafeState::transferFailed(direction_t direction, m_off_t numBytes)
 {
     adjustTransferCounts(direction == PUT, -1, 1, -numBytes, 0);
+}
+
+SyncTransferCounts SyncThreadsafeState::transferCounts() const
+{
+    lock_guard<mutex> guard(mMutex);
+
+    return mTransferCounts;
 }
 
 SyncConfig::SyncConfig(LocalPath localPath,
@@ -1019,6 +1065,11 @@ void Sync::setBackupMonitoring()
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
     syncs.saveSyncConfig(config);
+}
+
+SyncTransferCounts Sync::transferCounts() const
+{
+    return threadSafeState->transferCounts();
 }
 
 void Sync::setSyncPaused(bool pause)
