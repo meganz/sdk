@@ -7613,3 +7613,237 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
 }
 
 #endif
+
+/**
+ * ___SdkNodesOnDemand___
+ * Steps:
+ *  - Configure variables to set Account2 data equal to Account1
+ *  - login in both clients
+ *  - Client1 creates tree directory with 2 levels and some files at last level
+ *  - Check Folder info of root node from client 1 and client 2
+ *  - Look for fingerprint and name in both clients
+ *  - Locallogout from client 1 and login with session
+ *  - Check folder info of root node from client 1
+ *  - Check if we recover children correctly
+ *  - Remove a folder with some files
+ *  - Check Folder info of root node from client 1 and client 2
+ */
+TEST_F(SdkTest, SdkNodesOnDemand)
+{
+    // --- Set account 1 for UserB
+    std::string secondAccountEmail = envVarAccount[1];
+    std::string secondAccountPassword = envVarPass[1];
+
+    envVarAccount[1] = envVarAccount[0];
+    envVarPass[1] = envVarPass[0];
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    LOG_info << "___TEST SdkNodesOnDemand___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+
+    unique_ptr<MegaNode> rootnodeB(megaApi[1]->getRootNode());
+    ASSERT_TRUE(rootnodeB);
+
+    // --- UserA Create tree directory ---
+    // 3 Folders in level 1
+    // 4 Folders in level 2 for every folder from level 1
+    // 5 files in every folders from level 2
+    std::string folderLevel1 = "Folder";
+    unsigned int numberFolderLevel1 = 3;
+    std::string folderLevel2 = "SubFolder";
+    unsigned int numberFolderLevel2 = 4;
+    std::string fileName = "File";
+    unsigned int numberFiles = 5;
+    std::string fileNameToSearch;
+    std::string fingerPrintToSearch;
+    MegaHandle nodeHandle = INVALID_HANDLE;
+    MegaHandle parentHandle = INVALID_HANDLE;
+    std::set<MegaHandle> childrenHandles;
+    MegaHandle nodeToRemove = INVALID_HANDLE;
+    int64_t accountSize = 0;
+
+    for (unsigned int i = 0; i < numberFolderLevel1; i++)
+    {
+        std::string folderName = folderLevel1 + "_" + std::to_string(i);
+        auto nodeFirstLevel = createFolder(0, folderName.c_str(), rootnodeA.get());
+        ASSERT_NE(nodeFirstLevel, UNDEF);
+        unique_ptr<MegaNode> folderFirstLevel(megaApi[0]->getNodeByHandle(nodeFirstLevel));
+        ASSERT_TRUE(!!folderFirstLevel);
+
+        for (unsigned int j = 0; j < numberFolderLevel2; j++)
+        {
+            std::string subFolder = folderLevel2 +"_" + std::to_string(i) + "_" + std::to_string(j);
+            auto nodeSecondLevel = createFolder(0, subFolder.c_str(), folderFirstLevel.get());
+            ASSERT_NE(nodeSecondLevel, UNDEF);
+            unique_ptr<MegaNode> subFolderSecondLevel(megaApi[0]->getNodeByHandle(nodeSecondLevel));
+            ASSERT_TRUE(!!subFolderSecondLevel);
+
+            // Save handle from folder that it's going to be request children
+            if (j == numberFolderLevel2 - 2)
+            {
+               parentHandle = subFolderSecondLevel->getHandle();
+            }
+
+            // Save handle from folder that it's going to be removed
+            if (j == numberFolderLevel2 - 3)
+            {
+               nodeToRemove = subFolderSecondLevel->getHandle();
+            }
+
+            for (unsigned int k = 0; k < numberFiles; k++)
+            {
+                string filename2 = fileName + "_" + std::to_string(i) + "_" + std::to_string(j) + "_" + std::to_string(k);
+                createFile(filename2, false);
+                ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename2.data(), subFolderSecondLevel.get())) << "Cannot upload a test file";
+                unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(mApi[0].h));
+                ASSERT_NE(nodeFile.get(), ((void*)NULL)) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
+
+                // Save fingerprint, name and handle for a file
+                if (i == (numberFolderLevel1 - 1) && j == (numberFolderLevel2 - 1) && k == (numberFiles -1))
+                {
+                    fileNameToSearch = nodeFile->getName();
+                    fingerPrintToSearch = nodeFile->getFingerprint();
+                    nodeHandle = nodeFile->getHandle();
+                }
+
+                // Save children handle from a folder
+                if (j == numberFolderLevel2 - 2)
+                {
+                    childrenHandles.insert(nodeFile->getHandle());
+                }
+
+                accountSize += nodeFile->getSize();
+
+                deleteFile(nodeFile->getName());
+            }
+        }
+    }
+
+    // --- UserA Check folder info from root node ---
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
+    unsigned int numberOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles;
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberOfFiles) << "Incorrect number of Files";
+    unsigned int numberOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1;
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberOfFolders) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
+
+    // --- UserB Check folder info from root node ---
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberOfFiles) << "Incorrect number of Files";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberOfFolders) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
+
+    // --- UserA get node by fingerprint ---
+    unique_ptr<MegaNodeList> fingerPrintList(megaApi[0]->getNodesByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(fingerPrintList->size(), 0);
+    bool found = false;
+    for (int i = 0; i < fingerPrintList->size(); i++)
+    {
+        if (fingerPrintList->get(i)->getHandle() == nodeHandle)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(found);
+
+    // --- UserA get node by name ---
+    unique_ptr<MegaNodeList> searchList(megaApi[0]->search(fileNameToSearch.c_str()));
+    ASSERT_EQ(searchList->size(), 1);
+    ASSERT_EQ(searchList->get(0)->getHandle(), nodeHandle);
+
+    // --- UserB get node by fingerprint ---
+    fingerPrintList.reset(megaApi[1]->getNodesByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(fingerPrintList->size(), 0);
+    found = false;
+    for (int i = 0; i < fingerPrintList->size(); i++)
+    {
+        if (fingerPrintList->get(i)->getHandle() == nodeHandle)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(found);
+
+    // --- UserB get node by name ---
+    searchList.reset(megaApi[1]->search(fileNameToSearch.c_str()));
+    ASSERT_EQ(searchList->size(), 1);
+    ASSERT_EQ(searchList->get(0)->getHandle(), nodeHandle);
+
+    // --- UserA logout and login with session ---
+    std::unique_ptr<char[]> session(megaApi[0]->dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    // --- UserA Check folder info from root node ---
+    rootnodeA.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberOfFiles) << "Incorrect number of Files";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberOfFolders) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
+
+    // --- UserA get node by fingerprint ---
+    fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(fingerPrintList->size(), 0);
+    found = false;
+    for (int i = 0; i < fingerPrintList->size(); i++)
+    {
+        if (fingerPrintList->get(i)->getHandle() == nodeHandle)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    // --- UserA check children ---
+    if (parentHandle != INVALID_HANDLE)  // Get children
+    {
+        unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(parentHandle));
+        ASSERT_NE(node.get(), nullptr);
+        std::unique_ptr<MegaNodeList> childrenList(megaApi[0]->getChildren(node.get()));
+        ASSERT_NE(childrenList.get(), nullptr);
+        for (int childIndex = 0; childIndex < childrenList->size(); childIndex++)
+        {
+            if (childrenHandles.find(childrenList->get(childIndex)->getHandle()) == childrenHandles.end())
+            {
+                ASSERT_TRUE(false);
+            }
+        }
+    }
+
+    if (nodeToRemove != INVALID_HANDLE) // Remove a Folder
+    {
+        // --- UserA remove a folder ---
+        unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(nodeToRemove));
+        ASSERT_NE(node.get(), nullptr);
+        ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, node.get())) << "Cannot get Folder Info";
+        std::unique_ptr<MegaFolderInfo> removedFolder(mApi[0].mFolderInfo->copy());
+        ASSERT_EQ(API_OK, synchronousRemove(0, node.get()));
+        node.reset(megaApi[0]->getNodeByHandle(nodeToRemove));
+        ASSERT_EQ(node.get(), nullptr);
+
+        waitForResponse(&mApi[0].nodeUpdated); // Wait until receive nodes updated at client 1
+
+        // --- UserA Check folder info from root node ---
+        ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
+        ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
+        ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
+        ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
+
+        // --- UserB Check folder info from root node ---
+        ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
+        ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
+        ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
+        ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
+    }
+
+    envVarAccount[1] = secondAccountEmail;
+    envVarPass[1] = secondAccountPassword;
+}
