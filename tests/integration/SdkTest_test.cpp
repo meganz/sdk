@@ -7663,6 +7663,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     std::set<MegaHandle> childrenHandles;
     MegaHandle nodeToRemove = INVALID_HANDLE;
     int64_t accountSize = 0;
+    mApi[1].nodeUpdated = false;
 
     for (unsigned int i = 0; i < numberFolderLevel1; i++)
     {
@@ -7728,6 +7729,8 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     unsigned int numberOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1;
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberOfFolders) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
+
+    waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
 
     // --- UserB Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
@@ -7821,6 +7824,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     if (nodeToRemove != INVALID_HANDLE) // Remove a Folder
     {
         // --- UserA remove a folder ---
+        mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
         unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(nodeToRemove));
         ASSERT_NE(node.get(), nullptr);
         ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, node.get())) << "Cannot get Folder Info";
@@ -7836,6 +7840,8 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
         ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
         ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
+
+        waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
 
         // --- UserB Check folder info from root node ---
         ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
