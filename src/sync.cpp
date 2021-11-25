@@ -519,6 +519,12 @@ void SyncThreadsafeState::adjustTransferCounts(bool upload, int32_t adjustQueued
     tc.completed += adjustCompleted;
     tc.queuedBytes += adjustQueuedBytes;
     tc.completedBytes += adjustCompletedBytes;
+
+    if (!tc.queued && tc.completedBytes == tc.queuedBytes)
+    {
+        tc.completedBytes = 0;
+        tc.queuedBytes = 0;
+    }
 }
 
 void SyncThreadsafeState::transferBegin(direction_t direction, m_off_t numBytes)
