@@ -314,6 +314,7 @@
 		A87D97A11F4AD49B00A98C0E /* MEGAStringList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAStringList.mm; sourceTree = "<group>"; };
 		A87D97A31F4AD5FD00A98C0E /* MEGAStringList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAStringList+init.h"; sourceTree = "<group>"; };
 		A87D97A61F4AD9C300A98C0E /* MEGAAchievementsDetails+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAAchievementsDetails+init.h"; sourceTree = "<group>"; };
+		A88120A32742B2500079B31B /* MEGAPaymentMethod.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGAPaymentMethod.h; sourceTree = "<group>"; };
 		A8827A591F176BCA0097B5DE /* MEGATreeProcessorDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGATreeProcessorDelegate.h; sourceTree = "<group>"; };
 		A8827A5A1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMEGATreeProcessorListener.h; sourceTree = "<group>"; };
 		A8827A5B1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMEGATreeProcessorListener.mm; sourceTree = "<group>"; };
@@ -536,6 +537,7 @@
 				5D830392256232A00082CA18 /* MEGABannerList.mm */,
 				A873E86426E23AF000CBB174 /* MEGACurrency.h */,
 				A873E86526E23AF000CBB174 /* MEGACurrency.mm */,
+				A88120A32742B2500079B31B /* MEGAPaymentMethod.h */,
 			);
 			name = bindings;
 			sourceTree = "<group>";
@@ -1018,6 +1020,7 @@
 					HAVE_LIBUV,
 					ENABLE_CHAT,
 				);
+				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,

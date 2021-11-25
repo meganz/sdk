@@ -23683,6 +23683,11 @@ char *MegaAccountDetailsPrivate::getSubscriptionMethod()
     return MegaApi::strdup(details.subscription_method.c_str());
 }
 
+int MegaAccountDetailsPrivate::getSubscriptionMethodId()
+{
+    return details.subscription_method_id;
+}
+
 char *MegaAccountDetailsPrivate::getSubscriptionCycle()
 {
     return MegaApi::strdup(details.subscription_cycle);

@@ -728,9 +728,6 @@ public:
     // send a DNS request to resolve a hostname
     void dnsrequest(const char*);
 
-    // send a GeLB request for a service with a timeout (in ms) and a number of retries
-    void gelbrequest(const char*, int, int);
-
     // send chat stats
     void sendchatstats(const char*, int port);
 
@@ -1151,9 +1148,6 @@ private:
     // read node tree from JSON object
     void readtree(JSON*, Node* priorActionpacketDeletedNode, bool& firstHandleMatchedDelete);
 
-    // used by wait() to handle event timing
-    void checkevent(dstime, dstime*, dstime*);
-
     // converts UTF-8 to 32-bit word array
     static char* utf8_to_a32forjs(const char*, int*);
 
@@ -1396,8 +1390,6 @@ public:
     // server-client request sequence number
     SCSN scsn;
 
-    void purgenodes(node_vector* = NULL);
-    void purgeusers(user_vector* = NULL);
     bool readusers(JSON*, bool actionpackets);
 
     user_vector usernotify;
@@ -1433,9 +1425,6 @@ public:
     // write changed/added/deleted users to the DB cache and notify the
     // application
     void notifypurge();
-
-    // remove node subtree
-    void deltree(handle);
 
     Node* nodeByHandle(NodeHandle, bool fileVersionOk = false) const;
     Node* nodeByPath(const char* path, Node* node = nullptr);
@@ -1566,10 +1555,7 @@ public:
     // transfer queue dispatch/retry handling
     void dispatchTransfers();
 
-    void defer(direction_t, int td, int = 0);
     void freeq(direction_t);
-
-    dstime transferretrydelay();
 
     // client-server request double-buffering
     RequestDispatcher reqs;
@@ -1602,9 +1588,6 @@ public:
     error readmiscflags(JSON*);
 
     void procph(JSON*);
-
-    void readcr();
-    void readsr();
 
     void procsnk(JSON*);
     void procsuk(JSON*);
