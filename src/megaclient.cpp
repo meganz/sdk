@@ -17766,7 +17766,7 @@ void NodeManager::loadNodes()
         {
             Node* n = unserializeNode(&node.mNode, node.mDecrypted);
 
-            if (n->type == ROOTNODE && n->type == INCOMINGNODE && n->type == RUBBISHNODE)
+            if (n->type == ROOTNODE || n->type == INCOMINGNODE || n->type == RUBBISHNODE)
             {
                 setrootnode(n);
             }
