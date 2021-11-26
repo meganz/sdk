@@ -982,8 +982,8 @@ void SdkTest::configureTestInstance(unsigned index, const string &email, const s
 {
     ASSERT_GT(mApi.size(), index) << "Invalid mApi size";
     ASSERT_GT(megaApi.size(), index) << "Invalid megaApi size";
-    mApi[index].email.assign(email);
-    mApi[index].pwd.assign(pass);
+    mApi[index].email = email;
+    mApi[index].pwd = pass;
 
     ASSERT_FALSE(mApi[index].email.empty()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
     ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
