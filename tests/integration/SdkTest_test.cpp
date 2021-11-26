@@ -7813,10 +7813,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         std::unique_ptr<MegaNodeList> childrenList(megaApi[0]->getChildren(node.get()));
         for (int childIndex = 0; childIndex < childrenList->size(); childIndex++)
         {
-            if (childrenHandles.find(childrenList->get(childIndex)->getHandle()) == childrenHandles.end())
-            {
-                ASSERT_TRUE(false);
-            }
+            ASSERT_NE(childrenHandles.find(childrenList->get(childIndex)->getHandle()), childrenHandles.end());
         }
     }
 
