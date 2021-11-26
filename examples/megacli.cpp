@@ -2514,6 +2514,36 @@ void exec_codeTimings(autocomplete::ACState& s)
 
 #endif
 
+std::function<void()> onCompletedUploads;
+
+void setAppendAndUploadOnCompletedUploads(string local_path, int count)
+{
+
+    onCompletedUploads = [local_path, count](){
+
+        {
+            ofstream f(local_path, std::ios::app);
+            f << count << endl;
+        }
+        cout << count << endl;
+
+        DBTableTransactionCommitter committer(client->tctable);
+        int total = 0;
+        auto lp = LocalPath::fromPath(local_path, *client->fsaccess);
+        uploadLocalPath(FILENODE, lp.leafName().toPath(), lp, client->nodeByHandle(cwd), "", committer, total, false);
+
+        if (count > 0)
+        {
+            setAppendAndUploadOnCompletedUploads(local_path, count-1);
+        }
+        else
+        {
+            onCompletedUploads = nullptr;
+        }
+    };
+}
+
+
 #ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
@@ -2597,44 +2627,13 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     }
 }
 
-std::function<void()> onCompletedUploads;
-
-void setAppendAndUploadOnCompletedUploads(fs::path p, int count)
-{
-
-    onCompletedUploads = [p, count](){
-
-        {
-            ofstream f(p.u8string(), std::ios::app);
-            f << count << endl;
-        }
-        cout << count << endl;
-
-        DBTableTransactionCommitter committer(client->tctable);
-        int total = 0;
-        uploadLocalPath(FILENODE, p.filename().u8string(), LocalPath::fromPath(p.u8string(), *client->fsaccess), client->nodeByHandle(cwd), "", committer, total, false);
-
-        if (count > 0)
-        {
-            setAppendAndUploadOnCompletedUploads(p, count-1);
-        }
-        else
-        {
-            onCompletedUploads = nullptr;
-        }
-    };
-
-}
-
 void exec_generate_put_fileversions(autocomplete::ACState& s)
 {
     int count = 100;
     string param;
     if (s.extractflagparam("-count", param)) count = atoi(param.c_str());
 
-    fs::path p = pathFromLocalPath(s.words[1].s, false);
-
-    setAppendAndUploadOnCompletedUploads(p, count);
+    setAppendAndUploadOnCompletedUploads(s.words[1].s, count);
     onCompletedUploads();
 }
 
