@@ -7699,7 +7699,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
                 createFile(filename2, false);
                 ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename2.data(), subFolderSecondLevel.get())) << "Cannot upload a test file";
                 unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(mApi[0].h));
-                ASSERT_NE(nodeFile.get(), ((void*)NULL)) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
+                ASSERT_NE(nodeFile.get(), nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
 
                 // Save fingerprint, name and handle for a file
                 if (i == (numberFolderLevel1 - 1) && j == (numberFolderLevel2 - 1) && k == (numberFiles -1))
@@ -7717,7 +7717,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
                 accountSize += nodeFile->getSize();
 
-                deleteFile(nodeFile->getName());
+                deleteFile(filename2);
             }
         }
     }
