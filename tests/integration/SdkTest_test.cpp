@@ -7816,6 +7816,8 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         }
     }
 
+    ASSERT_TRUE(found);
+
     // --- UserA check children ---
     if (parentHandle != INVALID_HANDLE)  // Get children
     {
