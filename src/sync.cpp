@@ -394,6 +394,54 @@ ScopedSyncPathRestore::~ScopedSyncPathRestore()
     path.cloudPath.resize(length3);
 };
 
+bool SyncTransferCount::operator==(const SyncTransferCount& rhs) const
+{
+    return mCompleted == rhs.mCompleted
+           && mCompletedBytes == rhs.mCompletedBytes
+           && mPending == rhs.mPending
+           && mPendingBytes == rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator!=(const SyncTransferCount& rhs) const
+{
+    return !(*this == rhs);
+}
+
+bool SyncTransferCounts::operator==(const SyncTransferCounts& rhs) const
+{
+    return mDownloads == rhs.mDownloads && mUploads == rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
+{
+    return !(*this == rhs);
+}
+
+bool SyncTransferCounts::completed() const
+{
+    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
+
+    if (!pending)
+        return true;
+
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes;
+
+    return completed >= pending;
+}
+
+double SyncTransferCounts::progress() const
+{
+    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
+
+    if (!pending)
+        return 1.0;
+
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes;
+    auto progress = static_cast<double>(completed) / static_cast<double>(pending);
+
+    return std::min(1.0, progress);
+}
+
 string SyncPath::localPath_utf8() const
 {
     return localPath.toPath();
@@ -510,11 +558,46 @@ shared_ptr<SyncUpload_inClient> SyncThreadsafeState::isNodeAnExpectedUpload(Node
 void SyncThreadsafeState::adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes)
 {
     lock_guard<mutex> g(mMutex);
-    TransferCounts& tc = upload ? mUploads : mDownloads;
-    tc.queued += adjustQueued;
-    tc.completed += adjustCompleted;
-    tc.queuedBytes += adjustQueuedBytes;
-    tc.completedBytes += adjustCompletedBytes;
+    auto& tc = upload ? mTransferCounts.mUploads : mTransferCounts.mDownloads;
+
+    assert(adjustQueued >= 0 || tc.mPending);
+    assert(adjustCompleted >= 0 || tc.mCompleted);
+
+    assert(adjustQueuedBytes >= 0 || tc.mPendingBytes);
+    assert(adjustCompletedBytes >= 0 || tc.mCompletedBytes);
+
+    tc.mPending += adjustQueued;
+    tc.mCompleted += adjustCompleted;
+    tc.mPendingBytes += adjustQueuedBytes;
+    tc.mCompletedBytes += adjustCompletedBytes;
+
+    if (!tc.mPending && tc.mCompletedBytes == tc.mPendingBytes)
+    {
+        tc.mCompletedBytes = 0;
+        tc.mPendingBytes = 0;
+    }
+}
+
+void SyncThreadsafeState::transferBegin(direction_t direction, m_off_t numBytes)
+{
+    adjustTransferCounts(direction == PUT, 1, 0, numBytes, 0);
+}
+
+void SyncThreadsafeState::transferComplete(direction_t direction, m_off_t numBytes)
+{
+    adjustTransferCounts(direction == PUT, -1, 1, 0, numBytes);
+}
+
+void SyncThreadsafeState::transferFailed(direction_t direction, m_off_t numBytes)
+{
+    adjustTransferCounts(direction == PUT, -1, 1, -numBytes, 0);
+}
+
+SyncTransferCounts SyncThreadsafeState::transferCounts() const
+{
+    lock_guard<mutex> guard(mMutex);
+
+    return mTransferCounts;
 }
 
 SyncConfig::SyncConfig(LocalPath localPath,
@@ -994,6 +1077,11 @@ void Sync::setBackupMonitoring()
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
     syncs.saveSyncConfig(config);
+}
+
+SyncTransferCounts Sync::transferCounts() const
+{
+    return threadSafeState->transferCounts();
 }
 
 void Sync::setSyncPaused(bool pause)

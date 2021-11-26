@@ -32,6 +32,7 @@ namespace mega
 #ifdef ENABLE_SYNC
 struct UnifiedSync;
 struct Syncs;
+struct SyncTransferCounts;
 
 /**
  * @brief The HeartBeatBackupInfo class
@@ -46,9 +47,6 @@ public:
     HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = default;
     virtual ~HeartBeatBackupInfo() = default;
 
-    virtual double progress() const;
-    virtual void invalidateProgress();
-
     virtual m_time_t lastAction() const;
 
     virtual handle lastItemUpdated() const;
@@ -56,19 +54,12 @@ public:
     virtual m_time_t lastBeat() const;
     virtual void setLastBeat(const m_time_t &lastBeat);
     virtual void setLastAction(const m_time_t &lastAction);
-    virtual void setProgress(const double &progress);
     virtual void setLastSyncedItem(const handle &lastItemUpdated);
 
     bool mModified = false;
     bool mSending = false;
 
 protected:
-    double mProgress = 0;
-    bool mProgressInvalid = true;
-
-    int32_t mPendingUps = 0;
-    int32_t mPendingDowns = 0;
-
     handle mLastItemUpdated = UNDEF; // handle of node most recently updated
 
     m_time_t mLastAction = -1;   //timestamps of the last action
@@ -82,12 +73,21 @@ protected:
 class HeartBeatSyncInfo : public HeartBeatBackupInfo
 {
 public:
+    void invalidateTransferCounts();
+
+    size_t pendingDownloads() const;
+    size_t pendingUploads() const;
+
+    int8_t progress() const;
+
     void updateSPHBStatus(UnifiedSync& us);
+    void updateTransferCounts(UnifiedSync& us);
 
     using SPHBStatus = CommandBackupPutHeartBeat::SPHBStatus;
     SPHBStatus sphbStatus() { return mSPHBStatus; }
 
 private:
+    unique_ptr<SyncTransferCounts> mTransferCounts;
     SPHBStatus mSPHBStatus = CommandBackupPutHeartBeat::STATE_NOT_INITIALIZED;
 };
 

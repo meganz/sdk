@@ -351,29 +351,49 @@ public:
     ~ScopedSyncPathRestore();
 };
 
+struct SyncTransferCount
+{
+    bool operator==(const SyncTransferCount& rhs) const;
+
+    bool operator!=(const SyncTransferCount& rhs) const;
+
+    size_t mCompleted = 0;
+    size_t mCompletedBytes = 0;
+    size_t mPending = 0;
+    size_t mPendingBytes = 0;
+}; // SyncTransferCount
+
+struct SyncTransferCounts
+{
+    bool operator==(const SyncTransferCounts& rhs) const;
+
+    bool operator!=(const SyncTransferCounts& rhs) const;
+
+    bool completed() const;
+
+    double progress() const;
+
+    SyncTransferCount mDownloads;
+    SyncTransferCount mUploads;
+}; // SyncTransferCounts
 
 class SyncThreadsafeState
 {
     // This class contains things that are read/written from either the Syncs thread,
     // or the MegaClient thread.  A mutex is used to keep the data consistent.
     // Referred to by shared_ptr so transfers etc don't have awkward lifetime issues.
-    mutex mMutex;
+    mutable mutex mMutex;
 
     // If we make a LocalNode for an upload we created ourselves,
     // it's because the local file is no longer at the matching position
     // and we need to set it up to be moved correspondingly
     map<string, weak_ptr<SyncUpload_inClient>> mExpectedUploads;
 
+    // Transfers update these from the client thread
+    void adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes);
+
     // track uploads/downloads
-    struct TransferCounts
-    {
-        int32_t queued = 0;
-        int32_t completed = 0;
-        m_off_t queuedBytes = 0;
-        m_off_t completedBytes = 0;
-    };
-    TransferCounts mUploads;
-    TransferCounts mDownloads;
+    SyncTransferCounts mTransferCounts;
 
 public:
 
@@ -383,9 +403,13 @@ public:
     void removeExpectedUpload(NodeHandle parentHandle, const string& name);
     shared_ptr<SyncUpload_inClient> isNodeAnExpectedUpload(NodeHandle parentHandle, const string& name);
 
-    // Transfers update these from the client thread
-    void adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes);
+    // Easier to understand interface to the above.
+    void transferBegin(direction_t direction, m_off_t numBytes);
+    void transferComplete(direction_t direction, m_off_t numBytes);
+    void transferFailed(direction_t direction, m_off_t numBytes);
 
+    // Return a snapshot of this sync's current transfer counts.
+    SyncTransferCounts transferCounts() const;
 };
 
 
@@ -574,6 +598,9 @@ public:
 
     // Move the sync into the monitoring state.
     void setBackupMonitoring();
+
+    // Retrieve a snapshot of this sync's current transfer counts.
+    SyncTransferCounts transferCounts() const;
 
     UnifiedSync& mUnifiedSync;
 
