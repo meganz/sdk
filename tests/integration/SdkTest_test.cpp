@@ -7811,6 +7811,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(parentHandle));
         ASSERT_NE(node, nullptr);
         std::unique_ptr<MegaNodeList> childrenList(megaApi[0]->getChildren(node.get()));
+        ASSERT_GT(childrenList->size(), 0);
         for (int childIndex = 0; childIndex < childrenList->size(); childIndex++)
         {
             ASSERT_NE(childrenHandles.find(childrenList->get(childIndex)->getHandle()), childrenHandles.end());
