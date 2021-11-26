@@ -310,7 +310,7 @@ public:
     void applyKeys(uint32_t appliedKeys);
 
     // process notified/changed nodes from 'mPendingConfirmNodes': dump changes to DB
-    void notifyPurge(Node* node);
+    void purgeAndConfirmNodes();
     void notifyNodes();
     void addNodeToNotify(Node* node);
 

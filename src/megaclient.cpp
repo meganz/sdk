@@ -17606,29 +17606,74 @@ void NodeManager::applyKeys(uint32_t appliedKeys)
     }
 }
 
-void NodeManager::notifyPurge(Node *node)
+void NodeManager::purgeAndConfirmNodes()
 {
-    if (!mTable)
+    // check all notified nodes for removed status and purge
+    for (auto it = mPendingNotifyNodes.begin(); it != mPendingNotifyNodes.end(); )
     {
-        assert(false);
-        return;
+        Node *n = *it;
+        if (n->attrstring)
+        {
+            // make this just a warning to avoid auto test failure
+            // this can happen if another client adds a folder in our share and the key for us is not available yet
+            LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
+#ifdef ENABLE_SYNC
+            if (n->localnode)
+            {
+                LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
+            }
+#endif
+        }
+
+        if (n->changed.removed)
+        {
+            // remove inbound share
+            if (n->inshare)
+            {
+                n->inshare->user->sharing.erase(n->nodehandle);
+                mClient.notifyuser(n->inshare->user);
+            }
+        }
+        else
+        {
+            n->notified = false;
+            memset(&(n->changed), 0, sizeof(n->changed));
+            n->tag = 0;
+        }
+
+        if (!mTable)
+        {
+            assert(false);
+            return;
+        }
+
+        if (n->changed.removed)
+        {
+            it = mPendingNotifyNodes.erase(it);
+            // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
+            subtractFromRootCounter(*n);
+            mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
+
+            node_list children = getChildren(n);
+            for (auto child : children)
+            {
+                child->parent = nullptr;
+            }
+
+            // effectively delete node from RAM
+            mNodes.erase(n->nodeHandle());
+            mTable->remove(n->nodeHandle());
+            delete n;
+        }
+        else
+        {
+            it++;
+            mTable->put(n);
+        }
+
     }
 
-    if (node->changed.removed)
-    {
-        // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
-        subtractFromRootCounter(*node);
-        mNodeCounters.erase(node->nodeHandle());    // will apply only to rootnodes and inshares, currently
-
-        // effectively delete node from RAM
-        mNodes.erase(node->nodeHandle());
-        mTable->remove(node->nodeHandle());
-        delete node;
-    }
-    else
-    {
-        mTable->put(node);
-    }
+    mPendingNotifyNodes.clear();
 }
 
 void NodeManager::notifyNodes()
@@ -17706,43 +17751,7 @@ void NodeManager::notifyNodes()
 #endif
         DBTableTransactionCommitter committer(mClient.tctable);
 
-        // check all notified nodes for removed status and purge
-        for (Node * n : mPendingNotifyNodes)
-        {
-            if (n->attrstring)
-            {
-                // make this just a warning to avoid auto test failure
-                // this can happen if another client adds a folder in our share and the key for us is not available yet
-                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
-#ifdef ENABLE_SYNC
-                if (n->localnode)
-                {
-                    LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
-                }
-#endif
-            }
-
-            if (n->changed.removed)
-            {
-                // remove inbound share
-                if (n->inshare)
-                {
-                    n->inshare->user->sharing.erase(n->nodehandle);
-                    mClient.notifyuser(n->inshare->user);
-                }
-            }
-            else
-            {
-                n->notified = false;
-                memset(&(n->changed), 0, sizeof(n->changed));
-                n->tag = 0;
-            }
-
-            notifyPurge(n);
-
-        }
-
-        mPendingNotifyNodes.clear();
+        purgeAndConfirmNodes();
     }
 }
 
