@@ -7809,7 +7809,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     if (parentHandle != INVALID_HANDLE)  // Get children
     {
         unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(parentHandle));
-        ASSERT_NE(node.get(), nullptr);
+        ASSERT_NE(node, nullptr);
         std::unique_ptr<MegaNodeList> childrenList(megaApi[0]->getChildren(node.get()));
         for (int childIndex = 0; childIndex < childrenList->size(); childIndex++)
         {
@@ -7822,12 +7822,12 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         // --- UserA remove a folder ---
         mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
         unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(nodeToRemove));
-        ASSERT_NE(node.get(), nullptr);
+        ASSERT_NE(node, nullptr);
         ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, node.get())) << "Cannot get Folder Info";
         std::unique_ptr<MegaFolderInfo> removedFolder(mApi[0].mFolderInfo->copy());
         ASSERT_EQ(API_OK, synchronousRemove(0, node.get()));
         node.reset(megaApi[0]->getNodeByHandle(nodeToRemove));
-        ASSERT_EQ(node.get(), nullptr);
+        ASSERT_EQ(node, nullptr);
 
         waitForResponse(&mApi[0].nodeUpdated); // Wait until receive nodes updated at client 1
 
