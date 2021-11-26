@@ -1033,6 +1033,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         if (nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
+            // indicate API whether this putnode assumes versioning off/on, to avoid a race updating local value
+            arg("vb", client->versions_disabled ? 0 : 1);
         }
 
         arg("t", nn[i].type);
