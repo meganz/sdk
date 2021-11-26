@@ -922,7 +922,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         const char *pass = getenv(envVarPass[index].c_str());
         ASSERT_NE(pass, nullptr);
 
-        configurateTestInstance(index, email, pass);
+        configureTestInstance(index, email, pass);
 
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
@@ -978,7 +978,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     out() << "Test setup done, test starts";
 }
 
-void SdkTest::configurateTestInstance(unsigned index, const string &email, const string pass)
+void SdkTest::configureTestInstance(unsigned index, const string &email, const string pass)
 {
     ASSERT_GT(mApi.size(), index) << "Invalid mApi size";
     ASSERT_GT(megaApi.size(), index) << "Invalid megaApi size";
@@ -7645,7 +7645,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_NE(pass, nullptr);
     mApi.resize(2);
     megaApi.resize(2);
-    configurateTestInstance(1, email, pass); // index 1 = User B
+    configureTestInstance(1, email, pass); // index 1 = User B
     auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
     megaApi[1]->login(email, pass, loginTracker.get());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
