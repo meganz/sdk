@@ -185,6 +185,30 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  * - MEGAUserChangeTypeGeolocation = 0x100000
  * Check if option for geolocation messages has changed
  *
+ * - MEGAUserChangeTypeCameraUploadsFolder = 0x200000
+ * Check if the Camera Uploads Folder has changed
+ *
+ * - MEGAUserChangeTypeMyChatFilesFolder = 0x400000
+ * Check if the My Chat Files Folder has changed
+ *
+ * - MEGAUserChangeTypePushSettings = 0x800000
+ * Check if settings for push notifications have changed
+ *
+ * - MEGAUserChangeTypeUserAlias = 0x1000000
+ * Check if aliases have changed
+ *
+ * - MEGAUserChangeTypeUnshareableKey = 0x2000000
+ * The unshareable key has been created
+ *
+ * - MEGAUserChangeTypeDeviceNames = 0x4000000
+ * Check if device names have changed
+ *
+ * - MEGAUserChangeTypeBackupFolder = 0x8000000
+ * Check if the Backup Root Folder has changed
+ *
+ * - MEGAUserChangeTypeCookieSetting = 0x10000000
+ * Check if the Cookie Setting has changed
+ *
  */
 @property (readonly, nonatomic) MEGAUserChangeType changes;
 
