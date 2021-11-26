@@ -912,32 +912,17 @@ void SdkTest::getAccountsForTest(unsigned howMany)
 
     megaApi.resize(howMany);
     mApi.resize(howMany);
-
     std::vector<std::unique_ptr<RequestTracker>> trackers;
     trackers.resize(howMany);
-
     for (unsigned index = 0; index < howMany; ++index)
     {
-        if (const char *buf = getenv(envVarAccount[index].c_str()))
-        {
-            mApi[index].email.assign(buf);
-        }
-        ASSERT_LT((size_t) 0, mApi[index].email.length()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
+        const char *email = getenv(envVarAccount[index].c_str());
+        ASSERT_NE(email, nullptr);
 
-        if (const char* buf = getenv(envVarPass[index].c_str()))
-        {
-            mApi[index].pwd.assign(buf);
-        }
-        ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
+        const char *pass = getenv(envVarPass[index].c_str());
+        ASSERT_NE(pass, nullptr);
 
-        megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
-        mApi[index].megaApi = megaApi[index].get();
-
-        // helps with restoring logging after tests that fiddle with log level
-        mApi[index].megaApi->setLogLevel(MegaApi::LOG_LEVEL_MAX);
-
-        megaApi[index]->setLoggingName(to_string(index).c_str());
-        megaApi[index]->addListener(this);    // TODO: really should be per api
+        configurateTestInstance(index, email, pass);
 
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
@@ -991,6 +976,26 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     // In case the last test exited without cleaning up (eg, debugging etc)
     Cleanup();
     out() << "Test setup done, test starts";
+}
+
+void SdkTest::configurateTestInstance(unsigned index, const string &email, const string pass)
+{
+    ASSERT_GT(mApi.size(), index) << "Invalid mApi size";
+    ASSERT_GT(megaApi.size(), index) << "Invalid megaApi size";
+    mApi[index].email.assign(email);
+    mApi[index].pwd.assign(pass);
+
+    ASSERT_LT((size_t) 0, mApi[index].email.length()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
+    ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
+
+    megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    mApi[index].megaApi = megaApi[index].get();
+
+    // helps with restoring logging after tests that fiddle with log level
+    mApi[index].megaApi->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+
+    megaApi[index]->setLoggingName(to_string(index).c_str());
+    megaApi[index]->addListener(this);    // TODO: really should be per api
 }
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
@@ -7630,15 +7635,21 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
  */
 TEST_F(SdkTest, SdkNodesOnDemand)
 {
-    // --- Set account 1 for UserB
-    std::string secondAccountEmail = envVarAccount[1];
-    std::string secondAccountPassword = envVarPass[1];
-
-    envVarAccount[1] = envVarAccount[0];
-    envVarPass[1] = envVarPass[0];
-
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkNodesOnDemand___";
+
+    // --- Load User B as account 1
+    const char *email = getenv(envVarAccount[0].c_str());
+    ASSERT_NE(email, nullptr);
+    const char *pass = getenv(envVarPass[0].c_str());
+    ASSERT_NE(pass, nullptr);
+    mApi.resize(2);
+    megaApi.resize(2);
+    configurateTestInstance(1, email, pass); // index 1 = User B
+    auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+    megaApi[1]->login(email, pass, loginTracker.get());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootnodeA);
@@ -7846,7 +7857,4 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
         ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
     }
-
-    envVarAccount[1] = secondAccountEmail;
-    envVarPass[1] = secondAccountPassword;
 }

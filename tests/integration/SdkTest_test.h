@@ -397,6 +397,7 @@ public:
     void deleteFile(string filename);
 
     void getAccountsForTest(unsigned howMany = 1);
+    void configurateTestInstance(unsigned index, const std::string& email, const std::string pass);
     void releaseMegaApi(unsigned int apiIndex);
 
     void inviteContact(unsigned apiIndex, string email, string message, int action);
