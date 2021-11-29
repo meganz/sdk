@@ -17369,6 +17369,7 @@ NodeHandle NodeManager::getFirstAncestor(NodeHandle node)
     auto it = mNodes.find(node);
     if (it != mNodes.end())
     {
+        assert(!!it->second);
         const Node* ancestor = it->second->firstancestor();
         if (ancestor)
         {
