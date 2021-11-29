@@ -8706,13 +8706,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     nn_nni.added = true;
                     nn_nni.mAddedHandle = h;
 
-                    if (nn_nni.ovhandle != UNDEF && !nn_nni.vb_sent_value)
+                    if (nn_nni.ovhandle != UNDEF && !nn_nni.mVersionsEnabled)
                     {
                         // replacing an existing file (eg, by uploading a same-name file), with versioning off.
                         assert(n->type == FILENODE);
 
                         // The API replaces the existing node ('ov') by the new node, so
-                        // the existing one is effectively, but the deletion of that node
+                        // the existing one is effectively removed, but the deletion of that node
                         // can't be delivered by command reply, and this client can't
                         // see the generated delete actionpacket due to the `i` scheme.
                         // However the command reply will already rearrange the versions of the old node

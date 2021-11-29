@@ -981,11 +981,12 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         arg("cauth", cauth);
     }
 
-    // indicate API whether this putnode assumes versioning off/on, to avoid a race updating local value
-    // Provide vb:1 at the command level for it to override the account-wide versioning behaviour to force it on.
-    // Provide vb:0 to force it off. Dont provide it at all to rely on the account-wide setting (as of the moment the command is processed).
-    bool vb_sent_value = !client->versions_disabled;
-    arg("vb", vb_sent_value);
+    // "vb": when provided, it force to override the account-wide versioning behavior by the value indicated by client
+    //     vb:1 to force it on
+    //     vb:0 to force it off
+    // Dont provide it at all to rely on the account-wide setting (as of the moment the command is processed).
+    bool versionsEnabled = !client->versions_disabled;
+    arg("vb", versionsEnabled);
 
     beginarray("n");
 
@@ -1040,7 +1041,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }
-        nn[i].vb_sent_value = vb_sent_value;
+        nn[i].mVersionsEnabled = versionsEnabled;
 
         arg("t", nn[i].type);
         arg("a", (byte*)nn[i].attrstring->data(), int(nn[i].attrstring->size()));
