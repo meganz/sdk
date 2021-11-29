@@ -598,6 +598,12 @@ struct StandardClientInUseEntry
     bool inUse = false;
     shared_ptr<StandardClient> ptr;
     string name;
+
+    StandardClientInUseEntry(bool iu, shared_ptr<StandardClient> sp, string n)
+    : inUse(iu)
+    , ptr(sp)
+    , name(n)
+    {}
 };
 
 

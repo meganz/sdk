@@ -968,7 +968,7 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
     shared_ptr<StandardClient> c(
             new StandardClient(localAccountRoot, "client" + clientname, workingFolder));
 
-    clients[loginIndex].push_back(StandardClientInUseEntry{false, c, clientname});
+    clients[loginIndex].push_back(StandardClientInUseEntry(false, c, clientname));
     c->login_reset(envVarAccount[loginIndex], envVarPass[loginIndex], false, false);
 
     c->cleanupForTestReuse();
