@@ -1860,6 +1860,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_DEVICE_NAMES;
     }
+    if (user->changed.myBackupsFolder)
+    {
+        changed |= MegaUser::CHANGE_TYPE_MY_BACKUPS_FOLDER;
+    }
     if (user->changed.cookieSettings)
     {
         changed |= MegaUser::CHANGE_TYPE_COOKIE_SETTINGS;
