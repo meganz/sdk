@@ -1040,13 +1040,15 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, const
     }
 
     std::string sqlQuery = "SELECT n1.nodehandle, n1.decrypted, n1.node ";
+    const std::string filenode = std::to_string(FILENODE);
 
     if (excludedRoot.isUndef())
     {
         // all recent nodes, no filtering
         sqlQuery += "FROM nodes n1 "
-            "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.type = 0 AND n1.ctime >= ? AND n2.type != 0 "
-            "ORDER BY n1.ctime DESC";
+            "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle"
+            " where n1.type = " + filenode + " AND n1.ctime >= ? AND n2.type != " + filenode +
+            " ORDER BY n1.ctime DESC";
     }
     else
     {
@@ -1058,9 +1060,9 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, const
             "SELECT COUNT(nodehandle) FROM nodesCTE where nodehandle = " + std::to_string(excludedRoot.as8byte());
 
         sqlQuery += ", (" + excludedFirsAncestorQuery + ") excluded FROM nodes n1 "
-            "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.type = 0 AND n1.ctime >= ? AND n2.type != 0 "
-            "AND excluded = 0 "
-            "ORDER BY n1.ctime DESC";
+            "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle"
+            " where n1.type = " + filenode + " AND n1.ctime >= ? AND n2.type != " + filenode + " AND excluded = 0"
+            " ORDER BY n1.ctime DESC";
     }
 
     if (maxcount)
