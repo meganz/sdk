@@ -935,6 +935,21 @@ struct StandardClient : public MegaApp
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
     //void syncupdate_treestate(LocalNode* ln) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);   out() << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln); }}
 
+#ifdef DEBUG
+    using SyncDebugNotificationHandler =
+      std::function<void(const SyncConfig&, int, const Notification&)>;
+
+    SyncDebugNotificationHandler mOnSyncDebugNotification;
+
+    void syncdebug_notification(const SyncConfig& config,
+                                int queue,
+                                const Notification& notification) override
+    {
+        if (mOnSyncDebugNotification)
+            mOnSyncDebugNotification(config, queue, notification);
+    }
+#endif // ! DEBUG
+
     bool sync_syncable(Sync* sync, const char* name, LocalPath& path, Node*) override
     {
         return sync_syncable(sync, name, path);

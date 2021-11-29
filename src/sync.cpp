@@ -2137,6 +2137,10 @@ dstime Sync::procscanq(int q)
             return notification.timestamp - dsmin;
         }
 
+#ifdef DEBUG
+        client->app->syncdebug_notification(getConfig(), q, notification);
+#endif // DEBUG
+
         if ((l = notification.localnode) != (LocalNode*)~0)
         {
             dstime backoffds = 0;
