@@ -1915,6 +1915,11 @@ void MegaApi::setLogLevel(int logLevel)
     MegaApiImpl::setLogLevel(logLevel);
 }
 
+void MegaApi::setLogExtraForModules(bool networking, bool syncs)
+{
+    return pImpl->setLogExtraForModules(networking, syncs);
+}
+
 void MegaApi::setMaxPayloadLogSize(long long maxSize)
 {
     MegaApiImpl::setMaxPayloadLogSize(maxSize);
@@ -6042,7 +6047,7 @@ MegaSyncStall* MegaSyncStall::copy() const {
 }
 
 const char* MegaSyncStall::indexPath() const
-{ 
+{
     return "";
 }
 
@@ -6062,7 +6067,7 @@ MegaSyncStall::SyncStallReason MegaSyncStall::reason() const
 }
 
 bool MegaSyncStall::isCloud() const
-{ 
+{
     return false;
 }
 
@@ -6072,22 +6077,22 @@ bool MegaSyncStall::isImmediate() const
 }
 
 const char*  MegaSyncStall::reasonString() const
-{ 
+{
     return "";
 }
 
 MegaSyncStallList* MegaSyncStallList::copy() const
-{ 
+{
     return nullptr;
 }
 
 size_t MegaSyncStallList::size() const
-{ 
+{
     return 0;
 }
 
 const MegaSyncStall* MegaSyncStallList::get(size_t i) const
-{ 
+{
     return nullptr;
 }
 

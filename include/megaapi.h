@@ -5507,7 +5507,7 @@ class MegaSyncList
 /**
  * @brief A synchronization conflict that requires user intervention to be solved
  */
-class MegaSyncStall 
+class MegaSyncStall
 {
     public:
         MegaSyncStall() = default;
@@ -5522,7 +5522,7 @@ class MegaSyncStall
          */
         virtual MegaSyncStall* copy() const;
         /**
-         * @return path representing the sync stall 
+         * @return path representing the sync stall
          */
         virtual const char* indexPath()  const;
         /**
@@ -5537,9 +5537,9 @@ class MegaSyncStall
         /**
          * @brief The reason of the sync stall.
          *
-         * To be interpreted in the context of a MegaSyncStall path information 
+         * To be interpreted in the context of a MegaSyncStall path information
          */
-        enum class SyncStallReason 
+        enum class SyncStallReason
         {
             Unknown = 0,
             NoReason,
@@ -9921,6 +9921,19 @@ class MegaApi
          * - MegaApi::LOG_LEVEL_MAX = 5
          */
         static void setLogLevel(int logLevel);
+
+        /**
+        * @brief Turn on extra detailed logging for some modules
+        *
+        * Sometimes we need super detailed logging to investigate complicated issues
+        * However for log size under normal conditions it's not practical to turn that on
+        * This function allows that super detailed logging to be enabled just for
+        * the module in question.
+        *
+        * @param networking Enable detailed extra logging for networking
+        * @param syncs Enable detailed extra logging for syncs
+        */
+        void setLogExtraForModules(bool networking, bool syncs);
 
         /**
          * @brief Set the limit of size to requests payload
@@ -14320,7 +14333,7 @@ class MegaApi
          * folder E was moved inside folder C. (E->C) in the cloud
          * When the synchronization is re-enabled there could be interpreted as a conflict
          *
-         * @param syncStallList MegaSyncStallList of sync stalls 
+         * @param syncStallList MegaSyncStallList of sync stalls
          * @return number of conflicts reported.
          */
         size_t getSyncStalls(MegaSyncStallList** syncStallList);
@@ -19304,7 +19317,7 @@ public:
      * @return Subscription method. For example "Credit Card".
      */
     virtual char* getSubscriptionMethod();
-    
+
     /**
      * @brief Get the subscription method id
      *
@@ -20245,7 +20258,7 @@ public:
     /**
      * @brief
      * Query whether the sync engine has detected any name conflicts.
-     * 
+     *
      * @return
      * True if the sync engine has detected any name conflicts.
      */

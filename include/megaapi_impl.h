@@ -2187,7 +2187,7 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
 
         MegaSyncStallListPrivate* copy() const override;
         /**
-         * @return a new heap allocated MegaSyncStall object 
+         * @return a new heap allocated MegaSyncStall object
          */
         const MegaSyncStall* get(size_t i) const override;
 
@@ -2200,7 +2200,7 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
         std::vector<MegaSyncStallPrivate> mStalls;
         void addCloudStalls(const SyncStallInfo& syncStalls);
         void addLocalStalls(const SyncStallInfo& syncStalls);
-        MegaSyncStall::SyncStallReason 
+        MegaSyncStall::SyncStallReason
         syncStallReasonMapping(SyncWaitReason reason) const;
 };
 
@@ -2337,6 +2337,7 @@ class MegaApiImpl : public MegaApp
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         char* getMyRSAPrivateKey();
+        void setLogExtraForModules(bool networking, bool syncs);
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);
         static void addLoggerClass(MegaLogger *megaLogger);
