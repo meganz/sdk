@@ -78,6 +78,7 @@ struct MEGA_API NewNode : public NodeCore
 #endif
     std::unique_ptr<string> fileattributes;
 
+    bool vb_sent_value = false;
     bool added = false;
     handle mAddedHandle = UNDEF;
 };
