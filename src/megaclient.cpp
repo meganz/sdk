@@ -16107,11 +16107,9 @@ static bool nodes_ctime_greater(const Node* a, const Node* b)
     return a->ctime > b->ctime;
 }
 
-node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin)
+node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since)
 {
-    const NodeHandle& excludedRoot = includerubbishbin ? NodeHandle() : rootnodes.rubbish;
-
-    node_vector v = mNodeManager.getRecentNodes(maxcount, since, excludedRoot);
+    node_vector v = mNodeManager.getRecentNodes(maxcount, since);
 
     return v;
 }
@@ -16279,7 +16277,7 @@ bool MegaClient::nodeIsDocument(const Node *n) const
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
     recentactions_vector rav;
-    node_vector v = getRecentNodes(maxcount, since, false);
+    node_vector v = getRecentNodes(maxcount, since);
 
     for (node_vector::iterator i = v.begin(); i != v.end(); )
     {
@@ -16988,7 +16986,7 @@ node_list NodeManager::getChildren(Node *parent)
     return childrenList;
 }
 
-node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since, const NodeHandle& excludedRoot)
+node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
 {
     node_vector nodes;
     if (!mTable)
@@ -16997,7 +16995,7 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since, const
     }
 
     std::map<NodeHandle, NodeSerialized> nodeMap;
-    mTable->getRecentNodes(maxcount, since, excludedRoot, nodeMap);
+    mTable->getRecentNodes(maxcount, since, nodeMap);
 
     for (const auto nodeMapIt : nodeMap)
     {

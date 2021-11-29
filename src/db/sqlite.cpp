@@ -1031,39 +1031,25 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::
     return result;
 }
 
-bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, const mega::NodeHandle& excludedRoot,
-                                        std::map<mega::NodeHandle, NodeSerialized>& nodes)
+bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::map<mega::NodeHandle, NodeSerialized>& nodes)
 {
     if (!db)
     {
         return false;
     }
 
-    std::string sqlQuery = "SELECT n1.nodehandle, n1.decrypted, n1.node ";
+    // exclude recent nodes that are in Rubbish Bin
+    const std::string isInRubbish = "WITH nodesCTE(nodehandle, parenthandle, type) "
+        "AS (SELECT nodehandle, parenthandle, type FROM nodes WHERE nodehandle = n1.nodehandle "
+        "UNION ALL SELECT A.nodehandle, A.parenthandle, A.type FROM nodes AS A INNER JOIN nodesCTE "
+        "AS E ON (A.nodehandle = E.parenthandle)) "
+        "SELECT COUNT(nodehandle) FROM nodesCTE where type = " + std::to_string(RUBBISHNODE);
     const std::string filenode = std::to_string(FILENODE);
 
-    if (excludedRoot.isUndef())
-    {
-        // all recent nodes, no filtering
-        sqlQuery += "FROM nodes n1 "
-            "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle"
-            " where n1.type = " + filenode + " AND n1.ctime >= ? AND n2.type != " + filenode +
-            " ORDER BY n1.ctime DESC";
-    }
-    else
-    {
-        // exclude recent nodes with given first ancestor
-        std::string excludedFirsAncestorQuery = "WITH nodesCTE(nodehandle, parenthandle) "
-            "AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = n1.nodehandle "
-            "UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE "
-            "AS E ON (A.nodehandle = E.parenthandle)) "
-            "SELECT COUNT(nodehandle) FROM nodesCTE where nodehandle = " + std::to_string(excludedRoot.as8byte());
-
-        sqlQuery += ", (" + excludedFirsAncestorQuery + ") excluded FROM nodes n1 "
-            "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle"
-            " where n1.type = " + filenode + " AND n1.ctime >= ? AND n2.type != " + filenode + " AND excluded = 0"
-            " ORDER BY n1.ctime DESC";
-    }
+    std::string sqlQuery = "SELECT n1.nodehandle, n1.decrypted, n1.node, (" + isInRubbish + ") isinrubbish FROM nodes n1 "
+        "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle"
+        " where n1.type = " + filenode + " AND n1.ctime >= ? AND n2.type != " + filenode + " AND isinrubbish = 0"
+        " ORDER BY n1.ctime DESC";
 
     if (maxcount)
     {
