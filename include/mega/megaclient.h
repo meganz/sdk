@@ -375,7 +375,7 @@ private:
 #endif
 
     // nodes that have changed and are pending to notify to app and dump to DB
-    node_vector mPendingNotifyNodes;
+    std::vector<Node*> mPendingNotifyNodes;
 
     // holds references to unknown parent nodes until those are received (delayed-parents: dp)
     std::map<NodeHandle, node_set> mNodesWithMissingParent;

@@ -17649,11 +17649,12 @@ void NodeManager::purgeAndConfirmNodes()
 
         if (n->changed.removed)
         {
-            it = mPendingNotifyNodes.erase(it);
             // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
             subtractFromRootCounter(*n);
             mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
 
+            // Avoid to take into account removed nodes in 'getChildren'
+            it = mPendingNotifyNodes.erase(it);
             node_list children = getChildren(n);
             for (auto child : children)
             {
@@ -17684,7 +17685,6 @@ void NodeManager::notifyNodes()
 
         if (!mClient.fetchingnodes)
         {
-
             mClient.app->nodes_updated(&mPendingNotifyNodes.data()[0], mPendingNotifyNodes.size());
         }
 
