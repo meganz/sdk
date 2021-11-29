@@ -17690,11 +17690,11 @@ void NodeManager::notifyNodes()
 
 #ifdef ENABLE_SYNC
         //update sync root node location and trigger failing cases
-        NodeHandle rubbishHandle = rootnodes.rubbish;
+        NodeHandle rubbishHandle = mClient.rootnodes.rubbish;
         // check for renamed/moved sync root folders
-        syncs.forEachUnifiedSync([&](UnifiedSync& us){
+         mClient.syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
-            Node* n = nodeByHandle(us.mConfig.getRemoteNode());
+            Node* n =  mClient.nodeByHandle(us.mConfig.getRemoteNode());
             if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
             {
                 bool removed = n->changed.removed;
@@ -17742,7 +17742,7 @@ void NodeManager::notifyNodes()
 
                 if (syncErr != NO_SYNC_ERROR)
                 {
-                    syncs.disableSelectedSyncs(
+                    mClient.syncs.disableSelectedSyncs(
                                 [&](SyncConfig&, Sync* s) { return s == activeSync.get(); },
                     true, syncErr, false, nullptr);
                 }
