@@ -352,7 +352,7 @@ public:
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;
 
-    uint32_t getNumberPendingNotificationNodes() const;
+    size_t getNumberPendingNotificationNodes() const;
 
 private:
     // TODO Nodes on demand remove reference

@@ -17685,7 +17685,7 @@ void NodeManager::notifyNodes()
 
         if (!mClient.fetchingnodes)
         {
-            mClient.app->nodes_updated(&mPendingNotifyNodes.data()[0], mPendingNotifyNodes.size());
+            mClient.app->nodes_updated(&mPendingNotifyNodes.data()[0], static_cast<int>(mPendingNotifyNodes.size()));
         }
 
 #ifdef ENABLE_SYNC
@@ -17999,7 +17999,7 @@ void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& o
     }
 }
 
-uint32_t NodeManager::getNumberPendingNotificationNodes() const
+size_t NodeManager::getNumberPendingNotificationNodes() const
 {
     return mPendingNotifyNodes.size();
 }
