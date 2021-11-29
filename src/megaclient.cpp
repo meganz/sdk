@@ -16109,38 +16109,11 @@ static bool nodes_ctime_greater(const Node* a, const Node* b)
 
 node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin)
 {
+    const NodeHandle& excludedRoot = includerubbishbin ? NodeHandle() : rootnodes.rubbish;
 
-    // TODO nodes on demand Implement
-    // 1. Get nodes added/modified not older than `since`
-//    node_vector v;
-//    v.reserve(mNodes.size());
-//    for (node_map::iterator i = mNodes.begin(); i != mNodes.end(); ++i)
-//    {
-//        if (i->second->type == FILENODE && i->second->ctime >= since &&  // recent files only
-//            (!i->second->parent || i->second->parent->type != FILENODE)) // excluding versions
-//        {
-//            v.push_back(i->second);
-//        }
-//    }
+    node_vector v = mNodeManager.getRecentNodes(maxcount, since, excludedRoot);
 
-//    // heaps use a 'less' function, and pop_heap returns the largest item stored.
-//    std::make_heap(v.begin(), v.end(), nodes_ctime_less);
-
-    // 2. Order them chronologically and restrict them to a maximum of `maxcount`
-    node_vector v2;
-//    unsigned maxItems = std::min(maxcount, unsigned(v.size()));
-//    v2.reserve(maxItems);
-//    while (v2.size() < maxItems && !v.empty())
-//    {
-//        std::pop_heap(v.begin(), v.end(), nodes_ctime_less);
-//        Node* n = v.back();
-//        v.pop_back();
-//        if (includerubbishbin || n->firstancestor()->type != RUBBISHNODE)
-//        {
-//            v2.push_back(n);
-//        }
-//    }
-    return v2;
+    return v;
 }
 
 
@@ -17013,6 +16986,36 @@ node_list NodeManager::getChildren(Node *parent)
     }
 
     return childrenList;
+}
+
+node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since, const NodeHandle& excludedRoot)
+{
+    node_vector nodes;
+    if (!mTable)
+    {
+        return nodes;
+    }
+
+    std::map<NodeHandle, NodeSerialized> nodeMap;
+    mTable->getRecentNodes(maxcount, since, excludedRoot, nodeMap);
+
+    for (const auto nodeMapIt : nodeMap)
+    {
+        Node* n;
+        auto nodeIt = mNodes.find(nodeMapIt.first);
+        if (nodeIt == mNodes.end())
+        {
+            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+        }
+        else
+        {
+            n = nodeIt->second;
+        }
+
+        nodes.push_back(n);
+    }
+
+    return nodes;
 }
 
 uint64_t NodeManager::getNodeCount()

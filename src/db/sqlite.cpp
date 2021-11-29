@@ -83,7 +83,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
                       "type tinyint, size int64, share tinyint, decrypted tinyint, fav tinyint, "
-                      "node BLOB NOT NULL)";
+                      "ctime int64, node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -628,8 +628,8 @@ bool SqliteAccountState::put(Node *node)
 
     sqlite3_stmt *stmt;
     int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                        "name, fingerprint, origFingerprint, type, size, share, decrypted, fav, node) "
-                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
+                                        "name, fingerprint, origFingerprint, type, size, share, decrypted, fav, ctime, node) "
+                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         string nodeSerialized;
@@ -664,7 +664,8 @@ bool SqliteAccountState::put(Node *node)
         nameid favId = AttrMap::string2nameid("fav");
         bool fav = (node->attrs.map.find(favId) != node->attrs.map.end());
         sqlite3_bind_int(stmt, 10, fav);
-        sqlite3_bind_blob(stmt, 11, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        sqlite3_bind_int64(stmt, 11, node->ctime);
+        sqlite3_bind_blob(stmt, 12, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
 
         sqlResult = sqlite3_step(stmt);
     }
@@ -1028,6 +1029,66 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::
     }
 
     return result;
+}
+
+bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, const mega::NodeHandle& excludedRoot,
+                                        std::map<mega::NodeHandle, NodeSerialized>& nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    std::string sqlQuery = "SELECT n1.nodehandle, n1.decrypted, n1.node ";
+
+    if (excludedRoot.isUndef())
+    {
+        // all recent nodes, no filtering
+        sqlQuery += "FROM nodes n1 "
+            "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.type = 0 AND n1.ctime >= ? AND n2.type != 0 "
+            "ORDER BY n1.ctime DESC";
+    }
+    else
+    {
+        // exclude recent nodes with given first ancestor
+        std::string excludedFirsAncestorQuery = "WITH nodesCTE(nodehandle, parenthandle) "
+            "AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = n1.nodehandle "
+            "UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE "
+            "AS E ON (A.nodehandle = E.parenthandle)) "
+            "SELECT COUNT(nodehandle) FROM nodesCTE where nodehandle = " + std::to_string(excludedRoot.as8byte());
+
+        sqlQuery += ", (" + excludedFirsAncestorQuery + ") excluded FROM nodes n1 "
+            "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.type = 0 AND n1.ctime >= ? AND n2.type != 0 "
+            "AND excluded = 0 "
+            "ORDER BY n1.ctime DESC";
+    }
+
+    if (maxcount)
+        sqlQuery += " LIMIT " + std::to_string(maxcount);
+
+    sqlite3_stmt* stmt;
+
+    bool stepResult = false;
+    int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        sqlResult = sqlite3_bind_int64(stmt, 1, since);
+        if (sqlResult == SQLITE_OK)
+        {
+            stepResult = processSqlQueryNodeMap(stmt, nodes);
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        std::string err = std::string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get recent nodes from database: " << dbfile << err;
+        return false;
+    }
+
+    return stepResult;
 }
 
 bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle> &nodes)

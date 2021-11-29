@@ -95,6 +95,11 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
+    bool getRecentNodes(unsigned maxcount, mega::m_time_t since, const mega::NodeHandle& excludedRoot,
+                        std::map<mega::NodeHandle, mega::NodeSerialized>&) override
+    {
+        return false;
+    }
     bool getFavouritesHandles(mega::NodeHandle, uint32_t, std::vector<mega::NodeHandle>&) override
     {
         return false;

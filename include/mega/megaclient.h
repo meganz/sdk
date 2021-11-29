@@ -263,6 +263,9 @@ public:
     // read children from DB and load them in memory
     node_list getChildren(Node* parent);
 
+    // read recent nodes from DB and load them in memory
+    node_vector getRecentNodes(unsigned maxcount, m_time_t since, const NodeHandle& excludedRoot);
+
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
 
