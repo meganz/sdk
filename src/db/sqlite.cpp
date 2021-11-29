@@ -1064,7 +1064,9 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, const
     }
 
     if (maxcount)
+    {
         sqlQuery += " LIMIT " + std::to_string(maxcount);
+    }
 
     sqlite3_stmt* stmt;
 
