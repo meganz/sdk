@@ -8706,29 +8706,22 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     nn_nni.added = true;
                     nn_nni.mAddedHandle = h;
 
-                    if (versions_disabled && nn_nni.ovhandle != UNDEF)
+                    if (nn_nni.ovhandle != UNDEF && !nn_nni.mVersionsEnabled)
                     {
+                        // replacing an existing file (eg, by uploading a same-name file), with versioning off.
                         assert(n->type == FILENODE);
 
-                        // The API replace the existing node ('ov') by the new node, so
-                        // the existing one needs to be removed effectively, and previous
-                        // versions need to be chained to the new version
-                        Node *ovNode = nodebyhandle(nn_nni.ovhandle);
-                        if (ovNode)
+                        // The API replaces the existing node ('ov') by the new node, so
+                        // the existing one is effectively removed, but the deletion of that node
+                        // can't be delivered by command reply, and this client can't
+                        // see the generated delete actionpacket due to the `i` scheme.
+                        // However the command reply will already rearrange the versions of the old node
+                        // to be the versions of this new node.
+                        // So, we manually delete this node that the API must have deleted
+                        // (Full and proper solution to this is in sync rework with SIC removal)
+                        if (Node *ovNode = nodebyhandle(nn_nni.ovhandle))
                         {
                             assert(ovNode->type == FILENODE);
-
-                            if (ovNode->children.size())    // versions are child nodes of files
-                            {
-                                assert(ovNode->children.size() == 1);
-
-                                Node *prevVersion = ovNode->children.back();
-                                assert(prevVersion->parent == ovNode);
-                                prevVersion->setparent(n);
-                                prevVersion->parenthandle = n->nodehandle;
-                                prevVersion->changed.parent = true;
-                                notifynode(prevVersion);
-                            }
 
                             TreeProcDel td;
                             proctree(ovNode, &td, false, true);

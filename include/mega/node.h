@@ -78,6 +78,8 @@ struct MEGA_API NewNode : public NodeCore
 #endif
     std::unique_ptr<string> fileattributes;
 
+    // versioning used for this new node, forced at server's side regardless the account's value
+    bool mVersionsEnabled = false;
     bool added = false;
     handle mAddedHandle = UNDEF;
 };
