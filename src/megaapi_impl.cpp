@@ -5800,7 +5800,9 @@ char *MegaApiImpl::getMyRSAPrivateKey()
 void MegaApiImpl::setLogExtraForModules(bool networking, bool syncs)
 {
     g_netLoggingOn = networking;
+#ifdef ENABLE_SYNC
     client->syncs.mDetailedSyncLogging = syncs;
+#endif
 }
 
 void MegaApiImpl::setLogLevel(int logLevel)
