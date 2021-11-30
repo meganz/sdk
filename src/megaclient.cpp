@@ -14335,6 +14335,12 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
                     nchildren.erase(rit);
                 }
+                else if (ll->mtime == rit->second->mtime &&
+                         l->sync->isBackup())
+                {
+                    LOG_debug << "Equal mtime in a backup, leaving the file to be uploaded: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
+                    nchildren.erase(rit);
+                }
                 else if (ll->mtime == rit->second->mtime
                          && (ll->size > rit->second->size
                              || (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) > 0)))
@@ -14883,7 +14889,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         continue;
                     }
 
-                    if (ll->mtime == rit->second->mtime)
+                    if (ll->mtime == rit->second->mtime &&
+                        !ll->sync->isBackup())
                     {
                         if (ll->size < rit->second->size)
                         {
