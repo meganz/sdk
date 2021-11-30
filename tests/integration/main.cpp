@@ -319,7 +319,13 @@ int main (int argc, char *argv[])
         listeners.Append(new GTestLogger());
     }
 
-    return RUN_ALL_TESTS();
+    auto ret = RUN_ALL_TESTS();
+
+    // shut down reusable clients before the logger goes out of scope
+    g_clientManager.shutdown();
+    SimpleLogger::setOutputClass(nullptr);
+
+    return ret;
 }
 
 

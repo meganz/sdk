@@ -648,8 +648,7 @@ public:
 
     StandardClientInUse getCleanStandardClient(int loginIndex, fs::path workingFolder);
 
-
-
+    void shutdown();
 };
 
 extern ClientManager g_clientManager;

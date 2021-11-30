@@ -976,6 +976,11 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
     return StandardClientInUse(--clients[loginIndex].end());
 }
 
+void ClientManager::shutdown()
+{
+    clients.clear();
+}
+
 
 void StandardClient::ResultProc::prepresult(StandardClient::resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h)
 {
@@ -3097,7 +3102,12 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
 
 bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClient* c3, StandardClient* c4)
 {
-    auto p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteTestBaseFolder(true, pb); });  // todo: do we need to wait for server response now
+    received_node_actionpackets = false;
+    if (c2) c2->received_node_actionpackets = false;
+    if (c3) c3->received_node_actionpackets = false;
+    if (c4) c4->received_node_actionpackets = false;
+
+    auto p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteTestBaseFolder(true, pb); });
     if (!waitonresults(&p1)) {
         out() << "deleteTestBaseFolder failed";
         return false;
@@ -3108,12 +3118,19 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
         return false;
     }
 
-    CatchupClients(c2, c3, c4);
+    if (!waitForNodesUpdated(30) ||
+        (c2 && !c2->waitForNodesUpdated(30)) ||
+        (c3 && !c3->waitForNodesUpdated(30)) ||
+        (c4 && !c4->waitForNodesUpdated(30)))
+    {
+        out() << "No actionpacket received in at least one client for base folder creation";
+        return false;
+    }
 
     auto checkOtherClient = [this](StandardClient* c) {
         if (c)
         {
-            auto p1 = c->thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
+            auto p1 = c->thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); });
             if (!waitonresults(&p1)) {
                 out() << "ensureTestBaseFolder c2 failed";
                 return false;
