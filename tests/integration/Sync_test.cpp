@@ -6612,14 +6612,14 @@ TEST_F(SyncTest, AnomalousSyncDownload)
         // Upload the files f and f/0.
         {
             auto filePath = cu.fsBasePath / "f";
-            auto rootPath = "/mega_test_sync/s";
+            auto rootPath = string("/mega_test_sync/s");
 
             // Create a dummy for us to upload.
             ASSERT_TRUE(createDataFile(filePath, "f"));
 
             // Upload the files.
-            ASSERT_TRUE(cu.uploadFile(filePath, "f", rootPath));
-            ASSERT_TRUE(cu.uploadFile(filePath, "f/0", rootPath));
+            ASSERT_TRUE(cu.uploadFile(filePath, string("f"), rootPath));
+            ASSERT_TRUE(cu.uploadFile(filePath, string("f/0"), rootPath));
 
             // Update the model.
             model.addfile("f", "f");
@@ -14194,8 +14194,8 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
 
     // Upload a file for the engine to synchronize.
     ASSERT_TRUE(c.uploadFile(c.fsBasePath / "s" / ".megaignore",
-                             FILE_NAME,
-                             "/mega_test_sync/s"));
+                             string(FILE_NAME),
+                             string("/mega_test_sync/s")));
 
     // Give the engine some time to synchronize the file.
     waitonsyncs(TIMEOUT, &c);
