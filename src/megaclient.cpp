@@ -5267,9 +5267,9 @@ void MegaClient::updatesc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNumberPendingNotificationNodes() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
 #else
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNumberPendingNotificationNodes() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -7269,7 +7269,7 @@ void MegaClient::notifypurge(void)
 
     if (scsn.ready()) tscsn = scsn.getHandle();
 
-    if (mNodeManager.getNumberPendingNotificationNodes()|| usernotify.size() || pcrnotify.size()
+    if (mNodeManager.nodeNotifySize() || usernotify.size() || pcrnotify.size()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -7291,7 +7291,8 @@ void MegaClient::notifypurge(void)
 #endif
     }
 
-    mNodeManager.notifyNodes();
+    // purge of notifications related to nodes have been moved to NodeManager since NodesOnDemand
+    mNodeManager.notifyPurge();
 
     if ((t = int(pcrnotify.size())))
     {
@@ -10539,9 +10540,14 @@ void MegaClient::senddevcommand(const char *command, const char *email, long lon
 // queue node for notification
 void MegaClient::notifynode(Node* n)
 {
+    mNodeManager.notifyNode(n);
+}
+
+void NodeManager::notifyNode(Node* n)
+{
     n->applykey();
 
-    if (!fetchingnodes)
+    if (!mClient.fetchingnodes)
     {
         if (n->tag && !n->changed.removed && n->attrstring)
         {
@@ -10572,8 +10578,8 @@ void MegaClient::notifynode(Node* n)
             Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
             sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
 
-            reportevent("NK", report, 0);
-            sendevent(99400, report, 0);
+            mClient.reportevent("NK", report, 0);
+            mClient.sendevent(99400, report, 0);
 
             delete [] buf;
         }
@@ -10648,7 +10654,7 @@ void MegaClient::notifynode(Node* n)
     if (!n->notified)
     {
         n->notified = true;
-        mNodeManager.addNodeToNotify(n);
+        mNodeNotify.push_back(n);
     }
 }
 
@@ -16868,9 +16874,9 @@ node_list NodeManager::getChildren(Node *parent)
     mTable->getChildren(parent->nodeHandle(), childrenMap);
 
     // get children nodes loaded in RAM (which may not be in cache yet)
-    // (upon node's creation, nodes are added to the notification queue, `nodenotify` (in NodeManage::mPendingConfirmNodes), but
-    // they are not dumped to cache until the notification is done in `notifypurge()`)
-    for (Node* node : mPendingNotifyNodes)
+    // (upon node's creation, nodes are added to the notification queue (mNodeNotify), but
+    // they are not dumped to DB cache until the notification is done in 'notifyPurge()')
+    for (Node* node : mNodeNotify)
     {
         if (parent->nodeHandle().eq(node->parenthandle))
         {
@@ -17307,7 +17313,7 @@ void NodeManager::cleanNodes()
         delete node.second;
     }
 
-    mPendingNotifyNodes.clear();
+    mNodeNotify.clear();
     mNodes.clear();
     mNodeCounters.clear();
 
@@ -17606,86 +17612,15 @@ void NodeManager::applyKeys(uint32_t appliedKeys)
     }
 }
 
-void NodeManager::purgeAndConfirmNodes()
+void NodeManager::notifyPurge()
 {
-    // check all notified nodes for removed status and purge
-    for (auto it = mPendingNotifyNodes.begin(); it != mPendingNotifyNodes.end(); )
-    {
-        Node *n = *it;
-        if (n->attrstring)
-        {
-            // make this just a warning to avoid auto test failure
-            // this can happen if another client adds a folder in our share and the key for us is not available yet
-            LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
-#ifdef ENABLE_SYNC
-            if (n->localnode)
-            {
-                LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
-            }
-#endif
-        }
-
-        if (n->changed.removed)
-        {
-            // remove inbound share
-            if (n->inshare)
-            {
-                n->inshare->user->sharing.erase(n->nodehandle);
-                mClient.notifyuser(n->inshare->user);
-            }
-        }
-        else
-        {
-            n->notified = false;
-            memset(&(n->changed), 0, sizeof(n->changed));
-            n->tag = 0;
-        }
-
-        if (!mTable)
-        {
-            assert(false);
-            return;
-        }
-
-        if (n->changed.removed)
-        {
-            // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
-            subtractFromRootCounter(*n);
-            mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
-
-            // Avoid to take into account removed nodes in 'getChildren'
-            it = mPendingNotifyNodes.erase(it);
-            node_list children = getChildren(n);
-            for (auto child : children)
-            {
-                child->parent = nullptr;
-            }
-
-            // effectively delete node from RAM
-            mNodes.erase(n->nodeHandle());
-            mTable->remove(n->nodeHandle());
-            delete n;
-        }
-        else
-        {
-            it++;
-            mTable->put(n);
-        }
-
-    }
-
-    mPendingNotifyNodes.clear();
-}
-
-void NodeManager::notifyNodes()
-{
-    if (mPendingNotifyNodes.size())
+    if (mNodeNotify.size())
     {
         mClient.applykeys();
 
         if (!mClient.fetchingnodes)
         {
-            mClient.app->nodes_updated(&mPendingNotifyNodes.data()[0], static_cast<int>(mPendingNotifyNodes.size()));
+            mClient.app->nodes_updated(&mNodeNotify.data()[0], static_cast<int>(mNodeNotify.size()));
         }
 
 #ifdef ENABLE_SYNC
@@ -17749,15 +17684,77 @@ void NodeManager::notifyNodes()
             }
         });
 #endif
+
         DBTableTransactionCommitter committer(mClient.tctable);
 
-        purgeAndConfirmNodes();
-    }
-}
+        // check all notified nodes for removed status and purge
+        for (auto it = mNodeNotify.begin(); it != mNodeNotify.end(); )
+        {
+            Node *n = *it;
+            if (n->attrstring)
+            {
+                // make this just a warning to avoid auto test failure
+                // this can happen if another client adds a folder in our share and the key for us is not available yet
+                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
+#ifdef ENABLE_SYNC
+                if (n->localnode)
+                {
+                    LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
+                }
+#endif
+            }
 
-void NodeManager::addNodeToNotify(Node *node)
-{
-    mPendingNotifyNodes.push_back(node);
+            if (n->changed.removed)
+            {
+                // remove inbound share
+                if (n->inshare)
+                {
+                    n->inshare->user->sharing.erase(n->nodehandle);
+                    mClient.notifyuser(n->inshare->user);
+                }
+            }
+            else
+            {
+                n->notified = false;
+                memset(&(n->changed), 0, sizeof(n->changed));
+                n->tag = 0;
+            }
+
+            if (!mTable)
+            {
+                assert(false);
+                return;
+            }
+
+            if (n->changed.removed)
+            {
+                // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
+                subtractFromRootCounter(*n);
+                mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
+
+                // Avoid to take into account removed nodes in 'getChildren'
+                it = mNodeNotify.erase(it);
+                node_list children = getChildren(n);
+                for (auto child : children)
+                {
+                    child->parent = nullptr;
+                }
+
+                // effectively delete node from RAM
+                mNodes.erase(n->nodeHandle());
+                mTable->remove(n->nodeHandle());
+                delete n;
+            }
+            else
+            {
+                it++;
+                mTable->put(n);
+            }
+
+        }
+
+        mNodeNotify.clear();
+    }
 }
 
 bool NodeManager::hasCacheLoaded()
@@ -17999,9 +17996,9 @@ void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& o
     }
 }
 
-size_t NodeManager::getNumberPendingNotificationNodes() const
+size_t NodeManager::nodeNotifySize() const
 {
-    return mPendingNotifyNodes.size();
+    return mNodeNotify.size();
 }
 
 } // namespace
