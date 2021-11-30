@@ -7656,6 +7656,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     unique_ptr<MegaNode> rootnodeB(megaApi[1]->getRootNode());
     ASSERT_TRUE(rootnodeB);
+    ASSERT_EQ(rootnodeA->getHandle(), rootnodeB->getHandle());
 
     // --- UserA Create tree directory ---
     // 3 Folders in level 1
