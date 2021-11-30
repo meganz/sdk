@@ -349,6 +349,12 @@ public:
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;
 
+    // Add fingerprint to mFingerprint map, in case that no feching or
+    // keep all nodes in memory, a reference to node will be stored too
+    void insertFingerprint(Node* node);
+    // Remove fingerprint from mFingerprint map
+    void removeFingerprint(Node* node);
+
 private:
     // TODO Nodes on demand remove reference
     MegaClient& mClient;
@@ -381,6 +387,11 @@ private:
     bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
+
+    // FileFingerprint to node mapping
+    std::map<FileFingerprint, std::map<NodeHandle, FileFingerprint*>> mFingerPrints;
+
+    Node* getNodeFromDataBase(NodeHandle handle);
 };
 
 class MEGA_API MegaClient
@@ -1514,10 +1525,6 @@ public:
 
     // next TransferSlot to doio() on
     transferslot_list::iterator slotit;
-
-    // FileFingerprint to node mapping
-    // TODO Nodes on demand check if mFingerprints is required
-    //Fingerprints mFingerprints;
 
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;

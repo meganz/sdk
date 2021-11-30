@@ -56,19 +56,9 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    bool getNodesByFingerprint(const mega::FileFingerprint&, std::map<mega::NodeHandle, mega::NodeSerialized>&) override
-    {
-        return false;
-        //throw NotImplemented{__func__};
-    }
     bool getNodesByOrigFingerprint(const std::string& , std::map<mega::NodeHandle, mega::NodeSerialized>&) override
     {
         return false;
-    }
-    bool getNodeByFingerprint(const mega::FileFingerprint&, mega::NodeSerialized&, mega::NodeHandle& nodeHandle) override
-    {
-        return false;
-        //throw NotImplemented{__func__};
     }
     bool getRootNodes(std::map<mega::NodeHandle, mega::NodeSerialized>& nodes) override
     {
@@ -182,6 +172,10 @@ public:
         //throw NotImplemented{__func__};
     }
     bool inTransaction() const override
+    {
+        return false;
+    }
+    bool getFingerPrints(std::map<mega::FileFingerprint, std::map<mega::NodeHandle, mega::FileFingerprint*>>& fingerprints) override
     {
         return false;
     }

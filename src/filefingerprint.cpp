@@ -441,4 +441,52 @@ bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs
     return std::tie(lhs.mtime, lhs.size) == std::tie(rhs.mtime, rhs.size);
 }
 
+bool operator<(const FileFingerprint &lhs, const FileFingerprint &rhs)
+{
+    // size differs - cannot be equal
+    if (lhs.size < rhs.size)
+    {
+        return true;
+    }
+
+#ifndef __ANDROID__
+    // mtime check disabled on Android due to this bug:
+    // https://code.google.com/p/android/issues/detail?id=18624
+
+#ifndef WINDOWS_PHONE
+    // disabled on Windows Phone too because SetFileTime() isn't available
+
+    // mtime differs - cannot be equal
+    if (abs(lhs.mtime < rhs.mtime) > 2)
+    {
+        return true;
+    }
+#endif
+#endif
+
+    // FileFingerprints not fully available - give it the benefit of the doubt
+    if (!lhs.isvalid && rhs.isvalid)
+    {
+        return true;
+    }
+    else if (lhs.isvalid && !rhs.isvalid)
+    {
+        return false;
+    }
+
+    int64_t lhsValue = 0;
+    for (unsigned int i = 0; i < lhs.crc.size(); i++)
+    {
+        lhsValue += lhs.crc.at(i);
+    }
+
+    int64_t rhsValue = 0;
+    for (unsigned int i = 0; i < rhs.crc.size(); i++)
+    {
+        rhsValue += rhs.crc.at(i);
+    }
+
+    return lhsValue < rhsValue;
+}
+
 } // mega

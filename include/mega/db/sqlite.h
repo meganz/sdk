@@ -65,9 +65,7 @@ public:
     // Access to table `nodes`
     bool getNode(mega::NodeHandle nodehandle, NodeSerialized& nodeSerialized) override;
     bool getNodes(std::vector<NodeSerialized>& nodes) override;
-    bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
     bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
-    bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized &node, NodeHandle& nodeHandle) override;
     bool getRootNodes(std::map<mega::NodeHandle, NodeSerialized>& nodes) override;
     bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, mega::NodeSerialized>& nodes, ShareType_t shareType) override;
     bool getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) override;
@@ -85,6 +83,7 @@ public:
     bool put(Node* node) override;
     bool remove(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
+    bool getFingerPrints(std::map<FileFingerprint, std::map<NodeHandle, FileFingerprint*>>& fingerprints) override;
 
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
 

@@ -1251,8 +1251,6 @@ void MegaClient::init()
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
    : mAsyncQueue(*w, workerThreadCount)
-    // TODO Nodes on demand check if mFingerprints is required
-    //, mFingerprints(*this)
    , mCachedStatus(this)
    , useralerts(*this)
    , btugexpiration(rng)
@@ -13286,15 +13284,11 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     syncs.purgeRunningSyncs();
 #endif
 
-    // TODO Nodes on demand check if mFingerprints is required
-    //mFingerprints.clear();
     mNodeManager.cleanNodes();
 
 #ifdef ENABLE_SYNC
     todebris.clear();
     tounlink.clear();
-    // TODO Nodes on demand check if mFingerprints is required
-    //mFingerprints.clear();
 #endif
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -15383,8 +15377,7 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
         {
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
-                // TODO Nodes on demand check if mFingerprints is required
-                //mFingerprints.remove(n);
+                mNodeManager.removeFingerprint(n);
             }
         }
         else if (nn[nni].localnode && (n = nn[nni].localnode->node))
@@ -16958,11 +16951,7 @@ Node *NodeManager::getNodeByHandle(NodeHandle handle)
         return node;
     }
 
-    NodeSerialized nodeSerialized;
-    if (mTable->getNode(handle, nodeSerialized))
-    {
-        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
-    }
+    node = getNodeFromDataBase(handle);
 
     return node;
 }
@@ -17084,32 +17073,21 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
 
 node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprint)
 {
-    // TODO Nodes on demand check if mFingerprints is required
-    //return mFingerprints.nodesbyfingerprint(fingerprint);
-
     node_vector nodes;
-    if (!mTable)
+    auto it = mFingerPrints.find(fingerprint);
+    if (it != mFingerPrints.end())
     {
-        return nodes;
-    }
-
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
-    mTable->getNodesByFingerprint(fingerprint, nodeMap);
-
-    for (const auto nodeMapIt : nodeMap)
-    {
-        Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
-        if (nodeIt == mNodes.end())
+        for (auto itNode : it->second)
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            if (itNode.second)
+            {
+                nodes.push_back(static_cast<Node*>(itNode.second));
+            }
+            else
+            {
+                nodes.push_back(getNodeFromDataBase(itNode.first));
+            }
         }
-        else
-        {
-            n = nodeIt->second;
-        }
-
-        nodes.push_back(n);
     }
 
     return nodes;
@@ -17120,6 +17098,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
     node_vector nodes;
     if (!mTable)
     {
+        assert(false);
         return nodes;
     }
 
@@ -17150,31 +17129,25 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
 
 Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
 {
-    // TODO Nodes on demand check if mFingerprints is required
-    //return mFingerprints.nodebyfingerprint(fingerprint);
-
-    if (!mTable)
+    auto it = mFingerPrints.find(fingerprint);
+    if (it != mFingerPrints.end())
     {
-        assert(false);
-        return nullptr;
+        for (auto itNode : it->second)
+        {
+            if (itNode.second)
+            {
+                return static_cast<Node*>(itNode.second);
+            }
+        }
+
+        // If we don't have any Node load for that fingerprint, we return the first one
+        if (it->second.size())
+        {
+            return getNodeFromDataBase(it->second.begin()->first);
+        }
     }
 
-    NodeSerialized nodeSerialized;
-    NodeHandle nodeHandle;
-    mTable->getNodeByFingerprint(fingerprint, nodeSerialized, nodeHandle);
-    Node* node = nullptr;
-    auto nodeIt = mNodes.find(nodeHandle);
-    if (nodeIt == mNodes.end())
-    {
-        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
-    }
-    else
-    {
-        node = nodeIt->second;
-    }
-
-
-    return node;
+    return nullptr;
 }
 
 node_vector NodeManager::getRootNodes()
@@ -17414,6 +17387,7 @@ void NodeManager::removeChanges()
 
 void NodeManager::cleanNodes()
 {
+    mFingerPrints.clear();
     for (auto node : mNodes)
     {
         delete node.second;
@@ -17687,6 +17661,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
     }
     n->plink = plink;
 
+    // TODO Nodes on demand fingerprint review if it's necessary n->setattr is called at line 17632
     n->setfingerprint();
 
     if (ptr == end)
@@ -17733,6 +17708,8 @@ void NodeManager::notifyPurge(Node *node)
         subtractFromRootCounter(*node);
         mNodeCounters.erase(node->nodeHandle());    // will apply only to rootnodes and inshares, currently
 
+        removeFingerprint(node);
+
         // effectively delete node from RAM
         mNodes.erase(node->nodeHandle());
         mTable->remove(node->nodeHandle());
@@ -17774,6 +17751,8 @@ void NodeManager::loadNodes()
     }
     else
     {
+        // Load map with fingerprints to speed up searching by fingerprint
+        mTable->getFingerPrints(mFingerPrints);
         getRootNodes();
         getNodesWithInShares();
 
@@ -17787,6 +17766,7 @@ void NodeManager::loadNodes()
         updateCounter(inboxHandle);
         NodeHandle rubbishHandle = mClient.rootnodes.rubbish;
         updateCounter(rubbishHandle);
+
     }
 }
 
@@ -17992,6 +17972,44 @@ void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& o
     {
         itNew->second += subTreeCalculated ? nc : getCounterForSubtree(h);
     }
+}
+
+void NodeManager::insertFingerprint(Node *node)
+{
+    if (node->type == FILENODE)
+    {
+        bool saveInMemory = !mClient.fetchingnodes || mKeepAllNodesInMemory;
+        mFingerPrints[*node][node->nodeHandle()] = saveInMemory ? node : nullptr;
+    }
+}
+
+void NodeManager::removeFingerprint(Node *node)
+{
+    if (node->type == FILENODE)  // remove from mFingerPrints
+    {
+        auto it = mFingerPrints.find(*node);
+        if (it != mFingerPrints.end())
+        {
+            it->second.erase(node->nodeHandle());
+
+            if (it->second.empty())
+            {
+                mFingerPrints.erase(it);
+            }
+        }
+    }
+}
+
+Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
+{
+    Node* node = nullptr;
+    NodeSerialized nodeSerialized;
+    if (mTable->getNode(handle, nodeSerialized))
+    {
+        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
+    }
+
+    return node;
 }
 
 } // namespace

@@ -152,7 +152,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // set up nodekey in a static SymmCipher
     SymmCipher* nodecipher();
 
-    // decrypt attribute string and set fileattrs
+    // decrypt attribute string, set fileattrs and save fingerprint
     void setattr();
 
     // display name (UTF-8)

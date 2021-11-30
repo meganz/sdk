@@ -37,9 +37,6 @@ Node::Node(MegaClient& cclient, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
     : client(&cclient)
 {
-    // TODO Nodes on demand check if mFingerprints is required
-    //fingerprint_it = mNodeManager.getMegaClient().mFingerprints.end();
-    //client = cclient;
     outshares = NULL;
     pendingshares = NULL;
     tag = 0;
@@ -507,8 +504,7 @@ void Node::setfingerprint()
 {
     if (type == FILENODE && nodekeydata.size() >= sizeof crc)
     {
-        // TODO Nodes on demand check if mFingerprints is required
-        //client->mFingerprints.remove(this);
+        client->mNodeManager.removeFingerprint(this);
 
         attr_map::iterator it = attrs.map.find('c');
 
@@ -528,11 +524,7 @@ void Node::setfingerprint()
             mtime = ctime;
         }
 
-        // TODO Nodes on demand check if mFingerprints is required
-//        if (mInMemory)
-//        {
-//            client->mFingerprints.add(this);
-//        }
+        client->mNodeManager.insertFingerprint(this);
     }
 }
 
