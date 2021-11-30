@@ -14335,82 +14335,45 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
                     nchildren.erase(rit);
                 }
-                else
+                else if (ll->mtime == rit->second->mtime &&
+                         l->sync->isBackup())
                 {
-                    auto monitoring = ll->sync->isBackupMonitoring();
-                    auto shouldDownload = ll->mtime < rit->second->mtime;
+                    LOG_debug << "Equal mtime in a backup, leaving the file to be uploaded: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
+                    nchildren.erase(rit);
+                }
+                else if (ll->mtime == rit->second->mtime
+                         && (ll->size > rit->second->size
+                             || (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) > 0)))
 
-                    if (!shouldDownload)
+                {
+                    if (ll->size < rit->second->size)
                     {
-                        if (ll->size > rit->second->size)
-                        {
-                            LOG_warn << "Local file has same mtime but larger size: "
-                                     << ll->name
-                                     << " lmtime: "
-                                     << ll->mtime
-                                     << " lsize: "
-                                     << ll->size
-                                     << " rsize: "
-                                     << rit->second->size;
-                        }
-                        else if (ll->size < rit->second->size)
-                        {
-                            LOG_warn << "Local file has same mtime but smaller size: "
-                                     << ll->name
-                                     << " lmtime: "
-                                     << ll->mtime
-                                     << " lsize: "
-                                     << ll->size
-                                     << " rsize: "
-                                     << rit->second->size;
-
-                            shouldDownload |= !monitoring;
-                        }
-                        else if (ll->crc > rit->second->crc)
-                        {
-                            LOG_warn << "Local file has same mtime and size but larger CRC: "
-                                     << ll->name
-                                     << " lmtime: "
-                                     << ll->mtime
-                                     << " lsize: "
-                                     << ll->size
-                                     << " rhandle: "
-                                     << LOG_NODEHANDLE(rit->second->nodehandle);
-                        }
-                        else
-                        {
-                            LOG_warn << "Local file has same mtime and size but smaller CRC: "
-                                     << ll->name
-                                     << " lmtime: "
-                                     << ll->mtime
-                                     << " lsize: "
-                                     << ll->size
-                                     << " rhandle: "
-                                     << LOG_NODEHANDLE(rit->second->nodehandle);
-
-                            shouldDownload |= !monitoring;
-                        }
-                    }
-
-                    if (shouldDownload)
-                    {
-                        // means that the localnode is going to be overwritten
-                        if (rit->second->localnode && rit->second->localnode->transfer)
-                        {
-                            LOG_debug << "Stopping an unneeded upload";
-                            DBTableTransactionCommitter committer(tctable);
-                            stopxfer(rit->second->localnode, &committer);  // TODO: can we have one transaction for recursing through syncdown() ?
-                        }
-
-                        // don't use a marker pointer anymore, we could trip over it on the next iteration of this loop.
-                        // instead, we reserve one bit in the "changed" bit fields just for use in this function.
-                        // Flagging it here means this Node has a matched LocalNode already (checked in the next loop over nchildren)
-                        rit->second->changed.syncdown_node_matched_here = true;
+                        LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name
+                                 << " mtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
+                                 << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
                     }
                     else
                     {
-                        nchildren.erase(rit);
+                        LOG_warn << "Syncdown. Same mtime and size, but bigger CRC: " << ll->name
+                                 << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
                     }
+
+                    nchildren.erase(rit);
+                }
+                else
+                {
+                    // means that the localnode is going to be overwritten
+                    if (rit->second->localnode && rit->second->localnode->transfer)
+                    {
+                        LOG_debug << "Stopping an unneeded upload";
+                        DBTableTransactionCommitter committer(tctable);
+                        stopxfer(rit->second->localnode, &committer);  // TODO: can we have one transaction for recursing through syncdown() ?
+                    }
+
+                    // don't use a marker pointer anymore, we could trip over it on the next iteration of this loop.
+                    // instead, we reserve one bit in the "changed" bit fields just for use in this function.
+                    // Flagging it here means this Node has a matched LocalNode already (checked in the next loop over nchildren)
+                    rit->second->changed.syncdown_node_matched_here = true;
                 }
             }
             else
@@ -14926,29 +14889,23 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         continue;
                     }
 
-                    if (ll->mtime == rit->second->mtime)
+                    if (ll->mtime == rit->second->mtime &&
+                        !ll->sync->isBackup())
                     {
-                        auto monitoring = ll->sync->isBackupMonitoring();
-                        auto shouldUpload = true;
-
                         if (ll->size < rit->second->size)
                         {
                             LOG_warn << "Syncup. Same mtime but lower size: " << ll->name
                                      << " LNmtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
                                      << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle) ;
 
-                            shouldUpload &= monitoring;
+                            continue;
                         }
-                        else if (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) < 0)
+
+                        if (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) < 0)
                         {
                             LOG_warn << "Syncup. Same mtime and size, but lower CRC: " << ll->name
                                      << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
 
-                            shouldUpload &= monitoring;
-                        }
-
-                        if (!shouldUpload)
-                        {
                             continue;
                         }
                     }
