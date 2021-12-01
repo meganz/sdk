@@ -344,6 +344,9 @@ public:
     // return the counter for all root nodes (cloud+inbox+rubbish), without DB query
     NodeCounter getCounterOfRootNodes();
 
+    // add the counter for 'h' (it must not exist yet)
+    void addCounter(const NodeHandle &h);
+
     // update the counter for 'h' (must be available in memory, or it will be loaded)
     void updateCounter(const NodeHandle& h);
 

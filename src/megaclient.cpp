@@ -433,7 +433,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
                             n->inshare->user->sharing.insert(n->nodehandle);
                             NodeHandle nodeHandle;
                             nodeHandle.set6byte(n->nodehandle);
-                            mNodeManager.updateCounter(nodeHandle);
+                            mNodeManager.addCounter(nodeHandle);
                         }
 
                         if (notify)
@@ -16752,24 +16752,21 @@ bool NodeManager::setrootnode(Node* node)
     case ROOTNODE:
     {
         mClient.rootnodes.files = node->nodeHandle();
-        auto ret = mNodeCounters.emplace(node->nodeHandle(), NodeCounter());
-        assert(ret.second);
+        addCounter(node->nodeHandle());
         return true;
     }
 
     case INCOMINGNODE:
     {
         mClient.rootnodes.inbox = node->nodeHandle();
-        auto ret = mNodeCounters.emplace(node->nodeHandle(), NodeCounter());
-        assert(ret.second);
+        addCounter(node->nodeHandle());
         return true;
     }
 
     case RUBBISHNODE:
     {
         mClient.rootnodes.rubbish = node->nodeHandle();
-        auto ret = mNodeCounters.emplace(node->nodeHandle(), NodeCounter());
-        assert(ret.second);
+        addCounter(node->nodeHandle());
         return true;
     }
 
@@ -17945,6 +17942,12 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     c += mNodeCounters[h];
 
     return c;
+}
+
+void NodeManager::addCounter(const NodeHandle &h)
+{
+    auto ret = mNodeCounters.emplace(h, NodeCounter());
+    assert(ret.second);
 }
 
 void NodeManager::updateCounter(const NodeHandle& h)
