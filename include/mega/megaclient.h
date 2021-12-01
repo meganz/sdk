@@ -266,7 +266,9 @@ public:
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
 
-    // Search a node by name
+    // Search nodes containing 'searchString' in its name
+    // Returned nodes are children of 'nodeHandle' (at any level)
+    // If 'nodeHandle' is UNDEF, search includes the whole account
     node_vector search(NodeHandle nodeHandle, const char *searchString);
 
     node_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
@@ -308,8 +310,13 @@ public:
     // attempt to apply received keys to decrypt node's keys
     void applyKeys(uint32_t appliedKeys);
 
-    // process notified/changed nodes from 'mPendingConfirmNodes': dump changes to DB
-    void notifyPurge(Node* node);
+    // add node to the notification queue
+    void notifyNode(Node* node);
+
+    // process notified/changed nodes from 'mNodeNotify': dump changes to DB
+    void notifyPurge();
+
+    size_t nodeNotifySize() const;
 
     // Returns if cache has been loaded
     bool hasCacheLoaded();
@@ -336,6 +343,9 @@ public:
 
     // return the counter for all root nodes (cloud+inbox+rubbish), without DB query
     NodeCounter getCounterOfRootNodes();
+
+    // add the counter for 'h' (it must not exist yet)
+    void addCounter(const NodeHandle &h);
 
     // update the counter for 'h' (must be available in memory, or it will be loaded)
     void updateCounter(const NodeHandle& h);
@@ -370,7 +380,7 @@ private:
 #endif
 
     // nodes that have changed and are pending to notify to app and dump to DB
-    std::set<Node*> mPendingConfirmNodes;
+    node_vector mNodeNotify;
 
     // holds references to unknown parent nodes until those are received (delayed-parents: dp)
     std::map<NodeHandle, node_set> mNodesWithMissingParent;
@@ -1551,7 +1561,6 @@ public:
     pcr_vector pcrnotify;
     void notifypcr(PendingContactRequest*);
 
-    node_vector nodenotify;
     void notifynode(Node*);
 
     // update transfer in the persistent cache
