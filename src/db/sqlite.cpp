@@ -971,7 +971,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
     {
         if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
         {
-            while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW) && (nodes.size() < count || count == 0))
+            while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW && (nodes.size() < count || count == 0))
             {
                 nodes.push_back(NodeHandle().set6byte(sqlite3_column_int64(stmt, 0)));
             }
