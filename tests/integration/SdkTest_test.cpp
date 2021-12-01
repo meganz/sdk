@@ -912,32 +912,17 @@ void SdkTest::getAccountsForTest(unsigned howMany)
 
     megaApi.resize(howMany);
     mApi.resize(howMany);
-
     std::vector<std::unique_ptr<RequestTracker>> trackers;
     trackers.resize(howMany);
-
     for (unsigned index = 0; index < howMany; ++index)
     {
-        if (const char *buf = getenv(envVarAccount[index].c_str()))
-        {
-            mApi[index].email.assign(buf);
-        }
-        ASSERT_LT((size_t) 0, mApi[index].email.length()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
+        const char *email = getenv(envVarAccount[index].c_str());
+        ASSERT_NE(email, nullptr);
 
-        if (const char* buf = getenv(envVarPass[index].c_str()))
-        {
-            mApi[index].pwd.assign(buf);
-        }
-        ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
+        const char *pass = getenv(envVarPass[index].c_str());
+        ASSERT_NE(pass, nullptr);
 
-        megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
-        mApi[index].megaApi = megaApi[index].get();
-
-        // helps with restoring logging after tests that fiddle with log level
-        mApi[index].megaApi->setLogLevel(MegaApi::LOG_LEVEL_MAX);
-
-        megaApi[index]->setLoggingName(to_string(index).c_str());
-        megaApi[index]->addListener(this);    // TODO: really should be per api
+        configureTestInstance(index, email, pass);
 
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
@@ -991,6 +976,26 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     // In case the last test exited without cleaning up (eg, debugging etc)
     Cleanup();
     out() << "Test setup done, test starts";
+}
+
+void SdkTest::configureTestInstance(unsigned index, const string &email, const string pass)
+{
+    ASSERT_GT(mApi.size(), index) << "Invalid mApi size";
+    ASSERT_GT(megaApi.size(), index) << "Invalid megaApi size";
+    mApi[index].email = email;
+    mApi[index].pwd = pass;
+
+    ASSERT_FALSE(mApi[index].email.empty()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
+    ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
+
+    megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    mApi[index].megaApi = megaApi[index].get();
+
+    // helps with restoring logging after tests that fiddle with log level
+    mApi[index].megaApi->setLogLevel(MegaApi::LOG_LEVEL_MAX);
+
+    megaApi[index]->setLoggingName(to_string(index).c_str());
+    megaApi[index]->addListener(this);    // TODO: really should be per api
 }
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
@@ -7613,3 +7618,245 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
 }
 
 #endif
+
+/**
+ * ___SdkNodesOnDemand___
+ * Steps:
+ *  - Configure variables to set Account2 data equal to Account1
+ *  - login in both clients
+ *  - Client1 creates tree directory with 2 levels and some files at last level
+ *  - Check Folder info of root node from client 1 and client 2
+ *  - Look for fingerprint and name in both clients
+ *  - Locallogout from client 1 and login with session
+ *  - Check folder info of root node from client 1
+ *  - Check if we recover children correctly
+ *  - Remove a folder with some files
+ *  - Check Folder info of root node from client 1 and client 2
+ */
+TEST_F(SdkTest, SdkNodesOnDemand)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkNodesOnDemand___";
+
+    // --- Load User B as account 1
+    const char *email = getenv(envVarAccount[0].c_str());
+    ASSERT_NE(email, nullptr);
+    const char *pass = getenv(envVarPass[0].c_str());
+    ASSERT_NE(pass, nullptr);
+    mApi.resize(2);
+    megaApi.resize(2);
+    configureTestInstance(1, email, pass); // index 1 = User B
+    auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+    megaApi[1]->login(email, pass, loginTracker.get());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+
+    unique_ptr<MegaNode> rootnodeB(megaApi[1]->getRootNode());
+    ASSERT_TRUE(rootnodeB);
+    ASSERT_EQ(rootnodeA->getHandle(), rootnodeB->getHandle());
+
+    // --- UserA Create tree directory ---
+    // 3 Folders in level 1
+    // 4 Folders in level 2 for every folder from level 1
+    // 5 files in every folders from level 2
+    std::string folderLevel1 = "Folder";
+    int numberFolderLevel1 = 3;
+    std::string folderLevel2 = "SubFolder";
+    int numberFolderLevel2 = 4;
+    std::string fileName = "File";
+    int numberFiles = 5;
+    std::string fileNameToSearch;
+    std::string fingerPrintToSearch;
+    MegaHandle nodeHandle = INVALID_HANDLE;
+    MegaHandle parentHandle = INVALID_HANDLE;
+    std::set<MegaHandle> childrenHandles;
+    MegaHandle nodeToRemove = INVALID_HANDLE;
+    int64_t accountSize = 0;
+    mApi[1].nodeUpdated = false;
+
+    for (int i = 0; i < numberFolderLevel1; i++)
+    {
+        std::string folderName = folderLevel1 + "_" + std::to_string(i);
+        auto nodeFirstLevel = createFolder(0, folderName.c_str(), rootnodeA.get());
+        ASSERT_NE(nodeFirstLevel, UNDEF);
+        unique_ptr<MegaNode> folderFirstLevel(megaApi[0]->getNodeByHandle(nodeFirstLevel));
+        ASSERT_TRUE(folderFirstLevel);
+
+        for (int j = 0; j < numberFolderLevel2; j++)
+        {
+            std::string subFolder = folderLevel2 +"_" + std::to_string(i) + "_" + std::to_string(j);
+            auto nodeSecondLevel = createFolder(0, subFolder.c_str(), folderFirstLevel.get());
+            ASSERT_NE(nodeSecondLevel, UNDEF);
+            unique_ptr<MegaNode> subFolderSecondLevel(megaApi[0]->getNodeByHandle(nodeSecondLevel));
+            ASSERT_TRUE(subFolderSecondLevel);
+
+            // Save handle from folder that it's going to be request children
+            if (j == numberFolderLevel2 - 2)
+            {
+               parentHandle = subFolderSecondLevel->getHandle();
+            }
+
+            // Save handle from folder that it's going to be removed
+            if (j == numberFolderLevel2 - 3)
+            {
+               nodeToRemove = subFolderSecondLevel->getHandle();
+            }
+
+            for (int k = 0; k < numberFiles; k++)
+            {
+                string filename2 = fileName + "_" + std::to_string(i) + "_" + std::to_string(j) + "_" + std::to_string(k);
+                createFile(filename2, false);
+                ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename2.data(), subFolderSecondLevel.get())) << "Cannot upload a test file";
+                unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(mApi[0].h));
+                ASSERT_NE(nodeFile, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
+
+                // Save fingerprint, name and handle for a file
+                if (i == (numberFolderLevel1 - 1) && j == (numberFolderLevel2 - 1) && k == (numberFiles -1))
+                {
+                    fileNameToSearch = nodeFile->getName();
+                    fingerPrintToSearch = nodeFile->getFingerprint();
+                    nodeHandle = nodeFile->getHandle();
+                }
+
+                // Save children handle from a folder
+                if (j == numberFolderLevel2 - 2)
+                {
+                    childrenHandles.insert(nodeFile->getHandle());
+                }
+
+                accountSize += nodeFile->getSize();
+
+                deleteFile(filename2);
+            }
+        }
+    }
+
+    ASSERT_NE(nodeToRemove, INVALID_HANDLE) << "nodeToRemove is not set";
+
+    // --- UserA Check folder info from root node ---
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
+    int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles;
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles) << "Incorrect number of Files";
+    int numberTotalOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1;
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
+
+    waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
+
+    // --- UserB Check folder info from root node ---
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberTotalOfFiles) << "Incorrect number of Files";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberTotalOfFolders) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
+
+    // --- UserA get node by fingerprint ---
+    unique_ptr<MegaNodeList> fingerPrintList(megaApi[0]->getNodesByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(fingerPrintList->size(), 0);
+    bool found = false;
+    for (int i = 0; i < fingerPrintList->size(); i++)
+    {
+        if (fingerPrintList->get(i)->getHandle() == nodeHandle)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(found);
+
+    // --- UserA get node by name ---
+    unique_ptr<MegaNodeList> searchList(megaApi[0]->search(fileNameToSearch.c_str()));
+    ASSERT_EQ(searchList->size(), 1);
+    ASSERT_EQ(searchList->get(0)->getHandle(), nodeHandle);
+
+    // --- UserB get node by fingerprint ---
+    fingerPrintList.reset(megaApi[1]->getNodesByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(fingerPrintList->size(), 0);
+    found = false;
+    for (int i = 0; i < fingerPrintList->size(); i++)
+    {
+        if (fingerPrintList->get(i)->getHandle() == nodeHandle)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(found);
+
+    // --- UserB get node by name ---
+    searchList.reset(megaApi[1]->search(fileNameToSearch.c_str()));
+    ASSERT_EQ(searchList->size(), 1);
+    ASSERT_EQ(searchList->get(0)->getHandle(), nodeHandle);
+
+    // --- UserA logout and login with session ---
+    std::unique_ptr<char[]> session(megaApi[0]->dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    // --- UserA Check folder info from root node ---
+    rootnodeA.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles) << "Incorrect number of Files";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
+
+    // --- UserA get node by fingerprint ---
+    fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(fingerPrintList->size(), 0);
+    found = false;
+    for (int i = 0; i < fingerPrintList->size(); i++)
+    {
+        if (fingerPrintList->get(i)->getHandle() == nodeHandle)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(found);
+
+    // --- UserA check children ---
+    if (parentHandle != INVALID_HANDLE)  // Get children
+    {
+        unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(parentHandle));
+        ASSERT_NE(node, nullptr);
+        std::unique_ptr<MegaNodeList> childrenList(megaApi[0]->getChildren(node.get()));
+        ASSERT_GT(childrenList->size(), 0);
+        for (int childIndex = 0; childIndex < childrenList->size(); childIndex++)
+        {
+            ASSERT_NE(childrenHandles.find(childrenList->get(childIndex)->getHandle()), childrenHandles.end());
+        }
+    }
+
+    // --- UserA remove a folder ---
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(nodeToRemove));
+    ASSERT_NE(node, nullptr);
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, node.get())) << "Cannot get Folder Info";
+    std::unique_ptr<MegaFolderInfo> removedFolder(mApi[0].mFolderInfo->copy());
+    ASSERT_EQ(API_OK, synchronousRemove(0, node.get()));
+    node.reset(megaApi[0]->getNodeByHandle(nodeToRemove));
+    ASSERT_EQ(node, nullptr);
+
+    waitForResponse(&mApi[0].nodeUpdated); // Wait until receive nodes updated at client 1
+
+    // --- UserA Check folder info from root node ---
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
+
+    waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
+
+    // --- UserB Check folder info from root node ---
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
+}
