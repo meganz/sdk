@@ -4418,8 +4418,7 @@ string makefa(const string& name, int fakecrc, int mtime)
 Node* makenode(MegaClient& mc, NodeHandle parent, ::mega::nodetype_t type, m_off_t size, handle owner, const string& attrs, ::mega::byte* key)
 {
     static handle handlegenerator = 10;
-    std::vector<Node*> dp;
-    auto newnode = new Node(&mc, &dp, NodeHandle().set6byte(++handlegenerator), parent, type, size, owner, nullptr, 1);
+    auto newnode = new Node(mc, ++handlegenerator, parent.as8byte(), type, size, owner, nullptr, 1);
 
     newnode->setkey(key);
     newnode->attrstring.reset(new string);

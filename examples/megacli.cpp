@@ -1039,12 +1039,16 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
     auto i = gOnPutNodeTag.find(client->restag);
     if (i != gOnPutNodeTag.end())
     {
-        if (client->nodenotify.size())
+        for (auto &newNode : nn)
         {
-            Node* n = client->nodenotify.back();  // same trick as the intermediate layer - only works when puts are one node at a time.
-            i->second(n);
-            gOnPutNodeTag.erase(i);
+            Node* n = client->nodebyhandle(newNode.mAddedHandle);
+            if (n)
+            {
+                i->second(n);
+            }
         }
+
+        gOnPutNodeTag.erase(i);
     }
 }
 
@@ -8138,7 +8142,7 @@ char* longestCommonPrefix(ac::CompletionState& acs)
     return strdup(s.c_str());
 }
 
-char** my_rl_completion(const char */*text*/, int /*start*/, int end)
+char** my_rl_completion(const char* /*text*/, int /*start*/, int end)
 {
     rl_attempted_completion_over = 1;
 
@@ -8558,7 +8562,7 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoAppFolder::nodes_updated(Node **/*n*/, int /*count*/)
+void DemoAppFolder::nodes_updated(Node** /*n*/, int /*count*/)
 {
 }
 

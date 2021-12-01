@@ -92,6 +92,16 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
+    // Create index for column that is not primary key (which already has an index by default)
+    sql = "CREATE INDEX IF NOT EXISTS parenthandleindex on nodes (parenthandle)";
+    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_debug << "Data base error while creating index (parenthandleindex): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
@@ -1038,7 +1048,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
     {
         if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
         {
-            while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW) && (nodes.size() < count || count == 0))
+            while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW && (nodes.size() < count || count == 0))
             {
                 nodes.push_back(NodeHandle().set6byte(sqlite3_column_int64(stmt, 0)));
             }
