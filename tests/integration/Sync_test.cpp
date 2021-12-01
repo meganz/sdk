@@ -6728,6 +6728,8 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         ASSERT_TRUE(c->confirmModel_mainthread(model.root.get(), id));
     }
 
+    c->received_node_actionpackets = false;
+
     // Trigger some filesystem notifications.
     {
         model.addfile("f", "f");
@@ -6739,6 +6741,8 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         model.addfile("d0/d0d0/d0d0f", "d0d0f");
         ASSERT_TRUE(createDataFile(SYNCROOT / "d0" / "d0d0" / "d0d0f", "d0d0f"));
     }
+
+    ASSERT_TRUE(c->waitForNodesUpdated(30)) << " no actionpacket received";
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, c.get());
@@ -9114,7 +9118,7 @@ void BackupBehavior::doTest(const string& initialContent,
         ASSERT_EQ(config.mEnabled, true);
         ASSERT_EQ(config.mError, NO_SYNC_ERROR);
     }
-    
+
     // Check that the file's been uploaded to the cloud.
     {
         StandardClient cd(TESTROOT, "cd");
