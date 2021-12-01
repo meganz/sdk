@@ -48,6 +48,7 @@
 #import "MEGABackgroundMediaUpload.h"
 #import "MEGACancelToken.h"
 #import "MEGAPushNotificationSettings.h"
+#import "MEGAPaymentMethod.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -152,19 +153,6 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
     MEGANodeAttributeFav = 4
-};
-
-typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
-    MEGAPaymentMethodBalance      = 0,
-    MEGAPaymentMethodPaypal       = 1,
-    MEGAPaymentMethodItunes       = 2,
-    MEGAPaymentMethodGoogleWallet = 3,
-    MEGAPaymentMethodBitcoin      = 4,
-    MEGAPaymentMethodUnionPay     = 5,
-    MEGAPaymentMethodFortumo      = 6,
-    MEGAPaymentMethodCreditCard   = 8,
-    MEGAPaymentMethodCentili      = 9,
-    MEGAPaymentMethodWindowsStore = 13
 };
 
 typedef NS_ENUM(NSInteger, HTTPServer) {
@@ -4825,6 +4813,15 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param lastAccessTimestamp Timestamp of the last access
  */
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp;
+
+/**
+ * @brief Cancel credit card subscriptions of the account
+ *
+ * The associated request type with this request is MEGARequestTypeCreditCardCancelSubscriptions
+ * @param reason Reason for the cancellation.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)creditCardCancelSubscriptions:(nullable NSString *)reason delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Change the password of the MEGA account.

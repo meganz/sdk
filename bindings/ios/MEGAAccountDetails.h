@@ -19,6 +19,7 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "MEGAPaymentMethod.h"
 
 typedef NS_ENUM (NSInteger, MEGAAccountType) {
     MEGAAccountTypeFree = 0,
@@ -115,6 +116,12 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  *
  */
 @property (readonly, nonatomic) NSString *subscriptionMethod;
+
+/**
+ * @brief The subscription method. For example 16.
+ *
+ */
+@property (readonly, nonatomic) MEGAPaymentMethod subscriptionMethodId;
 
 /**
  * @brief The subscription cycle

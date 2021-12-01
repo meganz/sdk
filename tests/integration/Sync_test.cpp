@@ -935,6 +935,21 @@ struct StandardClient : public MegaApp
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
     //void syncupdate_treestate(LocalNode* ln) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);   out() << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln); }}
 
+#ifdef DEBUG
+    using SyncDebugNotificationHandler =
+      std::function<void(const SyncConfig&, int, const Notification&)>;
+
+    SyncDebugNotificationHandler mOnSyncDebugNotification;
+
+    void syncdebug_notification(const SyncConfig& config,
+                                int queue,
+                                const Notification& notification) override
+    {
+        if (mOnSyncDebugNotification)
+            mOnSyncDebugNotification(config, queue, notification);
+    }
+#endif // DEBUG
+
     bool sync_syncable(Sync* sync, const char* name, LocalPath& path, Node*) override
     {
         return sync_syncable(sync, name, path);
@@ -1437,7 +1452,7 @@ struct StandardClient : public MegaApp
                 else
                 {
                     TreeProcPrintTree tppt;
-                    client.proctree(client.nodebyhandle(client.rootnodes[0]), &tppt);
+                    client.proctree(client.nodeByHandle(client.rootnodes.files), &tppt);
 
                     if (onFetchNodes)
                     {
@@ -1489,7 +1504,7 @@ struct StandardClient : public MegaApp
 
     void deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb)
     {
-        if (Node* root = client.nodebyhandle(client.rootnodes[0]))
+        if (Node* root = client.nodeByHandle(client.rootnodes.files))
         {
             if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
             {
@@ -1522,7 +1537,7 @@ struct StandardClient : public MegaApp
 
     void ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
     {
-        if (Node* root = client.nodebyhandle(client.rootnodes[0]))
+        if (Node* root = client.nodeByHandle(client.rootnodes.files))
         {
             if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
             {
@@ -1676,7 +1691,7 @@ struct StandardClient : public MegaApp
 
     Node* getcloudrootnode()
     {
-        return client.nodebyhandle(client.rootnodes[0]);
+        return client.nodeByHandle(client.rootnodes.files);
     }
 
     Node* gettestbasenode()
@@ -1686,7 +1701,7 @@ struct StandardClient : public MegaApp
 
     Node* getcloudrubbishnode()
     {
-        return client.nodebyhandle(client.rootnodes[RUBBISHNODE - ROOTNODE]);
+        return client.nodeByHandle(client.rootnodes.rubbish);
     }
 
     Node* drillchildnodebyname(Node* n, const string& path)
@@ -4412,11 +4427,11 @@ string makefa(const string& name, int fakecrc, int mtime)
     return attrjson;
 }
 
-Node* makenode(MegaClient& mc, handle parent, ::mega::nodetype_t type, m_off_t size, handle owner, const string& attrs, ::mega::byte* key)
+Node* makenode(MegaClient& mc, NodeHandle parent, ::mega::nodetype_t type, m_off_t size, handle owner, const string& attrs, ::mega::byte* key)
 {
     static handle handlegenerator = 10;
     std::vector<Node*> dp;
-    auto newnode = new Node(&mc, &dp, ++handlegenerator, parent, type, size, owner, nullptr, 1);
+    auto newnode = new Node(&mc, &dp, NodeHandle().set6byte(++handlegenerator), parent, type, size, owner, nullptr, 1);
 
     newnode->setkey(key);
     newnode->attrstring.reset(new string);
@@ -4448,17 +4463,17 @@ TEST_F(SyncTest, NodeSorting_forPhotosAndVideos)
     ::mega::byte key[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
 
     // first 3 are root nodes:
-    auto cloudroot = makenode(client, UNDEF, ROOTNODE, -1, owner, makefa("root", 1, 1), key);
-    makenode(client, UNDEF, INCOMINGNODE, -1, owner, makefa("inbox", 1, 1), key);
-    makenode(client, UNDEF, RUBBISHNODE, -1, owner, makefa("bin", 1, 1), key);
+    auto cloudroot = makenode(client, NodeHandle(), ROOTNODE, -1, owner, makefa("root", 1, 1), key);
+    makenode(client, NodeHandle(), INCOMINGNODE, -1, owner, makefa("inbox", 1, 1), key);
+    makenode(client, NodeHandle(), RUBBISHNODE, -1, owner, makefa("bin", 1, 1), key);
 
     // now some files to sort
-    auto photo1 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("abc.jpg", 1, 1570673890), key);
-    auto photo2 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("cba.png", 1, 1570673891), key);
-    auto video1 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("xyz.mov", 1, 1570673892), key);
-    auto video2 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("zyx.mp4", 1, 1570673893), key);
-    auto otherfile = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("ASDF.fsda", 1, 1570673894), key);
-    auto otherfolder = makenode(client, cloudroot->nodehandle, FOLDERNODE, -1, owner, makefa("myfolder", 1, 1570673895), key);
+    auto photo1 = makenode(client, cloudroot->nodeHandle(), FILENODE, 9999, owner, makefa("abc.jpg", 1, 1570673890), key);
+    auto photo2 = makenode(client, cloudroot->nodeHandle(), FILENODE, 9999, owner, makefa("cba.png", 1, 1570673891), key);
+    auto video1 = makenode(client, cloudroot->nodeHandle(), FILENODE, 9999, owner, makefa("xyz.mov", 1, 1570673892), key);
+    auto video2 = makenode(client, cloudroot->nodeHandle(), FILENODE, 9999, owner, makefa("zyx.mp4", 1, 1570673893), key);
+    auto otherfile = makenode(client, cloudroot->nodeHandle(), FILENODE, 9999, owner, makefa("ASDF.fsda", 1, 1570673894), key);
+    auto otherfolder = makenode(client, cloudroot->nodeHandle(), FOLDERNODE, -1, owner, makefa("myfolder", 1, 1570673895), key);
 
     node_vector v{ photo1, photo2, video1, video2, otherfolder, otherfile };
     for (auto n : v) n->setkey(key);
@@ -4496,7 +4511,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
 
-    auto targethandle = NodeHandle().set6byte(standardclient.client.rootnodes[0]);
+    auto targethandle = standardclient.client.rootnodes.files;
 
     std::atomic<bool> putnodesDone{false};
     standardclient.resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
@@ -9029,5 +9044,119 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
+#ifdef DEBUG
+
+class BackupBehavior
+  : public ::testing::Test
+{
+public:
+    void doTest(const string& initialContent, const string& updatedContent);
+}; // BackupBehavior
+
+void BackupBehavior::doTest(const string& initialContent,
+                            const string& updatedContent)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = std::chrono::seconds(8);
+
+    StandardClient cu(TESTROOT, "cu");
+
+    // Log callbacks.
+    cu.logcb = true;
+
+    // Log in uploader client.
+    ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Add and start a backup sync.
+    const auto idU = cu.setupSync_mainthread("su", "s", true);
+    ASSERT_NE(idU, UNDEF);
+
+    // Add a file for the engine to synchronize.
+    Model m;
+
+    m.addfile("f", initialContent);
+    m.generate(cu.fsBasePath / "su");
+
+    // Wait for the engine to process and upload the file.
+    waitonsyncs(TIMEOUT, &cu);
+
+    // Make sure the file made it to the cloud.
+    ASSERT_TRUE(cu.confirmModel_mainthread(m.root.get(), idU));
+
+    // Update file.
+    {
+        // Capture file's current mtime.
+        auto mtime = fs::last_write_time(cu.fsBasePath / "su" / "f");
+
+        // Update the file's content.
+        m.addfile("f", updatedContent);
+
+        // Hook callback so we can tweak the mtime.
+        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification& notification) {
+            // Roll back the mtime now that we know it will be processed.
+            fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
+
+            // No need for the engine to call us again.
+            cu.mOnSyncDebugNotification = nullptr;
+        };
+
+        // Write the file.
+        m.generate(cu.fsBasePath / "su");
+    }
+
+    // Wait for the engine to process the change.
+    waitonsyncs(TIMEOUT, &cu);
+
+    // Make sure the sync hasn't been disabled.
+    {
+        auto config = cu.syncConfigByBackupID(idU);
+
+        ASSERT_EQ(config.mEnabled, true);
+        ASSERT_EQ(config.mError, NO_SYNC_ERROR);
+    }
+    
+    // Check that the file's been uploaded to the cloud.
+    {
+        StandardClient cd(TESTROOT, "cd");
+
+        // Log in client.
+        ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+        // Add and start a new sync.
+        auto idD = cd.setupSync_mainthread("sd", "s");
+        ASSERT_NE(idD, UNDEF);
+
+        // Wait for the sync to complete.
+        waitonsyncs(TIMEOUT, &cd);
+
+        // Make sure we haven't uploaded anything.
+        ASSERT_TRUE(cu.confirmModel_mainthread(m.root.get(), idU));
+
+        // Necessary since we've downloaded a file.
+        m.ensureLocalDebrisTmpLock("");
+
+        // Check that we've downloaded what we should've.
+        ASSERT_TRUE(cd.confirmModel_mainthread(m.root.get(), idD));
+    }
+}
+
+TEST_F(BackupBehavior, SameMTimeSmallerCRC)
+{
+    // File's small enough that the content is the CRC.
+    auto initialContent = string("f");
+    auto updatedContent = string("e");
+
+    doTest(initialContent, updatedContent);
+}
+
+TEST_F(BackupBehavior, SameMTimeSmallerSize)
+{
+    auto initialContent = string("ff");
+    auto updatedContent = string("f");
+
+    doTest(initialContent, updatedContent);
+}
+
+#endif // DEBUG
 
 #endif

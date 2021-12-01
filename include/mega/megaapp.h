@@ -24,6 +24,7 @@
 
 namespace mega {
 
+struct Notification;
 struct UnifiedSync;
 
 // callback interface
@@ -275,6 +276,13 @@ struct MEGA_API MegaApp
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_local_lockretry(bool) { }
     virtual void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) { }
+
+#ifdef DEBUG
+    // Called right before the sync engine processes a filesystem notification.
+    virtual void syncdebug_notification(const SyncConfig& config,
+                                        int queue,
+                                        const Notification& notification) { };
+#endif // DEBUG
 
     // sync filename filter
     virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)

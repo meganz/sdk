@@ -236,7 +236,13 @@ public:
     string uid;
 
     // root nodes (files, incoming, rubbish)
-    handle rootnodes[3];
+    struct Rootnodes
+    {
+        NodeHandle files;
+        NodeHandle inbox;
+        NodeHandle rubbish;
+    } rootnodes;
+
 
     // all nodes
     node_map nodes;
@@ -717,9 +723,6 @@ public:
     // send a DNS request to resolve a hostname
     void dnsrequest(const char*);
 
-    // send a GeLB request for a service with a timeout (in ms) and a number of retries
-    void gelbrequest(const char*, int, int);
-
     // send chat stats
     void sendchatstats(const char*, int port);
 
@@ -1081,10 +1084,6 @@ private:
     // maximum number of concurrent putfa
     static const int MAXPUTFA;
 
-#ifdef ENABLE_SYNC
-    Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
-#endif
-
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
 
@@ -1148,9 +1147,6 @@ private:
 
     // read node tree from JSON object
     void readtree(JSON*);
-
-    // used by wait() to handle event timing
-    void checkevent(dstime, dstime*, dstime*);
 
     // converts UTF-8 to 32-bit word array
     static char* utf8_to_a32forjs(const char*, int*);
@@ -1385,8 +1381,6 @@ public:
     // server-client request sequence number
     SCSN scsn;
 
-    void purgenodes(node_vector* = NULL);
-    void purgeusers(user_vector* = NULL);
     bool readusers(JSON*, bool actionpackets);
 
     user_vector usernotify;
@@ -1422,9 +1416,6 @@ public:
     // write changed/added/deleted users to the DB cache and notify the
     // application
     void notifypurge();
-
-    // remove node subtree
-    void deltree(handle);
 
     Node* nodeByHandle(NodeHandle) const;
     Node* nodeByPath(const char* path, Node* node = nullptr);
@@ -1603,10 +1594,7 @@ public:
     // transfer queue dispatch/retry handling
     void dispatchTransfers();
 
-    void defer(direction_t, int td, int = 0);
     void freeq(direction_t);
-
-    dstime transferretrydelay();
 
     // client-server request double-buffering
     RequestDispatcher reqs;
@@ -1639,9 +1627,6 @@ public:
     error readmiscflags(JSON*);
 
     void procph(JSON*);
-
-    void readcr();
-    void readsr();
 
     void procsnk(JSON*);
     void procsuk(JSON*);

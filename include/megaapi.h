@@ -1280,7 +1280,7 @@ class MegaUser
             CHANGE_TYPE_ALIAS                       = 0x1000000,
             CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
-            //CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,  // this bit can be used for another type of change. Please, recycle :)
+            CHANGE_TYPE_MY_BACKUPS_FOLDER           = 0x8000000,
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
         };
 
@@ -1357,6 +1357,12 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_GEOLOCATION    = 0x100000
          * Check if option for geolocation messages has changed
          *
+         * - MegaUser::CHANGE_TYPE_CAMERA_UPLOADS_FOLDER = 0x200000
+         * Check if "Camera uploads" folder has changed
+         *
+         * - MegaUser::CHANGE_TYPE_MY_CHAT_FILES_FOLDER = 0x400000
+         * Check if "My chat files" folder changed
+         *
          * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
          *
@@ -1368,6 +1374,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_DEVICE_NAMES = 0x4000000
          * Check if device names have changed
+         *
+         * - MegaUser::CHANGE_TYPE_MY_BACKUPS_FOLDER = 0x8000000
+         * Check if "My Backups" folder has changed
          *
          * @return true if this user has an specific change
          */
@@ -11621,7 +11630,7 @@ class MegaApi
         void creditCardQuerySubscriptions(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Cancel credit card subscriptions if the account
+         * @brief Cancel credit card subscriptions of the account
          *
          * The associated request type with this request is MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS
          * @param reason Reason for the cancellation. It can be NULL.
@@ -19161,6 +19170,13 @@ public:
      * @return Subscription method. For example "Credit Card".
      */
     virtual char* getSubscriptionMethod();
+    
+    /**
+     * @brief Get the subscription method id
+     *
+     * @return Subscription method. For example 16.
+     */
+    virtual int getSubscriptionMethodId();
 
     /**
      * @brief Get the subscription cycle

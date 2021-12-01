@@ -978,6 +978,10 @@ void Sync::setBackupMonitoring()
 
     assert(config.getBackupState() == SYNC_BACKUP_MIRROR);
 
+    LOG_verbose << "Sync "
+                << toHandle(config.mBackupId)
+                << " transitioning to monitoring mode.";
+
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
     assert(client);
@@ -2132,6 +2136,10 @@ dstime Sync::procscanq(int q)
             dirnotify->notifyq[q].unpopFront(notification);
             return notification.timestamp - dsmin;
         }
+
+#ifdef DEBUG
+        client->app->syncdebug_notification(getConfig(), q, notification);
+#endif // DEBUG
 
         if ((l = notification.localnode) != (LocalNode*)~0)
         {
