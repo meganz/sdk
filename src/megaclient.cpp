@@ -17960,7 +17960,8 @@ void NodeManager::subtractFromRootCounter(const Node& n)
     auto it = mNodeCounters.find(firstValidAntecestor);
     if (it != mNodeCounters.end())
     {
-        it->second -= getNodeCounter(n.nodeHandle(), n.parent->type == FILENODE);
+        bool parentIsFile = n.parent ? n.parent->type == FILENODE : false;
+        it->second -= getNodeCounter(n.nodeHandle(), parentIsFile);
     }
 }
 
