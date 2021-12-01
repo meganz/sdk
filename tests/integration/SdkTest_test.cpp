@@ -7663,11 +7663,11 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     // 4 Folders in level 2 for every folder from level 1
     // 5 files in every folders from level 2
     std::string folderLevel1 = "Folder";
-    unsigned int numberFolderLevel1 = 3;
+    int numberFolderLevel1 = 3;
     std::string folderLevel2 = "SubFolder";
-    unsigned int numberFolderLevel2 = 4;
+    int numberFolderLevel2 = 4;
     std::string fileName = "File";
-    unsigned int numberFiles = 5;
+    int numberFiles = 5;
     std::string fileNameToSearch;
     std::string fingerPrintToSearch;
     MegaHandle nodeHandle = INVALID_HANDLE;
@@ -7677,7 +7677,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     int64_t accountSize = 0;
     mApi[1].nodeUpdated = false;
 
-    for (unsigned int i = 0; i < numberFolderLevel1; i++)
+    for (int i = 0; i < numberFolderLevel1; i++)
     {
         std::string folderName = folderLevel1 + "_" + std::to_string(i);
         auto nodeFirstLevel = createFolder(0, folderName.c_str(), rootnodeA.get());
@@ -7685,7 +7685,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         unique_ptr<MegaNode> folderFirstLevel(megaApi[0]->getNodeByHandle(nodeFirstLevel));
         ASSERT_TRUE(folderFirstLevel);
 
-        for (unsigned int j = 0; j < numberFolderLevel2; j++)
+        for (int j = 0; j < numberFolderLevel2; j++)
         {
             std::string subFolder = folderLevel2 +"_" + std::to_string(i) + "_" + std::to_string(j);
             auto nodeSecondLevel = createFolder(0, subFolder.c_str(), folderFirstLevel.get());
@@ -7705,7 +7705,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
                nodeToRemove = subFolderSecondLevel->getHandle();
             }
 
-            for (unsigned int k = 0; k < numberFiles; k++)
+            for (int k = 0; k < numberFiles; k++)
             {
                 string filename2 = fileName + "_" + std::to_string(i) + "_" + std::to_string(j) + "_" + std::to_string(k);
                 createFile(filename2, false);
@@ -7738,18 +7738,18 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
-    unsigned int numberOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles;
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberOfFiles) << "Incorrect number of Files";
-    unsigned int numberOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1;
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberOfFolders) << "Incorrect number of Folders";
+    int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles;
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles) << "Incorrect number of Files";
+    int numberTotalOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1;
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
 
     waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
 
     // --- UserB Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
-    ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberOfFiles) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberOfFolders) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberTotalOfFiles) << "Incorrect number of Files";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberTotalOfFolders) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
 
     // --- UserA get node by fingerprint ---
@@ -7802,8 +7802,8 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     rootnodeA.reset(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootnodeA);
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberOfFiles) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberOfFolders) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles) << "Incorrect number of Files";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
 
     // --- UserA get node by fingerprint ---
@@ -7848,15 +7848,15 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
 
     waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
 
     // --- UserB Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
-    ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
-    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
+    ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
 }
