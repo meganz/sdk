@@ -17553,7 +17553,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
     }
     n->plink = plink;
 
-    // TODO Nodes on demand fingerprint review if it's necessary n->setattr is called at line 17632
     n->setfingerprint();
 
     if (ptr == end)
