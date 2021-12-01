@@ -79,6 +79,8 @@ struct MEGA_API File: public FileFingerprint
 
         // is the source file temporary?
         bool temporaryfile : 1;
+
+        VersioningOption mVersioningOption = NoVersioning;
     };
 
     // private auth to access the node

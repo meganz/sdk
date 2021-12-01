@@ -949,7 +949,8 @@ bool CommandSetAttr::procresult(Result r)
 // (the result is not processed directly - we rely on the server-client
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
-                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
+                                 const char* userhandle, VersioningOption vo,
+                                 vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
                                  Completion&& resultFunction)
   : mResultFunction(resultFunction)
 {
@@ -985,8 +986,27 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     //     vb:1 to force it on
     //     vb:0 to force it off
     // Dont provide it at all to rely on the account-wide setting (as of the moment the command is processed).
-    bool versionsEnabled = !client->versions_disabled;
-    arg("vb", versionsEnabled);
+    switch (vo)
+    {
+        case NoVersioning:
+            break;
+
+        case ClaimOldVersion:
+            arg("vb", 1);
+            break;
+
+        case ReplaceOldVersion:
+            arg("vb", m_off_t(0));
+            break;
+
+        case UseLocalVersioningFlag:
+            arg("vb", !client->versions_disabled);
+            vo = !client->versions_disabled ? ClaimOldVersion : ReplaceOldVersion;
+            break;
+
+        case UseServerVersioningFlag:
+            break;
+    }
 
     beginarray("n");
 
@@ -1037,11 +1057,12 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
             arg("p", (byte*)&nn[i].parenthandle, MegaClient::NODEHANDLE);
         }
 
-        if (nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+        if (vo != NoVersioning &&
+            nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }
-        nn[i].mVersionsEnabled = versionsEnabled;
+        nn[i].mVersioningOption = vo;
 
         arg("t", nn[i].type);
         arg("a", (byte*)nn[i].attrstring->data(), int(nn[i].attrstring->size()));
@@ -5247,7 +5268,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
 
-                        client->putnodes(client->rootnodes.files, move(newnodes), nullptr, 0);
+                        client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0);
                     }
                     else if (havekey)
                     {

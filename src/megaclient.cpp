@@ -4759,7 +4759,7 @@ bool MegaClient::procsc()
                                 }
                                 nextreqtag();
                                 file->dbid = cachedfilesdbids.at(i);
-                                if (!startxfer(type, file, committer))
+                                if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and restored them?
                                 {
                                     tctable->del(cachedfilesdbids.at(i));
                                     continue;
@@ -7946,9 +7946,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
+    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
@@ -8706,7 +8706,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     nn_nni.added = true;
                     nn_nni.mAddedHandle = h;
 
-                    if (nn_nni.ovhandle != UNDEF && !nn_nni.mVersionsEnabled)
+                    if (nn_nni.ovhandle != UNDEF && nn_nni.mVersioningOption == ReplaceOldVersion)
                     {
                         // replacing an existing file (eg, by uploading a same-name file), with versioning off.
                         assert(n->type == FILENODE);
@@ -12390,7 +12390,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
             }
             nextreqtag();
             file->dbid = cachedfilesdbids.at(i);
-            if (!startxfer(type, file, committer))
+            if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and reused them here?
             {
                 tctable->del(cachedfilesdbids.at(i));
                 continue;
@@ -14615,7 +14615,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
                             nextreqtag();
                             DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                            startxfer(GET, rit->second->syncget, committer);
+                            startxfer(GET, rit->second->syncget, committer, false, false, false, UseLocalVersioningFlag);
                             syncactivity = true;
                         }
                     }
@@ -15375,9 +15375,9 @@ void MegaClient::syncupdate()
             {
                 l->treestate(TREESTATE_PENDING);
 
-                // the overwrite will happen upon PUT completion
+                // the overwrite (or replace) will happen upon PUT completion
                 nextreqtag();
-                startxfer(PUT, l, committer);
+                startxfer(PUT, l, committer, false, false, false, UseLocalVersioningFlag);
 
                 l->sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, l->size, 0);
 
@@ -15400,7 +15400,9 @@ void MegaClient::syncupdate()
                 auto nextTag = nextreqtag();
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodeHandle(),
-                                                NULL, move(nn),
+                                                NULL,
+                                                UseLocalVersioningFlag, // this must match the use of versions_disabled above
+                                                move(nn),
                                                 nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC,
                                                 nullptr,
@@ -15709,7 +15711,9 @@ void MegaClient::execmovetosyncdebris()
             makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
-        reqs.add(new CommandPutNodes(this, tn->nodeHandle(), NULL, move(nnVec),
+        reqs.add(new CommandPutNodes(this, tn->nodeHandle(), NULL,
+                                        NoVersioning,
+                                        move(nnVec),
                                         -reqtag,
                                         PUTNODES_SYNCDEBRIS,
                                         nullptr,
@@ -15769,8 +15773,10 @@ void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist)
+bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo)
 {
+    f->mVersioningOption = vo;
+
     if (!f->transfer)
     {
         if (d == PUT)

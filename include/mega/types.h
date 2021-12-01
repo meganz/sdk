@@ -971,6 +971,14 @@ typedef enum
 }
 BackupType;
 
+enum VersioningOption
+{
+    NoVersioning,
+    ClaimOldVersion,
+    ReplaceOldVersion,
+    UseLocalVersioningFlag,
+    UseServerVersioningFlag
+};
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
 // either always be NULL or if one refers to the other, the other refers to the one.
