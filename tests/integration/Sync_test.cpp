@@ -10230,6 +10230,115 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
+#ifdef DEBUG
+
+class BackupBehavior
+  : public ::testing::Test
+{
+public:
+    void doTest(const string& initialContent, const string& updatedContent);
+}; // BackupBehavior
+
+void BackupBehavior::doTest(const string& initialContent,
+                            const string& updatedContent)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = std::chrono::seconds(8);
+
+    StandardClient cu(TESTROOT, "cu");
+
+    // Log callbacks.
+    cu.logcb = true;
+
+    // Log in uploader client.
+    ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Add and start a backup sync.
+    const auto idU = cu.setupSync_mainthread("su", "s", true);
+    ASSERT_NE(idU, UNDEF);
+
+    // Add a file for the engine to synchronize.
+    Model m;
+
+    m.addfile("f", initialContent);
+    m.generate(cu.fsBasePath / "su");
+
+    // Wait for the engine to process and upload the file.
+    waitonsyncs(TIMEOUT, &cu);
+
+    // Make sure the file made it to the cloud.
+    ASSERT_TRUE(cu.confirmModel_mainthread(m.root.get(), idU));
+
+    // Update file.
+    {
+        // Capture file's current mtime.
+        auto mtime = fs::last_write_time(cu.fsBasePath / "su" / "f");
+
+        // Update the file's content.
+        m.addfile("f", updatedContent);
+
+        // Write the file.
+        m.generate(cu.fsBasePath / "su");
+
+        // Rewind the file's mtime.
+        fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
+    }
+
+    // Wait for the engine to process the change.
+    waitonsyncs(TIMEOUT, &cu);
+
+    // Make sure the sync hasn't been disabled.
+    {
+        auto config = cu.syncConfigByBackupID(idU);
+
+        ASSERT_EQ(config.mEnabled, true);
+        ASSERT_EQ(config.mError, NO_SYNC_ERROR);
+    }
+    
+    // Check that the file's been uploaded to the cloud.
+    {
+        StandardClient cd(TESTROOT, "cd");
+
+        // Log in client.
+        ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+        // Add and start a new sync.
+        auto idD = cd.setupSync_mainthread("sd", "s");
+        ASSERT_NE(idD, UNDEF);
+
+        // Wait for the sync to complete.
+        waitonsyncs(TIMEOUT, &cd);
+
+        // Make sure we haven't uploaded anything.
+        ASSERT_TRUE(cu.confirmModel_mainthread(m.root.get(), idU));
+
+        // Necessary since we've downloaded a file.
+        m.ensureLocalDebrisTmpLock("");
+
+        // Check that we've downloaded what we should've.
+        ASSERT_TRUE(cd.confirmModel_mainthread(m.root.get(), idD));
+    }
+}
+
+TEST_F(BackupBehavior, SameMTimeSmallerCRC)
+{
+    // File's small enough that the content is the CRC.
+    auto initialContent = string("f");
+    auto updatedContent = string("e");
+
+    doTest(initialContent, updatedContent);
+}
+
+TEST_F(BackupBehavior, SameMTimeSmallerSize)
+{
+    auto initialContent = string("ff");
+    auto updatedContent = string("f");
+
+    doTest(initialContent, updatedContent);
+}
+
+#endif // DEBUG
+
 TEST_F(SyncTest, RemoteReplaceDirectory)
 {
     auto TESTROOT = makeNewTestRoot();

@@ -24,6 +24,7 @@
 
 namespace mega {
 
+struct Notification;
 struct UnifiedSync;
 
 // callback interface
