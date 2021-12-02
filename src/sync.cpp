@@ -2979,10 +2979,13 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
         return;
     }
 
+    // Preprocess input so to remove all extraneous whitespace.
+    auto strippedData = JSON::stripWhitespace(data);
+
     // Try and translate JSON back into sync configs.
     SyncConfigVector configs;
 
-    if (!importSyncConfigs(data, configs))
+    if (!importSyncConfigs(strippedData, configs))
     {
         // No love. Inform the client.
         completion(API_EREAD);
@@ -3178,7 +3181,7 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     return true;
 }
 
-bool Syncs::importSyncConfigs(const char* data, SyncConfigVector& configs)
+bool Syncs::importSyncConfigs(const string& data, SyncConfigVector& configs)
 {
     static const string TYPE_CONFIGS = "configs";
 
