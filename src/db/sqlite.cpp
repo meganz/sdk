@@ -541,39 +541,8 @@ SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAcce
 
 }
 
-bool SqliteAccountState::processSqlQueryNodeMap(sqlite3_stmt *stmt, std::map<mega::NodeHandle, NodeSerialized> &nodes)
-{
-    assert(stmt);
-    int sqlResult = SQLITE_ERROR;
-    while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW))
-    {
-        NodeHandle nodeHandle;
-        nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
-
-        NodeSerialized node;
-        node.mDecrypted = sqlite3_column_int(stmt, 1);
-
-        const void* data = sqlite3_column_blob(stmt, 2);
-        int size = sqlite3_column_bytes(stmt, 2);
-        if (data && size)
-        {
-            node.mNode = std::string(static_cast<const char*>(data), size);
-            nodes[nodeHandle] = node;
-        }
-    }
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to processSqlQueryNodeMap from database: " << dbfile << err;
-        assert(!"Unable to processSqlQueryNodeMap from database.");
-        return false;
-    }
-
-    return true;
-}
-
-bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes)
+template <class T>
+bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, T &nodes)
 {
     assert(stmt);
     int sqlResult = SQLITE_ERROR;
@@ -590,7 +559,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
         if (data && size)
         {
             node.mNode = std::string(static_cast<const char*>(data), size);
-            nodes.emplace_back(std::make_pair(nodeHandle, std::move(node)));
+            nodes.insert(nodes.end(), std::make_pair(nodeHandle, std::move(node)));
         }
     }
 
@@ -795,7 +764,7 @@ bool SqliteAccountState::getNodes(std::vector<NodeSerialized> &nodes)
     return true;
 }
 
-bool SqliteAccountState::getNodesByFingerprint(const FileFingerprint &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
+bool SqliteAccountState::getNodesByFingerprint(const FileFingerprint &fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes)
 {
     if (!db)
     {
@@ -811,7 +780,7 @@ bool SqliteAccountState::getNodesByFingerprint(const FileFingerprint &fingerprin
         fingerprint.serializefingerprint(&fp);
         if ((sqlResult = sqlite3_bind_blob(stmt, 1, fp.data(), (int)fp.size(), SQLITE_STATIC)) == SQLITE_OK)
         {
-            result = processSqlQueryNodeMap(stmt, nodes);
+            result = processSqlQueryNodes(stmt, nodes);
         }
     }
 
@@ -827,7 +796,7 @@ bool SqliteAccountState::getNodesByFingerprint(const FileFingerprint &fingerprin
     return result;
 }
 
-bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
+bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes)
 {
     if (!db)
     {
@@ -841,7 +810,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
     {
         if ((sqlResult = sqlite3_bind_blob(stmt, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
         {
-            result = processSqlQueryNodeMap(stmt, nodes);
+            result = processSqlQueryNodes(stmt, nodes);
         }
     }
 
@@ -902,7 +871,7 @@ bool SqliteAccountState::getNodeByFingerprint(const FileFingerprint &fingerprint
     return true;
 }
 
-bool SqliteAccountState::getRootNodes(std::map<mega::NodeHandle, NodeSerialized> &nodes)
+bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes)
 {
     if (!db)
     {
@@ -917,7 +886,7 @@ bool SqliteAccountState::getRootNodes(std::map<mega::NodeHandle, NodeSerialized>
         NodeHandle nodeHandleUndef; // By default is set as undef
         if ((sqlResult = sqlite3_bind_int64(stmt, 1, nodeHandleUndef.as8byte())) == SQLITE_OK)
         {
-            result = processSqlQueryNodeMap(stmt, nodes);
+            result = processSqlQueryNodes(stmt, nodes);
         }
     }
 
@@ -932,7 +901,7 @@ bool SqliteAccountState::getRootNodes(std::map<mega::NodeHandle, NodeSerialized>
     return result;
 }
 
-bool SqliteAccountState::getNodesWithSharesOrLink(std::map<mega::NodeHandle, mega::NodeSerialized> &nodes, ShareType_t shareType)
+bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, ShareType_t shareType)
 {
     if (!db)
     {
@@ -946,7 +915,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::map<mega::NodeHandle, meg
     {
         if ((sqlResult = sqlite3_bind_int(stmt, 1, static_cast<int>(shareType))) == SQLITE_OK)
         {
-            result = processSqlQueryNodeMap(stmt, nodes);
+            result = processSqlQueryNodes(stmt, nodes);
         }
     }
 
@@ -976,7 +945,7 @@ bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::map<NodeHandl
     {
         if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
         {
-            result = processSqlQueryNodeMap(stmt, children);
+            result = processSqlQueryNodes(stmt, children);
         }
     }
 
@@ -1005,7 +974,7 @@ bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::
     {
         if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
         {
-            while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW))
+            while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
             {
                 int64_t h = sqlite3_column_int64(stmt, 0);
                 children.push_back(NodeHandle().set6byte(h));
@@ -1047,7 +1016,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::
     int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        result = processSqlQueryNodeMap(stmt, nodes);
+        result = processSqlQueryNodes(stmt, nodes);
     }
 
     sqlite3_finalize(stmt);

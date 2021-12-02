@@ -16974,16 +16974,16 @@ node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprin
         return nodes;
     }
 
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
-    mTable->getNodesByFingerprint(fingerprint, nodeMap);
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesByFingerprint(fingerprint, nodesFromTable);
 
-    for (const auto nodeMapIt : nodeMap)
+    for (const auto& nHandleSerialized : nodesFromTable)
     {
         Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
+        auto nodeIt = mNodes.find(nHandleSerialized.first);
         if (nodeIt == mNodes.end())
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
         }
         else
         {
@@ -17004,16 +17004,16 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
         return nodes;
     }
 
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
-    mTable->getNodesByOrigFingerprint(fingerprint, nodeMap);
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesByOrigFingerprint(fingerprint, nodesFromTable);
 
-    for (const auto nodeMapIt : nodeMap)
+    for (const auto& nHandleSerialized : nodesFromTable)
     {
         Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
+        auto nodeIt = mNodes.find(nHandleSerialized.first);
         if (nodeIt == mNodes.end())
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
         }
         else
         {
@@ -17067,16 +17067,16 @@ node_vector NodeManager::getRootNodes()
         return nodes;
     }
 
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
-    mTable->getRootNodes(nodeMap);
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getRootNodes(nodesFromTable);
 
-    for (const auto nodeMapIt : nodeMap)
+    for (const auto& nHandleSerialized : nodesFromTable)
     {
         Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
+        auto nodeIt = mNodes.find(nHandleSerialized.first);
         if (nodeIt == mNodes.end())
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
         }
         else
         {
@@ -17124,15 +17124,15 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         return nodes;
     }
 
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
-    mTable->getNodesWithSharesOrLink(nodeMap, shareType);
-    for (const auto nodeMapIt : nodeMap)
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesWithSharesOrLink(nodesFromTable, shareType);
+    for (const auto& nHandleSerialized : nodesFromTable)
     {
         Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
+        auto nodeIt = mNodes.find(nHandleSerialized.first);
         if (nodeIt == mNodes.end())
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
         }
         else
         {
