@@ -14366,7 +14366,8 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
-// SDK-1515: Test for same fsid: Create, edit and move a file.
+// SDK-1515
+// First test for same fsid: Create file, edit and move it
 TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
 {
     const auto kSyncTimeout = std::chrono::seconds(15);
@@ -14446,6 +14447,102 @@ TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
 
     // Move file on model
     ASSERT_TRUE( actorModel.movenode( pathToFile , movedToFolder ));
+
+    waitonsyncs(kSyncTimeout, &actor);
+    ASSERT_TRUE( actor.confirmModel_mainthread( testRootNode , actorBackupId));
+
+    auto newLocalPath = LocalPath::fromAbsolutePath( newFilePath.c_str());
+
+    // Check the fsid of the file remains the same
+    auto newFsAccess = actor.client.fsaccess->newfileaccess(followSymbLinksFALSE );
+    ASSERT_TRUE(newFsAccess->fopen( newLocalPath, readTRUE, writeFALSE));
+    ASSERT_NE(newFsAccess->fsid, UNDEF);
+
+    ASSERT_EQ( initialFSId, newFsAccess->fsid );
+}
+
+// SDK-1515:
+// Second test for same fsid: Create file, move and edit it.
+TEST_F(SyncTest, BasicSync_FileMovedThenEdited)
+{
+    const auto kSyncTimeout = std::chrono::seconds(15);
+
+    // std::fylesystem::path
+    const fs::path fsTestRoot = makeNewTestRoot();
+
+    const string actorName = "actor"; 
+
+    StandardClient actor(fsTestRoot, actorName); // Active client
+    actor.logcb = true; // Log callbacks.
+
+    const int depth  = 0;
+    const int fanout = 0;
+
+    // Path components
+    const string testFolder     = "TestBaseFolder";
+    const string originalFolder = "OriginalFolder";
+    const string movedToFolder  = "MovedToFolder";
+    const string fileName       = "file";
+
+    // Log actor and observer in.
+    ASSERT_TRUE(actor.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD",
+                testFolder, depth, fanout));
+
+    // Set up syncs.
+    const bool isBackupFALSE = false;
+    const bool uploadIgnoreFirstFALSE = false;
+
+    // Sync threads
+    handle actorBackupId = actor.setupSync_mainthread(
+            testFolder,
+            testFolder, isBackupFALSE, uploadIgnoreFirstFALSE );
+
+    ASSERT_NE(actorBackupId, UNDEF);
+
+    Model actorModel; // Confirm model.
+
+    string pathToFile = originalFolder +  "/" + "file";
+
+    actorModel.addfile( pathToFile );
+    actorModel.addfolder( movedToFolder);
+
+    // Model hierarchy on FS 
+    actorModel.generate( actor.fsBasePath / testFolder );
+
+    waitonsyncs(kSyncTimeout, &actor);
+
+    const bool followSymbLinksFALSE = false;
+    auto fsAccess = actor.client.fsaccess->newfileaccess(followSymbLinksFALSE );
+
+    auto testRootNode = actorModel.findnode( "", nullptr );
+    ASSERT_NE(nullptr, testRootNode);
+
+    ASSERT_TRUE( actor.confirmModel_mainthread( testRootNode , actorBackupId));
+
+    // get fsid to verify is the same later
+    auto filePath = fsTestRoot / actorName / testFolder / originalFolder / fileName;
+
+    auto localPath = LocalPath::fromAbsolutePath(filePath.c_str());
+    const bool readTRUE = true;
+    const bool writeFALSE = false;
+
+    // Get the fsid of the testing file
+    ASSERT_TRUE(fsAccess->fopen( localPath, readTRUE, writeFALSE));
+    auto initialFSId = fsAccess->fsid;
+    ASSERT_NE(initialFSId, UNDEF);
+
+    // std::filesystem move file on FS
+    auto newFilePath = fsTestRoot / actorName / testFolder / movedToFolder / fileName;
+    fs::rename( filePath, newFilePath );
+
+    // Move file on model
+    ASSERT_TRUE( actorModel.movenode( pathToFile , movedToFolder ));
+
+    string movedPathToFile = movedToFolder +  "/" + "file";
+    // Modify the testing file content on Model
+    actorModel.addfile( movedPathToFile, "New content for this file");
+    // Changes to FS
+    actorModel.generate( actor.fsBasePath / testFolder );
 
     waitonsyncs(kSyncTimeout, &actor);
     ASSERT_TRUE( actor.confirmModel_mainthread( testRootNode , actorBackupId));
