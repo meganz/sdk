@@ -14371,7 +14371,7 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
 // It is too long :-( 
 TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
 {
-    const auto kSyncTimeout = std::chrono::seconds(4);
+    const auto kSyncTimeout = std::chrono::seconds(15);
 
     // std::fylesystem::path
     const fs::path fsTestRoot = makeNewTestRoot();
@@ -14423,9 +14423,8 @@ TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
 
     waitonsyncs(kSyncTimeout, &actor);
 
-    // To be corrected for MT access and protection
-    auto fileModelNode = actorModel.findnode( pathToFile );
-    ASSERT_NE(nullptr, fileModelNode);
+    auto fileModelNodePtr = actorModel.findnode( pathToFile );
+    ASSERT_NE(nullptr, fileModelNodePtr);
 
     auto testRootNode = actorModel.findnode( "", nullptr );
     ASSERT_NE(nullptr, testRootNode);
@@ -14442,13 +14441,18 @@ TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
     ASSERT_NE(fileNode, nullptr);
 
     // std::filesystem change content of file (update)
+    // Encapsulate
     auto filePath = fsTestRoot / actorName / testFolder / originalFolder / fileName;
     std::ofstream alterFile(filePath, std::ios::app | std::ios::out);
     ASSERT_TRUE( alterFile.good());
-    alterFile << "\nAdditional information appended\n";
+    string extraContent = "\nAdditional information appended\n";
+    alterFile << extraContent;
+    fileModelNodePtr->content += extraContent;
+    size_t alteredFileSize = alterFile.tellp();
     alterFile.close();
 
-
+    // File node from model
+    ASSERT_EQ(fileModelNodePtr->content.size(), alteredFileSize);
     // std::filesystem move
     auto newFilePath = fsTestRoot / actorName / testFolder / movedToFolder / fileName;
     fs::rename( filePath, newFilePath );
