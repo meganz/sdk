@@ -238,6 +238,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
       {
           return lhs.type == rhs.type
                  && lhs.fsid == rhs.fsid
+                 && lhs.fingerprint.crc == rhs.fingerprint.crc
                  && lhs.fingerprint.mtime == rhs.fingerprint.mtime
                  && lhs.fingerprint.size == rhs.fingerprint.size;
       };
