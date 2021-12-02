@@ -14366,7 +14366,6 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
-
 // Test for same fsid. First edited and then moved
 // It is too long :-( 
 TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
@@ -14440,6 +14439,8 @@ TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
     auto fileNode = actor.client.nodeByPath("/mega_test_sync/TestBaseFolder/OriginalFolder/file");
     ASSERT_NE(fileNode, nullptr);
 
+    //auto fileNodeHandle = fileNode->nodeHandle();
+
     // std::filesystem change content of file (update)
     // Encapsulate
     auto filePath = fsTestRoot / actorName / testFolder / originalFolder / fileName;
@@ -14462,6 +14463,11 @@ TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
 
     waitonsyncs(kSyncTimeout, &actor);
     ASSERT_TRUE( actor.confirmModel_mainthread( testRootNode , actorBackupId));
+
+    fileNode = actor.client.nodeByPath("/mega_test_sync/TestBaseFolder/MovedToFolder/file");
+    ASSERT_NE(fileNode, nullptr);
+    //auto newFileNodeHandle = fileNode->nodeHandle();
+    //ASSERT_EQ(fileNodeHandle, newFileNodeHandle);
 }
 
 #endif
