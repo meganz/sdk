@@ -14422,6 +14422,14 @@ TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
 
     waitonsyncs(kSyncTimeout, &actor);
 
+    const bool followSymbLinksFALSE = false;
+    auto fsAccess = actor.client.fsaccess->newfileaccess(followSymbLinksFALSE );
+
+    //auto localPath = LocalPath::fromAbsolutePath( fsAccessFilePath.c_str());
+    //const bool readTRUE = true;
+    //const bool writeFALSE = false;
+    //ASSERT_TRUE(fsAccess->fopen( localPath, readTRUE, writeFALSE));
+
     auto fileModelNodePtr = actorModel.findnode( pathToFile );
     ASSERT_NE(nullptr, fileModelNodePtr);
 
@@ -14444,6 +14452,15 @@ TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
     // std::filesystem change content of file (update)
     // Encapsulate
     auto filePath = fsTestRoot / actorName / testFolder / originalFolder / fileName;
+
+    auto localPath = LocalPath::fromAbsolutePath( filePath.c_str());
+    const bool readTRUE = true;
+    const bool writeFALSE = false;
+
+    ASSERT_TRUE(fsAccess->fopen( localPath, readTRUE, writeFALSE));
+    auto initialFSId = fsAccess->fsid;
+    ASSERT_NE(initialFSId, UNDEF);
+
     std::ofstream alterFile(filePath, std::ios::app | std::ios::out);
     ASSERT_TRUE( alterFile.good());
     string extraContent = "\nAdditional information appended\n";
@@ -14466,6 +14483,17 @@ TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
 
     fileNode = actor.client.nodeByPath("/mega_test_sync/TestBaseFolder/MovedToFolder/file");
     ASSERT_NE(fileNode, nullptr);
+
+    auto newLocalPath = LocalPath::fromAbsolutePath( newFilePath.c_str());
+
+    auto newFsAccess = actor.client.fsaccess->newfileaccess(followSymbLinksFALSE );
+    ASSERT_TRUE(newFsAccess->fopen( newLocalPath, readTRUE, writeFALSE));
+    ASSERT_NE(newFsAccess->fsid, UNDEF);
+    auto finalFSId = newFsAccess->fsid;
+    ASSERT_NE(finalFSId, UNDEF);
+
+    ASSERT_EQ( initialFSId, finalFSId );
+
     //auto newFileNodeHandle = fileNode->nodeHandle();
     //ASSERT_EQ(fileNodeHandle, newFileNodeHandle);
 }
