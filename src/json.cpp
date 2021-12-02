@@ -732,32 +732,27 @@ string JSON::stripWhitespace(const string& text)
 
 string JSON::stripWhitespace(const char* text)
 {
-    if (!text)
-        return string();
-
+    JSON reader(text);
     string result;
-    auto escape = false;
-    auto quoted = false;
 
-    auto include = [&](const char character) {
-        if (escape)
-            return escape = false, true;
-
-        if (std::isspace(character))
-            return quoted;
-
-        if (character == '"')
-            quoted = !quoted;
-        else
-            escape = character == '\\';
-
-        return true;
-    };
-
-    for ( ; *text; ++text)
+    while (*reader.pos)
     {
-        if (include(*text))
-            result.push_back(*text);
+        if (*reader.pos == '"')
+        {
+            string temp;
+
+            result.push_back('"');
+
+            if (!reader.storeobject(&temp))
+                return result;
+
+            result.append(temp);
+            result.push_back('"');
+        }
+        else if (std::isspace(*reader.pos))
+            ++reader.pos;
+        else
+            result.push_back(*reader.pos++);
     }
 
     return result;

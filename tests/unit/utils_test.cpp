@@ -1114,5 +1114,11 @@ TEST(JSON, stripWhitespace)
     auto computed = JSON::stripWhitespace(input);
 
     ASSERT_EQ(computed, expected);
+
+    input = "{\"a\":\"bcde";
+    expected = "{\"a\":\"";
+    computed = JSON::stripWhitespace(input);
+
+    ASSERT_EQ(computed, expected);
 }
 
