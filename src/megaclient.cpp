@@ -15996,11 +15996,6 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 //    return a->ctime < b->ctime;
 //}
 
-static bool nodes_ctime_greater(const Node* a, const Node* b)
-{
-    return a->ctime > b->ctime;
-}
-
 node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since)
 {
     node_vector v = mNodeManager.getRecentNodes(maxcount, since);
@@ -16204,13 +16199,6 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
             i = j;
         }
         i = bucketend;
-    }
-    // sort nodes inside each bucket
-    for (recentactions_vector::iterator i = rav.begin(); i != rav.end(); ++i)
-    {
-        // for the bucket vector, most recent (larger ctime) first
-        std::sort(i->nodes.begin(), i->nodes.end(), nodes_ctime_greater);
-        i->time = i->nodes.front()->ctime;
     }
     // sort buckets in the vector
     std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
@@ -16885,16 +16873,17 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         return nodes;
     }
 
-    std::map<NodeHandle, NodeSerialized> nodeMap;
-    mTable->getRecentNodes(maxcount, since, nodeMap);
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getRecentNodes(maxcount, since, nodesFromTable);
 
-    for (const auto nodeMapIt : nodeMap)
+    for (const auto& nHandleSerialized : nodesFromTable)
     {
         Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
+        auto nodeIt = mNodes.find(nHandleSerialized.first);
         if (nodeIt == mNodes.end())
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            const NodeSerialized& ns = nHandleSerialized.second;
+            n = unserializeNode(&ns.mNode, ns.mDecrypted);
         }
         else
         {

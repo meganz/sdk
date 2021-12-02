@@ -573,6 +573,38 @@ bool SqliteAccountState::processSqlQueryNodeMap(sqlite3_stmt *stmt, std::map<meg
     return true;
 }
 
+bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes)
+{
+    assert(stmt);
+    int sqlResult = SQLITE_ERROR;
+    while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+    {
+        NodeHandle nodeHandle;
+        nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
+
+        NodeSerialized node;
+        node.mDecrypted = sqlite3_column_int(stmt, 1);
+
+        const void* data = sqlite3_column_blob(stmt, 2);
+        int size = sqlite3_column_bytes(stmt, 2);
+        if (data && size)
+        {
+            node.mNode = std::string(static_cast<const char*>(data), size);
+            nodes.emplace_back(std::make_pair(nodeHandle, std::move(node)));
+        }
+    }
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to processSqlQueryNodes from database: " << dbfile << err;
+        assert(!"Unable to processSqlQueryNodes from database.");
+        return false;
+    }
+
+    return true;
+}
+
 bool SqliteAccountState::remove(NodeHandle nodehandle)
 {
     if (!db)
@@ -1031,7 +1063,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::
     return result;
 }
 
-bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::map<mega::NodeHandle, NodeSerialized>& nodes)
+bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes)
 {
     if (!db)
     {
@@ -1065,7 +1097,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
         sqlResult = sqlite3_bind_int64(stmt, 1, since);
         if (sqlResult == SQLITE_OK)
         {
-            stepResult = processSqlQueryNodeMap(stmt, nodes);
+            stepResult = processSqlQueryNodes(stmt, nodes);
         }
     }
 

@@ -73,7 +73,7 @@ public:
     bool getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) override;
     bool getChildrenHandles(mega::NodeHandle parentHandle, std::vector<mega::NodeHandle> &children) override;
     bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
-    bool getRecentNodes(unsigned maxcount, m_time_t since, std::map<NodeHandle, NodeSerialized>& nodes) override;
+    bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     int getNumberOfChildren(mega::NodeHandle parentHandle) override;
     m_off_t getNodeSize(mega::NodeHandle node) override;
@@ -92,6 +92,7 @@ public:
 private:
     // Iterate over a SQL query row by row and fill the map
     bool processSqlQueryNodeMap(sqlite3_stmt *stmt, std::map<mega::NodeHandle, NodeSerialized> &nodes);
+    bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes);
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess
