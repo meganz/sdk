@@ -10263,6 +10263,9 @@ void BackupBehavior::doTest(const string& initialContent,
     m.addfile("f", initialContent);
     m.generate(cu.fsBasePath / "su");
 
+    // Trigger a scan.
+    cu.triggerFullScan(idU);
+
     // Wait for the engine to process and upload the file.
     waitonsyncs(TIMEOUT, &cu);
 
@@ -10282,6 +10285,9 @@ void BackupBehavior::doTest(const string& initialContent,
 
         // Rewind the file's mtime.
         fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
+
+        // Trigger a scan.
+        cu.triggerFullScan(idU);
     }
 
     // Wait for the engine to process the change.
