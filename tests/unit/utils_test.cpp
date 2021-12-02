@@ -460,54 +460,55 @@ TEST(Filesystem, isContainingPathOf)
     size_t pos;
 
     // lhs does not contain rhs.
-    pos = size_t(0)-1;
+    constexpr const size_t sentinel = std::numeric_limits<size_t>::max();
+    pos = sentinel;
     lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
     rhs = LocalPath::fromPath("a" SEP "c", fsAccess);
 
     EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, -1);
+    EXPECT_EQ(pos, sentinel);
 
     // lhs does not contain rhs.
     // they do, however, share a common prefix.
-    pos = size_t(0) -1;
+    pos = sentinel;
     lhs = LocalPath::fromPath("a", fsAccess);
     rhs = LocalPath::fromPath("ab", fsAccess);
 
     EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, size_t(0) -1);
+    EXPECT_EQ(pos, sentinel);
 
     // lhs contains rhs.
     // no trailing separator.
-    pos = size_t(0) -1;
+    pos = sentinel;
     lhs = LocalPath::fromPath("a", fsAccess);
     rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, 2);
+    EXPECT_EQ(pos, 2u);
 
     // trailing separator.
-    pos = size_t(0) -1;
+    pos = sentinel;
     lhs = LocalPath::fromPath("a" SEP, fsAccess);
     rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, 2);
+    EXPECT_EQ(pos, 2u);
 
     // lhs contains itself.
-    pos = size_t(0) -1;
+    pos = sentinel;
     lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(lhs, &pos));
-    EXPECT_EQ(pos, 3);
+    EXPECT_EQ(pos, 3u);
 
 #ifdef _WIN32
     // case insensitive.
-    pos = size_t(0) -1;
+    pos = sentinel;
     lhs = LocalPath::fromPath("a" SEP "B", fsAccess);
     rhs = LocalPath::fromPath("A" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, 3);
+    EXPECT_EQ(pos, 3u);
 #endif // _WIN32
 
 #undef SEP
@@ -1104,5 +1105,20 @@ TEST(JSON, NullValue)
     JSON j(s);
     EXPECT_EQ(j.getnameid(), j.getnameid("restof\"")); // no leading '"'
     EXPECT_EQ(0, strcmp(j.pos, "\"json\"}remainder"));
+}
+
+TEST(JSON, stripWhitespace)
+{
+    auto input = string(" a\rb\n c\r{\"a\":\"q\\r \\\" s\"\n} x y\n z\n");
+    auto expected = string("abc{\"a\":\"q\\r \\\" s\"}xyz");
+    auto computed = JSON::stripWhitespace(input);
+
+    ASSERT_EQ(computed, expected);
+
+    input = "{\"a\":\"bcde";
+    expected = "{\"a\":\"";
+    computed = JSON::stripWhitespace(input);
+
+    ASSERT_EQ(computed, expected);
 }
 

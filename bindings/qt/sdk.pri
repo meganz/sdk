@@ -226,8 +226,8 @@ CONFIG(USE_MEDIAINFO) {
 CONFIG(USE_LIBRAW) {
     DEFINES += HAVE_LIBRAW
 
-    vcpkg:LIBS += -lraw$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX
-    vcpkg:win32:LIBS += -ljpeg$$DEBUG_SUFFIX
+    vcpkg:LIBS += -lraw_r$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX
+    vcpkg:win32:LIBS += -ljpeg
     vcpkg:!win32:LIBS += -ljpeg
     vcpkg:unix:!macx:LIBS += -lgomp
     vcpkg:!CONFIG(USE_PDFIUM):LIBS += -llcms2$$DEBUG_SUFFIX
@@ -256,7 +256,7 @@ CONFIG(USE_PDFIUM) {
     SOURCES += src/gfx/gfx_pdfium.cpp
 
     vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
-    vcpkg:LIBS += -lpdfium -lfreetype$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2  -llcms$$DEBUG_SUFFIX 
+    vcpkg:LIBS += -lpdfium -lfreetype$$DEBUG_SUFFIX -ljpeg -lopenjp2  -llcms$$DEBUG_SUFFIX 
 
     #make sure we get the vcpkg built icu libraries and not a system one with the same name
     vcpkg {
@@ -356,6 +356,9 @@ CONFIG(USE_FFMPEG) {
 
             exists(/usr/lib/liblzma.so*):exists(/etc/arch-release) {
                 LIBS += -llzma #required in arch ffmpeg compilation
+            }
+            CONFIG(FFMPEG_WITH_LZMA) {
+                LIBS += -llzma #required in fedora >= 35 ffmpeg compilation
             }
         }
     }
@@ -553,12 +556,12 @@ else {
             LIBS += -lpng16$$DEBUG_SUFFIX -lwebpmux$$DEBUG_SUFFIX
         }
 
-        LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX_WO -ltiff$$DEBUG_SUFFIX \
+        LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg -ltiff$$DEBUG_SUFFIX \
         -lIlmImf-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_5$$UNDERSCORE_DEBUG_SUFFIX \
         -lIexMath-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_5$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_5$$UNDERSCORE_DEBUG_SUFFIX \
         -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
         -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX -lHalf-2_5$$UNDERSCORE_DEBUG_SUFFIX \
-        -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw$$DEBUG_SUFFIX -lopenjp2
+        -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX -lopenjp2
     }
     else {
         macx{

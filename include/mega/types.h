@@ -176,16 +176,6 @@ typedef enum { REQ_BINARY, REQ_JSON } contenttype_t;
 // new node source types
 typedef enum { NEW_NODE, NEW_PUBLIC, NEW_UPLOAD } newnodesource_t;
 
-// file chunk MAC
-struct ChunkMAC
-{
-    ChunkMAC() : offset(0), finished(false) { }
-
-    byte mac[SymmCipher::BLOCKSIZE];
-    unsigned int offset;
-    bool finished;
-};
-
 class chunkmac_map;
 
 /**
@@ -572,7 +562,7 @@ struct NodeCounter
     void operator -= (const NodeCounter&);
 };
 
-typedef std::map<handle, NodeCounter> NodeCounterMap;
+typedef std::map<NodeHandle, NodeCounter> NodeCounterMap;
 
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;

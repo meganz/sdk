@@ -59,6 +59,10 @@
 #include "mega/gfx/freeimage.h"
 #endif
 
+#ifdef WIN32
+#include <winioctl.h>
+#endif
+
 namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
@@ -124,6 +128,8 @@ int attempts = 0;
 //Ephemeral account plus plus
 std::string ephemeralFirstname;
 std::string ephemeralLastName;
+
+void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive);
 
 #ifdef ENABLE_SYNC
 
@@ -979,7 +985,7 @@ void DemoApp::fetchnodes_result(const Error& e)
             }
             else
             {
-                assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
+                assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
                 cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
@@ -1294,11 +1300,6 @@ static NodeHandle cwd;
 // Where we were on the local filesystem when megacli started.
 static unique_ptr<LocalPath> startDir(new LocalPath);
 
-static const char* rootnodenames[] =
-{ "ROOT", "INBOX", "RUBBISH" };
-static const char* rootnodepaths[] =
-{ "/", "//in", "//bin" };
-
 static void nodestats(int* c, const char* action)
 {
     if (c[FILENODE])
@@ -1323,12 +1324,17 @@ static void nodestats(int* c, const char* action)
 // list available top-level nodes and contacts/incoming shares
 static void listtrees()
 {
-    for (int i = 0; i < (int) (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    if (!client->rootnodes.files.isUndef())
     {
-        if (client->rootnodes[i] != UNDEF)
-        {
-            cout << rootnodenames[i] << " on " << rootnodepaths[i] << endl;
-        }
+        cout << "ROOT on /" << endl;
+    }
+    if (!client->rootnodes.inbox.isUndef())
+    {
+        cout << "INBOX on //in" << endl;
+    }
+    if (!client->rootnodes.rubbish.isUndef())
+    {
+        cout << "RUBBISH on //bin" << endl;
     }
 
     for (user_map::iterator uit = client->users.begin(); uit != client->users.end(); uit++)
@@ -1349,9 +1355,9 @@ static void listtrees()
         }
     }
 
-    if (clientFolder && !ISUNDEF(clientFolder->rootnodes[0]))
+    if (clientFolder && !clientFolder->rootnodes.files.isUndef())
     {
-        Node *n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
+        Node *n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
         if (n)
         {
             cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
@@ -1480,7 +1486,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 return NULL;
             }
 
-            n = clientFolder->nodebyhandle(clientFolder->rootnodes[0]);
+            n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
             if (c.size() == 2 && c[1].empty())
             {
                 return n;
@@ -1530,11 +1536,11 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodebyhandle(client->rootnodes[1]);
+                    n = client->nodeByHandle(client->rootnodes.inbox);
                 }
                 else if (c[2] == "bin")
                 {
-                    n = client->nodebyhandle(client->rootnodes[2]);
+                    n = client->nodeByHandle(client->rootnodes.rubbish);
                 }
                 else
                 {
@@ -1545,7 +1551,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             }
             else
             {
-                n = client->nodebyhandle(client->rootnodes[0]);
+                n = client->nodeByHandle(client->rootnodes.files);
 
                 l = 1;
             }
@@ -1686,6 +1692,27 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                         char namebuf[100]{};
                         AttrMap::nameid2string(a.first, namebuf);
                         stream << " " << namebuf << "=" << a.second;
+                    }
+                }
+
+                if (n->children.size())
+                {
+                    Node *version = n;
+                    int i = 0;
+                    while (version->children.size() && (version = version->children.back()))
+                    {
+                        i++;
+                        if (handles_on)
+                        {
+                            if (i == 1) stream << ", has versions: ";
+
+                            Base64Str<MegaClient::NODEHANDLE> handlestr(version->nodehandle);
+                            stream << " [" << i << "] " << handlestr.chars;
+                        }
+                    }
+                    if (!handles_on)
+                    {
+                        stream << ", has " << i << " versions";
                     }
                 }
 
@@ -2313,7 +2340,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 
     std::vector<Node*> emptyFolders;
     bool empty = true;
-    Node* trash = client->nodebyhandle(client->rootnodes[2]);
+    Node* trash = client->nodeByHandle(client->rootnodes.rubbish);
     for (auto c : n->children)
     {
         bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
@@ -2487,6 +2514,36 @@ void exec_codeTimings(autocomplete::ACState& s)
 
 #endif
 
+std::function<void()> onCompletedUploads;
+
+void setAppendAndUploadOnCompletedUploads(string local_path, int count)
+{
+
+    onCompletedUploads = [local_path, count](){
+
+        {
+            ofstream f(local_path, std::ios::app);
+            f << count << endl;
+        }
+        cout << count << endl;
+
+        DBTableTransactionCommitter committer(client->tctable);
+        int total = 0;
+        auto lp = LocalPath::fromPath(local_path, *client->fsaccess);
+        uploadLocalPath(FILENODE, lp.leafName().toPath(), lp, client->nodeByHandle(cwd), "", committer, total, false);
+
+        if (count > 0)
+        {
+            setAppendAndUploadOnCompletedUploads(local_path, count-1);
+        }
+        else
+        {
+            onCompletedUploads = nullptr;
+        }
+    };
+}
+
+
 #ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
@@ -2568,6 +2625,56 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     {
         cout << "invalid directory: " << p.u8string() << endl;
     }
+}
+
+void exec_generate_put_fileversions(autocomplete::ACState& s)
+{
+    int count = 100;
+    string param;
+    if (s.extractflagparam("-count", param)) count = atoi(param.c_str());
+
+    setAppendAndUploadOnCompletedUploads(s.words[1].s, count);
+    onCompletedUploads();
+}
+
+void exec_generatesparsefile(autocomplete::ACState& s)
+{
+    int64_t filesize = int64_t(2) * 1024 * 1024 * 1024 * 1024;
+    string param;
+    if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
+
+    fs::path p = pathFromLocalPath(s.words[1].s, false);
+    std::ofstream(p).put('a');
+    cout << "File size:  " << fs::file_size(p) << '\n'
+        << "Free space: " << fs::space(p).free << '\n';
+
+#ifdef WIN32
+    HANDLE hFile = CreateFileW((LPCWSTR)p.u16string().data(),
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_WRITE | FILE_SHARE_READ,
+        NULL,
+        OPEN_ALWAYS,
+        0,
+        NULL);
+    DWORD bytesReturned = 0;
+    if (!DeviceIoControl(
+        hFile,                             // handle to a file
+        FSCTL_SET_SPARSE,                  // dwIoControlCode
+        (PFILE_SET_SPARSE_BUFFER) NULL,    // input buffer
+        (DWORD) 0,                         // size of input buffer
+        NULL,                              // lpOutBuffer
+        0,                                 // nOutBufferSize
+        &bytesReturned,                    // number of bytes returned
+        NULL))                              // OVERLAPPED structure
+    {
+        cout << "Set sparse file operation failed." << endl;
+    }
+    CloseHandle(hFile);
+#endif //WIN32
+
+    fs::resize_file(p, filesize);
+    cout << "File size:  " << fs::file_size(p) << '\n'
+        << "Free space: " << fs::space(p).free << '\n';
 }
 
 void exec_lreplace(autocomplete::ACState& s)
@@ -3237,11 +3344,14 @@ autocomplete::ACN autocompleteSyntax()
 
 #ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
-    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"), repeat(either(sequence(flag("-folderdepth"), param("depth")),
-                                                                                                   sequence(flag("-folderwidth"), param("width")),
-                                                                                                   sequence(flag("-filecount"), param("count")),
-                                                                                                   sequence(flag("-filesize"), param("size")),
-                                                                                                   sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
+    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"),
+        repeat(either(  sequence(flag("-folderdepth"), param("depth")),
+                        sequence(flag("-folderwidth"), param("width")),
+                        sequence(flag("-filecount"), param("count")),
+                        sequence(flag("-filesize"), param("size")),
+                        sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
+    p->Add(exec_generatesparsefile, sequence(text("generatesparsefile"), opt(sequence(flag("-filesize"), param("size"))), localFSFile("targetfile")));
+    p->Add(exec_generate_put_fileversions, sequence(text("generate_put_fileversions"), opt(sequence(flag("-count"), param("n"))), localFSFile("targetfile")));
     p->Add(exec_lreplace, sequence(text("lreplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content")));
     p->Add(exec_lrenamereplace, sequence(text("lrenamereplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content"), localFSPath("renamed")));
 
@@ -3623,7 +3733,7 @@ void exec_cd(autocomplete::ACState& s)
     }
     else
     {
-        cwd = NodeHandle().set6byte(client->rootnodes[0]);
+        cwd = client->rootnodes.files;
     }
 }
 
@@ -4153,7 +4263,7 @@ void exec_get(autocomplete::ACState& s)
                     // node from public folder link
                     if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
                     {
-                        handle h = clientFolder->rootnodes[0];
+                        handle h = clientFolder->rootnodes.files.as8byte();
                         char *pubauth = new char[12];
                         Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
                         f->pubauth = pubauth;
@@ -4212,9 +4322,9 @@ void exec_more(autocomplete::ACState& s)
     }
 }
 
-void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder);
+void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder);
 
-void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive)
+void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive)
 {
 
     Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
@@ -4293,18 +4403,19 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
     return itemlocalname.leafName().toPath(*client->fsaccess);
 }
 
-void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
+void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder)
 {
     DirAccess* da = client->fsaccess->newdiraccess();
 
-    if (da->dopen(&localname, NULL, false))
+    LocalPath lp(localname);
+    if (da->dopen(&lp, NULL, false))
     {
         DBTableTransactionCommitter committer(client->tctable);
 
         int total = 0;
         nodetype_t type;
         LocalPath itemlocalleafname;
-        while (da->dnext(localname, itemlocalleafname, true, &type))
+        while (da->dnext(lp, itemlocalleafname, true, &type))
         {
             string leafNameUtf8 = localpathToUtf8Leaf(itemlocalleafname);
 
@@ -4312,7 +4423,7 @@ void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            auto newpath = localname;
+            auto newpath = lp;
             newpath.appendWithSeparator(itemlocalleafname, true);
             uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true);
         }
@@ -4718,17 +4829,12 @@ void exec_share(autocomplete::ACState& s)
     case 1:		// list all shares (incoming and outgoing)
     {
         TreeProcListOutShares listoutshares;
-        Node* n;
 
         cout << "Shared folders:" << endl;
 
-        for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
-        {
-            if ((n = client->nodebyhandle(client->rootnodes[i])))
-            {
-                client->proctree(n, &listoutshares);
-            }
-        }
+        client->proctree(client->nodeByHandle(client->rootnodes.files), &listoutshares);
+        client->proctree(client->nodeByHandle(client->rootnodes.inbox), &listoutshares);
+        client->proctree(client->nodeByHandle(client->rootnodes.rubbish), &listoutshares);
 
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)
@@ -5324,14 +5430,14 @@ void exec_email(autocomplete::ACState& s)
         {
             string link = s.words[1].s;
 
-            size_t pos = link.find("#verify");
+            size_t pos = link.find(MegaClient::verifyLinkPrefix());
             if (pos == link.npos)
             {
                 cout << "Invalid email change link." << endl;
                 return;
             }
 
-            changecode.assign(link.substr(pos + strlen("#verify")));
+            changecode.assign(link.substr(pos + strlen(MegaClient::verifyLinkPrefix())));
             client->queryrecoverylink(changecode.c_str());
         }
     }
@@ -5744,9 +5850,9 @@ void exec_signup(autocomplete::ACState& s)
         const char* ptr = s.words[1].s.c_str();
         const char* tptr;
 
-        if ((tptr = strstr(ptr, "#confirm")))
+        if ((tptr = strstr(ptr, "confirm")))
         {
-            ptr = tptr + 8;
+            ptr = tptr + 7;
 
             std::string code = Base64::atob(std::string(ptr));
             if (!code.empty())
@@ -6234,14 +6340,14 @@ void exec_cancel(autocomplete::ACState& s)
     {
         string link = s.words[1].s;
 
-        size_t pos = link.find("#cancel");
+        size_t pos = link.find(MegaClient::cancelLinkPrefix());
         if (pos == link.npos)
         {
             cout << "Invalid cancellation link." << endl;
             return;
         }
 
-        client->confirmcancellink(link.substr(pos + strlen("#cancel")).c_str());
+        client->confirmcancellink(link.substr(pos + strlen(MegaClient::cancelLinkPrefix())).c_str());
     }
 }
 
@@ -6348,13 +6454,13 @@ void exec_recover(autocomplete::ACState& s)
     {
         string link = s.words[1].s;
 
-        size_t pos = link.find("#recover");
+        size_t pos = link.find(MegaClient::recoverLinkPrefix());
         if (pos == link.npos)
         {
             cout << "Invalid recovery link." << endl;
         }
 
-        recoverycode.assign(link.substr(pos + strlen("#recover")));
+        recoverycode.assign(link.substr(pos + strlen(MegaClient::recoverLinkPrefix())));
         client->queryrecoverylink(recoverycode.c_str());
     }
 }
@@ -7489,7 +7595,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     {
         if (pdf_to_import)
         {
-            n = client->nodebyhandle(client->rootnodes[0]);
+            n = client->nodeByHandle(client->rootnodes.files);
         }
         else
         {
@@ -7742,7 +7848,7 @@ void DemoApp::nodes_updated(Node** n, int count)
 
     if (cwd.isUndef())
     {
-        cwd = NodeHandle().set6byte(client->rootnodes[0]);
+        cwd = client->rootnodes.files;
     }
 }
 
@@ -7865,6 +7971,12 @@ void DemoApp::contactlinkdelete_result(error e)
     }
 }
 
+void reportNodeStorage(NodeStorage* ns, const string& rootnodename)
+{
+    cout << "\t\tIn " << rootnodename << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
+    cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
+}
+
 // display account details/history
 void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, bool pro, bool purchases,
                               bool transactions, bool sessions)
@@ -7875,13 +7987,9 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
-        for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
-        {
-            NodeStorage* ns = &ad->storage[client->rootnodes[i]];
-
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
-            cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
-        }
+        reportNodeStorage(&ad->storage[client->rootnodes.files.as8byte()], "/");
+        reportNodeStorage(&ad->storage[client->rootnodes.inbox.as8byte()], "//in");
+        reportNodeStorage(&ad->storage[client->rootnodes.rubbish.as8byte()], "//bin");
     }
 
     if (transfer)
@@ -8359,6 +8467,7 @@ void megacli()
         if (puts && !appxferq[PUT].size())
         {
             cout << "Uploads complete" << endl;
+            if (onCompletedUploads) onCompletedUploads();
         }
         if (gets && !appxferq[GET].size())
         {

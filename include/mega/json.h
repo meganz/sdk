@@ -103,6 +103,9 @@ struct MEGA_API JSON
     // copy JSON-delimited string
     static void copystring(string*, const char*);
 
+    // Strip whitspace from a string in a JSON-safe manner.
+    static string stripWhitespace(const string& text);
+    static string stripWhitespace(const char* text);
 };
 
 class MEGA_API JSONWriter
@@ -110,7 +113,7 @@ class MEGA_API JSONWriter
 public:
     JSONWriter();
 
-    MEGA_DEFAULT_COPY_MOVE(JSONWriter);
+    MEGA_DEFAULT_COPY_MOVE(JSONWriter)
 
     void cmd(const char*);
     void notself(MegaClient*);

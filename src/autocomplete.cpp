@@ -741,12 +741,12 @@ bool MegaFS::addCompletions(ACState& s)
                     if (s.word().s.size() >= 5 && !strncmp(s.word().s.c_str(), "//in/", 5))
                     {
                         pathprefix = "//in/";
-                        n = client->nodebyhandle(client->rootnodes[1]);
+                        n = client->nodeByHandle(client->rootnodes.inbox);
                     }
                     else if (s.word().s.size() >= 6 && !strncmp(s.word().s.c_str(), "//bin/", 6))
                     {
                         pathprefix = "//bin/";
-                        n = client->nodebyhandle(client->rootnodes[2]);
+                        n = client->nodeByHandle(client->rootnodes.rubbish);
                     }
                     else
                     {
@@ -758,7 +758,7 @@ bool MegaFS::addCompletions(ACState& s)
                 else
                 {
                     pathprefix = "/";
-                    n = client->nodebyhandle(client->rootnodes[0]);
+                    n = client->nodeByHandle(client->rootnodes.files);
                 }
             }
             else
@@ -1286,7 +1286,7 @@ ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n
     n->Add(n11);
     n->Add(n12);
     n->Add(n13);
-    return std::move(n);
+    return n;
 }
 
 static ACN sequenceBuilder(ACN n1, ACN n2)

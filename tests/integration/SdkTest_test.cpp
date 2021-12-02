@@ -49,8 +49,8 @@ public:
         mWhat = std::move(mLastValue);
     }
 
-    MEGA_DISABLE_COPY(ScopedValue);
-    MEGA_DEFAULT_MOVE(ScopedValue);
+    MEGA_DISABLE_COPY(ScopedValue)
+    MEGA_DEFAULT_MOVE(ScopedValue)
 
 private:
     T mLastValue;
@@ -1278,7 +1278,7 @@ string getUniqueAlias()
     srand((unsigned int)t);
     for (int i = 0; i < n; ++i)
     {
-        alias += 'a' + rand() % 26;
+        alias += static_cast<char>('a' + rand() % 26);
     }
 
     // add a timestamp
@@ -1349,7 +1349,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, sid.c_str()));
 
     // Get confirmation link from the email
-    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "confirm", timeOfEmail);
+    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfEmail);
     ASSERT_FALSE(output.empty()) << "Confirmation link was not found.";
 
     // Use confirmation link
@@ -1478,9 +1478,6 @@ TEST_F(SdkTest, SdkTestKillSession)
         MegaAccountSessionPtr session;
 
         session.reset(mApi[1].accountDetails->getSession(i++));
-
-        auto h = session->getHandle();
-        auto hstr = Base64Str<sizeof(handle)>(h);
 
         if (session->isAlive() && session->isCurrent())
         {
@@ -3044,7 +3041,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             m_time_t mtime = 2;
             handle fsid = 3;
             bool fsidvalid = false;
-            nodetype_t type = (nodetype_t)-9; // @TODO: Do we need a distinct state other than known/unknown?
+            nodetype_t type = nodetype_t::TYPE_UNKNOWN;
             bool mIsSymLink = false;
             bool retry = false;
             int errorcode = -998;
@@ -5615,7 +5612,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
                                   "%3f%40%5b%5c%5d%5e%5f%60%7b%7c%7d%7e"));
         delete [] name;
     }
-#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+#elif defined(_WIN32) || defined(_WIN64)
     if (fileSystemAccess.getlocalfstype(aux) == FS_NTFS)
     {
         // Escape set of characters and check if it's the expected one

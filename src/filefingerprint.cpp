@@ -45,15 +45,11 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
     // mtime check disabled on Android due to this bug:
     // https://code.google.com/p/android/issues/detail?id=18624
 
-#ifndef WINDOWS_PHONE
-    // disabled on Windows Phone too because SetFileTime() isn't available
-
     // mtime differs - cannot be equal
     if (abs(lhs.mtime-rhs.mtime) > 2)
     {
         return false;
     }
-#endif
 #endif
 
     // FileFingerprints not fully available - give it the benefit of the doubt

@@ -465,7 +465,7 @@ public:
 
     virtual ~SyncConfigIOContext();
 
-    MEGA_DISABLE_COPY_MOVE(SyncConfigIOContext);
+    MEGA_DISABLE_COPY_MOVE(SyncConfigIOContext)
 
     // Deserialize configs from JSON (with logging.)
     bool deserialize(const LocalPath& dbPath,
@@ -682,7 +682,7 @@ private:
     void exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const;
 
     bool importSyncConfig(JSON& reader, SyncConfig& config);
-    bool importSyncConfigs(const char* data, SyncConfigVector& configs);
+    bool importSyncConfigs(const string& data, SyncConfigVector& configs);
 
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();

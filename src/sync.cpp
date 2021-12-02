@@ -978,6 +978,10 @@ void Sync::setBackupMonitoring()
 
     assert(config.getBackupState() == SYNC_BACKUP_MIRROR);
 
+    LOG_verbose << "Sync "
+                << toHandle(config.mBackupId)
+                << " transitioning to monitoring mode.";
+
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
     assert(client);
@@ -1212,6 +1216,9 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     config.setError(newSyncError);
     config.setEnabled(newEnableFlag);
 
+    bool makeActiveCallback = false;
+    bool nowActive = false;
+
     if (newstate != state())
     {
         auto oldstate = state();
@@ -1221,10 +1228,10 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
         if (notifyApp)
         {
             bool wasActive = oldstate == SYNC_ACTIVE || oldstate == SYNC_INITIALSCAN;
-            bool nowActive = newstate == SYNC_ACTIVE;
+            nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
-                mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
+                makeActiveCallback = true;
             }
         }
     }
@@ -1232,6 +1239,12 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     if (newstate != SYNC_CANCELED)
     {
         mUnifiedSync.changedConfigState(notifyApp);
+    }
+
+    if (makeActiveCallback)
+    {
+        // Per MegaApi documentation, this callback occurs after the changed-state callback
+        mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
     }
 }
 
@@ -2124,6 +2137,10 @@ dstime Sync::procscanq(int q)
             return notification.timestamp - dsmin;
         }
 
+#ifdef DEBUG
+        client->app->syncdebug_notification(getConfig(), q, notification);
+#endif // DEBUG
+
         if ((l = notification.localnode) != (LocalNode*)~0)
         {
             dstime backoffds = 0;
@@ -2962,13 +2979,51 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
         return;
     }
 
+    // Preprocess input so to remove all extraneous whitespace.
+    auto strippedData = JSON::stripWhitespace(data);
+
     // Try and translate JSON back into sync configs.
     SyncConfigVector configs;
 
-    if (!importSyncConfigs(data, configs))
+    if (!importSyncConfigs(strippedData, configs))
     {
         // No love. Inform the client.
         completion(API_EREAD);
+        return;
+    }
+
+    // Don't import configs that already appear to be present.
+    {
+        lock_guard<mutex> guard(mSyncVecMutex);
+
+        // Checks if two configs have an equivalent mapping.
+        auto equivalent = [](const SyncConfig& lhs, const SyncConfig& rhs) {
+            auto& lrp = lhs.mOriginalPathOfRemoteRootNode;
+            auto& rrp = rhs.mOriginalPathOfRemoteRootNode;
+
+            return lhs.mLocalPath == rhs.mLocalPath && lrp == rrp;
+        };
+
+        // Checks if an equivalent config has already been loaded.
+        auto present = [&](const SyncConfig& config) {
+            for (auto& us : mSyncVec)
+            {
+                if (equivalent(us->mConfig, config))
+                    return true;
+            }
+
+            return false;
+        };
+
+        // Strip configs that already appear to be present.
+        auto j = std::remove_if(configs.begin(), configs.end(), present);
+        configs.erase(j, configs.end());
+    }
+
+    // No configs? Nothing to import!
+    if (configs.empty())
+    {
+        completion(API_OK);
         return;
     }
 
@@ -3161,7 +3216,7 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     return true;
 }
 
-bool Syncs::importSyncConfigs(const char* data, SyncConfigVector& configs)
+bool Syncs::importSyncConfigs(const string& data, SyncConfigVector& configs)
 {
     static const string TYPE_CONFIGS = "configs";
 
@@ -4479,7 +4534,6 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
     const auto TYPE_SYNC_TYPE       = MAKENAMEID2('s', 't');
     const auto TYPE_TARGET_HANDLE   = MAKENAMEID2('t', 'h');
     const auto TYPE_TARGET_PATH     = MAKENAMEID2('t', 'p');
-    const auto TYPE_EXCLUSION_RULES = MAKENAMEID2('e', 'r');
 
     for ( ; ; )
     {

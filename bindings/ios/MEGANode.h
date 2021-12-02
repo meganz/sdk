@@ -23,7 +23,7 @@
 typedef NS_ENUM (NSInteger, MEGANodeType) {
     MEGANodeTypeUnknown = -1,
     MEGANodeTypeFile = 0,
-    MEGANodeTypeFolder,	
+    MEGANodeTypeFolder,
     MEGANodeTypeRoot,
     MEGANodeTypeIncoming,
     MEGANodeTypeRubbish
@@ -53,6 +53,8 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
     MEGANodeChangeTypePublicLink     = 0x200,
     MEGANodeChangeTypeNew            = 0x400
 };
+
+NS_ASSUME_NONNULL_BEGIN
 
 /**
  * @brief Represents a node (file/folder) in the MEGA account.
@@ -241,23 +243,6 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) uint64_t parentHandle;
 
 /**
- * @brief Tag of the operation that created/modified this node in MEGA.
- *
- * Every request and every transfer has a tag that identifies it.
- * When a request creates or modifies a node, the tag is associated with the node
- * at runtime, this association is lost after a reload of the filesystem or when
- * the SDK is closed.
- *
- * This tag is specially useful to know if a node reported in [MEGADelegate onNodesUpdate:nodeList:] or
- * [MEGAGlobalDelegate onNodesUpdate:nodeList:] was modified by a local operation (tag != 0) or by an
- * external operation, made by another MEGA client (tag == 0).
- *
- * If the node hasn't been created/modified during the current execution, this function returns 0.
- *
- */
-@property (readonly, nonatomic) NSInteger tag;
-
-/**
  * @brief The expiration time of a public link (in seconds since the epoch), if any
  *
  * 0 for non-expire links, and -1 if the MEGANode is not exported.
@@ -294,7 +279,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * @brief The device id stored as a Node attribute of a Backup folder.
  * It will be an empty string for other nodes.
  */
-@property (readonly, nonatomic) NSString *deviceId;
+@property (readonly, nonatomic, nullable) NSString *deviceId;
 
 /**
  * @brief Creates a copy of this MEGANode object.
@@ -365,8 +350,17 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * - MEGANodeChangeTypeOutShare            = 0x40
  * Check if the node is a new or modified outshare
  *
- * - MEGANodeChangeTypeParent          = 0x80
+ * - MEGANodeChangeTypeParent              = 0x80
  * Check if the parent of the node has changed
+ *
+ *  - MEGANodeChangeTypePendingShare       = 0x100
+ * Check if the pending share of the node has changed
+ *
+ * - MEGANodeChangeTypePublicLink          = 0x200
+ * Check if the public link of the node has changed
+ *
+ * - MEGANodeChangeTypeNew                 = 0x400
+ * Check if the node is new
  *
  * @return YES if this node has an specific change
  */
@@ -402,9 +396,17 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * - MEGANodeChangeTypeOutShare            = 0x40
  * The node is a new or modified outshare
  *
- * - MEGANodeChangeTypeParent               = 0x80
- * The parent of the node has changed
+ * - MEGANodeChangeTypeParent              = 0x80
+ * Check if the parent of the node has changed
  *
+ *  - MEGANodeChangeTypePendingShare       = 0x100
+ * Check if the pending share of the node has changed
+ *
+ * - MEGANodeChangeTypePublicLink          = 0x200
+ * Check if the public link of the node has changed
+ *
+ * - MEGANodeChangeTypeNew                 = 0x400
+ * Check if the node is new
  */
 - (MEGANodeChangeType)getChanges;
 
@@ -504,3 +506,5 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 + (nullable NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
 
 @end
+
+NS_ASSUME_NONNULL_END
