@@ -5561,12 +5561,17 @@ MegaApiImpl* MegaApiImpl::ImplOf(MegaApi* api)
     return api->pImpl;
 }
 
+void MegaApiImpl::loggedInStateChanged(sessiontype_t s, handle me)
+{
+    std::lock_guard g(mLastRecievedLoggedMeMutex);
+    mLastReceivedLoggedInState = s;
+    mLastReceivedLoggedInMeHandle = me;
+}
+
 int MegaApiImpl::isLoggedIn()
 {
-    sdkMutex.lock();
-    int result = client->loggedin();
-    sdkMutex.unlock();
-    return result;
+    std::lock_guard g(mLastRecievedLoggedMeMutex);
+    return mLastReceivedLoggedInState;
 }
 
 bool MegaApiImpl::isEphemeralPlusPlus()
@@ -5604,17 +5609,17 @@ int64_t MegaApiImpl::getAccountCreationTs()
 
 char *MegaApiImpl::getMyUserHandle()
 {
-    sdkMutex.lock();
-    if (ISUNDEF(client->me))
+    std::lock_guard g(mLastRecievedLoggedMeMutex);
+
+    if (mLastReceivedLoggedInState == NOTLOGGEDIN ||
+        ISUNDEF(mLastReceivedLoggedInMeHandle))
     {
-        sdkMutex.unlock();
         return NULL;
     }
 
     char buf[12];
-    Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, buf);
+    Base64::btoa((const byte*)&mLastReceivedLoggedInMeHandle, MegaClient::USERHANDLE, buf);
     char *result = MegaApi::strdup(buf);
-    sdkMutex.unlock();
     return result;
 }
 
