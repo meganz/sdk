@@ -7322,12 +7322,24 @@ void MegaClient::notifypurge(void)
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
             Node* n = nodeByHandle(us.mConfig.getRemoteNode());
-            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
+            if (!n)
+                return;
+
+            // check if moved
+            bool movedToRubbish = n->firstancestor()->nodehandle == rubbishHandle.as8byte();
+            const string currentPath = n->displaypath(); // full remote path
+            const string& originalPath = us.mConfig.mOriginalPathOfRemoteRootNode; // previous full remote path
+            bool pathChanged = n->changed.parent || movedToRubbish ||
+                               // the following were inspired by UnifiedSync::updateSyncRemoteLocation()
+                               us.mConfig.getRemoteNode() != n->nodehandle ||
+                               originalPath != currentPath;
+
+            if (n->changed.attrs || pathChanged || n->changed.removed)
             {
                 bool removed = n->changed.removed;
 
                 // update path in sync configuration
-                bool pathChanged = us.updateSyncRemoteLocation(removed ? nullptr : n, false);
+                us.updateSyncRemoteLocation(removed ? nullptr : n, false);
 
                 auto &activeSync = us.mSync;
                 if (!activeSync) // no active sync (already failed)
@@ -7338,31 +7350,15 @@ void MegaClient::notifypurge(void)
                 auto syncErr = NO_SYNC_ERROR;
 
                 // fail sync if required
-                if(n->changed.parent) //moved
+                if (movedToRubbish)
                 {
-                    assert(pathChanged);
-                    // check if moved to rubbish
-                    auto p = n->parent;
-                    while (p)
-                    {
-                        if (p->nodeHandle() == rubbishHandle)
-                        {
-                            syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
-                            break;
-                        }
-                        p = p->parent;
-                    }
-
-                    if (syncErr == NO_SYNC_ERROR)
-                    {
-                        syncErr = REMOTE_PATH_HAS_CHANGED;
-                    }
+                    syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
                 }
                 else if (removed)
                 {
                     syncErr = REMOTE_NODE_NOT_FOUND;
                 }
-                else if (pathChanged)
+                else if (pathChanged) // moved
                 {
                     syncErr = REMOTE_PATH_HAS_CHANGED;
                 }
