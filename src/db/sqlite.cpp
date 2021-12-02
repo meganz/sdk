@@ -1271,7 +1271,7 @@ uint64_t SqliteAccountState::getNumberOfNodes()
     return nodeNumber;
 }
 
-bool SqliteAccountState::getFingerPrints(std::map<FileFingerprint, std::map<NodeHandle, FileFingerprint*>> &fingerprints)
+bool SqliteAccountState::getFingerPrints(std::map<FileFingerprint, std::map<NodeHandle, Node *> > &fingerprints)
 {
     if (!db)
     {
@@ -1296,7 +1296,7 @@ bool SqliteAccountState::getFingerPrints(std::map<FileFingerprint, std::map<Node
                     fingerPrintString = std::string(static_cast<const char*>(data), size);
                     std::unique_ptr<FileFingerprint> fingerprint;
                     fingerprint.reset(FileFingerprint::unserialize(&fingerPrintString));
-                    fingerprints[*fingerprint].insert(std::pair<NodeHandle, FileFingerprint*>(nodeHandle, nullptr));
+                    fingerprints[*fingerprint].insert(std::pair<NodeHandle, Node*>(nodeHandle, nullptr));
                 }
             }
         }

@@ -131,7 +131,7 @@ public:
     virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
 
     // Get all fingerprints with their asociated NodeHandle
-    virtual bool getFingerPrints(std::map<FileFingerprint, std::map<NodeHandle, FileFingerprint*>>& fingerprints) = 0;
+    virtual bool getFingerPrints(std::map<FileFingerprint, std::map<NodeHandle, Node*>>& fingerprints) = 0;
 
     // count of items in 'nodes' table. Returns 0 if error
     virtual uint64_t getNumberOfNodes() = 0;

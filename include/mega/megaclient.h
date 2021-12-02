@@ -399,7 +399,7 @@ private:
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
 
     // FileFingerprint to node mapping
-    std::map<FileFingerprint, std::map<NodeHandle, FileFingerprint*>> mFingerPrints;
+    std::map<FileFingerprint, std::map<NodeHandle, Node*>> mFingerPrints;
 
     Node* getNodeFromDataBase(NodeHandle handle);
 };

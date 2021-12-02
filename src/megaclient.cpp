@@ -16972,7 +16972,7 @@ node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprin
         {
             if (itNode.second)
             {
-                nodes.push_back(static_cast<Node*>(itNode.second));
+                nodes.push_back(itNode.second);
             }
             else
             {

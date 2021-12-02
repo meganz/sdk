@@ -175,7 +175,7 @@ public:
     {
         return false;
     }
-    bool getFingerPrints(std::map<mega::FileFingerprint, std::map<mega::NodeHandle, mega::FileFingerprint*>>& fingerprints) override
+    bool getFingerPrints(std::map<mega::FileFingerprint, std::map<mega::NodeHandle, mega::Node*>>& fingerprints) override
     {
         return false;
     }
