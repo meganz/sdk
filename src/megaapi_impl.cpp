@@ -21465,11 +21465,9 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = client->syncs.backupOpenDrive(LocalPath::fromAbsolutePath(externalDrive));
-            }
-            if (!e)
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                client->syncs.backupOpenDrive(LocalPath::fromAbsolutePath(externalDrive), [this, request](Error e){
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
             }
             break;
         }
@@ -21483,11 +21481,9 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = client->syncs.backupCloseDrive(LocalPath::fromAbsolutePath(externalDrive));
-            }
-            if (!e)
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                client->syncs.backupCloseDrive(LocalPath::fromAbsolutePath(externalDrive), [this, request](Error e){
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
             }
             break;
         }

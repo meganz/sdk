@@ -936,56 +936,20 @@ struct Syncs
     /**
      * @brief route the request to the sync thread for fulfillment.
      */
-    void getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> completionClosure, 
+    void getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> completionClosure,
             bool completionInClient);
 
     /**
      * @brief
      * Removes previously opened backup databases from that drive from memory.
-     *
-     * Note that this function will:
-     * - Flush any pending database changes.
-     * - Remove all contained backup configs from memory.
-     * - Remove the database itself from memory.
-     *
-     * @param drivePath
-     * The drive containing the database to remove.
-     *
-     * @return
-     * The result of removing the backup database.
-     *
-     * API_EARGS
-     * The path is invalid.
-     *
-     * API_EFAILED
-     * There is an active sync on this device.
-     *
-     * API_EINTERNAL
-     * Encountered an internal error.
-     *
-     * API_ENOENT
-     * No such database exists in memory.
-     *
-     * API_EWRITE
-     * The database has been removed from memory but it could not
-     * be successfully flushed.
-     *
-     * API_OK
-     * The database was removed from memory.
      */
-    error backupCloseDrive(LocalPath drivePath);
+    void backupCloseDrive(LocalPath drivePath, std::function<void(Error)> clientCallback);
 
     /**
      * @brief
      * Restores backups from an external drive.
-     *
-     * @param drivePath
-     * The drive to restore external backups from.
-     *
-     * @return
-     * The result of restoring the external backups.
      */
-    error backupOpenDrive(LocalPath drivePath);
+    void backupOpenDrive(LocalPath drivePath, std::function<void(Error)> clientCallback);
 
 
     // Add a config directly to the internal sync config DB.
@@ -1052,7 +1016,7 @@ public:
 
     // Update remote location
     bool updateSyncRemoteLocation(UnifiedSync&, bool exists, string cloudPath);
-    
+
     // Trigger a full scan on the specified sync.
     //
     // If backupID is UNDEF, trigger a scan on all active periodic syncs.
@@ -1137,6 +1101,8 @@ private:
 	     bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat);
     void purgeRunningSyncs_inThread();
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
+    error backupOpenDrive_inThread(LocalPath drivePath);
+    error backupCloseDrive_inThread(LocalPath drivePath);
 
     void syncLoop();
 

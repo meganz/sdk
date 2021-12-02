@@ -3175,9 +3175,24 @@ SyncConfigVector Syncs::allConfigs() const
     return v;
 }
 
-error Syncs::backupCloseDrive(LocalPath drivePath)
+void Syncs::backupCloseDrive(LocalPath drivePath, std::function<void(Error)> clientCallback)
 {
     assert(!onSyncThread());
+    assert(clientCallback);
+
+    queueSync([this, drivePath, clientCallback]()
+        {
+            Error e = backupCloseDrive_inThread(drivePath);
+            queueClient([clientCallback, e](MegaClient& mc, DBTableTransactionCommitter& committer)
+                {
+                    clientCallback(e);
+                });
+        });
+}
+
+error Syncs::backupCloseDrive_inThread(LocalPath drivePath)
+{
+    assert(onSyncThread());
     assert(drivePath.isAbsolute() || drivePath.empty());
 
     // Is the path valid?
@@ -3213,7 +3228,22 @@ error Syncs::backupCloseDrive(LocalPath drivePath)
     return result;
 }
 
-error Syncs::backupOpenDrive(LocalPath drivePath)
+void Syncs::backupOpenDrive(LocalPath drivePath, std::function<void(Error)> clientCallback)
+{
+    assert(!onSyncThread());
+    assert(clientCallback);
+
+    queueSync([this, drivePath, clientCallback]()
+        {
+            Error e = backupOpenDrive_inThread(drivePath);
+            queueClient([clientCallback, e](MegaClient& mc, DBTableTransactionCommitter& committer)
+                {
+                    clientCallback(e);
+                });
+        });
+}
+
+error Syncs::backupOpenDrive_inThread(LocalPath drivePath)
 {
     assert(onSyncThread());
     assert(drivePath.isAbsolute());
@@ -4288,7 +4318,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         }
 
         // Restore the drive's backups, if any.
-        auto result = backupOpenDrive(c.mExternalDrivePath);
+        auto result = backupOpenDrive_inThread(c.mExternalDrivePath);
 
         if (result != API_OK && result != API_ENOENT)
         {
@@ -9082,7 +9112,7 @@ void Syncs::syncLoop()
 
                         // Reset the error counter.
                         notifier->mErrorCount.store(0);
-                        
+
                         // Rescan everything from the root down.
                         sync->localroot->setScanAgain(false, true, true, 5);
                     }

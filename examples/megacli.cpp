@@ -9111,14 +9111,11 @@ void exec_syncclosedrive(autocomplete::ACState& s)
     const auto drivePath =
         localPathArg(s.words[2].s);
 
-    const auto result = client->syncs.backupCloseDrive(drivePath);
-
-    if (result)
-    {
-        cerr << "Unable to remove backup database: "
-             << errorstring(result)
-             << endl;
-    }
+    client->syncs.backupCloseDrive(drivePath, [](Error e){
+        conlock(cout) << "syncclosedrive result: "
+            << errorstring(e)
+            << endl;
+    });
 }
 
 void exec_syncimport(autocomplete::ACState& s)
@@ -9225,16 +9222,11 @@ void exec_syncopendrive(autocomplete::ACState& s)
     const auto drivePath =
         localPathArg(s.words[2].s);
 
-    auto result = client->syncs.backupOpenDrive(drivePath);
-
-    if (result)
-    {
-        cerr << "Unable to restore backups from '"
-             << s.words[2].s
-             << "': "
-             << errorstring(result)
-             << endl;
-    }
+    client->syncs.backupOpenDrive(drivePath, [](Error e){
+        conlock(cout) << "syncopendrive result: "
+            << errorstring(e)
+            << endl;
+        });
 }
 
 void exec_synclist(autocomplete::ACState& s)
