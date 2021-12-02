@@ -725,6 +725,44 @@ void JSON::copystring(string* s, const char* p)
     }
 }
 
+string JSON::stripWhitespace(const string& text)
+{
+    return stripWhitespace(text.c_str());
+}
+
+string JSON::stripWhitespace(const char* text)
+{
+    if (!text)
+        return string();
+
+    string result;
+    auto escape = false;
+    auto quoted = false;
+
+    auto include = [&](const char character) {
+        if (escape)
+            return escape = false, true;
+
+        if (std::isspace(character))
+            return quoted;
+
+        if (character == '"')
+            quoted = !quoted;
+        else
+            escape = character == '\\';
+
+        return true;
+    };
+
+    for ( ; *text; ++text)
+    {
+        if (include(*text))
+            result.push_back(*text);
+    }
+
+    return result;
+}
+
 JSONWriter::JSONWriter()
   : mJson()
   , mLevels()
