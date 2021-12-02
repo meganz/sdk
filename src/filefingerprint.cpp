@@ -448,6 +448,10 @@ bool operator<(const FileFingerprint &lhs, const FileFingerprint &rhs)
     {
         return true;
     }
+    else if (lhs.size > rhs.size)
+    {
+        return false;
+    }
 
 #ifndef __ANDROID__
     // mtime check disabled on Android due to this bug:
@@ -457,9 +461,16 @@ bool operator<(const FileFingerprint &lhs, const FileFingerprint &rhs)
     // disabled on Windows Phone too because SetFileTime() isn't available
 
     // mtime differs - cannot be equal
-    if (abs(lhs.mtime < rhs.mtime) > 2)
+    if (abs(lhs.mtime - rhs.mtime) > 2)
     {
-        return true;
+        if (lhs.mtime < rhs.mtime)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
 #endif
 #endif
