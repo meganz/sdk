@@ -14543,7 +14543,7 @@ TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
     // get fsid to verify is the same later
     auto filePath = fsTestRoot / cfg.actorName / cfg.testFolder / cfg.originalFolder / cfg.fileName;
 
-    auto localPath = LocalPath::fromAbsolutePath(filePath.c_str());
+    auto localPath = LocalPath::fromAbsolutePath(filePath.string());
 
     // Get the fsid of the testing file
     ASSERT_TRUE(fsAccess->fopen( localPath, cfg.readTRUE, cfg.writeFALSE));
@@ -14566,7 +14566,7 @@ TEST_F(SyncTest, BasicSync_FileEditedThenMoved)
     waitonsyncs(cfg.kSyncTimeout, &actor);
     ASSERT_TRUE( actor.confirmModel_mainthread( testRootNode , actorBackupId));
 
-    auto newLocalPath = LocalPath::fromAbsolutePath( newFilePath.c_str());
+    auto newLocalPath = LocalPath::fromAbsolutePath( newFilePath.string());
 
     // Check the fsid of the file remains the same
     auto newFsAccess = actor.client.fsaccess->newfileaccess(cfg.followSymbLinksFALSE );
@@ -14618,7 +14618,7 @@ TEST_F(SyncTest, BasicSync_FileMovedThenEdited)
     // get fsid to verify is the same later
     auto filePath = fsTestRoot / cfg.actorName / cfg.testFolder / cfg.originalFolder / cfg.fileName;
 
-    auto localPath = LocalPath::fromAbsolutePath(filePath.c_str());
+    auto localPath = LocalPath::fromAbsolutePath(filePath.string());
 
     // Get the fsid of the testing file
     ASSERT_TRUE(fsAccess->fopen( localPath, cfg.readTRUE, cfg.writeFALSE));
@@ -14641,7 +14641,7 @@ TEST_F(SyncTest, BasicSync_FileMovedThenEdited)
     waitonsyncs(cfg.kSyncTimeout, &actor);
     ASSERT_TRUE( actor.confirmModel_mainthread( testRootNode , actorBackupId));
 
-    auto newLocalPath = LocalPath::fromAbsolutePath( newFilePath.c_str());
+    auto newLocalPath = LocalPath::fromAbsolutePath( newFilePath.string());
 
     // Check the fsid of the file remains the same
     auto newFsAccess = actor.client.fsaccess->newfileaccess(cfg.followSymbLinksFALSE );
