@@ -379,6 +379,11 @@ public:
     // check if logged in
     sessiontype_t loggedin();
 
+    // provide state by change callback
+    void reportLoggedInChanges();
+    sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
+    handle mLastLoggedInMeHandle = UNDEF;
+
     // check if logged in a folder link
     bool loggedinfolderlink();
 
@@ -1873,6 +1878,7 @@ public:
         CodeCounter::ScopeStats syncItemCXF = { "syncItemCXF" };
         CodeCounter::ScopeStats syncItemCSX = { "syncItemCSX" };
         CodeCounter::ScopeStats syncItemCSF = { "syncItemCSF" };
+        CodeCounter::ScopeStats clientThreadActions = { "clientThreadActions" };
 #endif
         uint64_t transferStarts = 0, transferFinishes = 0;
         uint64_t transferTempErrors = 0, transferFails = 0;

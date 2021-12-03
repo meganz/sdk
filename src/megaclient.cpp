@@ -2477,10 +2477,13 @@ void MegaClient::exec()
 
         if (!syncs.clientThreadActions.empty())
         {
+            CodeCounter::ScopeTimer ccst(performanceStats.clientThreadActions);
+
             dstime ctr_start = waiter->ds;
             size_t ctr_N = 0;
             DBTableTransactionCommitter committer(tctable);
             std::function<void(MegaClient&, DBTableTransactionCommitter&)> f;
+
             waiter->bumpds();
             while (ctr_start + 5 >= waiter->ds && syncs.clientThreadActions.popFront(f))
             {
@@ -2587,6 +2590,8 @@ void MegaClient::exec()
         app->drive_presence_changed(di.second, LocalPath::fromPlatformEncodedAbsolute(move(di.first)));
     }
 #endif
+
+    reportLoggedInChanges();
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -3614,6 +3619,7 @@ void MegaClient::logout(bool keepSyncConfigsFile)
 
         restag = reqtag;
         app->logout_result(API_OK);
+        reportLoggedInChanges();
         return;
     }
 
@@ -3793,6 +3799,9 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mAuthRings.clear();
     mAuthRingsTemp.clear();
     mFetchingAuthrings = false;
+
+    reportLoggedInChanges();
+    mLastLoggedInReportedState = NOTLOGGEDIN;
 
     init();
 
@@ -8994,6 +9003,7 @@ void MegaClient::login(string session)
             restag = reqtag;
             openStatusTable(true);
             app->login_result(API_OK);
+            reportLoggedInChanges();
         }
     }
     else
@@ -11102,6 +11112,18 @@ sessiontype_t MegaClient::loggedin()
     }
 
     return FULLACCOUNT;
+}
+
+void MegaClient::reportLoggedInChanges()
+{
+    auto currState = loggedin();
+    if (mLastLoggedInReportedState != currState ||
+        mLastLoggedInMeHandle != me)
+    {
+        mLastLoggedInReportedState = currState;
+        mLastLoggedInMeHandle = me;
+        app->loggedInStateChanged(currState, me);
+    }
 }
 
 void MegaClient::whyamiblocked()
@@ -13473,6 +13495,12 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
                     LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
                     nchildren.erase(rit);
                 }
+                else if (ll->mtime == rit->second->mtime &&
+                         l->sync->isBackup())
+                {
+                    LOG_debug << "Equal mtime in a backup, leaving the file to be uploaded: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
+                    nchildren.erase(rit);
+                }
                 else if (ll->mtime == rit->second->mtime
                          && (ll->size > rit->second->size
                              || (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) > 0)))
@@ -13895,7 +13923,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
                         continue;
                     }
 
-                    if (ll->mtime == rit->second->mtime)
+                    if (ll->mtime == rit->second->mtime &&
+                        !ll->sync->isBackup())
                     {
                         if (ll->size < rit->second->size)
                         {
@@ -15677,6 +15706,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << syncItemCXF.report(reset) << "\n"
         << syncItemCSX.report(reset) << "\n"
         << syncItemCSF.report(reset) << "\n"
+        << clientThreadActions.report(reset) << "\n"
 #endif
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
         << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"

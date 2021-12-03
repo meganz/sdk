@@ -238,6 +238,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
       {
           return lhs.type == rhs.type
                  && lhs.fsid == rhs.fsid
+                 && lhs.fingerprint.crc == rhs.fingerprint.crc
                  && lhs.fingerprint.mtime == rhs.fingerprint.mtime
                  && lhs.fingerprint.size == rhs.fingerprint.size;
       };
@@ -1073,6 +1074,10 @@ void Sync::setBackupMonitoring()
     auto& config = getConfig();
 
     assert(config.getBackupState() == SYNC_BACKUP_MIRROR);
+
+    LOG_verbose << "Sync "
+                << toHandle(config.mBackupId)
+                << " transitioning to monitoring mode.";
 
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
@@ -3170,9 +3175,24 @@ SyncConfigVector Syncs::allConfigs() const
     return v;
 }
 
-error Syncs::backupCloseDrive(LocalPath drivePath)
+void Syncs::backupCloseDrive(LocalPath drivePath, std::function<void(Error)> clientCallback)
 {
     assert(!onSyncThread());
+    assert(clientCallback);
+
+    queueSync([this, drivePath, clientCallback]()
+        {
+            Error e = backupCloseDrive_inThread(drivePath);
+            queueClient([clientCallback, e](MegaClient& mc, DBTableTransactionCommitter& committer)
+                {
+                    clientCallback(e);
+                });
+        });
+}
+
+error Syncs::backupCloseDrive_inThread(LocalPath drivePath)
+{
+    assert(onSyncThread());
     assert(drivePath.isAbsolute() || drivePath.empty());
 
     // Is the path valid?
@@ -3208,7 +3228,22 @@ error Syncs::backupCloseDrive(LocalPath drivePath)
     return result;
 }
 
-error Syncs::backupOpenDrive(LocalPath drivePath)
+void Syncs::backupOpenDrive(LocalPath drivePath, std::function<void(Error)> clientCallback)
+{
+    assert(!onSyncThread());
+    assert(clientCallback);
+
+    queueSync([this, drivePath, clientCallback]()
+        {
+            Error e = backupOpenDrive_inThread(drivePath);
+            queueClient([clientCallback, e](MegaClient& mc, DBTableTransactionCommitter& committer)
+                {
+                    clientCallback(e);
+                });
+        });
+}
+
+error Syncs::backupOpenDrive_inThread(LocalPath drivePath)
 {
     assert(onSyncThread());
     assert(drivePath.isAbsolute());
@@ -3699,13 +3734,51 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
         return;
     }
 
+    // Preprocess input so to remove all extraneous whitespace.
+    auto strippedData = JSON::stripWhitespace(data);
+
     // Try and translate JSON back into sync configs.
     SyncConfigVector configs;
 
-    if (!importSyncConfigs(data, configs))
+    if (!importSyncConfigs(strippedData, configs))
     {
         // No love. Inform the client.
         completion(API_EREAD);
+        return;
+    }
+
+    // Don't import configs that already appear to be present.
+    {
+        lock_guard<mutex> guard(mSyncVecMutex);
+
+        // Checks if two configs have an equivalent mapping.
+        auto equivalent = [](const SyncConfig& lhs, const SyncConfig& rhs) {
+            auto& lrp = lhs.mOriginalPathOfRemoteRootNode;
+            auto& rrp = rhs.mOriginalPathOfRemoteRootNode;
+
+            return lhs.mLocalPath == rhs.mLocalPath && lrp == rrp;
+        };
+
+        // Checks if an equivalent config has already been loaded.
+        auto present = [&](const SyncConfig& config) {
+            for (auto& us : mSyncVec)
+            {
+                if (equivalent(us->mConfig, config))
+                    return true;
+            }
+
+            return false;
+        };
+
+        // Strip configs that already appear to be present.
+        auto j = std::remove_if(configs.begin(), configs.end(), present);
+        configs.erase(j, configs.end());
+    }
+
+    // No configs? Nothing to import!
+    if (configs.empty())
+    {
+        completion(API_OK);
         return;
     }
 
@@ -3946,7 +4019,7 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     return true;
 }
 
-bool Syncs::importSyncConfigs(const char* data, SyncConfigVector& configs)
+bool Syncs::importSyncConfigs(const string& data, SyncConfigVector& configs)
 {
     assert(!onSyncThread());
 
@@ -4245,7 +4318,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         }
 
         // Restore the drive's backups, if any.
-        auto result = backupOpenDrive(c.mExternalDrivePath);
+        auto result = backupOpenDrive_inThread(c.mExternalDrivePath);
 
         if (result != API_OK && result != API_ENOENT)
         {
@@ -9039,7 +9112,7 @@ void Syncs::syncLoop()
 
                         // Reset the error counter.
                         notifier->mErrorCount.store(0);
-                        
+
                         // Rescan everything from the root down.
                         sync->localroot->setScanAgain(false, true, true, 5);
                     }

@@ -24,6 +24,7 @@
 
 namespace mega {
 
+struct Notification;
 struct UnifiedSync;
 
 // callback interface
@@ -45,6 +46,8 @@ struct MEGA_API MegaApp
 
     // logout result
     virtual void logout_result(error) { }
+
+    virtual void loggedInStateChanged(sessiontype_t, handle me) { }
 
     // user data result
     virtual void userdata_result(string*, string*, string*, Error) { }
