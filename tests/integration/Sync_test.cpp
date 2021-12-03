@@ -3431,24 +3431,15 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
 
 bool StandardClient::backupOpenDrive(const fs::path& drivePath)
 {
-    auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
+    auto path = LocalPath::fromAbsolutePath(drivePath.u8string());
 
-    error e = API_OK;
-    client.syncs.syncRun([&]() {
-        e = client.syncs.backupOpenDrive(localDrivePath);
+    return withWait<bool>([&](PromiseBoolSP result) {
+        auto callback = [result](Error error) {
+            result->set_value(error == API_OK);
+        };
+
+        client.syncs.backupOpenDrive(path, std::move(callback));
     });
-
-    return e == API_OK;
-}
-
-void StandardClient::backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
-{
-    auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
-
-    client.syncs.queueSync([=]() {
-            error e = client.syncs.backupOpenDrive(localDrivePath);
-            result->set_value(e == API_OK);
-        });
 }
 
 void StandardClient::wouldBeEscapedOnDownload(fs::path root, string remoteName, PromiseBoolSP result)

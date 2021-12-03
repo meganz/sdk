@@ -523,7 +523,7 @@ struct StandardClient : public ::mega::MegaApp
     bool disableSync(handle id, SyncError error, bool enabled);
 
     template<typename ResultType, typename Callable>
-    ResultType withWait(Callable&& callable)
+    ResultType withWait(Callable&& callable, ResultType&& defaultValue = ResultType())
     {
         using std::future_status;
         using std::shared_ptr;
@@ -545,7 +545,7 @@ struct StandardClient : public ::mega::MegaApp
 
         LOG_warn << "Timed out in withWait";
 
-        return ResultType();
+        return std::move(defaultValue);
     }
 
     void deleteremote(string path, bool fromroot, PromiseBoolSP pb);
@@ -585,7 +585,6 @@ struct StandardClient : public ::mega::MegaApp
     bool waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool backupOpenDrive(const fs::path& drivePath);
-    void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
     void wouldBeEscapedOnDownload(fs::path root, string remoteName, PromiseBoolSP result);
     bool wouldBeEscapedOnDownload(fs::path root, string remoteName);
     size_t triggerFullScan(handle backupID);
