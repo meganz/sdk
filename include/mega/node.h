@@ -708,8 +708,8 @@ struct MEGA_API LocalNode
 
     LocalNode* findChildWithSyncedNodeHandle(NodeHandle h);
 
-    FSNode getLastSyncedFSDetails();
-    FSNode getScannedFSDetails();
+    FSNode getLastSyncedFSDetails() const;
+    FSNode getScannedFSDetails() const;
 
     // Each LocalNode can be either uploading or downloading a file.
     // These functions manage that

@@ -2088,7 +2088,7 @@ LocalNode* LocalNode::findChildWithSyncedNodeHandle(NodeHandle h)
     return nullptr;
 }
 
-FSNode LocalNode::getLastSyncedFSDetails()
+FSNode LocalNode::getLastSyncedFSDetails() const
 {
     assert(fsid_lastSynced != UNDEF);
 
@@ -2104,7 +2104,7 @@ FSNode LocalNode::getLastSyncedFSDetails()
 }
 
 
-FSNode LocalNode::getScannedFSDetails()
+FSNode LocalNode::getScannedFSDetails() const
 {
     FSNode n;
     n.localname = localname;
