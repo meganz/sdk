@@ -318,9 +318,12 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
     {
         if (!file->h.isUndef())
         {
-            Node *node = client->nodeByHandle(file->h);
+            Node *node = client->nodeByHandle(file->h, true);
             if (node)
             {
+                assert(node->type != FILENODE);
+                assert(!node->parent || node->parent->type != FILENODE);
+
                 handle rootnode = client->getrootnode(node)->nodehandle;
                 if (targetRoots.find(rootnode) != targetRoots.end())
                 {
@@ -1087,8 +1090,10 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     if (type == NODE_HANDLE)
     {
         Node* tn;
-        if ((tn = client->nodeByHandle(th)))
+        if ((tn = client->nodeByHandle(th, true)))
         {
+            assert(tn->type != FILENODE);
+
             ShareNodeKeys snk;
 
             for (unsigned i = 0; i < nn.size(); i++)
@@ -4854,7 +4859,7 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
                 break;
-                
+
             case MAKENAMEID6('s', 'g', 'w', 'i', 'd', 's'):
                 if (client->json.enterarray())
                 {
