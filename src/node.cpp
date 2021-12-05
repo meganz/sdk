@@ -1442,17 +1442,9 @@ void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime de
     }
 
     auto state = TreeState((doHere?1u:0u) << 1 | (doBelow?1u:0u));
+
     if (state >= TREE_ACTION_HERE && delayds > 0)
-    {
-        if (scanDelayUntil > Waiter::ds + delayds + 10)
-        {
-            scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
-        }
-        else
-        {
-            scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
-        }
-    }
+        scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
 
     scanAgain = std::max<TreeState>(scanAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
@@ -1720,10 +1712,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             lastFolderScan.reset(new vector<FSNode>(ourScanRequest->resultNodes()));
 
             // Mark this directory as requiring another scan.
-            setScanAgain(false, true, false, 0);
-
-            // Don't scan too frequently.
-            scanDelayUntil = Waiter::ds + 10;
+            setScanAgain(false, true, false, 10);
         }
         else if (ScanService::SCAN_SUCCESS == ourScanRequest->completionResult())
         {
