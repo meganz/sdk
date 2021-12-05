@@ -424,12 +424,6 @@ enum ExclusionState : unsigned char
     ES_UNKNOWN
 }; // ExclusionState
 
-enum FingerprintFlag : unsigned
-{
-    FPF_COMPUTE = 1,
-    FPF_PROCESSING = 2
-}; // FingerprintFlag
-
 inline TreeState updateTreestateFromChild(TreeState oldFlag, TreeState childFlag)
 {
     return oldFlag == TREE_RESOLVED && childFlag != TREE_RESOLVED ? TREE_DESCENDANT_FLAGGED : oldFlag;
@@ -525,23 +519,8 @@ struct MEGA_API LocalNode
         // needs another recursiveSync for scanning at this level after pending changes
         TreeState scanAgain : 3;
 
-        // Controls whether we use the fingerprint cache when scanning this
-        // file.
-        //
-        // This member is a bitfield of the following two flags:
-        // - FPF_COMPUTE
-        // - FPF_PROCESSING
-        //
-        // FPF_COMPUTE is a marker that states that when we scan this file,
-        // we must recompute the file's fingerprint. This differs from the
-        // usual behavior whih is to only fingerprint a file if its size or
-        // mtime has changed.
-        //
-        // FPF_PROCESSING is a marker that's set when a scan has begun and
-        // that scan has taken this node's FPF_COMPUTE flag into
-        // consideration. This flag is important as it tells the engine
-        // whether FPF_COMPUTE should remain set when scanning completes.
-        unsigned fingerprintFlags : 2;
+        // Determines whether we refingerprint a file when it is scanned.
+        bool recomputeFingerprint : 1;
 
         // needs another recursiveSync() to check moves at this level after pending changes
         // (can only be cleared if all scanAgain flags are clear)

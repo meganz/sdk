@@ -2609,7 +2609,7 @@ dstime Sync::procscanq()
                 && match->parent)
             {
                 if (match->type == FILENODE)
-                    match->fingerprintFlags |= FPF_COMPUTE;
+                    match->recomputeFingerprint = true;
 
                 nearest = match->parent;
             }

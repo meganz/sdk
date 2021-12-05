@@ -1307,7 +1307,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     moveApplyingToLocal = false;
     conflicts = TREE_RESOLVED;
     scanAgain = TREE_RESOLVED;
-    fingerprintFlags = 0x0;
+    recomputeFingerprint = false;
     checkMovesAgain = TREE_RESOLVED;
     syncAgain = TREE_RESOLVED;
     parentSetCheckMovesAgain = false;
@@ -1670,10 +1670,9 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                     continue;
 
                 // Should we refingerprint this file?
-                if (child.fingerprintFlags == FPF_COMPUTE)
+                if (child.recomputeFingerprint)
                 {
-                    // Let the engine know we're scanning this file.
-                    child.fingerprintFlags = FPF_PROCESSING;
+                    child.recomputeFingerprint = false;
                     continue;
                 }
 
@@ -1714,44 +1713,21 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
         if (scanObsolete)
         {
-            // Restore our children's fingerprint flags.
-            for (auto& childIt : children)
-            {
-                auto& child = *childIt.second;
-
-                // Were we refingerprinting this file?
-                if (child.fingerprintFlags >= FPF_PROCESSING)
-                {
-                    // Then we should refingerprint it next time we scan.
-                    child.fingerprintFlags = FPF_COMPUTE;
-                }
-            }
-
             LOG_verbose << sync->syncname << "Directory scan outdated for : " << fullPath.localPath_utf8();
             scanObsolete = false;
-            scanDelayUntil = Waiter::ds + 10; // don't scan too frequently
+
+            // Scan results are out of date but may still be useful.
+            lastFolderScan.reset(new vector<FSNode>(ourScanRequest->resultNodes()));
+
+            // Mark this directory as requiring another scan.
+            setScanAgain(false, true, false, 0);
+
+            // Don't scan too frequently.
+            scanDelayUntil = Waiter::ds + 10;
         }
         else if (ScanService::SCAN_SUCCESS == ourScanRequest->completionResult())
         {
-            // Update our children's fingerprint flags.
-            for (auto& childIt : children)
-            {
-                auto& child = *childIt.second;
-
-                if (child.fingerprintFlags > FPF_PROCESSING)
-                {
-                    // Child marked for fingerprinting while scan was underway.
-                    child.fingerprintFlags = FPF_COMPUTE;
-                }
-                else if (child.fingerprintFlags == FPF_PROCESSING)
-                {
-                    // Child's fingerprint flags unchanged.
-                    child.fingerprintFlags = 0x0;
-                }
-            }
-
-            lastFolderScan.reset(
-                new vector<FSNode>(ourScanRequest->resultNodes()));
+            lastFolderScan.reset(new vector<FSNode>(ourScanRequest->resultNodes()));
 
             LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath_utf8();
 
@@ -1777,7 +1753,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                 for (auto& childIt : children)
                 {
                     if (childIt.second->type == FILENODE)
-                        childIt.second->fingerprintFlags = FPF_COMPUTE;
+                        childIt.second->recomputeFingerprint = true;
                 }
             }
         }
