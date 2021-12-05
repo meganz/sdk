@@ -1307,6 +1307,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     moveApplyingToLocal = false;
     conflicts = TREE_RESOLVED;
     scanAgain = TREE_RESOLVED;
+    fingerprintFlags = 0x0;
     checkMovesAgain = TREE_RESOLVED;
     syncAgain = TREE_RESOLVED;
     parentSetCheckMovesAgain = false;
@@ -1659,14 +1660,29 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
             // If enough details of the scan are the same, we can reuse fingerprints instead of recalculating
             map<LocalPath, FSNode> priorScanChildren;
-            for (auto& c : children)
+
+            for (auto& childIt : children)
             {
-                if (c.second->type == FILENODE &&
-                    c.second->scannedFingerprint.isvalid)
+                auto& child = *childIt.second;
+
+                // Can't fingerprint directories.
+                if (child.type != FILENODE)
+                    continue;
+
+                // Should we refingerprint this file?
+                if (child.fingerprintFlags == FPF_COMPUTE)
                 {
-                    assert(*c.first == c.second->localname);
-                    priorScanChildren.emplace(*c.first, c.second->getScannedFSDetails());
+                    // Let the engine know we're scanning this file.
+                    child.fingerprintFlags = FPF_PROCESSING;
+                    continue;
                 }
+
+                // Can't reuse an invalid fingerprint.
+                if (!child.scannedFingerprint.isvalid)
+                    continue;
+
+                // Reuse this file's fingerprint.
+                priorScanChildren.emplace(*childIt.first, child.getScannedFSDetails());
             }
 
             ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath,
@@ -1698,12 +1714,42 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
         if (scanObsolete)
         {
+            // Restore our children's fingerprint flags.
+            for (auto& childIt : children)
+            {
+                auto& child = *childIt.second;
+
+                // Were we refingerprinting this file?
+                if (child.fingerprintFlags >= FPF_PROCESSING)
+                {
+                    // Then we should refingerprint it next time we scan.
+                    child.fingerprintFlags = FPF_COMPUTE;
+                }
+            }
+
             LOG_verbose << sync->syncname << "Directory scan outdated for : " << fullPath.localPath_utf8();
             scanObsolete = false;
             scanDelayUntil = Waiter::ds + 10; // don't scan too frequently
         }
         else if (ScanService::SCAN_SUCCESS == ourScanRequest->completionResult())
         {
+            // Update our children's fingerprint flags.
+            for (auto& childIt : children)
+            {
+                auto& child = *childIt.second;
+
+                if (child.fingerprintFlags > FPF_PROCESSING)
+                {
+                    // Child marked for fingerprinting while scan was underway.
+                    child.fingerprintFlags = FPF_COMPUTE;
+                }
+                else if (child.fingerprintFlags == FPF_PROCESSING)
+                {
+                    // Child's fingerprint flags unchanged.
+                    child.fingerprintFlags = 0x0;
+                }
+            }
+
             lastFolderScan.reset(
                 new vector<FSNode>(ourScanRequest->resultNodes()));
 
@@ -1726,6 +1772,13 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                 // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
                 rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
                 sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
+
+                // Mark all immediate children as requiring refingerprinting.
+                for (auto& childIt : children)
+                {
+                    if (childIt.second->type == FILENODE)
+                        childIt.second->fingerprintFlags = FPF_COMPUTE;
+                }
             }
         }
     }

@@ -2608,6 +2608,9 @@ dstime Sync::procscanq()
                 || match->type == FILENODE)
                 && match->parent)
             {
+                if (match->type == FILENODE)
+                    match->fingerprintFlags |= FPF_COMPUTE;
+
                 nearest = match->parent;
             }
             else
