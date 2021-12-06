@@ -2608,6 +2608,9 @@ dstime Sync::procscanq()
                 || match->type == FILENODE)
                 && match->parent)
             {
+                if (match->type == FILENODE)
+                    match->recomputeFingerprint = true;
+
                 nearest = match->parent;
             }
             else
@@ -6763,7 +6766,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     if (deleteCounter < 1)
     {
         SYNC_verbose << "This LocalNode is a candidate for deletion, we'll confirm on the next pass." << logTriplet(row, fullPath);
-        row.syncNode->confirmDeleteCount = deleteCounter + 1;
+        row.syncNode->confirmDeleteCount = (deleteCounter + 1) & 0x3;
         return false;
     }
 

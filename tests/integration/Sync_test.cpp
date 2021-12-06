@@ -3102,26 +3102,52 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
 
 bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClient* c3, StandardClient* c4)
 {
-    received_node_actionpackets = false;
-    if (c2) c2->received_node_actionpackets = false;
-    if (c3) c3->received_node_actionpackets = false;
-    if (c4) c4->received_node_actionpackets = false;
+    auto resetActionPacketFlags = [this, c2, c3, c4]() {
+        received_node_actionpackets = false;
+        if (c2) c2->received_node_actionpackets = false;
+        if (c3) c3->received_node_actionpackets = false;
+        if (c4) c4->received_node_actionpackets = false;
+    };
+
+    auto waitForActionPackets = [this, c2, c3, c4]() {
+        if (!waitForNodesUpdated(30))
+            return false;
+
+        if (c2 && !c2->waitForNodesUpdated(30))
+            return false;
+
+        if (c3 && !c3->waitForNodesUpdated(30))
+            return false;
+
+        if (c4 && !c4->waitForNodesUpdated(30))
+            return false;
+
+        return true;
+    };
+
+    resetActionPacketFlags();
 
     auto p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteTestBaseFolder(true, pb); });
     if (!waitonresults(&p1)) {
         out() << "deleteTestBaseFolder failed";
         return false;
     }
+
+    if (!waitForActionPackets())
+    {
+        out() << "No actionpacket received in at least one client for base folder deletion.";
+        return false;
+    }
+
+    resetActionPacketFlags();
+
     p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
     if (!waitonresults(&p1)) {
         out() << "ensureTestBaseFolder failed";
         return false;
     }
 
-    if (!waitForNodesUpdated(30) ||
-        (c2 && !c2->waitForNodesUpdated(30)) ||
-        (c3 && !c3->waitForNodesUpdated(30)) ||
-        (c4 && !c4->waitForNodesUpdated(30)))
+    if (!waitForActionPackets())
     {
         out() << "No actionpacket received in at least one client for base folder creation";
         return false;

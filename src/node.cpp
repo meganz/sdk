@@ -1307,6 +1307,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     moveApplyingToLocal = false;
     conflicts = TREE_RESOLVED;
     scanAgain = TREE_RESOLVED;
+    recomputeFingerprint = false;
     checkMovesAgain = TREE_RESOLVED;
     syncAgain = TREE_RESOLVED;
     parentSetCheckMovesAgain = false;
@@ -1441,17 +1442,9 @@ void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime de
     }
 
     auto state = TreeState((doHere?1u:0u) << 1 | (doBelow?1u:0u));
+
     if (state >= TREE_ACTION_HERE && delayds > 0)
-    {
-        if (scanDelayUntil > Waiter::ds + delayds + 10)
-        {
-            scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
-        }
-        else
-        {
-            scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
-        }
-    }
+        scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
 
     scanAgain = std::max<TreeState>(scanAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
@@ -1659,14 +1652,28 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
             // If enough details of the scan are the same, we can reuse fingerprints instead of recalculating
             map<LocalPath, FSNode> priorScanChildren;
-            for (auto& c : children)
+
+            for (auto& childIt : children)
             {
-                if (c.second->type == FILENODE &&
-                    c.second->scannedFingerprint.isvalid)
+                auto& child = *childIt.second;
+
+                // Can't fingerprint directories.
+                if (child.type != FILENODE)
+                    continue;
+
+                // Should we refingerprint this file?
+                if (child.recomputeFingerprint)
                 {
-                    assert(*c.first == c.second->localname);
-                    priorScanChildren.emplace(*c.first, c.second->getScannedFSDetails());
+                    child.recomputeFingerprint = false;
+                    continue;
                 }
+
+                // Can't reuse an invalid fingerprint.
+                if (!child.scannedFingerprint.isvalid)
+                    continue;
+
+                // Reuse this file's fingerprint.
+                priorScanChildren.emplace(*childIt.first, child.getScannedFSDetails());
             }
 
             ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath,
@@ -1700,12 +1707,16 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
         {
             LOG_verbose << sync->syncname << "Directory scan outdated for : " << fullPath.localPath_utf8();
             scanObsolete = false;
-            scanDelayUntil = Waiter::ds + 10; // don't scan too frequently
+
+            // Scan results are out of date but may still be useful.
+            lastFolderScan.reset(new vector<FSNode>(ourScanRequest->resultNodes()));
+
+            // Mark this directory as requiring another scan.
+            setScanAgain(false, true, false, 10);
         }
         else if (ScanService::SCAN_SUCCESS == ourScanRequest->completionResult())
         {
-            lastFolderScan.reset(
-                new vector<FSNode>(ourScanRequest->resultNodes()));
+            lastFolderScan.reset(new vector<FSNode>(ourScanRequest->resultNodes()));
 
             LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath_utf8();
 
@@ -1726,6 +1737,13 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                 // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
                 rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
                 sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
+
+                // Mark all immediate children as requiring refingerprinting.
+                for (auto& childIt : children)
+                {
+                    if (childIt.second->type == FILENODE)
+                        childIt.second->recomputeFingerprint = true;
+                }
             }
         }
     }
@@ -2088,7 +2106,7 @@ LocalNode* LocalNode::findChildWithSyncedNodeHandle(NodeHandle h)
     return nullptr;
 }
 
-FSNode LocalNode::getLastSyncedFSDetails()
+FSNode LocalNode::getLastSyncedFSDetails() const
 {
     assert(fsid_lastSynced != UNDEF);
 
@@ -2104,7 +2122,7 @@ FSNode LocalNode::getLastSyncedFSDetails()
 }
 
 
-FSNode LocalNode::getScannedFSDetails()
+FSNode LocalNode::getScannedFSDetails() const
 {
     FSNode n;
     n.localname = localname;

@@ -519,6 +519,9 @@ struct MEGA_API LocalNode
         // needs another recursiveSync for scanning at this level after pending changes
         TreeState scanAgain : 3;
 
+        // Determines whether we refingerprint a file when it is scanned.
+        bool recomputeFingerprint : 1;
+
         // needs another recursiveSync() to check moves at this level after pending changes
         // (can only be cleared if all scanAgain flags are clear)
         TreeState checkMovesAgain : 3;
@@ -708,8 +711,8 @@ struct MEGA_API LocalNode
 
     LocalNode* findChildWithSyncedNodeHandle(NodeHandle h);
 
-    FSNode getLastSyncedFSDetails();
-    FSNode getScannedFSDetails();
+    FSNode getLastSyncedFSDetails() const;
+    FSNode getScannedFSDetails() const;
 
     // Each LocalNode can be either uploading or downloading a file.
     // These functions manage that
