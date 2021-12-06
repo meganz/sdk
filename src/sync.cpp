@@ -7830,8 +7830,17 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
                     syncs.queueClient([debrisNodeHandle, fromInshare, deletePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
-                            if (auto n = mc.nodeByHandle(debrisNodeHandle))
+                            if (auto n = mc.nodeByHandle(debrisNodeHandle, true))
                             {
+                                if (n->parent && n->parent->type == FILENODE)
+                                {
+                                    // if we decided to remove a file, but it turns out not to be
+                                    // the latest version of that file, abandon the action
+                                    // and let the sync recalculate
+                                    LOG_debug << "Sync delete was out of date, there is a more recent version of the file. " << debrisNodeHandle << " " << n->displaypath();
+                                    return;
+                                }
+
                                 mc.movetosyncdebris(n, fromInshare, [deletePtr](NodeHandle, Error){
 
                                     // deletePtr lives until this moment
@@ -9624,8 +9633,10 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     assert(onSyncThread());
 
     lock_guard<mutex> g(mClient.nodeTreeMutex);
-    if (Node* n = mClient.nodeByHandle(h))
+    if (Node* n = mClient.nodeByHandle(h, true))
     {
+        assert(n->type != FILENODE);
+        assert(!n->parent || n->parent->type != FILENODE);
         cloudChildren.reserve(n->children.size());
         for (auto c : n->children)
         {

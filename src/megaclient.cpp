@@ -3110,7 +3110,7 @@ void MegaClient::dispatchTransfers()
                         if ((*it)->hprivate && !(*it)->hforeign)
                         {
                             // Make sure we have the size field
-                            Node* n = nodeByHandle((*it)->h);
+                            Node* n = nodeByHandle((*it)->h, true);
                             if (!n)
                             {
                                 missingPrivateNode = true;
@@ -7045,10 +7045,12 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
                 if (c[2] == "in")
                 {
                     n = nodeByHandle(rootnodes.inbox);
+                    assert(!n || n->type == INCOMINGNODE);
                 }
                 else if (c[2] == "bin")
                 {
-                    n = nodeByHandle(rootnodes.rubbish);
+                    n = nodeByHandle(rootnodes.rubbish, true);
+                    assert(!n || n->type == RUBBISHNODE);
                 }
                 else
                 {
@@ -7060,6 +7062,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             else
             {
                 n = nodeByHandle(rootnodes.files);
+                assert(!n || n->type == ROOTNODE);
                 l = 1;
             }
         }
@@ -14520,11 +14523,12 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
 
 Node* MegaClient::getOrCreateSyncdebrisFolder()
 {
-    Node* binNode = nodeByHandle(rootnodes.rubbish);
+    Node* binNode = nodeByHandle(rootnodes.rubbish, true);
     if (!binNode)
     {
         return nullptr;
     }
+    assert(binNode->type == RUBBISHNODE);
 
     bool foundDebris = false;
 

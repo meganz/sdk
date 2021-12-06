@@ -354,7 +354,7 @@ void File::completed(Transfer* t, putsource_t source)
             NodeHandle th = h;
 
             // inaccessible target folder - use //bin instead
-            if (!t->client->nodeByHandle(th))
+            if (!t->client->nodeByHandle(th, true))
             {
                 th = t->client->rootnodes.rubbish;
             }

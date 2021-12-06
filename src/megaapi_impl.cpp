@@ -5563,14 +5563,14 @@ MegaApiImpl* MegaApiImpl::ImplOf(MegaApi* api)
 
 void MegaApiImpl::loggedInStateChanged(sessiontype_t s, handle me)
 {
-    std::lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::lock_guard<std::mutex> g(mLastRecievedLoggedMeMutex);
     mLastReceivedLoggedInState = s;
     mLastReceivedLoggedInMeHandle = me;
 }
 
 int MegaApiImpl::isLoggedIn()
 {
-    std::lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::lock_guard<std::mutex> g(mLastRecievedLoggedMeMutex);
     return mLastReceivedLoggedInState;
 }
 
@@ -5609,7 +5609,7 @@ int64_t MegaApiImpl::getAccountCreationTs()
 
 char *MegaApiImpl::getMyUserHandle()
 {
-    std::lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::lock_guard<std::mutex> g(mLastRecievedLoggedMeMutex);
 
     if (mLastReceivedLoggedInState == NOTLOGGEDIN ||
         ISUNDEF(mLastReceivedLoggedInMeHandle))
