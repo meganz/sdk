@@ -9008,6 +9008,13 @@ void MegaApiImpl::enableSyncById(handle backupId, MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::rescanSync(MegaHandle backupId)
+{
+    // no need to go via the Request queue
+    // (since syncs are threaded independently, no need to lock sdkMutex)
+    client->syncs.setSyncsNeedFullSync(true, backupId);
+}
+
 MegaSyncList *MegaApiImpl::getSyncs()
 {
     vector<MegaSyncPrivate*> vMegaSyncs;
@@ -9129,33 +9136,60 @@ void MegaApiImpl::resetTotalUploads()
 
 MegaNode *MegaApiImpl::getRootNode()
 {
-    sdkMutex.lock();
-    MegaNode *result = MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.files));
-    sdkMutex.unlock();
-    return result;
+    // return without locking the main mutex if possible.
+    // Only compare fixed-location 8-byte values
+    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    if (client->rootnodes.files.isUndef()) return nullptr;
+    if (!mLastKnownRootNode ||
+         mLastKnownRootNode->getHandle() != client->rootnodes.files.as8byte())
+    {
+        // ok now lock main mutex
+        SdkMutexGuard lock(sdkMutex);
+        mLastKnownRootNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.files)));
+    }
+
+    return mLastKnownRootNode ? mLastKnownRootNode->copy() : nullptr;
 }
 
 MegaNode* MegaApiImpl::getInboxNode()
 {
-    sdkMutex.lock();
-    MegaNode *result = MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.inbox));
-    sdkMutex.unlock();
-    return result;
+    // return without locking the main mutex if possible.
+    // Only compare fixed-location 8-byte values
+    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    if (client->rootnodes.inbox.isUndef()) return nullptr;
+    if (!mLastKnownInboxNode ||
+        mLastKnownInboxNode->getHandle() != client->rootnodes.inbox.as8byte())
+    {
+        // ok now lock main mutex
+        SdkMutexGuard lock(sdkMutex);
+        mLastKnownInboxNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.inbox)));
+    }
+
+    return mLastKnownInboxNode ? mLastKnownInboxNode->copy() : nullptr;
 }
 
 MegaNode* MegaApiImpl::getRubbishNode()
 {
-    sdkMutex.lock();
-    MegaNode *result = MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.rubbish));
-    sdkMutex.unlock();
-    return result;
+    // return without locking the main mutex if possible.
+    // Only compare fixed-location 8-byte values
+    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    if (client->rootnodes.rubbish.isUndef()) return nullptr;
+    if (!mLastKnownRubbishNode ||
+        mLastKnownRubbishNode->getHandle() != client->rootnodes.rubbish.as8byte())
+    {
+        // ok now lock main mutex
+        SdkMutexGuard lock(sdkMutex);
+        mLastKnownRubbishNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.rubbish)));
+    }
+
+    return mLastKnownRubbishNode ? mLastKnownRubbishNode->copy() : nullptr;
 }
 
 MegaNode *MegaApiImpl::getRootNode(MegaNode *node)
 {
     MegaNode *rootnode = NULL;
 
-    sdkMutex.lock();
+    SdkMutexGuard lock(sdkMutex);
 
     Node *n;
     if (node && (n = client->nodebyhandle(node->getHandle())))
@@ -9167,9 +9201,6 @@ MegaNode *MegaApiImpl::getRootNode(MegaNode *node)
 
         rootnode = MegaNodePrivate::fromNode(n);
     }
-
-    sdkMutex.unlock();
-
     return rootnode;
 }
 
@@ -14582,6 +14613,12 @@ void MegaApiImpl::logout_result(error e)
 #ifdef ENABLE_SYNC
         mCachedMegaSyncPrivate.reset();
 #endif
+
+        mLastReceivedLoggedInState = NOTLOGGEDIN;
+        mLastReceivedLoggedInMeHandle = UNDEF;
+        mLastKnownRootNode.reset();
+        mLastKnownInboxNode.reset();
+        mLastKnownRubbishNode.reset();
     }
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }

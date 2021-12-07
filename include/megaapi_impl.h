@@ -2526,6 +2526,7 @@ class MegaApiImpl : public MegaApp
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
+        void rescanSync(MegaHandle backupId);
         MegaSyncList *getSyncs();
 
         void stopSyncs(MegaRequestListener *listener=NULL);
@@ -2995,6 +2996,10 @@ protected:
         mutex mLastRecievedLoggedMeMutex;
         sessiontype_t mLastReceivedLoggedInState = NOTLOGGEDIN;
         handle mLastReceivedLoggedInMeHandle = UNDEF;
+
+        unique_ptr<MegaNode> mLastKnownRootNode;
+        unique_ptr<MegaNode> mLastKnownInboxNode;
+        unique_ptr<MegaNode> mLastKnownRubbishNode;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;

@@ -14132,6 +14132,16 @@ class MegaApi
         void enableSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
+        * @brief Cause one or all syncs' local folder tree to be rescanned
+        *
+        * The scanning will start, and the usual scanning callbacks notify
+        * about when scanning is going on, or is resolved.
+        *
+        * @param backupId Identifier of the single Sync, or INVALID_HANDLE to rescan all.
+        */
+        void rescanSync(MegaHandle backupId);
+
+        /**
          * @brief
          * Imports internal sync configs from JSON.
          *
