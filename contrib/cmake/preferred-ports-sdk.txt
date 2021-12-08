@@ -5,8 +5,9 @@ cryptopp/c303dd024e2dc03a0665ddffbb12a1077933e649
 curl/7375bb408f2278d2f1875c259beef93332697ba7 
 libsodium/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:libsodium-ios.patch
 openssl/c303dd024e2dc03a0665ddffbb12a1077933e649
-openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on windows:off
+openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 windows:off
 openssl-windows/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off windows:on
+
 pcre/c303dd024e2dc03a0665ddffbb12a1077933e649
 readline/8.0 all:off osx:on
 sqlite3/c303dd024e2dc03a0665ddffbb12a1077933e649
@@ -20,7 +21,7 @@ libmediainfo/19.09
 libzen/0.4.37
 
 # ffmpeg (video preview/thumbnail generation)
-ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on ios:off
+ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on osx:ffmpeg-fix-x64-cross-compilation-on-arm.patch ios:off
 
 #freeimage and its dependencies (image preview/thumbnail generation)
 freeimage/7375bb408f2278d2f1875c259beef93332697ba7 osx:freeimage-bool-typedef-xcode-compiler.patch
@@ -48,7 +49,7 @@ vcpkg-cmake/7375bb408f2278d2f1875c259beef93332697ba7
 #pdfium-freetype/2-8-73
 
 # dependencies of pdfium
-icu/c303dd024e2dc03a0665ddffbb12a1077933e649
+icu/979a5197b3389cfdf91d0ac5d98b6066ce73fd7a
 lcms/c303dd024e2dc03a0665ddffbb12a1077933e649
 libjpeg-turbo/7375bb408f2278d2f1875c259beef93332697ba7
 openjpeg/7375bb408f2278d2f1875c259beef93332697ba7
@@ -60,7 +61,7 @@ libpng/7375bb408f2278d2f1875c259beef93332697ba7
 
 # tests and tools
 asio/c303dd024e2dc03a0665ddffbb12a1077933e649
-gtest/c303dd024e2dc03a0665ddffbb12a1077933e649
+gtest/c303dd024e2dc03a0665ddffbb12a1077933e649 all:gtest-fix-uninitialized-variable-warning.patch
 
 # previously listed - possibly for mega chat,sync,cmd.  Re-add with comment if the SDK alone needs them
 #x264/c303dd024e2dc03a0665ddffbb12a1077933e649
