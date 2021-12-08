@@ -490,7 +490,7 @@ public:
     unsigned localnodes[2]{};
 
     // look up LocalNode relative to localroot
-    LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = nullptr, LocalPath* outpath = nullptr);
+    LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked);
 
     void combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::iterator b) const;
 
@@ -923,6 +923,9 @@ struct Syncs
 
     // synchronous for now as that's a constraint from the intermediate layer
     NodeHandle getSyncedNodeForLocalPath(const LocalPath&);
+
+    // synchronous and requires first locking mLocalNodeChangeMutex
+    treestate_t getSyncStateForLocalPath(handle backupId, const LocalPath&);
 
     Syncs(MegaClient& mc, unique_ptr<FileSystemAccess> notification_fsa);
     ~Syncs();

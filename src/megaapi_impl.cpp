@@ -8727,49 +8727,34 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
 
 #ifdef ENABLE_SYNC
 
-int MegaApiImpl::syncPathState(string*)
+int MegaApiImpl::syncPathState(string* platformEncoded)
 {
-    // TODO: We'll restore this functionality later.
-    //
-    //       It's not as simple as it might seem from the surface as there
-    //       are a lot of threading issues to consider.
-    //
-    //       To truly perform this query, we need exclusive access to
-    //       several things.
-    //
-    //       First, we need exclusive access to the list of syncs. This is
-    //       necessary so that we can determine which sync contains the
-    //       specified path. An implicit requirement is that we have
-    //       exclusive access to the sync objects themselves in addition to
-    //       the list that contains them since the objects must stay alive
-    //       while we perform our query.
-    //
-    //       Second, we need exclusive access to the local node tree. This
-    //       is necessary so that we can traverse it safely and retrieve the
-    //       information we require.
-    //
-    //       Access to the local node tree is also required in order for us
-    //       to determine whether a given path is excluded. This is because
-    //       filter rules are defined per directory and can be inherited.
-    return MegaApi::STATE_IGNORED;
+    LocalPath localpath = LocalPath::fromPlatformEncodedAbsolute(*platformEncoded);
+    handle containingSyncId = UNDEF;
 
-#if 0
+    for (auto& config : client->syncs.allConfigs())
+    {
+        if (config.mLocalPath.isContainingPathOf(localpath))
+        {
+            if (!config.mEnabled || config.mRunningState < SYNC_INITIALSCAN)
+            {
+                return MegaApi::STATE_IGNORED;
+            }
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    string prefix("\\\\?\\");
-    string localPrefix;
-    LocalPath::path2local(&prefix, &localPrefix);
-    path->append("", 1);
-    if(!PathIsRelativeW((LPCWSTR)path->data()) && (path->size()<4 || memcmp(path->data(), localPrefix.data(), 4)))
-    {
-        path->insert(0, localPrefix);
+            auto debrisPath = config.mLocalPath;
+            debrisPath.appendWithSeparator(LocalPath::fromRelativePath(DEBRISFOLDER), false);
+
+            if (debrisPath.isContainingPathOf(localpath))
+            {
+                return MegaApi::STATE_IGNORED;
+            }
+
+            containingSyncId = config.mBackupId;
+            break;
+        }
     }
-    path->resize(path->size() - 1);
-    if (path->size() > (2 * sizeof(wchar_t)) && !memcmp(path->data() + path->size() -  (2 * sizeof(wchar_t)), L":\\", 2 * sizeof(wchar_t)))
-    {
-        path->resize(path->size() - sizeof(wchar_t));
-    }
-#endif
+
+    if (containingSyncId == UNDEF) return MegaApi::STATE_IGNORED;
 
     // Avoid blocking on the mutex for a long time, as we may be blocking windows explorer (or another platform's equivalent) from opening or displaying a window, unrelated to sync folders
     // We try to lock the SDK mutex.  If we can't get it in 10ms then we return a simple default, and subsequent requests try to lock the mutex but don't wait.
@@ -8784,65 +8769,7 @@ int MegaApiImpl::syncPathState(string*)
     // once we do manage to lock, return to normal operation.
     syncPathStateLockTimeout = false;
 
-    int state = MegaApi::STATE_NONE;
-    if (client->syncs.isEmpty)
-    {
-        return state;
-    }
-
-    LocalPath localpath = LocalPath::fromPlatformEncoded(*path);
-
-    client->syncs.forEachRunningSync_shortcircuit(true, [&](Sync* sync) {
-
-        if (!sync->localroot->localname.isContainingPathOf(localpath))
-        {
-            return true;
-        }
-
-        if (sync->localdebris.isContainingPathOf(localpath))
-        {
-            state = MegaApi::STATE_IGNORED;
-            return false;
-        }
-
-        if (localpath == sync->localroot->localname)
-        {
-            state = sync->localroot->ts;
-            return false;
-        }
-        else
-        {
-            LocalNode* l = sync->localnodebypath(NULL, localpath);
-            if (l)
-            {
-                state = l->ts;
-            }
-            else
-            {
-                string name = localpath.leafName().toName(*fsAccess);
-                if (is_syncable(sync, name.c_str(), localpath))
-                {
-                    auto fa = fsAccess->newfileaccess();
-                    if (fa->fopen(localpath, false, false) && (fa->type == FOLDERNODE || is_syncable(fa->size)))
-                    {
-                        state = MegaApi::STATE_PENDING;
-                    }
-                    else
-                    {
-                        state = MegaApi::STATE_IGNORED;
-                    }
-                }
-                else
-                {
-                    state = MegaApi::STATE_IGNORED;
-                }
-            }
-            return false;
-        }
-    });
-    return state;
-
-#endif
+    return client->syncs.getSyncStateForLocalPath(containingSyncId, localpath);
 }
 
 

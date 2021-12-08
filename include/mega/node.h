@@ -681,15 +681,11 @@ struct MEGA_API LocalNode
 
     void reassignUnstableFsidsOnceOnly(const FSNode* fsnode);
 
-    // current subtree sync state: current and displayed
-    treestate_t ts = TREESTATE_NONE;
-    treestate_t dts = TREESTATE_NONE;
-
-    // update sync state all the way to the root node
-    void treestate(treestate_t = TREESTATE_NONE);
+    // current subtree sync state as last notified to OS
+    treestate_t mReportedSyncState = TREESTATE_NONE;
 
     // check the current state (only useful for folders)
-    treestate_t checkstate();
+    treestate_t checkstate(bool notifyChangeToApp);
 
     // timer to delay upload start
     dstime nagleds = 0;

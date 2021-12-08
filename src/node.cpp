@@ -1168,11 +1168,11 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
     }
 
     // reset treestate for old subtree (in case of just not syncing that subtree anymore - updates icon overlays)
-    if (parent && !newparent && !sync->mDestructorRunning)
-    {
-        // since we can't do it after the parent is updated
-        treestate(TREESTATE_NONE);
-    }
+    //if (parent && !newparent && !sync->mDestructorRunning)
+    //{
+    //    // since we can't do it after the parent is updated
+    //    treestate(TREESTATE_NONE);
+    //}
 
     if (parentChange)
     {
@@ -1207,11 +1207,11 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
         parent->schildren[&*slocalname] = this;
     }
 
-    // reset treestate
-    if (parent && parentChange && !sync->mDestructorRunning)
-    {
-        treestate(TREESTATE_NONE);
-    }
+    //// reset treestate
+    //if (parent && parentChange && !sync->mDestructorRunning)
+    //{
+    //    treestate(TREESTATE_NONE);
+    //}
 
     if (oldsync)
     {
@@ -1322,8 +1322,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     scanObsolete = false;
     slocalname = NULL;
 
-    ts = TREESTATE_NONE;
-    dts = TREESTATE_NONE;
+    mReportedSyncState = TREESTATE_NONE;
 
     type = ctype;
 
@@ -1775,62 +1774,41 @@ void LocalNode::reassignUnstableFsidsOnceOnly(const FSNode* fsnode)
     }
 }
 
-// update treestates back to the root LocalNode, inform app about changes
-void LocalNode::treestate(treestate_t newts)
+treestate_t LocalNode::checkstate(bool notifyChangeToApp)
 {
-    if (newts != TREESTATE_NONE)
+    // notify file explorer if the sync state overlay icon should change
+
+    treestate_t ts = TREESTATE_NONE;
+
+    if (scanAgain == TREE_RESOLVED &&
+        checkMovesAgain == TREE_RESOLVED &&
+        syncAgain == TREE_RESOLVED)
     {
-        ts = newts;
+        ts = TREESTATE_SYNCED;
+    }
+    else if (type == FILENODE)
+    {
+        ts = TREESTATE_PENDING;
+    }
+    else if (scanAgain <= TREE_DESCENDANT_FLAGGED &&
+        checkMovesAgain <= TREE_DESCENDANT_FLAGGED &&
+        syncAgain <= TREE_DESCENDANT_FLAGGED)
+    {
+        ts = TREESTATE_SYNCING;
+    }
+    else
+    {
+        ts = TREESTATE_PENDING;
     }
 
-    if (ts != dts)
+    if (notifyChangeToApp && mReportedSyncState != ts)
     {
-		assert(sync->syncs.onSyncThread());
+        assert(sync->syncs.onSyncThread());
         sync->syncs.mClient.app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
+        mReportedSyncState = ts;
     }
 
-    if (parent && ((newts == TREESTATE_NONE && ts != TREESTATE_NONE)
-                   || (ts != dts && (!(ts == TREESTATE_SYNCED && parent->ts == TREESTATE_SYNCED))
-                                 && (!(ts == TREESTATE_SYNCING && parent->ts == TREESTATE_SYNCING))
-                                 && (!(ts == TREESTATE_PENDING && (parent->ts == TREESTATE_PENDING
-                                                                   || parent->ts == TREESTATE_SYNCING))))))
-    {
-        treestate_t state = TREESTATE_NONE;
-        if (newts != TREESTATE_NONE && ts == TREESTATE_SYNCING)
-        {
-            state = TREESTATE_SYNCING;
-        }
-        else
-        {
-            state = parent->checkstate();
-        }
-
-        parent->treestate(state);
-    }
-
-    dts = ts;
-}
-
-treestate_t LocalNode::checkstate()
-{
-    if (type == FILENODE)
-        return ts;
-
-    treestate_t state = TREESTATE_SYNCED;
-    for (localnode_map::iterator it = children.begin(); it != children.end(); it++)
-    {
-        if (it->second->ts == TREESTATE_SYNCING)
-        {
-            state = TREESTATE_SYNCING;
-            break;
-        }
-
-        if (it->second->ts == TREESTATE_PENDING && state == TREESTATE_SYNCED)
-        {
-            state = TREESTATE_PENDING;
-        }
-    }
-    return state;
+    return ts;
 }
 
 

@@ -1368,9 +1368,9 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
 // localpath must be relative to l or start with the root prefix if l == NULL
 // localpath must be a full sync path, i.e. start with localroot->localname
 // NULL: no match, optionally returns residual path
-LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath)
+LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked)
 {
-    assert(syncs.onSyncThread());
+    assert(syncs.onSyncThread() || fromOutsideThreadAlreadyLocked);
     assert(!outpath || outpath->empty());
 
     size_t subpathIndex = 0;
@@ -2251,8 +2251,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             }
         };
 
-        sourceSyncNode->treestate(TREESTATE_SYNCING);
-        if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
+        //sourceSyncNode->treestate(TREESTATE_SYNCING);
+        //if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
 
         // It turns out that after LocalPath implicitly uses \\?\ and
         // absolute paths, we don't need to worry about reserved names.
@@ -2522,7 +2522,7 @@ dstime Sync::procextraq()
         LocalNode* match;
         LocalNode* nearest;
 
-        match = localnodebypath(node, notification.path, &nearest, &remainder);
+        match = localnodebypath(node, notification.path, &nearest, &remainder, false);
 
         // If the node is reachable, notify its parent.
         if (match && match->parent)
@@ -2598,7 +2598,7 @@ dstime Sync::procscanq()
         LocalNode* node = notification.localnode;
 
         // Notify the node or its parent
-        LocalNode* match = localnodebypath(node, notification.path, &nearest, &remainder);
+        LocalNode* match = localnodebypath(node, notification.path, &nearest, &remainder, false);
 
         bool scanDescendants = false;
 
@@ -3392,7 +3392,7 @@ NodeHandle Syncs::getSyncedNodeForLocalPath(const LocalPath& lp)
         {
             if (us->mSync)
             {
-                LocalNode* match = us->mSync->localnodebypath(NULL, lp);
+                LocalNode* match = us->mSync->localnodebypath(NULL, lp, nullptr, nullptr, false);
                 if (match)
                 {
                     result = match->syncedCloudNodeHandle;
@@ -3403,6 +3403,26 @@ NodeHandle Syncs::getSyncedNodeForLocalPath(const LocalPath& lp)
 
     });
     return result;
+}
+
+treestate_t Syncs::getSyncStateForLocalPath(handle backupId, const LocalPath& lp)
+{
+    assert(!onSyncThread());
+
+    // mLocalNodeChangeMutex must already be locked!!
+
+    for (auto& us : mSyncVec)
+    {
+        if (us->mConfig.mBackupId == backupId && us->mSync)
+        {
+            if (LocalNode* match = us->mSync->localnodebypath(nullptr, lp, nullptr, nullptr, true))
+            {
+                return match->checkstate(false);
+            }
+            return TREESTATE_NONE;
+        }
+    }
+    return TREESTATE_NONE;
 }
 
 error Syncs::syncConfigStoreAdd(const SyncConfig& config)
@@ -5857,6 +5877,11 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 }
                             }
                         }
+                        if (childRow.syncNode &&
+                            childRow.syncNode->type == FILENODE)
+                        {
+                            childRow.syncNode->checkstate(true);
+                        }
                         break;
 
                     case 2:
@@ -5890,6 +5915,11 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             {
                                 earlyExit = true;
                             }
+                        }
+                        if (childRow.syncNode &&
+                            childRow.syncNode->type != FILENODE)
+                        {
+                            childRow.syncNode->checkstate(true);
                         }
                         break;
 
@@ -6588,13 +6618,6 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
         row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
 
-        row.syncNode->treestate(TREESTATE_SYNCED);
-
-        if (row.syncNode->type == FILENODE)
-        {
-            row.syncNode->checkMovesAgain = TREE_RESOLVED;
-        }
-
         if (row.syncNode->transferSP)
         {
             LOG_debug << "Clearing transfer for matched row at " << logTriplet(row, fullPath);
@@ -6609,24 +6632,12 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         SYNC_verbose << syncname << "Row was already synced" << logTriplet(row, fullPath);
     }
 
-    row.syncNode->syncAgain = std::max<TreeState>(row.syncNode->syncAgain,
-        row.syncNode->type == FILENODE ? TREE_DESCENDANT_FLAGGED : TREE_RESOLVED);
-
-    // we can load the filters as soon as the local file is present, no need to wait until the row is synced
-
-    //// Are we dealing with an ignore file?
-    //if (!row.syncNode->isIgnoreFile())
-    //    return true;
-
-    //// Has it changed?
-    //if (!parentRow.syncNode->filterChainRO().changed(row.fsNode->fingerprint))
-    //    return true;
-
-    //// If so, make sure we load its filters.
-    //parentRow.syncNode->loadFilters(fullPath.localPath);
-
-    //// Let the parent know its rules have changed.
-    //parentRow.ignoreFileChanging();
+    if (row.syncNode->type == FILENODE)
+    {
+        row.syncNode->scanAgain = TREE_RESOLVED;
+        row.syncNode->checkMovesAgain = TREE_RESOLVED;
+        row.syncNode->syncAgain = TREE_RESOLVED;
+    }
 
     return true;
 }
@@ -6658,11 +6669,6 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
         SYNC_verbose << "Considering this node synced on fs side already: " << toHandle(row.fsNode->fsid);
         row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
         row.syncNode->syncedFingerprint  = row.fsNode->fingerprint;
-        row.syncNode->treestate(TREESTATE_SYNCED);
-    }
-    else
-    {
-        row.syncNode->treestate(TREESTATE_PENDING);
     }
 
     if (row.syncNode->type != FILENODE)
@@ -6705,7 +6711,6 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
         row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
         row.syncNode->setSyncedFsid(uploadPtr->sourceFsid, syncs.localnodeBySyncedFsid, uploadPtr->sourceLocalname, nullptr);
         row.syncNode->syncedFingerprint  = row.cloudNode->fingerprint;
-        row.syncNode->treestate(TREESTATE_PENDING);
         return false;
     }
 
@@ -6713,11 +6718,6 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
     if (considerSynced)
     {
         row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
-        row.syncNode->treestate(TREESTATE_SYNCED);
-    }
-    else
-    {
-        row.syncNode->treestate(TREESTATE_PENDING);
     }
     if (row.syncNode->type != FILENODE)
     {
@@ -7082,8 +7082,8 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 row.syncNode->queueClientDownload(std::make_shared<SyncDownload_inClient>(*row.cloudNode,
                         tmpfaPath, inshare, *syncs.fsaccess, threadSafeState));
 
-                row.syncNode->treestate(TREESTATE_SYNCING);
-                parentRow.syncNode->treestate(TREESTATE_SYNCING);
+                //row.syncNode->treestate(TREESTATE_SYNCING);
+                //parentRow.syncNode->treestate(TREESTATE_SYNCING);
 
                 // If there's a legit .megaignore file present, we use it until (if and when) it is actually replaced.
 
