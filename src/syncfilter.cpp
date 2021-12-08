@@ -193,9 +193,6 @@ static bool add(const string& text, SizeFilterPtr& filter);
 // Parses the string filter "text" and adds it to the "filters" vector.
 static bool add(const string& text, StringFilterPtrVector& filters);
 
-// Returns true if the substring m..n is empty.
-static bool isEmpty(const char* m, const char* n);
-
 // Logs a normalization error and return false.
 static FilterLoadResult normalizationError(const string& text);
 
@@ -1001,25 +998,30 @@ bool add(const string& text, StringFilterPtrVector& filters)
         return syntaxError(text);
     }
 
+    // Trim trailing whitespace.
+    while (--n > m && std::isspace(*n))
+        ;
+
     // Is the pattern effectively empty?
-    if (isEmpty(m, n))
-    {
+    if (m >= n)
         return syntaxError(text);
-    }
 
     // Create the filter's matcher.
     MatcherPtr matcher;
+
+    // Extract the pattern.
+    string pattern(m, n - m + 1);
 
     try
     {
         switch (strategy)
         {
         case MS_GLOB:
-            matcher.reset(new GlobMatcher(m, caseSensitive));
+            matcher.reset(new GlobMatcher(pattern, caseSensitive));
             break;
         case MS_REGEXP:
             // This'll throw if the regex is malformed.
-            matcher.reset(new RegexMatcher(m, caseSensitive));
+            matcher.reset(new RegexMatcher(pattern, caseSensitive));
             break;
         }
     }
@@ -1053,18 +1055,6 @@ bool add(const string& text, StringFilterPtrVector& filters)
     return true;
 }
 
-
-bool isEmpty(const char* m, const char* n)
-{
-    const char* w = m;
-
-    while (m < n)
-    {
-        w += std::isspace(*m++) > 0;
-    }
-
-    return n == w;
-}
 
 FilterLoadResult normalizationError(const string& text)
 {
