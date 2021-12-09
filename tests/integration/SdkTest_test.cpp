@@ -5166,10 +5166,27 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
     ASSERT_EQ(found, true) << "Sync instance could not be found, after logout & login";
 
+    fetchnodes(0); // without this, MegaNode for the new sync will not be found
+
+    // Test that DeviceId was set for the newly registered backup
+    MegaSync* snc = allSyncs->get(0);
+    ASSERT_NE(snc, nullptr) << "No sync was found";
+    std::unique_ptr<MegaNode> nn(megaApi[0]->getNodeByHandle(snc->getMegaHandle()));
+    ASSERT_TRUE(nn) << "MegaNode for the new sync was not found";
+    const char* devid = nn->getDeviceId();
+    ASSERT_TRUE(devid && devid[0]) << "DeviceId was not set for the new sync";
+
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
     megaApi[0]->removeSync(allSyncs->get(0), &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
+
+    // Test that DeviceId is no longer set for the node of the former backup
+    nn.reset(megaApi[0]->getNodeByHandle(snc->getMegaHandle()));
+    ASSERT_TRUE(nn) << "MegaNode for the former sync was not found";
+    const char* devid2 = nn->getDeviceId();
+    ASSERT_TRUE(!devid2 || !devid2[0]) << "DeviceId was not removed for the former sync";
+
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
 
