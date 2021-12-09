@@ -685,7 +685,8 @@ struct MEGA_API LocalNode
     treestate_t mReportedSyncState = TREESTATE_NONE;
 
     // check the current state (only useful for folders)
-    treestate_t checkstate(bool notifyChangeToApp);
+    treestate_t checkTreestate(bool notifyChangeToApp);
+    void recursiveSetAndReportTreestate(treestate_t ts, bool recurse, bool reportToApp);
 
     // timer to delay upload start
     dstime nagleds = 0;

@@ -3411,13 +3411,17 @@ treestate_t Syncs::getSyncStateForLocalPath(handle backupId, const LocalPath& lp
 
     // mLocalNodeChangeMutex must already be locked!!
 
+    // we must lock the sync vec mutex when not on the sync thread
+    // careful of lock ordering to avoid deadlock between threads
+    // we never have mSyncVecMutex and then lock mLocalNodeChangeMutex
+    lock_guard<mutex> g(mSyncVecMutex);
     for (auto& us : mSyncVec)
     {
         if (us->mConfig.mBackupId == backupId && us->mSync)
         {
             if (LocalNode* match = us->mSync->localnodebypath(nullptr, lp, nullptr, nullptr, true))
             {
-                return match->checkstate(false);
+                return match->checkTreestate(false);
             }
             return TREESTATE_NONE;
         }
@@ -5880,7 +5884,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         if (childRow.syncNode &&
                             childRow.syncNode->type == FILENODE)
                         {
-                            childRow.syncNode->checkstate(true);
+                            childRow.syncNode->checkTreestate(true);
                         }
                         break;
 
@@ -5919,7 +5923,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         if (childRow.syncNode &&
                             childRow.syncNode->type != FILENODE)
                         {
-                            childRow.syncNode->checkstate(true);
+                            childRow.syncNode->checkTreestate(true);
                         }
                         break;
 

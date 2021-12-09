@@ -1155,6 +1155,15 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
         }
     }
 
+    // reset treestate for old subtree (before we update the names for this node, in case we generate paths while recursing)
+    // in case of just not syncing that subtree anymore - updates icon overlays
+    if (parent && !newparent && !sync->mDestructorRunning)
+    {
+        // since we can't do it after the parent is updated
+        // send out notifications with the current (soon to be old) paths, saying these are not consdiered by the sync anymore
+        recursiveSetAndReportTreestate(TREESTATE_NONE, true, true);
+    }
+
     if (localnameChange)
     {
         // set new name
@@ -1167,12 +1176,6 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
         slocalname = move(newshortname);
     }
 
-    // reset treestate for old subtree (in case of just not syncing that subtree anymore - updates icon overlays)
-    //if (parent && !newparent && !sync->mDestructorRunning)
-    //{
-    //    // since we can't do it after the parent is updated
-    //    treestate(TREESTATE_NONE);
-    //}
 
     if (parentChange)
     {
@@ -1207,11 +1210,13 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
         parent->schildren[&*slocalname] = this;
     }
 
-    //// reset treestate
-    //if (parent && parentChange && !sync->mDestructorRunning)
-    //{
-    //    treestate(TREESTATE_NONE);
-    //}
+    // reset treestate
+    if (parent && parentChange && !sync->mDestructorRunning)
+    {
+        // As we recurse through the update tree, we will see
+        // that it's different from this, and send out the true state
+        recursiveSetAndReportTreestate(TREESTATE_NONE, true, false);
+    }
 
     if (oldsync)
     {
@@ -1774,7 +1779,26 @@ void LocalNode::reassignUnstableFsidsOnceOnly(const FSNode* fsnode)
     }
 }
 
-treestate_t LocalNode::checkstate(bool notifyChangeToApp)
+void LocalNode::recursiveSetAndReportTreestate(treestate_t ts, bool recurse, bool reportToApp)
+{
+    if (reportToApp && ts != mReportedSyncState)
+    {
+        assert(sync->syncs.onSyncThread());
+        sync->syncs.mClient.app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
+    }
+
+    mReportedSyncState = ts;
+
+    if (recurse)
+    {
+        for (auto& i : children)
+        {
+            i.second->recursiveSetAndReportTreestate(ts, recurse, reportToApp);
+        }
+    }
+}
+
+treestate_t LocalNode::checkTreestate(bool notifyChangeToApp)
 {
     // notify file explorer if the sync state overlay icon should change
 
@@ -1801,12 +1825,7 @@ treestate_t LocalNode::checkstate(bool notifyChangeToApp)
         ts = TREESTATE_PENDING;
     }
 
-    if (notifyChangeToApp && mReportedSyncState != ts)
-    {
-        assert(sync->syncs.onSyncThread());
-        sync->syncs.mClient.app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
-        mReportedSyncState = ts;
-    }
+    recursiveSetAndReportTreestate(ts, false, notifyChangeToApp);
 
     return ts;
 }

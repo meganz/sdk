@@ -1285,8 +1285,18 @@ std::string LocalPath::platformEncoded() const
     // this function is typically used where we need to pass a file path to the client app, which expects utf16 in a std::string buffer
     // some other backwards compatible cases need this format also, eg. serialization
     std::string outstr;
-    outstr.resize(localpath.size() * sizeof(wchar_t));
-    memcpy(const_cast<char*>(outstr.data()), localpath.data(), localpath.size() * sizeof(wchar_t));
+
+    if (localpath.size() >= 4 && 0 == localpath.compare(0, 4, L"\\\\?\\", 4))
+    {
+        // when a path leaves LocalPath, we can remove prefix which is only needed internally
+        outstr.resize((localpath.size() - 4) * sizeof(wchar_t));
+        memcpy(const_cast<char*>(outstr.data()), localpath.data() + 4, (localpath.size() - 4) * sizeof(wchar_t));
+    }
+    else
+    {
+        outstr.resize(localpath.size() * sizeof(wchar_t));
+        memcpy(const_cast<char*>(outstr.data()), localpath.data(), localpath.size() * sizeof(wchar_t));
+    }
     return outstr;
 #else
     // for non-windows, it's just the same utf8 string we use anyway

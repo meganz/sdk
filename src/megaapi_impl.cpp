@@ -8762,14 +8762,26 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
     if ((!syncPathStateLockTimeout && !g.try_lock_for(std::chrono::milliseconds(10))) ||
         (syncPathStateLockTimeout && !g.try_lock()))
     {
+        if (!syncPathStateLockTimeout)
+        {
+            LOG_verbose << "Cannot get lock to report treestate for path " << localpath;
+        }
+
         syncPathStateLockTimeout = true;
         return MegaApi::STATE_IGNORED;
     }
 
-    // once we do manage to lock, return to normal operation.
-    syncPathStateLockTimeout = false;
+    treestate_t ts = client->syncs.getSyncStateForLocalPath(containingSyncId, localpath);
 
-    return client->syncs.getSyncStateForLocalPath(containingSyncId, localpath);
+    if (!syncPathStateLockTimeout)
+    {
+        LOG_verbose << "Resuming reporting treestate. " << ts << " for path " << localpath;
+
+        // once we do manage to lock, return to normal operation.
+        syncPathStateLockTimeout = false;
+    }
+
+    return ts;
 }
 
 
@@ -13254,6 +13266,8 @@ void MegaApiImpl::syncupdate_treestate(const SyncConfig &config, const LocalPath
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(config))
     {
         string s = lp.platformEncoded();
+
+        //LOG_verbose << "Notifying treestate change for path " << lp << " (" << ts << ")";
 
         fireOnFileSyncStateChanged(megaSync, &s, (int)ts);
     }
