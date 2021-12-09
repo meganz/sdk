@@ -7813,6 +7813,7 @@ public class MegaApiJava {
      *             provide more data and avoid race conditions. They could change or be removed in the current form.
      *
      */
+    @Deprecated
     public void updateStats() {
         megaApi.updateStats();
     }
@@ -8479,6 +8480,7 @@ public class MegaApiJava {
      * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
      * Use MegaNode::isShared instead
      */
+    @Deprecated
     public boolean isShared(MegaNode node) {
         return megaApi.isShared(node);
     }
@@ -8494,6 +8496,7 @@ public class MegaApiJava {
      * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
      * Use MegaNode::isOutShare instead
      */
+    @Deprecated
     public boolean isOutShare(MegaNode node) {
     	return megaApi.isOutShare(node);
     }
@@ -8509,6 +8512,7 @@ public class MegaApiJava {
      * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
      * Use MegaNode::isInShare instead
      */
+    @Deprecated
     public boolean isInShare(MegaNode node) {
     	return megaApi.isInShare(node);
     }
@@ -8573,6 +8577,7 @@ public class MegaApiJava {
      * @return List of MegaShare objects
      * @deprecated Use MegaNode::getOutShares instead of this function
      */
+    @Deprecated
     public ArrayList<MegaShare> getPendingOutShares() {
         return shareListToArray(megaApi.getPendingOutShares());
     }
@@ -8586,6 +8591,7 @@ public class MegaApiJava {
      * @return List of MegaShare objects.
      * @deprecated Use MegaNode::getOutShares instead of this function
      */
+    @Deprecated
     public ArrayList<MegaShare> getPendingOutShares(MegaNode node) {
         return shareListToArray(megaApi.getPendingOutShares(node));
     }
