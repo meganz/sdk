@@ -1938,32 +1938,32 @@ LocalNode::~LocalNode()
         sync->statecachedel(this);
     }
 
-    if (!sync->syncs.mExecutingLocallogout)
-    {
-        // for Locallogout, we will resume syncs and their transfers on re-login.
-        // for other cases - single sync cancel, disable etc - transfers are cancelled.
-        resetTransfer(nullptr);
-    }
-
-    if (sync->dirnotify.get())
+    if (sync->dirnotify && !sync->mDestructorRunning)
     {
         // deactivate corresponding notifyq records
         sync->dirnotify->fsEventq.replaceLocalNodePointers(this, (LocalNode*)~0);
         sync->dirnotify->fsDelayedNetworkEventq.replaceLocalNodePointers(this, (LocalNode*)~0);
     }
 
-    // remove from fsidnode map, if present
-    if (fsid_lastSynced_it != sync->syncs.localnodeBySyncedFsid.end())
+    if (!sync->syncs.mExecutingLocallogout)
     {
-        sync->syncs.localnodeBySyncedFsid.erase(fsid_lastSynced_it);
-    }
-    if (fsid_asScanned_it != sync->syncs.localnodeByScannedFsid.end())
-    {
-        sync->syncs.localnodeByScannedFsid.erase(fsid_asScanned_it);
-    }
-    if (syncedCloudNodeHandle_it != sync->syncs.localnodeByNodeHandle.end())
-    {
-        sync->syncs.localnodeByNodeHandle.erase(syncedCloudNodeHandle_it);
+        // for Locallogout, we will resume syncs and their transfers on re-login.
+        // for other cases - single sync cancel, disable etc - transfers are cancelled.
+        resetTransfer(nullptr);
+
+        // remove from fsidnode map, if present
+        if (fsid_lastSynced_it != sync->syncs.localnodeBySyncedFsid.end())
+        {
+            sync->syncs.localnodeBySyncedFsid.erase(fsid_lastSynced_it);
+        }
+        if (fsid_asScanned_it != sync->syncs.localnodeByScannedFsid.end())
+        {
+            sync->syncs.localnodeByScannedFsid.erase(fsid_asScanned_it);
+        }
+        if (syncedCloudNodeHandle_it != sync->syncs.localnodeByNodeHandle.end())
+        {
+            sync->syncs.localnodeByNodeHandle.erase(syncedCloudNodeHandle_it);
+        }
     }
 
     sync->syncs.totalLocalNodes--;

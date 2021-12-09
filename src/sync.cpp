@@ -236,9 +236,14 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
     auto reuseFingerprint =
       [](const FSNode& lhs, const FSNode& rhs)
       {
+          // it might look like fingerprint.crc comparison has been missed out here
+          // but that is intentional.  The point is to avoid re-fingerprinting files
+          // when we rescan a folder, if we already have good info about them and
+          // nothing we can see from outside the file had changed,
+          // mtime is the same, and no notifications arrived
+          // for this particular file.
           return lhs.type == rhs.type
                  && lhs.fsid == rhs.fsid
-                 && lhs.fingerprint.crc == rhs.fingerprint.crc
                  && lhs.fingerprint.mtime == rhs.fingerprint.mtime
                  && lhs.fingerprint.size == rhs.fingerprint.size;
       };
@@ -4242,6 +4247,7 @@ void Syncs::clear_inThread()
     triggerHandles.clear();
     localnodeByScannedFsid.clear();
     localnodeBySyncedFsid.clear();
+    localnodeByNodeHandle.clear();
     mSyncFlags.reset(new SyncFlags);
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
     mFileChangingCheckState.clear();
