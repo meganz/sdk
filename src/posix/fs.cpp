@@ -678,6 +678,8 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     notifyfd = fseventsfd;
 }
 
+#ifdef ENABLE_SYNC
+
 bool PosixFileSystemAccess::initFilesystemNotificationSystem()
 {
 #ifdef USE_INOTIFY
@@ -767,6 +769,8 @@ bool PosixFileSystemAccess::initFilesystemNotificationSystem()
     return false;
 #endif
 }
+
+#endif // ENABLE_SYNC
 
 PosixFileSystemAccess::~PosixFileSystemAccess()
 {
