@@ -697,6 +697,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // True if the filesystem indicated by the specified path has stable FSIDs.
     virtual bool fsStableIDs(const LocalPath& path) const;
+
+#ifdef ENABLE_SYNC
+    virtual bool initFilesystemNotificationSystem();
+#endif // ENABLE_SYNC
 };
 
 enum FilenameAnomalyType

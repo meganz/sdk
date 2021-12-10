@@ -812,6 +812,15 @@ bool FileSystemAccess::fsStableIDs(const LocalPath&) const
     return true;
 }
 
+#ifdef ENABLE_SYNC
+
+bool FileSystemAccess::initFilesystemNotificationSystem()
+{
+    return true;
+}
+
+#endif // ENABLE_SYNC
+
 bool FileSystemAccess::fileExistsAt(const LocalPath& path)
 {
     auto fa = newfileaccess(false);

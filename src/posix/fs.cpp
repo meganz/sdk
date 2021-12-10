@@ -675,10 +675,17 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     }
 #endif
 
+    notifyfd = fseventsfd;
+}
+
+bool PosixFileSystemAccess::initFilesystemNotificationSystem()
+{
 #ifdef USE_INOTIFY
     notifyfd = inotify_init1(IN_NONBLOCK);
     if (notifyfd < 0)
-        mNotificationError = errno;
+        return mNotificationError = errno, false;
+
+    return true;
 #endif
 
 #ifdef __MACH__
@@ -721,7 +728,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
     // for this to succeed, geteuid() must be 0, or an existing /dev/fsevents fd must have
     // been passed to the constructor
-    int fd = fseventsfd;
+    int fd = notifyfd;
 
     if (fd < 0 && (fd = open("/dev/fsevents", O_RDONLY)) < 0)
     {
@@ -739,12 +746,12 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
     if (ioctl(fd, FSEVENTS_CLONE, (char*)&fca) >= 0)
     {
-        if (fseventsfd < 0) close(fd);
+        if (notifyfd < 0) close(fd);
 
         if (ioctl(nfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
         {
             notifyfd = nfd;
-            return;
+            return true;
         }
 
         mNotificationError = errno;
@@ -754,11 +761,10 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     {
         mNotificationError = errno;
 
-        if (fseventsfd < 0) close(fd);
+        if (notifyfd < 0) close(fd);
     }
 
-#else
-    (void)fseventsfd;  // suppress warning
+    return false;
 #endif
 }
 
@@ -1784,7 +1790,9 @@ PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root,
         bool usingEvents = false;
 
         // Check for presence of volume metadata.
-        if (auto fd = open(rootCheckPath.c_str(), O_RDONLY); fd >= 0)
+        auto fd = open(rootCheckPath.c_str(), O_RDONLY);
+        
+        if (fd >= 0)
         {
             // Make sure it's actually about the root.
             if (char buf[MAXPATHLEN]; fcntl(fd, F_GETPATH, buf) >= 0)
@@ -1948,6 +1956,7 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
         && statfsbuf.f_type != 0x65735546; // FUSE
 #endif
 }
+
 #endif // ENABLE_SYNC
 
 std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)

@@ -3082,6 +3082,7 @@ Syncs::Syncs(MegaClient& mc, unique_ptr<FileSystemAccess> notification_fsa)
   , mScanService(new ScanService(waiter))
 {
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
+    fsaccess->initFilesystemNotificationSystem();
     syncThread = std::thread([this]() { syncLoop(); });
 }
 

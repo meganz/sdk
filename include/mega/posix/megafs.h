@@ -144,6 +144,8 @@ public:
     fsfp_t fsFingerprint(const LocalPath& path) const override;
 
     bool fsStableIDs(const LocalPath& path) const override;
+
+    bool initFilesystemNotificationSystem() override;
 #endif // ENABLE_SYNC
 };
 
