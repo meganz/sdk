@@ -121,10 +121,10 @@ std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
 template<typename T>
 using shared_promise = std::shared_ptr<promise<T>>;
 
-using PromiseBoolSP   = shared_promise<bool>;
-using PromiseHandleSP = shared_promise<handle>;
-using PromiseStringSP = shared_promise<string>;
-
+using PromiseBoolSP     = shared_promise<bool>;
+using PromiseHandleSP   = shared_promise<handle>;
+using PromiseStringSP   = shared_promise<string>;
+using PromiseUnsignedSP = shared_promise<unsigned>;
 
 struct Model
 {
@@ -418,7 +418,10 @@ struct StandardClient : public ::mega::MegaApp
     bool fetchnodes(bool noCache = false);
     NewNode makeSubfolder(const string& utf8Name);
     void catchup(PromiseBoolSP pb);
-    void deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb);
+
+    unsigned deleteTestBaseFolder(bool mayNeedDeleting);
+    void deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, PromiseUnsignedSP result);
+
     void ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb);
     NewNode* buildSubdirs(list<NewNode>& nodes, const string& prefix, int n, int recurselevel);
     bool makeCloudSubdirs(const string& prefix, int depth, int fanout);

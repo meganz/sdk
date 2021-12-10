@@ -1710,17 +1710,26 @@ void StandardClient::catchup(PromiseBoolSP pb)
         });
 }
 
-void StandardClient::deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb)
+unsigned StandardClient::deleteTestBaseFolder(bool mayNeedDeleting)
+{
+    auto result = thread_do<unsigned>([=](StandardClient& client, PromiseUnsignedSP result) {
+        client.deleteTestBaseFolder(mayNeedDeleting, false, std::move(result));
+    });
+
+    return result.get();
+}
+
+void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, PromiseUnsignedSP result)
 {
     if (Node* root = client.nodeByHandle(client.rootnodes.files))
     {
         if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
         {
-            if (mayneeddeleting)
+            if (mayNeedDeleting)
             {
-                auto completion = [this, pb](NodeHandle, Error e) {
+                auto completion = [this, result](NodeHandle, Error e) {
                     if (e) out() << "delete of test base folder reply reports: " << e;
-                    deleteTestBaseFolder(false, pb);
+                    deleteTestBaseFolder(false, true, result);
                 };
 
                 resultproc.prepresult(COMPLETION, ++next_request_tag,
@@ -1729,18 +1738,18 @@ void StandardClient::deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb
                 return;
             }
             out() << "base folder found, but not expected, failing";
-            pb->set_value(false);
+            result->set_value(0);
             return;
         }
         else
         {
             //out() << "base folder not found, wasn't present or delete successful";
-            pb->set_value(true);
+            result->set_value(deleted ? 2 : 1);
             return;
         }
     }
     out() << "base folder not found, as root was not found!";
-    pb->set_value(false);
+    result->set_value(0);
 }
 
 void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
@@ -3086,11 +3095,12 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
     }
     if (resetBaseCloudFolder)
     {
-        p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteTestBaseFolder(true, pb); });  // todo: do we need to wait for server response now
-        if (!waitonresults(&p1)) {
+        if (deleteTestBaseFolder(true) == 0)
+        {
             out() << "deleteTestBaseFolder failed";
             return false;
         }
+
         p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
         if (!waitonresults(&p1)) {
             out() << "ensureTestBaseFolder failed";
@@ -3127,21 +3137,24 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
 
     resetActionPacketFlags();
 
-    auto p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteTestBaseFolder(true, pb); });
-    if (!waitonresults(&p1)) {
+    switch (deleteTestBaseFolder(true))
+    {
+    case 0:
         out() << "deleteTestBaseFolder failed";
         return false;
-    }
-
-    if (!waitForActionPackets())
-    {
-        out() << "No actionpacket received in at least one client for base folder deletion.";
-        return false;
+    case 2:
+        if (!waitForActionPackets())
+        {
+            out() << "No actionpacket received in at least one client for base folder deletion.";
+            return false;
+        }
+    default:
+        break;
     }
 
     resetActionPacketFlags();
 
-    p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
+    auto p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
     if (!waitonresults(&p1)) {
         out() << "ensureTestBaseFolder failed";
         return false;
