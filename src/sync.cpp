@@ -9020,20 +9020,20 @@ void Syncs::syncLoop()
 
             if (Sync* sync = us->mSync.get())
             {
-                if (inTrash)
+                if (!foundCloudNode)
+                {
+                    LOG_debug << "Detected sync root node no longer exists";
+                    sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
+                }
+                else if (inTrash)
                 {
                     LOG_debug << "Detected sync root node is now in trash";
                     sync->changestate(SYNC_FAILED, REMOTE_NODE_MOVED_TO_RUBBISH, false, true);
                 }
-                else if (pathChanged)
+                else if (pathChanged /*&& us->mConfig.isBackup()*/)  // TODO: decide if we cancel non-backup syncs unnecessarily.  Users may like to move some high level folders around, without breaking contained syncs.
                 {
                     LOG_debug << "Detected sync root node is now at a different path.";
                     sync->changestate(SYNC_FAILED, REMOTE_PATH_HAS_CHANGED, false, true);
-                }
-                else if (!foundCloudNode)
-                {
-                    LOG_debug << "Detected sync root node no longer exists";
-                    sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
                 }
             }
         };

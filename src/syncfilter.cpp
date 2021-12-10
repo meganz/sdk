@@ -887,8 +887,7 @@ bool add(const string& text, StringFilterPtrVector& filters)
         MS_REGEXP
     }; /* MatchStrategy */
 
-    const char* m = text.data();
-    const char* n = m + text.size();
+    const char* m = text.c_str();
     const Target* target;
     FilterType type;
     MatchStrategy strategy;
@@ -998,19 +997,20 @@ bool add(const string& text, StringFilterPtrVector& filters)
         return syntaxError(text);
     }
 
-    // Trim trailing whitespace.
-    while (--n > m && std::isspace(*n))
-        ;
+    // Ignore trailing whitespace.
+    const char* n = text.c_str() + text.size();
+    while (n > m && std::isspace(*(n-1)))
+        --n;
 
     // Is the pattern effectively empty?
-    if (m >= n)
+    if (m > n)
         return syntaxError(text);
 
     // Create the filter's matcher.
     MatcherPtr matcher;
 
     // Extract the pattern.
-    string pattern(m, n - m + 1);
+    string pattern(m, n - m);
 
     try
     {

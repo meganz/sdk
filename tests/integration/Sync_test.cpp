@@ -1216,7 +1216,35 @@ void StandardClient::syncupdate_stalled(bool b)
     }
 
     mStallDetected.store(b);
+
+    if (mOnStall)
+        mOnStall(b);
 }
+
+void StandardClient::file_added(File* file)
+{
+    if (mOnFileAdded)
+    {
+        mOnFileAdded(*file);
+    }
+}
+
+void StandardClient::file_complete(File* file)
+{
+    if (mOnFileComplete)
+    {
+        mOnFileComplete(*file);
+    }
+}
+
+void StandardClient::syncupdate_filter_error(const SyncConfig& config)
+{
+    if (mOnFilterError)
+    {
+        mOnFilterError(config);
+    }
+}
+
 
 void StandardClient::syncupdate_local_lockretry(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
 
@@ -3313,12 +3341,12 @@ handle StandardClient::setupSync_mainthread(const std::string& localsyncrootfold
     fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
     fs::create_directory(syncdir);
 
-    // put a default .megaignore in the cloud, in case we set up other syncs to this folder also (avoiding duplicates create during setup races)
-    ofstream f(fsBasePath / ".megaignore");  // better not change the name or it upsets AnomalyReporter due to being outside the sync
-    f.close();
-
     if (uploadIgnoreFirst)
     {
+        // put a default .megaignore in the cloud, in case we set up other syncs to this folder also (avoiding duplicates create during setup races)
+        ofstream f(fsBasePath / ".megaignore");  // better not change the name or it upsets AnomalyReporter due to being outside the sync
+        f.close();
+
         EXPECT_TRUE(uploadFile(fsBasePath / ".megaignore", ".megaignore", "/mega_test_sync/" + remotesyncrootfolder));
     }
     else
@@ -10330,7 +10358,7 @@ void BackupBehavior::doTest(const string& initialContent,
         ASSERT_EQ(config.mEnabled, true);
         ASSERT_EQ(config.mError, NO_SYNC_ERROR);
     }
-    
+
     // Check that the file's been uploaded to the cloud.
     {
         StandardClient cd(TESTROOT, "cd");
@@ -10528,67 +10556,7 @@ class FilterFixture
   : public ::testing::Test
 {
 public:
-    struct Client
-      : public StandardClient
-    {
-        Client(const fs::path& basePath, const string& name)
-          : StandardClient(basePath, name)
-          , mOnFileAdded()
-          , mOnFileComplete()
-          , mOnFilterError()
-          , mOnStall()
-        {
-            localNodesMustHaveNodes = false;
-        };
-
-        void file_added(File* file) override
-        {
-            StandardClient::file_added(file);
-
-            if (mOnFileAdded)
-            {
-                mOnFileAdded(*file);
-            }
-        }
-
-        void file_complete(File* file) override
-        {
-            StandardClient::file_complete(file);
-
-            if (mOnFileComplete)
-            {
-                mOnFileComplete(*file);
-            }
-        }
-
-        Node* nodebyhandle(handle h)
-        {
-            return client.nodebyhandle(h);
-        }
-
-        void syncupdate_filter_error(const SyncConfig& config) override
-        {
-            StandardClient::syncupdate_filter_error(config);
-
-            if (mOnFilterError)
-            {
-                mOnFilterError(config);
-            }
-        }
-
-        void syncupdate_stalled(bool stalled) override
-        {
-            StandardClient::syncupdate_stalled(stalled);
-
-            if (mOnStall)
-                mOnStall(stalled);
-        }
-
-        function<void(File&)> mOnFileAdded;
-        function<void(File&)> mOnFileComplete;
-        function<void(const SyncConfig&)> mOnFilterError;
-        function<void(bool)>  mOnStall;
-    };
+    typedef StandardClient Client;
 
     struct LocalFSModel
       : public Model
@@ -10646,11 +10614,11 @@ public:
       , cdu()
       , cu()
     {
-        const fs::path root = makeNewTestRoot();
+        filterFixureTestRoot = makeNewTestRoot();
 
-        cd  = ::mega::make_unique<Client>(root, "cd");
-        cdu = ::mega::make_unique<Client>(root, "cdu");
-        cu  = ::mega::make_unique<Client>(root, "cu");
+        cd  = ::mega::make_unique<Client>(filterFixureTestRoot, "cd");
+        cdu = ::mega::make_unique<Client>(filterFixureTestRoot, "cdu");
+        cu  = ::mega::make_unique<Client>(filterFixureTestRoot, "cu");
 
         cd->logcb = true;
         cdu->logcb = true;
@@ -10764,6 +10732,8 @@ public:
         waitonsyncs(timeout, c0, c1, c2);
     }
 
+    fs::path filterFixureTestRoot;
+
     // download client.
     std::unique_ptr<Client> cd;
     // download / upload client.
@@ -10777,15 +10747,18 @@ TEST_F(FilterFixture, AlreadySyncedFilterIsLoaded)
     LocalFSModel localFS;
     RemoteNodeModel remoteTree;
 
-    // Log in client and clear cloud of content.
-    ASSERT_TRUE(cdu->login_reset_makeremotenodes("x"));
+    auto cdu = g_clientManager.getCleanStandardClient(0, filterFixureTestRoot); // user 1 client 1
+    ASSERT_TRUE(cdu->resetBaseFolderMulticlient());
+
+    ASSERT_TRUE(cdu->makeCloudSubdirs("x", 0, 0));
+    ASSERT_TRUE(CatchupClients(cdu));
 
     // Populate local filesystem.
     localFS.addfile(".megaignore", "-:f\n-:g\n");
     localFS.addfile("f");
     localFS.addfile("g");
     localFS.addfile("h");
-    localFS.generate(root(*cdu) / "root");
+    localFS.generate(root(cdu) / "root");
 
     // Populate cloud filesystem.
     {
@@ -10812,7 +10785,7 @@ TEST_F(FilterFixture, AlreadySyncedFilterIsLoaded)
     ASSERT_NE(id, UNDEF);
 
     // Wait for the sync to complete.
-    waitOnSyncs(cdu.get());
+    waitOnSyncs(cdu);
 
     // Confirm the models.
     ASSERT_TRUE(confirm(*cdu, id, localFS));
@@ -10830,7 +10803,6 @@ TEST_F(FilterFixture, CaseSensitiveFilter)
     localFS.addfile("b/F");
     localFS.addfile("b/G");
     localFS.addfile(".megaignore", "-G:f\n-:g\n");
-    localFS.generate(root(*cu) / "root");
 
     // Set up remote tree.
     remoteTree = localFS;
@@ -10839,14 +10811,20 @@ TEST_F(FilterFixture, CaseSensitiveFilter)
     remoteTree.removenode("b/G");
 
     // Log in client.
-    ASSERT_TRUE(cu->login_reset_makeremotenodes("cu"));
+    auto cu = g_clientManager.getCleanStandardClient(0, filterFixureTestRoot); // user 1 client 1
+    ASSERT_TRUE(cu->resetBaseFolderMulticlient());
+
+    ASSERT_TRUE(cu->makeCloudSubdirs("cu", 0, 0));
+    ASSERT_TRUE(CatchupClients(cu));
+
+    localFS.generate(root(*cu) / "root");
 
     // Add and start sync.
     auto id = setupSync(*cu, "root", "cu", false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization.
-    waitOnSyncs(cu.get());
+    waitOnSyncs(cu);
 
     // Confirm models.
     ASSERT_TRUE(confirm(*cu, id, localFS));
@@ -14538,7 +14516,7 @@ TEST_F(SyncTest, BasicSync_EditAndMove_MoveAndEdit)
 
     // Sync threads
     handle actorBackupId = actor.setupSync_mainthread(
-            testFolder, testFolder, 
+            testFolder, testFolder,
             false, false );
 
     ASSERT_NE(actorBackupId, UNDEF);
@@ -14549,7 +14527,7 @@ TEST_F(SyncTest, BasicSync_EditAndMove_MoveAndEdit)
     actorModel.addfile(origFolder + "/" + moveEditFile);
     actorModel.addfolder(destFolder);
 
-    // Model hierarchy on FS 
+    // Model hierarchy on FS
     actorModel.generate(actor.fsBasePath / testFolder );
 
     waitonsyncs(TIMEOUT, &actor);
@@ -14579,7 +14557,7 @@ TEST_F(SyncTest, BasicSync_EditAndMove_MoveAndEdit)
     // Are distinct files
     ASSERT_NE( initialEditMoveFSId, initialMoveEditFSId );
 
-    // Update the content of file 
+    // Update the content of file
     // @param modelNode to the file to change
     // @param fs path to file
     // @param aditionalContent to append to file
@@ -14623,7 +14601,7 @@ TEST_F(SyncTest, BasicSync_EditAndMove_MoveAndEdit)
         fsTestRoot / actorName / testFolder / destFolder / moveEditFile,
         "New content for second move then edit file"
     );
- 
+
     waitonsyncs(TIMEOUT, &actor);
 
     ASSERT_TRUE( actor.confirmModel_mainthread( testRootNode , actorBackupId));
@@ -14636,6 +14614,6 @@ TEST_F(SyncTest, BasicSync_EditAndMove_MoveAndEdit)
     ASSERT_EQ(initialMoveEditFSId, finalMoveEditFSId);
 }
 
- 
+
 #endif
 

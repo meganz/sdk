@@ -271,6 +271,9 @@ struct StandardClient : public ::mega::MegaApp
     std::atomic<bool> mStallDetected{false};
 
     void syncupdate_stalled(bool b) override;
+    void file_added(File* file) override;
+    void file_complete(File* file) override;
+    void syncupdate_filter_error(const SyncConfig& config) override;
 
     void syncupdate_local_lockretry(bool b) override;
 
@@ -592,6 +595,11 @@ struct StandardClient : public ::mega::MegaApp
     bool wouldBeEscapedOnDownload(fs::path root, string remoteName);
     size_t triggerFullScan(handle backupID);
 
+    function<void(File&)> mOnFileAdded;
+    function<void(File&)> mOnFileComplete;
+    function<void(const SyncConfig&)> mOnFilterError;
+    function<void(bool)>  mOnStall;
+
 };
 
 
@@ -636,6 +644,11 @@ public:
     operator StandardClient*()
     {
         return entry->ptr.get();
+    }
+
+    operator StandardClient&()
+    {
+        return *entry->ptr;
     }
 
 };
