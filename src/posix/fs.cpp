@@ -1212,7 +1212,6 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
     dirent* d;
     int removed;
     struct stat statbuf;
-    PosixFileSystemAccess pfsa;
 #ifdef USE_IOS
     const string namestr = adjustBasePath(name);
 #else
@@ -2111,7 +2110,6 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
     dirent* d;
     struct stat &statbuf = currentItemStat;
-    PosixFileSystemAccess pfsa;
 
     while ((d = readdir(dp)))
     {
