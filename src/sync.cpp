@@ -1149,6 +1149,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         l->syncedFingerprint.size = size;
         l->setSyncedFsid(fsid, syncs.localnodeBySyncedFsid, l->localname, std::move(shortname));
         l->setSyncedNodeHandle(l->syncedCloudNodeHandle);
+        l->oneTimeUseSyncedFingerprintInScan = true;
 
         if (!l->slocalname_in_db)
         {

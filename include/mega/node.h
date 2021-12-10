@@ -516,11 +516,14 @@ struct MEGA_API LocalNode
 
     struct
     {
-        // needs another recursiveSync for scanning at this level after pending changes
-        TreeState scanAgain : 3;
+        // Already-synced syncs on startup should not re-fingerprint files that match the synced fingerprint by fsid/size/mtime
+        bool oneTimeUseSyncedFingerprintInScan : 1;
 
         // Determines whether we refingerprint a file when it is scanned.
         bool recomputeFingerprint : 1;
+
+        // needs another recursiveSync for scanning at this level after pending changes
+        TreeState scanAgain : 3;
 
         // needs another recursiveSync() to check moves at this level after pending changes
         // (can only be cleared if all scanAgain flags are clear)

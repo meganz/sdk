@@ -1310,11 +1310,12 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     deletedFS = false;
     moveAppliedToLocal = false;
     moveApplyingToLocal = false;
-    conflicts = TREE_RESOLVED;
-    scanAgain = TREE_RESOLVED;
+    oneTimeUseSyncedFingerprintInScan = false;
     recomputeFingerprint = false;
+    scanAgain = TREE_RESOLVED;
     checkMovesAgain = TREE_RESOLVED;
     syncAgain = TREE_RESOLVED;
+    conflicts = TREE_RESOLVED;
     parentSetCheckMovesAgain = false;
     parentSetSyncAgain = false;
     parentSetScanAgain = false;
@@ -1661,23 +1662,27 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             {
                 auto& child = *childIt.second;
 
+                bool useSyncedFP = child.oneTimeUseSyncedFingerprintInScan;
+                child.oneTimeUseSyncedFingerprintInScan = false;
+
+                bool forceRecompute = child.recomputeFingerprint;
+                child.recomputeFingerprint = false;
+
                 // Can't fingerprint directories.
-                if (child.type != FILENODE)
+                if (child.type != FILENODE || forceRecompute)
                     continue;
 
-                // Should we refingerprint this file?
-                if (child.recomputeFingerprint)
+                if (child.scannedFingerprint.isvalid)
                 {
-                    child.recomputeFingerprint = false;
-                    continue;
+                    // as-scanned by this instance is more accurate if available
+                    priorScanChildren.emplace(*childIt.first, child.getScannedFSDetails());
                 }
-
-                // Can't reuse an invalid fingerprint.
-                if (!child.scannedFingerprint.isvalid)
-                    continue;
-
-                // Reuse this file's fingerprint.
-                priorScanChildren.emplace(*childIt.first, child.getScannedFSDetails());
+                else if (useSyncedFP && fsid_lastSynced != UNDEF && child.syncedFingerprint.isvalid)
+                {
+                    // But otherwise, already-synced syncs on startup should not re-fingerprint
+                    // files that match the synced fingerprint by fsid/size/mtime (for quick startup)
+                    priorScanChildren.emplace(*childIt.first, child.getLastSyncedFSDetails());
+                }
             }
 
             ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath,
