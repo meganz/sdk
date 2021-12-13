@@ -129,6 +129,8 @@ int attempts = 0;
 std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
+void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive);
+
 #ifdef ENABLE_SYNC
 
 // converts the given sync configuration to a string
@@ -1693,6 +1695,27 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                     }
                 }
 
+                if (n->children.size())
+                {
+                    Node *version = n;
+                    int i = 0;
+                    while (version->children.size() && (version = version->children.back()))
+                    {
+                        i++;
+                        if (handles_on)
+                        {
+                            if (i == 1) stream << ", has versions: ";
+
+                            Base64Str<MegaClient::NODEHANDLE> handlestr(version->nodehandle);
+                            stream << " [" << i << "] " << handlestr.chars;
+                        }
+                    }
+                    if (!handles_on)
+                    {
+                        stream << ", has " << i << " versions";
+                    }
+                }
+
                 if (n->plink)
                 {
                     stream << ", shared as exported";
@@ -2491,6 +2514,36 @@ void exec_codeTimings(autocomplete::ACState& s)
 
 #endif
 
+std::function<void()> onCompletedUploads;
+
+void setAppendAndUploadOnCompletedUploads(string local_path, int count)
+{
+
+    onCompletedUploads = [local_path, count](){
+
+        {
+            ofstream f(local_path, std::ios::app);
+            f << count << endl;
+        }
+        cout << count << endl;
+
+        DBTableTransactionCommitter committer(client->tctable);
+        int total = 0;
+        auto lp = LocalPath::fromPath(local_path, *client->fsaccess);
+        uploadLocalPath(FILENODE, lp.leafName().toPath(), lp, client->nodeByHandle(cwd), "", committer, total, false);
+
+        if (count > 0)
+        {
+            setAppendAndUploadOnCompletedUploads(local_path, count-1);
+        }
+        else
+        {
+            onCompletedUploads = nullptr;
+        }
+    };
+}
+
+
 #ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
@@ -2572,6 +2625,16 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     {
         cout << "invalid directory: " << p.u8string() << endl;
     }
+}
+
+void exec_generate_put_fileversions(autocomplete::ACState& s)
+{
+    int count = 100;
+    string param;
+    if (s.extractflagparam("-count", param)) count = atoi(param.c_str());
+
+    setAppendAndUploadOnCompletedUploads(s.words[1].s, count);
+    onCompletedUploads();
 }
 
 void exec_generatesparsefile(autocomplete::ACState& s)
@@ -3288,6 +3351,7 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(flag("-filesize"), param("size")),
                         sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
     p->Add(exec_generatesparsefile, sequence(text("generatesparsefile"), opt(sequence(flag("-filesize"), param("size"))), localFSFile("targetfile")));
+    p->Add(exec_generate_put_fileversions, sequence(text("generate_put_fileversions"), opt(sequence(flag("-count"), param("n"))), localFSFile("targetfile")));
     p->Add(exec_lreplace, sequence(text("lreplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content")));
     p->Add(exec_lrenamereplace, sequence(text("lrenamereplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content"), localFSPath("renamed")));
 
@@ -4258,9 +4322,9 @@ void exec_more(autocomplete::ACState& s)
     }
 }
 
-void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder);
+void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder);
 
-void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive)
+void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive)
 {
 
     Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
@@ -4339,18 +4403,19 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
     return itemlocalname.leafName().toPath(*client->fsaccess);
 }
 
-void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
+void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder)
 {
     DirAccess* da = client->fsaccess->newdiraccess();
 
-    if (da->dopen(&localname, NULL, false))
+    LocalPath lp(localname);
+    if (da->dopen(&lp, NULL, false))
     {
         DBTableTransactionCommitter committer(client->tctable);
 
         int total = 0;
         nodetype_t type;
         LocalPath itemlocalleafname;
-        while (da->dnext(localname, itemlocalleafname, true, &type))
+        while (da->dnext(lp, itemlocalleafname, true, &type))
         {
             string leafNameUtf8 = localpathToUtf8Leaf(itemlocalleafname);
 
@@ -4358,7 +4423,7 @@ void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            auto newpath = localname;
+            auto newpath = lp;
             newpath.appendWithSeparator(itemlocalleafname, true);
             uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true);
         }
@@ -8402,6 +8467,7 @@ void megacli()
         if (puts && !appxferq[PUT].size())
         {
             cout << "Uploads complete" << endl;
+            if (onCompletedUploads) onCompletedUploads();
         }
         if (gets && !appxferq[GET].size())
         {

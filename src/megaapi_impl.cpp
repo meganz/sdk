@@ -1867,6 +1867,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_DEVICE_NAMES;
     }
+    if (user->changed.myBackupsFolder)
+    {
+        changed |= MegaUser::CHANGE_TYPE_MY_BACKUPS_FOLDER;
+    }
     if (user->changed.cookieSettings)
     {
         changed |= MegaUser::CHANGE_TYPE_COOKIE_SETTINGS;
@@ -23707,6 +23711,11 @@ int64_t MegaAccountDetailsPrivate::getSubscriptionRenewTime()
 char *MegaAccountDetailsPrivate::getSubscriptionMethod()
 {
     return MegaApi::strdup(details.subscription_method.c_str());
+}
+
+int MegaAccountDetailsPrivate::getSubscriptionMethodId()
+{
+    return details.subscription_method_id;
 }
 
 char *MegaAccountDetailsPrivate::getSubscriptionCycle()

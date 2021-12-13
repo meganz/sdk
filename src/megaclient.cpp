@@ -9660,18 +9660,24 @@ void MegaClient::login(string session)
         }
         else
         {
-            mFolderLink.mPublicHandle = publicHandle;
-            mFolderLink.mWriteAuth = writeAuth;
-            mFolderLink.mAccountAuth = accountAuth;
-
             rootnodes.files.set6byte(rootnode);
-            key.setkey(k, FOLDERNODE);
-
-            checkForResumeableSCDatabase();
-
             restag = reqtag;
-            openStatusTable(true);
-            app->login_result(API_OK);
+
+            if (rootnodes.files.isUndef())
+            {
+                app->login_result(API_EARGS);
+            }
+            else
+            {
+                mFolderLink.mPublicHandle = publicHandle;
+                mFolderLink.mWriteAuth = writeAuth;
+                mFolderLink.mAccountAuth = accountAuth;
+
+                key.setkey(k, FOLDERNODE);
+                checkForResumeableSCDatabase();
+                openStatusTable(true);
+                app->login_result(API_OK);
+            }
         }
     }
     else
