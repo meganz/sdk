@@ -455,12 +455,13 @@ fs::path makeReusableClientFolder(const string& subfolder)
     return p;
 }
 
-std::unique_ptr<::mega::FileSystemAccess> makeFsAccess()
+std::unique_ptr<::mega::FileSystemAccess> makeFsAccess(bool forNotifications)
 {
-#ifdef __APPLE__
-    return ::mega::make_unique<FSACCESS_CLASS>(gFseventsFd);
-#else
-    return ::mega::make_unique<FSACCESS_CLASS>();
-#endif
+    auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+    if (forNotifications)
+    {
+        fsa->initFilesystemNotificationSystem(gFseventsFd);
+    }
+    return fsa;
 }
 

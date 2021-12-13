@@ -1073,7 +1073,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
     , client(this,
                 &waiter,
                 httpio.get(),
-                makeFsAccess(),
+                makeFsAccess(true),
 #ifdef DBACCESS_CLASS
                 new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
 #else

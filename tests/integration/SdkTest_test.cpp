@@ -2997,7 +2997,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         std::map<std::string, FileAccessFields > plain_follow_fopen;
         std::map<std::string, FileAccessFields > iterate_follow_fopen;
 
-        auto fsa = makeFsAccess();
+        auto fsa = makeFsAccess(false);
         auto localdir = fspathToLocal(iteratePath, *fsa);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
@@ -3975,7 +3975,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
         "GA4CWmAdW1TwQ-bddEIKTmSDv0b2QQAypo7",
     };
 
-    auto fsa = makeFsAccess();
+    auto fsa = makeFsAccess(false);
     string name = "testfile";
     LocalPath localname = LocalPath::fromAbsolutePath(name);
 
@@ -5479,7 +5479,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     LOG_info << "___TEST invalidFileNames___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    auto fsa =makeFsAccess();
+    auto fsa =makeFsAccess(false);
     auto aux = LocalPath::fromAbsolutePath(fs::current_path().u8string());
 
 #if defined (__linux__) || defined (__ANDROID__)

@@ -81,9 +81,7 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
-#ifdef __APPLE__
 int gFilesystemEventsFd = -1;
-#endif
 
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
@@ -4752,18 +4750,15 @@ void exec_open(autocomplete::ACState& s)
             gfx->startProcessingThread();
 #endif
 
-#ifdef __APPLE__
-            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
-#else
-            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-#endif
+            auto fsNotificationsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+            fsNotificationsAccess->initFilesystemNotificationSystem(gFilesystemEventsFd);
 
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
             clientFolder = new MegaClient(new DemoAppFolder,
                                           client->waiter,
                                           client->httpio,
-                                          move(fsAccess),
+                                          move(fsNotificationsAccess),
                 #ifdef DBACCESS_CLASS
                                           new DBACCESS_CLASS(*startDir),
                 #else
@@ -8728,11 +8723,8 @@ int main(int argc, char* argv[])
 #endif
 
     // Needed so we can get the cwd.
-#ifdef __APPLE__
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
-#else
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-#endif
+    fsAccess->initFilesystemNotificationSystem(gFilesystemEventsFd);
 
     // Where are we?
     if (!fsAccess->cwd(*startDir))
