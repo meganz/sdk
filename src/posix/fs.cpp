@@ -655,7 +655,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     return false;
 }
 
-PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
+PosixFileSystemAccess::PosixFileSystemAccess()
 {
     assert(sizeof(off_t) == 8);
 
