@@ -284,7 +284,18 @@ struct StandardClient : public ::mega::MegaApp
     void transfer_prepare(Transfer*) override { onCallback(); ++transfersPrepared; }
     void transfer_failed(Transfer*,  const Error&, dstime = 0) override { onCallback(); ++transfersFailed; }
     void transfer_update(Transfer*) override { onCallback(); ++transfersUpdated; }
-    void transfer_complete(Transfer*) override { onCallback(); ++transfersComplete; }
+
+    std::function<void(Transfer*)> onTransferCompleted;
+
+    void transfer_complete(Transfer* transfer) override
+    {
+        onCallback();
+
+        if (onTransferCompleted)
+            onTransferCompleted(transfer);
+
+        ++transfersComplete;
+    }
 
     void notify_retry(dstime t, retryreason_t r) override;
     void request_error(error e) override;
