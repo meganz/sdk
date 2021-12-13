@@ -655,7 +655,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     return false;
 }
 
-PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
+PosixFileSystemAccess::PosixFileSystemAccess()
 {
     assert(sizeof(off_t) == 8);
 
@@ -674,11 +674,18 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
         }
     }
 #endif
+}
 
+#ifdef ENABLE_SYNC
+
+bool PosixFileSystemAccess::initFilesystemNotificationSystem(int fseventsfd)
+{
 #ifdef USE_INOTIFY
     notifyfd = inotify_init1(IN_NONBLOCK);
     if (notifyfd < 0)
-        mNotificationError = errno;
+        return mNotificationError = errno, false;
+
+    return true;
 #endif
 
 #ifdef __MACH__
@@ -721,13 +728,21 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 
     // for this to succeed, geteuid() must be 0, or an existing /dev/fsevents fd must have
     // been passed to the constructor
-    int fd = fseventsfd;
-
-    if (fd < 0 && (fd = open("/dev/fsevents", O_RDONLY)) < 0)
+    if (fseventsfd < 0)
     {
-        mNotificationError = errno;
-        return;
+        // we didn't get any special permissioned fd.
+        // try to open one (program needs to run sudo)
+        if ((notifyfd = open("/dev/fsevents", O_RDONLY)) < 0)
+        {
+            mNotificationError = errno;
+            return false;
+        }
+        // notifyfd will be closed by destructor
+        return true;
     }
+
+    // we have been passed a special permissioned fd in fseventsfd.
+    // Clone it for this instance.
 
     fsevent_clone_args fca;
     int nfd;
@@ -737,14 +752,13 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     fca.event_queue_depth = 4096;
     fca.fd = &nfd;
 
-    if (ioctl(fd, FSEVENTS_CLONE, (char*)&fca) >= 0)
+    if (ioctl(fseventsfd, FSEVENTS_CLONE, (char*)&fca) >= 0)
     {
-        if (fseventsfd < 0) close(fd);
-
         if (ioctl(nfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
         {
+            // notifyfd will be closed by destructor
             notifyfd = nfd;
-            return;
+            return true;
         }
 
         mNotificationError = errno;
@@ -753,14 +767,13 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     else
     {
         mNotificationError = errno;
-
-        if (fseventsfd < 0) close(fd);
     }
 
-#else
-    (void)fseventsfd;  // suppress warning
+    return false;
 #endif
 }
+
+#endif // ENABLE_SYNC
 
 PosixFileSystemAccess::~PosixFileSystemAccess()
 {
@@ -871,7 +884,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 if ((in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT)))
                 {
-                    LOG_err << "inotify " 
+                    LOG_err << "inotify "
                             << (in->mask & IN_Q_OVERFLOW ? "IN_Q_OVERFLOW" : "IN_UNMOUNT");
 
                     notifyTransientFailure();
@@ -1212,7 +1225,6 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
     dirent* d;
     int removed;
     struct stat statbuf;
-    PosixFileSystemAccess pfsa;
 #ifdef USE_IOS
     const string namestr = adjustBasePath(name);
 #else
@@ -1785,7 +1797,9 @@ PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root,
         bool usingEvents = false;
 
         // Check for presence of volume metadata.
-        if (auto fd = open(rootCheckPath.c_str(), O_RDONLY); fd >= 0)
+        auto fd = open(rootCheckPath.c_str(), O_RDONLY);
+
+        if (fd >= 0)
         {
             // Make sure it's actually about the root.
             if (char buf[MAXPATHLEN]; fcntl(fd, F_GETPATH, buf) >= 0)
@@ -1889,7 +1903,7 @@ void PosixDirNotify::removeWatch(WatchMapIterator entry)
     auto handle = entry->first;
     assert(handle >= 0);
 
-    watches.erase(entry); // Removes first instance 
+    watches.erase(entry); // Removes first instance
 
     if (watches.find(handle) != watches.end()) {
       LOG_warn << "[" << std::this_thread::get_id() << "]"
@@ -1908,7 +1922,7 @@ void PosixDirNotify::removeWatch(WatchMapIterator entry)
     auto const removedResult = inotify_rm_watch(fsaccess->notifyfd, handle);
     if(removedResult){
       LOG_verbose << "[" << std::this_thread::get_id() << "]"
-                  <<  "inotify_rm_watch for handle: " << handle 
+                  <<  "inotify_rm_watch for handle: " << handle
                   <<  " error no: " << errno;
     }
 }
@@ -1949,6 +1963,7 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
         && statfsbuf.f_type != 0x65735546; // FUSE
 #endif
 }
+
 #endif // ENABLE_SYNC
 
 std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)
@@ -2111,7 +2126,6 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
     dirent* d;
     struct stat &statbuf = currentItemStat;
-    PosixFileSystemAccess pfsa;
 
     while ((d = readdir(dp)))
     {

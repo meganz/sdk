@@ -1073,7 +1073,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
     , client(this,
                 &waiter,
                 httpio.get(),
-                makeFsAccess(),
+                makeFsAccess(true),
 #ifdef DBACCESS_CLASS
                 new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
 #else
@@ -5758,7 +5758,6 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
 
     // Update configs so they're useful for this client.
     {
-        FSACCESS_CLASS fsAccess;
         auto root0 = TESTROOT / "c1" / "s0";
         auto root1 = TESTROOT / "c1" / "s1";
 

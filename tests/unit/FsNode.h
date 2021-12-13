@@ -108,7 +108,6 @@ public:
 
     mega::LocalPath getPath() const
     {
-        mega::FSACCESS_CLASS fsa;
         mega::LocalPath path = mName;
 
         for (const FsNode *p = mParent; p; p = p->mParent)

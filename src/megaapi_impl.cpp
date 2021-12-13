@@ -5474,14 +5474,9 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
 
-#ifndef __APPLE__
-    (void)fseventsfd;
     fsAccess = new MegaFileSystemAccess();
     auto clientSyncFsAccess = ::mega::make_unique<MegaFileSystemAccess>();
-#else
-    fsAccess = new MegaFileSystemAccess(-1);
-    auto clientSyncFsAccess = ::mega::make_unique<MegaFileSystemAccess>(fseventsfd);
-#endif
+    clientSyncFsAccess->initFilesystemNotificationSystem(fseventsfd);
 
     dbAccess = nullptr;
     if (basePath)

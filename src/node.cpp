@@ -1677,7 +1677,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                     // as-scanned by this instance is more accurate if available
                     priorScanChildren.emplace(*childIt.first, child.getScannedFSDetails());
                 }
-                else if (useSyncedFP && fsid_lastSynced != UNDEF && child.syncedFingerprint.isvalid)
+                else if (useSyncedFP && child.fsid_lastSynced != UNDEF && child.syncedFingerprint.isvalid)
                 {
                     // But otherwise, already-synced syncs on startup should not re-fingerprint
                     // files that match the synced fingerprint by fsid/size/mtime (for quick startup)

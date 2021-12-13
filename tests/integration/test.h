@@ -116,7 +116,7 @@ void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
 fs::path makeReusableClientFolder(const string& subfolder);
 
-std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
+std::unique_ptr<::mega::FileSystemAccess> makeFsAccess(bool forNotifications);
 
 template<typename T>
 using shared_promise = std::shared_ptr<promise<T>>;

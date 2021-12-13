@@ -119,7 +119,6 @@ TEST(UtfCompare, DISABLED_SortTenThousandSpeed)
     std::vector<string> fsNodes, fsNodes2;
     std::vector<LocalPath> lnNodes, lnNodes2;
     std::vector<std::pair<string, LocalPath>> crossCompare;
-    FSACCESS_CLASS fsAccess;
 
     for (unsigned i = 10000; i--; )
     {
@@ -372,11 +371,6 @@ class ComparatorTest
   : public ::testing::Test
 {
 public:
-    ComparatorTest()
-      : mFSAccess()
-    {
-    }
-
     template<typename T, typename U>
     int compare(const T& lhs, const U& rhs) const
     {
@@ -406,9 +400,6 @@ public:
 
         return compareUtf(lhs, true, rhs, true, caseInsensitive);
     }
-
-private:
-    FSACCESS_CLASS mFSAccess;
 }; // ComparatorTest
 
 TEST_F(ComparatorTest, CompareLocalPaths)
@@ -785,7 +776,6 @@ TEST(Filesystem, isReservedName)
 {
     using namespace mega;
 
-    FSACCESS_CLASS fsAccess;
     bool expected = false;
 
 #ifdef _WIN32
@@ -1138,7 +1128,6 @@ TEST_F(SqliteDBTest, RootPath)
 
 TEST(LocalPath, AppendWithSeparator)
 {
-    FSACCESS_CLASS fsAccess;
     LocalPath source;
     LocalPath target;
 
@@ -1173,8 +1162,6 @@ TEST(LocalPath, AppendWithSeparator)
 
 TEST(LocalPath, PrependWithSeparator)
 {
-    FSACCESS_CLASS fsAccess;
-
     LocalPath source;
     LocalPath target;
 

@@ -135,7 +135,7 @@ public:
     int getdefaultfolderpermissions();
     void setdefaultfolderpermissions(int);
 
-    PosixFileSystemAccess(int = -1);
+    PosixFileSystemAccess();
     ~PosixFileSystemAccess();
 
     bool cwd(LocalPath& path) const override;
@@ -144,6 +144,8 @@ public:
     fsfp_t fsFingerprint(const LocalPath& path) const override;
 
     bool fsStableIDs(const LocalPath& path) const override;
+
+    bool initFilesystemNotificationSystem(int notificationFd) override;
 #endif // ENABLE_SYNC
 };
 
