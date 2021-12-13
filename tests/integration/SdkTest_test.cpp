@@ -3135,7 +3135,7 @@ TEST_F(SdkTest, SdkTestShares)
  * - UserB locallogout and login with session
  * - UserB load File1 undecrypted
  */
-TEST_F(SdkTest, SdkTestShares3)
+TEST_F(SdkTest, DISABLED_SdkTestShares3)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
 
