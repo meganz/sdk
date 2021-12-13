@@ -1047,7 +1047,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                     }
 
                     // We've got a match.
-                    paths[i] = path + rootPath.size();
+                    paths[i] = path + rootPath.size() + 1;
                     pathsync[i] = j.second;
 
                     // Stop searching.
