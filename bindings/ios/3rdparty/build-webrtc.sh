@@ -2,7 +2,7 @@
 
 set -e
 
-COMMIT=41bfcf4a63611409220fcd458a03deaa2cd23619
+COMMIT=954f7274ac91594d0e06ec052d0d0401631d02ee
 ARCHS="arm64 x64"
 LIPO_COMMAND="lipo -create"
 LIBWEBRTC_A="libwebrtc.a"
