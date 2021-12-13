@@ -5476,7 +5476,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
     fsAccess = new MegaFileSystemAccess();
     auto clientSyncFsAccess = ::mega::make_unique<MegaFileSystemAccess>();
+
+#ifdef ENABLE_SYNC
     clientSyncFsAccess->initFilesystemNotificationSystem(fseventsfd);
+#endif // ENABLE_SYNC
 
     dbAccess = nullptr;
     if (basePath)
