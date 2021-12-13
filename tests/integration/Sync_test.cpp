@@ -14674,8 +14674,8 @@ TEST_F(SyncTest, BasicSync_RapidLocalChangesWhenUploadCompletes)
     ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
 
     // Correct number of stalls?
-    ASSERT_EQ(stalls.cloud.size(), 1);
-    ASSERT_EQ(stalls.local.size(), 1);
+    ASSERT_EQ(stalls.cloud.size(), 1u);
+    ASSERT_EQ(stalls.local.size(), 1u);
 
     // Stalled for the right reason?
     ASSERT_EQ(stalls.cloud.begin()->second.reason,
