@@ -835,11 +835,22 @@ bool add(const string& text, SizeFilterPtr& filter)
             break;
         }
 
-        // Suffix should be the last thing!
-        if (!shift || !istream.eof())
-        {
+        // Did the user specify a valid suffix?
+        if (!shift)
             return syntaxError(text);
+
+        // Eat trailing whitespace.
+        while (true)
+        {
+            auto character = istream.get();
+
+            if (!std::isspace(character))
+                break;
         }
+
+        // The stream should be exhausted.
+        if (!istream.eof())
+            return syntaxError(text);
 
         // Can we actually represent the limit?
         const auto temp = limit << shift;
