@@ -752,28 +752,29 @@ NodeCounter Node::subnodeCounts() const
 }
 
 // returns whether node was moved
-bool Node::setparent(Node* p)
+bool Node::setparent(Node* p, bool unserializedNode)
 {
     if (p == parent)
     {
         return false;
     }
 
-    const Node* originalancestor = parent ? firstancestor() : nullptr;
-    const NodeHandle& oah = originalancestor ? originalancestor->nodeHandle() : NodeHandle();
-
-#ifdef ENABLE_SYNC
     Node *oldparent = parent;
-#endif
 
     parenthandle = p ? p->nodehandle : UNDEF;
     parent = p;
 
-    const Node* newancestor = firstancestor();
-    NodeHandle nah;
-    nah.set6byte(newancestor->nodehandle);
+    if (!unserializedNode)
+    {
+        const Node* originalancestor = oldparent ? oldparent->firstancestor() : nullptr;
+        const NodeHandle& oah = originalancestor ? originalancestor->nodeHandle() : NodeHandle();
 
-    client->mNodeManager.movedSubtreeToNewRoot(nodeHandle(), oah, nah);
+        const Node* newancestor = firstancestor();
+        NodeHandle nah;
+        nah.set6byte(newancestor->nodehandle);
+
+        client->mNodeManager.movedSubtreeToNewRoot(nodeHandle(), oah, nah);
+    }
 
 #ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers

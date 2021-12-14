@@ -16858,7 +16858,7 @@ Node *NodeManager::getNodeByHandle(NodeHandle handle)
     return node;
 }
 
-node_list NodeManager::getChildren(Node *parent)
+node_list NodeManager::getChildren(const Node *parent)
 {
     node_list childrenList;
     if (!parent || !mTable)
@@ -17169,6 +17169,39 @@ std::vector<NodeHandle> NodeManager::getChildrenHandlesFromNode(NodeHandle node)
     return nodes;
 }
 
+void NodeManager::increaseCounters(const Node *node, NodeHandle firstAncestorHandle)
+{
+    if (node->type == FILENODE)
+    {
+        if (isFileNode(node->parentHandle()))   // is a version? (returns false for unknown parents)
+        {
+            mNodeCounters[firstAncestorHandle].versions++;
+            mNodeCounters[firstAncestorHandle].versionStorage += node->size;
+        }
+        else
+        {
+            mNodeCounters[firstAncestorHandle].files++;
+            mNodeCounters[firstAncestorHandle].storage += node->size;
+        }
+    }
+    else if (node->type == FOLDERNODE)
+    {
+        mNodeCounters[firstAncestorHandle].folders++;
+    }
+}
+
+void NodeManager::loadTreeRecursively(const Node* node)
+{
+    node_list children = getChildren(node);
+    for (const Node* child : children)
+    {
+        loadTreeRecursively(child);
+        // When unserialize is finished, all ancestor nodes are upload
+        const Node* ancestor = child->firstancestor();
+        increaseCounters(child, ancestor->nodeHandle());
+    }
+}
+
 NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle, bool parentIsFile)
 {
     NodeCounter nc;
@@ -17357,6 +17390,8 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
 
     h = 0;
     memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
+    assert(mNodes.find(NodeHandle().set6byte(h)) == mNodes.end());
+
     ptr += MegaClient::NODEHANDLE;
 
     ph = 0;
@@ -17480,8 +17515,8 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
     }
 
     n = new Node(mClient, h, ph, t, s, u, fa, ts);
-    n->parent = getNodeByHandle(n->parentHandle());
     mNodes[n->nodeHandle()] = n;
+    n->setparent(getNodeByHandle(n->parentHandle()), true);
 
     if (k)
     {
@@ -17769,17 +17804,19 @@ void NodeManager::loadNodes()
 
     if (mKeepAllNodesInMemory)
     {
-        std::vector<NodeSerialized> nodes;
-        mTable->getNodes(nodes);
-
-        for (const NodeSerialized& node : nodes)
+        node_vector rootNodes = getRootNodes();
+        for (const Node* node : rootNodes)
         {
-            Node* n = unserializeNode(&node.mNode, node.mDecrypted);
+            loadTreeRecursively(node);
+        }
 
-            if (n->type == ROOTNODE || n->type == INCOMINGNODE || n->type == RUBBISHNODE)
-            {
-                setrootnode(n);
-            }
+        node_vector inSharesNodes = getNodesWithInShares();
+        for (const Node* node : inSharesNodes)
+        {
+            loadTreeRecursively(node);
+            // When unserialize is finished, all ancestor nodes are upload
+            const Node* ancestor = node->firstancestor();
+            increaseCounters(node, ancestor->nodeHandle());
         }
     }
     else
@@ -17790,7 +17827,7 @@ void NodeManager::loadNodes()
         // TODO Nodes on Demand: Review to remove. mPublicLinks has been removed
         getNodesWithLinks();
 
-        //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
+        //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside increaseCounters
         NodeHandle rootHandle = mClient.rootnodes.files;
         updateCounter(rootHandle);
         NodeHandle inboxHandle = mClient.rootnodes.inbox;
@@ -17860,23 +17897,7 @@ void NodeManager::saveNodeInDataBase(Node *node)
 
     if (firstValidAncestor != UNDEF)
     {
-        if (node->type == FILENODE)
-        {
-            if (isFileNode(node->parentHandle()))   // is a version? (returns false for unknown parents)
-            {
-                mNodeCounters[firstValidAncestor].versions++;
-                mNodeCounters[firstValidAncestor].versionStorage += node->size;
-            }
-            else
-            {
-                mNodeCounters[firstValidAncestor].files++;
-                mNodeCounters[firstValidAncestor].storage += node->size;
-            }
-        }
-        else if (node->type == FOLDERNODE)
-        {
-            mNodeCounters[firstValidAncestor].folders++;
-        }
+        increaseCounters(node, firstValidAncestor);
 
         auto it = mNodeCounters.find(node->nodeHandle());
         if (it != mNodeCounters.end())

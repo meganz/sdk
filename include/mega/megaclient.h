@@ -261,7 +261,7 @@ public:
     Node *getNodeByHandle(NodeHandle handle);
 
     // read children from DB and load them in memory
-    node_list getChildren(Node* parent);
+    node_list getChildren(const Node *parent);
 
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
@@ -329,7 +329,6 @@ public:
     // TODO nodes on demand remove
     MegaClient& getMegaClient();
 
-
     // ===--- Node Counters ---===
 
     // returns the counter for 'node', recursively, accessing to DB
@@ -391,6 +390,10 @@ private:
     bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
+    // Increase node counters with a node type and values
+    void increaseCounters(const Node *node, NodeHandle firstAncestorHandle);
+    // Load nodes recursively and update nodeCounters
+    void loadTreeRecursively(const Node *node);
 };
 
 class MEGA_API MegaClient
