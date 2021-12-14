@@ -543,14 +543,14 @@ void SyncThreadsafeState::addExpectedUpload(NodeHandle parentHandle, const strin
 {
     lock_guard<mutex> g(mMutex);
     mExpectedUploads[toNodeHandle(parentHandle) + ":" + name] = wp;
-    LOG_verbose << "Expecting upload " << (toNodeHandle(parentHandle) + ":" + name);
+    LOG_verbose << "Expecting upload-putnode " << (toNodeHandle(parentHandle) + ":" + name);
 }
 
 void SyncThreadsafeState::removeExpectedUpload(NodeHandle parentHandle, const string& name)
 {
     lock_guard<mutex> g(mMutex);
     mExpectedUploads.erase(toNodeHandle(parentHandle) + ":" + name);
-    LOG_verbose << "Unexpecting upload " << (toNodeHandle(parentHandle) + ":" + name);
+    LOG_verbose << "Unexpecting upload-putnode " << (toNodeHandle(parentHandle) + ":" + name);
 }
 
 shared_ptr<SyncUpload_inClient> SyncThreadsafeState::isNodeAnExpectedUpload(NodeHandle parentHandle, const string& name)
@@ -6337,6 +6337,20 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             return resolve_downsync(row, parentRow, fullPath, true);
         }
 
+        if (auto uploadPtr = threadSafeState->isNodeAnExpectedUpload(row.cloudNode->parentHandle, row.cloudNode->name))
+        {
+            if (row.cloudNode->fingerprint == *uploadPtr &&
+                uploadPtr.get() == row.syncNode->transferSP.get())
+            {
+                // we uploaded a file and the user already re-updated the local version of the file
+                SYNC_verbose << syncname << "Node is a recent upload, while the FSFile is already updated: " << fullPath.cloudPath << logTriplet(row, fullPath);
+                row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+                row.syncNode->syncedFingerprint  = row.cloudNode->fingerprint;
+                row.syncNode->transferSP.reset();
+                return false;
+            }
+        }
+
         // both changed, so we can't decide without the user's help
         return resolve_userIntervention(row, parentRow, fullPath);
     }
@@ -6390,8 +6404,24 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
         if (row.syncNode->fsid_lastSynced == UNDEF)
         {
-            // fs item did not exist before; downsync
-            return resolve_downsync(row, parentRow, fullPath, false);
+            if (auto uploadPtr = threadSafeState->isNodeAnExpectedUpload(row.cloudNode->parentHandle, row.cloudNode->name))
+            {
+                // The local file is no longer at the matching position
+                // and we need to set it up to be moved/deleted correspondingly
+                // Setting the synced fsid without a corresponding FSNode will cause move detection
+
+                SYNC_verbose << syncname << "Node is a recent upload, sync node present, source FS file is no longer here: " << fullPath.cloudPath << logTriplet(row, fullPath);
+                row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+                row.syncNode->setSyncedFsid(uploadPtr->sourceFsid, syncs.localnodeBySyncedFsid, uploadPtr->sourceLocalname, nullptr);
+                row.syncNode->syncedFingerprint  = row.cloudNode->fingerprint;
+                row.syncNode->transferSP.reset();
+                return false;
+            }
+            else
+            {
+                // fs item did not exist before; downsync
+                return resolve_downsync(row, parentRow, fullPath, false);
+            }
         }
         else if (//!row.syncNode->syncedCloudNodeHandle.isUndef() &&
                  row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
@@ -6833,22 +6863,6 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
-    // for uploads, we already read the local file, no ned to re-read
-
-    //// Are we dealing with an ignore file?
-    //if (row.syncNode->isIgnoreFile())
-    //{
-    //    // Has the ignore file changed?
-    //    if (parentRow.syncNode->filterChainRO().changed(row.fsNode->fingerprint))
-    //    {
-    //        // Then reload the filters.
-    //        parentRow.syncNode->loadFilters(fullPath.localPath);
-
-    //        // Make sure the ignore file is processed before other rows.
-    //        parentRow.ignoreFileChanging();
-    //    }
-    //}
-
     // Don't do anything unless we know the node's included.
     if (row.syncNode->exclusionState() != ES_INCLUDED)
     {
@@ -6871,7 +6885,38 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         // upload the file if we're not already uploading it
         row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint);
 
-        if (!row.syncNode->transferSP)
+        shared_ptr<SyncUpload_inClient> existingUpload = std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
+
+        if (existingUpload && !!existingUpload->putnodesStarted)
+        {
+            // keep the name and target folder details current:
+
+            // if we were already matched with a name that is not exactly the same as toName(), keep using it
+            string nodeName = row.cloudNode ? row.cloudNode->name : row.fsNode->localname.toName(*syncs.fsaccess);
+            if (nodeName != existingUpload->name)
+            {
+                LOG_debug << syncname << "Upload name changed, updating: " << existingUpload->name << " to " << nodeName << logTriplet(row, fullPath);
+                existingUpload->name = nodeName;  // todo: thread safety
+            }
+
+            // make sure the target folder for putnodes is current:
+            if (parentRow.cloudNode && parentRow.cloudNode->handle == parentRow.syncNode->syncedCloudNodeHandle)
+            {
+                if (existingUpload->h != parentRow.cloudNode->handle)
+                {
+                    LOG_debug << syncname << "Upload target folder changed, updating for putnodes. " << existingUpload->h << " to " << parentRow.cloudNode->handle << logTriplet(row, fullPath);
+                    existingUpload->h = parentRow.cloudNode->handle;
+                }
+            }
+            else
+            {
+                LOG_debug << syncname << "Upload target folder changed and there's no handle, abandoning transfer " << logTriplet(row, fullPath);
+                row.syncNode->transferSP.reset();
+                return false;
+            }
+        }
+
+        if (!existingUpload)
         {
             // Don't bother restarting the upload if we're excluded.
             if (row.syncNode->exclusionState() != ES_INCLUDED)
@@ -6899,29 +6944,9 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
                     row.fsNode->fsid, row.fsNode->localname, inshare);
 
-                threadSafeState->addExpectedUpload(parentRow.cloudNode->handle, nodeName, upload);
-
                 row.syncNode->queueClientUpload(upload);
 
                 LOG_debug << syncname << "Sync - sending file " << fullPath.localPath_utf8();
-
-//todo: update upload's target handle if this LocalNode moves around
-                //h = NodeHandle();
-
-                //if (localNode.parent && !localNode.parent->syncedCloudNodeHandle.isUndef())
-                //{
-                //    if (Node* p = localNode.sync->client->nodeByHandle(localNode.parent->syncedCloudNodeHandle))
-                //    {
-                //        h = p->nodeHandle();
-                //    }
-                //}
-
-                //if (h.isUndef())
-                //{
-                //    h.set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
-                //}
-
-// todo: also update Upload's localname in case of moves
 
                 if (row.syncNode->syncedCloudNodeHandle.isUndef() && !row.fsNode)
                 {
@@ -6950,10 +6975,47 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::UpsyncNeedsTargetFolder);
             }
         }
-//todo:        else if (row.syncNode->newnode)
-        //{
-        //    SYNC_verbose << syncname << "Upload complete but putnodes in progress" << logTriplet(row, fullPath);
-        //}
+        else if (existingUpload->wasCompleted && !existingUpload->putnodesStarted)
+        {
+            // We issue putnodes from the sync thread like this because localnodes may have moved/renamed in the meantime
+            // And consider that the old target parent node may not even exist anymore
+
+            existingUpload->putnodesStarted = true;
+
+            SYNC_verbose << syncname << "Queueing putnodes for completed upload" << logTriplet(row, fullPath);
+
+            threadSafeState->addExpectedUpload(parentRow.cloudNode->handle, existingUpload->name, existingUpload);
+
+            NodeHandle displaceHandle = row.cloudNode ? row.cloudNode->handle : NodeHandle();
+            auto noDebris = inshare;
+
+            syncs.queueClient([existingUpload, displaceHandle, noDebris](MegaClient& mc, DBTableTransactionCommitter& committer)
+                {
+
+                    Node* displaceNode = mc.nodeByHandle(displaceHandle);
+                    if (displaceNode && mc.versions_disabled)
+                    {
+                        MegaClient* c = &mc;
+                        mc.movetosyncdebris(displaceNode, noDebris,
+
+                            // after the old node is out of the way, we wll putnodes
+                            [c, existingUpload](NodeHandle, Error){
+                                existingUpload->sendPutnodes(c, NodeHandle());
+                            });
+
+                        // putnodes will be executed after or simultaneous with the
+                        // move to sync debris
+                        return;
+                    }
+
+                    // the case where we are making versions, or not displacing something with the same name
+                    existingUpload->sendPutnodes(&mc, displaceNode ? displaceNode->nodeHandle() : NodeHandle());
+                });
+        }
+        else if (existingUpload->putnodesStarted)
+        {
+            SYNC_verbose << syncname << "Upload's putnodes already in progress" << logTriplet(row, fullPath);
+        }
         else
         {
             SYNC_verbose << syncname << "Upload already in progress" << logTriplet(row, fullPath);

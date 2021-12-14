@@ -485,10 +485,10 @@ public:
     error setattr(Node*, attr_map&& updates, CommandSetAttr::Completion&& c);
 
     // prefix and encrypt attribute json
-    void makeattr(SymmCipher*, string*, const char*, int = -1) const;
+    static void makeattr(SymmCipher*, string*, const char*, int = -1);
 
     // convenience version of the above (frequently we are passing a NodeBase's attrstring)
-    void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1) const;
+    static void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1);
 
     // check node access level
     int checkaccess(Node*, accesslevel_t);
@@ -544,7 +544,7 @@ public:
     unsigned char connections[2];
 
     // helpfer function for preparing a putnodes call for new node
-    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const std::string &binaryUploadToken,
+    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
                                   byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
@@ -1527,7 +1527,7 @@ public:
     void syncupdate();
 
     // sync putnodes() completion
-    void putnodes_sync_result(error, vector<NewNode>&);
+    //void putnodes_sync_result(error, vector<NewNode>&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool unlink, std::function<void(NodeHandle, Error)>&& completion);
@@ -1614,7 +1614,7 @@ public:
     Node* childnodebyname(Node*, const char*, bool = false);
     Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
     Node* childnodebyattribute(Node*, nameid, const char*);
-    void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
+    static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection

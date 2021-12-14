@@ -87,8 +87,8 @@ class SyncThreadsafeState;
 struct SyncTransfer_inClient: public File
 {
     // self-destruct after completion
-    void completed(Transfer*, putsource_t);
-    void terminated();
+    void completed(Transfer*, putsource_t) override;
+    void terminated() override;
 
     shared_ptr<SyncTransfer_inClient> selfKeepAlive;
     shared_ptr<SyncThreadsafeState> syncThreadSafeState;
@@ -102,8 +102,8 @@ struct SyncTransfer_inClient: public File
 struct SyncDownload_inClient: public SyncTransfer_inClient
 {
     // set sync-specific temp filename, update treestate
-    void prepare(FileSystemAccess&);
-    bool failed(error, MegaClient*);
+    void prepare(FileSystemAccess&) override;
+    bool failed(error, MegaClient*) override;
 
     SyncDownload_inClient(CloudNode& n, LocalPath, bool fromInshare,
             FileSystemAccess& fsaccess, shared_ptr<SyncThreadsafeState> stss);
@@ -120,20 +120,28 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     ~SyncUpload_inClient();
 
     void prepare(FileSystemAccess&) override;
+    void completed(Transfer*, putsource_t) override;
 
-    std::atomic<bool> wasPutnodesCompleted{false};;
-    std::atomic<NodeHandle> putnodesResultHandle;
-    std::atomic<bool> renameInProgress{false};;
+    bool putnodesStarted = false;
+    std::atomic<bool> wasPutnodesCompleted{false};
+    //std::atomic<NodeHandle> putnodesResultHandle;
+    //std::atomic<bool> renameInProgress{false};
 
     handle sourceFsid;
     LocalPath sourceLocalname;
+
+    // once the upload completes these are set.  todo: should we dynamically allocate space for these, save RAM for mass transfer cases?
+    UploadHandle uploadHandle;
+    UploadToken uploadToken;
+    FileNodeKey fileNodeKey;
+
+    void sendPutnodes(MegaClient* client, NodeHandle ovHandle);
 };
 
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
 {
     static const int OLDUPLOADTOKENLEN = 27;
-    static const int UPLOADTOKENLEN = 36;
 
     string nodekey;
 
@@ -141,11 +149,8 @@ struct MEGA_API NewNode : public NodeCore
 
     NodeHandle ovhandle;
     UploadHandle uploadhandle;
-    byte uploadtoken[UPLOADTOKENLEN]{};
+    UploadToken uploadtoken;
 
-#ifdef ENABLE_SYNC
-    weak_ptr<SyncUpload_inClient> syncUpload;
-#endif
     std::unique_ptr<string> fileattributes;
 
     bool added = false;           // set true when the actionpacket arrives

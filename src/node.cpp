@@ -2187,97 +2187,6 @@ void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
     transferSP = move(p);
 }
 
-// we probably don't need this logic anymore
-void LocalNode::checkTransferCompleted(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
-{
-    if (auto upload = std::dynamic_pointer_cast<SyncUpload_inClient>(transferSP))
-    {
-        if (transferSP->wasTerminated)
-        {
-            resetTransfer(nullptr);
-        }
-        else if (transferSP->wasCompleted && upload->wasPutnodesCompleted)
-        {
-            // Ensure a move/rename during upload or during putnodes is adjusted for
-
-            CloudNode cloudNode;
-            string nodePath;
-            bool found = sync->syncs.lookupCloudNode(upload->putnodesResultHandle, cloudNode, &nodePath, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION);
-            bool nameMatch = found && 0 == platformCompareUtf(localname, true, cloudNode.name, true);
-
-            if (found && nameMatch && parentRow.cloudNode && cloudNode.parentHandle == parentRow.cloudNode->handle)
-            {
-                // operation fully complete, file is uploaded and in the right place
-                resetTransfer(nullptr);
-            }
-            else if (found && parentRow.cloudNode)
-            {
-                if (!upload->renameInProgress)
-                {
-                    // node exists but its name or location is old
-                    // send the command to move the node
-                    LOG_debug << sync->syncname << "Moving uplaoded node: " << nodePath
-                        << " to " << fullPath.cloudPath;
-
-                    auto fromHandle = upload->putnodesResultHandle.load();
-                    auto toParentHandle = parentRow.cloudNode->handle;
-                    auto newName = localname.toName(*sync->syncs.fsaccess);
-
-                    upload->renameInProgress = true;
-                    sync->syncs.queueClient([upload, fromHandle, toParentHandle, newName](MegaClient& mc, DBTableTransactionCommitter& committer)
-                        {
-                            auto fromNode = mc.nodeByHandle(fromHandle);
-                            auto toNode = mc.nodeByHandle(toParentHandle);
-
-                            if (fromNode && toNode)
-                            {
-                                auto err = mc.rename(fromNode, toNode,
-                                    SYNCDEL_NONE,
-                                    NodeHandle(),
-                                    newName.empty() ? nullptr : newName.c_str(),
-                                    [upload](NodeHandle, Error err){
-                                        upload->renameInProgress = false;
-                                    });
-
-                                if (err)
-                                {
-                                    upload->renameInProgress = false;
-                                }
-                            }
-                            else
-                            {
-                                upload->renameInProgress = false;
-                            }
-                        });
-                }
-            }
-            else if (!found)
-            {
-                LOG_debug << "Uploaded file's node is not found despite being created. Full operation reset. " << upload->putnodesResultHandle.load();
-                resetTransfer(nullptr);
-            }
-            else // !parentRow.cloudNode
-            {
-                LOG_debug << "Uploade node needs to be moved but the cloud parent folder doesn't exist yet, waiting.";
-            }
-        }
-    }
-    else if (transferSP)
-    {
-        if (transferSP->wasTerminated)
-        {
-            resetTransfer(nullptr);
-        }
-        else if (transferSP->wasCompleted)
-        {
-            // We don't clear the pointer here, becuase we need it around
-            // for the next recursiveSync node visit here, which will move
-            // and rename the downloaded file to the corresponding
-            // current location of this LocalNode (ie, copes with
-            // localnodes that moved during the download.
-        }
-    }
-}
 
 void LocalNode::updateTransferLocalname()
 {
@@ -2289,14 +2198,23 @@ void LocalNode::updateTransferLocalname()
 
 void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)
 {
+    auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
+
     // todo: should we be more accurate than just fingerprint?
     if (transferSP && (
         transferSP->wasTerminated ||
-        dir != (dynamic_cast<SyncUpload_inClient*>(transferSP.get()) ? PUT : GET) ||
+        dir != (uploadPtr ? PUT : GET) ||
         !(transferSP->fingerprint() == fingerprint)))
     {
-        // todo: could there be a race where we already sent putnodes and it hasn't completed,
-        // then we discover something that means we should abandon the transfer
+
+        if (uploadPtr && uploadPtr->putnodesStarted)
+        {
+            // checking for a race where we already sent putnodes and it hasn't completed,
+            // then we discover something that means we should abandon the transfer
+            LOG_debug << sync->syncname << "Cancelling superceded transfer even though we have an outstanding putnodes request! " << transferSP->getLocalname().toPath();
+            assert(false);
+        }
+
         LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname().toPath();
         resetTransfer(nullptr);
     }
@@ -2312,10 +2230,41 @@ void SyncTransfer_inClient::terminated()
 
 void SyncTransfer_inClient::completed(Transfer* t, putsource_t source)
 {
-    File::completed(t, source);
+    assert(source == PUTNODES_SYNC);
+
+    // do not allow the base class to submit putnodes immediately
+    //File::completed(t, source);
 
     wasCompleted = true;
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
+}
+
+void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
+{
+    // Keep the info required for putnodes and wait for
+    // the sync thread to validate and activate the putnodes
+
+    uploadHandle = t->uploadhandle;
+    uploadToken = *t->ultoken;
+    fileNodeKey = t->filekey;
+
+    SyncTransfer_inClient::completed(t, source);
+}
+
+void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
+{
+    File::sendPutnodes(client,
+        uploadHandle,
+        uploadToken,
+        fileNodeKey,
+        PUTNODES_SYNC,
+        ovHandle,
+        [client](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride){
+            if (e == API_EACCESS)
+            {
+                client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
+            }
+        });
 }
 
 SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
@@ -2366,7 +2315,10 @@ SyncUpload_inClient::~SyncUpload_inClient()
         syncThreadSafeState->transferFailed(PUT, size);
     }
 
-    syncThreadSafeState->removeExpectedUpload(h, name);
+    if (putnodesStarted)
+    {
+        syncThreadSafeState->removeExpectedUpload(h, name);
+    }
 }
 
 void SyncUpload_inClient::prepare(FileSystemAccess&)

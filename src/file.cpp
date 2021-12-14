@@ -304,111 +304,89 @@ void File::progress()
 void File::completed(Transfer* t, putsource_t source)
 {
     assert(!transfer || t == transfer);
+    assert(source == PUTNODES_APP);  // derived class for sync doesn't use this code path
+
     if (t->type == PUT)
     {
-        vector<NewNode> newnodes(1);
-        NewNode* newnode = &newnodes[0];
+        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr);
+    }
+}
 
-        // build new node
-        newnode->source = NEW_UPLOAD;
 
-        // upload handle required to retrieve/include pending file attributes
-        newnode->uploadhandle = t->uploadhandle;
+void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
+                        const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
+                        CommandPutNodes::Completion&& completion)
+{
+    vector<NewNode> newnodes(1);
+    NewNode* newnode = &newnodes[0];
 
-        // reference to uploaded file
-        memcpy(newnode->uploadtoken, t->ultoken.get(), sizeof newnode->uploadtoken);
+    // build new node
+    newnode->source = NEW_UPLOAD;
 
-        // file's crypto key
-        newnode->nodekey.assign((char*)t->filekey, FILENODEKEYLENGTH);
-        newnode->type = FILENODE;
-        newnode->parenthandle = UNDEF;
-#ifdef ENABLE_SYNC
-        if (auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(this))
+    // upload handle required to retrieve/include pending file attributes
+    newnode->uploadhandle = fileAttrMatchHandle;
+
+    // reference to uploaded file
+    newnode->uploadtoken = ultoken;
+
+    // file's crypto key
+    static_assert(sizeof(filekey) == FILENODEKEYLENGTH);
+    newnode->nodekey.assign((char*)&filekey, FILENODEKEYLENGTH);
+    newnode->type = FILENODE;
+    newnode->parenthandle = UNDEF;
+
+    AttrMap attrs;
+    MegaClient::honorPreviousVersionAttrs(previousNode, attrs);
+
+    // store filename
+    attrs.map['n'] = name;
+
+    // store fingerprint
+    serializefingerprint(&attrs.map['c']);
+
+    string tattrstring;
+
+    attrs.getjson(&tattrstring);
+
+    newnode->attrstring.reset(new string);
+    MegaClient::makeattr(client->getRecycledTemporaryTransferCipher(filekey.bytes.data(), FILENODE),
+                         newnode->attrstring, tattrstring.c_str());
+
+    if (targetuser.size())
+    {
+        // drop file into targetuser's inbox
+        client->putnodes(targetuser.c_str(), move(newnodes), tag, move(completion));
+    }
+    else
+    {
+        NodeHandle th = h;
+
+        // inaccessible target folder - use //bin instead
+        if (!client->nodeByHandle(th, true))
         {
-            newnode->syncUpload = uploadPtr->shared_from_this();
+            th = client->rootnodes.rubbish;
         }
-#endif
-        AttrMap attrs;
-        t->client->honorPreviousVersionAttrs(previousNode, attrs);
 
-        // store filename
-        attrs.map['n'] = name;
-
-        // store fingerprint
-        t->serializefingerprint(&attrs.map['c']);
-
-        string tattrstring;
-
-        attrs.getjson(&tattrstring);
-
-        newnode->attrstring.reset(new string);
-        t->client->makeattr(t->transfercipher(), newnode->attrstring, tattrstring.c_str());
-
-        if (targetuser.size())
+        if (syncxfer)
         {
-            // drop file into targetuser's inbox
-            t->client->putnodes(targetuser.c_str(), move(newnodes), tag);
+            newnode->ovhandle = ovHandle;
         }
-        else
+        else if (fixNameConflicts)
         {
-            NodeHandle th = h;
-
-            // inaccessible target folder - use //bin instead
-            if (!t->client->nodeByHandle(th, true))
+            // for manual upload, let the API apply the `ov` according to the global versions_disabled flag.
+            // with versions on, the API will make the ov the first version of this new node
+            // with versions off, the API will permanently delete `ov`, replacing it with this (and attaching the ov's old versions)
+            if (Node* ovNode = client->getovnode(client->nodeByHandle(th), &name))
             {
-                th = t->client->rootnodes.rubbish;
+                newnode->ovhandle = ovNode->nodeHandle();
             }
-
-#ifdef ENABLE_SYNC
-            if (syncxfer)
-            {
-                if (Node* existingFile = t->client->getovnode(t->client->nodeByHandle(th), &name))
-                {
-
-                    if (t->client->versions_disabled)
-                    {
-                        auto c = t->client;
-                        auto localTag = tag;
-                        auto newnodesSP = ::std::make_shared<vector<NewNode>>(move(newnodes));
-                        t->client->movetosyncdebris(existingFile, fromInsycShare, [c, th, newnodesSP, localTag, source](NodeHandle, Error){
-                            c->reqs.add(new CommandPutNodes(c,
-                                th, NULL,
-                                move(*newnodesSP),
-                                localTag,
-                                source, nullptr, nullptr));
-                        });
-
-                        // putnodes will be executed after or simultaneous with the
-                        // move to sync debris
-                        return;
-                    }
-                    else
-                    {
-                        if (Node* ovNode = t->client->getovnode(t->client->nodeByHandle(th), &name))
-                        {
-                            newnode->ovhandle = ovNode->nodeHandle();
-                        }
-                    }
-                }
-            }
-#endif
-            if (!syncxfer && fixNameConflicts)
-            {
-                // for manual upload, let the API apply the `ov` according to the global versions_disabled flag.
-                // with versions on, the API will make the ov the first version of this new node
-                // with versions off, the API will permanently delete `ov`, replacing it with this (and attaching the ov's old versions)
-                if (Node* ovNode = t->client->getovnode(t->client->nodeByHandle(th), &name))
-                {
-                    newnode->ovhandle = ovNode->nodeHandle();
-                }
-            }
-
-            t->client->reqs.add(new CommandPutNodes(t->client,
-                                                    th, NULL,
-                                                    move(newnodes),
-                                                    tag,
-                                                    source, nullptr, nullptr));
         }
+
+        client->reqs.add(new CommandPutNodes(client,
+                                             th, NULL,
+                                             move(newnodes),
+                                             tag,
+                                             source, nullptr, move(completion)));
     }
 }
 

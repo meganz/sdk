@@ -1034,7 +1034,7 @@ bool MegaClient::warnlevel()
 // Preserve previous version attrs that should be kept
 void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 {
-    if (previousNode && versions_disabled)
+    if (previousNode)
     {
         nameid favnid = AttrMap::string2nameid("fav");
         auto it = previousNode->attrs.map.find(favnid);
@@ -7169,7 +7169,7 @@ void MegaClient::handleauth(handle h, byte* auth)
 }
 
 // make attribute string; add magic number prefix
-void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l)
 {
     if (l < 0)
     {
@@ -7190,7 +7190,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
     delete[] buf;
 }
 
-void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrstring, const char* json, int l)
 {
     makeattr(key, attrstring.get(), json, l);
 }
@@ -7214,7 +7214,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     return API_OK;
 }
 
-error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const string &binaryUploadToken,
+error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
                                           byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
                                           std::function<error(AttrMap&)> addNodeAttrsFunc, std::function<error(std::string *)> addFileAttrsFunc)
 {
@@ -7223,7 +7223,7 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     // set up new node as file node
     newnode->source = NEW_UPLOAD;
     newnode->type = FILENODE;
-    memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
+    newnode->uploadtoken = binaryUploadToken;
     newnode->parenthandle = UNDEF;
     newnode->uploadhandle = mUploadHandle.next();
     newnode->attrstring.reset(new string);
@@ -14430,52 +14430,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 //
 //    synccreate.clear();
 //}
-
-void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
-{
-    // check for file nodes that failed to copy and remove them from fingerprints
-    // FIXME: retrigger sync decision upload them immediately
-    auto nni = nn.size();
-    while (nni--)
-    {
-
-// only actionpackets can update node state now
-        //Node* n;
-        //if (nn[nni].type == FILENODE && !nn[nni].added)
-        //{
-        //    if ((n = nodebyhandle(nn[nni].nodehandle)))
-        //    {
-        //        mFingerprints.remove(n);
-        //    }
-        //}
-
-        if (auto upload = nn[nni].syncUpload.lock())
-        {
-            upload->putnodesResultHandle = NodeHandle().set6byte(nn[nni].mAddedHandle);
-            upload->wasPutnodesCompleted = true;
-            //upload->syncThreadSafeState->addCompletedUploadHandle(upload->putnodesResultHandle);
-            //LOG_debug << "Upload+putnodes for sync completed, cloud handle " << upload->putnodesResultHandle.load();
-        }
-
-        //TODO:
-        //else if (nn[nni].localnode && (n = nodebyhandle(nn[nni].mAddedHandle)))
-        //{
-        //    if (n->type == FOLDERNODE)
-        //    {
-        //        LOG_debug << "Sync - remote folder addition detected " << n->displayname();
-        //    }
-        //    else
-        //    {
-        //        LOG_debug << "Sync - remote file addition detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-        //    }
-        //}
-
-        //if (e && e != API_EEXPIRED && nn[nni].localnode && nn[nni].localnode->sync)
-        //{
-        //    nn[nni].localnode->sync->changestate(SYNC_FAILED, PUT_NODES_ERROR, false, true);
-        //}
-    }
-}
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
 // dupes)

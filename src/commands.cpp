@@ -1032,7 +1032,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                 break;
 
             case NEW_UPLOAD:
-                arg("h", nni->uploadtoken, sizeof nn[0].uploadtoken);
+                arg("h", nni->uploadtoken.data(), sizeof nn[0].uploadtoken);
 
                 // include pending file attributes for this upload
                 string s;
@@ -1106,7 +1106,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn[i].uploadtoken);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken.data(), (int)sizeof nn[i].uploadtoken);
                         break;
                 }
             }
@@ -1233,14 +1233,6 @@ bool CommandPutNodes::procresult(Result r)
 	    Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
 	    bool targetOverride = (tempNode && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
 
-#ifdef ENABLE_SYNC
-        if (source == PUTNODES_SYNC)
-        {
-
-            // internal procesing first in case app takes nn back
-            client->putnodes_sync_result(API_OK, nn);
-        }
-#endif
         performAppCallback(emptyResponse ? API_ENOENT : API_OK, targetOverride);
         return true;
     }
@@ -1263,17 +1255,7 @@ bool CommandPutNodes::procresult(Result r)
             }
 #endif
         }
-#ifdef ENABLE_SYNC
-        if (source == PUTNODES_SYNC)
-        {
-            if (r.wasError(API_EACCESS))
-            {
-                client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
-            }
 
-            client->putnodes_sync_result(r.errorOrOK(), nn);
-        }
-#endif
         performAppCallback(r.errorOrOK());
         return r.wasErrorOrOK();
     }

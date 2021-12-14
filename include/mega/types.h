@@ -349,6 +349,26 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
 
+typedef union {
+    std::array<byte, FILENODEKEYLENGTH> bytes;
+    struct {
+        std::array<byte, FOLDERNODEKEYLENGTH> key;
+        union {
+            std::array<byte, 8> iv_bytes;
+            uint64_t iv_u64;
+        };
+        union {
+            std::array<byte, 8> crc_bytes;
+            uint64_t crc_u64;
+        };
+    };
+} FileNodeKey;
+
+const int UPLOADTOKENLEN = 36;
+
+typedef std::array<byte, UPLOADTOKENLEN> UploadToken;
+
+
 struct SyncFlags;
 
 // persistent resource cache storage

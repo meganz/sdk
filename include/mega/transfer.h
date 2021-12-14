@@ -69,7 +69,8 @@ struct MEGA_API Transfer : public FileFingerprint
 
     m_off_t pos;
 
-    byte filekey[FILENODEKEYLENGTH];
+    // constructed from transferkey and the file's mac data, on upload completion
+    FileNodeKey filekey;
 
     // CTR mode IV
     int64_t ctriv;
@@ -99,7 +100,7 @@ struct MEGA_API Transfer : public FileFingerprint
     uploadhandletransfer_map::iterator faputcompletion_it;
 
     // upload result
-    unique_ptr<byte[]> ultoken;
+    unique_ptr<UploadToken> ultoken;
 
     // backlink to base
     MegaClient* client;

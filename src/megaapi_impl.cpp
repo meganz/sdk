@@ -22738,15 +22738,14 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            byte binTok[36];
-            auto binTokSize = Base64::atob(uploadToken, binTok, 36);
-            if (binTokSize != 36)
+            UploadToken ulToken;
+            auto binTokSize = Base64::atob(uploadToken, &ulToken[0], sizeof(ulToken));
+            if (binTokSize != 36 || binTokSize != sizeof(ulToken))
             {
                 LOG_err << "Invalid upload token: " << uploadToken;
                 e = API_EARGS;
                 break;
             }
-            std::string binaryUploadToken((char *)binTok, binTokSize);
 
             byte *theFileKey;
             std::unique_ptr<byte[]> filekey;
@@ -22825,7 +22824,7 @@ void MegaApiImpl::sendPendingRequests()
 
             vector<NewNode> newnodes(1);
             NewNode* newnode = &newnodes[0];
-            e = client->putnodes_prepareOneFile(newnode, parentNode, utf8Name, binaryUploadToken,
+            e = client->putnodes_prepareOneFile(newnode, parentNode, utf8Name, ulToken,
                                                 theFileKey, megafingerprint.get(), fingerprintOriginal,
                                                 std::move(addNodeAttrsFunc),
                                                 std::move(addFileAttrsFunc));
