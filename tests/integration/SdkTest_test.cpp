@@ -7319,9 +7319,6 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
             << "Error: new node parent handle: " << Base64Str<MegaClient::NODEHANDLE>(n->getParentHandle())
             << " doesn't match with rubbish bin node handle: " << Base64Str<MegaClient::NODEHANDLE>(rubbishNode->getHandle());
 
-    ASSERT_TRUE(!fileName.compare(n->getName()))
-            << "Error: new node name: " << n->getName() << "doesn't match with expected one: " << fileName;
-
     // --- Clean rubbish bin for secondary account ---
     auto err = synchronousCleanRubbishBin(1);
     ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
