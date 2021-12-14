@@ -64,7 +64,6 @@ class MEGA_API SqliteAccountState : public SqliteDbTable, public DBTableNodes
 public:
     // Access to table `nodes`
     bool getNode(mega::NodeHandle nodehandle, NodeSerialized& nodeSerialized) override;
-    bool getNodes(std::vector<NodeSerialized>& nodes) override;
     bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
     bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
     bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized &node, NodeHandle& nodeHandle) override;

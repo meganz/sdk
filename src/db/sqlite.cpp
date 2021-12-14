@@ -723,45 +723,6 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
     return nodeSerialized.mNode.size() ? true : false;
 }
 
-bool SqliteAccountState::getNodes(std::vector<NodeSerialized> &nodes)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    sqlite3_stmt *stmt;
-    int sqlResult = SQLITE_ERROR;
-    if ((sqlResult = sqlite3_prepare(db, "SELECT decrypted, node FROM nodes", -1, &stmt, NULL)) == SQLITE_OK)
-    {
-        while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-        {
-            NodeSerialized node;
-            node.mDecrypted = sqlite3_column_int(stmt, 0);
-
-            const void* data = sqlite3_column_blob(stmt, 1);
-            int size = sqlite3_column_bytes(stmt, 1);
-            if (data && size)
-            {
-                node.mNode = std::string(static_cast<const char*>(data), size);
-                nodes.push_back(node);
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get all nodes from database: " << dbfile << err;
-        assert(!"Unable to get all nodes from database.");
-        return false;
-    }
-
-    return true;
-}
-
 bool SqliteAccountState::getNodesByFingerprint(const FileFingerprint &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
 {
     if (!db)

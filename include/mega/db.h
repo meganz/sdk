@@ -111,7 +111,6 @@ public:
 
     // get nodes and queries about nodes
     virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
-    virtual bool getNodes(std::vector<NodeSerialized>& nodes) = 0;
     virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
     virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
     virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node, NodeHandle& nodeHandle) = 0;
