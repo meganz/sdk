@@ -236,7 +236,7 @@ namespace
         return true;
     }
 
-    bool createLocalFile(fs::path path, const char *name)
+    bool createLocalFile(fs::path path, const char *name, int byteSize = 0)
     {
         if (!name)
         {
@@ -249,6 +249,10 @@ namespace
 #else
         ofstream fs(fp.u8string()/*, ios::binary*/);
 #endif
+        if (byteSize)
+        {
+            fs.seekp((byteSize << 10) - 1);
+        }
         fs << name;
         return true;
     }
