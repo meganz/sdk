@@ -618,6 +618,12 @@ ELSE(WIN32)
         #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework LDAP")
         #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "libresolv.dylib")
 
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
+                                       ${MegaDir}/include/mega/osx/megafs.h
+                                       ${MegaDir}/src/osx/fs.cpp)
+
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                                       "-framework CoreServices")
     ENDIF()
 
     IF(USE_DRIVE_NOTIFICATIONS)
@@ -642,6 +648,10 @@ ELSE(WIN32)
     SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap)
     IF(APPLE)
        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework SystemConfiguration -framework Security")
+
+       SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/osx
+                                         ${Mega_PlatformSpecificIncludes})
+
        if (NOT IOS)
            set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa")
        else()
@@ -824,6 +834,8 @@ add_library(Mega STATIC
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
+
+MESSAGE(STATUS "ID: ${Mega_PlatformSpecificIncludes}")
 
 if (WIN32)
     set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:Mfplat.lib> $<${HAVE_FFMPEG}:Strmiids.lib> $<${HAVE_FFMPEG}:Mfuuid.lib>)

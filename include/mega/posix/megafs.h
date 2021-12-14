@@ -18,9 +18,12 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#ifndef MEGA_POSIX_FS_H
+#define MEGA_POSIX_FS_H
 
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS PosixFileSystemAccess
+#endif // ! FSACCESS_CLASS
 
 #ifdef  __APPLE__
 // Apple calls it sendfile, but it isn't
