@@ -7286,7 +7286,7 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
 
     // --- Create a new outgoing share ---
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_READ));
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_READWRITE));
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
@@ -7300,18 +7300,28 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
             << "Wrong inshare handle: " << Base64Str<MegaClient::NODEHANDLE>(share->getNodeHandle())
             << ", expected: " << Base64Str<MegaClient::NODEHANDLE>( n1->getHandle());
 
-    ASSERT_TRUE(share->getAccess() >=::MegaShare::ACCESS_READ)
-             << "Insufficient permissions: " << MegaShare::ACCESS_READ  << " over created share";
+    ASSERT_TRUE(share->getAccess() >=::MegaShare::ACCESS_READWRITE)
+             << "Insufficient permissions: " << MegaShare::ACCESS_READWRITE  << " over created share";
 
     // --- Create local file and start upload from secondary account into inew InShare ---
     onTransferUpdate_progress = 0;
     onTransferUpdate_filesize = 0;
     mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
     std::string fileName = std::to_string(time(nullptr));
-    ASSERT_TRUE(createLocalFile(fs::current_path(), fileName.c_str()));
+    ASSERT_TRUE(createLocalFile(fs::current_path(), fileName.c_str(), 1024));
     fs::path fp = fs::current_path() / fileName;
     megaApi[1]->startUpload(fp.u8string().c_str(), n1);
 
+    // --- Pause transfer, revoke out-share permissions for secondary account and resume transfer ---
+    megaApi[0]->pauseTransfers(true);
+    ASSERT_TRUE(!mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD]);
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    megaApi[0]->pauseTransfers(false);
     // --- Wait for transfer completion
     ASSERT_TRUE(waitForResponse(&mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD], 600))
         << "Upload transfer failed after " << 600 << " seconds";
