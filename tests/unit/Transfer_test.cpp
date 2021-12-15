@@ -50,6 +50,8 @@ void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
 
 TEST(Transfer, serialize_unserialize)
 {
+    using ::mega::byte;
+
     mega::MegaApp app;
     auto client = mt::makeClient(app);
 
