@@ -14618,71 +14618,71 @@ TEST_F(SyncTest, BasicSync_RapidLocalChangesWhenUploadCompletes)
     auto TESTROOT = makeNewTestRoot();
     auto TIMEOUT  = std::chrono::seconds(8);
 
-    StandardClient c(TESTROOT, "c");
-    Model m;
+    auto c = g_clientManager.getCleanStandardClient(0, TESTROOT);
+    ASSERT_TRUE(c->resetBaseFolderMulticlient());
+
+    ASSERT_TRUE(c->makeCloudSubdirs("s", 0, 0));
+    ASSERT_TRUE(CatchupClients(c));
 
     // Log callbacks.
-    c.logcb = true;
-    
-    // Log in the client, clearing current contents of the cloud.
-    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+    c->logcb = true;
 
     // Populate model and local filesystem.
+    Model m;
     m.addfile(".megaignore", "#");
     m.addfile("f", randomData(1024));
-    m.generate(c.fsBasePath / "s");
+    m.generate(c->fsBasePath / "s");
 
     // Add and start a sync.
-    auto id = c.setupSync_mainthread("s", "s", false, false);
+    auto id = c->setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for the initial sync to complete.
-    waitonsyncs(TIMEOUT, &c);
+    waitonsyncs(TIMEOUT, c);
 
     // Was the initial sync successful?
-    ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
+    ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
 
     // Hook the transfer completed callback.
     //
     // The idea here is that we start hammering the engine with a bunch of
     // file change notifications, the goal of which is to confuse the engine
     // such that it no longer knows which side is "current."
-    c.onTransferCompleted = [&c, &m](Transfer*) {
+    c->onTransferCompleted = [&c, &m](Transfer*) {
         // Only call us once.
-        c.onTransferCompleted = nullptr;
-
-        // Update the file in a tight loop.
-        for (auto i = 0; i < 32; ++i)
-        {
-            m.addfile("f", randomData(1024));
-            m.generate(c.fsBasePath / "s");
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        }
+        c->onTransferCompleted = nullptr;
     };
 
     // Make a local change for the sync to upload.
     m.addfile("f", randomData(1024));
-    m.generate(c.fsBasePath / "s");
+    m.generate(c->fsBasePath / "s");
+
+    // wait for transfer completion and then cause a whole lot more updates
+    for (int i = 0; i < 20000; ++i)
+    {
+        if (c->onTransferCompleted == nullptr) break;
+        WaitMillisec(1);
+    }
+
+    // Update the file in a tight loop, while the sync runs.
+    for (auto i = 0; i < 32; ++i)
+    {
+        m.addfile("f", randomData(1024));
+        m.generate(c->fsBasePath / "s");
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
 
     // Wait for the engine to process the change.
-    waitonsyncs(TIMEOUT, &c);
+    waitonsyncs(TIMEOUT, c);
 
     SyncStallInfo stalls;
 
-    // Engine should've stalled.
-    ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
+    // Engine should not have stalled
+    ASSERT_FALSE(c->client.syncs.syncStallDetected(stalls));
 
-    // Correct number of stalls?
-    ASSERT_EQ(stalls.cloud.size(), 1u);
-    ASSERT_EQ(stalls.local.size(), 1u);
-
-    // Stalled for the right reason?
-    ASSERT_EQ(stalls.cloud.begin()->second.reason,
-              SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
-
-    ASSERT_EQ(stalls.local.begin()->second.reason,
-              SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
+    // check we ended up with the final file
+    ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
 }
 
 #endif
