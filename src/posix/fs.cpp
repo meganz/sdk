@@ -1939,23 +1939,19 @@ fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 
 bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
-    struct statfs statfsbuf;
+    FileSystemType type;
 
-    if (statfs(path.localpath.c_str(), &statfsbuf))
+    if (!getlocalfstype(path, type))
     {
-        LOG_err << "Failed to get filesystem type. Error code: " << errno;
+        LOG_err << "Failed to get filesystem type. Error code:"
+                << errno;
+
         return true;
     }
 
-    LOG_info << "Filesystem type: " << statfsbuf.f_type;
-
-#ifdef __APPLE__
-    return statfsbuf.f_type != 0x1c // FAT32
-        && statfsbuf.f_type != 0x1d; // exFAT
-#else
-    return statfsbuf.f_type != 0x4d44 // FAT
-        && statfsbuf.f_type != 0x65735546; // FUSE
-#endif
+    return type != FS_EXFAT
+           && type != FS_FAT32
+           && type != FS_FUSE;
 }
 
 #endif // ENABLE_SYNC
@@ -2033,10 +2029,13 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
 
 #if defined(__APPLE__) || defined(USE_IOS)
     static const map<string, FileSystemType> filesystemTypes = {
-        {"apfs",  FS_APFS},
-        {"hfs",   FS_HFS},
-        {"msdos", FS_FAT32},
-        {"ntfs",  FS_NTFS}
+        {"apfs",        FS_APFS},
+        {"exfat",       FS_EXFAT},
+        {"hfs",         FS_HFS},
+        {"msdos",       FS_FAT32},
+        {"ntfs",        FS_NTFS}, // Apple NTFS
+        {"tuxera_ntfs", FS_NTFS}, // Tuxera NTFS for Mac
+        {"ufsd_NTFS",   FS_NTFS}  // Paragon NTFS for Mac
     }; /* filesystemTypes */
 
     struct statfs statbuf;
