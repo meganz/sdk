@@ -18137,7 +18137,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     break;
                 }
 
-                if (parent->inshare && !client->checkaccess(parent, RDWR))
+                if (parent && parent->inshare && !client->checkaccess(parent, RDWR))
                 {
                     e = API_EACCESS;
                     break;
