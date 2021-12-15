@@ -17808,6 +17808,7 @@ void NodeManager::loadNodes()
         for (const Node* node : rootNodes)
         {
             loadTreeRecursively(node);
+            // We don't increase counters because root nodes aren't FILENODES nor FOLDERNODES
         }
 
         node_vector inSharesNodes = getNodesWithInShares();
