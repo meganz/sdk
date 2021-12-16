@@ -556,7 +556,32 @@ TEST_F(SyncConfigIOContextTest, ReadBadPath)
     EXPECT_TRUE(data.empty());
 }
 
+TEST_F(SyncConfigIOContextTest, RemoveSlot)
+{
+    // Make sure drive path exists.
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
+    // Generate a slot for this user.
+    {
+        LocalPath configPath = drive;
+
+        // Generate path prefix.
+        configPath.appendWithSeparator(
+            LocalPath::fromRelativePath(configName()), false);
+
+        // Generate suffix.
+        configPath.append(LocalPath::fromRelativePath(".0"));
+
+        // Populate slot.
+        EXPECT_TRUE(Utilities::randomFile(configPath));
+    }
+
+    // Remove the slot.
+    EXPECT_EQ(ioContext().remove(drive.path(), 0), API_OK);
+
+    // Remove should fail as the slot's already gone.
+    EXPECT_EQ(ioContext().remove(drive.path(), 0), API_EWRITE);
+}
 
 TEST_F(SyncConfigIOContextTest, RemoveSlots)
 {
