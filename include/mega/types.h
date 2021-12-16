@@ -469,7 +469,8 @@ enum SyncError {
     UNKNOWN_DRIVE_PATH = 35,                // Sync's drive path isn't known.
     INVALID_SCAN_INTERVAL = 36,             // The user's specified an invalid scan interval.
     NOTIFICATION_SYSTEM_UNAVAILABLE = 37,   // Filesystem notification subsystem has encountered an unrecoverable error.
-    UNABLE_TO_ADD_WATCH = 38                // Unable to add a filesystem watch.
+    UNABLE_TO_ADD_WATCH = 38,               // Unable to add a filesystem watch.
+    UNABLE_TO_RETRIEVE_ROOT_FSID = 39       // Unable to retrieve a sync root's FSID.
 };
 
 enum SyncWarning {

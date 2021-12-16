@@ -5232,7 +5232,13 @@ public:
         BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
         SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
         COULD_NOT_MOVE_CLOUD_NODES = 32,        // rename() failed.
-        COULD_NOT_CREATE_IGNORE_FILE = 33       // Couldn't create a sync's initial ignore file.
+        COULD_NOT_CREATE_IGNORE_FILE = 33,      // Couldn't create a sync's initial ignore file.
+        SYNC_CONFIG_READ_FAILURE = 34,          // Couldn't read sync configs from disk.
+        UNKNOWN_DRIVE_PATH = 35,                // Sync's drive path isn't known.
+        INVALID_SCAN_INTERVAL = 36,             // The user's specified an invalid scan interval.
+        NOTIFICATION_SYSTEM_UNAVAILABLE = 37,   // Filesystem notification subsystem has encountered an unrecoverable error.
+        UNABLE_TO_ADD_WATCH = 38,               // Unable to add a filesystem watch.
+        UNABLE_TO_RETRIEVE_ROOT_FSID = 39       // Unable to retrieve a sync root's FSID.
     };
 
     enum Warning

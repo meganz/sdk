@@ -846,6 +846,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Filesystem notification subsystem unavailable.";
     case UNABLE_TO_ADD_WATCH:
         return "Unable to add filesystem watch.";
+    case UNABLE_TO_RETRIEVE_ROOT_FSID:
+        return "Unable to retrieve sync root FSID.";
     default:
         return "Undefined error";
     }
@@ -3042,7 +3044,15 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         us.mSync.reset();
     };
 
-    if (us.mSync->localroot->watch(us.mConfig.getLocalPath(), UNDEF) != WR_SUCCESS)
+    // Make sure we were able to assign the root's FSID.
+    if (us.mSync->localroot->fsid_lastSynced == UNDEF)
+    {
+        LOG_err << "Unable to retrieve the sync root's FSID: "
+                << us.mConfig.getLocalPath();
+
+        signalError(UNABLE_TO_RETRIEVE_ROOT_FSID);
+    }
+    else if (us.mSync->localroot->watch(us.mConfig.getLocalPath(), UNDEF) != WR_SUCCESS)
     {
         LOG_err << "Unable to add a watch for the sync root: "
                 << us.mConfig.getLocalPath();
