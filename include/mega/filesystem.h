@@ -912,10 +912,11 @@ private:
         FSNode interrogate(DirAccess& iterator,
             const LocalPath& name,
             LocalPath& path,
-            ScanRequest& request);
+            ScanRequest& request,
+            unsigned& nFingerprinted);
 
         // Processes a scan request.
-        ScanResult scan(ScanRequestPtr request);
+        ScanResult scan(ScanRequestPtr request, unsigned& nFingerprinted);
 
         // Filesystem access.
         std::unique_ptr<FileSystemAccess> mFsAccess;

@@ -218,10 +218,25 @@ void ScanService::Worker::loop()
           request->mTargetPath.toPath();
 
         LOG_verbose << "Directory scan begins: " << targetPath;
+        using namespace std::chrono;
+        auto scanStart = high_resolution_clock::now();
 
         // Process the request.
-        auto result = scan(request);
-        LOG_verbose << "Directory scan ended (" << result << "): " << targetPath;
+        unsigned nFingerprinted = 0;
+        auto result = scan(request, nFingerprinted);
+        auto scanEnd = high_resolution_clock::now();
+
+        if (result == SCAN_SUCCESS)
+        {
+            LOG_verbose << "Directory scan complete for: " << targetPath
+                        << " entries: " << request->mResults.size()
+                        << " taking " << duration_cast<milliseconds>(scanEnd - scanStart).count() << "ms"
+                        << " fingerprinted: " << nFingerprinted;
+        }
+        else
+        {
+            LOG_verbose << "Directory scan FAILED (" << result << "): " << targetPath;
+        }
 
         request->mScanResult = result;
         request->mWaiter.notify();
@@ -231,7 +246,8 @@ void ScanService::Worker::loop()
 FSNode ScanService::Worker::interrogate(DirAccess& iterator,
                                         const LocalPath& name,
                                         LocalPath& path,
-                                        ScanRequest& request)
+                                        ScanRequest& request,
+                                        unsigned& nFingerprinted)
 {
     auto reuseFingerprint =
       [](const FSNode& lhs, const FSNode& rhs)
@@ -300,6 +316,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
         {
             // Child has changed, need a new fingerprint.
             result.fingerprint.genfingerprint(fileAccess.get());
+            nFingerprinted += 1;
         }
 
         return result;
@@ -324,7 +341,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
 // regardless of multiple clients too - there is only one filesystem after all (but not singleton!!)
 CodeCounter::ScopeStats ScanService::syncScanTime = { "folderScan" };
 
-auto ScanService::Worker::scan(ScanRequestPtr request) -> ScanResult
+auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted) -> ScanResult
 {
     CodeCounter::ScopeTimer rst(syncScanTime);
 
@@ -354,6 +371,8 @@ auto ScanService::Worker::scan(ScanRequestPtr request) -> ScanResult
         return SCAN_FSID_MISMATCH;
     }
 
+    std::vector<FSNode> results;
+
     std::unique_ptr<DirAccess> dirAccess(mFsAccess->newdiraccess());
     LocalPath name;
 
@@ -366,15 +385,13 @@ auto ScanService::Worker::scan(ScanRequestPtr request) -> ScanResult
     }
 
     // Process each file in the target.
-    std::vector<FSNode> results;
-
     while (dirAccess->dnext(path, name, request->mFollowSymLinks))
     {
         ScopedLengthRestore restorer(path);
         path.appendWithSeparator(name, false);
 
         // Learn everything we can about the file.
-        auto info = interrogate(*dirAccess, name, path, *request);
+        auto info = interrogate(*dirAccess, name, path, *request, nFingerprinted);
         results.emplace_back(std::move(info));
     }
 
