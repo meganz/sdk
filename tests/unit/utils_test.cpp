@@ -779,3 +779,18 @@ TEST(JSON, NullValue)
     EXPECT_EQ(0, strcmp(j.pos, "\"json\"}remainder"));
 }
 
+TEST(JSON, stripWhitespace)
+{
+    auto input = string(" a\rb\n c\r{\"a\":\"q\\r \\\" s\"\n} x y\n z\n");
+    auto expected = string("abc{\"a\":\"q\\r \\\" s\"}xyz");
+    auto computed = JSON::stripWhitespace(input);
+
+    ASSERT_EQ(computed, expected);
+
+    input = "{\"a\":\"bcde";
+    expected = "{\"a\":\"";
+    computed = JSON::stripWhitespace(input);
+
+    ASSERT_EQ(computed, expected);
+}
+

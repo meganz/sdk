@@ -183,6 +183,10 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
 
     // Open video file
     AVFormatContext* formatContext = nullptr;
+#if defined(LIBAVFORMAT_VERSION_MAJOR) && LIBAVFORMAT_VERSION_MAJOR < 58
+    // deprecated/no longer required in FFMPEG 4.0:
+    av_register_all();
+#endif
     if (avformat_open_input(&formatContext, imagePath.toPath().c_str(), NULL, NULL))
     {
         LOG_warn << "Error opening video: " << imagePath;
