@@ -76,6 +76,11 @@ bool GfxProcCG::readbitmap(FileAccess* fa, const LocalPath& name, int size) {
     } else {
         sourcePath = [NSString stringWithCString:name.platformEncoded().c_str() encoding:[NSString defaultCStringEncoding]];
     }
+    
+    if (sourcePath == nil) {
+        return false;
+    }
+    
     NSURL *sourceURL = [NSURL fileURLWithPath:sourcePath isDirectory:NO];
     if (sourceURL == nil) {
         return false;
