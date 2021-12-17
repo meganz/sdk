@@ -1600,6 +1600,161 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& i
     return result;
 }
 
+bool reuseFingerprint(const FSNode& lhs, const FSNode& rhs)
+{
+    // it might look like fingerprint.crc comparison has been missed out here
+    // but that is intentional.  The point is to avoid re-fingerprinting files
+    // when we rescan a folder, if we already have good info about them and
+    // nothing we can see from outside the file had changed,
+    // mtime is the same, and no notifications arrived
+    // for this particular file.
+    return lhs.type == rhs.type
+        && lhs.fsid == rhs.fsid
+        && lhs.fingerprint.mtime == rhs.fingerprint.mtime
+        && lhs.fingerprint.size == rhs.fingerprint.size;
+};
+
+ScanService::ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, unsigned& nFingerprinted)
+{
+    assert(path.isAbsolute());
+
+    ScopedFileHandle rightTypeHandle = CreateFileW(path.localpath.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ |
+        FILE_SHARE_WRITE |
+        FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        NULL);
+
+    if (rightTypeHandle.get() == INVALID_HANDLE_VALUE)
+    {
+        LOG_warn << "Failed to directoryScan, no handle for: " << path;
+        return ScanService::SCAN_INACCESSIBLE;
+    }
+
+    BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
+    if (!GetFileInformationByHandle(rightTypeHandle.get(), &bhfi))
+    {
+        LOG_warn << "Failed to directoryScan, no info for: " << path;
+        return ScanService::SCAN_INACCESSIBLE;
+    }
+
+    auto folderFsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
+    if (folderFsid != expectedFsid)
+    {
+        LOG_warn << "Failed to directoryScan, mismatch on expected FSID: " << path;
+        return ScanService::SCAN_FSID_MISMATCH;
+    }
+
+    if (!(bhfi.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        LOG_warn << "Failed to directoryScan, not a directory: " << path;
+        return ScanService::SCAN_INACCESSIBLE;
+    }
+
+    alignas(8) byte bytes[1024 * 10];
+
+    if (GetFileInformationByHandleEx( rightTypeHandle.get(),
+        FileIdBothDirectoryRestartInfo,  // starts the listing from the beginning
+        bytes, sizeof(bytes)))
+    {
+        do
+        {
+            bool loopDone = false;
+            for (byte* ptr = bytes; !loopDone;)
+            {
+                auto info = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(ptr);
+                if (!info->NextEntryOffset) loopDone = true;
+                else ptr += info->NextEntryOffset;
+
+                FSNode result;
+                result.localname = LocalPath::fromPlatformEncodedRelative(wstring(info->FileName, info->FileNameLength/2));
+                assert(result.localname.localpath.back() != 0);
+
+                if (result.localname.localpath == L"." ||
+                    result.localname.localpath == L"..")
+                {
+                    continue;
+                }
+
+                result.type = (info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
+                result.fsid = (handle) info->FileId.QuadPart;
+
+                result.fingerprint.mtime = FileTime_to_POSIX((FILETIME*)&info->LastWriteTime);
+                result.fingerprint.size = (m_off_t)info->EndOfFile.QuadPart;
+
+                if (info->ShortNameLength > 0)
+                {
+                    wstring wstr(info->ShortName, info->ShortNameLength/2);
+                    assert(wstr.back() != 0);
+                    if (wstr != result.localname.localpath)
+                    {
+                        result.shortname.reset(new LocalPath(LocalPath::fromPlatformEncodedRelative(move(wstr))));
+                    }
+                }
+
+                if (result.shortname &&
+                    *result.shortname == result.localname)
+                {
+                    result.shortname.reset();
+                }
+
+                    //// Warn about symlinks.
+                    //if (result.isSymlink)
+                    //{
+                    //    LOG_debug << "Interrogated path is a symlink: "
+                    //        << path.toPath();
+                    //}
+
+                if (result.type == FOLDERNODE)
+                {
+                    memset(result.fingerprint.crc.data(), 0, sizeof(result.fingerprint.crc));
+                }
+                else
+                {
+                    // Fingerprint the file if it's new or changed
+                    // (caller has to not supply 'known' items we aready know changed in case mtime+size is still a match)
+                    auto it = known.find(result.localname);
+                    if (it != known.end() && reuseFingerprint(it->second, result))
+                    {
+                        result.fingerprint = std::move(it->second.fingerprint);
+                        known.erase(it);
+                    }
+                    else
+                    {
+                        LocalPath p = path;
+                        p.appendWithSeparator(result.localname, false);
+                        auto fa = newfileaccess();
+                        if (fa->fopen(p, true, false))
+                        {
+                            result.fingerprint.genfingerprint(fa.get());
+                        }
+                        nFingerprinted += 1;
+                    }
+                }
+
+                results.push_back(move(result));
+            }
+        }
+        while (GetFileInformationByHandleEx( rightTypeHandle.get(),
+            FileIdBothDirectoryInfo,  // continues but does not restart
+            bytes, sizeof(bytes)));
+
+    }
+
+    auto err = GetLastError();
+    if (err != ERROR_NO_MORE_FILES)
+    {
+        LOG_err << "Failed in directoryScan, error " << err;
+        return ScanService::SCAN_INACCESSIBLE;
+    }
+
+    return ScanService::SCAN_SUCCESS;
+}
+
+
 bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
 {
     assert(nameArg || f);

@@ -345,6 +345,18 @@ auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted)
 {
     CodeCounter::ScopeTimer rst(syncScanTime);
 
+#ifdef WIN32
+
+    auto r = static_cast<WinFileSystemAccess*>(mFsAccess.get())->directoryScan(request->mTargetPath,
+            request->mExpectedFsid, request->mKnown, request->mResults, nFingerprinted);
+
+    // No need to keep this data around anymore.
+    request->mKnown.clear();
+
+    return r;
+
+#else
+
     // Have we been passed a valid target path?
     auto fileAccess = mFsAccess->newfileaccess();
     auto path = request->mTargetPath;
@@ -371,8 +383,6 @@ auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted)
         return SCAN_FSID_MISMATCH;
     }
 
-    std::vector<FSNode> results;
-
     std::unique_ptr<DirAccess> dirAccess(mFsAccess->newdiraccess());
     LocalPath name;
 
@@ -383,6 +393,8 @@ auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted)
                   << path.toPath();
         return SCAN_INACCESSIBLE;
     }
+
+    std::vector<FSNode> results;
 
     // Process each file in the target.
     while (dirAccess->dnext(path, name, request->mFollowSymLinks))
@@ -401,6 +413,7 @@ auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted)
     // Publish the results.
     request->mResults = std::move(results);
     return SCAN_SUCCESS;
+#endif
 }
 
 ScopedSyncPathRestore::ScopedSyncPathRestore(SyncPath& p)
