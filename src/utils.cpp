@@ -2668,7 +2668,12 @@ bool islchex(const int c)
 
 std::string getSafeUrl(const std::string &posturl)
 {
+#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ <= 4
+    string safeurl;
+    safeurl.append(posturl);
+#else
     string safeurl = posturl;
+#endif
     size_t sid = safeurl.find("sid=");
     if (sid != string::npos)
     {
