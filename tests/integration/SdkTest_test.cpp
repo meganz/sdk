@@ -348,13 +348,6 @@ void SdkTest::Cleanup()
         }
 
     }
-
-    for (size_t i = 0; i < megaApi.size(); i++)
-    {
-        // clean rubbish bin (accept both success and already empty statuses)
-        int err = synchronousCleanRubbishBin(static_cast<unsigned>(i));
-        ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed for account index "<< i <<" (error: " << err << ")";
-    }
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
@@ -7339,5 +7332,9 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     ASSERT_TRUE(n->getParentHandle() == rubbishNode->getHandle())
             << "Error: new node parent handle: " << Base64Str<MegaClient::NODEHANDLE>(n->getParentHandle())
             << " doesn't match with rubbish bin node handle: " << Base64Str<MegaClient::NODEHANDLE>(rubbishNode->getHandle());
+
+    // --- Clean rubbish bin for secondary account ---
+    auto err = synchronousCleanRubbishBin(1);
+    ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
 }
 #endif
