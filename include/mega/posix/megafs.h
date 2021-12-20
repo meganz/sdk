@@ -69,23 +69,6 @@ class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 public:
     using FileSystemAccess::getlocalfstype;
 
-    int notifyfd = -1;
-
-    // Used to store any errors that might be returned by the system when we
-    // try and create a filesystem monitor.
-    //
-    // Say, the reason why we couldn't create an inotify instance.
-    int mNotificationError = 0;
-
-#ifdef USE_INOTIFY
-    WatchMap mWatches;
-#endif
-
-#ifdef __MACH__
-    // Correlates filesystem event path to sync root node.
-    map<string, Sync*> mRoots;
-#endif // __MACH__
-
 #ifdef USE_IOS
     static char *appbasepath;
 #endif
@@ -95,17 +78,6 @@ public:
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
-#ifdef ENABLE_SYNC
-    DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter) override;
-
-    // Track notifiers created by this FSA.
-    //
-    // Necessary so that we can correctly report transient failures.
-    //
-    // Say, if the event buffer has overflowed. In that case, we need to
-    // signal to each sync that they need to perform a rescan.
-    list<DirNotify*> mNotifiers;
-#endif
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
     bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning) override;
@@ -146,8 +118,6 @@ public:
     fsfp_t fsFingerprint(const LocalPath& path) const override;
 
     bool fsStableIDs(const LocalPath& path) const override;
-
-    bool initFilesystemNotificationSystem(int notificationFd) override;
 #endif // ENABLE_SYNC
 };
 
@@ -209,32 +179,6 @@ private:
     bool mFollowSymLinks = true;
 
 };
-
-#ifdef ENABLE_SYNC
-class MEGA_API PosixDirNotify : public DirNotify
-{
-public:
-    PosixFileSystemAccess* fsaccess;
-
-    PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root, const LocalPath& rootPath);
-
-    ~PosixDirNotify();
-
-#if defined(ENABLE_SYNC) && defined(USE_INOTIFY)
-    pair<WatchMapIterator, WatchResult> addWatch(LocalNode& node, const LocalPath& path, handle fsid);
-    void removeWatch(WatchMapIterator entry);
-#endif // ENABLE_SYNC && USE_INOTIFY
-
-private:
-#ifdef __MACH__
-    // Our position in the PFSA::mRoots map.
-    map<string, Sync*>::iterator mRootsIt;
-#endif // __MACH__
-
-    // Our position in the PFSA::mNotifiers list.
-    list<DirNotify*>::iterator mNotifiersIt;
-};
-#endif
 
 } // namespace
 
