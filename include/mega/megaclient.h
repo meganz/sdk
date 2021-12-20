@@ -1929,8 +1929,8 @@ private:
     // Since it's quite expensive to create a SymmCipher, this is provided to use for quick operation - just set the key and use.
     SymmCipher tmptransfercipher;
 
-    // creates a new "i" to identify the client (commands <-> action packets)
-    void resetSessionId();
+    // creates a new id
+    void resetId(char *id);
 };
 } // namespace
 

@@ -1221,7 +1221,13 @@ void MegaClient::init()
     insca_notlast = false;
     scnotifyurl.clear();
     scsn.clear();
-    resetSessionId();
+
+    // initialize random client application instance ID (for detecting own
+    // actions in server-client stream)
+    resetId(sessionid);
+
+    // initialize random API request sequence ID (server API is idempotent)
+    resetId(reqid);
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
@@ -1350,12 +1356,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     connections[PUT] = 3;
     connections[GET] = 4;
 
-    // initialize random API request sequence ID (server API is idempotent)
-    for (int i = sizeof reqid; i--; )
-    {
-        reqid[i] = static_cast<char>('a' + rng.genuint32(26));
-    }
-
     reqtag = 0;
 
     badhostcs = NULL;
@@ -1396,13 +1396,11 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
-void MegaClient::resetSessionId()
+void MegaClient::resetId(char *id)
 {
-    // initialize random client application instance ID (for detecting own
-    // actions in server-client stream)
-    for (int i = sizeof sessionid; i--; )
+    for (int i = sizeof id; i--; )
     {
-        sessionid[i] = static_cast<char>('a' + rng.genuint32(26));
+        id[i] = static_cast<char>('a' + rng.genuint32(26));
     }
 }
 
