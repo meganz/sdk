@@ -1,6 +1,8 @@
 
 MEGASDK_BASE_PATH = $$PWD/../../
 
+CONFIG += object_parallel_to_source
+
 # Define MEGA_USE_C_ARES by default. Allow disabling c-ares code
 # by defining env var MEGA_USE_C_ARES=no before running qmake.
 ENV_MEGA_USE_C_ARES=$$(MEGA_USE_C_ARES)
@@ -441,8 +443,8 @@ else:CONFIG += USE_CURL
 
 unix {
 SOURCES += src/posix/net.cpp  \
-    src/posix/fs.cpp  \
-    src/posix/waiter.cpp
+           src/posix/fs.cpp  \
+           src/posix/waiter.cpp
 }
 
 HEADERS  += include/mega.h \
@@ -674,8 +676,12 @@ win32 {
 }
 
 unix:!macx {
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/linux
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
    LIBS += -lsqlite3 -lrt
+
+   HEADERS += include/mega/linux/megafs.h
+   SOURCES += src/linux/fs.cpp
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a
@@ -739,8 +745,11 @@ unix:!macx {
 }
 
 macx {
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/osx
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
+
+   SOURCES += src/osx/fs.cpp 
+   HEADERS += include/mega/osx/megafs.h
 
    OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
 
