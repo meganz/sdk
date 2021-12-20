@@ -8500,61 +8500,38 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
     return transfer;
 }
 
-void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener* listener)
+
+void MegaApiImpl::startUploadForChat(const char* localPath, MegaNode* parent, const char* fileName, const char* appData, bool isSourceFileTemporary, MegaTransferListener* listener)
 {
-    MegaTransferPrivate* transfer = createUploadTransfer(startFirst, localPath, parent, fileName, targetUser, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, nullptr, listener);
+    MegaTransferPrivate* transfer = createUploadTransfer(false, localPath, parent, fileName, nullptr, -1, 0, false, appData, isSourceFileTemporary, true, FS_UNKNOWN, nullptr, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-void MegaApiImpl::startUploadWithCancelToken (bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener* listener)
+void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener* listener)
 {
     MegaTransferPrivate* transfer = createUploadTransfer(startFirst, localPath, parent, fileName, targetUser, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, cancelToken, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener* listener)
+void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener)
 {
-    return startUpload(startFirst, localPath, parent, fileName, nullptr, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, listener);
-}
-
-void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, FileSystemType fsType, MegaTransferListener* listener)
-{
-    return startUpload(false, localPath, parent, (const char*)NULL, -1, 0, false, NULL, false, false, fsType, listener);
-}
-
-void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int64_t mtime, FileSystemType fsType, MegaTransferListener* listener)
-{
-    return startUpload(false, localPath, parent, (const char*)NULL, mtime, 0, false, NULL, false, false, fsType, listener);
-}
-
-void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, FileSystemType fsType, MegaTransferListener* listener)
-{
-    return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, false, fsType, listener);
-}
-
-void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceTemporary, FileSystemType fsType, MegaTransferListener* listener)
-{
-    return startUpload(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", -1, 0, false, nullptr, isSourceTemporary, false, fsType, listener);
-}
-
-void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
-{
-    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, folderTransferTag, appData, nullptr, listener);
+    MegaTransferPrivate* transfer = createUploadTransfer(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", -1, 0, false, nullptr, isSourceFileTemporary, false, fsType, nullptr, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-void MegaApiImpl::startDownloadWithCancelToken (bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+void MegaApiImpl::startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, folderTransferTag, appData, cancelToken, listener);
+    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, customName, folderTransferTag, appData, cancelToken, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
+    FileSystemType fsType = fsAccess->getlocalfstype(LocalPath::fromPath(localPath, *fsAccess));
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
     if(localPath)
@@ -8590,6 +8567,14 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     transfer->setAppData(appData);
     transfer->setStartFirst(startFirst);
 
+    if (customName)
+    {
+       // set custom file/folder name if exists and escape incompatible characters for destination FS
+       std::string auxName = customName;
+       client->fsaccess->escapefsincompatible(&auxName, fsType);
+       transfer->setFileName(auxName.c_str());
+    }
+
     if (folderTransferTag)
     {
         transfer->setFolderTransferTag(folderTransferTag);
@@ -8597,9 +8582,6 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
 
     return transfer;
 }
-
-void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
-{ startDownload(false, node, localFolder, 0, NULL, listener); }
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
@@ -8672,15 +8654,17 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
         {
             node = getNodeByHandle(t->getNodeHandle());
         }
-        this->startDownload(t->shouldStartFirst(), node, t->getPath(), 0, t->getAppData(), listener);
+        this->startDownload(t->shouldStartFirst(), node, t->getPath(), NULL, 0, t->getAppData(), NULL, listener);
         delete node;
     }
     else
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
-        startUpload(t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), t->getTime(), 0,
-                          t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), t->isForceNewUpload(),
-                          client->fsaccess->getlocalfstype(LocalPath::fromPath(t->getPath(), *fsAccess)), listener);
+        this->startUpload (t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), nullptr,
+                    t->getTime(), 0, t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(),
+                    t->isForceNewUpload(), client->fsaccess->getlocalfstype(LocalPath::fromPath(t->getPath(), *fsAccess)),
+                    t->getCancelToken(), listener);
+
         delete parent;
     }
 }
@@ -12549,6 +12533,23 @@ void MegaApiImpl::file_complete(File *f)
 
         processTransferComplete(f->transfer, transfer);
     }
+}
+
+bool MegaApiImpl::file_isCancelled(File *f)
+{
+    assert(f);
+    MegaTransferPrivate *transfer = getMegaTransferPrivate(f->tag);
+    if (transfer)
+    {
+        if ((transfer->getType() <= MegaTransfer::TYPE_UPLOAD)
+                && !transfer->isStreamingTransfer()
+                && transfer->getState() < MegaTransfer::STATE_COMPLETED
+                && transfer->getCancelToken() && transfer->getCancelToken()->isCancelled())
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void MegaApiImpl::transfer_complete(Transfer *t)
@@ -25252,7 +25253,9 @@ void MegaFolderUploadController::start(MegaNode*)
     // create a subtree for the folder that we want to upload
     unique_ptr<Tree> newTreeNode(new Tree);
     LocalPath path = LocalPath::fromPath(transfer->getPath(), *megaapiThreadClient()->fsaccess);
-    auto leaf = path.leafName().toPath(*megaapiThreadClient()->fsaccess);
+    auto leaf = transfer->getFileName()
+            ? transfer->getFileName()
+            : path.leafName().toPath(*megaapiThreadClient()->fsaccess);
 
     // if folder node already exists in remote, set it as new subtree's megaNode, otherwise call putnodes_prepareOneFolder
     newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));
@@ -25713,10 +25716,10 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 
     for (const auto& localpath : tree.files)
     {
-        MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, localpath.toPath(*fsaccess).c_str(),
+        MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.toPath(*fsaccess).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      -1, tag, false, NULL, false, false, tree.fsType, nullptr, this);
-        transferQueue.push(transfer);
+                                                                      -1, tag, false, NULL, false, false, tree.fsType, transfer->getCancelToken(), this);
+        transferQueue.push(subTransfer);
         pendingTransfers++;
     }
 
@@ -26446,7 +26449,9 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                         pendingTransfers++;
 
                         totalFiles++;
-                        megaApi->startUpload(false, localPath.toPath(*client->fsaccess).c_str(), parent, (const char *)NULL, -1, folderTransferTag, true, NULL, false, false, fsType, this);
+                        megaApi->startUpload(false, localPath.toPath(*client->fsaccess).c_str(),
+                                                            parent, nullptr, nullptr, -1,folderTransferTag, true,
+                                                            nullptr, false, false, fsType, nullptr, this);
                     }
                     else
                     {
@@ -27232,7 +27237,7 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *fsaccess, fsType), true);
              string utf8path = localpath.toPath(*fsaccess);
-             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), nullptr, this);
+             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), nullptr, this);
              transferQueue.push(transferDownload);
              pendingTransfers++;
          }
@@ -29911,8 +29916,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             }
 
             FileSystemType fsType = httpctx->server->fsAccess->getlocalfstype(LocalPath::fromPath(httpctx->tmpFileName, *httpctx->server->fsAccess));
-
-            httpctx->megaApi->startUpload(httpctx->tmpFileName.c_str(), newParentNode, newname.c_str(), fsType, httpctx);
+            httpctx->megaApi->startUpload(false, httpctx->tmpFileName.c_str(), newParentNode, newname.c_str(), nullptr,
+                                                -1, 0, true, nullptr, false, false, fsType, nullptr, httpctx);
 
             delete node;
             delete baseNode;
@@ -32649,8 +32654,9 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
                 fds->controlftpctx->tmpFileName = ftpdatactx->tmpFileName;
 
                 FileSystemType fsType = fds->fsAccess->getlocalfstype(LocalPath::fromPath(ftpdatactx->tmpFileName, *fds->fsAccess));
+                ftpdatactx->megaApi->startUpload(false, ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(),
+                                                    nullptr, -1, 0, true, nullptr, false, false, fsType, nullptr, fds->controlftpctx);
 
-                ftpdatactx->megaApi->startUpload(ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(), fsType, fds->controlftpctx);
                 ftpdatactx->controlRespondedElsewhere = true;
             }
             else

@@ -2465,18 +2465,12 @@ class MegaApiImpl : public MegaApp
         void startTimer( int64_t period, MegaRequestListener *listener=NULL);
 
         //Transfers
-        void startUpload(const char* localPath, MegaNode *parent, FileSystemType fsType, MegaTransferListener *listener=NULL);
-        void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, FileSystemType fsType, MegaTransferListener *listener=NULL);
-        void startUpload(const char* localPath, MegaNode* parent, const char* fileName, FileSystemType fsType, MegaTransferListener *listener = NULL);
-        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
-        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener = NULL);
-        void startUploadForSupport(const char *localPath, bool isSourceTemporary, FileSystemType fsType, MegaTransferListener *listener=NULL);
-        void startUploadWithCancelToken (bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener* listener);
+        void startUploadForChat(const char* localPath, MegaNode* parent, const char* fileName, const char* appData, bool isSourceFileTemporary, MegaTransferListener* listener);
+        void startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener* listener);
         MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener *listener);
-        void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
-        void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
-        void startDownloadWithCancelToken (bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener);
-        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener);
+        void startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener);
+        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
@@ -3215,6 +3209,7 @@ protected:
         void file_added(File*) override;
         void file_removed(File*, const Error& e) override;
         void file_complete(File*) override;
+        bool file_isCancelled(File*) override;
 
         void transfer_complete(Transfer *) override;
         void transfer_removed(Transfer *) override;
