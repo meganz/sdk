@@ -17987,17 +17987,21 @@ mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
     if (node->type == FILENODE)
     {
         bool saveInMemory = !mClient.fetchingnodes || mKeepAllNodesInMemory;
+        std::pair<NodeHandle, Node*> pair = std::make_pair(node->nodeHandle(), saveInMemory ? node : nullptr);
+
         auto it = mFingerPrints.find(*node);
         if (it != mFingerPrints.end())
         {
-            auto emplacePair = it->second.emplace(node->nodeHandle(), saveInMemory ? node : nullptr);
+#ifdef DEBUG
+            auto emplacePair =
+#endif
+            it->second.emplace(pair);
             assert(emplacePair.second);
             return it;
         }
         else
         {
-            return mFingerPrints.emplace(*node, std::map<NodeHandle, Node*>{
-                                         std::make_pair(node->nodeHandle(), saveInMemory ? node : nullptr)}).first;
+            return mFingerPrints.emplace(*node, std::map<NodeHandle, Node*>{pair}).first;
         }
     }
 
