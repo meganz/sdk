@@ -979,7 +979,7 @@ enum VersioningOption
     NoVersioning,             // Node will be put directly to parent, with no versions, and no other node affected
     ClaimOldVersion,          // The Node specified by `ov` (if any) will become the first version of the node put
     ReplaceOldVersion,        // the Node specified by `ov` (if any) will be deleted, and this new node takes its place, retaining any version chain.
-    UseLocalVersioningFlag,   // One of the two above wil occur, based on the versions_disabled flag
+    UseLocalVersioningFlag,   // One of the two above will occur, based on the versions_disabled flag
     UseServerVersioningFlag   // One of those two will occur, based on the API's current state of that flag
 };
 
