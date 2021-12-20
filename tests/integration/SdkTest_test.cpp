@@ -5147,6 +5147,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     locallogout();
     auto tracker = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    resetlastEvent();
     fetchnodes(0, maxTimeout); // auto-resumes one active backup
     // Verify the sync again
     allSyncs.reset(megaApi[0]->getSyncs());
@@ -5165,8 +5166,15 @@ TEST_F(SdkTest, SdkBackupFolder)
         }
     }
     ASSERT_EQ(found, true) << "Sync instance could not be found, after logout & login";
-
-    fetchnodes(0); // without this, MegaNode for the new sync will not be found
+    // make sure that client is up to date (upon logout, recent changes might not be committed to DB,
+    // which may result on the new node not being available yet).
+    size_t times = 10;
+    while (times--)
+    {
+        if (lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) break;
+        sleep(1);
+    }
+    ASSERT_TRUE(lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) << "Timeout expired to receive actionpackets";
 
     // Test that DeviceId was set for the newly registered backup
     MegaSync* snc = allSyncs->get(0);
