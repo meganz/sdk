@@ -16976,7 +16976,11 @@ node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprin
             }
             else
             {
-                nodes.push_back(getNodeFromDataBase(itNode.first));
+                Node* node = getNodeFromDataBase(itNode.first);
+                if (node)
+                {
+                    nodes.push_back(node);
+                }
             }
         }
     }
@@ -18010,6 +18014,12 @@ void NodeManager::removeFingerprint(Node *node)
 
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
 {
+    if (!mTable)
+    {
+        assert(false);
+        return nullptr;
+    }
+
     Node* node = nullptr;
     NodeSerialized nodeSerialized;
     if (mTable->getNode(handle, nodeSerialized))
