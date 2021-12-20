@@ -1221,6 +1221,7 @@ void MegaClient::init()
     insca_notlast = false;
     scnotifyurl.clear();
     scsn.clear();
+    resetSessionId();
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
@@ -1349,12 +1350,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     connections[PUT] = 3;
     connections[GET] = 4;
 
-    int i;
-
-    resetSessionId();
-
     // initialize random API request sequence ID (server API is idempotent)
-    for (i = sizeof reqid; i--; )
+    for (int i = sizeof reqid; i--; )
     {
         reqid[i] = static_cast<char>('a' + rng.genuint32(26));
     }
@@ -4397,8 +4394,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(PUT);
 
     purgenodesusersabortsc(false);
-
-    resetSessionId();
 
     reqs.clear();
 
