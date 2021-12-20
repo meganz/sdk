@@ -17994,7 +17994,11 @@ void NodeManager::removeFingerprint(Node *node)
         auto it = mFingerPrints.find(*node);
         if (it != mFingerPrints.end())
         {
+#ifdef DEBUG
+            int ret = 
+#endif
             it->second.erase(node->nodeHandle());
+            assert(ret == 1);
 
             if (it->second.empty())
             {
