@@ -359,7 +359,7 @@ public:
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;
 
-    // Add fingerprint to mFingerprint map, in case that no feching or
+    // Add fingerprint to mFingerprint map, in case !fetchingNodes or
     // keep all nodes in memory, a reference to node will be stored too
     void insertFingerprint(Node* node);
     // Remove fingerprint from mFingerprint map
@@ -398,7 +398,7 @@ private:
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
 
-    // FileFingerprint to node mapping
+    // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     std::map<FileFingerprint, std::map<NodeHandle, Node*>> mFingerPrints;
 
     Node* getNodeFromDataBase(NodeHandle handle);
