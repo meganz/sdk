@@ -7805,15 +7805,15 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     // --- UserB remove a node and try to find it by fingerprint
     mApi[1].nodeUpdated = false;
-    ASSERT_GT(fingerPrintToRemove.size(), 0);
+    ASSERT_GT(fingerPrintToRemove.size(), 0u);
     fingerPrintList.reset(megaApi[1]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
-    ASSERT_EQ(fingerPrintList->size(), 1);
+    ASSERT_EQ(fingerPrintList->size(), 1u);
     MegaHandle handleFingerprintRemove = fingerPrintList->get(0)->getHandle();
     unique_ptr<MegaNode>node(megaApi[1]->getNodeByHandle(handleFingerprintRemove));
     ASSERT_EQ(API_OK, synchronousRemove(1, node.get()));
     waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
     fingerPrintList.reset(megaApi[1]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
-    ASSERT_EQ(fingerPrintList->size(), 0);
+    ASSERT_EQ(fingerPrintList->size(), 0u);
 
     numberTotalOfFiles--;
     accountSize -= node->getSize();
@@ -7855,7 +7855,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(parentHandle));
         ASSERT_NE(node, nullptr);
         std::unique_ptr<MegaNodeList> childrenList(megaApi[0]->getChildren(node.get()));
-        ASSERT_GT(childrenList->size(), 0);
+        ASSERT_GT(childrenList->size(), 0u);
         for (int childIndex = 0; childIndex < childrenList->size(); childIndex++)
         {
             ASSERT_NE(childrenHandles.find(childrenList->get(childIndex)->getHandle()), childrenHandles.end());
