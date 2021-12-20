@@ -1222,6 +1222,13 @@ void MegaClient::init()
     scnotifyurl.clear();
     scsn.clear();
 
+    // initialize random client application instance ID (for detecting own
+    // actions in server-client stream)
+    resetId(sessionid);
+
+    // initialize random API request sequence ID (server API is idempotent)
+    resetId(reqid);
+
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
     mNodeCounters = NodeCounterMap();
@@ -1349,21 +1356,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     connections[PUT] = 3;
     connections[GET] = 4;
 
-    int i;
-
-    // initialize random client application instance ID (for detecting own
-    // actions in server-client stream)
-    for (i = sizeof sessionid; i--; )
-    {
-        sessionid[i] = static_cast<char>('a' + rng.genuint32(26));
-    }
-
-    // initialize random API request sequence ID (server API is idempotent)
-    for (i = sizeof reqid; i--; )
-    {
-        reqid[i] = static_cast<char>('a' + rng.genuint32(26));
-    }
-
     reqtag = 0;
 
     badhostcs = NULL;
@@ -1402,6 +1394,14 @@ MegaClient::~MegaClient()
     delete badhostcs;
     delete dbaccess;
     LOG_debug << clientname << "~MegaClient completing";
+}
+
+void MegaClient::resetId(char *id)
+{
+    for (int i = sizeof id; i--; )
+    {
+        id[i] = static_cast<char>('a' + rng.genuint32(26));
+    }
 }
 
 void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
