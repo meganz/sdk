@@ -949,9 +949,10 @@ bool CommandSetAttr::procresult(Result r)
 // (the result is not processed directly - we rely on the server-client
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
-                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
-                                 Completion&& completion)
-  : mResultFunction(completion)
+                                 const char* userhandle, VersioningOption vo,
+                                 vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
+                                 Completion&& resultFunction)
+  : mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
 
@@ -959,7 +960,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
-    mResultFunction = move(completion);
     cmd("p");
     notself(client);
 
@@ -979,6 +979,32 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     if (cauth)
     {
         arg("cauth", cauth);
+    }
+
+    // "vb": when provided, it force to override the account-wide versioning behavior by the value indicated by client
+    //     vb:1 to force it on
+    //     vb:0 to force it off
+    // Dont provide it at all to rely on the account-wide setting (as of the moment the command is processed).
+    switch (vo)
+    {
+        case NoVersioning:
+            break;
+
+        case ClaimOldVersion:
+            arg("vb", 1);
+            break;
+
+        case ReplaceOldVersion:
+            arg("vb", m_off_t(0));
+            break;
+
+        case UseLocalVersioningFlag:
+            arg("vb", !client->versions_disabled);
+            vo = !client->versions_disabled ? ClaimOldVersion : ReplaceOldVersion;
+            break;
+
+        case UseServerVersioningFlag:
+            break;
     }
 
     beginarray("n");
@@ -1030,10 +1056,12 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
             arg("p", (byte*)&nn[i].parenthandle, MegaClient::NODEHANDLE);
         }
 
-        if (nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+        if (vo != NoVersioning &&
+            nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }
+        nn[i].mVersioningOption = vo;
 
         arg("t", nn[i].type);
         arg("a", (byte*)nn[i].attrstring->data(), int(nn[i].attrstring->size()));
@@ -4634,6 +4662,7 @@ bool CommandGetUserQuota::procresult(Result r)
     details->subscription_type = 'O';
     details->subscription_renew = 0;
     details->subscription_method.clear();
+    details->subscription_method_id = 0;
     memset(details->subscription_cycle, 0, sizeof(details->subscription_cycle));
 
     details->pro_until = 0;
@@ -4821,6 +4850,17 @@ bool CommandGetUserQuota::procresult(Result r)
                 {
                     client->json.storeobject(&details->subscription_method);
                     while(!client->json.leavearray())
+                    {
+                        client->json.storeobject();
+                    }
+                }
+                break;
+                
+            case MAKENAMEID6('s', 'g', 'w', 'i', 'd', 's'):
+                if (client->json.enterarray())
+                {
+                    details->subscription_method_id = static_cast<int>(client->json.getint());
+                    while (!client->json.leavearray())
                     {
                         client->json.storeobject();
                     }
@@ -5226,7 +5266,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->parenthandle = UNDEF;
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
-                        client->putnodes(client->rootnodes.files, move(newnodes), nullptr, 0);
+                        client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0);
                     }
                     else if (havekey)
                     {

@@ -898,7 +898,6 @@ int User::needversioning(attr_t at)
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
         case ATTR_COOKIE_SETTINGS:
-        case ATTR_MY_BACKUPS_FOLDER:
             return 0;
 
         case ATTR_LAST_INT:
@@ -917,6 +916,7 @@ int User::needversioning(attr_t at)
         case ATTR_DEVICE_NAMES:
         case ATTR_JSON_SYNC_CONFIG_DATA:
         case ATTR_DRIVE_NAMES:
+        case ATTR_MY_BACKUPS_FOLDER:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute

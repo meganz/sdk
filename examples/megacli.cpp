@@ -129,6 +129,8 @@ int attempts = 0;
 std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
+void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo);
+
 #ifdef ENABLE_SYNC
 
 // converts the given sync configuration to a string
@@ -1693,6 +1695,27 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                     }
                 }
 
+                if (n->children.size())
+                {
+                    Node *version = n;
+                    int i = 0;
+                    while (version->children.size() && (version = version->children.back()))
+                    {
+                        i++;
+                        if (handles_on)
+                        {
+                            if (i == 1) stream << ", has versions: ";
+
+                            Base64Str<MegaClient::NODEHANDLE> handlestr(version->nodehandle);
+                            stream << " [" << i << "] " << handlestr.chars;
+                        }
+                    }
+                    if (!handles_on)
+                    {
+                        stream << ", has " << i << " versions";
+                    }
+                }
+
                 if (n->plink)
                 {
                     stream << ", shared as exported";
@@ -2491,6 +2514,36 @@ void exec_codeTimings(autocomplete::ACState& s)
 
 #endif
 
+std::function<void()> onCompletedUploads;
+
+void setAppendAndUploadOnCompletedUploads(string local_path, int count)
+{
+
+    onCompletedUploads = [local_path, count](){
+
+        {
+            ofstream f(local_path, std::ios::app);
+            f << count << endl;
+        }
+        cout << count << endl;
+
+        DBTableTransactionCommitter committer(client->tctable);
+        int total = 0;
+        auto lp = LocalPath::fromPath(local_path, *client->fsaccess);
+        uploadLocalPath(FILENODE, lp.leafName().toPath(), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion);
+
+        if (count > 0)
+        {
+            setAppendAndUploadOnCompletedUploads(local_path, count-1);
+        }
+        else
+        {
+            onCompletedUploads = nullptr;
+        }
+    };
+}
+
+
 #ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
@@ -2572,6 +2625,16 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     {
         cout << "invalid directory: " << p.u8string() << endl;
     }
+}
+
+void exec_generate_put_fileversions(autocomplete::ACState& s)
+{
+    int count = 100;
+    string param;
+    if (s.extractflagparam("-count", param)) count = atoi(param.c_str());
+
+    setAppendAndUploadOnCompletedUploads(s.words[1].s, count);
+    onCompletedUploads();
 }
 
 void exec_generatesparsefile(autocomplete::ACState& s)
@@ -3099,7 +3162,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_import, sequence(text("import"), exportedLink(true, false)));
     p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
     p->Add(exec_open, sequence(text("open"), exportedLink(false, true)));
-    p->Add(exec_put, sequence(text("put"), opt(flag("-r")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
+    p->Add(exec_put, sequence(text("put"), opt(flag("-r")), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(exec_putq, sequence(text("putq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
     p->Add(exec_get, sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
@@ -3121,7 +3184,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
-    p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
+    p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
@@ -3288,6 +3351,7 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(flag("-filesize"), param("size")),
                         sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
     p->Add(exec_generatesparsefile, sequence(text("generatesparsefile"), opt(sequence(flag("-filesize"), param("size"))), localFSFile("targetfile")));
+    p->Add(exec_generate_put_fileversions, sequence(text("generate_put_fileversions"), opt(sequence(flag("-count"), param("n"))), localFSFile("targetfile")));
     p->Add(exec_lreplace, sequence(text("lreplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content")));
     p->Add(exec_lrenamereplace, sequence(text("lrenamereplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content"), localFSPath("renamed")));
 
@@ -3327,7 +3391,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
             auto f = new AppFileGet(n, NodeHandle(), NULL, -1, 0, NULL, NULL, localpath.u8string());
             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
             DBTableTransactionCommitter committer(client->tctable);
-            client->startxfer(GET, f, committer);
+            client->startxfer(GET, f, committer, false, false, false, NoVersioning);
             queued += 1;
         }
     }
@@ -3376,7 +3440,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                     {
                         auto f = new AppFileGet(*it);
                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                        client->startxfer(GET, f, committer);
+                        client->startxfer(GET, f, committer, false, false, false, NoVersioning);
                         queued += 1;
                     }
                 }
@@ -3857,6 +3921,12 @@ void exec_cp(autocomplete::ACState& s)
     string newname;
     error e;
 
+
+    VersioningOption vo = UseLocalVersioningFlag;
+    if (s.extractflag("-noversion")) vo = NoVersioning;
+    if (s.extractflag("-version")) vo = ClaimOldVersion;
+    if (s.extractflag("-versionreplace")) vo = ReplaceOldVersion;
+
     if (s.words.size() > 2)
     {
         if ((n = nodebypath(s.words[1].s.c_str())))
@@ -3937,7 +4007,7 @@ void exec_cp(autocomplete::ACState& s)
                 }
             }
 
-            if (!client->versions_disabled && tn && n->type == FILENODE)
+            if (tn && n->type == FILENODE)
             {
                 Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
                 if (ovn)
@@ -3987,7 +4057,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodeHandle(), move(tc.nn), nullptr, gNextClientTag++);
+                client->putnodes(tn->nodeHandle(), vo, move(tc.nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -4145,7 +4215,7 @@ void exec_get(autocomplete::ACState& s)
                         DBTableTransactionCommitter committer(client->tctable);
                         AppFileGet* f = new AppFileGet(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                        client->startxfer(GET, f, committer);
+                        client->startxfer(GET, f, committer, false, false, false, NoVersioning);
                     }
 
                     return true;
@@ -4209,7 +4279,7 @@ void exec_get(autocomplete::ACState& s)
                     }
 
                     f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                    client->startxfer(GET, f, committer);
+                    client->startxfer(GET, f, committer, false, false, false, NoVersioning);
                 }
                 else
                 {
@@ -4220,7 +4290,7 @@ void exec_get(autocomplete::ACState& s)
                         {
                             auto f = new AppFileGet(*it);
                             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                            client->startxfer(GET, f, committer);
+                            client->startxfer(GET, f, committer, false, false, false, NoVersioning);
                         }
                     }
                 }
@@ -4258,9 +4328,9 @@ void exec_more(autocomplete::ACState& s)
     }
 }
 
-void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder);
+void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo);
 
-void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive)
+void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo)
 {
 
     Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
@@ -4294,7 +4364,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
             AppFile* f = new AppFilePut(localname, parent ? parent->nodeHandle() : NodeHandle(), targetuser.c_str());
             *static_cast<FileFingerprint*>(f) = fp;
             f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
-            client->startxfer(PUT, f, committer);
+            client->startxfer(PUT, f, committer, false, false, false, vo);
             total++;
         }
         else
@@ -4315,7 +4385,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
             else
             {
                 // upload into existing folder with the same name
-                uploadLocalFolderContent(localname, previousNode);
+                uploadLocalFolderContent(localname, previousNode, vo);
             }
         }
         else
@@ -4323,12 +4393,12 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
             vector<NewNode> nn(1);
             client->putnodes_prepareOneFolder(&nn[0], name);
 
-            gOnPutNodeTag[gNextClientTag] = [localname](Node* parent) {
+            gOnPutNodeTag[gNextClientTag] = [localname, vo](Node* parent) {
                 auto tmp = localname;
-                uploadLocalFolderContent(tmp, parent);
+                uploadLocalFolderContent(tmp, parent, vo);
             };
 
-            client->putnodes(parent->nodeHandle(), move(nn), nullptr, gNextClientTag++);
+            client->putnodes(parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
         }
     }
 }
@@ -4339,18 +4409,19 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
     return itemlocalname.leafName().toPath(*client->fsaccess);
 }
 
-void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
+void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
 {
     DirAccess* da = client->fsaccess->newdiraccess();
 
-    if (da->dopen(&localname, NULL, false))
+    LocalPath lp(localname);
+    if (da->dopen(&lp, NULL, false))
     {
         DBTableTransactionCommitter committer(client->tctable);
 
         int total = 0;
         nodetype_t type;
         LocalPath itemlocalleafname;
-        while (da->dnext(localname, itemlocalleafname, true, &type))
+        while (da->dnext(lp, itemlocalleafname, true, &type))
         {
             string leafNameUtf8 = localpathToUtf8Leaf(itemlocalleafname);
 
@@ -4358,9 +4429,9 @@ void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            auto newpath = localname;
+            auto newpath = lp;
             newpath.appendWithSeparator(itemlocalleafname, true);
-            uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true);
+            uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true, vo);
         }
         if (gVerboseMode)
         {
@@ -4376,6 +4447,11 @@ void exec_put(autocomplete::ACState& s)
     string newname;
     int total = 0;
     Node* n = NULL;
+
+    VersioningOption vo = UseLocalVersioningFlag;
+    if (s.extractflag("-noversion")) vo = NoVersioning;
+    if (s.extractflag("-version")) vo = ClaimOldVersion;
+    if (s.extractflag("-versionreplace")) vo = ReplaceOldVersion;
 
     bool recursive = s.extractflag("-r");
 
@@ -4421,7 +4497,7 @@ void exec_put(autocomplete::ACState& s)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive);
+            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo);
         }
     }
 
@@ -4953,7 +5029,7 @@ void exec_mkdir(autocomplete::ACState& s)
             {
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], newname);
-                client->putnodes(n->nodeHandle(), move(nn), nullptr, gNextClientTag++);
+                client->putnodes(n->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -4963,7 +5039,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], leafname);
-                client->putnodes(n->parent->nodeHandle(), move(nn), nullptr, gNextClientTag++);
+                client->putnodes(n->parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -7594,11 +7670,11 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                     }
                 }
 
-                newnode->ovhandle = !client->versions_disabled ? ovn->nodehandle : UNDEF;
+                newnode->ovhandle = ovn->nodehandle;
             }
         }
 
-        client->putnodes(n->nodeHandle(), move(nn), nullptr, client->restag);
+        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, move(nn), nullptr, client->restag);
     }
     else
     {
@@ -8402,6 +8478,7 @@ void megacli()
         if (puts && !appxferq[PUT].size())
         {
             cout << "Uploads complete" << endl;
+            if (onCompletedUploads) onCompletedUploads();
         }
         if (gets && !appxferq[GET].size())
         {

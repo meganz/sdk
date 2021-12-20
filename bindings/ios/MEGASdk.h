@@ -48,6 +48,7 @@
 #import "MEGABackgroundMediaUpload.h"
 #import "MEGACancelToken.h"
 #import "MEGAPushNotificationSettings.h"
+#import "MEGAPaymentMethod.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -152,19 +153,6 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
     MEGANodeAttributeFav = 4
-};
-
-typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
-    MEGAPaymentMethodBalance      = 0,
-    MEGAPaymentMethodPaypal       = 1,
-    MEGAPaymentMethodItunes       = 2,
-    MEGAPaymentMethodGoogleWallet = 3,
-    MEGAPaymentMethodBitcoin      = 4,
-    MEGAPaymentMethodUnionPay     = 5,
-    MEGAPaymentMethodFortumo      = 6,
-    MEGAPaymentMethodCreditCard   = 8,
-    MEGAPaymentMethodCentili      = 9,
-    MEGAPaymentMethodWindowsStore = 13
 };
 
 typedef NS_ENUM(NSInteger, HTTPServer) {

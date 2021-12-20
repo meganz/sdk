@@ -38,7 +38,6 @@
 	before first running this script, copy it to 3rdParty_sdk/vcpkg/pdfium once the script has created that folder
 	and it will be built during the first run - avoid disabling it by leaving out those steps flags of course.
 ]]
-
 function(usage_exit err_msg)
     message(FATAL_ERROR
 "${err_msg}
@@ -234,6 +233,28 @@ else()
             "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}"
         )
     endif()
+
+    # Are we building for OSX?
+    if (VCPKG_CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        # Determine the host's architecture.
+        execute_process(
+            COMMAND uname -m
+            OUTPUT_VARIABLE HOST_ARCHITECTURE
+            OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+        # Are we building on Apple Silicon?
+        if (HOST_ARCHITECTURE STREQUAL "arm64")
+            # Are we building for x86_64?
+            if (VCPKG_OSX_ARCHITECTURES STREQUAL "x86_64")
+                # Then make sure we build using the correct toolchain.
+                set(_toolchain_cross_compile_args
+                    "-DCMAKE_OSX_ARCHITECTURES=${VCPKG_OSX_ARCHITECTURES}")
+            endif ()
+        endif ()
+
+        # Clean up after ourselves.
+        unset(HOST_ARCHITECTURE)
+    endif ()
 
     foreach(_config "Debug" "Release")
         set(_build_dir "${_sdk_dir}/build-${_triplet}-${_config}")

@@ -1033,7 +1033,7 @@ bool MegaClient::warnlevel()
 // Preserve previous version attrs that should be kept
 void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 {
-    if (previousNode && versions_disabled)
+    if (previousNode)
     {
         nameid favnid = AttrMap::string2nameid("fav");
         auto it = previousNode->attrs.map.find(favnid);
@@ -4785,7 +4785,7 @@ bool MegaClient::procsc()
                                 }
                                 nextreqtag();
                                 file->dbid = cachedfilesdbids.at(i);
-                                if (!startxfer(type, file, committer))
+                                if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and restored them?
                                 {
                                     tctable->del(cachedfilesdbids.at(i));
                                     continue;
@@ -7348,12 +7348,24 @@ void MegaClient::notifypurge(void)
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
             Node* n = nodeByHandle(us.mConfig.getRemoteNode());
-            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
+            if (!n)
+                return;
+
+            // check if moved
+            bool movedToRubbish = n->firstancestor()->nodehandle == rubbishHandle.as8byte();
+            const string currentPath = n->displaypath(); // full remote path
+            const string& originalPath = us.mConfig.mOriginalPathOfRemoteRootNode; // previous full remote path
+            bool pathChanged = n->changed.parent || movedToRubbish ||
+                               // the following were inspired by UnifiedSync::updateSyncRemoteLocation()
+                               us.mConfig.getRemoteNode() != n->nodehandle ||
+                               originalPath != currentPath;
+
+            if (n->changed.attrs || pathChanged || n->changed.removed)
             {
                 bool removed = n->changed.removed;
 
                 // update path in sync configuration
-                bool pathChanged = us.updateSyncRemoteLocation(removed ? nullptr : n, false);
+                us.updateSyncRemoteLocation(removed ? nullptr : n, false);
 
                 auto &activeSync = us.mSync;
                 if (!activeSync) // no active sync (already failed)
@@ -7364,31 +7376,15 @@ void MegaClient::notifypurge(void)
                 auto syncErr = NO_SYNC_ERROR;
 
                 // fail sync if required
-                if(n->changed.parent) //moved
+                if (movedToRubbish)
                 {
-                    assert(pathChanged);
-                    // check if moved to rubbish
-                    auto p = n->parent;
-                    while (p)
-                    {
-                        if (p->nodeHandle() == rubbishHandle)
-                        {
-                            syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
-                            break;
-                        }
-                        p = p->parent;
-                    }
-
-                    if (syncErr == NO_SYNC_ERROR)
-                    {
-                        syncErr = REMOTE_PATH_HAS_CHANGED;
-                    }
+                    syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
                 }
                 else if (removed)
                 {
                     syncErr = REMOTE_NODE_NOT_FOUND;
                 }
-                else if (pathChanged)
+                else if (pathChanged) // moved
                 {
                     syncErr = REMOTE_PATH_HAS_CHANGED;
                 }
@@ -7934,11 +7930,9 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     SymmCipher::xorblock((const byte*)newnode->nodekey.data() + SymmCipher::KEYLENGTH, (byte*)newnode->nodekey.data());
 
     // adjust previous version node
-    if (!versions_disabled)
-    {
-        string name(utf8Name);
-        newnode->ovhandle = getovhandle(parentNode, &name);
-    }
+    string name(utf8Name);
+    newnode->ovhandle = getovhandle(parentNode, &name);
+
     return e;
 }
 
@@ -7979,9 +7973,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
+    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
@@ -8738,6 +8732,29 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     auto& nn_nni = (*nn)[nni];
                     nn_nni.added = true;
                     nn_nni.mAddedHandle = h;
+
+                    if (nn_nni.ovhandle != UNDEF && nn_nni.mVersioningOption == ReplaceOldVersion)
+                    {
+                        // replacing an existing file (eg, by uploading a same-name file), with versioning off.
+                        assert(n->type == FILENODE);
+
+                        // The API replaces the existing node ('ov') by the new node, so
+                        // the existing one is effectively removed, but the deletion of that node
+                        // can't be delivered by command reply, and this client can't
+                        // see the generated delete actionpacket due to the `i` scheme.
+                        // However the command reply will already rearrange the versions of the old node
+                        // to be the versions of this new node.
+                        // So, we manually delete this node that the API must have deleted
+                        // (Full and proper solution to this is in sync rework with SIC removal)
+                        if (Node *ovNode = nodebyhandle(nn_nni.ovhandle))
+                        {
+                            assert(ovNode->type == FILENODE);
+
+                            TreeProcDel td;
+                            proctree(ovNode, &td, false, true);
+                            LOG_debug << "File " << Base64Str<MegaClient::NODEHANDLE>(nn_nni.ovhandle) << " replaced by " << Base64Str<MegaClient::NODEHANDLE>(h);
+                        }
+                    }
 
 #ifdef ENABLE_SYNC
                     if (source == PUTNODES_SYNC)
@@ -9691,18 +9708,24 @@ void MegaClient::login(string session)
         }
         else
         {
-            mFolderLink.mPublicHandle = publicHandle;
-            mFolderLink.mWriteAuth = writeAuth;
-            mFolderLink.mAccountAuth = accountAuth;
-
             rootnodes.files.set6byte(rootnode);
-            key.setkey(k, FOLDERNODE);
-
-            checkForResumeableSCDatabase();
-
             restag = reqtag;
-            openStatusTable(true);
-            app->login_result(API_OK);
+
+            if (rootnodes.files.isUndef())
+            {
+                app->login_result(API_EARGS);
+            }
+            else
+            {
+                mFolderLink.mPublicHandle = publicHandle;
+                mFolderLink.mWriteAuth = writeAuth;
+                mFolderLink.mAccountAuth = accountAuth;
+
+                key.setkey(k, FOLDERNODE);
+                checkForResumeableSCDatabase();
+                openStatusTable(true);
+                app->login_result(API_OK);
+            }
         }
     }
     else
@@ -12400,7 +12423,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
             }
             nextreqtag();
             file->dbid = cachedfilesdbids.at(i);
-            if (!startxfer(type, file, committer))
+            if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and reused them here?
             {
                 tctable->del(cachedfilesdbids.at(i));
                 continue;
@@ -14366,6 +14389,12 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
                     nchildren.erase(rit);
                 }
+                else if (ll->mtime == rit->second->mtime &&
+                         l->sync->isBackup())
+                {
+                    LOG_debug << "Equal mtime in a backup, leaving the file to be uploaded: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
+                    nchildren.erase(rit);
+                }
                 else if (ll->mtime == rit->second->mtime
                          && (ll->size > rit->second->size
                              || (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) > 0)))
@@ -14619,7 +14648,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
                             nextreqtag();
                             DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                            startxfer(GET, rit->second->syncget, committer);
+                            startxfer(GET, rit->second->syncget, committer, false, false, false, UseLocalVersioningFlag);
                             syncactivity = true;
                         }
                     }
@@ -14914,7 +14943,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         continue;
                     }
 
-                    if (ll->mtime == rit->second->mtime)
+                    if (ll->mtime == rit->second->mtime &&
+                        !ll->sync->isBackup())
                     {
                         if (ll->size < rit->second->size)
                         {
@@ -15378,9 +15408,9 @@ void MegaClient::syncupdate()
             {
                 l->treestate(TREESTATE_PENDING);
 
-                // the overwrite will happen upon PUT completion
+                // the overwrite (or replace) will happen upon PUT completion
                 nextreqtag();
-                startxfer(PUT, l, committer);
+                startxfer(PUT, l, committer, false, false, false, UseLocalVersioningFlag);
 
                 l->sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, l->size, 0);
 
@@ -15403,7 +15433,9 @@ void MegaClient::syncupdate()
                 auto nextTag = nextreqtag();
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodeHandle(),
-                                                NULL, move(nn),
+                                                NULL,
+                                                UseLocalVersioningFlag, // this must match the use of versions_disabled above
+                                                move(nn),
                                                 nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC,
                                                 nullptr,
@@ -15712,7 +15744,9 @@ void MegaClient::execmovetosyncdebris()
             makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
-        reqs.add(new CommandPutNodes(this, tn->nodeHandle(), NULL, move(nnVec),
+        reqs.add(new CommandPutNodes(this, tn->nodeHandle(), NULL,
+                                        NoVersioning,
+                                        move(nnVec),
                                         -reqtag,
                                         PUTNODES_SYNCDEBRIS,
                                         nullptr,
@@ -15772,8 +15806,10 @@ void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist)
+bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo)
 {
+    f->mVersioningOption = vo;
+
     if (!f->transfer)
     {
         if (d == PUT)

@@ -1543,7 +1543,8 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     }
 
     // create the new node(s)
-    client->putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(), move(newnodes), nullptr, client->reqtag);  // followup in putnodes_result()
+    client->putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
+        NoVersioning, move(newnodes), nullptr, client->reqtag);  // followup in putnodes_result()
 
     return API_OK;
 }
@@ -1866,6 +1867,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     if (user->changed.devicenames)
     {
         changed |= MegaUser::CHANGE_TYPE_DEVICE_NAMES;
+    }
+    if (user->changed.myBackupsFolder)
+    {
+        changed |= MegaUser::CHANGE_TYPE_MY_BACKUPS_FOLDER;
     }
     if (user->changed.cookieSettings)
     {
@@ -14872,10 +14877,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
                 return;
             }
 
-            if (!client->versions_disabled)
-            {
-                ovhandle = ovn->nodehandle;
-            }
+            ovhandle = ovn->nodehandle;
         }
 
         vector<NewNode> newnodes(1);
@@ -14895,8 +14897,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
-
-        client->putnodes(parenthandle, move(newnodes), nullptr, nextTag, nullptr);
+        client->putnodes(parenthandle, UseLocalVersioningFlag, move(newnodes), nullptr, nextTag);
     }
     else
     {
@@ -18373,7 +18374,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                             attrs.map['n'] = sname;
                             attrs.getjson(&attrstring);
                             client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                            if (tc.nn[0].type == FILENODE && !client->versions_disabled)
+                            if (tc.nn[0].type == FILENODE)
                             {
                                 tc.nn[0].ovhandle = client->getovhandle(parent, &sname);
                             }
@@ -18384,7 +18385,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                             }
                             else
                             {
-                                client->putnodes(parent->nodeHandle(), move(tc.nn), nullptr, nextTag);
+                                client->putnodes(parent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag);
                             }
 
                             transfer->setDeltaSize(size);
@@ -18404,7 +18405,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
-                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
+                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag);
                     if (!started)
                     {
                         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -18634,7 +18635,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                     f->setTransfer(transfer);
 
                     bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
-                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst);
+                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -19094,7 +19095,7 @@ void MegaApiImpl::sendPendingRequests()
             client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
             // add the newly generated folder node
-            client->putnodes(parent->nodeHandle(), move(newnodes), nullptr, nextTag);
+            client->putnodes(parent->nodeHandle(), NoVersioning, move(newnodes), nullptr, nextTag);
             break;
         }
         case MegaRequest::TYPE_MOVE:
@@ -19200,10 +19201,7 @@ void MegaApiImpl::sendPendingRequests()
                                 break;  // request finishes now if error, otherwise on unlink_result
                             }
 
-                            if (!client->versions_disabled)
-                            {
-                                ovhandle = ovn->nodehandle;
-                            }
+                            ovhandle = ovn->nodehandle;
                         }
                     }
                 }
@@ -19259,7 +19257,7 @@ void MegaApiImpl::sendPendingRequests()
                     client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
-                client->putnodes(newParent->nodeHandle(), move(tc.nn), nullptr, nextTag);
+                client->putnodes(newParent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag);
                 e = API_OK;
                 break;
             }
@@ -19345,10 +19343,7 @@ void MegaApiImpl::sendPendingRequests()
                             delete fp;
                         }
 
-                        if (!client->versions_disabled)
-                        {
-                            ovhandle = ovn->nodehandle;
-                        }
+                        ovhandle = ovn->nodehandle;
                     }
                 }
 
@@ -19365,7 +19360,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), std::move(tc.nn), megaNode->getChatAuth(), nextTag);
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), megaNode->getChatAuth(), nextTag);
                 }
                 else
                 {
@@ -19420,10 +19415,7 @@ void MegaApiImpl::sendPendingRequests()
                             break;
                         }
 
-                        if (!client->versions_disabled)
-                        {
-                            ovhandle = ovn->nodehandle;
-                        }
+                        ovhandle = ovn->nodehandle;
                     }
                 }
 
@@ -19453,7 +19445,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), move(tc.nn), nullptr, nextTag);
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag);
                 }
                 else
                 {
@@ -19508,7 +19500,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
 
-            client->putnodes(current->parent->nodeHandle(), move(newnodes), nullptr, nextTag);
+            client->putnodes(current->parent->nodeHandle(), ClaimOldVersion, move(newnodes), nullptr, nextTag);
             break;
         }
         case MegaRequest::TYPE_RENAME:
@@ -23016,7 +23008,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr));
+            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, NoVersioning, move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr));
             break;
         }
         case MegaRequest::TYPE_VERIFY_CREDENTIALS:
@@ -23859,6 +23851,11 @@ int64_t MegaAccountDetailsPrivate::getSubscriptionRenewTime()
 char *MegaAccountDetailsPrivate::getSubscriptionMethod()
 {
     return MegaApi::strdup(details.subscription_method.c_str());
+}
+
+int MegaAccountDetailsPrivate::getSubscriptionMethodId()
+{
+    return details.subscription_method_id;
 }
 
 char *MegaAccountDetailsPrivate::getSubscriptionCycle()
@@ -25648,7 +25645,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
         // use a weak_ptr in case this operation was cancelled, and 'this' object doesn't exist
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
-        megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), std::move(newnodes), nullptr, megaapiThreadClient()->reqtag,
+        megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), UseLocalVersioningFlag, std::move(newnodes), nullptr, megaapiThreadClient()->reqtag,
             [this, weak_this](const Error& e, targettype_t, vector<NewNode>&, bool)
             {
                 // double check our object still exists on request completion
