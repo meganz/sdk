@@ -99,6 +99,9 @@ struct MEGA_API PublicLink
     bool isExpired();
 };
 
+typedef std::map<FileFingerprint, std::map<NodeHandle, Node*>> FingerprintMap;
+typedef FingerprintMap::iterator FingerprintMapPosition;
+
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
@@ -209,6 +212,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // parent
     Node* parent = nullptr;
+
+    // own position in NodeManager::mFingerPrints (only valid for file nodes)
+    // It's used for speeding up node removing at NodeManager::removeFingerprint
+    FingerprintMapPosition mFingerPrintPosition;
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL

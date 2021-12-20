@@ -361,9 +361,11 @@ public:
 
     // Add fingerprint to mFingerprint map, in case !fetchingNodes or
     // keep all nodes in memory, a reference to node will be stored too
-    void insertFingerprint(Node* node);
+    FingerprintMapPosition insertFingerprint(Node* node);
     // Remove fingerprint from mFingerprint map
     void removeFingerprint(Node* node);
+    FingerprintMapPosition getInvalidPosition();
+
 
 private:
     // TODO Nodes on demand remove reference
@@ -399,7 +401,7 @@ private:
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
-    std::map<FileFingerprint, std::map<NodeHandle, Node*>> mFingerPrints;
+    FingerprintMap mFingerPrints;
 
     Node* getNodeFromDataBase(NodeHandle handle);
 };

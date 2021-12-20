@@ -17982,34 +17982,53 @@ void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& o
     }
 }
 
-void NodeManager::insertFingerprint(Node *node)
+mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
 {
     if (node->type == FILENODE)
     {
         bool saveInMemory = !mClient.fetchingnodes || mKeepAllNodesInMemory;
-        mFingerPrints[*node][node->nodeHandle()] = saveInMemory ? node : nullptr;
+        auto it = mFingerPrints.find(*node);
+        if (it != mFingerPrints.end())
+        {
+            auto emplacePair = it->second.emplace(node->nodeHandle(), saveInMemory ? node : nullptr);
+            assert(emplacePair.second);
+            return it;
+        }
+        else
+        {
+            return mFingerPrints.emplace(*node, std::map<NodeHandle, Node*>{
+                                         std::make_pair(node->nodeHandle(), saveInMemory ? node : nullptr)}).first;
+        }
     }
+
+    return mFingerPrints.end();
 }
 
 void NodeManager::removeFingerprint(Node *node)
 {
     if (node->type == FILENODE)  // remove from mFingerPrints
     {
-        auto it = mFingerPrints.find(*node);
-        if (it != mFingerPrints.end())
+        if (node->mFingerPrintPosition != mFingerPrints.end())
         {
 #ifdef DEBUG
             int ret = 
 #endif
-            it->second.erase(node->nodeHandle());
+            node->mFingerPrintPosition->second.erase(node->nodeHandle());
             assert(ret == 1);
 
-            if (it->second.empty())
+            if (node->mFingerPrintPosition->second.empty())
             {
-                mFingerPrints.erase(it);
+                mFingerPrints.erase(node->mFingerPrintPosition);
             }
+
+            node->mFingerPrintPosition = mFingerPrints.end();
         }
     }
+}
+
+FingerprintMapPosition NodeManager::getInvalidPosition()
+{
+    mFingerPrints.end();
 }
 
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)

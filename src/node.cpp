@@ -71,6 +71,8 @@ Node::Node(MegaClient& cclient, handle h, handle ph,
     plink = NULL;
 
     memset(&changed, 0, sizeof changed);
+
+    mFingerPrintPosition = client->mNodeManager.getInvalidPosition();
 }
 
 Node::~Node()
@@ -524,7 +526,7 @@ void Node::setfingerprint()
             mtime = ctime;
         }
 
-        client->mNodeManager.insertFingerprint(this);
+        mFingerPrintPosition = client->mNodeManager.insertFingerprint(this);
     }
 }
 
