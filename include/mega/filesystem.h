@@ -92,6 +92,7 @@ class MEGA_API LocalPath
     friend class PosixFileSystemAccess;
     friend struct WinDirAccess;
     friend struct WinDirNotify;
+    friend class LinuxDirNotify;
     friend class MacDirNotify;
     friend class PosixDirNotify;
     friend class WinFileAccess;

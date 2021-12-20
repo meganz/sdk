@@ -2620,7 +2620,7 @@ auto LocalNode::WatchHandle::operator=(std::nullptr_t) -> WatchHandle&
 
     auto& node = *mEntry->second.first;
     auto& sync = *node.sync;
-    auto& notifier = static_cast<PosixDirNotify&>(*sync.dirnotify);
+    auto& notifier = static_cast<LinuxDirNotify&>(*sync.dirnotify);
 
     notifier.removeWatch(mEntry);
     invalidate();
@@ -2656,7 +2656,7 @@ WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
     }
 
     // Get our hands on the notifier.
-    auto& notifier = static_cast<PosixDirNotify&>(*sync->dirnotify);
+    auto& notifier = static_cast<LinuxDirNotify&>(*sync->dirnotify);
 
     // Add the watch.
     auto result = notifier.addWatch(*this, path, fsid);

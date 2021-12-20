@@ -626,22 +626,27 @@ ELSE(WIN32)
                                        "-framework CoreServices")
     ENDIF()
 
-    IF(USE_DRIVE_NOTIFICATIONS)
-        IF(APPLE)
+    IF (APPLE)
+        IF (USE_DRIVE_NOTIFICATIONS)
             SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
-                ${MegaDir}/include/mega/osx/drivenotifyosx.h
-                ${MegaDir}/src/osx/drivenotifyosx.cpp
-            )
+                                           ${MegaDir}/include/mega/osx/drivenotifyosx.h
+                                           ${MegaDir}/src/osx/drivenotifyosx.cpp)
             SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
-                "-framework DiskArbitration"
-                "-framework CoreFoundation"
-            )
+                                          "-framework DiskArbitration"
+                                          "-framework CoreFoundation")
         ENDIF()
+    ENDIF ()
 
-        IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
-            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/posix/drivenotifyposix.h ${MegaDir}/src/posix/drivenotifyposix.cpp)
-        ENDIF()
-    ENDIF(USE_DRIVE_NOTIFICATIONS)
+    IF (CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+        IF (USE_DRIVE_NOTIFICATIONS)
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
+                                           ${MegaDir}/include/mega/posix/drivenotifyposix.h
+                                           ${MegaDir}/src/posix/drivenotifyposix.cpp)
+        ENDIF ()
+
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
+                                       ${MegaDir}/src/linux/fs.cpp)
+    ENDIF ()
 
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
 
@@ -666,13 +671,17 @@ ELSE(WIN32)
                    resolv)
        endif()
     ELSE()
+        SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/linux
+                                          ${Mega_PlatformSpecificIncludes})
+
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
     ENDIF()
-    IF(USE_DRIVE_NOTIFICATIONS)
-        IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+
+    IF (CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+        IF (USE_DRIVE_NOTIFICATIONS)
             SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} udev)
-        ENDIF()
-    ENDIF(USE_DRIVE_NOTIFICATIONS)
+        ENDIF ()
+    ENDIF ()
 
     IF(USE_WEBRTC)
         add_definitions( -DWEBRTC_POSIX )
