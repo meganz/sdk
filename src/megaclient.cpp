@@ -18028,7 +18028,7 @@ void NodeManager::removeFingerprint(Node *node)
 
 FingerprintMapPosition NodeManager::getInvalidPosition()
 {
-    mFingerPrints.end();
+    return mFingerPrints.end();
 }
 
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
