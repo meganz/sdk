@@ -1398,7 +1398,7 @@ MegaClient::~MegaClient()
 
 void MegaClient::resetId(char *id, size_t length)
 {
-    for (int i = length; i--; )
+    for (size_t i = length; i--; )
     {
         id[i] = static_cast<char>('a' + rng.genuint32(26));
     }
