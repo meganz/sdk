@@ -1224,10 +1224,10 @@ void MegaClient::init()
 
     // initialize random client application instance ID (for detecting own
     // actions in server-client stream)
-    resetId(sessionid);
+    resetId(sessionid, sizeof sessionid);
 
     // initialize random API request sequence ID (server API is idempotent)
-    resetId(reqid);
+    resetId(reqid, sizeof reqid);
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
@@ -1396,9 +1396,9 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
-void MegaClient::resetId(char *id)
+void MegaClient::resetId(char *id, size_t length)
 {
-    for (int i = sizeof id; i--; )
+    for (int i = length; i--; )
     {
         id[i] = static_cast<char>('a' + rng.genuint32(26));
     }
