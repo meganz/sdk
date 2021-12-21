@@ -5172,7 +5172,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     while (times--)
     {
         if (lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) break;
-        sleep(1);
+        std::this_thread::sleep_for(std::chrono::seconds{1});
     }
     ASSERT_TRUE(lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) << "Timeout expired to receive actionpackets";
 
