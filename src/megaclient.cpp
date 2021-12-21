@@ -18015,7 +18015,7 @@ void NodeManager::removeFingerprint(Node *node)
         if (node->mFingerPrintPosition != mFingerPrints.end())
         {
 #ifdef DEBUG
-            unsigned int ret =
+            size_t ret =
 #endif
             node->mFingerPrintPosition->second.erase(node->nodeHandle());
             assert(ret == 1);
