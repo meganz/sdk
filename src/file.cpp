@@ -363,13 +363,15 @@ void File::completed(Transfer* t, LocalNode* l)
                 t->client->syncadding++;
             }
 #endif
-            if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
+            if (mVersioningOption != NoVersioning &&
+                ISUNDEF(newnode->ovhandle))
             {
                 newnode->ovhandle = t->client->getovhandle(t->client->nodeByHandle(th), &name);
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,
                                                     th, NULL,
+                                                    mVersioningOption,
                                                     move(newnodes),
                                                     tag,
 #ifdef ENABLE_SYNC
