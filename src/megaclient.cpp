@@ -17816,9 +17816,9 @@ void NodeManager::loadNodes()
         for (const Node* node : inSharesNodes)
         {
             loadTreeRecursively(node);
-            // When unserialize is finished, all ancestor nodes are upload
-            const Node* ancestor = node->firstancestor();
-            increaseCounters(node, ancestor->nodeHandle());
+
+            // Update counter for this inshare
+            increaseCounters(node, node->nodeHandle());
         }
     }
     else
