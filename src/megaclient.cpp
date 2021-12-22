@@ -17842,7 +17842,9 @@ void NodeManager::saveNodeInRAM(Node *node, bool notify)
         mTable->put(node);
     }
 
-    if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE)
+    // In case of folder link it isn't neccesary to add to mNodesWithMissingParent
+    if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE
+            && node->nodeHandle() != mClient.rootnodes.files)
     {
         Node *parent = nullptr;
         if ((parent = getNodeByHandle(node->parentHandle())))
@@ -17851,11 +17853,7 @@ void NodeManager::saveNodeInRAM(Node *node, bool notify)
         }
         else
         {
-            // In case of folder link it isn't neccesary to add to mNodesWithMissingParent
-            if (node->nodeHandle() != mClient.rootnodes.files)
-            {
-                mNodesWithMissingParent[node->parentHandle()].insert(node);
-            }
+            mNodesWithMissingParent[node->parentHandle()].insert(node);
         }
 
         auto it = mNodesWithMissingParent.find(node->nodeHandle());
