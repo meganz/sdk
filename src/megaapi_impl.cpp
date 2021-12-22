@@ -19559,7 +19559,8 @@ void MegaApiImpl::sendPendingRequests()
 
             m_off_t filesSize = client->mNodeManager.getNodeCounter(client->rootnodes.files).storage;
             m_off_t rubbishSize = client->mNodeManager.getNodeCounter(client->rootnodes.rubbish).storage;
-            request->setNumber(filesSize + rubbishSize);
+            m_off_t inboxSize = client->mNodeManager.getNodeCounter(client->rootnodes.inbox).storage;
+            request->setNumber(filesSize + rubbishSize + inboxSize);
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }

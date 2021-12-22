@@ -37,9 +37,6 @@ Node::Node(MegaClient& cclient, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
     : client(&cclient)
 {
-    // TODO Nodes on demand check if mFingerprints is required
-    //fingerprint_it = mNodeManager.getMegaClient().mFingerprints.end();
-    //client = cclient;
     outshares = NULL;
     pendingshares = NULL;
     tag = 0;
@@ -74,6 +71,8 @@ Node::Node(MegaClient& cclient, handle h, handle ph,
     plink = NULL;
 
     memset(&changed, 0, sizeof changed);
+
+    mFingerPrintPosition = client->mNodeManager.getInvalidPosition();
 }
 
 Node::~Node()
@@ -507,8 +506,7 @@ void Node::setfingerprint()
 {
     if (type == FILENODE && nodekeydata.size() >= sizeof crc)
     {
-        // TODO Nodes on demand check if mFingerprints is required
-        //client->mFingerprints.remove(this);
+        client->mNodeManager.removeFingerprint(this);
 
         attr_map::iterator it = attrs.map.find('c');
 
@@ -528,11 +526,7 @@ void Node::setfingerprint()
             mtime = ctime;
         }
 
-        // TODO Nodes on demand check if mFingerprints is required
-//        if (mInMemory)
-//        {
-//            client->mFingerprints.add(this);
-//        }
+        mFingerPrintPosition = client->mNodeManager.insertFingerprint(this);
     }
 }
 
@@ -1592,78 +1586,5 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 
 #endif
 
-Fingerprints::Fingerprints(MegaClient &client)
-    : mClient(client)
-{
-
-}
-
-void Fingerprints::newnode(Node* n)
-{
-    if (n->type == FILENODE)
-    {
-        n->fingerprint_it = mFingerprints.end();
-    }
-}
-
-void Fingerprints::add(Node* n)
-{
-    if (n->type == FILENODE)
-    {
-        n->fingerprint_it = mFingerprints.insert(n);
-        mSumSizes += n->size;
-    }
-}
-
-void Fingerprints::remove(Node* n)
-{
-    if (n->type == FILENODE && n->fingerprint_it != mFingerprints.end())
-    {
-        mSumSizes -= n->size;
-        mFingerprints.erase(n->fingerprint_it);
-        n->fingerprint_it = mFingerprints.end();
-    }
-}
-
-void Fingerprints::clear()
-{
-    mFingerprints.clear();
-    mSumSizes = 0;
-}
-
-m_off_t Fingerprints::getSumSizes()
-{
-    return mSumSizes;
-}
-
-Node* Fingerprints::nodebyfingerprint(FileFingerprint* fingerprint)
-{
-    fingerprint_set::iterator it = mFingerprints.find(fingerprint);
-    if (it != mFingerprints.end())
-    {
-        return static_cast<Node*>(*it);
-    }
-
-    Node *node = mClient.mNodeManager.getNodeByFingerprint(*fingerprint);
-    return node;
-}
-
-node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
-{
-    node_vector nodesByFingerPrint = mClient.mNodeManager.getNodesByFingerprint(*fingerprint);
-    node_vector *nodes = new node_vector();
-
-    for (Node* node : nodesByFingerPrint)
-    {
-        nodes->push_back(node);
-    }
-
-    return nodes;
-}
-
-Fingerprints::iterator Fingerprints::end()
-{
-    return mFingerprints.end();
-}
 
 } // namespace

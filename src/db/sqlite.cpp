@@ -643,7 +643,7 @@ bool SqliteAccountState::put(Node *node)
         sqlite3_bind_text(stmt, 3, name.c_str(), static_cast<int>(name.length()), SQLITE_STATIC);
 
         string fp;
-        node->serializefingerprint(&fp);
+        node->FileFingerprint::serialize(&fp);
         sqlite3_bind_blob(stmt, 4, fp.data(), static_cast<int>(fp.size()), SQLITE_STATIC);
 
         std::string origFingerprint;
@@ -762,38 +762,6 @@ bool SqliteAccountState::getNodes(std::vector<NodeSerialized> &nodes)
     return true;
 }
 
-bool SqliteAccountState::getNodesByFingerprint(const FileFingerprint &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    sqlite3_stmt *stmt;
-    bool result = false;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        string fp;
-        fingerprint.serializefingerprint(&fp);
-        if ((sqlResult = sqlite3_bind_blob(stmt, 1, fp.data(), (int)fp.size(), SQLITE_STATIC)) == SQLITE_OK)
-        {
-            result = processSqlQueryNodeMap(stmt, nodes);
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get nodes by fingerprint from database: " << dbfile << err;
-        assert(!"Unable to get nodes by fingerprint from database.");
-    }
-
-    return result;
-}
-
 bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprint, std::map<mega::NodeHandle, NodeSerialized> &nodes)
 {
     if (!db)
@@ -822,51 +790,6 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
     }
 
     return result;
-}
-
-bool SqliteAccountState::getNodeByFingerprint(const FileFingerprint &fingerprint, NodeSerialized &node, NodeHandle &nodeHandle)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    node.mNode.clear();
-    node.mDecrypted = true;
-
-    sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        string fp;
-        fingerprint.serializefingerprint(&fp);
-        if ((sqlResult = sqlite3_bind_blob(stmt, 1, fp.data(), (int)fp.size(), SQLITE_STATIC)) == SQLITE_OK)
-        {
-            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-            {
-                nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
-                node.mDecrypted = sqlite3_column_int(stmt, 1);
-                const void* data = sqlite3_column_blob(stmt, 2);
-                int size = sqlite3_column_bytes(stmt, 2);
-                if (data && size)
-                {
-                    node.mNode = std::string(static_cast<const char*>(data), size);
-                }
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get node by fingerprint from database: " << dbfile << err;
-        assert(!"Unable to get node by fingerprint from database.");
-        return false;
-    }
-
-
-    return true;
 }
 
 bool SqliteAccountState::getRootNodes(std::map<mega::NodeHandle, NodeSerialized> &nodes)
@@ -1346,6 +1269,51 @@ uint64_t SqliteAccountState::getNumberOfNodes()
     }
 
     return nodeNumber;
+}
+
+bool SqliteAccountState::getFingerPrints(std::map<FileFingerprint, std::map<NodeHandle, Node *> > &fingerprints)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, fingerprint FROM nodes WHERE type = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int(stmt, 1, FILENODE)) == SQLITE_OK)
+        {
+            while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW))
+            {
+                NodeHandle nodeHandle;
+                nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
+                std::string fingerPrintString;
+                const void* data = sqlite3_column_blob(stmt, 1);
+                int size = sqlite3_column_bytes(stmt, 1);
+                if (data && size)
+                {
+                    fingerPrintString = std::string(static_cast<const char*>(data), size);
+                    std::unique_ptr<FileFingerprint> fingerprint;
+                    fingerprint.reset(FileFingerprint::unserialize(&fingerPrintString));
+                    fingerprints[*fingerprint].insert(std::pair<NodeHandle, Node*>(nodeHandle, nullptr));
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get a map with fingerprints: " << dbfile << err;
+        assert(!"Unable to get a map with fingerprints.");
+        return false;
+    }
+
+    return true;
+
 }
 
 } // namespace
