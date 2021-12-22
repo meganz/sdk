@@ -1251,8 +1251,6 @@ void MegaClient::init()
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
    : mAsyncQueue(*w, workerThreadCount)
-    // TODO Nodes on demand check if mFingerprints is required
-    //, mFingerprints(*this)
    , mCachedStatus(this)
    , useralerts(*this)
    , btugexpiration(rng)
@@ -13181,15 +13179,11 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     syncs.purgeRunningSyncs();
 #endif
 
-    // TODO Nodes on demand check if mFingerprints is required
-    //mFingerprints.clear();
     mNodeManager.cleanNodes();
 
 #ifdef ENABLE_SYNC
     todebris.clear();
     tounlink.clear();
-    // TODO Nodes on demand check if mFingerprints is required
-    //mFingerprints.clear();
 #endif
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -15277,8 +15271,7 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
         {
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
-                // TODO Nodes on demand check if mFingerprints is required
-                //mFingerprints.remove(n);
+                mNodeManager.removeFingerprint(n);
             }
         }
         else if (nn[nni].localnode && (n = nn[nni].localnode->node))
@@ -16808,11 +16801,7 @@ Node *NodeManager::getNodeByHandle(NodeHandle handle)
         return node;
     }
 
-    NodeSerialized nodeSerialized;
-    if (mTable->getNode(handle, nodeSerialized))
-    {
-        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
-    }
+    node = getNodeFromDataBase(handle);
 
     return node;
 }
@@ -16965,32 +16954,25 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
 
 node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprint)
 {
-    // TODO Nodes on demand check if mFingerprints is required
-    //return mFingerprints.nodesbyfingerprint(fingerprint);
-
     node_vector nodes;
-    if (!mTable)
+    auto it = mFingerPrints.find(fingerprint);
+    if (it != mFingerPrints.end())
     {
-        return nodes;
-    }
-
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getNodesByFingerprint(fingerprint, nodesFromTable);
-
-    for (const auto& nHandleSerialized : nodesFromTable)
-    {
-        Node* n;
-        auto nodeIt = mNodes.find(nHandleSerialized.first);
-        if (nodeIt == mNodes.end())
+        for (auto itNode : it->second)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            if (itNode.second)
+            {
+                nodes.push_back(itNode.second);
+            }
+            else
+            {
+                Node* node = getNodeFromDataBase(itNode.first);
+                if (node)
+                {
+                    nodes.push_back(node);
+                }
+            }
         }
-        else
-        {
-            n = nodeIt->second;
-        }
-
-        nodes.push_back(n);
     }
 
     return nodes;
@@ -17001,6 +16983,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
     node_vector nodes;
     if (!mTable)
     {
+        assert(false);
         return nodes;
     }
 
@@ -17031,31 +17014,25 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
 
 Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
 {
-    // TODO Nodes on demand check if mFingerprints is required
-    //return mFingerprints.nodebyfingerprint(fingerprint);
-
-    if (!mTable)
+    auto it = mFingerPrints.find(fingerprint);
+    if (it != mFingerPrints.end())
     {
-        assert(false);
-        return nullptr;
+        for (auto itNode : it->second)
+        {
+            if (itNode.second)
+            {
+                return static_cast<Node*>(itNode.second);
+            }
+        }
+
+        // If we don't have any Node load for that fingerprint, we return the first one
+        if (it->second.size())
+        {
+            return getNodeFromDataBase(it->second.begin()->first);
+        }
     }
 
-    NodeSerialized nodeSerialized;
-    NodeHandle nodeHandle;
-    mTable->getNodeByFingerprint(fingerprint, nodeSerialized, nodeHandle);
-    Node* node = nullptr;
-    auto nodeIt = mNodes.find(nodeHandle);
-    if (nodeIt == mNodes.end())
-    {
-        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
-    }
-    else
-    {
-        node = nodeIt->second;
-    }
-
-
-    return node;
+    return nullptr;
 }
 
 node_vector NodeManager::getRootNodes()
@@ -17296,6 +17273,7 @@ void NodeManager::removeChanges()
 
 void NodeManager::cleanNodes()
 {
+    mFingerPrints.clear();
     for (auto node : mNodes)
     {
         delete node.second;
@@ -17616,61 +17594,60 @@ void NodeManager::notifyPurge()
         NodeHandle rubbishHandle = mClient.rootnodes.rubbish;
         // check for renamed/moved sync root folders
          mClient.syncs.forEachUnifiedSync([&](UnifiedSync& us){
+             Node* n =  mClient.nodeByHandle(us.mConfig.getRemoteNode());
+             if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
+             {
+                 bool removed = n->changed.removed;
 
-            Node* n =  mClient.nodeByHandle(us.mConfig.getRemoteNode());
-            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
-            {
-                bool removed = n->changed.removed;
+                 // update path in sync configuration
+                 bool pathChanged = us.updateSyncRemoteLocation(removed ? nullptr : n, false);
 
-                // update path in sync configuration
-                bool pathChanged = us.updateSyncRemoteLocation(removed ? nullptr : n, false);
+                 auto &activeSync = us.mSync;
+                 if (!activeSync) // no active sync (already failed)
+                 {
+                     return;
+                 }
 
-                auto &activeSync = us.mSync;
-                if (!activeSync) // no active sync (already failed)
-                {
-                    return;
-                }
+                 auto syncErr = NO_SYNC_ERROR;
 
-                auto syncErr = NO_SYNC_ERROR;
+                 // fail sync if required
+                 if(n->changed.parent) //moved
+                 {
+                     assert(pathChanged);
+                     // check if moved to rubbish
+                     auto p = n->parent;
+                     while (p)
+                     {
+                         if (p->nodeHandle() == rubbishHandle)
+                         {
+                             syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
+                             break;
+                         }
+                         p = p->parent;
+                     }
 
-                // fail sync if required
-                if(n->changed.parent) //moved
-                {
-                    assert(pathChanged);
-                    // check if moved to rubbish
-                    auto p = n->parent;
-                    while (p)
-                    {
-                        if (p->nodeHandle() == rubbishHandle)
-                        {
-                            syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
-                            break;
-                        }
-                        p = p->parent;
-                    }
+                     if (syncErr == NO_SYNC_ERROR)
+                     {
+                         syncErr = REMOTE_PATH_HAS_CHANGED;
+                     }
+                 }
+                 else if (removed)
+                 {
+                     syncErr = REMOTE_NODE_NOT_FOUND;
+                 }
+                 else if (pathChanged)
+                 {
+                     syncErr = REMOTE_PATH_HAS_CHANGED;
+                 }
 
-                    if (syncErr == NO_SYNC_ERROR)
-                    {
-                        syncErr = REMOTE_PATH_HAS_CHANGED;
-                    }
-                }
-                else if (removed)
-                {
-                    syncErr = REMOTE_NODE_NOT_FOUND;
-                }
-                else if (pathChanged)
-                {
-                    syncErr = REMOTE_PATH_HAS_CHANGED;
-                }
-
-                if (syncErr != NO_SYNC_ERROR)
-                {
-                    mClient.syncs.disableSelectedSyncs(
-                                [&](SyncConfig&, Sync* s) { return s == activeSync.get(); },
-                    true, syncErr, false, nullptr);
-                }
-            }
-        });
+                 if (syncErr != NO_SYNC_ERROR)
+                 {
+                     mClient.syncs.disableSelectedSyncs(
+                                 [&](SyncConfig&, Sync* s) { return s == activeSync.get(); },
+                     true, syncErr, false, nullptr);
+                 }
+             }
+         });
 #endif
 
         DBTableTransactionCommitter committer(mClient.tctable);
@@ -17719,6 +17696,8 @@ void NodeManager::notifyPurge()
                 // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
                 subtractFromRootCounter(*n);
                 mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
+
+                removeFingerprint(n);
 
                 // Avoid to take into account removed nodes in 'getChildren'
                 it = mNodeNotify.erase(it);
@@ -17775,6 +17754,8 @@ void NodeManager::loadNodes()
     }
     else
     {
+        // Load map with fingerprints to speed up searching by fingerprint
+        mTable->getFingerPrints(mFingerPrints);
         getRootNodes();
         getNodesWithInShares();
 
@@ -17788,6 +17769,7 @@ void NodeManager::loadNodes()
         updateCounter(inboxHandle);
         NodeHandle rubbishHandle = mClient.rootnodes.rubbish;
         updateCounter(rubbishHandle);
+
     }
 }
 
@@ -17989,6 +17971,77 @@ void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& o
     {
         itNew->second += subTreeCalculated ? nc : getCounterForSubtree(h);
     }
+}
+
+mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
+{
+    if (node->type == FILENODE)
+    {
+        bool saveInMemory = !mClient.fetchingnodes || mKeepAllNodesInMemory;
+        std::pair<NodeHandle, Node*> pair = std::make_pair(node->nodeHandle(), saveInMemory ? node : nullptr);
+
+        auto it = mFingerPrints.find(*node);
+        if (it != mFingerPrints.end())
+        {
+#ifdef DEBUG
+            auto emplacePair =
+#endif
+            it->second.emplace(pair);
+            assert(emplacePair.second);
+            return it;
+        }
+        else
+        {
+            return mFingerPrints.emplace(*node, std::map<NodeHandle, Node*>{pair}).first;
+        }
+    }
+
+    return mFingerPrints.end();
+}
+
+void NodeManager::removeFingerprint(Node *node)
+{
+    if (node->type == FILENODE)  // remove from mFingerPrints
+    {
+        if (node->mFingerPrintPosition != mFingerPrints.end())
+        {
+#ifdef DEBUG
+            size_t ret =
+#endif
+            node->mFingerPrintPosition->second.erase(node->nodeHandle());
+            assert(ret == 1);
+
+            if (node->mFingerPrintPosition->second.empty())
+            {
+                mFingerPrints.erase(node->mFingerPrintPosition);
+            }
+
+            node->mFingerPrintPosition = mFingerPrints.end();
+        }
+    }
+}
+
+FingerprintMapPosition NodeManager::getInvalidPosition()
+{
+    return mFingerPrints.end();
+}
+
+Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return nullptr;
+    }
+
+    Node* node = nullptr;
+    NodeSerialized nodeSerialized;
+    if (mTable->getNode(handle, nodeSerialized))
+    {
+        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
+    }
+
+    return node;
 }
 
 size_t NodeManager::nodeNotifySize() const

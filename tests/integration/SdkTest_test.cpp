@@ -863,7 +863,7 @@ bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void
     return result;
 }
 
-void SdkTest::createFile(string filename, bool largeFile)
+void SdkTest::createFile(string filename, bool largeFile, string content)
 {
     fs::path p = fs::u8path(filename);
     std::ofstream file(p,ios::out);
@@ -880,7 +880,7 @@ void SdkTest::createFile(string filename, bool largeFile)
 
         for (int i = 0; i < limit; i++)
         {
-            file << "test ";
+            file << content;
         }
 
         file.close();
@@ -3135,7 +3135,7 @@ TEST_F(SdkTest, SdkTestShares)
  * - UserB locallogout and login with session
  * - UserB load File1 undecrypted
  */
-TEST_F(SdkTest, SdkTestShares3)
+TEST_F(SdkTest, DISABLED_SdkTestShares3)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
 
@@ -7693,6 +7693,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     int numberFiles = 5;
     std::string fileNameToSearch;
     std::string fingerPrintToSearch;
+    std::string fingerPrintToRemove;
     MegaHandle nodeHandle = INVALID_HANDLE;
     MegaHandle parentHandle = INVALID_HANDLE;
     std::set<MegaHandle> childrenHandles;
@@ -7731,7 +7732,8 @@ TEST_F(SdkTest, SdkNodesOnDemand)
             for (int k = 0; k < numberFiles; k++)
             {
                 string filename2 = fileName + "_" + std::to_string(i) + "_" + std::to_string(j) + "_" + std::to_string(k);
-                createFile(filename2, false);
+                string content = "test_" + std::to_string(i) + "_" + std::to_string(j) + "_" + std::to_string(k);
+                createFile(filename2, false, content);
                 ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename2.data(), subFolderSecondLevel.get())) << "Cannot upload a test file";
                 unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(mApi[0].h));
                 ASSERT_NE(nodeFile, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
@@ -7742,6 +7744,11 @@ TEST_F(SdkTest, SdkNodesOnDemand)
                     fileNameToSearch = nodeFile->getName();
                     fingerPrintToSearch = nodeFile->getFingerprint();
                     nodeHandle = nodeFile->getHandle();
+                }
+
+                if (i == (numberFolderLevel1 - 1) && j == (numberFolderLevel2 - 1) && k == (numberFiles - 2))
+                {
+                    fingerPrintToRemove = nodeFile->getFingerprint();
                 }
 
                 // Save children handle from a folder
@@ -7815,11 +7822,32 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_EQ(searchList->size(), 1);
     ASSERT_EQ(searchList->get(0)->getHandle(), nodeHandle);
 
-    // --- UserA logout and login with session ---
+    // --- UserA logout
     std::unique_ptr<char[]> session(megaApi[0]->dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
+
+    // --- UserB remove a node and try to find it by fingerprint
+    mApi[1].nodeUpdated = false;
+    ASSERT_GT(fingerPrintToRemove.size(), 0u);
+    fingerPrintList.reset(megaApi[1]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
+    ASSERT_EQ(fingerPrintList->size(), 1);
+    MegaHandle handleFingerprintRemove = fingerPrintList->get(0)->getHandle();
+    unique_ptr<MegaNode>node(megaApi[1]->getNodeByHandle(handleFingerprintRemove));
+    ASSERT_EQ(API_OK, synchronousRemove(1, node.get()));
+    waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
+    fingerPrintList.reset(megaApi[1]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
+    ASSERT_EQ(fingerPrintList->size(), 0);
+
+    numberTotalOfFiles--;
+    accountSize -= node->getSize();
+
+    // --- UserA login with session
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    // --- UserA Check if find removed node by fingerprint
+    fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
+    ASSERT_EQ(fingerPrintList->size(), 0);
 
     // --- UserA Check folder info from root node ---
     rootnodeA.reset(megaApi[0]->getRootNode());
@@ -7859,7 +7887,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     // --- UserA remove a folder ---
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(nodeToRemove));
+    node.reset(megaApi[0]->getNodeByHandle(nodeToRemove));
     ASSERT_NE(node, nullptr);
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, node.get())) << "Cannot get Folder Info";
     std::unique_ptr<MegaFolderInfo> removedFolder(mApi[0].mFolderInfo->copy());

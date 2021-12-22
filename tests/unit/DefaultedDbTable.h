@@ -56,26 +56,16 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    bool getNodesByFingerprint(const mega::FileFingerprint&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
-    {
-        return false;
-        //throw NotImplemented{__func__};
-    }
-    bool getNodesByOrigFingerprint(const std::string& , std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
+    bool getNodesByOrigFingerprint(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
         return false;
     }
-    bool getNodeByFingerprint(const mega::FileFingerprint&, mega::NodeSerialized&, mega::NodeHandle& nodeHandle) override
-    {
-        return false;
-        //throw NotImplemented{__func__};
-    }
-    bool getRootNodes(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes) override
+    bool getRootNodes(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getNodesWithSharesOrLink(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::ShareType_t) override
+    bool getNodesWithSharesOrLink(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::ShareType_t) override
     {
         return false;
         //throw NotImplemented(__func__);
@@ -186,6 +176,10 @@ public:
         //throw NotImplemented{__func__};
     }
     bool inTransaction() const override
+    {
+        return false;
+    }
+    bool getFingerPrints(std::map<mega::FileFingerprint, std::map<mega::NodeHandle, mega::Node*>>& fingerprints) override
     {
         return false;
     }
