@@ -15989,45 +15989,11 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 //    return a->ctime < b->ctime;
 //}
 
-static bool nodes_ctime_greater(const Node* a, const Node* b)
+node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since)
 {
-    return a->ctime > b->ctime;
-}
+    node_vector v = mNodeManager.getRecentNodes(maxcount, since);
 
-node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin)
-{
-
-    // TODO nodes on demand Implement
-    // 1. Get nodes added/modified not older than `since`
-//    node_vector v;
-//    v.reserve(mNodes.size());
-//    for (node_map::iterator i = mNodes.begin(); i != mNodes.end(); ++i)
-//    {
-//        if (i->second->type == FILENODE && i->second->ctime >= since &&  // recent files only
-//            (!i->second->parent || i->second->parent->type != FILENODE)) // excluding versions
-//        {
-//            v.push_back(i->second);
-//        }
-//    }
-
-//    // heaps use a 'less' function, and pop_heap returns the largest item stored.
-//    std::make_heap(v.begin(), v.end(), nodes_ctime_less);
-
-    // 2. Order them chronologically and restrict them to a maximum of `maxcount`
-    node_vector v2;
-//    unsigned maxItems = std::min(maxcount, unsigned(v.size()));
-//    v2.reserve(maxItems);
-//    while (v2.size() < maxItems && !v.empty())
-//    {
-//        std::pop_heap(v.begin(), v.end(), nodes_ctime_less);
-//        Node* n = v.back();
-//        v.pop_back();
-//        if (includerubbishbin || n->firstancestor()->type != RUBBISHNODE)
-//        {
-//            v2.push_back(n);
-//        }
-//    }
-    return v2;
+    return v;
 }
 
 
@@ -16193,7 +16159,7 @@ bool MegaClient::nodeIsDocument(const Node *n) const
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
     recentactions_vector rav;
-    node_vector v = getRecentNodes(maxcount, since, false);
+    node_vector v = getRecentNodes(maxcount, since);
 
     for (node_vector::iterator i = v.begin(); i != v.end(); )
     {
@@ -16226,13 +16192,6 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
             i = j;
         }
         i = bucketend;
-    }
-    // sort nodes inside each bucket
-    for (recentactions_vector::iterator i = rav.begin(); i != rav.end(); ++i)
-    {
-        // for the bucket vector, most recent (larger ctime) first
-        std::sort(i->nodes.begin(), i->nodes.end(), nodes_ctime_greater);
-        i->time = i->nodes.front()->ctime;
     }
     // sort buckets in the vector
     std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
@@ -16895,6 +16854,37 @@ node_list NodeManager::getChildren(Node *parent)
     return childrenList;
 }
 
+node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
+{
+    node_vector nodes;
+    if (!mTable)
+    {
+        return nodes;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getRecentNodes(maxcount, since, nodesFromTable);
+
+    for (const auto& nHandleSerialized : nodesFromTable)
+    {
+        Node* n;
+        auto nodeIt = mNodes.find(nHandleSerialized.first);
+        if (nodeIt == mNodes.end())
+        {
+            const NodeSerialized& ns = nHandleSerialized.second;
+            n = unserializeNode(&ns.mNode, ns.mDecrypted);
+        }
+        else
+        {
+            n = nodeIt->second;
+        }
+
+        nodes.push_back(n);
+    }
+
+    return nodes;
+}
+
 uint64_t NodeManager::getNodeCount()
 {
     uint64_t count = 0;
@@ -16997,16 +16987,16 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
         return nodes;
     }
 
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
-    mTable->getNodesByOrigFingerprint(fingerprint, nodeMap);
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesByOrigFingerprint(fingerprint, nodesFromTable);
 
-    for (const auto nodeMapIt : nodeMap)
+    for (const auto& nHandleSerialized : nodesFromTable)
     {
         Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
+        auto nodeIt = mNodes.find(nHandleSerialized.first);
         if (nodeIt == mNodes.end())
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
         }
         else
         {
@@ -17054,16 +17044,16 @@ node_vector NodeManager::getRootNodes()
         return nodes;
     }
 
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
-    mTable->getRootNodes(nodeMap);
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getRootNodes(nodesFromTable);
 
-    for (const auto nodeMapIt : nodeMap)
+    for (const auto& nHandleSerialized : nodesFromTable)
     {
         Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
+        auto nodeIt = mNodes.find(nHandleSerialized.first);
         if (nodeIt == mNodes.end())
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
         }
         else
         {
@@ -17111,15 +17101,15 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         return nodes;
     }
 
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
-    mTable->getNodesWithSharesOrLink(nodeMap, shareType);
-    for (const auto nodeMapIt : nodeMap)
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesWithSharesOrLink(nodesFromTable, shareType);
+    for (const auto& nHandleSerialized : nodesFromTable)
     {
         Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
+        auto nodeIt = mNodes.find(nHandleSerialized.first);
         if (nodeIt == mNodes.end())
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
         }
         else
         {
@@ -17234,6 +17224,7 @@ NodeHandle NodeManager::getFirstAncestor(NodeHandle node)
     auto it = mNodes.find(node);
     if (it != mNodes.end())
     {
+        assert(!!it->second);
         const Node* ancestor = it->second->firstancestor();
         if (ancestor)
         {

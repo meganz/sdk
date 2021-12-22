@@ -56,16 +56,16 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    bool getNodesByOrigFingerprint(const std::string& , std::map<mega::NodeHandle, mega::NodeSerialized>&) override
+    bool getNodesByOrigFingerprint(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
         return false;
     }
-    bool getRootNodes(std::map<mega::NodeHandle, mega::NodeSerialized>& nodes) override
+    bool getRootNodes(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, mega::NodeSerialized>& nodes, mega::ShareType_t) override
+    bool getNodesWithSharesOrLink(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::ShareType_t) override
     {
         return false;
         //throw NotImplemented(__func__);
@@ -84,6 +84,10 @@ public:
     {
         return false;
         //throw NotImplemented(__func__);
+    }
+    bool getRecentNodes(unsigned maxcount, mega::m_time_t since, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
+    {
+        return false;
     }
     bool getFavouritesHandles(mega::NodeHandle, uint32_t, std::vector<mega::NodeHandle>&) override
     {

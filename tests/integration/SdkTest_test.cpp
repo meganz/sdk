@@ -2675,7 +2675,7 @@ TEST_F(SdkTest, SdkTestShares2)
 
     ASSERT_EQ(MegaShare::ACCESS_FULL, s->getAccess()) << "Wrong access level of outgoing share";
     ASSERT_EQ(hfolder1, s->getNodeHandle()) << "Wrong node handle of outgoing share";
-    ASSERT_STREQ(mApi[1].email.c_str(), s->getUser()) << "Wrong email address of outgoing share";
+    ASSERT_STRCASEEQ(mApi[1].email.c_str(), s->getUser()) << "Wrong email address of outgoing share";
     ASSERT_TRUE(n1->isShared()) << "Wrong sharing information at outgoing share";
     ASSERT_TRUE(n1->isOutShare()) << "Wrong sharing information at outgoing share";
 
@@ -2902,7 +2902,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     ASSERT_EQ(MegaShare::ACCESS_FULL, s->getAccess()) << "Wrong access level of outgoing share";
     ASSERT_EQ(hfolder1, s->getNodeHandle()) << "Wrong node handle of outgoing share";
-    ASSERT_STREQ(mApi[1].email.data(), s->getUser()) << "Wrong email address of outgoing share";
+    ASSERT_STRCASEEQ(mApi[1].email.data(), s->getUser()) << "Wrong email address of outgoing share";
     ASSERT_TRUE(n1->isShared()) << "Wrong sharing information at outgoing share";
     ASSERT_TRUE(n1->isOutShare()) << "Wrong sharing information at outgoing share";
 
@@ -5282,62 +5282,85 @@ TEST_F(SdkTest, SdkRecentsTest)
     LOG_info << "___TEST SdkRecentsTest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    MegaNode *rootnode = megaApi[0]->getRootNode();
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
 
-    deleteFile(UPFILE);
-    deleteFile(DOWNFILE);
-
-    string filename1 = UPFILE;
+    // upload file1
+    const string filename1 = UPFILE;
+    deleteFile(filename1);
     createFile(filename1, false);
-    auto err = synchronousStartUpload(0, filename1.c_str(), rootnode);
+    auto err = synchronousStartUpload(0, filename1.c_str(), rootnode.get());
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload a test file (error: " << err << ")";
 
+    // upload a backup of file1
+    const string filename1bkp1 = filename1 + ".bkp1";
+    deleteFile(filename1bkp1);
+    createFile(filename1bkp1, false);
+    err = synchronousStartUpload(0, filename1bkp1.c_str(), rootnode.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload test file " + filename1bkp1 + ", (error: " << err << ")";
+    deleteFile(filename1bkp1);
+
+    // upload a second backup of file1
+    const string filename1bkp2 = filename1 + ".bkp2";
+    deleteFile(filename1bkp2);
+    createFile(filename1bkp2, false);
+    err = synchronousStartUpload(0, filename1bkp2.c_str(), rootnode.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload test file " + filename1bkp2 + ", (error: " << err << ")";
+    deleteFile(filename1bkp2);
+
+    // modify file1
     ofstream f(filename1);
     f << "update";
     f.close();
-
-    err = synchronousStartUpload(0, filename1.c_str(), rootnode);
+    err = synchronousStartUpload(0, filename1.c_str(), rootnode.get());
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload an updated test file (error: " << err << ")";
 
     synchronousCatchup(0);
 
-    string filename2 = DOWNFILE;
+    // upload file2
+    const string filename2 = DOWNFILE;
+    deleteFile(filename2);
     createFile(filename2, false);
-
-    err = synchronousStartUpload(0, filename2.c_str(), rootnode);
+    err = synchronousStartUpload(0, filename2.c_str(), rootnode.get());
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload a test file2 (error: " << err << ")";
 
+    // modify file2
     ofstream f2(filename2);
     f2 << "update";
     f2.close();
-
-    err = synchronousStartUpload(0, filename2.c_str(), rootnode);
+    err = synchronousStartUpload(0, filename2.c_str(), rootnode.get());
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload an updated test file2 (error: " << err << ")";
 
     synchronousCatchup(0);
 
 
     std::unique_ptr<MegaRecentActionBucketList> buckets{megaApi[0]->getRecentActions(1, 10)};
+    ASSERT_TRUE(buckets != nullptr);
 
-    ostringstream logMsg;
     for (int i = 0; i < buckets->size(); ++i)
     {
-        logMsg << "bucket " << to_string(i);
-        megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, logMsg.str().c_str());
+        auto bucketMsg = "bucket " + to_string(i) + ':';
+        megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, bucketMsg.c_str());
+
         auto bucket = buckets->get(i);
-        for (int j = 0; j < buckets->get(i)->getNodes()->size(); ++j)
+        for (int j = 0; j < bucket->getNodes()->size(); ++j)
         {
             auto node = bucket->getNodes()->get(j);
-            logMsg << node->getName() << " " << node->getCreationTime() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia();
-            megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, logMsg.str().c_str());
+            auto nodeMsg = '[' + to_string(j) + "] " + node->getName() + " ctime:" + to_string(node->getCreationTime()) +
+                " timestamp:" + to_string(bucket->getTimestamp()) + " handle:" + to_string(node->getHandle()) +
+                " isUpdate:" + to_string(bucket->isUpdate()) + " isMedia:" + to_string(bucket->isMedia());
+            megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, nodeMsg.c_str());
         }
     }
 
-    ASSERT_TRUE(buckets != nullptr);
-    ASSERT_TRUE(buckets->size() > 0);
+    ASSERT_TRUE(buckets->size() > 1);
+
     ASSERT_TRUE(buckets->get(0)->getNodes()->size() > 1);
-    ASSERT_EQ(DOWNFILE, string(buckets->get(0)->getNodes()->get(0)->getName()));
-    ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
+    ASSERT_EQ(filename2, string(buckets->get(0)->getNodes()->get(0)->getName()));
+    ASSERT_EQ(filename1, string(buckets->get(0)->getNodes()->get(1)->getName()));
+
+    ASSERT_TRUE(buckets->get(1)->getNodes()->size() > 1);
+    ASSERT_EQ(filename1bkp2, string(buckets->get(1)->getNodes()->get(0)->getName()));
+    ASSERT_EQ(filename1bkp1, string(buckets->get(1)->getNodes()->get(1)->getName()));
 }
 
 

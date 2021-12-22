@@ -6750,7 +6750,7 @@ void exec_recentnodes(autocomplete::ACState& s)
 {
     if (s.words.size() == 3)
     {
-        node_vector nv = client->getRecentNodes(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()), false);
+        node_vector nv = client->getRecentNodes(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
         for (unsigned i = 0; i < nv.size(); ++i)
         {
             cout << nv[i]->displaypath() << endl;

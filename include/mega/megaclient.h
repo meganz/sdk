@@ -263,6 +263,9 @@ public:
     // read children from DB and load them in memory
     node_list getChildren(Node* parent);
 
+    // read recent nodes from DB and load them in memory
+    node_vector getRecentNodes(unsigned maxcount, m_time_t since);
+
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
 
@@ -1609,7 +1612,7 @@ public:
 #endif /* ENABLE_SYNC */
 
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
-    node_vector getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin);
+    node_vector getRecentNodes(unsigned maxcount, m_time_t since);
 
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
