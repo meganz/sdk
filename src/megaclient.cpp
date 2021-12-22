@@ -17752,7 +17752,6 @@ void NodeManager::notifyPurge()
 
                 // effectively delete node from RAM
                 mNodesWithMissingParent.erase(n->nodeHandle());
-                mNodeCounters.erase(n->nodeHandle());
                 mNodes.erase(n->nodeHandle());
                 mTable->remove(n->nodeHandle());
                 delete n;
