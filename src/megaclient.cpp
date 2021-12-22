@@ -16699,32 +16699,41 @@ void NodeManager::reset()
 
 bool NodeManager::setrootnode(Node* node)
 {
-    switch (node->type)
+    if (mClient.loggedinfolderlink())
     {
-    case ROOTNODE:
-    {
-        mClient.rootnodes.files = node->nodeHandle();
+        assert(mClient.rootnodes.files == node->nodeHandle());
         addCounter(node->nodeHandle());
         return true;
     }
-
-    case INCOMINGNODE:
+    else
     {
-        mClient.rootnodes.inbox = node->nodeHandle();
-        addCounter(node->nodeHandle());
-        return true;
-    }
+        switch (node->type)
+        {
+        case ROOTNODE:
+        {
+            mClient.rootnodes.files = node->nodeHandle();
+            addCounter(node->nodeHandle());
+            return true;
+        }
 
-    case RUBBISHNODE:
-    {
-        mClient.rootnodes.rubbish = node->nodeHandle();
-        addCounter(node->nodeHandle());
-        return true;
-    }
+        case INCOMINGNODE:
+        {
+            mClient.rootnodes.inbox = node->nodeHandle();
+            addCounter(node->nodeHandle());
+            return true;
+        }
 
-    default:
-        assert(false);
-        return false;
+        case RUBBISHNODE:
+        {
+            mClient.rootnodes.rubbish = node->nodeHandle();
+            addCounter(node->nodeHandle());
+            return true;
+        }
+
+        default:
+            assert(false);
+            return false;
+        }
     }
 }
 
@@ -16742,12 +16751,15 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
         return false;
     }
 
+    // mClient.rootnodes.files is always set for folder links before adding any node
+    bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE || mClient.rootnodes.files == node->nodeHandle();
+
     bool saveNodeMemory = false;
-    if (mKeepAllNodesInMemory || node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE || !isFetching)
+    if (mKeepAllNodesInMemory || rootNode || !isFetching)
     {
         saveNodeMemory = true;
 
-        if (node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE)
+        if (rootNode)
         {
             setrootnode(node);
         }
@@ -17282,6 +17294,7 @@ void NodeManager::cleanNodes()
     mNodeNotify.clear();
     mNodes.clear();
     mNodeCounters.clear();
+    mNodesWithMissingParent.clear();
 
     if (mTable)
         mTable->removeNodes();
@@ -17708,6 +17721,7 @@ void NodeManager::notifyPurge()
                 }
 
                 // effectively delete node from RAM
+                mNodesWithMissingParent.erase(n->nodeHandle());
                 mNodes.erase(n->nodeHandle());
                 mTable->remove(n->nodeHandle());
                 delete n;
@@ -17746,7 +17760,8 @@ void NodeManager::loadNodes()
         {
             Node* n = unserializeNode(&node.mNode, node.mDecrypted);
 
-            if (n->type == ROOTNODE || n->type == INCOMINGNODE || n->type == RUBBISHNODE)
+            // Special nodes ROOTNODE, INCOMINGNODE, RUBBISHNODE or logged in folder node
+            if (n->type == ROOTNODE || n->type == INCOMINGNODE || n->type == RUBBISHNODE || mClient.rootnodes.files == n->nodeHandle())
             {
                 setrootnode(n);
             }
@@ -17799,7 +17814,9 @@ void NodeManager::saveNodeInRAM(Node *node, bool notify)
         mTable->put(node);
     }
 
-    if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE)
+    // In case of folder link it isn't neccesary to add to mNodesWithMissingParent
+    if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE
+            && node->nodeHandle() != mClient.rootnodes.files)
     {
         Node *parent = nullptr;
         if ((parent = getNodeByHandle(node->parentHandle())))
@@ -17895,9 +17912,10 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     // if not logged in yet, node counters are not available
     if (mNodeCounters.empty())
     {
-        assert(mClient.rootnodes.files.isUndef()
-               && mClient.rootnodes.inbox.isUndef()
-               && mClient.rootnodes.rubbish.isUndef());
+        assert((mClient.rootnodes.files.isUndef()
+                && mClient.rootnodes.inbox.isUndef()
+                && mClient.rootnodes.rubbish.isUndef())
+               || (mClient.loggedIntoFolder()));
 
         return c;
     }
@@ -17906,13 +17924,16 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     assert(mNodeCounters.find(h) != mNodeCounters.end());
     c = mNodeCounters[h];
 
-    h = mClient.rootnodes.inbox;
-    assert(mNodeCounters.find(h) != mNodeCounters.end());
-    c += mNodeCounters[h];
+    if (!mClient.loggedIntoFolder())
+    {
+        h = mClient.rootnodes.inbox;
+        assert(mNodeCounters.find(h) != mNodeCounters.end());
+        c += mNodeCounters[h];
 
-    h = mClient.rootnodes.rubbish;
-    assert(mNodeCounters.find(h) != mNodeCounters.end());
-    c += mNodeCounters[h];
+        h = mClient.rootnodes.rubbish;
+        assert(mNodeCounters.find(h) != mNodeCounters.end());
+        c += mNodeCounters[h];
+    }
 
     return c;
 }
