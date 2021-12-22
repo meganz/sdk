@@ -111,13 +111,12 @@ public:
 
     // get nodes and queries about nodes
     virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
-    virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
-    virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
-    virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node, NodeHandle& nodeHandle) = 0;
+    virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
+    virtual bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
 
-    virtual bool getRootNodes(std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
-    virtual bool getNodesWithSharesOrLink(std::map<mega::NodeHandle, NodeSerialized>&, ShareType_t shareType) = 0;
+    virtual bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+    virtual bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>&, ShareType_t shareType) = 0;
     virtual bool getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
     virtual bool getChildrenHandles(NodeHandle parentHandle, std::vector<NodeHandle>& nodes) = 0;
     virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
@@ -130,6 +129,9 @@ public:
 
     virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
     virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
+
+    // Get all fingerprints with their asociated NodeHandle
+    virtual bool getFingerPrints(std::map<FileFingerprint, std::map<NodeHandle, Node*>>& fingerprints) = 0;
 
     // count of items in 'nodes' table. Returns 0 if error
     virtual uint64_t getNumberOfNodes() = 0;
