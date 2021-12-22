@@ -17196,7 +17196,8 @@ void NodeManager::loadTreeRecursively(const Node* node)
     for (const Node* child : children)
     {
         loadTreeRecursively(child);
-        // When unserialize is finished, all ancestor nodes are upload
+
+        // Update counters, now that all ancestors are loaded
         const Node* ancestor = child->firstancestor();
         increaseCounters(child, ancestor->nodeHandle());
     }

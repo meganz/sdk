@@ -140,7 +140,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // check if the key is present and is the correct size for this node
     bool keyApplied() const;
 
-    // change parent node association. unserializedNode is set true when it's called from NodeManger::unserializeNode
+    // change parent node association. unserializedNode is true when called from NodeManager::unserializeNode
     bool setparent(Node*, bool unserializedNode = false);
 
     // follow the parent links all the way to the top
