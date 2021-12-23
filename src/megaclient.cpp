@@ -23,6 +23,7 @@
 #include "mega/mediafileattribute.h"
 #include <cctype>
 #include <algorithm>
+#include <functional>
 #include <future>
 #include "mega/heartbeats.h"
 
@@ -14002,8 +14003,8 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
 
 void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion)
 {
-    auto onUserAttributesCompleted =
-      [completion = std::move(completion), configs, this](Error result)
+    auto onUserAttributesCompleted = std::bind(
+      [configs, this](std::function<void(error)>& completion, Error result)
       {
           // Do we have the attributes necessary for the sync config store?
           if (result != API_OK)
@@ -14015,7 +14016,8 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
 
           // Kick off the import.
           syncs.importSyncConfigs(configs, std::move(completion));
-      };
+      },
+      std::move(completion), std::placeholders::_1);
 
     // Make sure we have the attributes necessary for the sync config store.
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
