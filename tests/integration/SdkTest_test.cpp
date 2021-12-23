@@ -7682,7 +7682,14 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_EQ(rootnodeA->getHandle(), rootnodeB->getHandle());
 
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
-    std::unique_ptr<MegaFolderInfo> initialFolderInfo(mApi[0].mFolderInfo->copy());
+    std::unique_ptr<MegaFolderInfo> initialFolderInfo1(mApi[0].mFolderInfo->copy());
+
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeA.get())) << "Cannot get Folder Info";
+    std::unique_ptr<MegaFolderInfo> initialFolderInfo2(mApi[1].mFolderInfo->copy());
+
+    ASSERT_EQ(initialFolderInfo1->getNumFiles(), initialFolderInfo2->getNumFiles());
+    ASSERT_EQ(initialFolderInfo1->getNumFolders(), initialFolderInfo2->getNumFolders());
+    ASSERT_EQ(initialFolderInfo1->getCurrentSize(), initialFolderInfo2->getCurrentSize());
 
     // --- UserA Create tree directory ---
     // 3 Folders in level 1
@@ -7706,19 +7713,23 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     for (int i = 0; i < numberFolderLevel1; i++)
     {
+        mApi[1].nodeUpdated = false;
         std::string folderName = folderLevel1 + "_" + std::to_string(i);
         auto nodeFirstLevel = createFolder(0, folderName.c_str(), rootnodeA.get());
         ASSERT_NE(nodeFirstLevel, UNDEF);
         unique_ptr<MegaNode> folderFirstLevel(megaApi[0]->getNodeByHandle(nodeFirstLevel));
         ASSERT_TRUE(folderFirstLevel);
+        waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
 
         for (int j = 0; j < numberFolderLevel2; j++)
         {
+            mApi[1].nodeUpdated = false;
             std::string subFolder = folderLevel2 +"_" + std::to_string(i) + "_" + std::to_string(j);
             auto nodeSecondLevel = createFolder(0, subFolder.c_str(), folderFirstLevel.get());
             ASSERT_NE(nodeSecondLevel, UNDEF);
             unique_ptr<MegaNode> subFolderSecondLevel(megaApi[0]->getNodeByHandle(nodeSecondLevel));
             ASSERT_TRUE(subFolderSecondLevel);
+            waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
 
             // Save handle from folder that it's going to be request children
             if (j == numberFolderLevel2 - 2)
@@ -7769,15 +7780,15 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         }
     }
 
-    accountSize += initialFolderInfo->getCurrentSize();
+    accountSize += initialFolderInfo1->getCurrentSize();
 
     ASSERT_NE(nodeToRemove, INVALID_HANDLE) << "nodeToRemove is not set";
 
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
-    int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles + initialFolderInfo->getNumFiles();
+    int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles + initialFolderInfo1->getNumFiles();
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles) << "Incorrect number of Files";
-    int numberTotalOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1 + initialFolderInfo->getNumFolders();
+    int numberTotalOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1 + initialFolderInfo1->getNumFolders();
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
 
