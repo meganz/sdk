@@ -959,7 +959,7 @@ bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, boo
     return r;
 }
 
-bool WinFileSystemAccess::setmtimelocal(LocalPath& namePath, m_time_t mtime)
+bool WinFileSystemAccess::setmtimelocal(const LocalPath& namePath, m_time_t mtime)
 {
     assert(namePath.isAbsolute());
     FILETIME lwt;

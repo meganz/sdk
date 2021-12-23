@@ -72,7 +72,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool setmtimelocal(mega::LocalPath&, mega::m_time_t) override
+    bool setmtimelocal(const mega::LocalPath&, mega::m_time_t) override
     {
         throw NotImplemented{__func__};
     }

@@ -676,7 +676,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     static void captimestamp(m_time_t*);
 
     // set mtime
-    virtual bool setmtimelocal(LocalPath&, m_time_t) = 0;
+    virtual bool setmtimelocal(const LocalPath&, m_time_t) = 0;
 
     // change working directory
     virtual bool chdirlocal(LocalPath&) const = 0;
