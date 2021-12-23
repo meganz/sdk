@@ -7681,6 +7681,9 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_TRUE(rootnodeB);
     ASSERT_EQ(rootnodeA->getHandle(), rootnodeB->getHandle());
 
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
+    std::unique_ptr<MegaFolderInfo> initialFolderInfo(mApi[0].mFolderInfo->copy());
+
     // --- UserA Create tree directory ---
     // 3 Folders in level 1
     // 4 Folders in level 2 for every folder from level 1
@@ -7764,13 +7767,15 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         }
     }
 
+    accountSize += initialFolderInfo->getCurrentSize();
+
     ASSERT_NE(nodeToRemove, INVALID_HANDLE) << "nodeToRemove is not set";
 
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
-    int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles;
+    int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles + initialFolderInfo->getNumFiles();
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles) << "Incorrect number of Files";
-    int numberTotalOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1;
+    int numberTotalOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1 + initialFolderInfo->getNumFolders();
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
 
