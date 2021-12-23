@@ -363,10 +363,10 @@ struct StandardClient : public ::mega::MegaApp
     }; // BasicPutNodesCompletion
 
     void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb);
-    void putnodes(NodeHandle parentHandle, std::vector<NewNode>&& nodes, PromiseBoolSP pb);
-    bool putnodes(NodeHandle parentHandle, std::vector<NewNode>&& nodes);
-    void putnodes(const string& parentPath, std::vector<NewNode>&& nodes, PromiseBoolSP result);
-    bool putnodes(const string &parentPath, std::vector<NewNode>&& nodes);
+    void putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP pb);
+    bool putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes);
+    void putnodes(const string& parentPath, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP result);
+    bool putnodes(const string &parentPath, VersioningOption vo, std::vector<NewNode>&& nodes);
     void uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes);
     void uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb);
 
@@ -405,15 +405,15 @@ struct StandardClient : public ::mega::MegaApp
     }; // FilePut
 
     bool uploadFolderTree(fs::path p, Node* n2);
-    void uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts, DBTableTransactionCommitter& committer);
-    void uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts, PromiseBoolSP pb);
-    bool uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts = true, int timeoutSeconds = 30);
-    bool uploadFile(const fs::path& path, const string& name, string parentPath, bool fixNameConflicts = true, int timeoutSeconds = 30);
-    bool uploadFile(const fs::path& path, Node* parent, bool fixNameConflicts = true, int timeoutSeconds = 30);
-    bool uploadFile(const fs::path& path, const string& parentPath, bool fixNameConflicts = true, int timeoutSeconds = 30);
-    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, bool fixNameConflicts, DBTableTransactionCommitter& committer);
-    bool uploadFilesInTree(fs::path p, Node* n2, bool fixNameConflicts = true);
-    void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, bool fixNameConflicts, PromiseBoolSP pb);
+    void uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo = NoVersioning);
+    void uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
+    bool uploadFile(const fs::path& path, const string& name, Node* parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
+    bool uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
+    bool uploadFile(const fs::path& path, Node* parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
+    bool uploadFile(const fs::path& path, const string& parentPath, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
+    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo);
+    bool uploadFilesInTree(fs::path p, Node* n2, VersioningOption vo = NoVersioning);
+    void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 
     class TreeProcPrintTree : public TreeProc
     {

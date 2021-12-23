@@ -2166,14 +2166,14 @@ FSNode LocalNode::getScannedFSDetails() const
     return n;
 }
 
-void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload)
+void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo)
 {
     resetTransfer(upload);
 
-    sync->syncs.queueClient([upload](MegaClient& mc, DBTableTransactionCommitter& committer)
+    sync->syncs.queueClient([upload, vo](MegaClient& mc, DBTableTransactionCommitter& committer)
         {
             mc.nextreqtag();
-            mc.startxfer(PUT, upload.get(), committer);
+            mc.startxfer(PUT, upload.get(), committer, false, false, false, vo);
         });
 
 }
@@ -2185,7 +2185,7 @@ void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download)
     sync->syncs.queueClient([download](MegaClient& mc, DBTableTransactionCommitter& committer)
         {
             mc.nextreqtag();
-            mc.startxfer(GET, download.get(), committer);
+            mc.startxfer(GET, download.get(), committer, false, false, false, NoVersioning);
         });
 
 }

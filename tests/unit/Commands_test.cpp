@@ -280,32 +280,32 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_invalidResponse)
 //    virtual bool issyncsupported(const LocalPath&, bool& b, SyncError& se, SyncWarning& sw) { b = false; se = NO_SYNC_ERROR; sw = NO_SYNC_WARNING; return true;}
 //};
 
-class HttpIOMockup : public ::mega::HttpIO
-{
-public:
-    HttpIOMockup(){}
-    void post(struct HttpReq*, const char* = NULL, unsigned = 0) override{};
-    void cancel(HttpReq*) override{}
-    m_off_t postpos(void*) override{ return 0; }
-    bool doio(void)  override{ return false; }
-    void setuseragent(string*) override{}
+//class HttpIOMockup : public ::mega::HttpIO
+//{
+//public:
+//    HttpIOMockup(){}
+//    void post(struct HttpReq*, const char* = NULL, unsigned = 0) override{};
+//    void cancel(HttpReq*) override{}
+//    m_off_t postpos(void*) override{ return 0; }
+//    bool doio(void)  override{ return false; }
+//    void setuseragent(string*) override{}
+//
+//    void addevents(Waiter*, int) override {}
+//};
+//
+//class MegaAppMockup : public ::mega::MegaApp
+//{
+//public:
+//    MegaAppMockup(){}
+//};
 
-    void addevents(Waiter*, int) override {}
-};
-
-class MegaAppMockup : public ::mega::MegaApp
-{
-public:
-    MegaAppMockup(){}
-};
-
-class ClientMockup : public ::mega::MegaClient
-{
-public:
-    ClientMockup(MegaAppMockup& megaApp, HttpIOMockup& httpIO)
-        : MegaClient(&megaApp, nullptr, &httpIO, ::mega::make_unique<FileSystemAccessMockup>(), nullptr, nullptr, nullptr, "UserAgent", 1)
-    {
-
-    }
-};
-
+//class ClientMockup : public ::mega::MegaClient
+//{
+//public:
+//    ClientMockup(MegaAppMockup& megaApp, HttpIOMockup& httpIO)
+//        : MegaClient(&megaApp, nullptr, &httpIO, ::mega::make_unique<FileSystemAccessMockup>(), nullptr, nullptr, nullptr, "UserAgent", 1)
+//    {
+//
+//    }
+//};
+//

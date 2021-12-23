@@ -39,7 +39,6 @@ File::File()
     hprivate = true;
     hforeign = false;
     syncxfer = false;
-    fixNameConflicts = true;
     temporaryfile = false;
     tag = 0;
 }

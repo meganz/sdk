@@ -4852,7 +4852,9 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
             queueClient([configCopy](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     mc.reqs.add(new CommandBackupRemove(&mc, configCopy.getBackupId()));
-					
+
+/*  todo: possibly incorporate this code from develop
+*
         // get the node for the backup to be removed
         auto nh = config.getRemoteNode();
         if (nh.isUndef()) // can happen when the remote folder has been removed
@@ -4906,7 +4908,7 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
                     return;
                 }
             }
-        }					
+        }*/
                 });
         }
 
@@ -7029,7 +7031,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
                     row.fsNode->fsid, row.fsNode->localname, inshare);
 
-                row.syncNode->queueClientUpload(upload);
+                row.syncNode->queueClientUpload(upload, NoVersioning);  // we'll take care of versioning ourselves ( we take over the putnodes step below)
 
                 LOG_debug << syncname << "Sync - sending file " << fullPath.localPath_utf8();
 
@@ -7145,7 +7147,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     {
                         vector<NewNode> nn(1);
                         mc.putnodes_prepareOneFolder(&nn[0], foldername);
-                        mc.putnodes(targethandle, move(nn), nullptr, 0,
+                        mc.putnodes(targethandle, NoVersioning, move(nn), nullptr, 0,
                             [createFolderPtr](const Error&, targettype_t, vector<NewNode>&, bool targetOverride){
                                 //createFolderPtr.reset();  // lives until this point
                             });

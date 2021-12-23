@@ -1092,7 +1092,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         }
 
         if (vo != NoVersioning &&
-            nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+            nn[i].type == FILENODE && !nn[i].ovhandle.isUndef())
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }

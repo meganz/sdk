@@ -7272,7 +7272,10 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
 
     // adjust previous version node
     string name(utf8Name);
-    newnode->ovhandle = getovhandle(parentNode, &name);
+    if (Node* ovn = getovnode(parentNode, &name))
+    {
+        newnode->ovhandle = ovn->nodeHandle();
+    }
 
     return e;
 }
@@ -8056,29 +8059,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     auto& nn_nni = (*nn)[nni];
                     nn_nni.added = true;
                     nn_nni.mAddedHandle = h;
-
-                    if (nn_nni.ovhandle != UNDEF && nn_nni.mVersioningOption == ReplaceOldVersion)
-                    {
-                        // replacing an existing file (eg, by uploading a same-name file), with versioning off.
-                        assert(n->type == FILENODE);
-
-                        // The API replaces the existing node ('ov') by the new node, so
-                        // the existing one is effectively removed, but the deletion of that node
-                        // can't be delivered by command reply, and this client can't
-                        // see the generated delete actionpacket due to the `i` scheme.
-                        // However the command reply will already rearrange the versions of the old node
-                        // to be the versions of this new node.
-                        // So, we manually delete this node that the API must have deleted
-                        // (Full and proper solution to this is in sync rework with SIC removal)
-                        if (Node *ovNode = nodebyhandle(nn_nni.ovhandle))
-                        {
-                            assert(ovNode->type == FILENODE);
-
-                            TreeProcDel td;
-                            proctree(ovNode, &td, false, true);
-                            LOG_debug << "File " << Base64Str<MegaClient::NODEHANDLE>(nn_nni.ovhandle) << " replaced by " << Base64Str<MegaClient::NODEHANDLE>(h);
-                        }
-                    }
 
                     if (nn_nni.source == NEW_UPLOAD)
                     {
@@ -14572,7 +14552,7 @@ Node* MegaClient::getOrCreateSyncdebrisFolder()
     }
 
     reqs.add(new CommandPutNodes(
-        this, binNode->nodeHandle(), NULL, move(nnVec),
+        this, binNode->nodeHandle(), NULL, NoVersioning, move(nnVec),
         0, PUTNODES_SYNCDEBRIS, nullptr,
         [this](const Error&, targettype_t, vector<NewNode>&, bool targetOverride){
             syncdebrisadding = false;

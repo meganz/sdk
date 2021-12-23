@@ -48,10 +48,6 @@ public:
     {
         return type = mega::FS_UNKNOWN, false;
     }
-    void tmpnamelocal(mega::LocalPath&) const override
-    {
-        throw NotImplemented{__func__};
-    }
     bool getsname(const mega::LocalPath&, mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};

@@ -14722,7 +14722,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
                 return;
             }
 
-            ovhandle = ovn->nodehandle;
+            ovhandle = ovn->nodeHandle();
         }
 
         vector<NewNode> newnodes(1);
@@ -18166,7 +18166,10 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                             if (tc.nn[0].type == FILENODE)
                             {
-                                tc.nn[0].ovhandle = client->getovhandle(parent, &sname);
+                                if (Node* ovn = client->getovnode(parent, &sname))
+                                {
+                                    tc.nn[0].ovhandle = ovn->nodeHandle();
+                                }
                             }
 
                             if (uploadToInbox)
@@ -18976,7 +18979,7 @@ void MegaApiImpl::sendPendingRequests()
                                 break;  // request finishes now if error, otherwise on unlink_result
                             }
 
-                            ovhandle = ovn->nodehandle;
+                            ovhandle = ovn->nodeHandle();
                         }
                     }
                 }
@@ -19115,7 +19118,7 @@ void MegaApiImpl::sendPendingRequests()
                             delete fp;
                         }
 
-                        ovhandle = ovn->nodehandle;
+                        ovhandle = ovn->nodeHandle();
                     }
                 }
 
@@ -19187,7 +19190,7 @@ void MegaApiImpl::sendPendingRequests()
                             break;
                         }
 
-                        ovhandle = ovn->nodehandle;
+                        ovhandle = ovn->nodeHandle();
                     }
                 }
 

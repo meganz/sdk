@@ -1427,12 +1427,12 @@ void StandardClient::cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, Pr
             attrs.map['n'] = newname;
             attrs.getjson(&attrstring);
             client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-            client.putnodes(n2->nodeHandle(), NoVersioningmove(tc.nn), nullptr, 0, std::move(completion));
+            client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, 0, std::move(completion));
         },
         nullptr);
 }
 
-void StandardClient::putnodes(NodeHandle parentHandle, std::vector<NewNode>&& nodes, PromiseBoolSP pb)
+void StandardClient::putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP pb)
 {
     auto completion = BasicPutNodesCompletion([pb](const Error& e) {
         pb->set_value(!e);
@@ -1442,27 +1442,27 @@ void StandardClient::putnodes(NodeHandle parentHandle, std::vector<NewNode>&& no
                             ++next_request_tag,
                             [&]()
                             {
-                                client.putnodes(parentHandle, std::move(nodes), nullptr, 0, std::move(completion));
+                                client.putnodes(parentHandle, vo, std::move(nodes), nullptr, 0, std::move(completion));
                             },
                             nullptr);
 }
 
-bool StandardClient::putnodes(NodeHandle parentHandle, std::vector<NewNode>&& nodes)
+bool StandardClient::putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes)
 {
     auto result =
         thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
                 {
-                    client.putnodes(parentHandle, std::move(nodes), pb);
+                    client.putnodes(parentHandle, vo, std::move(nodes), pb);
                 });
 
     return result.get();
 }
 
-void StandardClient::putnodes(const string& parentPath, std::vector<NewNode>&& nodes, PromiseBoolSP result)
+void StandardClient::putnodes(const string& parentPath, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP result)
 {
     if (auto* parent = drillchildnodebyname(gettestbasenode(), parentPath))
     {
-        putnodes(parent->nodeHandle(), std::move(nodes), std::move(result));
+        putnodes(parent->nodeHandle(), vo, std::move(nodes), std::move(result));
     }
     else
     {
@@ -1470,10 +1470,10 @@ void StandardClient::putnodes(const string& parentPath, std::vector<NewNode>&& n
     }
 }
 
-bool StandardClient::putnodes(const string &parentPath, std::vector<NewNode>&& nodes)
+bool StandardClient::putnodes(const string &parentPath, VersioningOption vo, std::vector<NewNode>&& nodes)
 {
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
-        client.putnodes(parentPath, std::move(nodes), std::move(result));
+        client.putnodes(parentPath, vo, std::move(nodes), std::move(result));
     });
 
     return result.get();
@@ -1507,7 +1507,7 @@ void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
             vector<NewNode> newnodes;
             handle h = 1;
             uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-            client.putnodes(n2->nodeHandle(), move(newnodes), nullptr, 0, std::move(completion));
+            client.putnodes(n2->nodeHandle(), NoVersioning, move(newnodes), nullptr, 0, std::move(completion));
         },
         nullptr);
 }
@@ -1525,7 +1525,7 @@ void StandardClient::downloadFile(const Node& node, const fs::path& destination,
     reinterpret_cast<FileFingerprint&>(*file) = node;
 
     DBTableTransactionCommitter committer(client.tctable);
-    client.startxfer(GET, file.release(), committer);
+    client.startxfer(GET, file.release(), committer, false, false, false, NoVersioning);
 }
 
 bool StandardClient::downloadFile(const Node& node, const fs::path& destination)
@@ -1549,26 +1549,25 @@ bool StandardClient::uploadFolderTree(fs::path p, Node* n2)
     return future.get();
 }
 
-void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts, DBTableTransactionCommitter& committer)
+void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo)
 {
     unique_ptr<File> file(new FilePut());
 
     file->h = parent->nodeHandle();
     file->setLocalname(LocalPath::fromAbsolutePath(path.u8string()));
     file->name = name;
-    file->fixNameConflicts = fixNameConflicts;
 
-    client.startxfer(PUT, file.release(), committer);
+    client.startxfer(PUT, file.release(), committer, false, false, false, vo);
 }
 
-void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts, PromiseBoolSP pb)
+void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb, VersioningOption vo)
 {
     resultproc.prepresult(PUTNODES,
                             ++next_request_tag,
                             [&]()
                             {
                                 DBTableTransactionCommitter committer(client.tctable);
-                                uploadFile(path, name, parent, fixNameConflicts, committer);
+                                uploadFile(path, name, parent, committer, vo);
                             },
                             [pb](error e)
                             {
@@ -1577,12 +1576,12 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, Node* 
                             });
 }
 
-bool StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, bool fixNameConflicts, int timeoutSeconds)
+bool StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, int timeoutSeconds, VersioningOption vo)
 {
     auto result =
         thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
             {
-                client.uploadFile(path, name, parent, fixNameConflicts, pb);
+                client.uploadFile(path, name, parent, pb, vo);
             });
 
     if (result.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
@@ -1593,7 +1592,7 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, Node* 
     return result.get();
 }
 
-bool StandardClient::uploadFile(const fs::path& path, const string& name, string parentPath, bool fixNameConflicts, int timeoutSeconds)
+bool StandardClient::uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds, VersioningOption vo)
 {
     auto result =
         thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
@@ -1604,7 +1603,7 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, string
                     LOG_warn << "nodeByPath found no node for parentPath " << parentPath << ", cannot call uploadFile";
                     return pb->set_value(false);
                 }
-                client.uploadFile(path, name, parent, fixNameConflicts, pb);
+                client.uploadFile(path, name, parent, pb, vo);
             });
 
     if (result.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
@@ -1615,22 +1614,22 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, string
     return result.get();
 }
 
-bool StandardClient::uploadFile(const fs::path& path, Node* parent, bool fixNameConflicts, int timeoutSeconds)
+bool StandardClient::uploadFile(const fs::path& path, Node* parent, int timeoutSeconds, VersioningOption vo)
 {
-    return uploadFile(path, path.filename().u8string(), parent, fixNameConflicts, timeoutSeconds);
+    return uploadFile(path, path.filename().u8string(), parent, timeoutSeconds, vo);
 }
 
-bool StandardClient::uploadFile(const fs::path& path, const string& parentPath, bool fixNameConflicts, int timeoutSeconds)
+bool StandardClient::uploadFile(const fs::path& path, const string& parentPath, int timeoutSeconds, VersioningOption vo)
 {
-    return uploadFile(path, path.filename().u8string(), parentPath, fixNameConflicts, timeoutSeconds);
+    return uploadFile(path, path.filename().u8string(), parentPath, timeoutSeconds, vo);
 }
 
-void StandardClient::uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, bool fixNameConflicts, DBTableTransactionCommitter& committer)
+void StandardClient::uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo)
 {
     if (fs::is_regular_file(p))
     {
         ++inprogress;
-        uploadFile(p, p.filename().u8string(), target, fixNameConflicts, committer);
+        uploadFile(p, p.filename().u8string(), target, committer, vo);
     }
     else if (fs::is_directory(p))
     {
@@ -1638,29 +1637,29 @@ void StandardClient::uploadFilesInTree_recurse(Node* target, const fs::path& p, 
         {
             for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
             {
-                uploadFilesInTree_recurse(newtarget, *i, inprogress, fixNameConflicts, committer);
+                uploadFilesInTree_recurse(newtarget, *i, inprogress, committer, vo);
             }
         }
     }
 }
 
-bool StandardClient::uploadFilesInTree(fs::path p, Node* n2, bool fixNameConflicts)
+bool StandardClient::uploadFilesInTree(fs::path p, Node* n2, VersioningOption vo)
 {
     auto promise = makeSharedPromise<bool>();
     auto future = promise->get_future();
 
     std::atomic_int dummy(0);
-    uploadFilesInTree(p, n2, dummy, fixNameConflicts, std::move(promise));
+    uploadFilesInTree(p, n2, dummy, std::move(promise), vo);
 
     return future.get();
 }
 
-void StandardClient::uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, bool fixNameConflicts, PromiseBoolSP pb)
+void StandardClient::uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo)
 {
     resultproc.prepresult(PUTNODES, ++next_request_tag,
         [&](){
             DBTableTransactionCommitter committer(client.tctable);
-            uploadFilesInTree_recurse(n2, p, inprogress, fixNameConflicts, committer);
+            uploadFilesInTree_recurse(n2, p, inprogress, committer, vo);
         },
         [pb, &inprogress](error e)
         {
@@ -1805,7 +1804,7 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
             });
 
             resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [&](){ client.putnodes(root->nodeHandle(), move(nn), nullptr, 0, std::move(completion)); },
+                [&](){ client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, 0, std::move(completion)); },
                 nullptr);
 
             return;
@@ -1877,7 +1876,7 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
 
         resultproc.prepresult(COMPLETION, ++next_request_tag,
             [&]() {
-                client.putnodes(atnode->nodeHandle(), move(nodearray), nullptr, 0, std::move(completion));
+                client.putnodes(atnode->nodeHandle(), NoVersioning, move(nodearray), nullptr, 0, std::move(completion));
             },
             nullptr);
     }
@@ -6659,7 +6658,7 @@ TEST_F(SyncTest, AnomalousSyncDownload)
             cu.client.putnodes_prepareOneFolder(&nodes[1], "d/0");
 
             // Create the nodes in the cloud.
-            ASSERT_TRUE(cu.putnodes("s", std::move(nodes)));
+            ASSERT_TRUE(cu.putnodes("s", NoVersioning, std::move(nodes)));
 
             // Update model.
             model.addfolder("d");
@@ -12091,7 +12090,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedBetweenSyncs)
 
         Node* root = cdu->gettestbasenode();
 
-        ASSERT_TRUE(cdu->putnodes(root->nodeHandle(), std::move(nodes)));
+        ASSERT_TRUE(cdu->putnodes(root->nodeHandle(), NoVersioning, std::move(nodes)));
 
         ASSERT_TRUE(cdu->drillchildnodebyname(root, "s0"));
         ASSERT_TRUE(cdu->drillchildnodebyname(root, "s1"));
@@ -13997,7 +13996,7 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
         vector<NewNode> nodes(1);
 
         cdu->client.putnodes_prepareOneFolder(&nodes[0], "d");
-        ASSERT_TRUE(cdu->putnodes("cdu", std::move(nodes)));
+        ASSERT_TRUE(cdu->putnodes("cdu", NoVersioning, std::move(nodes)));
 
         remoteTree.addfolder("d");
     }
@@ -14274,7 +14273,7 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
 
         c.client.putnodes_prepareOneFolder(&node[0], DIRECTORY_NAME);
 
-        ASSERT_TRUE(c.putnodes("s", std::move(node)));
+        ASSERT_TRUE(c.putnodes("s", NoVersioning, std::move(node)));
     }
 
     // Wait for the engine to process remote changes.

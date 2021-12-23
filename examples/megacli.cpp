@@ -7822,7 +7822,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                     }
                 }
 
-                newnode->ovhandle = ovn->nodehandle;
+                newnode->ovhandle = ovn->nodeHandle();
             }
         }
 
