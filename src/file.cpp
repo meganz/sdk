@@ -371,7 +371,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
         {
             newnode->ovhandle = ovHandle;
         }
-        else if (fixNameConflicts)
+        else if (mVersioningOption != NoVersioning)  // todo: resolve clash with mVersioningOption vs fixNameConflicts
         {
             // for manual upload, let the API apply the `ov` according to the global versions_disabled flag.
             // with versions on, the API will make the ov the first version of this new node
@@ -384,6 +384,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
 
         client->reqs.add(new CommandPutNodes(client,
                                              th, NULL,
+                                             mVersioningOption,
                                              move(newnodes),
                                              tag,
                                              source, nullptr, move(completion)));

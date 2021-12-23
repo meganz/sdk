@@ -4852,6 +4852,61 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
             queueClient([configCopy](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     mc.reqs.add(new CommandBackupRemove(&mc, configCopy.getBackupId()));
+					
+        // get the node for the backup to be removed
+        auto nh = config.getRemoteNode();
+        if (nh.isUndef()) // can happen when the remote folder has been removed
+        {
+            // unregister this sync/backup from API (backup center)
+            mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+        }
+
+        else
+        {
+            auto node = mClient.nodeByHandle(nh);
+            if (!node)
+            {
+                LOG_err << "Node not found for the backup to be removed.";
+                return;
+            }
+
+            // check for DeviceId node attribute
+            attr_map am = node->attrs.map;
+            auto idIt = am.find(AttrMap::string2nameid("dev-id"));
+            if (idIt == am.end())
+            {
+                idIt = am.find(AttrMap::string2nameid("drv-id"));
+            }
+
+            if (idIt == am.end())
+            {
+                // just unregister this sync/backup if no DeviceId node attribute was found
+                mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+            }
+            else
+            {
+                // remove the node attribute and unregister this sync/backup from API (backup center)
+                idIt->second.clear();
+
+                auto completion = [this, &config](NodeHandle, Error e)
+                {
+                    if (e)
+                    {
+                        LOG_err << "Unable to remove sync node attribute for DeviceId";
+                    }
+                    else
+                    {
+                        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+                    }
+                };
+
+                if (mClient.setattr(node, std::move(am), mClient.nextreqtag(), nullptr, completion) != API_OK)
+                {
+                    LOG_err << "Unable to update node attributes, to remove DeviceId";
+                    return;
+                }
+            }
+        }					
                 });
         }
 

@@ -1635,7 +1635,8 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     }
 
     // create the new node(s)
-    client->putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(), move(newnodes), nullptr, client->reqtag);  // followup in putnodes_result()
+    client->putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
+        NoVersioning, move(newnodes), nullptr, client->reqtag);  // followup in putnodes_result()
 
     return API_OK;
 }
@@ -14721,10 +14722,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
                 return;
             }
 
-            if (!client->versions_disabled)
-            {
-                ovhandle = ovn->nodeHandle();
-            }
+            ovhandle = ovn->nodehandle;
         }
 
         vector<NewNode> newnodes(1);
@@ -14745,7 +14743,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         request->setTag(nextTag);
         requestMap[nextTag]=request;
 
-        client->putnodes(parenthandle, move(newnodes), nullptr, nextTag);
+        client->putnodes(parenthandle, UseLocalVersioningFlag, move(newnodes), nullptr, nextTag);
     }
     else
     {
@@ -18166,12 +18164,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             attrs.map['n'] = sname;
                             attrs.getjson(&attrstring);
                             client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                            if (tc.nn[0].type == FILENODE && !client->versions_disabled)
+                            if (tc.nn[0].type == FILENODE)
                             {
-                                if (Node* ovn = client->getovnode(parent, &sname))
-                                {
-                                    tc.nn[0].ovhandle = ovn->nodeHandle();
-                                }
+                                tc.nn[0].ovhandle = client->getovhandle(parent, &sname);
                             }
 
                             if (uploadToInbox)
@@ -18180,7 +18175,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             }
                             else
                             {
-                                client->putnodes(parent->nodeHandle(), move(tc.nn), nullptr, nextTag);
+                                client->putnodes(parent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag);
                             }
 
                             transfer->setDeltaSize(size);
@@ -18200,7 +18195,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
-                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
+                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag);
                     if (!started)
                     {
                         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -18432,7 +18427,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     f->setTransfer(transfer);
 
                     bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
-                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst);
+                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -18875,7 +18870,7 @@ void MegaApiImpl::sendPendingRequests()
             client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
             // add the newly generated folder node
-            client->putnodes(parent->nodeHandle(), move(newnodes), nullptr, nextTag);
+            client->putnodes(parent->nodeHandle(), NoVersioning, move(newnodes), nullptr, nextTag);
             break;
         }
         case MegaRequest::TYPE_MOVE:
@@ -18981,10 +18976,7 @@ void MegaApiImpl::sendPendingRequests()
                                 break;  // request finishes now if error, otherwise on unlink_result
                             }
 
-                            if (!client->versions_disabled)
-                            {
-                                ovhandle = ovn->nodeHandle();
-                            }
+                            ovhandle = ovn->nodehandle;
                         }
                     }
                 }
@@ -19040,7 +19032,7 @@ void MegaApiImpl::sendPendingRequests()
                     client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
-                client->putnodes(newParent->nodeHandle(), move(tc.nn), nullptr, nextTag);
+                client->putnodes(newParent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag);
                 e = API_OK;
                 break;
             }
@@ -19123,10 +19115,7 @@ void MegaApiImpl::sendPendingRequests()
                             delete fp;
                         }
 
-                        if (!client->versions_disabled)
-                        {
-                            ovhandle = ovn->nodeHandle();
-                        }
+                        ovhandle = ovn->nodehandle;
                     }
                 }
 
@@ -19143,7 +19132,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), std::move(tc.nn), megaNode->getChatAuth(), nextTag);
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), megaNode->getChatAuth(), nextTag);
                 }
                 else
                 {
@@ -19198,10 +19187,7 @@ void MegaApiImpl::sendPendingRequests()
                             break;
                         }
 
-                        if (!client->versions_disabled)
-                        {
-                            ovhandle = ovn->nodeHandle();
-                        }
+                        ovhandle = ovn->nodehandle;
                     }
                 }
 
@@ -19231,7 +19217,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), move(tc.nn), nullptr, nextTag);
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag);
                 }
                 else
                 {
@@ -19286,7 +19272,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
 
-            client->putnodes(current->parent->nodeHandle(), move(newnodes), nullptr, nextTag);
+            client->putnodes(current->parent->nodeHandle(), ClaimOldVersion, move(newnodes), nullptr, nextTag);
             break;
         }
         case MegaRequest::TYPE_RENAME:
@@ -22830,7 +22816,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr));
+            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, NoVersioning, move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr));
             break;
         }
         case MegaRequest::TYPE_VERIFY_CREDENTIALS:

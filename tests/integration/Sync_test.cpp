@@ -1427,7 +1427,7 @@ void StandardClient::cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, Pr
             attrs.map['n'] = newname;
             attrs.getjson(&attrstring);
             client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-            client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, 0, std::move(completion));
+            client.putnodes(n2->nodeHandle(), NoVersioningmove(tc.nn), nullptr, 0, std::move(completion));
         },
         nullptr);
 }
@@ -5271,7 +5271,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     std::atomic<bool> putnodesDone{false};
     standardclient.resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
-        [&](){ standardclient.client.putnodes(targethandle, move(newnodes), nullptr, standardclient.client.reqtag); },
+        [&](){ standardclient.client.putnodes(targethandle, NoVersioning, move(newnodes), nullptr, standardclient.client.reqtag); },
         [&putnodesDone](error e) { putnodesDone = true; return true; });
 
     while (!putnodesDone)
@@ -6146,7 +6146,7 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
         cu.client.putnodes_prepareOneFolder(&nodes[0], "d\7");
         cu.client.putnodes_prepareOneFolder(&nodes[1], "d");
 
-        ASSERT_TRUE(cu.putnodes(node->nodeHandle(), std::move(nodes)));
+        ASSERT_TRUE(cu.putnodes(node->nodeHandle(), NoVersioning, std::move(nodes)));
 
         // Do the same but with some files.
         auto root = TESTROOT / "cu" / "x";
@@ -7632,7 +7632,7 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
         ASSERT_TRUE(root);
 
         // Create new node in the cloud.
-        ASSERT_TRUE(c.putnodes(root->nodeHandle(), std::move(nodes)));
+        ASSERT_TRUE(c.putnodes(root->nodeHandle(), NoVersioning, std::move(nodes)));
     }
 
     // Add and start sync.
@@ -7736,6 +7736,8 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         ASSERT_TRUE(c->confirmModel_mainthread(model.root.get(), id));
     }
 
+    c->received_node_actionpackets = false;
+
     // Trigger some filesystem notifications.
     {
         model.addfile("f", "f");
@@ -7747,6 +7749,8 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         model.addfile("d0/d0d0/d0d0f", "d0d0f");
         ASSERT_TRUE(createDataFile(SYNCROOT / "d0" / "d0d0" / "d0d0f", "d0d0f"));
     }
+
+    ASSERT_TRUE(c->waitForNodesUpdated(30)) << " no actionpacket received";
 
     // Trigger a full scan.
     c->triggerFullScan(id);
@@ -8727,7 +8731,7 @@ struct TwoWaySyncSymmetryCase
         attrs = n1->attrs;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag);
     }
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -8762,7 +8766,7 @@ struct TwoWaySyncSymmetryCase
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag);
     }
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -9729,7 +9733,7 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
 
         cu.client.putnodes_prepareOneFolder(&node[0], "d");
 
-        ASSERT_TRUE(cu.putnodes(c.syncSet(id).h, std::move(node)));
+        ASSERT_TRUE(cu.putnodes(c.syncSet(id).h, NoVersioning, std::move(node)));
     }
 
     // Give our sync some time to process remote changes.
@@ -9848,7 +9852,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
 
         cb.client.putnodes_prepareOneFolder(&node[0], "g");
 
-        ASSERT_TRUE(cb.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cb.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
 
     // Restore the backup sync.
@@ -9932,7 +9936,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
         cb.client.putnodes_prepareOneFolder(&node[0], "g");
 
         auto rootHandle = cb.syncSet(id).h;
-        ASSERT_TRUE(cb.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cb.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
 
     // Re-enable the sync.
@@ -10041,7 +10045,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 
         cf.client.putnodes_prepareOneFolder(&node[0], "g");
 
-        ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(node)));
 
         // Log out the client when we try and upload a file.
         std::promise<void> waiter;
@@ -10084,7 +10088,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         cf.client.putnodes_prepareOneFolder(&nodes[0], "h0");
         cf.client.putnodes_prepareOneFolder(&nodes[1], "h1");
 
-        ASSERT_TRUE(cf.putnodes(rootHandle, std::move(nodes)));
+        ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(nodes)));
     }
 
     // Check automatic resume.
@@ -10196,7 +10200,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
             cf.client.putnodes_prepareOneFolder(&node[0], "g");
 
-            ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
+            ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(node)));
         }
 
         // Enable the backup.
@@ -10240,7 +10244,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
         cf.client.putnodes_prepareOneFolder(&node[0], "h");
 
-        ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
 
     // Automatic resume.

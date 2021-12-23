@@ -1203,6 +1203,13 @@ void MegaClient::init()
     scnotifyurl.clear();
     scsn.clear();
 
+    // initialize random client application instance ID (for detecting own
+    // actions in server-client stream)
+    resetId(sessionid, sizeof sessionid);
+
+    // initialize random API request sequence ID (server API is idempotent)
+    resetId(reqid, sizeof reqid);
+
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
     mNodeCounters = NodeCounterMap();
@@ -1314,21 +1321,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     connections[PUT] = 3;
     connections[GET] = 4;
 
-    int i;
-
-    // initialize random client application instance ID (for detecting own
-    // actions in server-client stream)
-    for (i = sizeof sessionid; i--; )
-    {
-        sessionid[i] = static_cast<char>('a' + rng.genuint32(26));
-    }
-
-    // initialize random API request sequence ID (server API is idempotent)
-    for (i = sizeof reqid; i--; )
-    {
-        reqid[i] = static_cast<char>('a' + rng.genuint32(26));
-    }
-
     reqtag = 0;
 
     badhostcs = NULL;
@@ -1368,6 +1360,14 @@ MegaClient::~MegaClient()
     delete dbaccess;
     delete fsaccess;
     LOG_debug << clientname << "~MegaClient completing";
+}
+
+void MegaClient::resetId(char *id, size_t length)
+{
+    for (size_t i = length; i--; )
+    {
+        id[i] = static_cast<char>('a' + rng.genuint32(26));
+    }
 }
 
 void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
@@ -4058,7 +4058,7 @@ bool MegaClient::procsc()
                                 }
                                 nextreqtag();
                                 file->dbid = cachedfilesdbids.at(i);
-                                if (!startxfer(type, file, committer))
+                                if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and restored them?
                                 {
                                     tctable->del(cachedfilesdbids.at(i));
                                     continue;
@@ -7271,14 +7271,9 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     SymmCipher::xorblock((const byte*)newnode->nodekey.data() + SymmCipher::KEYLENGTH, (byte*)newnode->nodekey.data());
 
     // adjust previous version node
-    if (!versions_disabled)
-    {
-        string name(utf8Name);
-        if (Node* ovn = getovnode(parentNode, &name))
-        {
-            newnode->ovhandle = ovn->nodeHandle();
-        }
-    }
+    string name(utf8Name);
+    newnode->ovhandle = getovhandle(parentNode, &name);
+
     return e;
 }
 
@@ -7314,9 +7309,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
+    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
@@ -8061,6 +8056,29 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     auto& nn_nni = (*nn)[nni];
                     nn_nni.added = true;
                     nn_nni.mAddedHandle = h;
+
+                    if (nn_nni.ovhandle != UNDEF && nn_nni.mVersioningOption == ReplaceOldVersion)
+                    {
+                        // replacing an existing file (eg, by uploading a same-name file), with versioning off.
+                        assert(n->type == FILENODE);
+
+                        // The API replaces the existing node ('ov') by the new node, so
+                        // the existing one is effectively removed, but the deletion of that node
+                        // can't be delivered by command reply, and this client can't
+                        // see the generated delete actionpacket due to the `i` scheme.
+                        // However the command reply will already rearrange the versions of the old node
+                        // to be the versions of this new node.
+                        // So, we manually delete this node that the API must have deleted
+                        // (Full and proper solution to this is in sync rework with SIC removal)
+                        if (Node *ovNode = nodebyhandle(nn_nni.ovhandle))
+                        {
+                            assert(ovNode->type == FILENODE);
+
+                            TreeProcDel td;
+                            proctree(ovNode, &td, false, true);
+                            LOG_debug << "File " << Base64Str<MegaClient::NODEHANDLE>(nn_nni.ovhandle) << " replaced by " << Base64Str<MegaClient::NODEHANDLE>(h);
+                        }
+                    }
 
                     if (nn_nni.source == NEW_UPLOAD)
                     {
@@ -11670,7 +11688,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
             }
             nextreqtag();
             file->dbid = cachedfilesdbids.at(i);
-            if (!startxfer(type, file, committer))
+            if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and reused them here?
             {
                 tctable->del(cachedfilesdbids.at(i));
                 continue;
@@ -14613,8 +14631,10 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist)
+bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo)
 {
+    f->mVersioningOption = vo;
+
     if (!f->transfer)
     {
         if (d == PUT)
