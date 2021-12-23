@@ -5001,10 +5001,10 @@ bool MegaClient::procsc()
                                 sc_se();
                                 break;
 #ifdef ENABLE_CHAT
-                            case MAKENAMEID4('m', 'c', 'p', 'c'):      // fall-through
+                            case MAKENAMEID4('m', 'c', 'p', 'c'):
                             {
                                 readingPublicChat = true;
-                            }
+                            } // fall-through
                             case MAKENAMEID3('m', 'c', 'c'):
                                 // chat creation / peer's invitation / peer's removal
                                 sc_chatupdate(readingPublicChat);
