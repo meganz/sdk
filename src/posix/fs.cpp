@@ -1350,7 +1350,7 @@ bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlre
     return r;
 }
 
-bool PosixFileSystemAccess::setmtimelocal(LocalPath& name, m_time_t mtime)
+bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
 {
 #ifdef USE_IOS
     const string nameStr = adjustBasePath(name);
