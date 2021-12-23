@@ -1086,17 +1086,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     return r;
 }
 
-// generate unique local filename in the same fs as relatedpath
-void PosixFileSystemAccess::tmpnamelocal(LocalPath& localname) const
-{
-    static unsigned tmpindex;
-    char buf[128];
-
-    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), tmpindex++);
-
-    localname = LocalPath::fromPlatformEncodedRelative(buf);
-}
-
 // no legacy DOS garbage here...
 bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
 {
@@ -1133,7 +1122,7 @@ bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPat
     return false;
 }
 
-bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_time_t mtime)
+bool PosixFileSystemAccess::copylocal(const LocalPath& oldname, const LocalPath& newname, m_time_t mtime)
 {
 #ifdef USE_IOS
     const string oldnamestr = adjustBasePath(oldname);

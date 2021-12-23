@@ -107,12 +107,10 @@ public:
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
     bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning) override;
 
-    void tmpnamelocal(LocalPath&) const override;
-
     bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
-    bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
+    bool copylocal(const LocalPath&, const LocalPath&, m_time_t) override;
     bool rubbishlocal(string*);
     bool unlinklocal(const LocalPath&) override;
     bool rmdirlocal(const LocalPath&) override;

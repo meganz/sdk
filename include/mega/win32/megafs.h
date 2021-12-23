@@ -63,12 +63,10 @@ public:
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
 
-    void tmpnamelocal(LocalPath&) const override;
-
     bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
-    bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
+    bool copylocal(const LocalPath&, const LocalPath&, m_time_t) override;
     bool unlinklocal(const LocalPath&) override;
     bool rmdirlocal(const LocalPath&) override;
     bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;

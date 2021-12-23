@@ -717,18 +717,6 @@ void WinFileSystemAccess::addevents(Waiter* w, int)
 {
 }
 
-// generate unique local filename in the same fs as relatedpath
-void WinFileSystemAccess::tmpnamelocal(LocalPath& localname) const
-{
-    static mutex staticMutex;
-    static unsigned tmpindex;
-    char buf[128];
-
-    lock_guard<mutex> g(staticMutex);
-    sprintf(buf, ".getxfer.%lu.%u.mega", GetCurrentProcessId(), tmpindex++);
-    localname = LocalPath::fromRelativePath(buf);
-}
-
 // write short name of the last path component to sname
 bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePath) const
 {
@@ -797,7 +785,7 @@ bool WinFileSystemAccess::renamelocal(const LocalPath& oldnamePath, const LocalP
     return r;
 }
 
-bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePath, m_time_t)
+bool WinFileSystemAccess::copylocal(const LocalPath& oldnamePath, const LocalPath& newnamePath, m_time_t)
 {
     assert(oldnamePath.isAbsolute());
     assert(newnamePath.isAbsolute());

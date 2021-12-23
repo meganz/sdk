@@ -180,7 +180,7 @@ public:
     // Result is undefined if this path is a "root."
     LocalPath parentPath() const;
 
-    LocalPath insertFilenameCounter(unsigned counter);
+    LocalPath insertFilenameCounter(unsigned counter) const;
 
     bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
@@ -213,7 +213,7 @@ public:
 #endif
 
     // Generates a name for a temporary file
-    static LocalPath tmpNameLocal(const FileSystemAccess& fsaccess);
+    static LocalPath tmpNameLocal();
 
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
@@ -338,6 +338,46 @@ inline LocalPath operator+(LocalPath& a, LocalPath& b)
     result.append(b);
     return result;
 }
+
+
+class FileDistributor
+{
+    // This class is to manage copying/moving a Transfer's downloaded file
+    // To all the correct locations (one per File that the transfer owns)
+    // Taking into account that the sync thread will do some of the moving/copying
+    // So it has to operate properly across threads.
+    // Note that the file is not always "tmp", one of the target locations
+    // may actually be the place it was downlaoded to, rather than a tmp location.
+
+    mutex mMutex;
+    LocalPath theFile;
+    size_t  numTargets;
+    bool actualPathUsed = false;
+    m_time_t mMtime;
+
+public:
+    FileDistributor(const LocalPath& lp, size_t ntargets, m_time_t mtime);
+    ~FileDistributor();
+
+    enum TargetNameExistsResolution {
+        OverwriteTarget,
+        RenameWithBracketedNumber,
+        MoveReplacedFileToSyncDebris,
+    };
+
+
+    bool distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, TargetNameExistsResolution, bool& transient_error, bool& name_too_long, Sync* syncForDebris);
+
+    // static functions used by distributeTo
+    // these will be useful for other cases also
+
+    static bool moveTo(const LocalPath& source, LocalPath& target,
+                        TargetNameExistsResolution, FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris);
+
+    static bool copyTo(const LocalPath& source, LocalPath& target, m_time_t mtime,
+                        TargetNameExistsResolution, FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris);
+};
+
 
 struct MEGA_API AsyncIOContext
 {
@@ -614,9 +654,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     FileSystemType getlocalfstype(const LocalPath& path) const;
     void unescapefsincompatible(string*) const;
 
-    // generate local temporary file name
-    virtual void tmpnamelocal(LocalPath&) const = 0;
-
     // obtain local secondary name
     virtual bool getsname(const LocalPath&, LocalPath&) const = 0;
 
@@ -624,7 +661,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool renamelocal(const LocalPath&, const LocalPath&, bool = true) = 0;
 
     // copy file, overwrite target, set mtime
-    virtual bool copylocal(LocalPath&, LocalPath&, m_time_t) = 0;
+    virtual bool copylocal(const LocalPath&, const LocalPath&, m_time_t) = 0;
 
     // delete file
     virtual bool unlinklocal(const LocalPath&) = 0;

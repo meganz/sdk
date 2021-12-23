@@ -254,31 +254,31 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_invalidResponse)
     ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
 }*/
 
-class FileSystemAccessMockup : public ::mega::FileSystemAccess
-{
-public:
-    FileSystemAccessMockup()
-    {}
-    std::unique_ptr<FileAccess> newfileaccess(bool = true) override{ return std::unique_ptr<FileAccess>(); }
-    DirAccess* newdiraccess() override {return nullptr;}
-    bool getlocalfstype(const ::mega::LocalPath&, ::mega::FileSystemType&) const override { return false; }
-    void tmpnamelocal(LocalPath&) const override {}
-    bool getsname(const LocalPath& , LocalPath& ) const override { return false; }
-    bool renamelocal(const LocalPath&, const LocalPath&, bool = true) override { return false; }
-    bool copylocal(LocalPath&, LocalPath&, m_time_t) override { return false; }
-    bool unlinklocal(const LocalPath&) override { return false; }
-    bool rmdirlocal(const LocalPath&) override { return false; }
-    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override { return false; }
-    bool setmtimelocal(LocalPath&, m_time_t) override { return false; }
-    bool chdirlocal(LocalPath&) const override { return false; }
-    bool getextension(const LocalPath&, string&) const override { return false; }
-    bool expanselocalpath(LocalPath& , LocalPath& ) override { return false; }
-    bool cwd(LocalPath&) const { return false; }
-
-    void addevents(Waiter*, int) override {}
-
-    virtual bool issyncsupported(const LocalPath&, bool& b, SyncError& se, SyncWarning& sw) { b = false; se = NO_SYNC_ERROR; sw = NO_SYNC_WARNING; return true;}
-};
+//class FileSystemAccessMockup : public ::mega::FileSystemAccess
+//{
+//public:
+//    FileSystemAccessMockup()
+//    {}
+//    std::unique_ptr<FileAccess> newfileaccess(bool = true) override{ return std::unique_ptr<FileAccess>(); }
+//    DirAccess* newdiraccess() override {return nullptr;}
+//    bool getlocalfstype(const ::mega::LocalPath&, ::mega::FileSystemType&) const override { return false; }
+//    void tmpnamelocal(LocalPath&) const override {}
+//    bool getsname(const LocalPath& , LocalPath& ) const override { return false; }
+//    bool renamelocal(const LocalPath&, const LocalPath&, bool = true) override { return false; }
+//    bool copylocal(const LocalPath&, const LocalPath&, m_time_t) override { return false; }
+//    bool unlinklocal(const LocalPath&) override { return false; }
+//    bool rmdirlocal(const LocalPath&) override { return false; }
+//    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override { return false; }
+//    bool setmtimelocal(LocalPath&, m_time_t) override { return false; }
+//    bool chdirlocal(LocalPath&) const override { return false; }
+//    bool getextension(const LocalPath&, string&) const override { return false; }
+//    bool expanselocalpath(LocalPath& , LocalPath& ) override { return false; }
+//    bool cwd(LocalPath&) const { return false; }
+//
+//    void addevents(Waiter*, int) override {}
+//
+//    virtual bool issyncsupported(const LocalPath&, bool& b, SyncError& se, SyncWarning& sw) { b = false; se = NO_SYNC_ERROR; sw = NO_SYNC_WARNING; return true;}
+//};
 
 class HttpIOMockup : public ::mega::HttpIO
 {

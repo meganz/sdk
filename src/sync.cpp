@@ -569,6 +569,18 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     return true;
 }
 
+LocalPath SyncThreadsafeState::syncTmpFolder() const
+{
+    lock_guard<mutex> g(mMutex);
+    return mSyncTmpFolder;
+}
+
+void SyncThreadsafeState::setSyncTmpFolder(const LocalPath& tmpFolder)
+{
+    lock_guard<mutex> g(mMutex);
+    mSyncTmpFolder = tmpFolder;
+}
+
 void SyncThreadsafeState::addExpectedUpload(NodeHandle parentHandle, const string& name, weak_ptr<SyncUpload_inClient> wp)
 {
     lock_guard<mutex> g(mMutex);
@@ -1521,6 +1533,8 @@ void Sync::createDebrisTmpLockOnce()
             tmpfa.reset();
             tmpfaPath = getConfig().mLocalPath;
         }
+
+        threadSafeState->setSyncTmpFolder(tmpfaPath);
     }
 }
 
@@ -2840,35 +2854,6 @@ bool Sync::movetolocaldebrisSubfolder(const LocalPath& localpath, const LocalPat
         }
     }
     return success;
-}
-
-bool Sync::moveTo(LocalPath source, LocalPath target, bool overwrite)
-{
-    // Convenience.
-    auto& fsAccess = *syncs.fsaccess;
-
-    // Try and move the source to the target.
-    if (fsAccess.renamelocal(source, target, overwrite))
-    {
-        return true;
-    }
-
-    // Did the move fail because the target was already present?
-    if (overwrite || !fsAccess.target_exists)
-    {
-        // Failed for some other reason.
-        return false;
-    }
-
-    // Move the target to the local debris.
-    if (!movetolocaldebris(target))
-    {
-        // Couldn't move the target to the debris.
-        return false;
-    }
-
-    // Try the move once more.
-    return fsAccess.renamelocal(source, target, false);
 }
 
 UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
@@ -5588,11 +5573,16 @@ bool Sync::inferRegeneratableTriplets(vector<CloudNode>& cloudChildren, const Lo
 using IndexPair = pair<size_t, size_t>;
 using IndexPairVector = vector<IndexPair>;
 
+CodeCounter::ScopeStats computeSyncSequencesStats = { "computeSyncSequences" };
+
+
 static IndexPairVector computeSyncSequences(vector<syncRow>& children)
 {
     // No children, no work to be done.
     if (children.empty())
         return IndexPairVector();
+
+    CodeCounter::ScopeTimer rst(computeSyncSequencesStats);
 
     // Separate our children into those that are ignore files and those that are not.
     auto i = std::partition(children.begin(), children.end(), [](const syncRow& child) {
@@ -7180,7 +7170,9 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
         if (parentRow.fsNode)
         {
-            if (!row.syncNode->transferSP)
+            auto downloadPtr = std::dynamic_pointer_cast<SyncDownload_inClient>(row.syncNode->transferSP);
+
+            if (!downloadPtr)
             {
                 LOG_debug << syncname << "Sync - remote file addition detected: " << row.cloudNode->handle << " " << fullPath.cloudPath;
 
@@ -7193,7 +7185,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                 // download to tmpfaPath (folder debris/tmp). We will rename/mv it to correct location (updated if necessary) after that completes
                 row.syncNode->queueClientDownload(std::make_shared<SyncDownload_inClient>(*row.cloudNode,
-                        tmpfaPath, inshare, *syncs.fsaccess, threadSafeState));
+                    fullPath.localPath, inshare, *syncs.fsaccess, threadSafeState));
 
                 //row.syncNode->treestate(TREESTATE_SYNCING);
                 //parentRow.syncNode->treestate(TREESTATE_SYNCING);
@@ -7207,23 +7199,27 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 //    parentRow.syncNode->setWaitingForIgnoreFileLoad(true);
                 //}
             }
-            else if (row.syncNode->transferSP->wasTerminated)
+            else if (downloadPtr->wasTerminated)
             {
                 SYNC_verbose << syncname << "Download was terminated " << logTriplet(row, fullPath);
                 row.syncNode->resetTransfer(nullptr);
             }
-            else if (row.syncNode->transferSP->wasCompleted)
+            else if (downloadPtr->wasCompleted)
             {
+                assert(downloadPtr->downloadDistributor);
+
                 // Convenience.
                 auto& fsAccess = *syncs.fsaccess;
 
                 // Clarity.
                 auto& cloudPath  = fullPath.cloudPath;
-                auto sourcePath = row.syncNode->transferSP->getLocalname();
                 auto& targetPath = fullPath.localPath;
 
-                // Try and move the downloaded file into its new home.
-                if (moveTo(sourcePath, targetPath, false))
+                // Try and move/rename the downloaded file into its new home.
+                bool nameTooLong = false;
+                bool transientError = false;
+
+                if (downloadPtr->downloadDistributor->distributeTo(targetPath, fsAccess, FileDistributor::MoveReplacedFileToSyncDebris, transientError, nameTooLong, this))
                 {
                     // Move was successful.
                     SYNC_verbose << syncname << "Download complete, moved file to final destination" << logTriplet(row, fullPath);
@@ -7242,26 +7238,26 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     //    parentRow.syncNode->loadFilters(fullPath.localPath);
                     //}
                 }
-                else if (fsAccess.target_name_too_long)
+                else if (nameTooLong)
                 {
                     SYNC_verbose << syncname
                                  << "Download complete but the target's name is too long: "
                                  << logTriplet(row, fullPath);
 
-                    monitor.waitingLocal(sourcePath,
-                                         targetPath,
+                    monitor.waitingLocal(targetPath,
+                                         LocalPath(),
                                          cloudPath,
                                          SyncWaitReason::DownloadTargetNameTooLong);
 
                     // Leave the transfer intact so we don't reattempt the download.
                 }
-                else if (fsAccess.transient_error)
+                else if (transientError)
                 {
                     // Transient error while moving download into place.
                     SYNC_verbose << syncname << "Download complete, but move transient error" << logTriplet(row, fullPath);
 
                     // Let the monitor know what we're up to.
-                    monitor.waitingLocal(sourcePath, targetPath, cloudPath, SyncWaitReason::MovingDownloadToTarget);
+                    monitor.waitingLocal(targetPath, LocalPath(), cloudPath, SyncWaitReason::MovingDownloadToTarget);
                 }
                 else
                 {
@@ -9277,8 +9273,15 @@ void Syncs::syncLoop()
 
                 if (!sync->syncPaused)
                 {
-                    if (sync->mActiveScanRequest &&
-                        !sync->mActiveScanRequest->completed())
+                    bool activeIncomplete = sync->mActiveScanRequestGeneral &&
+                        !sync->mActiveScanRequestGeneral->completed();
+
+                    bool unscannedIncomplete = sync->mActiveScanRequestUnscanned &&
+                        !sync->mActiveScanRequestUnscanned->completed();
+
+                    if ((activeIncomplete && unscannedIncomplete) ||
+                        (activeIncomplete && sync->threadSafeState->neverScannedFolderCount.load() == 0) ||
+                        (unscannedIncomplete && !sync->mActiveScanRequestGeneral))
                     {
                         // Save CPU by not starting another recurse of the LocalNode tree
                         // if a scan is not finished yet.  Scans can take a fair while for large

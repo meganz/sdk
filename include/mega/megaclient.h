@@ -914,9 +914,6 @@ public:
     // retry API_ESSL errors
     bool retryessl;
 
-    // flag to request an extra loop of the SDK to finish something pending
-    bool looprequested;
-
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 

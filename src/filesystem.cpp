@@ -1443,7 +1443,7 @@ LocalPath LocalPath::parentPath() const
     return subpathTo(getLeafnameByteIndex());
 }
 
-LocalPath LocalPath::insertFilenameCounter(unsigned counter)
+LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
 {
     assert(invariant());
 
@@ -1664,14 +1664,17 @@ void LocalPath::local2path(const string* local, string* path)
 #endif
 
 
+std::atomic<unsigned> LocalPath_tmpNameLocal_counter{};
 
-
-LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
+LocalPath LocalPath::tmpNameLocal()
 {
-    LocalPath lp;
-    fsaccess.tmpnamelocal(lp);
-    assert(lp.invariant());
-    return lp;
+    char buf[128];
+#ifdef WIN32
+    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
+#else
+    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
+#endif
+    return LocalPath::fromRelativePath(buf);
 }
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
@@ -1794,6 +1797,195 @@ bool Notification::invalidated() const
     return localnode == (LocalNode*)~0;
 }
 #endif
+
+FileDistributor::FileDistributor(const LocalPath& lp, size_t ntargets, m_time_t mtime)
+    : theFile(lp)
+    , numTargets(ntargets)
+    , mMtime(mtime)
+{
+
+}
+
+FileDistributor::~FileDistributor()
+{
+    // the last operation clears the name
+    lock_guard<mutex> g(mMutex);
+    assert(theFile.empty());  // todo: if we haven't cleared the name, delete the file.  But we need an fsaccess for this thread which could be sync or client... maybe queue to client thread?
+    assert(numTargets == 0);
+}
+
+bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetNameExistsResolution method, FileSystemAccess& fsAccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris)
+{
+    assert (!!syncForDebris == (method == MoveReplacedFileToSyncDebris));
+    bool overwrite = method == OverwriteTarget;
+
+    // Try and move the source to the target.
+    if (fsAccess.renamelocal(source, target, overwrite))
+    {
+        return true;
+    }
+
+    transient_error = fsAccess.transient_error;
+    name_too_long = fsAccess.target_name_too_long;
+
+    if (method == MoveReplacedFileToSyncDebris)
+    {
+        // Move the obstruction to the local debris.
+        if (!syncForDebris->movetolocaldebris(target))
+        {
+            return false;
+        }
+
+        auto result = fsAccess.renamelocal(source, target, false);
+        if (!result)
+        {
+            transient_error = fsAccess.transient_error;
+            name_too_long = fsAccess.target_name_too_long;
+            LOG_debug << "File move failed even after moving the obstruction to local debris. Target name: " << target;
+        }
+        return result;
+    }
+    else if (method == RenameWithBracketedNumber)
+    {
+        // the destination path already exists
+        // add an (x) suffix until there's no clash
+        auto fa = fsAccess.newfileaccess();
+        auto changedName = target;
+        unsigned num = 0;
+        do
+        {
+            num++;
+            changedName = target.insertFilenameCounter(num);
+        } while (fa->fopen(changedName) || fa->type == FOLDERNODE);
+
+        LOG_debug << "The move destination file path exists already. Updated name: " << changedName;
+
+        // Try and move the source to the target.
+        if (fsAccess.renamelocal(source, target, overwrite))
+        {
+            target = changedName;
+            return true;
+        }
+        else
+        {
+            LOG_debug << "File move failed even after renaming with (N) to avoid a clash. Updated name: " << changedName;
+            transient_error = fsAccess.transient_error;
+            name_too_long = fsAccess.target_name_too_long;
+            return false;
+        }
+    }
+    else
+    {
+        LOG_debug << "File move failed even with overwrite set. Target name: " << target;
+        return false;
+    }
+}
+
+bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_t mtime, TargetNameExistsResolution method, FileSystemAccess& fsAccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris)
+{
+    assert (!!syncForDebris == (method == MoveReplacedFileToSyncDebris));
+    assert(method != OverwriteTarget);  // no overwrite option for fsaccess copy (yet)
+
+                                        // Try and move the source to the target.
+    if (fsAccess.copylocal(source, target, mtime))
+    {
+        return true;
+    }
+
+    transient_error = fsAccess.transient_error;
+    name_too_long = fsAccess.target_name_too_long;
+
+    if (method == MoveReplacedFileToSyncDebris)
+    {
+        // Move the obstruction to the local debris.
+        if (!syncForDebris->movetolocaldebris(target))
+        {
+            return false;
+        }
+
+        auto result = fsAccess.copylocal(source, target, mtime);
+        if (!result)
+        {
+            transient_error = fsAccess.transient_error;
+            name_too_long = fsAccess.target_name_too_long;
+            LOG_debug << "File copy failed even after moving the obstruction to local debris. Target name: " << target;
+        }
+        return result;
+    }
+    else if (method == RenameWithBracketedNumber)
+    {
+        // the destination path already exists
+        // add an (x) suffix until there's no clash
+        auto fa = fsAccess.newfileaccess();
+        auto changedName = target;
+        unsigned num = 0;
+        do
+        {
+            num++;
+            changedName = target.insertFilenameCounter(num);
+        } while (fa->fopen(changedName) || fa->type == FOLDERNODE);
+
+        LOG_debug << "The copy destination file path exists already. Updated name: " << changedName;
+
+        // Try and move the source to the target.
+        if (fsAccess.copylocal(source, target, mtime))
+        {
+            target = changedName;
+            return true;
+        }
+        else
+        {
+            LOG_debug << "File copy failed even after renaming with (N) to avoid a clash. Updated name: " << changedName;
+            transient_error = fsAccess.transient_error;
+            name_too_long = fsAccess.target_name_too_long;
+            return false;
+        }
+    }
+    else
+    {
+        LOG_debug << "File copy failed even with overwrite set. Target name: " << target;
+        return false;
+    }
+}
+
+bool FileDistributor::distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, TargetNameExistsResolution method, bool& transient_error, bool& name_too_long, Sync* syncForDebris)
+{
+    transient_error = false;
+    name_too_long = false;
+    lock_guard<mutex> g(mMutex);
+
+    if (lp == theFile)
+    {
+        actualPathUsed = true;
+        numTargets -= 1;
+        return true;
+    }
+    else
+    {
+        if (numTargets == 1 && !actualPathUsed)
+        {
+            // the last one can be a rename (if we haven't already renamed to a final location)
+            LOG_debug << "Renaming temporary file to target path";
+            if (moveTo(theFile, lp, method, fsaccess, transient_error, name_too_long, syncForDebris))
+            {
+                theFile.clear();
+                actualPathUsed = true;
+                numTargets -= 1;
+                return true;
+            }
+        }
+        else
+        {
+            // otherwise copy
+            if (copyTo(theFile, lp, mMtime, method, fsaccess, transient_error, name_too_long, syncForDebris))
+            {
+                numTargets -= 1;
+                return true;
+            }
+        }
+        return false;
+    }
+}
 
 } // namespace
 

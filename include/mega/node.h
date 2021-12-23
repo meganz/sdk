@@ -101,11 +101,13 @@ struct SyncTransfer_inClient: public File
 
 struct SyncDownload_inClient: public SyncTransfer_inClient
 {
+    shared_ptr<FileDistributor> downloadDistributor;
+
     // set sync-specific temp filename, update treestate
     void prepare(FileSystemAccess&) override;
     bool failed(error, MegaClient*) override;
 
-    SyncDownload_inClient(CloudNode& n, LocalPath, bool fromInshare,
+    SyncDownload_inClient(CloudNode& n, const LocalPath&, bool fromInshare,
             FileSystemAccess& fsaccess, shared_ptr<SyncThreadsafeState> stss);
     ~SyncDownload_inClient();
 };
@@ -576,6 +578,10 @@ struct MEGA_API LocalNode
         // If we detected+actioned a move, and this is the old node
         // we can't delete it directly as there may be references on the stack
         unsigned certainlyOrphaned : 1;
+
+        // track whether we have ever scanned this folder
+        // folders never scanned can issue a second scan request for this sync
+        unsigned neverScanned : 1;
     };
 
     // Fields which are hardly ever used.

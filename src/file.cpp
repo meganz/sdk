@@ -446,7 +446,7 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, LocalPath clocalname, bool fromInshare,
+SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare,
         FileSystemAccess& fsaccess, shared_ptr<SyncThreadsafeState> stss)
 {
     h = n.handle;
@@ -455,9 +455,6 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, LocalPath clocalname,
     syncxfer = true;
     fromInsycShare = fromInshare;
 
-    LocalPath tmpfilename;
-    fsaccess.tmpnamelocal(tmpfilename);
-    clocalname.appendWithSeparator(tmpfilename, true);
     setLocalname(clocalname);
 
     syncThreadSafeState = move(stss);
@@ -482,14 +479,14 @@ SyncDownload_inClient::~SyncDownload_inClient()
     }
 }
 
-
-// set unique filename in sync-specific temp download directory
 void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
 {
     if (transfer->localfilename.empty())
     {
-        transfer->localfilename = getLocalname();
-        transfer->localfilename.append(LocalPath::fromRelativePath(".tmp"));
+        // set unique filename in sync-specific temp download directory
+        transfer->localfilename = syncThreadSafeState->syncTmpFolder();
+        transfer->localfilename.appendWithSeparator(LocalPath::tmpNameLocal(), true);
+
     }
 }
 

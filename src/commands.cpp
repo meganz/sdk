@@ -63,7 +63,7 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, b
 
 bool HttpReqCommandPutFA::procresult(Result r)
 {
-    client->looprequested = true;
+    //todo: replace: client->looprequested = true;
 
     if (r.wasErrorOrOK())
     {
@@ -163,7 +163,8 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
 bool CommandGetFA::procresult(Result r)
 {
     fafc_map::iterator it = client->fafcs.find(part);
-    client->looprequested = true;
+
+    // todo: replace: client->looprequested = true;
 
     if (r.wasErrorOrOK())
     {

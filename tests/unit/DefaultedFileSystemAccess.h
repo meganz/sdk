@@ -60,7 +60,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool copylocal(mega::LocalPath&, mega::LocalPath&, mega::m_time_t) override
+    bool copylocal(const mega::LocalPath&, const mega::LocalPath&, mega::m_time_t) override
     {
         throw NotImplemented{__func__};
     }

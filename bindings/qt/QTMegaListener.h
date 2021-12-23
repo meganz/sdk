@@ -5,43 +5,38 @@
 
 namespace mega
 {
-class QTMegaListener : public QObject, public MegaListener
+class QTMegaListener : public MegaListener
 {
-	Q_OBJECT
-
 public:
-    explicit QTMegaListener(MegaApi *megaApi, MegaListener *parent=NULL);
+    explicit QTMegaListener(QObject& eventPostTarget);
     virtual ~QTMegaListener();
 
-	virtual void onRequestStart(MegaApi* api, MegaRequest *request);
-	virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e);
-    virtual void onRequestUpdate(MegaApi* api, MegaRequest *request);
-	virtual void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e);
-	virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
-	virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e);
-	virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
-	virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e);
-    virtual void onUsersUpdate(MegaApi* api, MegaUserList *users);
-    virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
-    virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
-    virtual void onAccountUpdate(MegaApi* api);
-	virtual void onReloadNeeded(MegaApi* api);
-    virtual void onEvent(MegaApi* api, MegaEvent *e);
+	void onRequestStart(MegaApi* api, MegaRequest *request) override;
+	void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e) override;
+    void onRequestUpdate(MegaApi* api, MegaRequest *request) override;
+	void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e) override;
+	void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
+	void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e) override;
+	void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
+	void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* e) override;
+    void onUsersUpdate(MegaApi* api, MegaUserList *users) override;
+    void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts) override;
+    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) override;
+    void onAccountUpdate(MegaApi* api) override;
+	void onReloadNeeded(MegaApi* api) override;
+    void onEvent(MegaApi* api, MegaEvent *e) override;
 
 #ifdef ENABLE_SYNC
-    virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
-    virtual void onSyncAdded(MegaApi *api,  MegaSync *sync, int additionState);
-    virtual void onSyncDisabled(MegaApi *api,  MegaSync *sync);
-    virtual void onSyncEnabled(MegaApi *api,  MegaSync *sync);
-    virtual void onSyncDeleted(MegaApi *api,  MegaSync *sync);
-    virtual void onGlobalSyncStateChanged(MegaApi* api);
+    void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override;
+    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState) override;
+    void onSyncAdded(MegaApi *api,  MegaSync *sync, int additionState) override;
+    void onSyncDisabled(MegaApi *api,  MegaSync *sync) override;
+    void onSyncEnabled(MegaApi *api,  MegaSync *sync) override;
+    void onSyncDeleted(MegaApi *api,  MegaSync *sync) override;
+    void onGlobalSyncStateChanged(MegaApi* api) override;
 #endif
 
 protected:
-    virtual void customEvent(QEvent * event);
-
-    MegaApi *megaApi;
-	MegaListener *listener;
+    QObject& mEventPostTarget;
 };
 }

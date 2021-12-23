@@ -395,8 +395,10 @@ class SyncThreadsafeState
     // track uploads/downloads
     SyncTransferCounts mTransferCounts;
 
-public:
+    // know where the sync's tmp folder is
+    LocalPath mSyncTmpFolder;
 
+public:
     // Remember which Nodes we created from upload,
     // until the corresponding LocalNodes are updated.
     void addExpectedUpload(NodeHandle parentHandle, const string& name, weak_ptr<SyncUpload_inClient>);
@@ -410,6 +412,11 @@ public:
 
     // Return a snapshot of this sync's current transfer counts.
     SyncTransferCounts transferCounts() const;
+
+    std::atomic<unsigned> neverScannedFolderCount{};
+
+    LocalPath syncTmpFolder() const;
+    void setSyncTmpFolder(const LocalPath&);
 };
 
 
@@ -549,9 +556,6 @@ private:
     unsigned mLastDailyDateTimeDebrisCounter = 0;
 
 public:
-    // Moves a file from source to target.
-    bool moveTo(LocalPath source, LocalPath target, bool overwrite);
-
     // original filesystem fingerprint
     fsfp_t fsfp = 0;
 
@@ -575,7 +579,12 @@ public:
     bool isSyncPaused();
 
     // Asynchronous scan request / result.
-    std::shared_ptr<ScanService::ScanRequest> mActiveScanRequest;
+    std::shared_ptr<ScanService::ScanRequest> mActiveScanRequestGeneral;
+
+    // we can additionally be scanning one more yet-unscanned folder
+    // in order to always be progressing even when downloads are
+    // triggering rescans of their target folder
+    std::shared_ptr<ScanService::ScanRequest> mActiveScanRequestUnscanned;
 
     static const int SCANNING_DELAY_DS;
     static const int EXTRA_SCANNING_DELAY_DS;
@@ -607,6 +616,8 @@ public:
     // timer for whole-sync rescan in case of notifications failing or not being available
     BackoffTimer syncscanbt;
 
+    shared_ptr<SyncThreadsafeState> threadSafeState;
+
 protected :
     bool readstatecache();
 
@@ -623,7 +634,6 @@ private:
     // Name of this sync's state cache.
     string mStateCacheName;
 
-    shared_ptr<SyncThreadsafeState> threadSafeState;
 };
 
 class SyncConfigIOContext;

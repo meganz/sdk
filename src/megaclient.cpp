@@ -921,7 +921,8 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
             }
         }
     }
-    looprequested = true;
+
+    //todo: replace: looprequested = true;
 }
 
 std::string MegaClient::getDeviceidHash()
@@ -1279,7 +1280,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     overquotauntil = 0;
     ststatus = STORAGE_UNKNOWN;
     mOverquotaDeadlineTs = 0;
-    looprequested = false;
 
     mFetchingAuthrings = false;
     fetchingkeys = false;
@@ -1507,8 +1507,6 @@ void MegaClient::exec()
             WAIT_CLASS::bumpds();
         }
         first = false;
-
-        looprequested = false;
 
         if (cachedug && btugexpiration.armed())
         {
@@ -2553,7 +2551,7 @@ void MegaClient::exec()
 
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
-    } while (httpio->doio() || execdirectreads() || (!pendingcs && !reqs.cmdsInflight() && reqs.cmdspending() && btcs.armed()) || looprequested);
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && !reqs.cmdsInflight() && reqs.cmdspending() && btcs.armed()));
 
 
     NodeCounter storagesum;
@@ -3493,7 +3491,10 @@ void MegaClient::checkfacompletion(UploadHandle th, Transfer* t)
     LOG_debug << "Transfer finished, sending callbacks - " << th;
     t->state = TRANSFERSTATE_COMPLETED;
     t->completefiles();
-    looprequested = true;
+
+    // todo: instead of this, set a flag to queue more at end of loop.  Or just do that at end of loop anywy
+    //todo: replace: looprequested = true;
+
     app->transfer_complete(t);
     delete t;
 }
@@ -14795,7 +14796,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             transferlist.addtransfer(t, committer, startfirst);
             app->transfer_added(t);
             app->file_added(f);
-            looprequested = true;
+            // todo: replace this: looprequested = true;
 
 
             if (overquotauntil && overquotauntil > Waiter::ds && d != PUT)
@@ -14833,7 +14834,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
-            looprequested = true;
+            // todo: replace this: looprequested = true;
             transfer->finished = true;
             transfer->state = TRANSFERSTATE_CANCELLED;
             app->transfer_removed(transfer);
@@ -15640,6 +15641,9 @@ const char* MegaClient::cancelLinkPrefix()
 }
 
 #ifdef MEGA_MEASURE_CODE
+
+extern CodeCounter::ScopeStats computeSyncSequencesStats;
+
 std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs)
 {
     std::ostringstream s;
@@ -15657,6 +15661,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
 #ifdef ENABLE_SYNC
         << recursiveSyncTime.report(reset) << "\n"
         << computeSyncTripletsTime.report(reset) << "\n"
+        << computeSyncSequencesStats.report(reset) << "\n"
         << ScanService::syncScanTime.report(reset) << "\n"
         << inferSyncTripletsTime.report(reset) << "\n"
         << g_compareUtfTimings.report(reset) << "\n"

@@ -445,7 +445,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         bt.backoff();
         state = TRANSFERSTATE_RETRYING;
         client->app->transfer_failed(this, e, timeleft);
-        client->looprequested = true;
+        // todo: do we need something equivalent: client->looprequested = true;
         ++client->performanceStats.transferTempErrors;
     }
 
@@ -619,8 +619,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         LOG_debug << client->clientname << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "");
 
         bool transient_error = false;
-        LocalPath tmplocalname;
-        LocalPath localname;
         bool success;
 
         // disconnect temp file from slot...
@@ -748,91 +746,42 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 (*it)->updatelocalname();
             }
 
+            if (!downloadDistributor)
+            {
+                // we keep the old one in case there was a temporary_error previously
+                downloadDistributor.reset(new FileDistributor(localfilename, files.size(), mtime));
+            }
+
             set<string> keys;
             // place file in all target locations - use up to one renames, copy
             // operations for the rest
             // remove and complete successfully completed files
             for (file_list::iterator it = files.begin(); it != files.end(); )
             {
+                if ((*it)->syncxfer)
+                {
+                    // leave sync items for later, they will be passed to the sync thread
+                    ++it;
+                    continue;
+                }
+
                 transient_error = false;
                 success = false;
-                localname = (*it)->getLocalname();
 
-                if (localname != localfilename)
+                auto finalpath = (*it)->getLocalname();
+
+                // it may update the path to include (n) if there is a clash
+                bool name_too_long = false;
+                success = downloadDistributor->distributeTo(finalpath, *client->fsaccess, FileDistributor::RenameWithBracketedNumber, transient_error, name_too_long, nullptr);
+
+                if (success)
                 {
-                    fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(localname) || fa->type == FOLDERNODE)
-                    {
-                        // the destination path already exists
-                        if(!(*it)->syncxfer)
-                        {
-                            LOG_debug << "The destination file exist (not synced). Saving with a different name";
-
-                            // the destination path isn't synced, save with a (x) suffix
-                            LocalPath localnewname;
-                            unsigned num = 0;
-                            do
-                            {
-                                num++;
-                                localnewname = localname.insertFilenameCounter(num);
-                            } while (fa->fopen(localnewname) || fa->type == FOLDERNODE);
-
-
-                            (*it)->setLocalname(localnewname);
-                            localname = localnewname;
-                        }
-                    }
-                    else
-                    {
-                        transient_error = fa->retry;
-                    }
-
-                    if (transient_error)
-                    {
-                        LOG_warn << "Transient error checking if the destination file exist";
-                        it++;
-                        continue;
-                    }
+                    (*it)->setLocalname(finalpath);  // so the app may report an accurate final name
                 }
-
-                if (files.size() == 1 && tmplocalname.empty())
+                else if (transient_error)
                 {
-                    if (localfilename != localname)
-                    {
-                        LOG_debug << "Renaming temporary file to target path";
-                        if (client->fsaccess->renamelocal(localfilename, localname))
-                        {
-                            tmplocalname = localname;
-                            success = true;
-                        }
-                        else if (client->fsaccess->transient_error)
-                        {
-                            transient_error = true;
-                        }
-                    }
-                    else
-                    {
-                        tmplocalname = localname;
-                        success = true;
-                    }
-                }
-
-                if (!success)
-                {
-                    if((!tmplocalname.empty() ? tmplocalname : localfilename) == localname)
-                    {
-                        LOG_debug << "Identical node downloaded to the same folder";
-                        success = true;
-                    }
-                    else if (client->fsaccess->copylocal(!tmplocalname.empty() ? tmplocalname : localfilename,
-                                                   localname, mtime))
-                    {
-                        success = true;
-                    }
-                    else if (client->fsaccess->transient_error)
-                    {
-                        transient_error = true;
-                    }
+                    it++;
+                    continue;
                 }
 
                 if (success)
@@ -840,6 +789,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     // set missing node attributes
                     if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h, true)))
                     {
+                        auto localname = (*it)->getLocalname();
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
                             keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
                             client->checkaccess(n, OWNER))
@@ -865,77 +815,97 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     }
                 }
 
-                if (success || !transient_error)
+                if (success)
                 {
 
-                    if (!(*it)->syncxfer)
+                    if (auto node = client->nodeByHandle((*it)->h, true))
                     {
-                        if (auto node = client->nodeByHandle((*it)->h, true))
-                        {
-                            auto path = (*it)->getLocalname();
-                            auto type = isFilenameAnomaly(path, node);
+                        auto path = (*it)->getLocalname();
+                        auto type = isFilenameAnomaly(path, node);
 
-                            if (type != FILENAME_ANOMALY_NONE)
-                            {
-                                client->filenameAnomalyDetected(type, path, node->displaypath());
-                            }
+                        if (type != FILENAME_ANOMALY_NONE)
+                        {
+                            client->filenameAnomalyDetected(type, path, node->displaypath());
                         }
                     }
 
-                    if (success)
-                    {
-                        // prevent deletion of associated Transfer object in completed()
-                        client->filecachedel(*it, &committer);
-                        client->app->file_complete(*it);
-                        (*it)->transfer = NULL;
-                        (*it)->completed(this, (*it)->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
-                    }
-
-                    if (success || !(*it)->failed(API_EAGAIN, client))
-                    {
-                        File* f = (*it);
-                        files.erase(it++);
-                        if (!success)
-                        {
-                            LOG_warn << "Unable to complete transfer due to a persistent error";
-                            client->filecachedel(f, &committer);
-#ifdef ENABLE_SYNC
-                            if (f->syncxfer)
-                            {
-                                client->syncs.setSyncsNeedFullSync(false, UNDEF);
-                            }
-#endif
-                            client->app->file_removed(f, API_EWRITE);
-                            f->transfer = NULL;
-                            f->terminated();
-                        }
-                    }
-                    else
-                    {
-                        failcount++;
-                        LOG_debug << "Persistent error completing file. Failcount: " << failcount;
-                        it++;
-                    }
+                    // prevent deletion of associated Transfer object in completed()
+                    client->filecachedel(*it, &committer);
+                    client->app->file_complete(*it);
+                    (*it)->transfer = NULL;
+                    (*it)->completed(this, (*it)->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
+                    files.erase(it++);
                 }
-                else
+                else if (transient_error)
                 {
                     LOG_debug << "Transient error completing file";
                     it++;
                 }
+                else if (!(*it)->failed(API_EAGAIN, client))
+                {
+                    File* f = (*it);
+                    files.erase(it++);
+
+                    LOG_warn << "Unable to complete transfer due to a persistent error";
+                    client->filecachedel(f, &committer);
+#ifdef ENABLE_SYNC
+                    if (f->syncxfer)
+                    {
+                        client->syncs.setSyncsNeedFullSync(false, UNDEF);
+                    }
+#endif
+                    client->app->file_removed(f, API_EWRITE);
+                    f->transfer = NULL;
+                    f->terminated();
+                }
+                else
+                {
+                    failcount++;
+                    LOG_debug << "Persistent error completing file. Failcount: " << failcount;
+                    if (name_too_long)
+                    {
+                        LOG_warn << "Error is: name too long";
+                    }
+                    it++;
+                }
             }
 
-            if (tmplocalname.empty() && !files.size())
+            for (file_list::iterator it = files.begin(); it != files.end(); )
             {
-                client->fsaccess->unlinklocal(localfilename);
+                // now that the file itself is moved (if started as a manual download),
+                // we can let the sync copy (or move) for the sync cases
+                File* f = *it;
+
+                // pass the distribution responsibility to the sync, for sync requested downloads
+                if (f->syncxfer)
+                {
+                    auto dl = dynamic_cast<SyncDownload_inClient*>(f);
+                    assert(dl);
+                    dl->downloadDistributor = downloadDistributor;
+
+                    client->filecachedel(f, &committer);
+                    client->app->file_complete(f);
+                    f->transfer = NULL;
+                    f->completed(this, PUTNODES_SYNC);
+                    it = files.erase(it);
+                }
+                else it++;
+            }
+
+            if (!files.size())
+            {
+                // check if we should delete the download at downloaded path
+                downloadDistributor.reset();
             }
         }
 
         if (!files.size())
         {
             state = TRANSFERSTATE_COMPLETED;
-            localfilename = localname;
             finished = true;
-            client->looprequested = true;
+
+            // todo: do we need an equivalent? client->looprequested = true;
+
             client->app->transfer_complete(this);
             localfilename.clear();
             delete this;

@@ -1295,6 +1295,7 @@ LocalNode::LocalNode(Sync* csync)
 , fsidScannedReused(false)
 , confirmDeleteCount(0)
 , certainlyOrphaned(0)
+, neverScanned(0)
 {
     fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
@@ -1324,9 +1325,16 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     fsidScannedReused = false;
     confirmDeleteCount = 0;
     certainlyOrphaned = 0;
+    neverScanned = 0;
     scanInProgress = false;
     scanObsolete = false;
     slocalname = NULL;
+
+    if (type != FILENODE)
+    {
+        neverScanned = 1;
+        ++sync->threadSafeState->neverScannedFolderCount;
+    }
 
     mReportedSyncState = TREESTATE_NONE;
 
@@ -1642,7 +1650,18 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
     std::shared_ptr<ScanService::ScanRequest> ourScanRequest = scanInProgress ? rare().scanRequest  : nullptr;
 
-    if (!ourScanRequest && (!sync->mActiveScanRequest || sync->mActiveScanRequest->completed()))
+    std::shared_ptr<ScanService::ScanRequest>* availableScanSlot = nullptr;
+    if (!sync->mActiveScanRequestGeneral || sync->mActiveScanRequestGeneral->completed())
+    {
+        availableScanSlot = &sync->mActiveScanRequestGeneral;
+    }
+    else if (neverScanned &&
+            (!sync->mActiveScanRequestUnscanned || sync->mActiveScanRequestUnscanned->completed()))
+    {
+        availableScanSlot = &sync->mActiveScanRequestUnscanned;
+    }
+
+    if (!ourScanRequest && availableScanSlot)
     {
         // we can start a single new request if we are still recursing and the last request from this sync completed already
         if (scanDelayUntil != 0 && Waiter::ds < scanDelayUntil)
@@ -1689,13 +1708,23 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                 row.fsNode->fsid, sync->syncs.mClient.followsymlinks, move(priorScanChildren));
 
             rare().scanRequest = ourScanRequest;
-            sync->mActiveScanRequest = ourScanRequest;
+            *availableScanSlot = ourScanRequest;
+
+            LOG_verbose << sync->syncname << "Issuing Directory scan request for : " << fullPath.localPath_utf8() << (availableScanSlot == &sync->mActiveScanRequestUnscanned ? " (in unscanned slot)" : "");
+
+            if (neverScanned)
+            {
+                neverScanned = 0;
+                --sync->threadSafeState->neverScannedFolderCount;
+                LOG_verbose << sync->syncname << "Remaining known unscanned folders: " << sync->threadSafeState->neverScannedFolderCount.load();
+            }
         }
     }
     else if (ourScanRequest &&
              ourScanRequest->completed())
     {
-        if (ourScanRequest == sync->mActiveScanRequest) sync->mActiveScanRequest.reset();
+        if (ourScanRequest == sync->mActiveScanRequestGeneral) sync->mActiveScanRequestGeneral.reset();
+        if (ourScanRequest == sync->mActiveScanRequestUnscanned) sync->mActiveScanRequestUnscanned.reset();
 
         scanInProgress = false;
 

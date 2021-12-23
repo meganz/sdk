@@ -57,6 +57,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // file is removed
     file_list files;
 
+    shared_ptr<FileDistributor> downloadDistributor;
+
     // failures/backoff
     unsigned failcount;
     BackoffTimerTracked bt;
