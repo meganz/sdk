@@ -17796,6 +17796,7 @@ void NodeManager::loadNodes()
             // We don't increase counters because root nodes aren't FILENODES nor FOLDERNODES
         }
 
+        // load nodes for folder link
         if (mNodes.empty())
         {
             assert(mClient.loggedIntoFolder());
@@ -17820,7 +17821,17 @@ void NodeManager::loadNodes()
     {
         // Load map with fingerprints to speed up searching by fingerprint
         mTable->getFingerPrints(mFingerPrints);
-        getRootNodes();
+        if (!mClient.loggedIntoFolder())
+        {
+            getRootNodes();
+        }
+        else // load root node for Folder link
+        {
+            Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
+            setrootnode(rootNode);
+            getChildren(rootNode);
+        }
+
         getNodesWithInShares();
 
         // TODO Nodes on Demand: Review to remove. mPublicLinks has been removed
