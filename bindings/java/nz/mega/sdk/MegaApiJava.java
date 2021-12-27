@@ -6236,233 +6236,41 @@ public class MegaApiJava {
      * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
      * "Your business account is overdue, please contact your administrator."
      *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     * @param listener MegaTransferListener to track this transfer
+     * This method includes a mechanism to cancel a folder upload process by calling MegaCancelToken::cancel through parameter
+     * cancelToken. This mechanism will be available just between the following stages: MegaTransfer::STAGE_SCAN and
+     * MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE both included.
+     *
+     * In case we are trying to upload a file, mechanism to cancel upload process by calling
+     * MegaCancelToken::cancel will have no effect.
+     * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
+     *
+     * @param localPath         Local path of the file or folder
+     * @param parent            Parent node for the file or folder in the MEGA account
+     * @param mtime             Custom modification time for the file in MEGA (in seconds since the epoch)
+     * @param appData           Custom app data to save in the MegaTransfer object
+     *                          The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     *                          related to the transfer. If a transfer is started with exactly the same data
+     *                          (local path and target parent) as another one in the transfer queue, the new transfer
+     *                          fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     *                          the appData of the old transfer, using a '!' separator if the old transfer had already
+     *                          appData.
+     * @param fileName          Custom file name for the file or folder in MEGA
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param startFirst        puts the transfer on top of the upload queue
+     * @param cancelToken       MegaCancelToken to be able to cancel a folder upload process.
+     * @param listener          MegaTransferListener to track this transfer
      */
-    public void startUpload(String localPath, MegaNode parent, MegaTransferListenerInterface listener) {
-        megaApi.startUpload(localPath, parent, createDelegateTransferListener(listener));
+    public void startUpload(String localPath, MegaNode parent, long mtime, String appData,
+                            String fileName, boolean isSourceTemporary, boolean startFirst,
+                            MegaCancelToken cancelToken, MegaTransferListenerInterface listener) {
+        megaApi.startUpload(localPath, parent, mtime, appData, fileName, isSourceTemporary,
+                startFirst, cancelToken, createDelegateTransferListener(listener));
     }
 
     /**
      * Upload a file or a folder
-     *
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     */
-    public void startUpload(String localPath, MegaNode parent) {
-        megaApi.startUpload(localPath, parent);
-    }
-
-    /**
-     * Upload a file or a folder with a custom modification time
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file
-     * @param parent Parent node for the file in the MEGA account
-     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-     * @param listener MegaTransferListener to track this transfer
-     *
-     * The custom modification time will be only applied for file transfers. If a folder
-     * is transferred using this function, the custom modification time won't have any effect,
-     */
-    public void startUpload(String localPath, MegaNode parent, long mtime, MegaTransferListenerInterface listener) {
-        megaApi.startUpload(localPath, parent, mtime, createDelegateTransferListener(listener));
-    }
-
-    /**
-     * Upload a file or a folder with a custom modification time
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file
-     * @param parent Parent node for the file in the MEGA account
-     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-     *
-     * The custom modification time will be only applied for file transfers. If a folder
-     * is transferred using this function, the custom modification time won't have any effect,
-     */
-    public void startUpload(String localPath, MegaNode parent, long mtime) {
-        megaApi.startUpload(localPath, parent, mtime);
-    }
-
-    /**
-     * Upload a file or folder with a custom name
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     * @param fileName Custom file name for the file or folder in MEGA
-     * @param listener MegaTransferListener to track this transfer
-     */
-    public void startUpload(String localPath, MegaNode parent, String fileName, MegaTransferListenerInterface listener) {
-        megaApi.startUpload(localPath, parent, fileName, createDelegateTransferListener(listener));
-    }
-
-    /**
-     * Upload a file or folder with a custom name
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     * @param fileName Custom file name for the file or folder in MEGA
-     */
-    public void startUpload(String localPath, MegaNode parent, String fileName) {
-        megaApi.startUpload(localPath, parent, fileName);
-    }
-
-    /**
-     * Upload a file or a folder with a custom name and a custom modification time
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file
-     * @param parent Parent node for the file in the MEGA account
-     * @param fileName Custom file name for the file in MEGA
-     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-     * @param listener MegaTransferListener to track this transfer
-     *
-     * The custom modification time will be only applied for file transfers. If a folder
-     * is transferred using this function, the custom modification time won't have any effect
-     */
-    public void startUpload(String localPath, MegaNode parent, String fileName, long mtime, MegaTransferListenerInterface listener) {
-        megaApi.startUpload(localPath, parent, fileName, mtime, createDelegateTransferListener(listener));
-    }
-
-    /**
-     * Upload a file or a folder with a custom name and a custom modification time
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file
-     * @param parent Parent node for the file in the MEGA account
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer. If a transfer is started with exactly the same data
-     * (local path and target parent) as another one in the transfer queue, the new transfer
-     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-     * the appData of the old transfer, using a '!' separator if the old transfer had already
-     * appData.
-     * @param fileName Custom file name for the file in MEGA
-     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-     * @param listener MegaTransferListener to track this transfer
-     *
-     * The custom modification time will be only applied for file transfers. If a folder
-     * is transferred using this function, the custom modification time won't have any effect
-     */
-    public void startUpload(String localPath, MegaNode parent, String appData, String fileName, long mtime, MegaTransferListenerInterface listener) {
-        megaApi.startUpload(localPath, parent, appData, fileName, mtime, createDelegateTransferListener(listener));
-    }
-
-    /**
-     * Upload a file or a folder with a custom name and a custom modification time
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file
-     * @param parent Parent node for the file in the MEGA account
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer. If a transfer is started with exactly the same data
-     * (local path and target parent) as another one in the transfer queue, the new transfer
-     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-     * the appData of the old transfer, using a '!' separator if the old transfer had already
-     * appData.
-     * @param fileName Custom file name for the file in MEGA
-     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-     *
-     * The custom modification time will be only applied for file transfers. If a folder
-     * is transferred using this function, the custom modification time won't have any effect
-     */
-    public void startUpload(String localPath, MegaNode parent, String appData, String fileName, long mtime) {
-        megaApi.startUpload(localPath, parent, appData, fileName, mtime);
-    }
-
-    /**
-     * Upload a file or a folder with a custom name and a custom modification time
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file
-     * @param parent Parent node for the file in the MEGA account
-     * @param fileName Custom file name for the file in MEGA
-     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-     *
-     * The custom modification time will be only applied for file transfers. If a folder
-     * is transferred using this function, the custom modification time won't have any effect
-     */
-    public void startUpload(String localPath, MegaNode parent, String fileName, long mtime) {
-        megaApi.startUpload(localPath, parent, fileName, mtime);
-    }
-
-    /**
-     * Upload a file or a folder, saving custom app data during the transfer
-     *
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer. If a transfer is started with exactly the same data
-     * (local path and target parent) as another one in the transfer queue, the new transfer
-     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-     * the appData of the old transfer, using a '!' separator if the old transfer had already
-     * appData.
-     * @param listener MegaTransferListener to track this transfer
-     */
-    public void startUploadWithData(String localPath, MegaNode parent, String appData, MegaTransferListenerInterface listener){
-        megaApi.startUploadWithData(localPath, parent, appData, createDelegateTransferListener(listener));
-    }
-
-    /**
-     * Upload a file or a folder, saving custom app data during the transfer
-     *
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer. If a transfer is started with exactly the same data
-     * (local path and target parent) as another one in the transfer queue, the new transfer
-     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-     * the appData of the old transfer, using a '!' separator if the old transfer had already
-     * appData.
-     */
-    public void startUploadWithData(String localPath, MegaNode parent, String appData){
-        megaApi.startUploadWithData(localPath, parent, appData);
-    }
-
-    /**
-     * Upload a file or a folder, saving custom app data during the transfer
      *
      * If the status of the business account is expired, onTransferFinish will be called with the error
      * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
@@ -6476,128 +6284,9 @@ public class MegaApiJava {
      * MegaCancelToken::cancel will have no effect.
      * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
      *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     * @param cancelToken MegaCancelToken to be able to cancel a folder upload process.
-     */
-    public void startUploadWithCancellation(String localPath, MegaNode parent, MegaCancelToken cancelToken) {
-        megaApi.startUploadWithDataAndCancellation(localPath, parent, null, cancelToken);
-    }
-
-    /**
-     * Upload a file or a folder, putting the transfer on top of the upload queue
-     *
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer. If a transfer is started with exactly the same data
-     * (local path and target parent) as another one in the transfer queue, the new transfer
-     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-     * the appData of the old transfer, using a '!' separator if the old transfer had already
-     * appData.
-     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-     * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-     * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-     * @param listener MegaTransferListener to track this transfer
-     */
-    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, MegaTransferListenerInterface listener){
-        megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, createDelegateTransferListener(listener));
-    }
-
-    /**
-     * Upload a file or a folder, putting the transfer on top of the upload queue
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer. If a transfer is started with exactly the same data
-     * (local path and target parent) as another one in the transfer queue, the new transfer
-     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-     * the appData of the old transfer, using a '!' separator if the old transfer had already
-     * appData.
-     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-     * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-     * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-     */
-    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary){
-        megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary);
-    }
-
-    /**
-     * Upload a file or a folder, putting the transfer on top of the upload queue
-     *
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer. If a transfer is started with exactly the same data
-     * (local path and target parent) as another one in the transfer queue, the new transfer
-     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-     * the appData of the old transfer, using a '!' separator if the old transfer had already
-     * appData.
-     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-     * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-     * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-     * @param fileName Custom file name for the file or folder in MEGA
-     * @param listener MegaTransferListener to track this transfer
-     */
-    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName, MegaTransferListenerInterface listener){
-        megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, fileName, createDelegateTransferListener(listener));
-    }
-
-    /**
-     * Upload a file or a folder, putting the transfer on top of the upload queue
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param localPath Local path of the file or folder
-     * @param parent Parent node for the file or folder in the MEGA account
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer. If a transfer is started with exactly the same data
-     * (local path and target parent) as another one in the transfer queue, the new transfer
-     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-     * the appData of the old transfer, using a '!' separator if the old transfer had already
-     * appData.
-     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-     * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-     * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-     * @param fileName Custom file name for the file or folder in MEGA
-     */
-    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName){
-        megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, fileName);
-    }
-
-    /**
-     * Upload a file or a folder
-     *
-     * This method should be used ONLY to share by chat a local file. In case the file
-     * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
-     * this method will force a new upload from the scratch (ensuring the file attributes are set),
-     * instead of doing a remote copy.
-     *
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
      * @param localPath         Local path of the file or folder
      * @param parent            Parent node for the file or folder in the MEGA account
+     * @param mtime             Custom modification time for the file in MEGA (in seconds since the epoch)
      * @param appData           Custom app data to save in the MegaTransfer object
      *                          The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
      *                          related to the transfer. If a transfer is started with exactly the same data
@@ -6605,12 +6294,18 @@ public class MegaApiJava {
      *                          fails with the error API_EEXISTS and the appData of the new transfer is appended to
      *                          the appData of the old transfer, using a '!' separator if the old transfer had already
      *                          appData.
+     * @param fileName          Custom file name for the file or folder in MEGA
      * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
      *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
      *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param startFirst        puts the transfer on top of the upload queue
+     * @param cancelToken       MegaCancelToken to be able to cancel a folder upload process.
      */
-    public void startUploadForChat(String localPath, MegaNode parent, String appData, boolean isSourceTemporary) {
-        megaApi.startUploadForChat(localPath, parent, appData, isSourceTemporary);
+    public void startUpload(String localPath, MegaNode parent, long mtime, String appData,
+                            String fileName, boolean isSourceTemporary, boolean startFirst,
+                            MegaCancelToken cancelToken) {
+        megaApi.startUpload(localPath, parent, mtime, appData, fileName, isSourceTemporary,
+                startFirst, cancelToken);
     }
 
     /**
@@ -6644,83 +6339,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Download a file or a folder from MEGA
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param node MegaNode that identifies the file or folder
-     * @param localPath Destination path for the file or folder
-     * If this path is a local folder, it must end with a '\' or '/' character and the file name
-     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-     * one of these characters, the file will be downloaded to a file in that path.
-     *
-     * @param listener MegaTransferListener to track this transfer
-     */
-    public void startDownload(MegaNode node, String localPath, MegaTransferListenerInterface listener) {
-        megaApi.startDownload(node, localPath, createDelegateTransferListener(listener));
-    }
-
-    /**
-     * Download a file or a folder from MEGA
-     *
-     *If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param node MegaNode that identifies the file or folder
-     * @param localPath Destination path for the file or folder
-     * If this path is a local folder, it must end with a '\' or '/' character and the file name
-     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-     * one of these characters, the file will be downloaded to a file in that path.
-     */
-    public void startDownload(MegaNode node, String localPath) {
-        megaApi.startDownload(node, localPath);
-    }
-
-    /**
-     * Download a file or a folder from MEGA, saving custom app data during the transfer
-     *
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param node MegaNode that identifies the file or folder
-     * @param localPath Destination path for the file or folder
-     * If this path is a local folder, it must end with a '\' or '/' character and the file name
-     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-     * one of these characters, the file will be downloaded to a file in that path.
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer.
-     * @param listener MegaTransferListener to track this transfer
-     */
-    public void startDownloadWithData(MegaNode node, String localPath, String appData, MegaTransferListenerInterface listener){
-        megaApi.startDownloadWithData(node, localPath, appData, createDelegateTransferListener(listener));
-    }
-
-    /**
-     * Download a file or a folder from MEGA, saving custom app data during the transfer
-     *
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param node MegaNode that identifies the file or folder
-     * @param localPath Destination path for the file or folder
-     * If this path is a local folder, it must end with a '\' or '/' character and the file name
-     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-     * one of these characters, the file will be downloaded to a file in that path.
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer.
-     */
-    public void startDownloadWithData(MegaNode node, String localPath, String appData){
-        megaApi.startDownloadWithData(node, localPath, appData);
-    }
-
-    /**
      * Download a file or a folder from MEGA, saving custom app data during the transfer
      *
      * If the status of the business account is expired, onTransferFinish will be called with the error
@@ -6735,18 +6353,24 @@ public class MegaApiJava {
      * MegaCancelToken::cancel will have no effect.
      * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
      *
-     * @param node MegaNode that identifies the file or folder
-     * @param localPath Destination path for the file or folder
-     * If this path is a local folder, it must end with a '\' or '/' character and the file name
-     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-     * one of these characters, the file will be downloaded to a file in that path.
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer.
+     * @param node        MegaNode that identifies the file or folder
+     * @param localPath   Destination path for the file or folder
+     *                    If this path is a local folder, it must end with a '\' or '/' character and the file name
+     *                    in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     *                    one of these characters, the file will be downloaded to a file in that path.
+     * @param appData     Custom app data to save in the MegaTransfer object
+     *                    The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     *                    related to the transfer.
+     * @param customName  Custom file name for the file or folder in local destination
+     * @param startFirst  puts the transfer on top of the download queue
      * @param cancelToken MegaCancelToken to be able to cancel a folder download process.
+     * @param listener    MegaTransferListener to track this transfer
      */
-    public void startDownloadWithDataAndCancellation(MegaNode node, String localPath, String appData, MegaCancelToken cancelToken){
-        megaApi.startDownloadWithDataAndCancellation(node, localPath, appData, cancelToken);
+    public void startDownload(MegaNode node, String localPath, String appData, String customName,
+                              boolean startFirst, MegaCancelToken cancelToken,
+                              MegaTransferListenerInterface listener) {
+        megaApi.startDownload(node, localPath, appData, customName, startFirst, cancelToken,
+                createDelegateTransferListener(listener));
     }
 
     /**
@@ -6759,61 +6383,26 @@ public class MegaApiJava {
      * This method includes a mechanism to cancel a folder download process by calling MegaCancelToken::cancel through parameter
      * cancelToken. This mechanism will be available just between the following stages: MegaTransfer::STAGE_SCAN and
      * MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE both included.
-     *
+     * <p>
      * In case we are trying to download a file, mechanism to cancel upload process by calling
      * MegaCancelToken::cancel will have no effect.
      * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
      *
-     * @param node MegaNode that identifies the file or folder
-     * @param localPath Destination path for the file or folder
-     * If this path is a local folder, it must end with a '\' or '/' character and the file name
-     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-     * one of these characters, the file will be downloaded to a file in that path.
+     * @param node        MegaNode that identifies the file or folder
+     * @param localPath   Destination path for the file or folder
+     *                    If this path is a local folder, it must end with a '\' or '/' character and the file name
+     *                    in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     *                    one of these characters, the file will be downloaded to a file in that path.
+     * @param appData     Custom app data to save in the MegaTransfer object
+     *                    The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     *                    related to the transfer.
+     * @param customName  Custom file name for the file or folder in local destination
+     * @param startFirst  puts the transfer on top of the download queue
      * @param cancelToken MegaCancelToken to be able to cancel a folder download process.
      */
-    public void startDownloadWithCancellation(MegaNode node, String localPath, MegaCancelToken cancelToken){
-        megaApi.startDownloadWithDataAndCancellation(node, localPath, null, cancelToken);
-    }
-
-    /**
-     * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
-     *
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param node MegaNode that identifies the file or folder
-     * @param localPath Destination path for the file or folder
-     * If this path is a local folder, it must end with a '\' or '/' character and the file name
-     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-     * one of these characters, the file will be downloaded to a file in that path.
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer.
-     * @param listener MegaTransferListener to track this transfer
-     */
-    public void startDownloadWithTopPriority(MegaNode node, String localPath, String appData, MegaTransferListenerInterface listener){
-        megaApi.startDownloadWithTopPriority(node, localPath, appData, createDelegateTransferListener(listener));
-    }
-
-    /**
-     * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
-     *
-     * If the status of the business account is expired, onTransferFinish will be called with the error
-     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
-     *
-     * @param node MegaNode that identifies the file or folder
-     * @param localPath Destination path for the file or folder
-     * If this path is a local folder, it must end with a '\' or '/' character and the file name
-     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-     * one of these characters, the file will be downloaded to a file in that path.
-     * @param appData Custom app data to save in the MegaTransfer object
-     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-     * related to the transfer.
-     */
-    public void startDownloadWithTopPriority(MegaNode node, String localPath, String appData){
-        megaApi.startDownloadWithTopPriority(node, localPath, appData);
+    public void startDownload(MegaNode node, String localPath, String appData, String customName,
+                              boolean startFirst, MegaCancelToken cancelToken) {
+        megaApi.startDownload(node, localPath, appData, customName, startFirst, cancelToken);
     }
 
     /**
@@ -7881,21 +7470,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Update the number of pending downloads/uploads.
-     * <p>
-     * This function forces a count of the pending downloads/uploads. It could
-     * affect the return value of MegaApiJava.getNumPendingDownloads() and
-     * MegaApiJava.getNumPendingUploads().
-     *
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
-     *
-     */
-    public void updateStats() {
-        megaApi.updateStats();
-    }
-
-    /**
      * Get the total number of nodes in the account
      * @return Total number of nodes in the account
      */
@@ -8546,52 +8120,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Check if a MegaNode is being shared by/with your own user
-     *
-     * For nodes that are being shared, you can get a a list of MegaShare
-     * objects using MegaApiJava.getOutShares(), or a list of MegaNode objects
-     * using MegaApi::getInShares
-     *
-     * @param node Node to check.
-     * @return true is the MegaNode is being shared, otherwise false.
-     * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-     * Use MegaNode::isShared instead
-     */
-    public boolean isShared(MegaNode node) {
-        return megaApi.isShared(node);
-    }
-
-    /**
-     * Check if a MegaNode is being shared with other users
-     *
-     * For nodes that are being shared, you can get a list of MegaShare
-     * objects using MegaApi::getOutShares
-     *
-     * @param node Node to check
-     * @return true is the MegaNode is being shared, otherwise false
-     * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-     * Use MegaNode::isOutShare instead
-     */
-    public boolean isOutShare(MegaNode node) {
-    	return megaApi.isOutShare(node);
-    }
-
-    /**
-     * Check if a MegaNode belong to another User, but it is shared with you
-     *
-     * For nodes that are being shared, you can get a list of MegaNode
-     * objects using MegaApi::getInShares
-     *
-     * @param node Node to check
-     * @return true is the MegaNode is being shared, otherwise false
-     * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-     * Use MegaNode::isInShare instead
-     */
-    public boolean isInShare(MegaNode node) {
-    	return megaApi.isInShare(node);
-    }
-
-    /**
      * Check if a MegaNode is pending to be shared with another User. This situation
      * happens when a node is to be shared with a User which is not a contact yet.
      *
@@ -8641,31 +8169,6 @@ public class MegaApiJava {
      */
     public ArrayList<MegaShare> getOutShares(MegaNode node) {
         return shareListToArray(megaApi.getOutShares(node));
-    }
-
-    /**
-     * Get a list with all pending outbound sharings
-     *
-     * You take the ownership of the returned value
-     *
-     * @return List of MegaShare objects
-     * @deprecated Use MegaNode::getOutShares instead of this function
-     */
-    public ArrayList<MegaShare> getPendingOutShares() {
-        return shareListToArray(megaApi.getPendingOutShares());
-    }
-
-    /**
-     * Get a list with all pending outbound sharings
-     *
-     * You take the ownership of the returned value
-     *
-     * @param node MegaNode to check.
-     * @return List of MegaShare objects.
-     * @deprecated Use MegaNode::getOutShares instead of this function
-     */
-    public ArrayList<MegaShare> getPendingOutShares(MegaNode node) {
-        return shareListToArray(megaApi.getPendingOutShares(node));
     }
 
     /**
