@@ -262,7 +262,7 @@ struct MEGA_API MegaApp
     virtual void file_removed(File*, const Error&) { }
     virtual void file_complete(File*) { }
     virtual File* file_resume(string*, direction_t*) { return NULL; }
-    virtual bool file_isCancelled(File*) { }
+    virtual bool file_isCancelled(File*) { return true; }
 
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
