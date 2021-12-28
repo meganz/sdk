@@ -7780,6 +7780,8 @@ class MegaApi
             RESUME_EPLUSPLUS_ACCOUNT    = 4,
         };
 
+        static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application

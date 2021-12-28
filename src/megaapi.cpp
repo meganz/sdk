@@ -3180,7 +3180,7 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, -1 /*mtime*/,
+    pImpl->startUpload(false /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
                        0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
                        true /*forceNewUpload*/, FS_UNKNOWN, nullptr /*cancelToken*/, listener);
 }
