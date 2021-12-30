@@ -1282,6 +1282,7 @@ class MegaUser
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
             CHANGE_TYPE_MY_BACKUPS_FOLDER           = 0x8000000,
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
+            CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
         };
 
         /**
@@ -1378,6 +1379,12 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_MY_BACKUPS_FOLDER = 0x8000000
          * Check if "My Backups" folder has changed
          *
+         * - MegaUser::CHANGE_TYPE_COOKIE_SETTINGS     = 0x10000000
+         * Check if option for cookie settings has changed
+         *
+         * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
+         * Check if option for iOS CallKit has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1466,6 +1473,13 @@ class MegaUser
          * Check if device names have changed
          *
          * - MegaUser::CHANGE_TYPE_BACKUP_NAMES = 0x8000000
+         *
+         * - MegaUser::CHANGE_TYPE_COOKIE_SETTINGS     = 0x10000000
+         * Check if option for cookie settings has changed
+         *
+         * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
+         * Check if option for iOS CallKit has changed
+         *
          * Check if backup names have changed         */
         virtual int getChanges();
 

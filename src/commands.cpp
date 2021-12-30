@@ -3170,6 +3170,11 @@ bool CommandPutUA::procresult(Result r)
                 LOG_info << "File versioning is enabled";
             }
         }
+        else if (at == ATTR_NO_CALLKIT)
+        {
+            client->no_callKit = (av == "1");
+            LOG_info << "CallKit is " << ((client->no_callKit) ? "disabled" : "enabled");
+        }
 
         mCompletion(API_OK);
     }
@@ -3259,6 +3264,11 @@ bool CommandGetUA::procresult(Result r)
         {
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
+        }
+        else if (at == ATTR_NO_CALLKIT && r.wasError(API_ENOENT))
+        {
+            LOG_info << "CallKit is enabled";
+            client->no_callKit = false;
         }
 
         return true;
@@ -3434,6 +3444,11 @@ bool CommandGetUA::procresult(Result r)
                                 {
                                     LOG_info << "File versioning is enabled";
                                 }
+                            }
+                            else if (at == ATTR_NO_CALLKIT)
+                            {
+                                client->no_callKit = !strcmp(value.data(), "1");
+                                LOG_info << "CallKit is " << ((client->no_callKit) ? "disabled" : "enabled");
                             }
                             break;
                         }
@@ -3837,6 +3852,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionAliases;
     string disableVersions;
     string versionDisableVersions;
+    string noCallKit;
+    string versionNoCallKit;
     string country;
     string versionCountry;
     string birthday;
@@ -3957,6 +3974,10 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('^', '!', 'd', 'v'):
             parseUserAttribute(disableVersions, versionDisableVersions);
+            break;
+
+        case MAKENAMEID7('^', '!', 'n', 'o', 'k', 'i', 't'):
+            parseUserAttribute(noCallKit, versionNoCallKit);
             break;
 
         case MAKENAMEID4('*', '!', 'c', 'f'):
@@ -4279,6 +4300,18 @@ bool CommandGetUserData::procresult(Result r)
                 {
                     LOG_info << "File versioning is enabled";
                     client->versions_disabled = false;
+                }
+
+                if (noCallKit.size())
+                {
+                    changes += u->updateattr(ATTR_NO_CALLKIT, &noCallKit, &versionNoCallKit);
+                    client->no_callKit = (noCallKit == "1");
+                    LOG_info << "CallKit is " << ((client->no_callKit) ? "disabled" : "enabled");
+                }
+                else
+                {
+                    LOG_info << "CallKit is enabled";
+                    client->no_callKit = false;
                 }
 
                 if (chatFolder.size())
