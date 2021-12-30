@@ -7609,7 +7609,8 @@ class MegaApi
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
-            USER_ATTR_DRIVE_NAMES = 35           // private - byte array
+            USER_ATTR_DRIVE_NAMES = 35,          // private - byte array
+            USER_ATTR_NO_CALLKIT = 36,           // private - byte array
         };
 
         enum {
@@ -10550,18 +10551,28 @@ class MegaApi
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_STORAGE_STATE = 21
          * Get the state of the storage (private non-encrypted)
-         * MegaApi::ATTR_GEOLOCATION = 22
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
          * Get the user geolocation (private)
-         * MegaApi::ATTR_CAMERA_UPLOADS_FOLDER = 23
+         * MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER = 23
          * Get the target folder for Camera Uploads (private)
-         * MegaApi::ATTR_MY_CHAT_FILES_FOLDER = 24
+         * MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER = 24
          * Get the target folder for My chat files (private)
-         * MegaApi::ATTR_ALIAS = 27
+         * MegaApi::USER_ATTR_PUSH_SETTINGS = 25
+         * Get whether user has push settings enabled (private)
+         * MegaApi::USER_ATTR_ALIAS = 27
          * Get the list of the users's aliases (private)
-         * MegaApi::ATTR_DEVICE_NAMES = 30
+         * MegaApi::USER_ATTR_DEVICE_NAMES = 30
          * Get the list of device names (private)
-         * MegaApi::ATTR_MY_BACKUPS_FOLDER = 31
+         * MegaApi::USER_ATTR_MY_BACKUPS_FOLDER = 31
          * Get the target folder for My Backups (private)
+         * MegaApi::USER_ATTR_COOKIE_SETTINGS = 33
+         * Get whether user has Cookie Settings enabled
+         * MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA = 34
+         * Get
+         * MegaApi::USER_ATTR_DRIVE_NAMES = 35
+         * Get
+         * MegaApi::USER_ATTR_NO_CALLKIT = 36
+         * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
