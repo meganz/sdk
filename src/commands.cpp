@@ -3172,8 +3172,7 @@ bool CommandPutUA::procresult(Result r)
         }
         else if (at == ATTR_NO_CALLKIT)
         {
-            client->no_callKit = (av == "1");
-            LOG_info << "CallKit is " << ((client->no_callKit) ? "disabled" : "enabled");
+            LOG_info << "CallKit is " << ((av == "1") ? "disabled" : "enabled");
         }
 
         mCompletion(API_OK);
@@ -3268,7 +3267,6 @@ bool CommandGetUA::procresult(Result r)
         else if (at == ATTR_NO_CALLKIT && r.wasError(API_ENOENT))
         {
             LOG_info << "CallKit is enabled";
-            client->no_callKit = false;
         }
 
         return true;
@@ -3447,8 +3445,7 @@ bool CommandGetUA::procresult(Result r)
                             }
                             else if (at == ATTR_NO_CALLKIT)
                             {
-                                client->no_callKit = !strcmp(value.data(), "1");
-                                LOG_info << "CallKit is " << ((client->no_callKit) ? "disabled" : "enabled");
+                                LOG_info << "CallKit is " << ((!strcmp(value.data(), "1")) ? "disabled" : "enabled");
                             }
                             break;
                         }
@@ -4305,13 +4302,11 @@ bool CommandGetUserData::procresult(Result r)
                 if (noCallKit.size())
                 {
                     changes += u->updateattr(ATTR_NO_CALLKIT, &noCallKit, &versionNoCallKit);
-                    client->no_callKit = (noCallKit == "1");
-                    LOG_info << "CallKit is " << ((client->no_callKit) ? "disabled" : "enabled");
+                    LOG_info << "CallKit is " << ((noCallKit == "1") ? "disabled" : "enabled");
                 }
                 else
                 {
-                    LOG_info << "CallKit is enabled";
-                    client->no_callKit = false;
+                    LOG_info << "CallKit is enabled [noCallKit.size() == 0]";
                 }
 
                 if (chatFolder.size())

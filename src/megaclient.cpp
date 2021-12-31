@@ -1272,7 +1272,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     isNewSession = false;
     tsLogin = 0;
     versions_disabled = false;
-    no_callKit = false;
     accountsince = 0;
     accountversion = 0;
     gmfa_enabled = false;
@@ -4358,7 +4357,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     isNewSession = false;
     tsLogin = 0;
     versions_disabled = false;
-    no_callKit = false;
     accountsince = 0;
     gmfa_enabled = false;
     ssrs_enabled = false;

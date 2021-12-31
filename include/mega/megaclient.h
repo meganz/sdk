@@ -1858,9 +1858,6 @@ public:
     // true if user has disabled fileversioning
     bool versions_disabled;
 
-    // true if user has disabled iOS CallKit
-    bool no_callKit;
-
     // the SDK is trying to log out
     int loggingout = 0;
 
