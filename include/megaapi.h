@@ -10962,6 +10962,8 @@ class MegaApi
          * Set the public key Cu25519 of the user (public)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_NO_CALLKIT = 36
+         * Set whether user has iOS CallKit disabled or enabled (private, non-encrypted)
          *
          * If the MEGA account is a sub-user business account, and the value of the parameter
          * type is equal to MegaApi::USER_ATTR_FIRSTNAME or MegaApi::USER_ATTR_LASTNAME
