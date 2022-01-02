@@ -5683,7 +5683,8 @@ bool MegaClient::CacheableStatusMap::addOrUpdate(CacheableStatus::Type type, int
         changed = true;
     }
 
-    assert(mClient->statusTable && "Updating status without status table");
+    // happens after manual logout and login
+    //assert(mClient->statusTable && "Updating status without status table");
 
     if (changed && mClient->statusTable)
     {
