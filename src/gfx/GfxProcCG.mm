@@ -269,6 +269,8 @@ void ios_statsid(std::string *statsid) {
                 }
                 case errSecDuplicateItem: {
                     [queryDictionary removeObjectForKey:(__bridge id)kSecAttrAccessible];
+                    [queryDictionary setObject:@YES forKey:(__bridge id)kSecReturnData];
+                    [queryDictionary setObject:(__bridge id)kSecMatchLimitOne forKey:(__bridge id)kSecMatchLimit];
                     
                     status = SecItemCopyMatching((__bridge CFDictionaryRef)queryDictionary, &result);
                     
@@ -280,6 +282,8 @@ void ios_statsid(std::string *statsid) {
                         }
                     }
                     
+                    [queryDictionary removeObjectForKey:(__bridge id)kSecReturnData];
+                    [queryDictionary removeObjectForKey:(__bridge id)kSecMatchLimit];
                     NSMutableDictionary *attributesToUpdate = [[NSMutableDictionary alloc] init];
                     [attributesToUpdate setObject:(__bridge id)kSecAttrAccessibleAfterFirstUnlock forKey:(__bridge id)kSecAttrAccessible];
                     
