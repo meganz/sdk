@@ -325,6 +325,7 @@
 		A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mega_zxcvbn.cpp; path = ../../src/mega_zxcvbn.cpp; sourceTree = "<group>"; };
 		A8C45FD5237AB5FE00342F36 /* testhooks.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = testhooks.h; sourceTree = "<group>"; };
 		A8C45FD6237AB61A00342F36 /* testhooks.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testhooks.cpp; path = ../../src/testhooks.cpp; sourceTree = "<group>"; };
+		A8E1D8EE277F3466009093C5 /* MEGALogLevel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGALogLevel.h; sourceTree = "<group>"; };
 		A8EBFDD21EFAE14C00DF89DA /* MEGAEvent+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAEvent+init.h"; sourceTree = "<group>"; };
 		A8FD7332230ABA400070A5E8 /* MEGACancelToken.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGACancelToken.h; sourceTree = "<group>"; };
 		A8FD7333230ABA400070A5E8 /* MEGACancelToken.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGACancelToken.mm; sourceTree = "<group>"; };
@@ -538,6 +539,7 @@
 				A873E86426E23AF000CBB174 /* MEGACurrency.h */,
 				A873E86526E23AF000CBB174 /* MEGACurrency.mm */,
 				A88120A32742B2500079B31B /* MEGAPaymentMethod.h */,
+				A8E1D8EE277F3466009093C5 /* MEGALogLevel.h */,
 			);
 			name = bindings;
 			sourceTree = "<group>";

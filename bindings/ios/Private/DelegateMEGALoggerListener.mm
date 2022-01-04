@@ -33,6 +33,6 @@ id<MEGALoggerDelegate>DelegateMEGALoggerListener::getUserListener() {
 
 void DelegateMEGALoggerListener::log(const char *time, int logLevel, const char *source, const char *message) {
     if (listener != nil && [listener respondsToSelector:@selector(logWithTime:logLevel:source:message:)]) {        
-        [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : nil) logLevel:(NSInteger)logLevel source:(source ? [NSString stringWithUTF8String:source] : nil) message:(message ? [NSString stringWithUTF8String:message] : nil)];
+        [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : nil) logLevel:(MEGALogLevel)logLevel source:(source ? [NSString stringWithUTF8String:source] : nil) message:(message ? [NSString stringWithUTF8String:message] : nil)];
     }
 }
