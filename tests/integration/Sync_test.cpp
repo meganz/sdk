@@ -1182,12 +1182,12 @@ struct StandardClient : public MegaApp
                 attrs.map['n'] = newname;
                 attrs.getjson(&attrstring);
                 client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, 0, std::move(completion));
+                client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, 0, std::move(completion));
             },
             nullptr);
     }
 
-    void putnodes(NodeHandle parentHandle, std::vector<NewNode>&& nodes, PromiseBoolSP pb)
+    void putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP pb)
     {
         auto completion = BasicPutNodesCompletion([pb](const Error& e) {
             pb->set_value(!e);
@@ -1197,17 +1197,17 @@ struct StandardClient : public MegaApp
                               ++next_request_tag,
                               [&]()
                               {
-                                  client.putnodes(parentHandle, std::move(nodes), nullptr, 0, std::move(completion));
+                                  client.putnodes(parentHandle, vo, std::move(nodes), nullptr, 0, std::move(completion));
                               },
                               nullptr);
     }
 
-    bool putnodes(NodeHandle parentHandle, std::vector<NewNode>&& nodes)
+    bool putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes)
     {
         auto result =
           thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
                     {
-                        client.putnodes(parentHandle, std::move(nodes), pb);
+                        client.putnodes(parentHandle, vo, std::move(nodes), pb);
                     });
 
         return result.get();
@@ -1241,7 +1241,7 @@ struct StandardClient : public MegaApp
                 vector<NewNode> newnodes;
                 handle h = 1;
                 uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-                client.putnodes(n2->nodeHandle(), move(newnodes), nullptr, 0, std::move(completion));
+                client.putnodes(n2->nodeHandle(), NoVersioning, move(newnodes), nullptr, 0, std::move(completion));
             },
             nullptr);
     }
@@ -1277,7 +1277,7 @@ struct StandardClient : public MegaApp
         reinterpret_cast<FileFingerprint&>(*file) = node;
 
         DBTableTransactionCommitter committer(client.tctable);
-        client.startxfer(GET, file.release(), committer);
+        client.startxfer(GET, file.release(), committer, false, false, false, NoVersioning);
     }
 
     bool downloadFile(const Node& node, const fs::path& destination)
@@ -1314,7 +1314,7 @@ struct StandardClient : public MegaApp
         return future.get();
     }
 
-    void uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer)
+    void uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo = NoVersioning)
     {
         unique_ptr<File> file(new FilePut());
 
@@ -1322,17 +1322,17 @@ struct StandardClient : public MegaApp
         file->localname = LocalPath::fromAbsolutePath(path.u8string());
         file->name = name;
 
-        client.startxfer(PUT, file.release(), committer);
+        client.startxfer(PUT, file.release(), committer, false, false, false, vo);
     }
 
-    void uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb)
+    void uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb, VersioningOption vo = NoVersioning)
     {
         resultproc.prepresult(PUTNODES,
                               ++next_request_tag,
                               [&]()
                               {
                                   DBTableTransactionCommitter committer(client.tctable);
-                                  uploadFile(path, name, parent, committer);
+                                  uploadFile(path, name, parent, committer, vo);
                               },
                               [pb](error e)
                               {
@@ -1341,28 +1341,28 @@ struct StandardClient : public MegaApp
                               });
     }
 
-    bool uploadFile(const fs::path& path, const string& name, Node* parent)
+    bool uploadFile(const fs::path& path, const string& name, Node* parent, VersioningOption vo = NoVersioning)
     {
         auto result =
           thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
                     {
-                        client.uploadFile(path, name, parent, pb);
+                        client.uploadFile(path, name, parent, pb, vo);
                     });
 
         return result.get();
     }
 
-    bool uploadFile(const fs::path& path, Node* parent)
+    bool uploadFile(const fs::path& path, Node* parent, VersioningOption vo = NoVersioning)
     {
-        return uploadFile(path, path.filename().u8string(), parent);
+        return uploadFile(path, path.filename().u8string(), parent, vo);
     }
 
-    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer)
+    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo = NoVersioning)
     {
         if (fs::is_regular_file(p))
         {
             ++inprogress;
-            uploadFile(p, p.filename().u8string(), target, committer);
+            uploadFile(p, p.filename().u8string(), target, committer, vo);
         }
         else if (fs::is_directory(p))
         {
@@ -1370,29 +1370,29 @@ struct StandardClient : public MegaApp
             {
                 for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
                 {
-                    uploadFilesInTree_recurse(newtarget, *i, inprogress, committer);
+                    uploadFilesInTree_recurse(newtarget, *i, inprogress, committer, vo);
                 }
             }
         }
     }
 
-    bool uploadFilesInTree(fs::path p, Node* n2)
+    bool uploadFilesInTree(fs::path p, Node* n2, VersioningOption vo = NoVersioning)
     {
         auto promise = newPromiseBoolSP();
         auto future = promise->get_future();
 
         std::atomic_int dummy(0);
-        uploadFilesInTree(p, n2, dummy, std::move(promise));
+        uploadFilesInTree(p, n2, dummy, std::move(promise), vo);
 
         return future.get();
     }
 
-    void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb)
+    void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning)
     {
         resultproc.prepresult(PUTNODES, ++next_request_tag,
             [&](){
                 DBTableTransactionCommitter committer(client.tctable);
-                uploadFilesInTree_recurse(n2, p, inprogress, committer);
+                uploadFilesInTree_recurse(n2, p, inprogress, committer, vo);
             },
             [pb, &inprogress](error e)
             {
@@ -1538,7 +1538,7 @@ struct StandardClient : public MegaApp
                 });
 
                 resultproc.prepresult(COMPLETION, ++next_request_tag,
-                    [&](){ client.putnodes(root->nodeHandle(), move(nn), nullptr, 0, std::move(completion)); },
+                    [&](){ client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, 0, std::move(completion)); },
                     nullptr);
 
                 return;
@@ -1610,7 +1610,7 @@ struct StandardClient : public MegaApp
 
             resultproc.prepresult(COMPLETION, ++next_request_tag,
                 [&]() {
-                    client.putnodes(atnode->nodeHandle(), move(nodearray), nullptr, 0, std::move(completion));
+                    client.putnodes(atnode->nodeHandle(), NoVersioning, move(nodearray), nullptr, 0, std::move(completion));
                 },
                 nullptr);
         }
@@ -4493,7 +4493,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     std::atomic<bool> putnodesDone{false};
     standardclient.resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
-        [&](){ standardclient.client.putnodes(targethandle, move(newnodes), nullptr, standardclient.client.reqtag); },
+        [&](){ standardclient.client.putnodes(targethandle, NoVersioning, move(newnodes), nullptr, standardclient.client.reqtag); },
         [&putnodesDone](error e) { putnodesDone = true; return true; });
 
     while (!putnodesDone)
@@ -5337,7 +5337,7 @@ TEST_F(SyncTest, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
         cu.client.putnodes_prepareOneFolder(&nodes[0], "d\7");
         cu.client.putnodes_prepareOneFolder(&nodes[1], "d");
 
-        ASSERT_TRUE(cu.putnodes(node->nodeHandle(), std::move(nodes)));
+        ASSERT_TRUE(cu.putnodes(node->nodeHandle(), NoVersioning, std::move(nodes)));
 
         // Do the same but with some files.
         auto root = TESTROOT / "cu" / "x";
@@ -6611,7 +6611,7 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
         ASSERT_TRUE(root);
 
         // Create new node in the cloud.
-        ASSERT_TRUE(c.putnodes(root->nodeHandle(), std::move(nodes)));
+        ASSERT_TRUE(c.putnodes(root->nodeHandle(), NoVersioning, std::move(nodes)));
     }
 
     // Add and start sync.
@@ -6706,6 +6706,8 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         ASSERT_TRUE(c->confirmModel_mainthread(model.root.get(), id));
     }
 
+    c->received_node_actionpackets = false;
+
     // Trigger some filesystem notifications.
     {
         model.addfile("f", "f");
@@ -6717,6 +6719,8 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         model.addfile("d0/d0d0/d0d0f", "d0d0f");
         ASSERT_TRUE(createDataFile(SYNCROOT / "d0" / "d0d0" / "d0d0f", "d0d0f"));
     }
+
+    ASSERT_TRUE(c->waitForNodesUpdated(30)) << " no actionpacket received";
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, c.get());
@@ -7518,7 +7522,7 @@ struct TwoWaySyncSymmetryCase
         attrs = n1->attrs;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag);
     }
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -7553,7 +7557,7 @@ struct TwoWaySyncSymmetryCase
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag);
     }
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -8480,7 +8484,7 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
 
         cu.client.putnodes_prepareOneFolder(&node[0], "d");
 
-        ASSERT_TRUE(cu.putnodes(c.syncSet(id).h, std::move(node)));
+        ASSERT_TRUE(cu.putnodes(c.syncSet(id).h, NoVersioning, std::move(node)));
     }
 
     // Give our sync some time to process remote changes.
@@ -8599,7 +8603,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
 
         cb.client.putnodes_prepareOneFolder(&node[0], "g");
 
-        ASSERT_TRUE(cb.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cb.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
 
     // Restore the backup sync.
@@ -8683,7 +8687,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
         cb.client.putnodes_prepareOneFolder(&node[0], "g");
 
         auto rootHandle = cb.syncSet(id).h;
-        ASSERT_TRUE(cb.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cb.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
 
     // Re-enable the sync.
@@ -8793,7 +8797,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 
         cf.client.putnodes_prepareOneFolder(&node[0], "g");
 
-        ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(node)));
 
         // Log out the client when we try and upload a file.
         std::promise<void> waiter;
@@ -8833,7 +8837,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         cf.client.putnodes_prepareOneFolder(&nodes[0], "h0");
         cf.client.putnodes_prepareOneFolder(&nodes[1], "h1");
 
-        ASSERT_TRUE(cf.putnodes(rootHandle, std::move(nodes)));
+        ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(nodes)));
     }
 
     // Check automatic resume.
@@ -8931,7 +8935,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
             cf.client.putnodes_prepareOneFolder(&node[0], "g");
 
-            ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
+            ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(node)));
         }
 
         // Enable the backup.
@@ -8975,7 +8979,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
         cf.client.putnodes_prepareOneFolder(&node[0], "h");
 
-        ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
 
     // Automatic resume.
@@ -9092,7 +9096,7 @@ void BackupBehavior::doTest(const string& initialContent,
         ASSERT_EQ(config.mEnabled, true);
         ASSERT_EQ(config.mError, NO_SYNC_ERROR);
     }
-    
+
     // Check that the file's been uploaded to the cloud.
     {
         StandardClient cd(TESTROOT, "cd");
