@@ -9,3 +9,4 @@
 /bindings/java/ @mobile/Android
 /bindings/qt/ @desktop
 /src/gfx/GfxProcCG.mm @mobile/iOS
+/src/osx/osxutils.mm @mobile/iOS @desktop
