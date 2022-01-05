@@ -8560,6 +8560,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     }
                 }
 
+                // NodeManager takes n ownership
+                mNodeManager.addNode(n, notify, fetchingnodes);
+
                 if (!ISUNDEF(su))
                 {
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
@@ -8632,9 +8635,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 notifynode(n);
             }
 
-            // Take n ownership
-            mNodeManager.addNode(n, notify, fetchingnodes);
-            n = nullptr;
+            n = nullptr;    // ownership is taken by NodeManager upon addNode()
         }
     }
 
