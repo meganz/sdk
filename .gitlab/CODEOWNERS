@@ -8,3 +8,4 @@
 /bindings/ios/ @mobile/iOS
 /bindings/java/ @mobile/Android
 /bindings/qt/ @desktop
+/src/gfx/GfxProcCG.mm @mobile/iOS
