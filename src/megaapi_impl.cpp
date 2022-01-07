@@ -26958,7 +26958,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
     }
 
     FileSystemType fsType = megaapiThreadClient()->fsaccess->getlocalfstype(path);
-    const LocalPath &name = (!transfer->getFileName())
+    const LocalPath &name = (!transfer->getFileName() || !strlen(transfer->getFileName()))
          ? LocalPath::fromName(node->getName(), *megaapiThreadClient()->fsaccess, fsType)
          : LocalPath::fromName(transfer->getFileName(), *megaapiThreadClient()->fsaccess, fsType);
 
