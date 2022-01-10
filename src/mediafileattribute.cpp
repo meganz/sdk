@@ -585,16 +585,21 @@ MediaProperties MediaProperties::decodeMediaPropertiesAttributes(const std::stri
 
 #ifdef USE_MEDIAINFO
 
-bool MediaProperties::isMediaFilenameExt(const std::string& ext)
+const char* MediaProperties::supportedformatsMediaInfo()
 {
-    static const char* supportedformats =
+    static constexpr char supportedformats[] =
         ".264.265.3g2.3ga.3gp.3gpa.3gpp.3gpp2.aac.aacp.ac3.act.adts.aif.aifc.aiff.als.apl.at3.avc"
         ".avi.dd+.dde.divx.dts.dtshd.eac3.ec3.evo.f4a.f4b.f4v.flac.gvi.h261.h263.h264.h265.hevc.isma"
         ".ismt.ismv.ivf.jpm.k3g.m1a.m1v.m2a.m2p.m2s.m2t.m2v.m4a.m4b.m4p.m4s.m4t.m4v.m4v.mac.mkv.mk3d"
         ".mka.mks.mlp.mov.mp1.mp1v.mp2.mp2v.mp3.mp4.mp4v.mpa1.mpa2.mpeg.mpg.mpgv.mpv.mqv.ogg.ogm.ogv"
         ".omg.opus.qt.sls.spx.thd.tmf.trp.ts.ty.vc1.vob.vr.w64.wav.webm.wma.wmv.";
 
-    for (const char* ptr = supportedformats; NULL != (ptr = strstr(ptr, ext.c_str())); ptr += ext.size())
+    return supportedformats;
+}
+
+bool MediaProperties::isMediaFilenameExt(const std::string& ext)
+{
+    for (const char* ptr = MediaProperties::supportedformatsMediaInfo(); NULL != (ptr = strstr(ptr, ext.c_str())); ptr += ext.size())
     {
         if (ptr[ext.size()] == '.')
         {
@@ -603,6 +608,58 @@ bool MediaProperties::isMediaFilenameExt(const std::string& ext)
     }
     return false;
 }
+
+template<class T>
+std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const T& file)
+{
+    MediaInfoLib::MediaInfo mi;
+    std::string data;
+    std::string syntheticExt;
+
+    mi.Option(__T("Cover_Data"), __T("base64")); // set this _before_ opening the file
+    if (!mi.Open(ZenLib::Ztring(file.c_str()))) // make this work with both narrow and wide std strings
+    {
+        return std::make_pair(data, syntheticExt);
+    }
+
+    // MIME (type/subtype) of the cover image.
+    // According to id3v2 specs, it is "always an ISO-8859-1 text string".
+    // Supported values are one of {"image/jpeg", "image/png"}.
+    // However, allow "image/jpg" variant too because it occured for flac (MediaInfo bug?).
+    const MediaInfoLib::String& coverMime = mi.Get(MediaInfoLib::Stream_General, 0, __T("Cover_Mime"));
+    if (coverMime.empty())
+    {
+        return std::make_pair(std::string(), std::string());
+    }
+    if (coverMime == __T("image/jpeg") || coverMime == __T("image/jpg"))
+    {
+        syntheticExt = "jpg";
+    }
+    else if (coverMime == __T("image/png"))
+    {
+        syntheticExt = "png";
+    }
+
+    // Cover data: binary data, base64 encoded.
+    ZenLib::Ztring coverData = mi.Get(MediaInfoLib::Stream_General, 0, __T("Cover_Data"));
+    data = coverData.To_UTF8();
+    if (data.empty())
+    {
+        return std::make_pair(data, syntheticExt);
+    }
+    data = mega::Base64::atob(data);
+
+    return std::make_pair(data, syntheticExt);
+}
+
+// forward-declare this so the compiler will generate it (same conditional compilation as LocalPath::localpath)
+#if defined(_WIN32)
+template
+std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const std::wstring&);
+#else
+template
+std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const std::string&);
+#endif
 
 static inline uint32_t coalesce(uint32_t a, uint32_t b)
 {
