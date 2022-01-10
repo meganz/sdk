@@ -8675,7 +8675,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 {
                     // folder link access: first returned record defines root node and identity
                     // (this code used to be in Node::Node but is not suitable for session resume)
-                    if (rootnodes.files.isUndef())  rootnodes.files.set6byte(h);
+                    if (rootnodes.files.isUndef())
+                    {
+                        rootnodes.files.set6byte(h);
+                    }
 
                     if (loggedIntoWritableFolder())
                     {
