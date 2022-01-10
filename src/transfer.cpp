@@ -138,6 +138,8 @@ Transfer::~Transfer()
 
 bool Transfer::serialize(string *d)
 {
+    assert(localfilename.empty() || localfilename.isAbsolute());
+
     unsigned short ll;
 
     d->append((const char*)&type, sizeof(type));

@@ -12841,16 +12841,16 @@ bool MegaClient::execdirectreads()
 }
 
 // recreate filenames of active PUT transfers
-void MegaClient::updateputs()
-{
-    for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
-    {
-        if ((*it)->transfer->type == PUT && (*it)->transfer->files.size())
-        {
-            (*it)->transfer->files.front()->prepare(*fsaccess);
-        }
-    }
-}
+//void MegaClient::updateputs()
+//{
+//    for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
+//    {
+//        if ((*it)->transfer->type == PUT && (*it)->transfer->files.size())
+//        {
+//            (*it)->transfer->files.front()->prepare(*fsaccess);
+//        }
+//    }
+//}
 
 error MegaClient::addtimer(TimerWithBackoff *twb)
 {
@@ -14613,6 +14613,7 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
 // (PUT) or the file's key (GET)
 bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo)
 {
+    assert(f->getLocalname().isAbsolute());
     f->mVersioningOption = vo;
 
     if (!f->transfer)

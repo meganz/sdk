@@ -290,6 +290,7 @@ File *File::unserialize(string *d)
 void File::prepare(FileSystemAccess&)
 {
     transfer->localfilename = getLocalname();
+    assert(transfer->localfilename.isAbsolute());
 }
 
 void File::start()

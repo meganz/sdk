@@ -1217,13 +1217,18 @@ void WinDirNotify::process(DWORD dwBytes)
 
     if (!dwBytes)
     {
-#ifdef ENABLE_SYNC
+        // No bytes delivered indicates the OS could not deliver some notifications.
+        // Maybe it ran out of buffer (maybe we were too slow)
+        // Incrementing mErrorCount will cause a full rescan of the sync
+        // We used to send an additional notification with localnode and empty path to
+        // trigger it but that is not needed anymore
+
         int errCount = ++mErrorCount;
         LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->localname.toPath().c_str() : "NULL")
                 << " errors: " << errCount;
+
+        // reissue request for notifications
         readchanges();
-        notify(fsEventq, localrootnode, Notification::NEEDS_SCAN_UNKNOWN, LocalPath());
-#endif
     }
     else
     {

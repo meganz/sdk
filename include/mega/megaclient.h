@@ -1549,7 +1549,7 @@ public:
     //void stopSyncXfers(LocalNode*, DBTableTransactionCommitter& committer);
 
     // update paths of all PUT transfers
-    void updateputs();
+    //void updateputs();
 
     // determine if all transfer slots are full
     bool slotavail() const;

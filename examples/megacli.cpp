@@ -619,12 +619,12 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
         name = *cfilename;
     }
 
-    auto ln = LocalPath::fromRelativeName(name, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(targetfolder)));
-    if (!targetfolder.empty())
-    {
-        string s = targetfolder;
-        ln.prependWithSeparator(LocalPath::fromAbsolutePath(s));
-    }
+    string s = targetfolder;
+    if (s.empty()) s = ".";
+    auto fstype = client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(s));
+
+    auto ln = LocalPath::fromRelativeName(name, *client->fsaccess, fstype);
+    ln.prependWithSeparator(LocalPath::fromAbsolutePath(s));
     setLocalname(ln);
 }
 
