@@ -11218,6 +11218,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_EXPORT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getAccess - Returns true
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -11242,8 +11243,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
          * - MegaRequest::getAccess - Returns true
-         * - MegaRequest::getNumber - Returns if share key is shared with mega
+         * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getFlag - Returns true if writable
+         * - MegaRequest::getgTransferTag - Returns if share key is shared with mega
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -11266,8 +11268,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
          * - MegaRequest::getAccess - Returns true
-         * - MegaRequest::getNumber - Returns if share key is shared with mega
+         * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getFlag - Returns true if writable
+         * - MegaRequest::getgTransferTag - Returns if share key is shared with mega
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:

@@ -7064,7 +7064,7 @@ void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, 
     if(node) request->setNodeHandle(node->getHandle());
     request->setNumber(expireTime);
     request->setAccess(1);
-    request->setNumber(megaHosted ? 1 : 0);
+    request->setTransferTag(megaHosted ? 1 : 0);
     request->setFlag(writable);
     requestQueue.push(request);
     waiter->notify();
@@ -19534,7 +19534,7 @@ void MegaApiImpl::sendPendingRequests()
             if(!node) { e = API_EARGS; break; }
 
 			bool writable = request->getFlag();
-            bool megaHosted = request->getNumber() != 0;
+            bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
             e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, nextTag,
                                    [this, request](Error e, handle h, handle ph){
