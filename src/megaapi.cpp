@@ -492,11 +492,6 @@ char *MegaNode::getBase64Key()
     return NULL;
 }
 
-int MegaNode::getTag()
-{
-    return 0;
-}
-
 int64_t MegaNode::getExpirationTime()
 {
     return -1;
@@ -607,11 +602,6 @@ string *MegaNode::getNodeKey()
     return NULL;
 }
 
-string *MegaNode::getAttrString()
-{
-    return NULL;
-}
-
 char *MegaNode::getFileAttrString()
 {
     return NULL;
@@ -670,18 +660,6 @@ MegaNode *MegaNode::unserialize(const char *d)
 
     return MegaNodePrivate::unserialize(&data);
 }
-
-#ifdef ENABLE_SYNC
-bool MegaNode::isSyncDeleted()
-{
-    return false;
-}
-
-string MegaNode::getLocalPath()
-{
-    return string();
-}
-#endif
 
 MegaUser::~MegaUser() { }
 
@@ -989,6 +967,11 @@ MegaAccountDetails *MegaRequest::getMegaAccountDetails() const
 MegaPricing *MegaRequest::getPricing() const
 {
     return NULL;
+}
+
+MegaCurrency *MegaRequest::getCurrency() const
+{
+    return nullptr;
 }
 
 MegaAchievementsDetails *MegaRequest::getMegaAchievementsDetails() const
@@ -1718,15 +1701,15 @@ void MegaListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 #endif
 
-void MegaListener::onBackupStateChanged(MegaApi *, MegaBackup *)
+void MegaListener::onBackupStateChanged(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaListener::onBackupStart(MegaApi *, MegaBackup *)
+void MegaListener::onBackupStart(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaListener::onBackupFinish(MegaApi *, MegaBackup *, MegaError *)
+void MegaListener::onBackupFinish(MegaApi *, MegaScheduledCopy *, MegaError *)
 { }
-void MegaListener::onBackupUpdate(MegaApi *, MegaBackup *)
+void MegaListener::onBackupUpdate(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaListener::onBackupTemporaryError(MegaApi *, MegaBackup *, MegaError *)
+void MegaListener::onBackupTemporaryError(MegaApi *, MegaScheduledCopy *, MegaError *)
 { }
 
 #ifdef ENABLE_CHAT
@@ -2109,13 +2092,6 @@ void MegaApi::addEntropy(char *data, unsigned int size)
 {
     pImpl->addEntropy(data, size);
 }
-
-#ifdef WINDOWS_PHONE
-void MegaApi::setStatsID(const char *id)
-{
-    MegaApiImpl::setStatsID(id);
-}
-#endif
 
 void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
@@ -3161,19 +3137,19 @@ MegaStringList *MegaApi::getBackupFolders(int backuptag) const
     return pImpl->getBackupFolders(backuptag);
 }
 
-void MegaApi::setBackup(const char* localPath, MegaNode* parent, bool attendPastBackups, int64_t period, const char *periodstring, int numBackups, MegaRequestListener *listener)
+void MegaApi::setScheduledCopy(const char* localPath, MegaNode* parent, bool attendPastBackups, int64_t period, const char *periodstring, int numBackups, MegaRequestListener *listener)
 {
-    pImpl->setBackup(localPath, parent, attendPastBackups, period, periodstring ? periodstring : "", numBackups, listener);
+    pImpl->setScheduledCopy(localPath, parent, attendPastBackups, period, periodstring ? periodstring : "", numBackups, listener);
 }
 
-void MegaApi::removeBackup(int tag, MegaRequestListener *listener)
+void MegaApi::removeScheduledCopy(int tag, MegaRequestListener *listener)
 {
-    pImpl->removeBackup(tag, listener);
+    pImpl->removeScheduledCopy(tag, listener);
 }
 
-void MegaApi::abortCurrentBackup(int tag, MegaRequestListener *listener)
+void MegaApi::abortCurrentScheduledCopy(int tag, MegaRequestListener *listener)
 {
-    pImpl->abortCurrentBackup(tag, listener);
+    pImpl->abortCurrentScheduledCopy(tag, listener);
 }
 
 void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
@@ -3469,11 +3445,6 @@ MegaSyncList* MegaApi::getSyncs()
    return pImpl->getSyncs();
 }
 
-int MegaApi::getNumActiveSyncs()
-{
-    return pImpl->getNumActiveSyncs();
-}
-
 string MegaApi::getLocalPath(MegaNode *n)
 {
     return pImpl->getLocalPath(n);
@@ -3524,11 +3495,6 @@ bool MegaApi::isSyncable(const char *path, long long size)
     return pImpl->isSyncable(path, size);
 }
 
-bool MegaApi::isInsideSync(MegaNode *node)
-{
-    return pImpl->isInsideSync(node);
-}
-
 int MegaApi::isNodeSyncable(MegaNode *node)
 {
     return pImpl->isNodeSyncable(node);
@@ -3556,19 +3522,19 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 #endif
 
 
-MegaBackup *MegaApi::getBackupByTag(int tag)
+MegaScheduledCopy *MegaApi::getScheduledCopyByTag(int tag)
 {
-    return pImpl->getBackupByTag(tag);
+    return pImpl->getScheduledCopyByTag(tag);
 }
 
-MegaBackup *MegaApi::getBackupByNode(MegaNode *node)
+MegaScheduledCopy *MegaApi::getScheduledCopyByNode(MegaNode *node)
 {
-    return pImpl->getBackupByNode(node);
+    return pImpl->getScheduledCopyByNode(node);
 }
 
-MegaBackup *MegaApi::getBackupByPath(const char *localPath)
+MegaScheduledCopy *MegaApi::getScheduledCopyByPath(const char *localPath)
 {
-    return pImpl->getBackupByPath(localPath);
+    return pImpl->getScheduledCopyByPath(localPath);
 }
 
 int MegaApi::getNumPendingUploads()
@@ -3821,11 +3787,6 @@ void MegaApi::getLocalSSLCertificate(MegaRequestListener *listener)
 void MegaApi::queryDNS(const char *hostname, MegaRequestListener *listener)
 {
     pImpl->queryDNS(hostname, listener);
-}
-
-void MegaApi::queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener)
-{
-    pImpl->queryGeLB(service, timeoutds, maxretries, listener);
 }
 
 void MegaApi::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
@@ -4106,14 +4067,14 @@ void MegaApi::addGlobalListener(MegaGlobalListener* listener)
     pImpl->addGlobalListener(listener);
 }
 
-void MegaApi::addBackupListener(MegaBackupListener *listener)
+void MegaApi::addScheduledCopyListener(MegaScheduledCopyListener *listener)
 {
-    pImpl->addBackupListener(listener);
+    pImpl->addScheduledCopyListener(listener);
 }
 
-void MegaApi::removeBackupListener(MegaBackupListener *listener)
+void MegaApi::removeScheduledCopyListener(MegaScheduledCopyListener *listener)
 {
-    pImpl->removeBackupListener(listener);
+    pImpl->removeScheduledCopyListener(listener);
 }
 
 void MegaApi::removeListener(MegaListener* listener)
@@ -5192,12 +5153,12 @@ char *MegaApi::getMimeType(const char *extension)
 #ifdef ENABLE_CHAT
 void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
 {
-    pImpl->createChat(group, false, peers, NULL, title, listener);
+    pImpl->createChat(group, false, peers, NULL, title, false, listener);
 }
 
-void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, MegaRequestListener *listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, MegaRequestListener *listener)
 {
-    pImpl->createChat(true, true, peers, userKeyMap, title, listener);
+    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
@@ -5260,9 +5221,9 @@ void MegaApi::sendChatStats(const char *data, int port, MegaRequestListener *lis
     pImpl->sendChatStats(data, port, listener);
 }
 
-void MegaApi::sendChatLogs(const char *data, const char *aid, int port, MegaRequestListener *listener)
+void MegaApi::sendChatLogs(const char *data, MegaHandle userid, MegaHandle callid, int port, MegaRequestListener *listener)
 {
-    pImpl->sendChatLogs(data, aid, port, listener);
+    pImpl->sendChatLogs(data, userid, callid, port, listener);
 }
 
 MegaTextChatList* MegaApi::getChatList()
@@ -5333,6 +5294,21 @@ void MegaApi::chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, Mega
 bool MegaApi::isChatNotifiable(MegaHandle chatid)
 {
     return pImpl->isChatNotifiable(chatid);
+}
+
+void MegaApi::startChatCall(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->startChatCall(chatid, listener);
+}
+
+void MegaApi::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)
+{
+    pImpl->joinChatCall(chatid, callid, listener);
+}
+
+void MegaApi::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, MegaRequestListener *listener)
+{
+    pImpl->endChatCall(chatid, callid, reason, listener);
 }
 
 #endif
@@ -5596,6 +5572,11 @@ char *MegaAccountDetails::getSubscriptionMethod()
     return NULL;
 }
 
+int MegaAccountDetails::getSubscriptionMethodId()
+{
+    return 0;
+}
+
 char *MegaAccountDetails::getSubscriptionCycle()
 {
     return NULL;
@@ -5800,7 +5781,7 @@ int MegaPricing::getAmount(int)
     return 0;
 }
 
-const char *MegaPricing::getCurrency(int)
+int MegaPricing::getLocalPrice(int /*productIndex*/)
 {
     return 0;
 }
@@ -5833,6 +5814,81 @@ int MegaPricing::getAmountMonth(int)
 MegaPricing *MegaPricing::copy()
 {
     return NULL;
+}
+
+int MegaPricing::getGBStoragePerUser(int)
+{
+    return 0;
+}
+
+int MegaPricing::getGBTransferPerUser(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getMinUsers(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getPricePerUser(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getLocalPricePerUser(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getPricePerStorage(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getLocalPricePerStorage(int)
+{
+    return 0;
+}
+
+int MegaPricing::getGBPerStorage(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getPricePerTransfer(int)
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getLocalPricePerTransfer(int)
+{
+    return 0;
+}
+
+int MegaPricing::getGBPerTransfer(int)
+{
+    return 0;
+}
+
+const char *MegaCurrency::getCurrencySymbol()
+{
+    return nullptr;
+}
+
+const char *MegaCurrency::getCurrencyName()
+{
+    return nullptr;
+}
+
+const char *MegaCurrency::getLocalCurrencySymbol()
+{
+    return nullptr;
+}
+
+const char *MegaCurrency::getLocalCurrencyName()
+{
+    return nullptr;
 }
 
 #ifdef ENABLE_SYNC
@@ -5971,118 +6027,118 @@ void MegaSyncList::addSync(MegaSync *sync)
 #endif
 
 
-void MegaBackupListener::onBackupStateChanged(MegaApi *, MegaBackup *)
+void MegaScheduledCopyListener::onBackupStateChanged(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaBackupListener::onBackupStart(MegaApi *, MegaBackup *)
+void MegaScheduledCopyListener::onBackupStart(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaBackupListener::onBackupFinish(MegaApi*, MegaBackup *, MegaError*)
+void MegaScheduledCopyListener::onBackupFinish(MegaApi*, MegaScheduledCopy *, MegaError*)
 { }
-void MegaBackupListener::onBackupUpdate(MegaApi *, MegaBackup *)
+void MegaScheduledCopyListener::onBackupUpdate(MegaApi *, MegaScheduledCopy *)
 { }
-void MegaBackupListener::onBackupTemporaryError(MegaApi *, MegaBackup *, MegaError*)
+void MegaScheduledCopyListener::onBackupTemporaryError(MegaApi *, MegaScheduledCopy *, MegaError*)
 { }
-MegaBackupListener::~MegaBackupListener()
+MegaScheduledCopyListener::~MegaScheduledCopyListener()
 { }
 
-MegaBackup::~MegaBackup() { }
+MegaScheduledCopy::~MegaScheduledCopy() { }
 
-MegaBackup *MegaBackup::copy()
+MegaScheduledCopy *MegaScheduledCopy::copy()
 {
     return NULL;
 }
 
-MegaHandle MegaBackup::getMegaHandle() const
+MegaHandle MegaScheduledCopy::getMegaHandle() const
 {
     return INVALID_HANDLE;
 }
 
-const char *MegaBackup::getLocalFolder() const
+const char *MegaScheduledCopy::getLocalFolder() const
 {
     return NULL;
 }
 
-int MegaBackup::getTag() const
+int MegaScheduledCopy::getTag() const
 {
     return 0;
 }
 
-bool MegaBackup::getAttendPastBackups() const
+bool MegaScheduledCopy::getAttendPastBackups() const
 {
     return false;
 }
 
-int64_t MegaBackup::getPeriod() const
+int64_t MegaScheduledCopy::getPeriod() const
 {
     return 0;
 }
 
-const char *MegaBackup::getPeriodString() const
+const char *MegaScheduledCopy::getPeriodString() const
 {
     return NULL;
 }
 
-long long MegaBackup::getNextStartTime(long long oldStartTimeAbsolute) const
+long long MegaScheduledCopy::getNextStartTime(long long oldStartTimeAbsolute) const
 {
     return 0;
 }
 
 
-int MegaBackup::getMaxBackups() const
+int MegaScheduledCopy::getMaxBackups() const
 {
     return 0;
 }
 
-int MegaBackup::getState() const
+int MegaScheduledCopy::getState() const
 {
-    return MegaBackup::BACKUP_FAILED;
+    return MegaScheduledCopy::SCHEDULED_COPY_FAILED;
 }
 
-long long MegaBackup::getNumberFolders() const
-{
-     return 0;
-}
-
-long long MegaBackup::getNumberFiles() const
+long long MegaScheduledCopy::getNumberFolders() const
 {
      return 0;
 }
 
-long long MegaBackup::getTotalFiles() const
+long long MegaScheduledCopy::getNumberFiles() const
 {
      return 0;
 }
 
-int64_t MegaBackup::getCurrentBKStartTime() const
+long long MegaScheduledCopy::getTotalFiles() const
 {
      return 0;
 }
 
-long long MegaBackup::getTransferredBytes() const
+int64_t MegaScheduledCopy::getCurrentBKStartTime() const
 {
      return 0;
 }
 
-long long MegaBackup::getTotalBytes() const
+long long MegaScheduledCopy::getTransferredBytes() const
 {
      return 0;
 }
 
-long long MegaBackup::getSpeed() const
+long long MegaScheduledCopy::getTotalBytes() const
 {
      return 0;
 }
 
-long long MegaBackup::getMeanSpeed() const
+long long MegaScheduledCopy::getSpeed() const
 {
      return 0;
 }
 
-int64_t MegaBackup::getUpdateTime() const
+long long MegaScheduledCopy::getMeanSpeed() const
 {
      return 0;
 }
 
-MegaTransferList *MegaBackup::getFailedTransfers()
+int64_t MegaScheduledCopy::getUpdateTime() const
+{
+     return 0;
+}
+
+MegaTransferList *MegaScheduledCopy::getFailedTransfers()
 {
     return NULL;
 }
@@ -6439,6 +6495,11 @@ bool MegaTextChat::isArchived() const
 }
 
 bool MegaTextChat::isPublicChat() const
+{
+    return false;
+}
+
+bool MegaTextChat::isMeeting() const
 {
     return false;
 }
@@ -7093,6 +7154,15 @@ const MegaBanner* MegaBannerList::get(int i) const
 int MegaBannerList::size() const
 {
     return 0;
+}
+
+MegaCurrency::~MegaCurrency()
+{
+}
+
+MegaCurrency *MegaCurrency::copy()
+{
+    return nullptr;
 }
 
 }

@@ -48,6 +48,8 @@
 #import "MEGABackgroundMediaUpload.h"
 #import "MEGACancelToken.h"
 #import "MEGAPushNotificationSettings.h"
+#import "MEGAPaymentMethod.h"
+#import "MEGALogLevel.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -68,9 +70,7 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeCreationDesc,
     MEGASortOrderTypeModificationAsc,
     MEGASortOrderTypeModificationDesc,
-    MEGASortOrderTypeAlphabeticalAsc,
-    MEGASortOrderTypeAlphabeticalDesc,
-    MEGASortOrderTypePhotoAsc,
+    MEGASortOrderTypePhotoAsc = 11,
     MEGASortOrderTypePhotoDesc,
     MEGASortOrderTypeVideoAsc,
     MEGASortOrderTypeVideoDesc,
@@ -102,15 +102,6 @@ typedef NS_ENUM (NSInteger, MEGAEventType) {
     MEGAEventTypeFeedback = 0,
     MEGAEventTypeDebug,
     MEGAEventTypeInvalid
-};
-
-typedef NS_ENUM (NSInteger, MEGALogLevel) {
-    MEGALogLevelFatal = 0,
-    MEGALogLevelError,      // Error information but will continue application to keep running.
-    MEGALogLevelWarning,    // Information representing errors in application but application will keep running
-    MEGALogLevelInfo,       // Mainly useful to represent current progress of application.
-    MEGALogLevelDebug,      // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
-    MEGALogLevelMax
 };
 
 typedef NS_ENUM (NSInteger, MEGAAttributeType) {
@@ -154,19 +145,6 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
     MEGANodeAttributeFav = 4
-};
-
-typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
-    MEGAPaymentMethodBalance      = 0,
-    MEGAPaymentMethodPaypal       = 1,
-    MEGAPaymentMethodItunes       = 2,
-    MEGAPaymentMethodGoogleWallet = 3,
-    MEGAPaymentMethodBitcoin      = 4,
-    MEGAPaymentMethodUnionPay     = 5,
-    MEGAPaymentMethodFortumo      = 6,
-    MEGAPaymentMethodCreditCard   = 8,
-    MEGAPaymentMethodCentili      = 9,
-    MEGAPaymentMethodWindowsStore = 13
 };
 
 typedef NS_ENUM(NSInteger, HTTPServer) {
@@ -1289,6 +1267,36 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (nullable NSString *)sequenceNumber;
 
 /**
+ * @brief Get an authentication token that can be used to identify the user account
+ *
+ * If this MEGASdk object is not logged into an account, this function will return nil
+ *
+ * The value returned by this function can be used in other instances of MEGASdk
+ * thanks to the function [MEGASdk setAccountAuth].
+ *
+ * @return Authentication token
+ */
+- (nullable NSString *)accountAuth;
+
+/**
+ * @brief Use an authentication token to identify an account while accessing public folders
+ *
+ * This function is useful to preserve the PRO status when a public folder is being
+ * used. The identifier will be sent in all API requests made after the call to this function.
+ *
+ * To stop using the current authentication token, it's needed to explicitly call
+ * this function with nil as parameter. Otherwise, the value set would continue
+ * being used despite this MEGASdk object is logged in or logged out.
+ *
+ * It's recommended to call this function before the usage of [MEGASdk loginToFolder]
+ *
+ * @param accountAuth Authentication token used to identify the account of the user.
+ * You can get it using [MEGASdk accountAuth] with an instance of MEGASdk logged into
+ * an account.
+ */
+- (void)setAccountAuth:(nullable NSString *)accountAuth;
+
+/**
  * @brief Check if the MEGASdk object is logged in.
  * @return 0 if not logged in, Otherwise, a number >= 0.
  */
@@ -1468,6 +1476,60 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 
 #pragma mark - Create account and confirm account Requests
 
+/**
+ * @brief Resume a registration process for an Ephemeral++ account
+ *
+ * When a user begins the account registration process by calling
+ * [MEGASdk createEphemeralAccountPlusPlus] an ephemeral++ account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see [MEGASdk sendSignupLink] and also to receive notifications in case the
+ * user confirms the account using another client ([MegaGlobalListener onAccountUpdate] or
+ * [MEGADelegate onAccountUpdate]. It is also possible to cancel the registration process by
+ * [MEGASdk cancelCreateAccount], which invalidates the signup link associated to the ephemeral
+ * session (the session will be still valid).
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MegaRequest getSessionKey] - Returns the session id to resume the process
+ * - [MegaRequest getParamType] - Returns the value 4
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MEGAErrorTypeApiEArgs.
+ *
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ */
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname;
+
+/**
+ * @brief Resume a registration process for an Ephemeral++ account
+ *
+ * When a user begins the account registration process by calling
+ * [MEGASdk createEphemeralAccountPlusPlus] an ephemeral++ account is created.
+ *
+ * Until the user successfully confirms the signup link sent to the provided email address,
+ * you can resume the ephemeral session in order to change the email address, resend the
+ * signup link (@see [MEGASdk sendSignupLink] and also to receive notifications in case the
+ * user confirms the account using another client ([MegaGlobalListener onAccountUpdate] or
+ * [MEGADelegate onAccountUpdate]. It is also possible to cancel the registration process by
+ * [MEGASdk cancelCreateAccount], which invalidates the signup link associated to the ephemeral
+ * session (the session will be still valid).
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MegaRequest getSessionKey] - Returns the session id to resume the process
+ * - [MegaRequest getParamType] - Returns the value 4
+ *
+ * In case the account is already confirmed, the associated request will fail with
+ * error MEGAErrorTypeApiEArgs
+ *
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ * @param delegate Delegate to track this request.
+ */
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate;
 /**
  * @brief Initialize the creation of a new MEGA account.
  *
@@ -4500,6 +4562,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
+ * - [MEGARequest currency] - MEGACurrency object with currency data related to prices
  *
  * @param delegate Delegate to track this request.
  *
@@ -4518,6 +4581,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest pricing] - MEGAPricing object with all pricing plans
+ * - [MEGARequest currency] - MEGACurrency object with currency data related to prices 
  *
  * @see [MEGASdk getPaymentIdForProductHandle:].
  */
@@ -4741,6 +4805,15 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param lastAccessTimestamp Timestamp of the last access
  */
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp;
+
+/**
+ * @brief Cancel credit card subscriptions of the account
+ *
+ * The associated request type with this request is MEGARequestTypeCreditCardCancelSubscriptions
+ * @param reason Reason for the cancellation.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)creditCardCancelSubscriptions:(nullable NSString *)reason delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Change the password of the MEGA account.
@@ -5274,6 +5347,40 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
  */
 - (void)getCameraUploadsFolder;
+
+/**
+ * @brief Gets My Backups target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
+ * - [MEGARequest flag] - Returns NO
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
+ *
+ * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets My Backups target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
+ * - [MEGARequest flag] - Returns NO
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
+ *
+ * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
+ */
+- (void)getMyBackupsFolder;
 
 /**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
@@ -6705,12 +6812,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Same behavior than MEGASortOrderTypeDefaultAsc
- *
- * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Same behavior than MEGASortOrderTypeDefaultDesc
- *
  * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
@@ -6728,20 +6829,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeLinkCreationDesc = 16
  *
  * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending
+ * Sort by color label, ascending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending
+ * Sort by color label, descending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last
- *
- * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
- * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
- * They will be eventually removed.
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @return List with all child MEGANode objects.
  */
@@ -6846,12 +6943,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Same behavior than MEGASortOrderTypeDefaultAsc
- *
- * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Same behavior than MEGASortOrderTypeDefaultDesc
- *
  * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
@@ -6869,20 +6960,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeLinkCreationDesc = 16
  *
  * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending
+ * Sort by color label, ascending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending
+ * Sort by color label, descending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last
- *
- * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
- * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
- * They will be eventually removed.
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @return Lists with files and folders child MegaNode objects
  */
@@ -7273,27 +7360,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (MEGAShareType)accessLevelForNode:(MEGANode *)node;
 
-/**
- * @brief Check if a node has an access level.
- *
- * @deprecated Use checkAccessErrorExtendedForNode
- *
- * @param node Node to check.
- * @param level Access level to check.
- * Valid values for this parameter are:
- * - MEGAShareTypeAccessOwner
- * - MEGAShareTypeAccessFull
- * - MEGAShareTypeAccessReadWrite
- * - MEGAShareTypeAccessRead
- *
- * @return MEGAError object with the result.
- * Valid values for the error code are:
- * - MEGAErrorTypeApiOk - The node has the required access level
- * - MEGAErrorTypeApiEAccess - The node doesn't have the required access level
- * - MEGAErrorTypeApiENoent - The node doesn't exist in the account
- * - MEGAErrorTypeApiEArgs - Invalid parameters
- */
-- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level;
 
 /**
  * @brief Check if a node has an access level
@@ -7314,23 +7380,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGAErrorTypeApiEArgs - Invalid parameters
  */
 - (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level;
-
-/**
- * @brief Check if a node can be moved to a target node.
- *
- * @deprecated User checkMoveErrorExtendedForNode
- *
- * @param node Node to check.
- * @param target Target for the move operation.
- * @return MEGAError object with the result:
- * Valid values for the error code are:
- * - MEGAErrorTypeApiOk - The node can be moved to the target
- * - MEGAErrorTypeApiEAccess - The node can't be moved because of permissions problems
- * - MEGAErrorTypeApiECircular - The node can't be moved because that would create a circular linkage
- * - MEGAErrorTypeApiENoent - The node or the target doesn't exist in the account
- * - MEGAErrorTypeApiEArgs - Invalid parameters
- */
-- (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target;
 
 /**
  * @brief Check if a node can be moved to a target node.
@@ -7408,12 +7457,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Same behavior than MEGASortOrderTypeDefaultAsc
- *
- * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Same behavior than MEGASortOrderTypeDefaultDesc
- *
  * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
@@ -7431,20 +7474,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeLinkCreationDesc = 16
  *
  * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending
+ * Sort by color label, ascending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending
+ * Sort by color label, descending. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
  *
  * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last
- *
- * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
- * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
- * They will be eventually removed.
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @return List of nodes that contain the desired string in their name.
  */
@@ -7503,12 +7542,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - MEGASortOrderTypeModificationDesc = 8
  * Sort by modification time of the original file, descending
  *
- * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Same behavior than MEGASortOrderTypeDefaultAsc
- *
- * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Same behavior than MEGASortOrderTypeDefaultDesc
- *
  * - MEGASortOrderTypePhotoAsc = 11
  * Sort with photos first, then by date ascending
  *
@@ -7520,6 +7553,22 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
+ * 
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending. With this order, folders are returned first, then files
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending. With this order, folders are returned first, then files
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last. With this order, folders are returned first, then files
  *
  * @param nodeFormatType Type of nodes requested in the search
  * Valid values for this parameter are:
@@ -8759,7 +8808,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param message Event message
  * @param delegate Delegate to track this request
  *
- * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+ * @warning This function is for internal usage of MEGA apps for debug purposes. This info
  * is sent to MEGA servers.
  *
  * @note Event types are restricted to the following ranges:
@@ -8783,7 +8832,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 * @param eventType Event type
 * @param message Event message
 *
-* @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+* @warning This function is for internal usage of MEGA apps for debug purposes. This info
 * is sent to MEGA servers.
 *
 * @note Event types are restricted to the following ranges:
@@ -8925,6 +8974,34 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate MEGARequestDelegate to track this request
 */
 - (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(NSDate *)lastActionDate lastBackupNode:(MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Returns the name set for this device
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the request object received on callbacks:
+ * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - name - Returns device name.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Sets device name
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ * - name - Returns device name.
+ *
+ * @param name String with device name
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Cookie Dialog
 

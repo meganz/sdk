@@ -30,6 +30,7 @@
 #import "MEGABannerList.h"
 #import "MEGABannerList+init.h"
 #import "MEGAHandleList+init.h"
+#import "MEGACurrency+init.h"
 
 using namespace mega;
 
@@ -176,6 +177,10 @@ using namespace mega;
 
 - (MEGAPricing *)pricing {
     return self.megaRequest ? [[MEGAPricing alloc] initWithMegaPricing:self.megaRequest->getPricing() cMemoryOwn:YES] : nil;
+}
+
+- (MEGACurrency *)currency {
+    return self.megaRequest ? [[MEGACurrency alloc] initWithMegaCurrency:self.megaRequest->getCurrency() cMemoryOwn:YES] : nil;
 }
 
 - (MEGAAchievementsDetails *)megaAchievementsDetails {

@@ -67,6 +67,24 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
     return s << toNodeHandle(h);
 }
 
+SimpleLogger& operator<<(SimpleLogger& s, UploadHandle h)
+{
+    return s << toHandle(h.h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
+{
+    if (h.isNodeHandle())
+    {
+        return s << "nh:" << h.nodeHandle();
+    }
+    else
+    {
+        return s << "uh:" << h.uploadHandle();
+    }
+}
+
+
 string backupTypeToStr(BackupType type)
 {
     switch (type)
@@ -286,10 +304,10 @@ void chunkmac_map::serialize(string& d) const
 {
     unsigned short ll = (unsigned short)size();
     d.append((char*)&ll, sizeof(ll));
-    for (const_iterator it = begin(); it != end(); it++)
+    for (auto& it : mMacMap)
     {
-        d.append((char*)&it->first, sizeof(it->first));
-        d.append((char*)&it->second, sizeof(it->second));
+        d.append((char*)&it.first, sizeof(it.first));
+        d.append((char*)&it.second, sizeof(it.second));
     }
 }
 
@@ -308,47 +326,69 @@ bool chunkmac_map::unserialize(const char*& ptr, const char* end)
         m_off_t pos = MemAccess::get<m_off_t>(ptr);
         ptr += sizeof(m_off_t);
 
-        memcpy(&((*this)[pos]), ptr, sizeof(ChunkMAC));
+        memcpy(&(mMacMap[pos]), ptr, sizeof(ChunkMAC));
         ptr += sizeof(ChunkMAC);
+
+        if (mMacMap[pos].isMacsmacSoFar())
+        {
+            macsmacSoFarPos = pos;
+            assert(i == 0);
+        }
+        else
+        {
+            assert(pos > macsmacSoFarPos);
+        }
     }
     return true;
 }
 
-void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* lastblockprogress)
+void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* sumOfPartialChunks)
 {
     chunkpos = 0;
     progresscompleted = 0;
 
-    for (chunkmac_map::iterator it = begin(); it != end(); ++it)
+    for (auto& it : mMacMap)
     {
-        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, size);
+        m_off_t chunkceil = ChunkedHash::chunkceil(it.first, size);
 
-        if (chunkpos == it->first && it->second.finished)
+        if (it.second.isMacsmacSoFar())
+        {
+            assert(chunkpos == 0);
+            macsmacSoFarPos = it.first;
+
+            chunkpos = chunkceil;
+            progresscompleted = chunkceil;
+        }
+        else if (chunkpos == it.first && it.second.finished)
         {
             chunkpos = chunkceil;
             progresscompleted = chunkceil;
         }
-        else if (it->second.finished)
+        else if (it.second.finished)
         {
-            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it.first);
             progresscompleted += chunksize;
         }
         else
         {
-            progresscompleted += it->second.offset;
-            if (lastblockprogress)
+            progresscompleted += it.second.offset;  // sum of completed portions
+            if (sumOfPartialChunks)
             {
-                *lastblockprogress += it->second.offset;
+                *sumOfPartialChunks += it.second.offset;
             }
         }
     }
+
+    progresscontiguous = chunkpos;
 }
 
 m_off_t chunkmac_map::nextUnprocessedPosFrom(m_off_t pos)
 {
-    for (const_iterator it = find(ChunkedHash::chunkfloor(pos));
-        it != end();
-        it = find(ChunkedHash::chunkfloor(pos)))
+    assert(pos > macsmacSoFarPos);
+
+    for (auto it = mMacMap.find(ChunkedHash::chunkfloor(pos));
+        it != mMacMap.end();
+        it = mMacMap.find(ChunkedHash::chunkfloor(pos)))
     {
         if (it->second.finished)
         {
@@ -365,36 +405,165 @@ m_off_t chunkmac_map::nextUnprocessedPosFrom(m_off_t pos)
 
 m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize)
 {
-    for (iterator it = find(npos);
-        npos < fileSize && (npos - pos) <= maxReqSize && (it == end() || (!it->second.finished && !it->second.offset));
-        it = find(npos))
+    assert(pos > macsmacSoFarPos);
+
+    for (auto it = mMacMap.find(npos);
+        npos < fileSize &&
+        (npos - pos) <= maxReqSize &&
+        (it == mMacMap.end() || it->second.notStarted());
+        it = mMacMap.find(npos))
     {
         npos = ChunkedHash::chunkceil(npos, fileSize);
     }
     return npos;
 }
 
+void chunkmac_map::ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk)
+{
+    assert(chunkid == startpos);
+    assert(startpos > macsmacSoFarPos);
+
+    // encrypt is always done on whole chunks
+    auto& chunk = mMacMap[chunkid];
+    cipher->ctr_crypt(chunkstart, unsigned(chunksize), startpos, ctriv, chunk.mac, true, true);
+    chunk.offset = 0;
+    chunk.finished = finishesChunk;  // when encrypting for uploads, only set finished after confirmation of the chunk uploading.
+}
+
+
+void chunkmac_map::ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk)
+{
+    assert(chunkid > macsmacSoFarPos);
+    assert(startpos >= chunkid);
+    assert(startpos + chunksize <= ChunkedHash::chunkceil(chunkid));
+    ChunkMAC& chunk = mMacMap[chunkid];
+
+    cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunk.mac, false, chunk.notStarted());
+
+    if (finishesChunk)
+    {
+        chunk.finished = true;
+        chunk.offset = 0;
+    }
+    else
+    {
+        assert(startpos + chunksize < ChunkedHash::chunkceil(chunkid));
+        chunk.finished = false;
+        chunk.offset += chunksize;
+    }
+}
+
 void chunkmac_map::finishedUploadChunks(chunkmac_map& macs)
 {
-    for (auto& m : macs)
+    for (auto& m : macs.mMacMap)
     {
+        assert(m.first > macsmacSoFarPos);
+        assert(mMacMap.find(m.first) == mMacMap.end() || !mMacMap[m.first].isMacsmacSoFar());
+
         m.second.finished = true;
-        (*this)[m.first] = m.second;
+        mMacMap[m.first] = m.second;
         LOG_verbose << "Upload chunk completed: " << m.first;
     }
 }
+
+bool chunkmac_map::finishedAt(m_off_t pos)
+{
+    assert(pos > macsmacSoFarPos);
+
+    auto pcit = mMacMap.find(pos);
+    return pcit != mMacMap.end()
+        && pcit->second.finished;
+}
+
+m_off_t chunkmac_map::updateContiguousProgress(m_off_t fileSize)
+{
+    assert(progresscontiguous > macsmacSoFarPos);
+
+    while (finishedAt(progresscontiguous))
+    {
+        progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, fileSize);
+    }
+    return progresscontiguous;
+}
+
+void chunkmac_map::updateMacsmacProgress(SymmCipher *cipher)
+{
+    bool updated = false;
+    while (macsmacSoFarPos + 1024 * 1024 * 5 < progresscontiguous  // never go past contiguous-from-start section
+           && size() > 32 * 3 + 5)   // leave enough room for the mac-with-late-gaps corrective calculation to occur
+    {
+        if (mMacMap.begin()->second.isMacsmacSoFar())
+        {
+            auto it = mMacMap.begin();
+            auto& calcSoFar = it->second;
+            auto& next = (++it)->second;
+
+            assert(it->first == ChunkedHash::chunkfloor(it->first));
+            SymmCipher::xorblock(next.mac, calcSoFar.mac);
+            cipher->ecb_encrypt(calcSoFar.mac);
+            memcpy(next.mac, calcSoFar.mac, sizeof(next.mac));
+
+            macsmacSoFarPos = it->first;
+            next.offset = unsigned(-1);
+            assert(next.isMacsmacSoFar());
+            mMacMap.erase(mMacMap.begin());
+        }
+        else if (mMacMap.begin()->first == 0 && finishedAt(0))
+        {
+            auto& first = mMacMap.begin()->second;
+
+            byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+            SymmCipher::xorblock(first.mac, mac);
+            cipher->ecb_encrypt(mac);
+            memcpy(first.mac, mac, sizeof(mac));
+
+            first.offset = unsigned(-1);
+            assert(first.isMacsmacSoFar());
+            macsmacSoFarPos = 0;
+        }
+        updated = true;
+    }
+
+    if (updated)
+    {
+        LOG_verbose << "Macsmac calculation advanced to " << mMacMap.begin()->first;
+    }
+}
+
+void chunkmac_map::copyEntriesTo(chunkmac_map& other)
+{
+    for (auto& e : mMacMap)
+    {
+        assert(e.first > macsmacSoFarPos);
+        other.mMacMap[e.first] = e.second;
+    }
+}
+
+void chunkmac_map::copyEntryTo(m_off_t pos, chunkmac_map& other)
+{
+    assert(pos > macsmacSoFarPos);
+    mMacMap[pos] = other.mMacMap[pos];
+}
+
 
 // coalesce block macs into file mac
 int64_t chunkmac_map::macsmac(SymmCipher *cipher)
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    for (chunkmac_map::iterator it = begin(); it != end(); it++)
+    for (auto& it : mMacMap)
     {
-        assert(it->first == ChunkedHash::chunkfloor(it->first));
-        // LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
-        SymmCipher::xorblock(it->second.mac, mac);
-        cipher->ecb_encrypt(mac);
+        if (it.second.isMacsmacSoFar())
+        {
+            assert(it.first == mMacMap.begin()->first);
+            memcpy(mac, it.second.mac, sizeof(mac));
+        }
+        else
+        {
+            assert(it.first == ChunkedHash::chunkfloor(it.first));
+            SymmCipher::xorblock(it.second.mac, mac);
+            cipher->ecb_encrypt(mac);
+        }
     }
 
     uint32_t* m = (uint32_t*)mac;
@@ -402,7 +571,6 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     m[0] ^= m[1];
     m[1] = m[2] ^ m[3];
 
-    // LOG_debug << "macsmac final: " << Base64Str<sizeof int64_t>(mac);
     return MemAccess::get<int64_t>((const char*)mac);
 }
 
@@ -410,14 +578,25 @@ int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, siz
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    int n = 0;
-    for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
+    size_t n = 0;
+    for (auto it = mMacMap.begin(); it != mMacMap.end(); it++, n++)
     {
-        if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
+        if (it->second.isMacsmacSoFar())
+        {
+            memcpy(mac, it->second.mac, sizeof(mac));
+            for (m_off_t pos = 0; pos <= it->first; pos = ChunkedHash::chunkceil(pos))
+            {
+                ++n;
+            }
+        }
+        else
+        {
+            if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
 
-        assert(it->first == ChunkedHash::chunkfloor(it->first));
-        SymmCipher::xorblock(it->second.mac, mac);
-        cipher->ecb_encrypt(mac);
+            assert(it->first == ChunkedHash::chunkfloor(it->first));
+            SymmCipher::xorblock(it->second.mac, mac);
+            cipher->ecb_encrypt(mac);
+        }
     }
 
     uint32_t* m = (uint32_t*)mac;
@@ -640,7 +819,10 @@ bool TextChat::serialize(string *d)
     char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
     d->append((char *)&hasUnifiedKey, 1);
 
-    d->append("\0\0\0\0\0\0", 6); // additional bytes for backwards compatibility
+    char meetingRoom = meeting ? 1 : 0;
+    d->append((char*)&meetingRoom, 1);
+
+    d->append("\0\0\0\0\0", 5); // additional bytes for backwards compatibility
 
     if (hasAttachments)
     {
@@ -780,7 +962,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     char hasUnifiedKey = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    for (int i = 6; i--;)
+    char meetingRoom = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    for (int i = 5; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -883,6 +1068,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->attachedNodes = attachedNodes;
     chat->publicchat = publicchat;
     chat->unifiedKey = unifiedKey;
+    chat->meeting = meetingRoom;
 
     memset(&chat->changed, 0, sizeof(chat->changed));
 
@@ -1667,7 +1853,7 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
                 if ((utf8cp1 == 0xC2 || utf8cp1 == 0xC3) && utf8cp2 >= 0x80 && utf8cp2 <= 0xBF)
                 {
                     unicodecp = ((utf8cp1 & 0x1F) <<  6) + (utf8cp2 & 0x3F);
-                    res[rescount++] = unicodecp & 0xFF;
+                    res[rescount++] = static_cast<byte>(unicodecp & 0xFF);
                 }
                 else
                 {
@@ -2382,12 +2568,7 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 
         memset(&buffer[chunkLength], 0, SymmCipher::BLOCKSIZE);
 
-        cipher.ctr_crypt(&buffer[0],
-                         chunkLength,
-                         current,
-                         iv,
-                         chunkMacs[current].mac,
-                         1);
+        chunkMacs.ctr_encrypt(current, &cipher, buffer.get(), chunkLength, current, iv, true);
 
         current += chunkLength;
         remaining -= chunkLength;
@@ -2481,7 +2662,12 @@ bool islchex(const int c)
 
 std::string getSafeUrl(const std::string &posturl)
 {
+#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ <= 4
+    string safeurl;
+    safeurl.append(posturl);
+#else
     string safeurl = posturl;
+#endif
     size_t sid = safeurl.find("sid=");
     if (sid != string::npos)
     {
@@ -2493,10 +2679,10 @@ std::string getSafeUrl(const std::string &posturl)
         }
         memset((char *)safeurl.data() + sid, 'X', end - sid);
     }
-    size_t authKey = safeurl.find("n=");
+    size_t authKey = safeurl.find("&n=");
     if (authKey != string::npos)
     {
-        authKey += 2/*n=*/ + 8/*public handle*/;
+        authKey += 3/*&n=*/ + 8/*public handle*/;
         size_t end = safeurl.find("&", authKey);
         if (end == string::npos)
         {
@@ -2505,6 +2691,24 @@ std::string getSafeUrl(const std::string &posturl)
         memset((char *)safeurl.data() + authKey, 'X', end - authKey);
     }
     return safeurl;
+}
+
+UploadHandle UploadHandle::next()
+{
+    do
+    {
+        // Since we start with UNDEF, the first update would overwrite the whole handle and at least 1 byte further, causing data corruption
+        if (h == UNDEF) h = 0;
+
+        byte* ptr = (byte*)(&h + 1);
+
+        while (!++*--ptr);
+    }
+    while ((h & 0xFFFF000000000000) == 0 || // if the top two bytes were all 0 then it could clash with NodeHandles
+            h == UNDEF);
+
+
+    return *this;
 }
 
 } // namespace

@@ -33,22 +33,22 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
+HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, std::unique_ptr<string> cdata)
     : data(move(cdata))
 {
     cmd("ufa");
     arg("s", data->size());
 
-    if (checkAccess)
+    if (cth.isNodeHandle())
     {
-        arg("h", (byte*)&cth, MegaClient::NODEHANDLE);
+        arg("h", cth.nodeHandle());
     }
 
     progressreported = 0;
     persistent = true;  // object will be recycled either for retry or for
                         // posting to the file attribute server
 
-    if (client->usehttps)
+    if (usehttps)
     {
         arg("ssl", 2);
     }
@@ -58,7 +58,7 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
 
     binary = true;
 
-    tag = client->reqtag;
+    tag = ctag;
 }
 
 bool HttpReqCommandPutFA::procresult(Result r)
@@ -76,7 +76,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
             if (r.wasError(API_EACCESS))
             {
                 // create a custom attribute indicating thumbnail can't be restored from this account
-                Node *n = client->nodebyhandle(th);
+                Node *n = client->nodeByHandle(th.nodeHandle());
 
                 char me64[12];
                 Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
@@ -91,7 +91,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
             }
 
             status = REQ_SUCCESS;
-            client->app->putfa_result(th, type, r.errorOrOK());
+            client->app->putfa_result(th.nodeHandle().as8byte(), type, r.errorOrOK());
         }
         return true;
     }
@@ -126,7 +126,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     if (!client->json.storeobject())
                     {
                         status = REQ_SUCCESS;
-                        client->app->putfa_result(th, type, API_EINTERNAL);
+                        client->app->putfa_result(th.nodeHandle().as8byte(), type, API_EINTERNAL);
                         return false;
                     }
             }
@@ -587,8 +587,11 @@ bool CommandDirectRead::procresult(Result r)
                     }
                     if (tempurls.size() == 1 || tempurls.size() == RAIDPARTS)
                     {
-                        drn->tempurls.swap(tempurls);
-                        e.setErrorCode(API_OK);
+                        if (drn)
+                        {
+                            drn->tempurls.swap(tempurls);
+                            e.setErrorCode(API_OK);
+                        }
                     }
                     else
                     {
@@ -822,7 +825,7 @@ bool CommandGetFile::procresult(Result r)
                     else
                     {
                         assert(false);
-                        client->sendevent(99556, "Unpaired IPs received for URLs in `g` command");
+                        client->sendevent(99456, "Unpaired IPs received for URLs in `g` command");
                         LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
                     }
                 });
@@ -945,8 +948,11 @@ bool CommandSetAttr::procresult(Result r)
 
 // (the result is not processed directly - we rely on the server-client
 // response)
-CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
-                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth)
+CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
+                                 const char* userhandle, VersioningOption vo,
+                                 vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
+                                 Completion&& resultFunction)
+  : mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
 
@@ -961,7 +967,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (userhandle)
     {
         arg("t", userhandle);
-        targethandle = UNDEF;
+        targethandle.setUndef();
     }
     else
     {
@@ -974,6 +980,32 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (cauth)
     {
         arg("cauth", cauth);
+    }
+
+    // "vb": when provided, it force to override the account-wide versioning behavior by the value indicated by client
+    //     vb:1 to force it on
+    //     vb:0 to force it off
+    // Dont provide it at all to rely on the account-wide setting (as of the moment the command is processed).
+    switch (vo)
+    {
+        case NoVersioning:
+            break;
+
+        case ClaimOldVersion:
+            arg("vb", 1);
+            break;
+
+        case ReplaceOldVersion:
+            arg("vb", m_off_t(0));
+            break;
+
+        case UseLocalVersioningFlag:
+            arg("vb", !client->versions_disabled);
+            vo = !client->versions_disabled ? ClaimOldVersion : ReplaceOldVersion;
+            break;
+
+        case UseServerVersioningFlag:
+            break;
     }
 
     beginarray("n");
@@ -1025,10 +1057,12 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
             arg("p", (byte*)&nn[i].parenthandle, MegaClient::NODEHANDLE);
         }
 
-        if (nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+        if (vo != NoVersioning &&
+            nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }
+        nn[i].mVersioningOption = vo;
 
         arg("t", nn[i].type);
         arg("a", (byte*)nn[i].attrstring->data(), int(nn[i].attrstring->size()));
@@ -1052,7 +1086,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (type == NODE_HANDLE)
     {
         Node* tn;
-        if ((tn = client->nodebyhandle(th)))
+        if ((tn = client->nodeByHandle(th)))
         {
             ShareNodeKeys snk;
 
@@ -1119,7 +1153,7 @@ bool CommandPutNodes::procresult(Result r)
         LOG_debug << "Putnodes error " << r.errorOrOK();
         if (r.wasError(API_EOVERQUOTA))
         {
-            if (client->isPrivateNode(NodeHandle().set6byte(targethandle)))
+            if (client->isPrivateNode(targethandle))
             {
                 client->activateoverquota(0, false);
             }
@@ -1142,7 +1176,9 @@ bool CommandPutNodes::procresult(Result r)
             }
 
             vector<NewNode> emptyVec;
-            client->app->putnodes_result(r.errorOrOK(), type, emptyVec);
+
+            if (mResultFunction) mResultFunction(r.errorOrOK(), type, emptyVec, false);
+            else client->app->putnodes_result(r.errorOrOK(), type, emptyVec);
 
             for (size_t i = 0; i < nn.size(); i++)
             {
@@ -1157,7 +1193,9 @@ bool CommandPutNodes::procresult(Result r)
 #endif
             if (source == PUTNODES_APP)
             {
-                client->app->putnodes_result(r.errorOrOK(), type, nn);
+                if (mResultFunction) mResultFunction(r.errorOrOK(), type, nn, false);
+                else client->app->putnodes_result(r.errorOrOK(), type, nn);
+
                 return true;
             }
 #ifdef ENABLE_SYNC
@@ -1221,12 +1259,14 @@ bool CommandPutNodes::procresult(Result r)
     // when the target has been removed, the API automatically adds the new node/s
     // into the rubbish bin
     Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
-    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle);
+    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle.as8byte());
 
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        client->app->putnodes_result(e, type, nn, targetOverride);
+        if (mResultFunction) mResultFunction(e, type, nn, targetOverride);
+        else client->app->putnodes_result(e, type, nn, targetOverride);
+
         client->putnodes_sync_result(e, nn);
     }
     else
@@ -1234,9 +1274,9 @@ bool CommandPutNodes::procresult(Result r)
     if (source == PUTNODES_APP)
     {
 #ifdef ENABLE_SYNC
-        if (!ISUNDEF(targethandle))
+        if (!targethandle.isUndef())
         {
-            Node *parent = client->nodebyhandle(targethandle);
+            Node *parent = client->nodeByHandle(targethandle);
             if (parent && parent->localnode)
             {
                 // A node has been added by a regular (non sync) putnodes
@@ -1246,7 +1286,10 @@ bool CommandPutNodes::procresult(Result r)
             }
         }
 #endif
-        client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn, targetOverride);
+        auto ec = (!e && empty) ? API_ENOENT : static_cast<error>(e);
+
+        if (mResultFunction) mResultFunction(ec, type, nn, targetOverride);
+        else client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn, targetOverride);
     }
 #ifdef ENABLE_SYNC
     else
@@ -1272,8 +1315,9 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     // Additionally the servers can't deliver `st` in that packet for the same reason.  And of course we will not ignore this `t` packet, despite setting 'i'.
     notself(client);
 
-    arg("n", (byte*)&h, MegaClient::NODEHANDLE);
-    arg("t", (byte*)&t->nodehandle, MegaClient::NODEHANDLE);
+    arg("n", h);
+    arg("t", t->nodeHandle());
+    assert(t->type != FILENODE);
 
     TreeProcShareKeys tpsk;
     client->proctree(n, &tpsk);
@@ -1336,7 +1380,7 @@ bool CommandMoveNode::procresult(Result r)
                 {
                     Node *tn = NULL;
                     if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
-                            || !(tn = client->nodebyhandle(client->rootnodes[RUBBISHNODE - ROOTNODE])))
+                            || !(tn = client->nodeByHandle(client->rootnodes.rubbish)))
                     {
                         LOG_err << "Error moving node to the Rubbish Bin";
                         syncn->syncdeleted = SYNCDEL_NONE;
@@ -1377,8 +1421,8 @@ bool CommandMoveNode::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions, int cmdtag, std::function<void(handle, error)> f)
-    : mResultFunction(f)
+CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f)
+    : mResultFunction(move(f))
 {
     cmd("d");
     notself(client);
@@ -1399,7 +1443,7 @@ bool CommandDelNode::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         if (mResultFunction)    mResultFunction(h, r.errorOrOK());
-        else         client->app->unlink_result(h, r.errorOrOK());
+        else         client->app->unlink_result(h.as8byte(), r.errorOrOK());
         return true;
     }
     else
@@ -1424,14 +1468,14 @@ bool CommandDelNode::procresult(Result r)
 
                 case EOO:
                     if (mResultFunction)    mResultFunction(h, e);
-                    else         client->app->unlink_result(h, e);
+                    else         client->app->unlink_result(h.as8byte(), e);
                     return true;
 
                 default:
                     if (!client->json.storeobject())
                     {
                         if (mResultFunction)    mResultFunction(h, API_EINTERNAL);
-                        else         client->app->unlink_result(h, API_EINTERNAL);
+                        else         client->app->unlink_result(h.as8byte(), API_EINTERNAL);
                         return false;
                     }
             }
@@ -2264,7 +2308,7 @@ bool CommandUpdatePendingContact::procresult(Result r)
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
-    arg("nf", 1);
+    arg("nf", 3);
     arg("b", 1);
     tag = client->reqtag;
 }
@@ -2277,27 +2321,89 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
         return true;
     }
 
+    string currency; // common for all plans, populated from `l` object
+
     while (client->json.enterobject())
     {
         handle product = UNDEF;
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
-        unsigned amount = 0, amountMonth = 0;
-        const char* amountStr = nullptr;
-        const char* amountMonthStr = nullptr;
-        const char* curr = nullptr;
-        const char* desc = nullptr;
-        const char* ios = nullptr;
-        const char* android = nullptr;
-        string currency;
+        unsigned amount = 0, amountMonth = 0, localPrice = 0;
         string description;
         string ios_id;
         string android_id;
+
+        unique_ptr<BusinessPlan> bizPlan;
+        unique_ptr<CurrencyData> currencyData;
+
         bool finished = false;
+        bool readingL = false;
+        const char* buf = nullptr;
         while (!finished)
         {
+            buf = nullptr;
+
             switch (client->json.getnameid())
             {
-                case MAKENAMEID2('i', 't'):
+                case MAKENAMEID1('l'):  // currency localization
+                {
+                    if (!client->json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, `l` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    currencyData = mega::make_unique<CurrencyData>();
+                    readingL = true;
+
+                    while (!finished)
+                    {
+                        buf = nullptr;
+
+                        switch(client->json.getnameid())
+                        {
+                            case MAKENAMEID1('c'):  // currency, ie. EUR
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->currencyName, buf);
+                                currency = currencyData->currencyName;
+                                break;
+                            case MAKENAMEID2('c', 's'): // currency symbol, ie. €
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->currencySymbol, buf);
+                                break;
+                            case MAKENAMEID2('l', 'c'):  // local currency, ie. NZD
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->localCurrencyName, buf);
+                                break;
+                            case MAKENAMEID3('l', 'c', 's'):    // local currency symbol, ie. $
+                                buf = client->json.getvalue();
+                                JSON::copystring(&currencyData->localCurrencySymbol, buf);
+                                break;
+                            case EOO:
+                                // sanity checks for received data
+                                if (currencyData->currencyName.empty() || currencyData->currencySymbol.empty())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `l` data";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return true;
+                                }
+
+                                finished = true;    // exits from the outer loop too
+                                client->json.leaveobject(); // 'l' object
+                                break;
+                            default:
+                                if (!client->json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, store `l` data";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+                    break;
+                }
+                case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan
                     type = static_cast<int>(client->json.getint());
                     break;
                 case MAKENAMEID2('i', 'd'):
@@ -2315,37 +2421,228 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                 case 'm':
                     months = static_cast<int>(client->json.getint());
                     break;
-                case 'p':
-                    amountStr = client->json.getvalue();
-                    break;
-                case 'c':
-                    curr = client->json.getvalue();
+                case 'p':   // price (in cents)
+                    amount = static_cast<unsigned>(client->json.getint());
                     break;
                 case 'd':
-                    desc = client->json.getvalue();
+                    buf = client->json.getvalue();
+                    JSON::copystring(&description, buf);
                     break;
                 case MAKENAMEID3('i', 'o', 's'):
-                    ios = client->json.getvalue();
+                    buf = client->json.getvalue();
+                    JSON::copystring(&ios_id, buf);
                     break;
                 case MAKENAMEID6('g', 'o', 'o', 'g', 'l', 'e'):
-                    android = client->json.getvalue();
+                    buf = client->json.getvalue();
+                    JSON::copystring(&android_id, buf);
                     break;
-                case MAKENAMEID3('m', 'b', 'p'):
-                    amountMonthStr = client->json.getvalue();
+                case MAKENAMEID3('m', 'b', 'p'):    // monthly price (in cents)
+                    amountMonth = static_cast<unsigned>(client->json.getint());
                     break;
+                case MAKENAMEID2('l', 'p'): // local price (in cents)
+                    localPrice = static_cast<unsigned>(client->json.getint());
+                    break;
+                case MAKENAMEID2('b', 'd'): // BusinessPlan
+                {
+                    if (!client->json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response, `bd` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    bizPlan = mega::make_unique<BusinessPlan>();
+
+                    bool readingBd = true;
+                    while (readingBd)
+                    {
+                        switch (client->json.getnameid())
+                        {
+                            case MAKENAMEID2('b', 'a'): // base (-1 means unlimited storage or transfer)
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `ba` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingBa = true;
+                                while (readingBa)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 's':
+                                            bizPlan->gbStoragePerUser = static_cast<int>(client->json.getint());
+                                            break;
+                                        case 't':
+                                            bizPlan->gbTransferPerUser = static_cast<int>(client->json.getint());
+                                            break;
+                                        case EOO:
+                                            readingBa = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `ba` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID2('u', 's'):   // price per user
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `us` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingUs = true;
+                                while (readingUs)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 'p':
+                                            bizPlan->pricePerUser = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case MAKENAMEID2('l', 'p'):
+                                            bizPlan->localPricePerUser = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case EOO:
+                                            readingUs = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `us` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID3('s', 't', 'o'):   // storage block
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `sto` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingSto = true;
+                                while (readingSto)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 's':
+                                            bizPlan->gbPerStorage = static_cast<int>(client->json.getint());
+                                            break;
+                                        case 'p':
+                                            bizPlan->pricePerStorage = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case MAKENAMEID2('l', 'p'):
+                                            bizPlan->localPricePerStorage = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case EOO:
+                                            readingSto = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `sto` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID4('t', 'r', 'n', 's'):   // transfer block
+                            {
+                                if (!client->json.enterobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `trns` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+
+                                bool readingTrns = true;
+                                while (readingTrns)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 't':
+                                            bizPlan->gbPerTransfer = static_cast<int>(client->json.getint());
+                                            break;
+                                        case 'p':
+                                            bizPlan->pricePerTransfer = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case MAKENAMEID2('l', 'p'):
+                                            bizPlan->localPricePerTransfer = static_cast<unsigned>(client->json.getint());
+                                            break;
+                                        case EOO:
+                                            readingTrns = false;
+                                            break;
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                LOG_err << "Failed to parse Enumerate-quota-items response, `sto` data";
+                                                client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                                return false;
+                                            }
+                                            break;
+                                    }
+                                }
+                                client->json.leaveobject();
+                                break;
+                            }
+                            case MAKENAMEID4('m', 'i', 'n', 'u'):   // minimum number of user required to purchase
+                                bizPlan->minUsers = static_cast<int>(client->json.getint());
+                                break;
+                            case EOO:
+                                readingBd = false;
+                                break;
+                            default:
+                                if (!client->json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse Enumerate-quota-items response, `bd` object";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+                    client->json.leaveobject();
+                    break;
+                }
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
                             || (prolevel < 0)
+                            || (months < 0)
+                            || currency.empty()
+                            || description.empty()
+                            // only available for Pro plans, not for Business
                             || (!type && gbstorage < 0)
                             || (!type && gbtransfer < 0)
-                            || (months < 0)
-                            || !amountStr
-                            || !curr
-                            || !desc
-                            || !amountMonthStr
-                            || (!type && !ios)
-                            || (!type && !android))
+                            || (!type && !amount)
+                            || (!type && !amountMonth)
+                            || (!type && ios_id.empty())
+                            || (!type && android_id.empty())
+                            // only available for Business plan(s)
+                            || (type == 1 && !bizPlan))
                     {
                         client->app->enumeratequotaitems_result(API_EINTERNAL);
                         return true;
@@ -2354,51 +2651,32 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                     finished = true;
                     break;
                 default:
-                    client->app->enumeratequotaitems_result(API_EINTERNAL);
-                    return false;
+                    if (!client->json.storeobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    break;
             }
-        }
+        }   // end while(!finished)
 
         client->json.leaveobject();
-        JSON::copystring(&currency, curr);
-        JSON::copystring(&description, desc);
-        JSON::copystring(&ios_id, ios);
-        JSON::copystring(&android_id, android);
 
-        amount = atoi(amountStr) * 100;
-        if ((curr = strchr(amountStr, '.')))
+        if (readingL)
         {
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amount += (*curr - '0') * 10;
-            }
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amount += *curr - '0';
-            }
+            // just read currency data, keep reading objects for each pro/business plan
+            readingL = false;
+            client->app->enumeratequotaitems_result(move(currencyData));
+            continue;
         }
-
-        amountMonth = atoi(amountMonthStr) * 100;
-        if ((curr = strchr(amountMonthStr, '.')))
+        else
         {
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amountMonth += (*curr - '0') * 10;
-            }
-            curr++;
-            if ((*curr >= '0') && (*curr <= '9'))
-            {
-                amountMonth += *curr - '0';
-            }
+            client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
+                                                    gbtransfer, months, amount, amountMonth, localPrice,
+                                                    description.c_str(), ios_id.c_str(), android_id.c_str(),
+                                                    move(bizPlan));
         }
-
-        client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
-                                                gbtransfer, months, amount, amountMonth,
-                                                currency.c_str(), description.c_str(),
-                                                ios_id.c_str(), android_id.c_str());
     }
 
     client->app->enumeratequotaitems_result(API_OK);
@@ -4385,6 +4663,7 @@ bool CommandGetUserQuota::procresult(Result r)
     details->subscription_type = 'O';
     details->subscription_renew = 0;
     details->subscription_method.clear();
+    details->subscription_method_id = 0;
     memset(details->subscription_cycle, 0, sizeof(details->subscription_cycle));
 
     details->pro_until = 0;
@@ -4478,7 +4757,7 @@ bool CommandGetUserQuota::procresult(Result r)
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        auto iter = client->mNodeCounters.find(h);
+                        auto iter = client->mNodeCounters.find(NodeHandle().set6byte(h));
                         if (iter != client->mNodeCounters.end())
                         {
                             LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
@@ -4572,6 +4851,17 @@ bool CommandGetUserQuota::procresult(Result r)
                 {
                     client->json.storeobject(&details->subscription_method);
                     while(!client->json.leavearray())
+                    {
+                        client->json.storeobject();
+                    }
+                }
+                break;
+                
+            case MAKENAMEID6('s', 'g', 'w', 'i', 'd', 's'):
+                if (client->json.enterarray())
+                {
+                    details->subscription_method_id = static_cast<int>(client->json.getint());
+                    while (!client->json.leavearray())
                     {
                         client->json.storeobject();
                     }
@@ -4983,7 +5273,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
 
-                        client->putnodes(client->rootnodes[0], move(newnodes), nullptr, 0);
+                        client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0);
                     }
                     else if (havekey)
                     {
@@ -6300,13 +6590,14 @@ bool CommandGetLocalSSLCertificate::procresult(Result r)
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title)
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title, bool meetingRoom)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
     this->mTitle = title ? string(title) : "";
     this->mUnifiedKey = "";
+    mMeeting = meetingRoom;
 
     cmd("mcc");
     arg("g", (group) ? 1 : 0);
@@ -6330,6 +6621,11 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
             mUnifiedKey = it->second;
             arg("ck", mUnifiedKey.c_str());
         }
+    }
+
+    if (meetingRoom)
+    {
+        arg("mr", 1);
     }
 
     beginarray("u");
@@ -6420,6 +6716,7 @@ bool CommandChatCreate::procresult(Result r)
                         chat->group = group;
                         chat->ts = (ts != -1) ? ts : 0;
                         chat->publicchat = mPublicChat;
+                        chat->meeting = mMeeting;
                         chat->setTag(tag ? tag : -1);
                         if (chat->group && !mTitle.empty())
                         {
@@ -7100,7 +7397,7 @@ bool CommandChatLinkURL::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, r.errorOrOK());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, r.errorOrOK());
         return true;
     }
     else
@@ -7111,6 +7408,8 @@ bool CommandChatLinkURL::procresult(Result r)
         string url;
         string ct;
         m_time_t ts = 0;
+        bool meetingRoom = false;
+        handle callid = UNDEF;
 
         for (;;)
         {
@@ -7140,21 +7439,29 @@ bool CommandChatLinkURL::procresult(Result r)
                     ts = client->json.getint();
                     break;
 
+                case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'):
+                    callid = client->json.gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case MAKENAMEID2('m', 'r'):
+                    meetingRoom = client->json.getbool();
+                    break;
+
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom, callid, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, API_EINTERNAL);
                     }
                     return true;
 
                 default:
                     if (!client->json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, API_EINTERNAL);
                         return false;
                     }
             }
@@ -8075,13 +8382,12 @@ bool CommandGetCountryCallingCodes::procresult(Result r)
 
     map<string, vector<string>> countryCallingCodes;
 
-    string countryCode;
-    vector<string> callingCodes;
-
     bool success = true;
     while (client->json.enterobject())
     {
         bool exit = false;
+        string countryCode;
+        vector<string> callingCodes;
         while (!exit)
         {
             switch (client->json.getnameid())
@@ -8317,13 +8623,13 @@ bool CommandBackupPut::procresult(Result r)
     return r.wasStrictlyError() || r.hasJsonItem();
 }
 
-CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, SPHBStatus status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
     : mCompletion(f)
 {
     cmd("sphb");
 
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
-    arg("s", status);
+    arg("s", uint8_t(status));
     if (progress != -1)
     {
         arg("p", progress);
@@ -8416,10 +8722,11 @@ bool CommandBackupSyncFetch::procresult(Result r)
                 case MAKENAMEID1('s'):          d.syncState = client->json.getint32(); break;
                 case MAKENAMEID2('s', 's'):     d.syncSubstate = client->json.getint32(); break;
                 case MAKENAMEID1('e'):          client->json.storeobject(&d.extra);
-                                                d.extra = client->decypherTLVTextWithMasterKey("ed", d.extra);
+                                                d.backupName = client->decypherTLVTextWithMasterKey("bn", d.extra);
                                                 break;
                 case MAKENAMEID2('h', 'b'):
                 {
+
                     if (client->json.enterobject())
                     {
                         for (;;)
@@ -8572,120 +8879,120 @@ bool CommandDismissBanner::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-bool CommandFetchGoogleAds::procresult(Command::Result r)
-{
-    string_map result;
-    if (r.wasStrictlyError())
-    {
-        mCompletion(r.errorOrOK(), result);
-        return true;
-    }
+#ifdef ENABLE_CHAT
 
-    bool error = false;
-
-    while (client->json.enterobject() && !error)
-    {
-        std::string id;
-        std::string iu;
-        bool exit = false;
-        while (!exit)
-        {
-            switch (client->json.getnameid())
-            {
-                case MAKENAMEID2('i', 'd'):
-                    client->json.storeobject(&id);
-                    break;
-
-                case MAKENAMEID2('i', 'u'):
-                    client->json.storeobject(&iu);
-                    break;
-
-                case EOO:
-                    exit = true;
-                    if (!id.empty() && !iu.empty())
-                    {
-                        result[id] = iu;
-                    }
-                    else
-                    {
-                        error = true;
-                        result.clear();
-                    }
-                    break;
-
-                default:
-                    if (!client->json.storeobject())
-                    {
-                        result.clear();
-                        mCompletion(API_EINTERNAL, result);
-                        return false;
-                    }
-                    break;
-            }
-        }
-
-        client->json.leaveobject();
-    }
-
-    mCompletion((error ? API_EINTERNAL : API_OK), result);
-
-    return !error;
-}
-
-CommandFetchGoogleAds::CommandFetchGoogleAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchGoogleAdsCompletion completion)
-    : mCompletion(completion)
-{
-    cmd("adf");
-    arg("ad", adFlags);
-    arg("af", 2); // IU (mobile apps)
-
-    if (!ISUNDEF(publicHandle))
-    {
-        arg("p", publicHandle);
-    }
-
-    beginarray("au");
-    for (const std::string& adUnit : adUnits)
-    {
-        element(adUnit.c_str());
-    }
-    endarray();
-
-    tag = client->reqtag;
-}
-
-bool CommandQueryGoogleAds::procresult(Command::Result r)
+bool CommandMeetingStart::procresult(Command::Result r)
 {
     if (r.wasErrorOrOK())
     {
-        mCompletion(r.errorOrOK(), 0);
+        mCompletion(r.errorOrOK(), "", UNDEF);
         return true;
     }
 
-    if (!client->json.isnumeric())
-    {
-        // It's wrongly formatted, consume this one so the next command can be processed.
-        LOG_err << "Command response badly formatted";
-        mCompletion(API_EINTERNAL, 0);
-        return false;
-    }
+    handle callid = UNDEF;
+    string sfuUrl;
 
-    int value = client->json.getint32();
-    mCompletion(API_OK, value);
-    return true;
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'):
+                callid = client->json.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case MAKENAMEID3('s', 'f', 'u'):
+                client->json.storeobject(&sfuUrl);
+                break;
+
+            case EOO:
+                mCompletion(API_OK, sfuUrl, callid);
+                return true;
+                break;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    mCompletion(API_EINTERNAL, "", UNDEF);
+                    return false;
+                }
+        }
+    }
 }
 
-CommandQueryGoogleAds::CommandQueryGoogleAds(MegaClient* client, int adFlags, handle publicHandle, CommandQueryGoogleAdsCompletion completion)
+CommandMeetingStart::CommandMeetingStart(MegaClient *client, handle chatid, CommandMeetingStartCompletion completion)
     : mCompletion(completion)
 {
-    cmd("ads");
-    arg("ad", adFlags);
-    if (!ISUNDEF(publicHandle))
+    cmd("mcms");
+    arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+    tag = client->reqtag;
+}
+
+bool CommandMeetingJoin::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
     {
-        arg("ph", publicHandle);
+        mCompletion(r.errorOrOK(), "");
+        return true;
     }
+
+    string sfuUrl;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID3('u', 'r', 'l'):
+                client->json.storeobject(&sfuUrl);
+                break;
+
+            case EOO:
+                mCompletion(API_OK, sfuUrl);
+                return true;
+                break;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    mCompletion(API_EINTERNAL, "");
+                    return false;
+                }
+        }
+    }
+}
+
+CommandMeetingJoin::CommandMeetingJoin(MegaClient *client, handle chatid, handle callid, CommandMeetingJoinCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("mcmj");
+    arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("mid", (byte*)&callid, MegaClient::CHATHANDLE);
 
     tag = client->reqtag;
 }
+
+bool CommandMeetingEnd::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK());
+        return true;
+    }
+
+    mCompletion(API_EINTERNAL);
+    return false;
+}
+
+CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("mcme");
+    arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("mid", (byte*)&callid, MegaClient::CHATHANDLE);
+    // At meeting first version, only valid reason is 0x02 (REJECTED)
+    arg("r", reason);
+
+    tag = client->reqtag;
+}
+#endif
 
 } // namespace

@@ -26,6 +26,8 @@
 
 #include "megafs.h"
 
+#include <cassert>
+
 namespace mega {
 
 namespace detail {
@@ -254,15 +256,10 @@ LocalPath NormalizeRelative(const LocalPath& path)
 }
 
 FileSystemAccess::FileSystemAccess()
-    : waiter(NULL)
-    , skip_errorreport(false)
-    , transient_error(false)
 #ifdef ENABLE_SYNC
-    , notifyerr(false)
+    : notifyerr(false)
     , notifyfailed(false)
 #endif
-    , target_exists(false)
-    , client(NULL)
 {
 }
 
@@ -435,7 +432,7 @@ const char *FileSystemAccess::getPathSeparator()
 {
 #if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__) || defined (USE_IOS)
     return "/";
-#elif defined(_WIN32) || defined(WINDOWS_PHONE)
+#elif defined(_WIN32)
     return "\\";
 #else
     // Default case
@@ -495,6 +492,7 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
 // default DirNotify: no notification available
 DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore, Sync* s)
 {
+    assert(!clocalbasepath.empty());
     localbasepath = clocalbasepath;
     ignore = cignore;
 
@@ -1086,7 +1084,7 @@ LocalPath LocalPath::subpathFrom(size_t bytePos) const
 
 void LocalPath::ensureWinExtendedPathLenPrefix()
 {
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     if (!PathIsRelativeW(localpath.c_str()) && ((localpath.size() < 2) || memcmp(localpath.data(), L"\\\\", 4)))
     {
         localpath.insert(0, L"\\\\?\\", 4);
@@ -1182,6 +1180,12 @@ LocalPath LocalPath::fromPlatformEncoded(wstring&& wpath)
     LocalPath p;
     p.localpath = std::move(wpath);
     return p;
+}
+
+wchar_t LocalPath::driveLetter()
+{
+    auto drivepos = localpath.find(L':');
+    return drivepos == wstring::npos || drivepos < 1 ? 0 : localpath[drivepos-1];
 }
 #endif
 

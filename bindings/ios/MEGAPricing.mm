@@ -85,8 +85,8 @@ using namespace mega;
     return self.pricing ? self.pricing->getAmount((int)index) : 0;
 }
 
-- (NSString *)currencyAtProductIndex:(NSInteger)index {
-    return self.pricing ? [[NSString alloc] initWithUTF8String:self.pricing->getCurrency((int)index)] : nil;
+- (NSInteger)localPriceAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->getLocalPrice((int)index) : 0;
 }
 
 - (NSString *)descriptionAtProductIndex:(NSInteger)index {

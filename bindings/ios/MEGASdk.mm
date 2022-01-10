@@ -655,6 +655,23 @@ using namespace mega;
     return ret;
 }
 
+- (NSString *)accountAuth {
+    if (self.megaApi == nil) return nil;
+    const char *val = self.megaApi->getAccountAuth();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
+- (void)setAccountAuth:(NSString *)accountAuth {
+    if (self.megaApi) {
+        self.megaApi->setAccountAuth(accountAuth.UTF8String);
+    }
+}
+
 - (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey {
     if (self.megaApi) {
         self.megaApi->fastLogin(email.UTF8String, stringHash.UTF8String, base64pwKey.UTF8String);
@@ -810,6 +827,17 @@ using namespace mega;
 
 #pragma mark - Create account and confirm account Requests
 
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname {
+    if (self.megaApi) {
+        self.megaApi->createEphemeralAccountPlusPlus(firstname.UTF8String, lastname.UTF8String);
+    }
+}
+
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->createEphemeralAccountPlusPlus(firstname.UTF8String, lastname.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname {
     if (self.megaApi) {
@@ -1786,6 +1814,12 @@ using namespace mega;
     }
 }
 
+- (void)creditCardCancelSubscriptions:(nullable NSString *)reason delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->creditCardCancelSubscriptions(reason.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->changePassword(oldPassword.UTF8String, newPassword.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -1991,6 +2025,18 @@ using namespace mega;
 - (void)getCameraUploadsFolder {
     if (self.megaApi) {
         self.megaApi->getCameraUploadsFolder();
+    }
+}
+
+- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getMyBackupsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)getMyBackupsFolder {
+    if (self.megaApi) {
+        self.megaApi->getMyBackupsFolder();
     }
 }
 
@@ -2828,12 +2874,6 @@ using namespace mega;
     return (MEGAShareType) self.megaApi->getAccess([node getCPtr]);
 }
 
-- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level {
-    if (node == nil || self.megaApi == nil) return nil;
-    
-    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccess(node.getCPtr, (int) level).copy() cMemoryOwn:YES];
-}
-
 - (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level {
     if (self.megaApi == nil) return nil;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccessErrorExtended(node.getCPtr, (int)level) cMemoryOwn:YES];
@@ -2842,11 +2882,6 @@ using namespace mega;
 - (BOOL)isNodeInRubbish:(MEGANode *)node {
     if (self.megaApi == nil) return NO;
     return self.megaApi->isInRubbish(node.getCPtr);
-}
-
-- (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target {
-    if (self.megaApi == nil) return nil;
-    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMove(node.getCPtr, target.getCPtr).copy() cMemoryOwn:YES];
 }
 
 - (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {
@@ -3419,6 +3454,18 @@ using namespace mega;
 - (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(NSDate *)lastActionDate lastBackupNode:(MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->sendBackupHeartbeat(backupId, (int)status, (int)progress, (int)pendingUploadCount, 0, (long long)[lastActionDate timeIntervalSince1970], lastBackupNode.handle, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getDeviceName([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->setDeviceName(name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 

@@ -73,11 +73,11 @@ public:
 
     bool getsname(const LocalPath&, LocalPath&) const override;
 
-    bool renamelocal(LocalPath&, LocalPath&, bool) override;
+    bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
-    bool unlinklocal(LocalPath&) override;
-    bool rmdirlocal(LocalPath&) override;
-    bool mkdirlocal(LocalPath&, bool) override;
+    bool unlinklocal(const LocalPath&) override;
+    bool rmdirlocal(const LocalPath&) override;
+    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
     bool setmtimelocal(LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, string&) const override;
@@ -91,7 +91,7 @@ public:
     void osversion(string*, bool includeArchExtraInfo) const override;
     void statsid(string*) const override;
 
-    static void emptydirlocal(LocalPath&, dev_t = 0);
+    static void emptydirlocal(const LocalPath&, dev_t = 0);
 
     WinFileSystemAccess();
     ~WinFileSystemAccess();
@@ -148,7 +148,6 @@ public:
 };
 #endif
 
-#ifndef WINDOWS_PHONE
 struct MEGA_API WinAsyncIOContext : public AsyncIOContext
 {
     WinAsyncIOContext();
@@ -157,7 +156,6 @@ struct MEGA_API WinAsyncIOContext : public AsyncIOContext
 
     OVERLAPPED *overlapped;
 };
-#endif
 
 class MEGA_API WinFileAccess : public FileAccess
 {
@@ -167,8 +165,8 @@ public:
     HANDLE hFind;
     WIN32_FIND_DATAW ffd;
 
-    bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes) override;
-    bool fopen_impl(LocalPath&, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes);
+    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes) override;
+    bool fopen_impl(const LocalPath&, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes);
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
@@ -192,13 +190,11 @@ public:
     ~WinFileAccess();
 
 protected:
-#ifndef WINDOWS_PHONE
     AsyncIOContext* newasynccontext() override;
     static VOID CALLBACK asyncopfinished(
             DWORD        dwErrorCode,
             DWORD        dwNumberOfBytesTransfered,
             LPOVERLAPPED lpOverlapped);
-#endif
 };
 } // namespace
 

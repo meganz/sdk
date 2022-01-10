@@ -287,6 +287,7 @@ void File::progress()
 
 void File::completed(Transfer* t, LocalNode* l)
 {
+    assert(!transfer || t == transfer);
     if (t->type == PUT)
     {
         vector<NewNode> newnodes(1);
@@ -335,12 +336,12 @@ void File::completed(Transfer* t, LocalNode* l)
         }
         else
         {
-            handle th = h.as8byte();
+            NodeHandle th = h;
 
             // inaccessible target folder - use //bin instead
-            if (!t->client->nodebyhandle(th))
+            if (!t->client->nodeByHandle(th))
             {
-                th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
+                th = t->client->rootnodes.rubbish;
             }
 #ifdef ENABLE_SYNC
             if (l)
@@ -362,20 +363,24 @@ void File::completed(Transfer* t, LocalNode* l)
                 t->client->syncadding++;
             }
 #endif
-            if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
+            if (mVersioningOption != NoVersioning &&
+                ISUNDEF(newnode->ovhandle))
             {
-                newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
+                newnode->ovhandle = t->client->getovhandle(t->client->nodeByHandle(th), &name);
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,
-                                                                  th, NULL,
-                                                                  move(newnodes),
-                                                                  tag,
+                                                    th, NULL,
+                                                    mVersioningOption,
+                                                    move(newnodes),
+                                                    tag,
 #ifdef ENABLE_SYNC
-                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
+                                                    l ? PUTNODES_SYNC : PUTNODES_APP,
 #else
-                                                                  PUTNODES_APP));
+                                                    PUTNODES_APP,
 #endif
+                                                    nullptr,
+                                                    nullptr));
         }
     }
 }
@@ -391,22 +396,7 @@ bool File::failed(error e)
 {
     if (e == API_EKEY)
     {
-        if (!transfer->hascurrentmetamac)
-        {
-            // several integrity check errors uploading chunks
-            return transfer->failcount < 1;
-        }
-
-        if (transfer->hasprevmetamac && transfer->prevmetamac == transfer->currentmetamac)
-        {
-            // integrity check failed after download, two times with the same value
-            return false;
-        }
-
-        // integrity check failed once, try again
-        transfer->prevmetamac = transfer->currentmetamac;
-        transfer->hasprevmetamac = true;
-        return transfer->failcount < 16;
+        return false; // mac error; do not retry
     }
 
     return  // Non fatal errors, up to 16 retries
@@ -490,10 +480,10 @@ void SyncFileGet::prepare()
             {
                 LOG_verbose << "Creating tmp folder";
                 transfer->localfilename = sync->localdebris;
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true);
+                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true, true);
 
                 transfer->localfilename.appendWithSeparator(tmpname, true);
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename);
+                sync->client->fsaccess->mkdirlocal(transfer->localfilename, false, true);
 
                 // lock it
                 LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess, sync->mFilesystemType);

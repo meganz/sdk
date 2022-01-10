@@ -173,11 +173,6 @@ public:
         return mSize;
     }
 
-    bool isBigEnoughToOutputDirectly(size_t bufferedSize) const
-    {
-        return (mForce || mSize > directMsgThreshold || mSize + bufferedSize + 40 >= LOGGER_CHUNKS_SIZE /*room for [file:line]*/ );
-    }
-
     const char *constChar() const
     {
         return mConstChar;
@@ -524,28 +519,22 @@ public:
     SimpleLogger& operator<<(const DirectMessage &obj)
     {
 #ifndef ENABLE_LOG_PERFORMANCE
-    *this << obj.constChar();
+        ostr.write(obj.constChar(), obj.size());
 #else
-        if (!obj.isBigEnoughToOutputDirectly(static_cast<size_t>(std::distance(mBuffer.begin(), mBufferIt)))) //don't bother with little msg
-        {
-            *this << obj.constChar();
-        }
-        else
-        {
-            if (mBufferIt != mBuffer.begin()) //something was appended to the buffer before this direct msg
-            {
-                *mBufferIt = '\0';
-                std::string *newStr  = new string(mBuffer.data());
-                mCopiedParts.emplace_back( newStr);
-                string * back = mCopiedParts[mCopiedParts.size()-1];
+        // careful using constChar() without taking size() into account: *this << obj.constChar(); ended up with 2MB+ lines from fetchnodes.
 
-                mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
-                mBufferIt = mBuffer.begin();
-            }
+        if (mBufferIt != mBuffer.begin()) //something was appended to the buffer before this direct msg
+        {
+            *mBufferIt = '\0';
+            std::string *newStr  = new string(mBuffer.data());
+            mCopiedParts.emplace_back( newStr);
+            string * back = mCopiedParts[mCopiedParts.size()-1];
 
-            mDirectMessages.push_back(DirectMessage(obj.constChar(), obj.size()));
+            mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
+            mBufferIt = mBuffer.begin();
         }
 
+        mDirectMessages.push_back(DirectMessage(obj.constChar(), obj.size()));
 #endif
         return *this;
     }
@@ -582,9 +571,12 @@ public:
 };
 
 // source file leaf name - maybe to be compile time calculated one day
-template<std::size_t N> inline const char* log_file_leafname(const char(&fullpath)[N])
-{
-    for (auto i = N; i--; ) if (fullpath[i] == '/' || fullpath[i] == '\\') return &fullpath[i+1];
+template<std::size_t N> inline const char* log_file_leafname( const char (&fullpath)[N]) {
+    for (auto i = N - 1; --i; )
+    {
+        if (fullpath[i] == '/' || fullpath[i] == '\\') 
+            return &fullpath[i+1];
+    }
     return fullpath;
 }
 

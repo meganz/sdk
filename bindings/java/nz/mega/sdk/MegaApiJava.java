@@ -464,22 +464,6 @@ public class MegaApiJava {
     /****************************************************************************************************/
 
     /**
-     * Generates a hash based in the provided private key and email.
-     * <p>
-     * This is a time consuming operation (especially for low-end mobile devices). Since the resulting key is
-     * required to log in, this function allows to do this step in a separate function. You should run this function
-     * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApiJava.fastLogin().
-     *
-     * @param base64pwkey
-     *            Private key returned by MegaApiJava.getBase64PwKey().
-     * @return Base64-encoded hash.
-     * @deprecated Legacy function soon to be removed.
-     */
-    @Deprecated public String getStringHash(String base64pwkey, String inBuf) {
-        return megaApi.getStringHash(base64pwkey, inBuf);
-    }
-
-    /**
      * Get an URL to transfer the current session to the webclient
      *
      * This function creates a new session for the link so logging out in the web client won't log out
@@ -1354,6 +1338,42 @@ public class MegaApiJava {
      */
     public String dumpSession() {
         return megaApi.dumpSession();
+    }
+
+    /**
+     * Get an authentication token that can be used to identify the user account
+     *
+     * If this MegaApi object is not logged into an account, this function will return NULL
+     *
+     * The value returned by this function can be used in other instances of MegaApi
+     * thanks to the function MegaApi::setAccountAuth.
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Authentication token
+     */
+    public String getAccountAuth() {
+        return megaApi.getAccountAuth();
+    }
+
+    /**
+     * Use an authentication token to identify an account while accessing public folders
+     *
+     * This function is useful to preserve the PRO status when a public folder is being
+     * used. The identifier will be sent in all API requests made after the call to this function.
+     *
+     * To stop using the current authentication token, it's needed to explicitly call
+     * this function with NULL as parameter. Otherwise, the value set would continue
+     * being used despite this MegaApi object is logged in or logged out.
+     *
+     * It's recommended to call this function before the usage of MegaApi::loginToFolder
+     *
+     * @param auth Authentication token used to identify the account of the user.
+     * You can get it using MegaApi::getAccountAuth with an instance of MegaApi logged into
+     * an account.
+     */
+    public void setAccountAuth(String auth) {
+        megaApi.setAccountAuth(auth);
     }
 
     /**
@@ -5704,6 +5724,148 @@ public class MegaApiJava {
     }
 
     /**
+     * Returns the id of this device
+     *
+     * You take the ownership of the returned value.
+     *
+     * @return The id of this device
+     */
+    public String getDeviceId() {
+        return megaApi.getDeviceId();
+    }
+
+    /**
+     * Returns the name set for this device
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns device name.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getDeviceName(MegaRequestListenerInterface listener) {
+        megaApi.getDeviceName(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Returns the name set for this device
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns device name.
+     */
+    public void getDeviceName() {
+        megaApi.getDeviceName();
+    }
+
+    /**
+     * Sets device name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     * - MegaRequest::getName - Returns device name.
+     *
+     * @param deviceName String with device name
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setDeviceName(String deviceName, MegaRequestListenerInterface listener) {
+        megaApi.setDeviceName(deviceName, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Sets device name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     * - MegaRequest::getName - Returns device name.
+     *
+     * @param deviceName String with device name
+     */
+    public void setDeviceName(String deviceName) {
+        megaApi.setDeviceName(deviceName);
+    }
+
+    /**
+     * Returns the name set for this drive
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+     * - MegaRequest::getFile - Returns the path to the drive
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns drive name.
+     *
+     * @param pathToDrive Path to the root of the external drive
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getDriveName(String pathToDrive, MegaRequestListenerInterface listener) {
+        megaApi.getDriveName(pathToDrive, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Returns the name set for this drive
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+     * - MegaRequest::getFile - Returns the path to the drive
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns drive name.
+     *
+     * @param pathToDrive Path to the root of the external drive
+     */
+    public void getDriveName(String pathToDrive) {
+        megaApi.getDriveName(pathToDrive);
+    }
+
+    /**
+     * Sets drive name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+     * - MegaRequest::getName - Returns drive name.
+     * - MegaRequest::getFile - Returns the path to the drive
+     *
+     * @param pathToDrive Path to the root of the external drive
+     * @param driveName String with drive name
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setDriveName(String pathToDrive, String driveName, MegaRequestListenerInterface listener) {
+        megaApi.setDriveName(pathToDrive, driveName, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Sets drive name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+     * - MegaRequest::getName - Returns drive name.
+     * - MegaRequest::getFile - Returns the path to the drive
+     *
+     * @param pathToDrive Path to the root of the external drive
+     * @param driveName String with drive name
+     */
+    public void setDriveName(String pathToDrive, String driveName) {
+        megaApi.setDriveName(pathToDrive, driveName);
+    }
+
+    /**
      * Change the password of the MEGA account
      *
      * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
@@ -5927,88 +6089,6 @@ public class MegaApiJava {
      */
     public int getPasswordStrength(String password){
         return megaApi.getPasswordStrength(password);
-    }
-
-    /**
-     * Submit feedback about the app.
-     * <p>
-     * The User-Agent is used to identify the app. It can be set in MegaApiJava.MegaApi().
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_REPORT_EVENT.
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_FEEDBACK. <br>
-     * - MegaRequest.getText() - Returns the comment about the app. <br>
-     * - MegaRequest.getNumber() - Returns the rating for the app.
-     *
-     * @param rating
-     *            Integer to rate the app. Valid values: from 1 to 5.
-     * @param comment
-     *            Comment about the app.
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * @deprecated This function is for internal usage of MEGA apps. This feedback
-     *             is sent to MEGA servers.
-     *
-     */
-    @Deprecated public void submitFeedback(int rating, String comment, MegaRequestListenerInterface listener) {
-        megaApi.submitFeedback(rating, comment, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Submit feedback about the app.
-     * <p>
-     * The User-Agent is used to identify the app. It can be set in MegaApiJava.MegaApi().
-     *
-     * @param rating
-     *            Integer to rate the app. Valid values: from 1 to 5.
-     * @param comment
-     *            Comment about the app.
-     * @deprecated This function is for internal usage of MEGA apps. This feedback
-     *             is sent to MEGA servers.
-     *
-     */
-    @Deprecated public void submitFeedback(int rating, String comment) {
-        megaApi.submitFeedback(rating, comment);
-    }
-
-    /**
-     * Send a debug report.
-     * <p>
-     * The User-Agent is used to identify the app. It can be set in MegaApiJava.MegaApi()
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_REPORT_EVENT
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_DEBUG. <br>
-     * - MegaRequest.getText() - Returns the debug message.
-     *
-     * @param text
-     *            Debug message
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * @deprecated This function is for internal usage of MEGA apps. This feedback
-     *             is sent to MEGA servers.
-     */
-    @Deprecated public void reportDebugEvent(String text, MegaRequestListenerInterface listener) {
-        megaApi.reportDebugEvent(text, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Send a debug report.
-     * <p>
-     * The User-Agent is used to identify the app. It can be set in MegaApiJava.MegaApi().
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_REPORT_EVENT
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_DEBUG. <br>
-     * - MegaRequest.getText() - Returns the debug message.
-     *
-     * @param text
-     *            Debug message.
-     * @deprecated This function is for internal usage of MEGA apps. This feedback
-     *             is sent to MEGA servers.
-     */
-    @Deprecated public void reportDebugEvent(String text) {
-        megaApi.reportDebugEvent(text);
     }
 
     /**
@@ -7470,16 +7550,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Force a loop of the SDK thread.
-     *
-     * @deprecated This function is only here for debugging purposes. It will probably
-     *             be removed in future updates.
-     */
-    @Deprecated public void update() {
-        megaApi.update();
-    }
-
-    /**
      * Check if the SDK is waiting for the server.
      *
      * @return true if the SDK is waiting for the server to complete a request.
@@ -7625,21 +7695,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Update the number of pending downloads/uploads.
-     * <p>
-     * This function forces a count of the pending downloads/uploads. It could
-     * affect the return value of MegaApiJava.getNumPendingDownloads() and
-     * MegaApiJava.getNumPendingUploads().
-     *
-     * @deprecated Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
-     *
-     */
-    public void updateStats() {
-        megaApi.updateStats();
-    }
-
-    /**
      * Get the total number of nodes in the account
      * @return Total number of nodes in the account
      */
@@ -7782,16 +7837,16 @@ public class MegaApiJava {
      *               Sort with videos first, then by date descending
      *
      *               - MegaApi::ORDER_LABEL_ASC = 17
-     *               Sort by color label, ascending
+     *               Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_LABEL_DESC = 18
-     *               Sort by color label, descending
+     *               Sort by color label, descending. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_FAV_ASC = 19
-     *               Sort nodes with favourite attr first
+     *               Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_FAV_DESC = 20
-     *               Sort nodes with favourite attr last
+     *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      *               Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
      *               are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
@@ -7855,16 +7910,16 @@ public class MegaApiJava {
      *                    Sort with videos first, then by date descending
      *
      *                    - MegaApi::ORDER_LABEL_ASC = 17
-     *                    Sort by color label, ascending
+     *                    Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                    - MegaApi::ORDER_LABEL_DESC = 18
-     *                    Sort by color label, descending
+     *                    Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                    - MegaApi::ORDER_FAV_ASC = 19
-     *                    Sort nodes with favourite attr first
+     *                    Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                    - MegaApi::ORDER_FAV_DESC = 20
-     *                    Sort nodes with favourite attr last
+     *                    Sort nodes with favourite attr last. With this order, folders are returned first, then files
      * @return List with all child MegaNode objects
      */
     public ArrayList<MegaNode> getChildren(MegaNodeList parentNodes, int order) {
@@ -7974,16 +8029,16 @@ public class MegaApiJava {
      *               Sort with videos first, then by date descending
      *
      *               - MegaApi::ORDER_LABEL_ASC = 17
-     *               Sort by color label, ascending
+     *               Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_LABEL_DESC = 18
-     *               Sort by color label, descending
+     *               Sort by color label, descending. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_FAV_ASC = 19
-     *               Sort nodes with favourite attr first
+     *               Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *               - MegaApi::ORDER_FAV_DESC = 20
-     *               Sort nodes with favourite attr last
+     *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return Lists with files and folders child MegaNode objects
      */
@@ -8290,52 +8345,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Check if a MegaNode is being shared by/with your own user
-     *
-     * For nodes that are being shared, you can get a a list of MegaShare
-     * objects using MegaApiJava.getOutShares(), or a list of MegaNode objects
-     * using MegaApi::getInShares
-     *
-     * @param node Node to check.
-     * @return true is the MegaNode is being shared, otherwise false.
-     * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-     * Use MegaNode::isShared instead
-     */
-    public boolean isShared(MegaNode node) {
-        return megaApi.isShared(node);
-    }
-
-    /**
-     * Check if a MegaNode is being shared with other users
-     *
-     * For nodes that are being shared, you can get a list of MegaShare
-     * objects using MegaApi::getOutShares
-     *
-     * @param node Node to check
-     * @return true is the MegaNode is being shared, otherwise false
-     * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-     * Use MegaNode::isOutShare instead
-     */
-    public boolean isOutShare(MegaNode node) {
-    	return megaApi.isOutShare(node);
-    }
-
-    /**
-     * Check if a MegaNode belong to another User, but it is shared with you
-     *
-     * For nodes that are being shared, you can get a list of MegaNode
-     * objects using MegaApi::getInShares
-     *
-     * @param node Node to check
-     * @return true is the MegaNode is being shared, otherwise false
-     * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-     * Use MegaNode::isInShare instead
-     */
-    public boolean isInShare(MegaNode node) {
-    	return megaApi.isInShare(node);
-    }
-
-    /**
      * Check if a MegaNode is pending to be shared with another User. This situation
      * happens when a node is to be shared with a User which is not a contact yet.
      *
@@ -8385,31 +8394,6 @@ public class MegaApiJava {
      */
     public ArrayList<MegaShare> getOutShares(MegaNode node) {
         return shareListToArray(megaApi.getOutShares(node));
-    }
-
-    /**
-     * Get a list with all pending outbound sharings
-     *
-     * You take the ownership of the returned value
-     *
-     * @return List of MegaShare objects
-     * @deprecated Use MegaNode::getOutShares instead of this function
-     */
-    public ArrayList<MegaShare> getPendingOutShares() {
-        return shareListToArray(megaApi.getPendingOutShares());
-    }
-
-    /**
-     * Get a list with all pending outbound sharings
-     *
-     * You take the ownership of the returned value
-     *
-     * @param node MegaNode to check.
-     * @return List of MegaShare objects.
-     * @deprecated Use MegaNode::getOutShares instead of this function
-     */
-    public ArrayList<MegaShare> getPendingOutShares(MegaNode node) {
-        return shareListToArray(megaApi.getPendingOutShares(node));
     }
 
     /**
@@ -8876,16 +8860,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -8961,16 +8945,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9044,16 +9028,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9132,16 +9116,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9216,16 +9200,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9300,16 +9284,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9384,16 +9368,16 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that contain the desired string in their name
      */
@@ -9477,16 +9461,17 @@ public class MegaApiJava {
      *                     Sort with videos first, then by date descending
      *
      *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending
+     *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending
+     *                     Sort by color label, descending. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first
+     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last
+     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     *
      * @param type         Type of nodes requested in the search
      *                     Valid values for this parameter are:
      *                     - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
@@ -9569,16 +9554,16 @@ public class MegaApiJava {
      * Sort with videos first, then by date descending
      *
      * - MegaApi::ORDER_LABEL_ASC = 17
-     * Sort by color label, ascending
+     * Sort by color label, ascending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_LABEL_DESC = 18
-     * Sort by color label, descending
+     * Sort by color label, descending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_ASC = 19
-     * Sort nodes with favourite attr first
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_DESC = 20
-     * Sort nodes with favourite attr last
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @param type Type of nodes requested in the search
      * Valid values for this parameter are:
@@ -9678,16 +9663,16 @@ public class MegaApiJava {
      * Sort with videos first, then by date descending
      *
      * - MegaApi::ORDER_LABEL_ASC = 17
-     * Sort by color label, ascending
+     * Sort by color label, ascending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_LABEL_DESC = 18
-     * Sort by color label, descending
+     * Sort by color label, descending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_ASC = 19
-     * Sort nodes with favourite attr first
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_DESC = 20
-     * Sort nodes with favourite attr last
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @param type Type of nodes requested in the search
      * Valid values for this parameter are:
@@ -9771,16 +9756,16 @@ public class MegaApiJava {
      * Sort with videos first, then by date descending
      *
      * - MegaApi::ORDER_LABEL_ASC = 17
-     * Sort by color label, ascending
+     * Sort by color label, ascending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_LABEL_DESC = 18
-     * Sort by color label, descending
+     * Sort by color label, descending. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_ASC = 19
-     * Sort nodes with favourite attr first
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
      *
      * - MegaApi::ORDER_FAV_DESC = 20
-     * Sort nodes with favourite attr last
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
      * @return List of nodes that match with the search parameters
      */
@@ -11717,5 +11702,84 @@ public class MegaApiJava {
      */
     public boolean isCookieBannerEnabled() {
         return megaApi.cookieBannerEnabled();
+    }
+
+    /**
+     * @brief Set My Backups folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
+     *
+     * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
+     * the request will fail with the error code MegaError::API_EACCESS.
+     *
+     * @param handle MegaHandle of the node to be used as target folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setMyBackupsFolder(long handle, MegaRequestListenerInterface listener) {
+        megaApi.setMyBackupsFolder(handle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Set My Backups folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
+     *
+     * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
+     * the request will fail with the error code MegaError::API_EACCESS.
+     *
+     * @param handle MegaHandle of the node to be used as target folder
+     */
+    public void setMyBackupsFolder(long handle) {
+        megaApi.setMyBackupsFolder(handle);
+    }
+
+    /**
+     * @brief Gets My Backups target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
+     *
+     * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getMyBackupsFolder(MegaRequestListenerInterface listener) {
+        megaApi.getMyBackupsFolder(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Gets My Backups target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
+     *
+     * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+     */
+    public void getMyBackupsFolder() {
+        megaApi.getMyBackupsFolder();
     }
 }

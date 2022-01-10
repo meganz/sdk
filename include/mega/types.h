@@ -95,6 +95,9 @@ using std::streambuf;
 using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
+using std::shared_ptr;
+using std::weak_ptr;
+using std::move;
 using std::mutex;
 using std::lock_guard;
 
@@ -172,16 +175,6 @@ typedef enum { REQ_BINARY, REQ_JSON } contenttype_t;
 
 // new node source types
 typedef enum { NEW_NODE, NEW_PUBLIC, NEW_UPLOAD } newnodesource_t;
-
-// file chunk MAC
-struct ChunkMAC
-{
-    ChunkMAC() : offset(0), finished(false) { }
-
-    byte mac[SymmCipher::BLOCKSIZE];
-    unsigned int offset;
-    bool finished;
-};
 
 class chunkmac_map;
 
@@ -276,10 +269,13 @@ class NodeHandle
     uint64_t h = 0xFFFFFFFFFFFFFFFF;
 public:
     bool isUndef() const { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
+    void setUndef() { h = 0xFFFFFFFFFFFFFFFF; }
     NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0 || n == 0xFFFFFFFFFFFFFFFF); return *this; }
+    NodeHandle& setImpossibleValue(uint64_t n) { h = n; return *this; }
     bool eq(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
     bool eq(handle b) const { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
     bool ne(handle b) const { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    bool ne(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) != (b.h & 0xFFFFFFFFFFFF); }
     bool operator<(const NodeHandle& rhs) const { return h < rhs.h; }
     handle as8byte() const { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
 };
@@ -287,7 +283,47 @@ public:
 inline bool operator==(NodeHandle a, NodeHandle b) { return a.eq(b); }
 inline bool operator==(NodeHandle a, handle b) { return a.eq(b); }
 inline bool operator!=(NodeHandle a, handle b) { return a.ne(b); }
+inline bool operator!=(NodeHandle a, NodeHandle b) { return a.ne(b); }
 std::ostream& operator<<(std::ostream&, NodeHandle h);
+
+struct UploadHandle
+{
+    handle h = 0xFFFFFFFFFFFFFFFF;
+    UploadHandle() {}
+    UploadHandle(handle uh) : h(uh) { assert( (h & 0xFFFF000000000000) != 0 ); }
+
+    // generate upload handle for the next upload
+    UploadHandle next();
+
+    bool isUndef() const { return h == 0xFFFFFFFFFFFFFFFF; }
+
+    bool eq(UploadHandle b) const { return h == b.h; }
+    bool operator<(const UploadHandle& rhs) const { return h < rhs.h; }
+};
+
+inline bool operator==(UploadHandle a, UploadHandle b) { return a.eq(b); }
+
+class NodeOrUploadHandle
+{
+    handle h = 0xFFFFFFFFFFFFFFFF;
+    bool mIsNodeHandle = true;
+
+public:
+    NodeOrUploadHandle() {}
+    explicit NodeOrUploadHandle(NodeHandle nh) : h(nh.as8byte()), mIsNodeHandle(true) {}
+    explicit NodeOrUploadHandle(UploadHandle uh) : h(uh.h), mIsNodeHandle(false) {}
+
+    NodeHandle nodeHandle() { return mIsNodeHandle ? NodeHandle().set6byte(h) : NodeHandle(); }
+    UploadHandle uploadHandle() { return mIsNodeHandle ? UploadHandle() : UploadHandle(h); }
+
+    bool isNodeHandle() { return mIsNodeHandle; }
+    bool isUndef() const { return h == 0xFFFFFFFFFFFFFFFF; }
+
+    bool eq(NodeOrUploadHandle b) const { return h == b.h && mIsNodeHandle == b.mIsNodeHandle; }
+    bool operator<(const NodeOrUploadHandle& rhs) const { return h < rhs.h || (h == rhs.h && int(mIsNodeHandle) < int(rhs.mIsNodeHandle)); }
+};
+
+inline bool operator==(NodeOrUploadHandle a, NodeOrUploadHandle b) { return a.eq(b); }
 
 // (can use unordered_set if available)
 typedef set<handle> handle_set;
@@ -350,8 +386,8 @@ typedef enum { VISIBILITY_UNKNOWN = -1, HIDDEN = 0, VISIBLE = 1, INACTIVE = 2, B
 
 typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 
-// maps handle-index pairs to file attribute handle
-typedef map<pair<handle, fatype>, pair<handle, int> > fa_map;
+// maps handle-index pairs to file attribute handle.  map value is (file attribute handle, tag)
+typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
 typedef enum {
     SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
@@ -453,7 +489,7 @@ class deque_with_lazy_bulk_erase
     // Any other operation on the deque performs all the gathered erases in a single std::remove_if for efficiency.
     // This makes an enormous difference when cancelling 100k transfers in MEGAsync's transfers window for example.
     deque<E> mDeque;
-    bool mErasing = false;
+    size_t nErased = 0;
 
 public:
 
@@ -463,16 +499,31 @@ public:
     {
         assert(i != mDeque.end());
         i->erase();
-        mErasing = true;
+        ++nErased;
     }
 
     void applyErase()
     {
-        if (mErasing)
+        if (nErased)
         {
-            auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
-            mDeque.erase(newEnd, mDeque.end());
-            mErasing = false;
+            // quite often the elements are at the front, no need to traverse the whole thing
+            // removal from the front or back of a deque is cheap
+            while (nErased && !mDeque.empty() && mDeque.front().isErased())
+            {
+                mDeque.pop_front();
+                --nErased;
+            }
+            while (nErased && !mDeque.empty() && mDeque.back().isErased())
+            {
+                mDeque.pop_back();
+                --nErased;
+            }
+            if (nErased)
+            {
+                auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
+                mDeque.erase(newEnd, mDeque.end());
+                nErased = 0;
+            }
         }
     }
 
@@ -494,11 +545,11 @@ typedef map<int, vector<uint32_t> > pendingdbid_map;
 // map a request tag with a pending dns request
 typedef map<int, GenericHttpReq*> pendinghttp_map;
 
-// map an upload handle to the corresponding transer
-typedef map<handle, Transfer*> handletransfer_map;
+// map an upload handle to the corresponding transfer
+typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
-typedef map<handle, Node*> node_map;
+typedef map<NodeHandle, Node*> node_map;
 
 struct NodeCounter
 {
@@ -511,7 +562,7 @@ struct NodeCounter
     void operator -= (const NodeCounter&);
 };
 
-typedef std::map<handle, NodeCounter> NodeCounterMap;
+typedef std::map<NodeHandle, NodeCounter> NodeCounterMap;
 
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;
@@ -521,9 +572,6 @@ typedef list<struct NewShare*> newshare_list;
 
 // generic handle vector
 typedef vector<handle> handle_vector;
-
-// pairs of node handles
-typedef set<pair<handle, handle> > handlepair_set;
 
 // node and user vectors
 typedef vector<struct User*> user_vector;
@@ -659,6 +707,7 @@ struct TextChat : public Cacheable
     m_time_t ts;     // creation time
     attachments_map attachedNodes;
     bool publicchat;  // whether the chat is public or private
+    bool meeting;     // chat is meeting room
 
 private:        // use setter to modify these members
     byte flags;     // currently only used for "archive" flag at first bit
@@ -718,6 +767,11 @@ enum SmsVerificationState {
     SMS_STATE_ONLY_UNBLOCK = 1,   // Only unblock SMS allowed
     SMS_STATE_FULL = 2            // Opt-in and unblock SMS allowed
 };
+
+typedef enum
+{
+    END_CALL_REASON_REJECTED    = 0x02,    /// 1on1 call was rejected while ringing
+} endCall_t;
 
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
@@ -917,6 +971,17 @@ typedef enum
 }
 BackupType;
 
+enum VersioningOption
+{
+    // In the cases where these options are specified for uploads, the `ov` flag will be
+    // set if there is a pre-existing node in the target folder, with the same name.
+
+    NoVersioning,             // Node will be put directly to parent, with no versions, and no other node affected
+    ClaimOldVersion,          // The Node specified by `ov` (if any) will become the first version of the node put
+    ReplaceOldVersion,        // the Node specified by `ov` (if any) will be deleted, and this new node takes its place, retaining any version chain.
+    UseLocalVersioningFlag,   // One of the two above will occur, based on the versions_disabled flag
+    UseServerVersioningFlag   // One of those two will occur, based on the API's current state of that flag
+};
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
 // either always be NULL or if one refers to the other, the other refers to the one.

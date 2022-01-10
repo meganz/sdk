@@ -69,7 +69,7 @@ struct MEGA_API NewNode : public NodeCore
     newnodesource_t source = NEW_NODE;
 
     handle ovhandle = UNDEF;
-    handle uploadhandle = UNDEF;
+    UploadHandle uploadhandle;
     byte uploadtoken[UPLOADTOKENLEN]{};
 
     handle syncid = UNDEF;
@@ -78,6 +78,8 @@ struct MEGA_API NewNode : public NodeCore
 #endif
     std::unique_ptr<string> fileattributes;
 
+    // versioning used for this new node, forced at server's side regardless the account's value
+    VersioningOption mVersioningOption = NoVersioning;
     bool added = false;
     handle mAddedHandle = UNDEF;
 };
@@ -258,6 +260,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // check if node is below this node
     bool isbelow(Node*) const;
+    bool isbelow(NodeHandle) const;
 
     // handle of public link for the node
     PublicLink* plink = nullptr;
@@ -267,7 +270,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool serialize(string*) override;
     static Node* unserialize(MegaClient*, const string*, node_vector*);
 
-    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
+    Node(MegaClient*, vector<Node*>*, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
 #ifdef ENABLE_SYNC

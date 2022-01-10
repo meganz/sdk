@@ -132,6 +132,7 @@ bool JSON::skipnullvalue()
     {
     case ',':         // empty value, i.e.  "foo":,
         ++pos;
+    // fall through
     case ']':         // empty value, i.e.  "foo":]
     case'}':          // empty value, i.e.  "foo":}
         return true;
@@ -148,6 +149,7 @@ bool JSON::skipnullvalue()
         {
         case ',':     // null value, i.e.  "foo":null,
             ++pos;
+        // fall through
         case ']':     // null value, i.e.  "foo":null]
         case '}':     // null value, i.e.  "foo":null}
             pos += 4;
@@ -721,6 +723,39 @@ void JSON::copystring(string* s, const char* p)
     {
         s->clear();
     }
+}
+
+string JSON::stripWhitespace(const string& text)
+{
+    return stripWhitespace(text.c_str());
+}
+
+string JSON::stripWhitespace(const char* text)
+{
+    JSON reader(text);
+    string result;
+
+    while (*reader.pos)
+    {
+        if (*reader.pos == '"')
+        {
+            string temp;
+
+            result.push_back('"');
+
+            if (!reader.storeobject(&temp))
+                return result;
+
+            result.append(temp);
+            result.push_back('"');
+        }
+        else if (std::isspace(*reader.pos))
+            ++reader.pos;
+        else
+            result.push_back(*reader.pos++);
+    }
+
+    return result;
 }
 
 JSONWriter::JSONWriter()

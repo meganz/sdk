@@ -64,7 +64,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     client = cclient;
     size = 0;
     failcount = 0;
-    uploadhandle = 0;
     minfa = 0;
     pos = 0;
     ctriv = 0;
@@ -73,8 +72,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     slot = NULL;
     asyncopencontext = NULL;
     progresscompleted = 0;
-    hasprevmetamac = false;
-    hascurrentmetamac = false;
     finished = false;
     lastaccesstime = 0;
     ultoken = NULL;
@@ -199,6 +196,20 @@ bool Transfer::serialize(string *d)
     d->append((const char*)&s, sizeof(s));
     d->append((const char*)&priority, sizeof(priority));
     d->append("", 1);
+
+#ifdef DEBUG
+    // very quick debug only double check
+    string tempstr = *d;
+    transfer_map tempmap[2];
+    unique_ptr<Transfer> t(unserialize(client, &tempstr, tempmap));
+    assert(t);
+    assert(t->localfilename == localfilename);
+    assert(t->state == (state == TRANSFERSTATE_PAUSED ? TRANSFERSTATE_PAUSED : TRANSFERSTATE_NONE));
+    assert(t->priority == priority);
+    assert(t->fingerprint() == fingerprint());
+#endif
+
+
     return true;
 }
 
@@ -239,7 +250,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     const char *filepath = ptr;
     ptr += ll;
 
-    Transfer *t = new Transfer(client, type);
+    unique_ptr<Transfer> t(new Transfer(client, type));
 
     memcpy(t->filekey, ptr, sizeof t->filekey);
     ptr += sizeof(t->filekey);
@@ -258,7 +269,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (!t->chunkmacs.unserialize(ptr, end))
     {
         LOG_err << "Transfer unserialization failed - chunkmacs too long";
-        delete t;
         return NULL;
     }
 
@@ -268,11 +278,10 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (!fp)
     {
         LOG_err << "Error unserializing Transfer: Unable to unserialize FileFingerprint";
-        delete t;
         return NULL;
     }
 
-    *(FileFingerprint *)t = *(FileFingerprint *)fp;
+    *(FileFingerprint *)t.get() = *(FileFingerprint *)fp;
     delete fp;
 
     fp = FileFingerprint::unserialize(d);
@@ -285,7 +294,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (ptr + sizeof(m_time_t) + sizeof(char) > end)
     {
         LOG_err << "Transfer unserialization failed - fingerprint too long";
-        delete t;
         return NULL;
     }
 
@@ -301,7 +309,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
             || (ptr + ll + sizeof(unsigned short) > end))
     {
         LOG_err << "Transfer unserialization failed - invalid ultoken";
-        delete t;
         return NULL;
     }
 
@@ -318,7 +325,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (ptr + ll + 10 > end)
     {
         LOG_err << "Transfer unserialization failed - temp URL too long";
-        delete t;
         return NULL;
     }
 
@@ -334,7 +340,6 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (!t->tempurls.empty() && t->tempurls.size() != 1 && t->tempurls.size() != RAIDPARTS)
     {
         LOG_err << "Transfer unserialization failed - temp URL incorrect components";
-        delete t;
         return NULL;
     }
     ptr += ll;
@@ -353,15 +358,19 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (*ptr)
     {
         LOG_err << "Transfer unserialization failed - invalid version";
-        delete t;
         return NULL;
     }
     ptr++;
 
     t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
-    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
-    return t;
+    auto it_bool = transfers[type].insert(pair<FileFingerprint*, Transfer*>(t.get(), t.get()));
+    if (!it_bool.second)
+    {
+        // duplicate transfer
+        t.reset();
+    }
+    return t.release();
 }
 
 SymmCipher *Transfer::transfercipher()
@@ -373,6 +382,7 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
 {
     Transfer *transfer = f->transfer;
     client->filecachedel(f, committer);
+    assert(*f->file_it == f);
     transfer->files.erase(f->file_it);
     client->app->file_removed(f, e);
     f->transfer = NULL;
@@ -436,10 +446,6 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         ++client->performanceStats.transferTempErrors;
     }
 
-#ifdef ENABLE_SYNC
-    bool alreadyDisabled = false;
-#endif
-
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
@@ -452,7 +458,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, false);
+                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE, false);
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -521,6 +527,10 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         state = TRANSFERSTATE_FAILED;
         finished = true;
 
+#ifdef ENABLE_SYNC
+        bool alreadyDisabled = false;
+#endif
+
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
 #ifdef ENABLE_SYNC
@@ -572,7 +582,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
         if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
             // if we don't have the codec id mappings yet, send the request
-            client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+            client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
 
             // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
             MediaProperties vp;
@@ -584,7 +594,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
             }
             else
             {
-                client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(vp, attrKey, client, node->nodehandle);
+                client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(vp, attrKey, client, node->nodeHandle());
             }
         }
     }
@@ -602,7 +612,8 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
     if (type == GET)
     {
-        LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size();
+
+        LOG_debug << client->clientname << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "");
 
         bool transient_error = false;
         LocalPath tmplocalname;
@@ -618,13 +629,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         // set timestamp (subsequent moves & copies are assumed not to alter mtime)
         success = client->fsaccess->setmtimelocal(localfilename, mtime);
 
-#ifdef ENABLE_SYNC
         if (!success)
         {
             transient_error = client->fsaccess->transient_error;
             LOG_debug << "setmtimelocal failed " << transient_error;
         }
-#endif
 
         // verify integrity of file
         auto fa = client->fsaccess->newfileaccess();
@@ -688,7 +697,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 }
             }
         }
-#ifdef ENABLE_SYNC
         else
         {
             if (syncxfer && !fixedfingerprint && success)
@@ -697,7 +705,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 LOG_debug << "Unable to validate fingerprint " << transient_error;
             }
         }
-#endif
         fa.reset();
 
         char me64[12];
@@ -882,7 +889,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                                 if (missingattr)
                                 {
-                                    client->gfx->gendimensionsputfa(NULL, localname, n->nodehandle, n->nodecipher(), missingattr);
+                                    client->gfx->gendimensionsputfa(NULL, localname, NodeOrUploadHandle(n->nodeHandle()), n->nodecipher(), missingattr);
                                 }
 
                                 addAnyMissingMediaFileAttributes(n, localname);
@@ -976,7 +983,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
     }
     else
     {
-        LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
+        LOG_debug << client->clientname << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
 
         if (slot->fa)
         {
@@ -1956,7 +1963,8 @@ bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, 
     return false;
 }
 
-std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction)
+std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction,
+                                                             std::function<bool(direction_t)>& directionContinuefunction)
 {
     std::array<vector<Transfer*>, 6> chosenTransfers;
 
@@ -1966,6 +1974,9 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
     {
         for (Transfer *transfer : transfers[direction])
         {
+            // don't traverse the whole list if we already have as many as we are going to get
+            if (!directionContinuefunction(direction)) break;
+
             bool continueLarge = true;
             bool continueSmall = true;
 
