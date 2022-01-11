@@ -11206,7 +11206,7 @@ class MegaApi
          * - MegaRequest::getAccess - Returns true
          * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getFlag - Returns true if writable
-         * - MegaRequest::getgTransferTag - Returns if share key is shared with mega
+         * - MegaRequest::getTransferTag - Returns if share key is shared with mega
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -11231,7 +11231,7 @@ class MegaApi
          * - MegaRequest::getAccess - Returns true
          * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getFlag - Returns true if writable
-         * - MegaRequest::getgTransferTag - Returns if share key is shared with mega
+         * - MegaRequest::getTransferTag - Returns if share key is shared with mega
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
