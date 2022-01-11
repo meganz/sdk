@@ -17134,7 +17134,7 @@ std::vector<NodeHandle> NodeManager::getChildrenHandlesFromNode(NodeHandle node)
     return nodes;
 }
 
-void NodeManager::increaseCounters(const Node *node, NodeHandle firstAncestorHandle)
+void NodeManager::increaseCounter(const Node *node, NodeHandle firstAncestorHandle)
 {
     if (node->type == FILENODE)
     {
@@ -17164,7 +17164,7 @@ void NodeManager::loadTreeRecursively(const Node* node)
 
         // Update counters, now that all ancestors are loaded
         const Node* ancestor = child->firstancestor();
-        increaseCounters(child, ancestor->nodeHandle());
+        increaseCounter(child, ancestor->nodeHandle());
     }
 }
 
@@ -17798,8 +17798,8 @@ void NodeManager::loadNodes()
         {
             loadTreeRecursively(node);
 
-            // increase the node counters for each rootnode
-            increaseCounters(node, node->nodeHandle());
+            // finally increase the count for each rootnode (only applies to folder links)
+            increaseCounter(node, node->nodeHandle());
         }
     }
     else    // only load top and first level of the tree/s
@@ -17896,7 +17896,7 @@ void NodeManager::saveNodeInDataBase(Node *node)
 
     if (firstValidAncestor != UNDEF)
     {
-        increaseCounters(node, firstValidAncestor);
+        increaseCounter(node, firstValidAncestor);
 
         auto it = mNodeCounters.find(node->nodeHandle());
         if (it != mNodeCounters.end())

@@ -266,9 +266,6 @@ public:
     // read recent nodes from DB and load them in memory
     node_vector getRecentNodes(unsigned maxcount, m_time_t since);
 
-    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
-    uint64_t getNodeCount();
-
     // Search nodes containing 'searchString' in its name
     // Returned nodes are children of 'nodeHandle' (at any level)
     // If 'nodeHandle' is UNDEF, search includes the whole account
@@ -332,10 +329,14 @@ public:
     // TODO nodes on demand remove
     MegaClient& getMegaClient();
 
+
     // ===--- Node Counters ---===
 
     // returns the counter for 'node', recursively, accessing to DB
     NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile = false);
+
+    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
+    uint64_t getNodeCount();
 
     // return the counter for 'h' if available in memory. Otherwise, nullptr
     const NodeCounter* getCounter(const NodeHandle& h) const;
@@ -402,7 +403,7 @@ private:
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
     std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
     // Increase node counters with a node type and values
-    void increaseCounters(const Node *node, NodeHandle firstAncestorHandle);
+    void increaseCounter(const Node *node, NodeHandle firstAncestorHandle);
     // Load nodes recursively and update nodeCounters
     void loadTreeRecursively(const Node *node);
 
