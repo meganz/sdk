@@ -17792,53 +17792,50 @@ void NodeManager::loadNodes()
 
     if (mKeepAllNodesInMemory)
     {
-        node_vector rootNodes = getRootNodes();
-        for (const Node* node : rootNodes)
+        node_vector rootnodes;
+        if (mClient.loggedIntoFolder())
         {
-            loadTreeRecursively(node);
-            // We don't increase counters because root nodes aren't FILENODES nor FOLDERNODES
-        }
-
-        // load nodes for folder link
-        if (mNodes.empty())
-        {
-            assert(mClient.loggedIntoFolder());
             Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
             assert(rootNode);
 
-            loadTreeRecursively(rootNode);
-            // Update counter for this rootNode
-            increaseCounters(rootNode, rootNode->nodeHandle());
+            rootnodes.push_back(rootNode);
+        }
+        else    // logged into user's account: load rootnodes and incoming shared folders
+        {
+            rootnodes = getRootNodes();
+
+            node_vector inSharesNodes = getNodesWithInShares();
+            rootnodes.insert(rootnodes.end(), inSharesNodes.begin(), inSharesNodes.end());
         }
 
-        node_vector inSharesNodes = getNodesWithInShares();
-        for (const Node* node : inSharesNodes)
+        for (auto &node : rootnodes)
         {
             loadTreeRecursively(node);
 
-            // Update counter for this inshare
+            // increase the node counters for each rootnode
             increaseCounters(node, node->nodeHandle());
         }
     }
-    else
+    else    // only load top and first level of the tree/s
     {
         // Load map with fingerprints to speed up searching by fingerprint
         mTable->getFingerPrints(mFingerPrints);
-        if (!mClient.loggedIntoFolder())
-        {
-            getRootNodes();
-        }
-        else // load root node for Folder link
+
+        if (mClient.loggedIntoFolder())
         {
             Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
             setrootnode(rootNode);
             getChildren(rootNode);
         }
+        else    // logged into user's account: load rootnodes, inshares and links
+        {
+            getRootNodes();
 
-        getNodesWithInShares();
+            getNodesWithInShares();
 
-        // TODO Nodes on Demand: Review to remove. mPublicLinks has been removed
-        getNodesWithLinks();
+            // TODO Nodes on Demand: Review if needed to restore mPublicLinks (it has been removed)
+            getNodesWithLinks();
+        }
 
         //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside increaseCounters
         NodeHandle rootHandle = mClient.rootnodes.files;
@@ -17847,7 +17844,6 @@ void NodeManager::loadNodes()
         updateCounter(inboxHandle);
         NodeHandle rubbishHandle = mClient.rootnodes.rubbish;
         updateCounter(rubbishHandle);
-
     }
 }
 
