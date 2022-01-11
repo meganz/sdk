@@ -17499,7 +17499,10 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
 
     n = new Node(mClient, h, ph, t, s, u, fa, ts);
     mNodes[n->nodeHandle()] = n;
-    n->setparent(getNodeByHandle(n->parentHandle()), true);
+
+    // setparent() skiping update of node counters, since they are already calculated
+    // before loading specific nodes from database
+    n->setparent(getNodeByHandle(n->parentHandle()), false);
 
     if (k)
     {

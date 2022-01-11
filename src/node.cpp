@@ -746,7 +746,7 @@ NodeCounter Node::subnodeCounts() const
 }
 
 // returns whether node was moved
-bool Node::setparent(Node* p, bool unserializedNode)
+bool Node::setparent(Node* p, bool updateNodeCounters)
 {
     if (p == parent)
     {
@@ -758,7 +758,7 @@ bool Node::setparent(Node* p, bool unserializedNode)
     parenthandle = p ? p->nodehandle : UNDEF;
     parent = p;
 
-    if (!unserializedNode)
+    if (updateNodeCounters)
     {
         const Node* originalancestor = oldparent ? oldparent->firstancestor() : nullptr;
         const NodeHandle& oah = originalancestor ? originalancestor->nodeHandle() : NodeHandle();
