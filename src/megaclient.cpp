@@ -8477,6 +8477,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     {
                         n->setparent(NULL);
                         n->parenthandle = ph;
+                        mNodeManager.addNodeWithMissingParent(n);
                     }
                 }
 
@@ -16789,6 +16790,11 @@ bool NodeManager::updateNode(Node *node)
     return true;
 }
 
+void NodeManager::addNodeWithMissingParent(Node *node)
+{
+    mNodesWithMissingParent[node->parentHandle()].insert(node);
+}
+
 Node *NodeManager::getNodeByHandle(NodeHandle handle)
 {
     if (!mTable)
@@ -17815,7 +17821,7 @@ void NodeManager::saveNodeInRAM(Node *node, bool notify)
         }
         else
         {
-            mNodesWithMissingParent[node->parentHandle()].insert(node);
+            addNodeWithMissingParent(node);
         }
 
         auto it = mNodesWithMissingParent.find(node->nodeHandle());

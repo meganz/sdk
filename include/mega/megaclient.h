@@ -257,6 +257,9 @@ public:
     bool updateNode(Node* node);
     // removeNode() --> it's done through notifypurge()
 
+    // if a node is received before its parent, it needs to be updated when received
+    void addNodeWithMissingParent(Node *node);
+
     // if node is not available in memory, it's loaded from DB
     Node *getNodeByHandle(NodeHandle handle);
 
