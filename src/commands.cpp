@@ -5107,8 +5107,7 @@ bool CommandGetUserSessions::procresult(Result r)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets,
-                           bool writable, const string &shareKey,
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable, bool megaHosted,
     int ctag, std::function<void(Error, handle, handle)> f)
 {
     h = n->nodehandle;
@@ -5136,9 +5135,9 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets,
         arg("w", "1");
     }
 
-    if (!shareKey.empty())
+    if (megaHosted && n->sharekey)
     {
-        arg("sk", (byte*)shareKey.data(), static_cast<int>(shareKey.size()));
+        arg("sk", n->sharekey->key, SymmCipher::KEYLENGTH);
     }
 }
 

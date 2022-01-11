@@ -587,8 +587,8 @@ public:
     error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, bool writable, const std::string &shareKey, const char*,
-	    int tag, std::function<void(Error, bool writable)> completion);
+    void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
+        int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
@@ -597,7 +597,7 @@ public:
     // export node link or remove existing exported link for this node
     error exportnode(Node*, int, m_time_t, bool writable, bool megaHosted,
         int tag, std::function<void(Error, handle, handle)> completion);
-    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable, const std::string &shareKey,
+    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
 	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer

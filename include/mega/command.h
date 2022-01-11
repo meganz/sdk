@@ -765,7 +765,7 @@ class MEGA_API CommandSetPH : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable, const std::string &shareKey,
+    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable, bool megaHosted,
         int ctag, std::function<void(Error, handle, handle)> f);
 };
 

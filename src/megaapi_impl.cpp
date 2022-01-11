@@ -19443,7 +19443,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (e == API_OK)
             {
-                client->setshare(node, email, a, false, string(), nullptr, nextTag, [this, request](Error e, bool){
+                client->setshare(node, email, a, false, nullptr, nextTag, [this, request](Error e, bool){
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             }
@@ -19555,12 +19555,12 @@ void MegaApiImpl::sendPendingRequests()
             Node* node = client->nodebyhandle(request->getNodeHandle());
             if(!node) { e = API_EARGS; break; }
 
-			bool writable = request->getFlag();
+            bool writable = request->getFlag();
             bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
             e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, nextTag,
-                                   [this, request](Error e, handle h, handle ph){
-
+                [this, request](Error e, handle h, handle ph)
+            {
                 if (e || !request->getAccess()) // disable export doesn't return h and ph
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

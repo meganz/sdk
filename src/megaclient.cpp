@@ -8171,7 +8171,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
         {
             if (it.second->pcr)
             {
-                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, false, string(), nullptr, tag, [](Error, bool){});
+                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool){});
             }
         }
     }
@@ -8182,11 +8182,11 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
         {
             if (it.second->user)
             {
-                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, false, string(), nullptr, tag, [](Error, bool){});
+                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool){});
             }
             else // folder links are a shared folder without user
             {
-                setshare(n, nullptr, ACCESS_UNKNOWN, false, string(), nullptr, tag, [](Error, bool) {});
+                setshare(n, nullptr, ACCESS_UNKNOWN, false, nullptr, tag, [](Error, bool) {});
             }
         }
     }
@@ -10323,7 +10323,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
-void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const std::string &shareKey,
+void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable,
                           const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
 {
     assert(completion);
@@ -10337,7 +10337,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, shareKey, personal_representation, move(completion)));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, move(completion)));
 }
 
 // Add/delete/remind outgoing pending contact request
@@ -11562,7 +11562,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool
     switch (n->type)
     {
     case FILENODE:
-        requestPublicLink(n, del, ets, writable, string(), tag, move(completion));
+        requestPublicLink(n, del, ets, writable, false, tag, move(completion));
         break;
 
     case FOLDERNODE:
@@ -11571,7 +11571,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
             NodeHandle h = n->nodeHandle();
-            requestPublicLink(n, del, ets, writable, string(), tag, [this, completion, writable, tag, h](Error e, handle, handle){
+            requestPublicLink(n, del, ets, writable, false, tag, [this, completion, writable, tag, h](Error e, handle, handle){
                 Node* n = nodeByHandle(h);
                 if (e || !n)
                 {
@@ -11579,7 +11579,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool
                 }
                 else
                 {
-                    setshare(n, NULL, ACCESS_UNKNOWN, writable, string(), nullptr, tag, [completion](Error e, bool) {
+                    setshare(n, NULL, ACCESS_UNKNOWN, writable, nullptr, tag, [completion](Error e, bool) {
                         completion(e, UNDEF, UNDEF);
                         });
                 }
@@ -11588,28 +11588,20 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool
         else
         {
             // Exporting folder - need to create share first
-			// If share creation is successful, the share completion function calls requestPublicLink
+            // If share creation is successful, the share completion function calls requestPublicLink
 
             handle h = n->nodehandle;
 
-            string shareKey;
-            if (megaHosted)
+            setshare(n, NULL, writable ? FULL : RDONLY, writable, nullptr, tag,
+                     [this, megaHosted, h, ets, tag, writable, completion](Error e, bool)
             {
-                // generate a new key
-                byte key[SymmCipher::KEYLENGTH];
-                rng.genblock(key, sizeof key);
-                shareKey.assign((char*)key, SymmCipher::KEYLENGTH);
-            }
-
-            setshare(n, NULL, writable ? FULL : RDONLY, writable, shareKey, nullptr, tag,
-                     [this, shareKey, h, ets, tag, writable, completion](Error e, bool){
                 if (e)
                 {
                     completion(e, UNDEF, UNDEF);
                 }
                 else if (Node* node = nodebyhandle(h))
                 {
-                    requestPublicLink(node, false, ets, writable, shareKey, tag, completion);
+                    requestPublicLink(node, false, ets, writable, megaHosted, tag, completion);
                 }
                 else
                 {
@@ -11626,9 +11618,9 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool
     return API_OK;
 }
 
-void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, const std::string &shareKey, int tag, std::function<void(Error, handle, handle)> f)
+void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted, int tag, std::function<void(Error, handle, handle)> f)
 {
-    reqs.add(new CommandSetPH(this, n, del, ets, writable, shareKey, tag, move(f)));
+    reqs.add(new CommandSetPH(this, n, del, ets, writable, megaHosted, tag, move(f)));
 }
 
 // open exported file link

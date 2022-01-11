@@ -88,6 +88,8 @@ void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
 void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
 {
     Node* n;
+    int newshare;
+
     // node vanished: bail
     if (!(n = client->nodebyhandle(h)))
     {
@@ -96,24 +98,14 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     }
 
     // do we already have a share key for this node?
-    bool newshare = !n->sharekey;
-
-    assert(mNewShareKey.empty() || !n->sharekey); //trying to assign a new (precreated) share key to a node that already has one
-
-    if (newshare) //no previous share key
+    if ((newshare = !n->sharekey))
     {
-        if (mNewShareKey.empty()) // create a new one
-        {
-            byte key[SymmCipher::KEYLENGTH];
-            client->rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
-        }
-        else //assing the one provided
-        {
-            auto cipher = new SymmCipher();
-            cipher->setkey(&mNewShareKey);
-            n->sharekey = cipher;
-        }
+        // no: create
+        byte key[SymmCipher::KEYLENGTH];
+
+        client->rng.genblock(key, sizeof key);
+
+        n->sharekey = new SymmCipher(key);
     }
 
     // we have all ingredients ready: the target user's public key, the share
@@ -122,8 +114,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
 }
 
 // share node sh with access level sa
-PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, bool writable, const string &newShareKey, const char* personal_representation, std::function<void(Error, bool writeable)> f)
-    : mNewShareKey(newShareKey)
+PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, bool writable, const char* personal_representation, std::function<void(Error, bool writeable)> f)
 {
     h = sh;
     a = sa;
