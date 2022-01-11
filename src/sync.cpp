@@ -978,6 +978,10 @@ void Sync::setBackupMonitoring()
 
     assert(config.getBackupState() == SYNC_BACKUP_MIRROR);
 
+    LOG_verbose << "Sync "
+                << toHandle(config.mBackupId)
+                << " transitioning to monitoring mode.";
+
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
     assert(client);
@@ -2133,6 +2137,10 @@ dstime Sync::procscanq(int q)
             return notification.timestamp - dsmin;
         }
 
+#ifdef DEBUG
+        client->app->syncdebug_notification(getConfig(), q, notification);
+#endif // DEBUG
+
         if ((l = notification.localnode) != (LocalNode*)~0)
         {
             dstime backoffds = 0;
@@ -2971,13 +2979,51 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
         return;
     }
 
+    // Preprocess input so to remove all extraneous whitespace.
+    auto strippedData = JSON::stripWhitespace(data);
+
     // Try and translate JSON back into sync configs.
     SyncConfigVector configs;
 
-    if (!importSyncConfigs(data, configs))
+    if (!importSyncConfigs(strippedData, configs))
     {
         // No love. Inform the client.
         completion(API_EREAD);
+        return;
+    }
+
+    // Don't import configs that already appear to be present.
+    {
+        lock_guard<mutex> guard(mSyncVecMutex);
+
+        // Checks if two configs have an equivalent mapping.
+        auto equivalent = [](const SyncConfig& lhs, const SyncConfig& rhs) {
+            auto& lrp = lhs.mOriginalPathOfRemoteRootNode;
+            auto& rrp = rhs.mOriginalPathOfRemoteRootNode;
+
+            return lhs.mLocalPath == rhs.mLocalPath && lrp == rrp;
+        };
+
+        // Checks if an equivalent config has already been loaded.
+        auto present = [&](const SyncConfig& config) {
+            for (auto& us : mSyncVec)
+            {
+                if (equivalent(us->mConfig, config))
+                    return true;
+            }
+
+            return false;
+        };
+
+        // Strip configs that already appear to be present.
+        auto j = std::remove_if(configs.begin(), configs.end(), present);
+        configs.erase(j, configs.end());
+    }
+
+    // No configs? Nothing to import!
+    if (configs.empty())
+    {
+        completion(API_OK);
         return;
     }
 
@@ -3170,7 +3216,7 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     return true;
 }
 
-bool Syncs::importSyncConfigs(const char* data, SyncConfigVector& configs)
+bool Syncs::importSyncConfigs(const string& data, SyncConfigVector& configs)
 {
     static const string TYPE_CONFIGS = "configs";
 
@@ -3683,8 +3729,60 @@ void Syncs::removeSyncByIndex(size_t index)
         auto& config = mSyncVec[index]->mConfig;
         mClient.app->sync_removed(config);
 
-        // unregister this sync/backup from API (backup center)
-        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+        // get the node for the backup to be removed
+        auto nh = config.getRemoteNode();
+        if (nh.isUndef()) // can happen when the remote folder has been removed
+        {
+            // unregister this sync/backup from API (backup center)
+            mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+        }
+
+        else
+        {
+            auto node = mClient.nodeByHandle(nh);
+            if (!node)
+            {
+                LOG_err << "Node not found for the backup to be removed.";
+                return;
+            }
+
+            // check for DeviceId node attribute
+            attr_map am = node->attrs.map;
+            auto idIt = am.find(AttrMap::string2nameid("dev-id"));
+            if (idIt == am.end())
+            {
+                idIt = am.find(AttrMap::string2nameid("drv-id"));
+            }
+
+            if (idIt == am.end())
+            {
+                // just unregister this sync/backup if no DeviceId node attribute was found
+                mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+            }
+            else
+            {
+                // remove the node attribute and unregister this sync/backup from API (backup center)
+                idIt->second.clear();
+
+                auto completion = [this, &config](NodeHandle, Error e)
+                {
+                    if (e)
+                    {
+                        LOG_err << "Unable to remove sync node attribute for DeviceId";
+                    }
+                    else
+                    {
+                        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+                    }
+                };
+
+                if (mClient.setattr(node, std::move(am), mClient.nextreqtag(), nullptr, completion) != API_OK)
+                {
+                    LOG_err << "Unable to update node attributes, to remove DeviceId";
+                    return;
+                }
+            }
+        }
 
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);

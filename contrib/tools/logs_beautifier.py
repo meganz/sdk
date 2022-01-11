@@ -4,15 +4,45 @@
 # and beautify json payloads
 
 import json, sys, re
+import argparse
 
-for l in open(sys.argv[1]):
+parser = argparse.ArgumentParser()
 
-    if "cs POST target" in l:
+parser.add_argument('--print-cs-post', '-r', action='store_true', dest='postcs', help='print lines with cs POST')
+parser.set_defaults(postcs=False)
+
+parser.add_argument('--print-sc-post', '-a', action='store_true', dest='postsc', help='print lines with sc POST')
+parser.set_defaults(postsc=False)
+
+parser.add_argument('--only-action-packets', '-s', action='store_true', dest='onlyactionpackets', help='do not print cs requests/responses')
+parser.set_defaults(onlyactionpackets=False)
+
+parser.add_argument('--only-client-requests', '-c', action='store_true', dest='onlyclientreqs', help='do not print sc requests/responses')
+parser.set_defaults(onlyclientreqs=False)
+
+
+parser.add_argument('file', nargs=argparse.REMAINDER)
+
+args = parser.parse_args()
+fToParse = sys.stdin if not len(args.file) else open(args.file[0])
+
+scpatterns=["sc Received", "sc Sending"]
+cspatterns=["cs Received", "cs Sending"]
+patterns=[]
+
+if not args.onlyactionpackets:
+    patterns+=(cspatterns)
+if not args.onlyclientreqs:
+    patterns+=(scpatterns)
+
+
+for l in fToParse:
+
+    if args.postcs and "cs POST target" in l:
         print l,
-    if "-v" in sys.argv and "Request " in l and (" starting" in l or " finished" in l):
+    if args.postsc and "sc POST target" in l:
         print l,
-
-    if ("sc Received" in l or "cs Received" in l or "sc Sending" in l or "cs Sending" in l) and "sc Received 1: 0" not in l and " sc Sending 0:" not in l:
+    if any(x in l for x in patterns) and "sc Received 1: 0" not in l and " sc Sending 0:" not in l:
 
         m = re.search('(.*): (\{.*\}|\[.*\])', l)
         if m:

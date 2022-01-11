@@ -1280,7 +1280,7 @@ class MegaUser
             CHANGE_TYPE_ALIAS                       = 0x1000000,
             CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
-            //CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,  // this bit can be used for another type of change. Please, recycle :)
+            CHANGE_TYPE_MY_BACKUPS_FOLDER           = 0x8000000,
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
         };
 
@@ -1357,6 +1357,12 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_GEOLOCATION    = 0x100000
          * Check if option for geolocation messages has changed
          *
+         * - MegaUser::CHANGE_TYPE_CAMERA_UPLOADS_FOLDER = 0x200000
+         * Check if "Camera uploads" folder has changed
+         *
+         * - MegaUser::CHANGE_TYPE_MY_CHAT_FILES_FOLDER = 0x400000
+         * Check if "My chat files" folder changed
+         *
          * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
          *
@@ -1368,6 +1374,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_DEVICE_NAMES = 0x4000000
          * Check if device names have changed
+         *
+         * - MegaUser::CHANGE_TYPE_MY_BACKUPS_FOLDER = 0x8000000
+         * Check if "My Backups" folder has changed
          *
          * @return true if this user has an specific change
          */
@@ -13649,11 +13658,12 @@ class MegaApi
          * - MegaRequest::getParamType - Returns the type of the sync
          * - MegaRequest::getLink - Returns the drive root if external backup
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional info for
+         * the  specific sync error (MegaSync::Error). It could happen both when the request has succeeded (API_OK) and
+         * also in some cases of failure, when the request error is not accurate enough.
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
-         *  or any other particular condition in case of API_OK
+         * is other than MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId

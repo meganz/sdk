@@ -5548,6 +5548,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     locallogout();
     auto tracker = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    resetlastEvent();
     fetchnodes(0, maxTimeout); // auto-resumes one active backup
     // Verify the sync again
     allSyncs.reset(megaApi[0]->getSyncs());
@@ -5566,11 +5567,35 @@ TEST_F(SdkTest, SdkBackupFolder)
         }
     }
     ASSERT_EQ(found, true) << "Sync instance could not be found, after logout & login";
+    // make sure that client is up to date (upon logout, recent changes might not be committed to DB,
+    // which may result on the new node not being available yet).
+    size_t times = 10;
+    while (times--)
+    {
+        if (lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) break;
+        std::this_thread::sleep_for(std::chrono::seconds{1});
+    }
+    ASSERT_TRUE(lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) << "Timeout expired to receive actionpackets";
+
+    // Test that DeviceId was set for the newly registered backup
+    MegaSync* snc = allSyncs->get(0);
+    ASSERT_NE(snc, nullptr) << "No sync was found";
+    std::unique_ptr<MegaNode> nn(megaApi[0]->getNodeByHandle(snc->getMegaHandle()));
+    ASSERT_TRUE(nn) << "MegaNode for the new sync was not found";
+    const char* devid = nn->getDeviceId();
+    ASSERT_TRUE(devid && devid[0]) << "DeviceId was not set for the new sync";
 
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
     megaApi[0]->removeSync(allSyncs->get(0), &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
+
+    // Test that DeviceId is no longer set for the node of the former backup
+    nn.reset(megaApi[0]->getNodeByHandle(snc->getMegaHandle()));
+    ASSERT_TRUE(nn) << "MegaNode for the former sync was not found";
+    const char* devid2 = nn->getDeviceId();
+    ASSERT_TRUE(!devid2 || !devid2[0]) << "DeviceId was not removed for the former sync";
+
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
 
