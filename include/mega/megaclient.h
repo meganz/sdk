@@ -350,8 +350,8 @@ public:
     // add the counter for 'h' (it must not exist yet)
     void addCounter(const NodeHandle &h);
 
-    // update the counter for 'h' (must be available in memory, or it will be loaded)
-    void updateCounter(const NodeHandle& h);
+    // create the counter for 'h' and calculate its count recursively
+    void calculateCounter(const NodeHandle& h);
 
     // subtract the counter of 'n' (calculated from DB) from its first antecesor, which must be a rootnode
     void subtractFromRootCounter(const Node& n);

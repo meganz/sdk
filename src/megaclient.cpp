@@ -16703,17 +16703,14 @@ bool NodeManager::setrootnode(Node* node)
     {
         case ROOTNODE:
             mClient.rootnodes.files = node->nodeHandle();
-            addCounter(node->nodeHandle());
             return true;
 
         case INCOMINGNODE:
             mClient.rootnodes.inbox = node->nodeHandle();
-            addCounter(node->nodeHandle());
             return true;
 
         case RUBBISHNODE:
             mClient.rootnodes.rubbish = node->nodeHandle();
-            addCounter(node->nodeHandle());
             return true;
 
         default:
@@ -16750,7 +16747,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
             setrootnode(node);
         }
 
-        if (isFolderLink)
+        if (rootNode || isFolderLink)
         {
             addCounter(node->nodeHandle());
         }
@@ -17776,61 +17773,47 @@ void NodeManager::loadNodes()
         return;
     }
 
+    node_vector rootnodes;
+    if (mClient.loggedIntoFolder())
+    {
+        Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
+        assert(rootNode);
+
+        rootnodes.push_back(rootNode);
+    }
+    else    // logged into user's account: load rootnodes and incoming shared folders
+    {
+        rootnodes = getRootNodes();
+
+        node_vector inSharesNodes = getNodesWithInShares();
+        rootnodes.insert(rootnodes.end(), inSharesNodes.begin(), inSharesNodes.end());
+    }
+
     if (mKeepAllNodesInMemory)
     {
-        node_vector rootnodes;
-        if (mClient.loggedIntoFolder())
-        {
-            Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
-            assert(rootNode);
-
-            rootnodes.push_back(rootNode);
-        }
-        else    // logged into user's account: load rootnodes and incoming shared folders
-        {
-            rootnodes = getRootNodes();
-
-            node_vector inSharesNodes = getNodesWithInShares();
-            rootnodes.insert(rootnodes.end(), inSharesNodes.begin(), inSharesNodes.end());
-        }
-
         for (auto &node : rootnodes)
         {
+            // add counter to accumulate count recursively
+            addCounter(node->nodeHandle());
+
             loadTreeRecursively(node);
 
             // finally increase the count for each rootnode (only applies to folder links)
             increaseCounter(node, node->nodeHandle());
         }
     }
-    else    // only load top and first level of the tree/s
+    else // load only first level
     {
         // Load map with fingerprints to speed up searching by fingerprint
         mTable->getFingerPrints(mFingerPrints);
 
-        if (mClient.loggedIntoFolder())
+        for (auto &node : rootnodes)
         {
-            Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
-            addCounter(rootNode->nodeHandle());
-            getChildren(rootNode);
+            getChildren(node);
+
+            // calculate node counters based on DB queries
+            calculateCounter(node->nodeHandle());
         }
-        else    // logged into user's account: load rootnodes, inshares and links
-        {
-            getRootNodes();
-            getChildren(getNodeByHandle(mClient.rootnodes.files));
-
-            getNodesWithInShares();
-
-            // TODO Nodes on Demand: Review if needed to restore mPublicLinks (it has been removed)
-            getNodesWithLinks();
-        }
-
-        //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside increaseCounters
-        NodeHandle rootHandle = mClient.rootnodes.files;
-        updateCounter(rootHandle);
-        NodeHandle inboxHandle = mClient.rootnodes.inbox;
-        updateCounter(inboxHandle);
-        NodeHandle rubbishHandle = mClient.rootnodes.rubbish;
-        updateCounter(rubbishHandle);
     }
 }
 
@@ -17974,9 +17957,9 @@ void NodeManager::addCounter(const NodeHandle &h)
     assert(ret.second);
 }
 
-void NodeManager::updateCounter(const NodeHandle& h)
+void NodeManager::calculateCounter(const NodeHandle& h)
 {
-    assert(mNodeCounters.find(h) != mNodeCounters.end());
+    assert(mNodeCounters.find(h) == mNodeCounters.end());
     mNodeCounters[h] = getNodeCounter(h);
 }
 
