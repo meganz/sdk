@@ -8477,6 +8477,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     {
                         n->setparent(NULL);
                         n->parenthandle = ph;
+                        mNodeManager.addNodeWithMissingParent(n);
                     }
                 }
 
@@ -8560,6 +8561,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     }
                 }
 
+                // NodeManager takes n ownership
+                mNodeManager.addNode(n, notify, fetchingnodes);
+
                 if (!ISUNDEF(su))
                 {
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
@@ -8632,9 +8636,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 notifynode(n);
             }
 
-            // Take n ownership
-            mNodeManager.addNode(n, notify, fetchingnodes);
-            n = nullptr;
+            n = nullptr;    // ownership is taken by NodeManager upon addNode()
         }
     }
 
@@ -16753,23 +16755,12 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 
     // mClient.rootnodes.files is always set for folder links before adding any node
     bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE || mClient.rootnodes.files == node->nodeHandle();
+    if (rootNode)
+    {
+        setrootnode(node);
+    }
 
-    bool saveNodeMemory = false;
     if (mKeepAllNodesInMemory || rootNode || !isFetching)
-    {
-        saveNodeMemory = true;
-
-        if (rootNode)
-        {
-            setrootnode(node);
-        }
-    }
-    else
-    {
-        saveNodeMemory = (mNodes.find(node->nodeHandle()) != mNodes.end());
-    }
-
-    if (saveNodeMemory)
     {
         saveNodeInRAM(node, notify);
     }
@@ -16797,6 +16788,11 @@ bool NodeManager::updateNode(Node *node)
     }
 
     return true;
+}
+
+void NodeManager::addNodeWithMissingParent(Node *node)
+{
+    mNodesWithMissingParent[node->parentHandle()].insert(node);
 }
 
 Node *NodeManager::getNodeByHandle(NodeHandle handle)
@@ -17825,7 +17821,7 @@ void NodeManager::saveNodeInRAM(Node *node, bool notify)
         }
         else
         {
-            mNodesWithMissingParent[node->parentHandle()].insert(node);
+            addNodeWithMissingParent(node);
         }
 
         auto it = mNodesWithMissingParent.find(node->nodeHandle());
