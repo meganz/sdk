@@ -16754,23 +16754,12 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 
     // mClient.rootnodes.files is always set for folder links before adding any node
     bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE || mClient.rootnodes.files == node->nodeHandle();
+    if (rootNode)
+    {
+        setrootnode(node);
+    }
 
-    bool saveNodeMemory = false;
     if (mKeepAllNodesInMemory || rootNode || !isFetching)
-    {
-        saveNodeMemory = true;
-
-        if (rootNode)
-        {
-            setrootnode(node);
-        }
-    }
-    else
-    {
-        saveNodeMemory = (mNodes.find(node->nodeHandle()) != mNodes.end());
-    }
-
-    if (saveNodeMemory)
     {
         saveNodeInRAM(node, notify);
     }
