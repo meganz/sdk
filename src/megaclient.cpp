@@ -17073,11 +17073,6 @@ node_vector NodeManager::getRootNodes()
         }
         nodes.push_back(n);
 
-        if (n->type == ROOTNODE)    // load first level of folders in Cloud
-        {
-            getChildren(n);
-        }
-
         setrootnode(n);
     }
 
@@ -17830,6 +17825,7 @@ void NodeManager::loadNodes()
         else    // logged into user's account: load rootnodes, inshares and links
         {
             getRootNodes();
+            getChildren(getNodeByHandle(mClient.rootnodes.files));
 
             getNodesWithInShares();
 
