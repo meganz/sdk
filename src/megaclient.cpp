@@ -16699,41 +16699,26 @@ void NodeManager::reset()
 
 bool NodeManager::setrootnode(Node* node)
 {
-    if (mClient.loggedinfolderlink())
+    switch (node->type)
     {
-        assert(mClient.rootnodes.files == node->nodeHandle());
-        addCounter(node->nodeHandle());
-        return true;
-    }
-    else
-    {
-        switch (node->type)
-        {
         case ROOTNODE:
-        {
             mClient.rootnodes.files = node->nodeHandle();
             addCounter(node->nodeHandle());
             return true;
-        }
 
         case INCOMINGNODE:
-        {
             mClient.rootnodes.inbox = node->nodeHandle();
             addCounter(node->nodeHandle());
             return true;
-        }
 
         case RUBBISHNODE:
-        {
             mClient.rootnodes.rubbish = node->nodeHandle();
             addCounter(node->nodeHandle());
             return true;
-        }
 
         default:
             assert(false);
             return false;
-        }
     }
 }
 
@@ -16751,17 +16736,23 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
         return false;
     }
 
-    // mClient.rootnodes.files is always set for folder links before adding any node
-    bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE || mClient.rootnodes.files == node->nodeHandle();
+    bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE;
+    // mClient.rootnodes.files is always set for folder links before adding any node (upon login)
+    bool isFolderLink = mClient.rootnodes.files == node->nodeHandle();
 
     bool saveNodeMemory = false;
-    if (mKeepAllNodesInMemory || rootNode || !isFetching)
+    if (mKeepAllNodesInMemory || rootNode || isFolderLink || !isFetching)
     {
         saveNodeMemory = true;
 
         if (rootNode)
         {
             setrootnode(node);
+        }
+
+        if (isFolderLink)
+        {
+            addCounter(node->nodeHandle());
         }
     }
     else
@@ -17819,7 +17810,7 @@ void NodeManager::loadNodes()
         if (mClient.loggedIntoFolder())
         {
             Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
-            setrootnode(rootNode);
+            addCounter(rootNode->nodeHandle());
             getChildren(rootNode);
         }
         else    // logged into user's account: load rootnodes, inshares and links
