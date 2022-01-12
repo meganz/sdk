@@ -119,9 +119,24 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
                 w = static_cast<int>(FPDF_GetPageWidth(page));
                 h = static_cast<int>(FPDF_GetPageHeight(page));
 
-                if (!w || !h)
+                // we should restrict the maximum size of PDF pages to process, otherwise
+                // it may require too much memory (and CPU).
+                // as a compromise, the A0 standarized size should be enough for most cases,
+                // A0: 841 x 1188 mm -> 2384 x 3368 points (as returned by FPDF_GetPageX())
+                // to allow some margins, and rotated ones, avoid larger than 3500 points in
+                // any dimension, which would require a buffer of maximum 3500x3500x4 = ~47MB
+
+                if ((!w || !h)  // error reading size
+                        || (w > 3500 || h > 3500))  // page too large
                 {
-                    LOG_err << "Error reading PDF page size for " << path.toPath().c_str();
+                    if (!w || !h)
+                    {
+                        LOG_err << "Error reading PDF page size for " << path.toPath().c_str();
+                    }
+                    else
+                    {
+                        LOG_err << "Page size too large. Skipping PDF preview for " << path.toPath().c_str();
+                    }
                     FPDF_ClosePage(page);
                     FPDF_CloseDocument(pdf_doc);
 #ifdef _WIN32

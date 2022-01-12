@@ -49,6 +49,7 @@
 #import "MEGACancelToken.h"
 #import "MEGAPushNotificationSettings.h"
 #import "MEGAPaymentMethod.h"
+#import "MEGALogLevel.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -101,15 +102,6 @@ typedef NS_ENUM (NSInteger, MEGAEventType) {
     MEGAEventTypeFeedback = 0,
     MEGAEventTypeDebug,
     MEGAEventTypeInvalid
-};
-
-typedef NS_ENUM (NSInteger, MEGALogLevel) {
-    MEGALogLevelFatal = 0,
-    MEGALogLevelError,      // Error information but will continue application to keep running.
-    MEGALogLevelWarning,    // Information representing errors in application but application will keep running
-    MEGALogLevelInfo,       // Mainly useful to represent current progress of application.
-    MEGALogLevelDebug,      // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
-    MEGALogLevelMax
 };
 
 typedef NS_ENUM (NSInteger, MEGAAttributeType) {

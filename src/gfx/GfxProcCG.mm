@@ -76,6 +76,11 @@ bool GfxProcCG::readbitmap(FileAccess* fa, const LocalPath& name, int size) {
     } else {
         sourcePath = [NSString stringWithCString:name.platformEncoded().c_str() encoding:[NSString defaultCStringEncoding]];
     }
+    
+    if (sourcePath == nil) {
+        return false;
+    }
+    
     NSURL *sourceURL = [NSURL fileURLWithPath:sourcePath isDirectory:NO];
     if (sourceURL == nil) {
         return false;
@@ -234,6 +239,7 @@ void ios_statsid(std::string *statsid) {
     [queryDictionary setObject:(__bridge id)(kSecAttrSynchronizableAny) forKey:(__bridge id)(kSecAttrSynchronizable)];
     [queryDictionary setObject:@YES forKey:(__bridge id)kSecReturnData];
     [queryDictionary setObject:(__bridge id)kSecMatchLimitOne forKey:(__bridge id)kSecMatchLimit];
+    [queryDictionary setObject:(__bridge id)kSecAttrAccessibleAfterFirstUnlock forKey:(__bridge id)kSecAttrAccessible];
 
     CFTypeRef result = NULL;
     OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)queryDictionary, &result);
@@ -250,6 +256,7 @@ void ios_statsid(std::string *statsid) {
 
             NSData *uuidData = [uuidString dataUsingEncoding:NSUTF8StringEncoding];
             [queryDictionary setObject:uuidData forKey:(__bridge id)kSecValueData];
+            [queryDictionary setObject:(__bridge id)kSecAttrAccessibleAfterFirstUnlock forKey:(__bridge id)kSecAttrAccessible];
             [queryDictionary removeObjectForKey:(__bridge id)kSecReturnData];
             [queryDictionary removeObjectForKey:(__bridge id)kSecMatchLimit];
 
@@ -258,6 +265,39 @@ void ios_statsid(std::string *statsid) {
             switch (status) {
                 case errSecSuccess: {
                     statsid->append([uuidString UTF8String]);
+                    break;
+                }
+                case errSecDuplicateItem: {
+                    [queryDictionary removeObjectForKey:(__bridge id)kSecAttrAccessible];
+                    [queryDictionary setObject:@YES forKey:(__bridge id)kSecReturnData];
+                    [queryDictionary setObject:(__bridge id)kSecMatchLimitOne forKey:(__bridge id)kSecMatchLimit];
+                    
+                    status = SecItemCopyMatching((__bridge CFDictionaryRef)queryDictionary, &result);
+                    
+                    switch (status) {
+                        case errSecSuccess: {
+                            NSString *uuidString = [[NSString alloc] initWithData:(__bridge_transfer NSData *)result encoding:NSUTF8StringEncoding];
+                            statsid->append([uuidString UTF8String]);
+                            break;
+                        }
+                    }
+                    
+                    [queryDictionary removeObjectForKey:(__bridge id)kSecReturnData];
+                    [queryDictionary removeObjectForKey:(__bridge id)kSecMatchLimit];
+                    NSMutableDictionary *attributesToUpdate = [[NSMutableDictionary alloc] init];
+                    [attributesToUpdate setObject:(__bridge id)kSecAttrAccessibleAfterFirstUnlock forKey:(__bridge id)kSecAttrAccessible];
+                    
+                    status = SecItemUpdate((__bridge CFDictionaryRef)queryDictionary, (__bridge CFDictionaryRef)attributesToUpdate);
+                    
+                    switch (status) {
+                        case errSecSuccess:
+                            LOG_debug << "Update statsid keychain item to allow access it after first unlock";
+                            break;
+                            
+                        default:
+                            LOG_err << "SecItemUpdate failed with error code " << status;
+                            break;
+                    }
                     break;
                 }
                 default: {
