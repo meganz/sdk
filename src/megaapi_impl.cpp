@@ -1364,6 +1364,10 @@ MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
             return MegaSyncStall::SyncStallReason::ItemHasReservedName;
         case SyncWaitReason::MoveTargetHasReservedName:
             return MegaSyncStall::SyncStallReason::MoveTargetHasReservedName;
+        case SyncWaitReason::CantFingrprintFileYet:
+            return MegaSyncStall::SyncStallReason::CantFingrprintFileYet;
+        case SyncWaitReason::FolderContainsLockedFiles:
+            return MegaSyncStall::SyncStallReason::FolderContainsLockedFiles;
         default:
             return MegaSyncStall::SyncStallReason::Unknown;
      }
@@ -1428,6 +1432,10 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "ItemHasReservedName";
         case MegaSyncStall::SyncStallReason::MoveTargetHasReservedName:
             return "MoveTargetHasReservedName";
+        case MegaSyncStall::SyncStallReason::CantFingrprintFileYet:
+            return "CantFingrprintFileYet";
+        case MegaSyncStall::SyncStallReason::FolderContainsLockedFiles:
+            return "FolderContainsLockedFiles";
         default: return "Unknown";
     }
 }

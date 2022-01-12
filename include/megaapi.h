@@ -5584,6 +5584,8 @@ class MegaSyncStall
             CreateFolderNameTooLong,
             ItemHasReservedName,
             MoveTargetHasReservedName,
+            CantFingrprintFileYet,
+            FolderContainsLockedFiles,
         };
 
         /**

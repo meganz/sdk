@@ -286,6 +286,7 @@ void exec_ls(autocomplete::ACState& s);
 void exec_cd(autocomplete::ACState& s);
 void exec_pwd(autocomplete::ACState& s);
 void exec_lcd(autocomplete::ACState& s);
+void exec_llockfile(autocomplete::ACState& s);
 void exec_lls(autocomplete::ACState& s);
 void exec_lpwd(autocomplete::ACState& s);
 void exec_lmkdir(autocomplete::ACState& s);

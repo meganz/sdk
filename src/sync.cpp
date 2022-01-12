@@ -1142,14 +1142,14 @@ void Sync::setSyncPaused(bool pause)
 {
     assert(syncs.onSyncThread());
 
-    syncPaused = pause;
+    getConfig().mTemporarilyPaused = pause;
     syncs.mSyncFlags->isInitialPass = true;
 }
 
 bool Sync::isSyncPaused() {
     assert(syncs.onSyncThread());
 
-    return syncPaused;
+    return getConfig().mTemporarilyPaused;
 }
 
 bool Sync::active() const
@@ -1551,11 +1551,11 @@ bool SyncStallInfo::waitingCloud(const string& cloudPath1,
     for (auto i = cloud.begin(); i != cloud.end(); )
     {
         // No need to add a new entry as we've already reported some parent.
-        if (IsContainingCloudPathOf(i->first, cloudPath1))
+        if (IsContainingCloudPathOf(i->first, cloudPath1) && reason == i->second.reason)
             return false;
 
         // Remove entries that are below cloudPath1.
-        if (IsContainingCloudPathOf(cloudPath1, i->first))
+        if (IsContainingCloudPathOf(cloudPath1, i->first) && reason == i->second.reason)
         {
             i = cloud.erase(i);
             continue;
@@ -1582,10 +1582,10 @@ bool SyncStallInfo::waitingLocal(const LocalPath& localPath1,
 {
     for (auto i = local.begin(); i != local.end(); )
     {
-        if (i->first.isContainingPathOf(localPath1))
+        if (i->first.isContainingPathOf(localPath1) && reason == i->second.reason)
             return false;
 
-        if (localPath1.isContainingPathOf(i->first))
+        if (localPath1.isContainingPathOf(i->first) && reason == i->second.reason)
         {
             i = local.erase(i);
             continue;
@@ -4540,7 +4540,7 @@ void Syncs::forEachRunningSync(bool includePaused, std::function<void(Sync* s)> 
     lock_guard<mutex> g(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
-        if (s->mSync && (includePaused || !s->mSync->syncPaused))
+        if (s->mSync && (includePaused || !s->mConfig.mTemporarilyPaused))
         {
             f(s->mSync.get());
         }
@@ -4556,7 +4556,7 @@ bool Syncs::forEachRunningSync_shortcircuit(bool includePaused, std::function<bo
     lock_guard<mutex> g(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
-        if (s->mSync && (includePaused || !s->mSync->syncPaused))
+        if (s->mSync && (includePaused || !s->mConfig.mTemporarilyPaused))
         {
             if (!f(s->mSync.get()))
             {
@@ -5743,8 +5743,12 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     // Do we need to scan this node?
     if (row.syncNode->scanAgain >= TREE_ACTION_HERE)
     {
-        // not stalling, so long as we are still scanning.  Destructor resets stall state
-        ProgressingMonitor monitor(syncs);
+
+        if (!row.syncNode->rareRO().scanBlocked)
+        {
+            // not stalling, so long as we are still scanning.  Destructor resets stall state
+            ProgressingMonitor monitor(syncs);
+        }
 
         syncs.mSyncFlags->reachableNodesAllScannedThisPass = false;
         syncHere = row.syncNode->processBackgroundFolderScan(row, fullPath);
@@ -6266,7 +6270,33 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
     assert(syncs.onSyncThread());
 
-    //auto isIgnoreFile = row.isIgnoreFile();
+    ////auto isIgnoreFile = row.isIgnoreFile();
+
+    //if (row.fsNode && row.fsNode->type == FILENODE)
+    //{
+    //    if (!row.fsNode->fingerprint.isvalid)
+    //    {
+
+    //        // We were not able to get details of the filesystem item when scanning the directory.
+    //        // Consider it a blocked file, and we'll rescan the folder from time to time.
+    //        LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath();
+
+    //        // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
+    //        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
+    //        sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
+
+    //    }
+    //    else
+    //    {
+    //    }
+    //}
+
+    //{
+
+    //    return true;
+    //}
+
+
 
     unsigned confirmDeleteCount = 0;
     if (row.syncNode)
@@ -6776,6 +6806,15 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
+    if (row.fsNode->type == FILENODE && !row.fsNode->fingerprint.isvalid)
+    {
+        SYNC_verbose << "We can't create a LocalNode yet without a FileFingerprint: " << logTriplet(row, fullPath);
+
+        // we couldn't get the file crc yet (opened by another proecess, etc)
+        monitor.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::CantFingrprintFileYet);
+        return false;
+    }
+
     // this really is a new node: add
     LOG_debug << syncname << "Creating LocalNode from FS with fsid " << toHandle(row.fsNode->fsid) << " at: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
 
@@ -6787,7 +6826,6 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
 
     if (row.fsNode->type == FILENODE)
     {
-        assert(row.fsNode->fingerprint.isvalid);
         row.syncNode->scannedFingerprint = row.fsNode->fingerprint;
     }
 
@@ -9328,7 +9366,7 @@ void Syncs::syncLoop()
                     }
                 }
 
-                if (!sync->syncPaused)
+                if (!sync->getConfig().mTemporarilyPaused)
                 {
                     bool activeIncomplete = sync->mActiveScanRequestGeneral &&
                         !sync->mActiveScanRequestGeneral->completed();
@@ -9474,7 +9512,7 @@ void Syncs::syncLoop()
                 {
                     if (auto lp = i->lock())
                     {
-                        if (!(lp->sync && lp->sync->syncPaused))
+                        if (!(lp->sync && lp->sync->getConfig().mTemporarilyPaused))
                         {
                             mSyncFlags->stall.waitingLocal(lp->localPath, LocalPath(), string(), SyncWaitReason::UnableToLoadIgnoreFile);
                         }
@@ -9490,12 +9528,29 @@ void Syncs::syncLoop()
                     {
                         if (sbp->scanBlockedTimer.armed())
                         {
-                            LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan: " << sbp->localPath.toPath();
-                            sbp->localNode->setScanAgain(true, false, false, 0);
-                            sbp->scanBlockedTimer.backoff(); // wait increases exponentially until we succeed
+                            if (sbp->folderUnreadable)
+                            {
+                                LOG_verbose << "Scan blocked timer elapsed, trigger folder rescan: " << sbp->scanBlockedLocalPath.toPath();
+                                sbp->localNode->setScanAgain(false, true, false, 0);
+                                sbp->scanBlockedTimer.backoff(); // wait increases exponentially (up to 10 mins) until we succeed
+                            }
+                            else
+                            {
+                                LOG_verbose << "Locked file fingerprint timer elapsed, trigger folder rescan: " << sbp->scanBlockedLocalPath.toPath();
+                                sbp->localNode->setScanAgain(false, true, false, 0);
+                                sbp->scanBlockedTimer.backoff(300); // limited wait (30s) as the user will expect it uploaded fairly soon after they stop editing it
+                            }
                         }
 
-                        mSyncFlags->stall.waitingLocal(sbp->localPath, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
+                        if (sbp->folderUnreadable)
+                        {
+                            mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, LocalPath(), string(), SyncWaitReason::LocalFolderNotScannable);
+                        }
+                        else
+                        {
+                            assert(sbp->filesUnreadable);
+                            mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, LocalPath(), string(), SyncWaitReason::FolderContainsLockedFiles);
+                        }
                         ++i;
                     }
                     else i = scanBlockedPaths.erase(i);
@@ -9542,7 +9597,7 @@ bool Syncs::isAnySyncSyncing(bool includePausedSyncs)
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (includePausedSyncs || !us->mSync->syncPaused)
+            if (includePausedSyncs || !us->mConfig.mTemporarilyPaused)
             {
                 if (sync->active() &&
                     (sync->localroot->scanRequired()
@@ -9565,7 +9620,7 @@ bool Syncs::isAnySyncScanning(bool includePausedSyncs)
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (includePausedSyncs || !us->mSync->syncPaused)
+            if (includePausedSyncs || !us->mConfig.mTemporarilyPaused)
             {
                 if (sync->active() &&
                     sync->localroot->scanRequired())
@@ -9586,7 +9641,7 @@ bool Syncs::mightAnySyncsHaveMoves(bool includePausedSyncs)
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (includePausedSyncs || !us->mSync->syncPaused)
+            if (includePausedSyncs || !us->mConfig.mTemporarilyPaused)
             {
                 if (sync->active() &&
                     (sync->localroot->mightHaveMoves()
@@ -9731,7 +9786,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         for (auto & us : mSyncVec)
         {
-            if (us->mSync && us->mSync->active() && !us->mSync->syncPaused)
+            if (us->mSync && us->mSync->active() && !us->mConfig.mTemporarilyPaused)
             {
                 activeSyncHandles.emplace_back(us->mConfig.mRemoteNode, us->mSync.get());
             }
@@ -9787,7 +9842,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         {
             for (auto & rn : activeSyncRoots)
             {
-                if (n->isbelow(rn.first) && !rn.second->syncPaused)
+                if (n->isbelow(rn.first) && !rn.second->getConfig().mTemporarilyPaused)
                 {
                     *nodeIsInActiveUnpausedSyncQuery = true;
 

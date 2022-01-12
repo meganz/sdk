@@ -595,7 +595,10 @@ struct MEGA_API LocalNode
         struct ScanBlocked
         {
             BackoffTimer scanBlockedTimer;
-            LocalPath localPath;
+            LocalPath scanBlockedLocalPath;
+
+            bool folderUnreadable = false;
+            bool filesUnreadable = false;
 
             // There is only one shared_ptr so if the node is gone,
             // we can't look this up by weak_ptr.  So this ptr is not dangling
@@ -677,6 +680,7 @@ struct MEGA_API LocalNode
 
     void setContainsConflicts(bool doParent, bool doHere, bool doBelow);
 
+    void initiateScanBlocked(bool folderBlocked, bool containsFingerprintBlocked);
     bool checkForScanBlocked(FSNode* fsnode);
 
     // True if this subtree requires scanning.

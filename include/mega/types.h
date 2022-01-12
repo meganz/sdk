@@ -1065,7 +1065,9 @@ enum class SyncWaitReason {
     DownloadTargetNameTooLong,
     CreateFolderNameTooLong,
     ItemHasReservedName,
-    MoveTargetHasReservedName
+    MoveTargetHasReservedName,
+    CantFingrprintFileYet,
+    FolderContainsLockedFiles,
 };
 
 string syncWaitReasonString(SyncWaitReason);

@@ -3255,6 +3255,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
+    p->Add(exec_llockfile, sequence(text("llockfile"), opt(flag("-read")), opt(flag("-write")), opt(flag("-unlock")), localFSFile()));
 #ifdef USE_FILESYSTEM
     p->Add(exec_lls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
     p->Add(exec_lpwd, sequence(text("lpwd")));
@@ -4633,6 +4634,52 @@ void exec_lcd(autocomplete::ACState& s)
     {
         cout << s.words[1].s << ": Failed" << endl;
     }
+}
+
+map<LocalPath, HANDLE> llockedFiles;
+
+void exec_llockfile(autocomplete::ACState& s)
+{
+    bool readlock = s.extractflag("-read");
+    bool writelock = s.extractflag("-write");
+    bool unlock = s.extractflag("-unlock");
+
+    if (!readlock && !writelock && !unlock)
+    {
+        readlock = true;
+        writelock = true;
+    }
+
+    LocalPath localpath = localPathArg(s.words[1].s);
+
+#ifdef WIN32
+
+    if (unlock)
+    {
+        CloseHandle(llockedFiles[localpath]);
+    }
+    else
+    {
+        string pe = localpath.platformEncoded();
+        HANDLE hFile = CreateFileW(wstring((wchar_t*)pe.data(), pe.size()/2).c_str(),
+            readlock ? GENERIC_READ : (writelock ? GENERIC_WRITE : 0),
+            0, // no sharing
+            NULL, OPEN_EXISTING, 0, NULL);
+
+        if (hFile == INVALID_HANDLE_VALUE)
+        {
+            auto err = GetLastError();
+            cout << "Error locking file: " << err;
+        }
+        else
+        {
+            llockedFiles[localpath] = hFile;
+        }
+    }
+
+#else
+    cout << " sorry, not implemented yet" << endl;
+#endif
 }
 
 #ifdef USE_FILESYSTEM
@@ -9253,9 +9300,9 @@ void exec_synclist(autocomplete::ACState& s)
 
         // Display name.
         cout << "Sync "
-            << toHandle(config.mBackupId)
-            << ": "
             << config.mName
+            << " Id: "
+            << toHandle(config.mBackupId)
             << "\n";
 
         auto cloudnode = client->nodeByHandle(config.getRemoteNode());
@@ -9269,13 +9316,11 @@ void exec_synclist(autocomplete::ACState& s)
             << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")
             << "\n";
 
-        //if (sync)
-        //{
-        //    // Display status info.
-        //    cout << "  State: "
-        //        << SyncConfig::syncstatename(sync->state)
-        //        << (sync->isSyncPaused() ? " (paused)" : "")
-        //        << "\n";
+        // Display status info.
+        cout << "  State: "
+            << SyncConfig::syncstatename(config.mRunningState)
+            << (config.mTemporarilyPaused ? " (paused)" : "")
+            << "\n";
 
         //    // Display some usage stats.
         //    cout << "  Statistics: "
@@ -9287,16 +9332,15 @@ void exec_synclist(autocomplete::ACState& s)
         //         << " folder(s).\n";
         //}
         //else
-        {
-            // Display what status info we can.
-            auto msg = config.syncErrorToStr();
-            cout << "  Enabled: "
-                << config.getEnabled()
-                << "\n"
-                << "  Last Error: "
-                << msg
-                << "\n";
-        }
+
+        // Display what status info we can.
+        auto msg = config.syncErrorToStr();
+        cout << "  Enabled: "
+            << config.getEnabled()
+            << "\n"
+            << "  Last Error: "
+            << msg
+            << "\n";
 
         // Display sync type.
         cout << "  Type: "
@@ -9310,10 +9354,13 @@ void exec_synclist(autocomplete::ACState& s)
              << changeDetectionMethodToString(config.mChangeDetectionMethod)
              << "\n";
 
-        // Display scan interval.
-        cout << "  Scan Interval (seconds): "
-             << config.mScanIntervalSec
-             << "\n";
+        if (CDM_PERIODIC_SCANNING == config.mChangeDetectionMethod)
+        {
+            // Display scan interval.
+            cout << "  Scan Interval (seconds): "
+                 << config.mScanIntervalSec
+                 << "\n";
+        }
 
         std::promise<bool> synchronous;
         client->syncs.collectSyncNameConflicts(config.mBackupId, [&synchronous](list<NameConflict>&& conflicts){

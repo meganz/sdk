@@ -2833,6 +2833,8 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::CreateFolderNameTooLong:                       return "CreateFolderNameTooLong";
         case SyncWaitReason::ItemHasReservedName:                           return "ItemHasReservedName";
         case SyncWaitReason::MoveTargetHasReservedName:                     return "MoveTargetHasReservedName";
+        case SyncWaitReason::CantFingrprintFileYet:                         return "CantFingrprintFileYet";
+        case SyncWaitReason::FolderContainsLockedFiles:                     return "FolderContainsLockedFiles";
     }
     return "<out of range>";
 }

@@ -1383,7 +1383,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
 
 LocalNode::RareFields::ScanBlocked::ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln)
     : scanBlockedTimer(rng)
-    , localPath(lp)
+    , scanBlockedLocalPath(lp)
     , localNode(ln)
 {
     scanBlockedTimer.backoff(Sync::SCANNING_DELAY_DS);
@@ -1517,9 +1517,41 @@ void LocalNode::setContainsConflicts(bool doParent, bool doHere, bool doBelow)
     parentSetContainsConflicts = parentSetContainsConflicts || doParent;
 }
 
+void LocalNode::initiateScanBlocked(bool folderBlocked, bool containsFingerprintBlocked)
+{
+
+    // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
+    if (!rare().scanBlocked)
+    {
+        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
+        sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
+    }
+
+    if (folderBlocked && !rare().scanBlocked->folderUnreadable)
+    {
+        rare().scanBlocked->folderUnreadable = true;
+
+        LOG_verbose << sync->syncname << "Directory scan has become inaccesible for path: " << getLocalPath();
+
+        // Mark all immediate children as requiring refingerprinting.
+        for (auto& childIt : children)
+        {
+            if (childIt.second->type == FILENODE)
+                childIt.second->recomputeFingerprint = true;
+        }
+    }
+
+    if (containsFingerprintBlocked && !rare().scanBlocked->filesUnreadable)
+    {
+        LOG_verbose << sync->syncname << "Directory scan contains fingerprint-blocked files: " << getLocalPath();
+
+        rare().scanBlocked->filesUnreadable = true;
+    }
+}
+
 bool LocalNode::checkForScanBlocked(FSNode* fsNode)
 {
-    if (rareRO().scanBlocked)
+    if (rareRO().scanBlocked && rare().scanBlocked->folderUnreadable)
     {
         // Have we recovered?
         if (fsNode && fsNode->type != TYPE_UNKNOWN && !fsNode->isBlocked)
@@ -1530,17 +1562,19 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
             setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode->localname, FileFingerprint());
             sync->statecacheadd(this);
 
-            rare().scanBlocked.reset();
-            trimRareFields();
-
-            return false;
+            if (!rare().scanBlocked->filesUnreadable)
+            {
+                rare().scanBlocked.reset();
+                trimRareFields();
+                return false;
+            }
         }
 
         LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
             << rare().scanBlocked->scanBlockedTimer.retryin() << " for " << getLocalPath().toPath();
 
         // make sure path stays accurate in case this node moves
-        rare().scanBlocked->localPath = getLocalPath();
+        rare().scanBlocked->scanBlockedLocalPath = getLocalPath();
 
         return true;
     }
@@ -1552,9 +1586,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath();
 
         // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
-        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
-        sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
-
+        initiateScanBlocked(true, false);
         return true;
     }
 
@@ -1762,6 +1794,24 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             scanAgain = TREE_RESOLVED;
             setSyncAgain(false, true, false);
             syncHere = true;
+
+            size_t numFingerprintBlocked = 0;
+            for (auto& n : *lastFolderScan)
+            {
+                if (n.type == FILENODE && !n.fingerprint.isvalid) ++numFingerprintBlocked;
+            }
+
+            if (numFingerprintBlocked)
+            {
+                initiateScanBlocked(false, true);
+            }
+            else if (rareRO().scanBlocked &&
+                     rareRO().scanBlocked->filesUnreadable)
+            {
+                LOG_verbose << sync->syncname << "Directory scan fingerprint-blocked files all resolved at: " << getLocalPath();
+                rare().scanBlocked.reset();
+                trimRareFields();
+            }
         }
         else // SCAN_INACCESSIBLE
         {
@@ -1769,19 +1819,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             row.fsNode->isBlocked = true;
             if (!checkForScanBlocked(row.fsNode))
             {
-                // start a timer to retry, since we haven't already
-                LOG_verbose << sync->syncname << "Directory scan has become inaccesible for path: " << fullPath.localPath_utf8();
-
-                // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
-                rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
-                sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
-
-                // Mark all immediate children as requiring refingerprinting.
-                for (auto& childIt : children)
-                {
-                    if (childIt.second->type == FILENODE)
-                        childIt.second->recomputeFingerprint = true;
-                }
+                initiateScanBlocked(true, false);
             }
         }
     }

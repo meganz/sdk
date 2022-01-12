@@ -178,6 +178,9 @@ public:
     // Current running state.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
     syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no assoicated mSync
 
+    // Whether recursiveSync() is called.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
+    bool mTemporarilyPaused = false;
+
     // How should the engine detect filesystem changes?
     ChangeDetectionMethod mChangeDetectionMethod = CDM_NOTIFICATIONS;
 
@@ -434,9 +437,6 @@ public:
 
     // for logging
     string syncname;
-
-    // are we calling recursiveSync for this one?
-    bool syncPaused = false;
 
     // sync-wide directory notification provider
     std::unique_ptr<DirNotify> dirnotify;
@@ -1154,7 +1154,7 @@ private:
                 continue;
 
             // Optionally skip paused syncs.
-            if (!includePaused && i->mSync->syncPaused)
+            if (!includePaused && i->mConfig.mTemporarilyPaused)
                 continue;
 
             // Have we found our lucky sync?

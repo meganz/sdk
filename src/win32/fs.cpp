@@ -1723,8 +1723,13 @@ ScanService::ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path
                         if (fa->fopen(p, true, false))
                         {
                             result.fingerprint.genfingerprint(fa.get());
+                            nFingerprinted += 1;
                         }
-                        nFingerprinted += 1;
+                        else
+                        {
+                            // The file may be opened exclusively by another process
+                            // In this case, the fingerprint (the crc portion) is invalid (for now)
+                        }
                     }
                 }
 
