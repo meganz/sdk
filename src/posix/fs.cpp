@@ -776,6 +776,11 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
 
 bool PosixFileSystemAccess::cwd(LocalPath& path) const
 {
+    return cwd_static(path);
+}
+
+bool PosixFileSystemAccess::cwd_static(LocalPath& path)
+{
     string buf(128, '\0');
 
     while (!getcwd(&buf[0], buf.size()))
@@ -1140,6 +1145,7 @@ bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPat
     }
 
     target_exists = existingandcare  || errno == EEXIST || errno == EISDIR || errno == ENOTEMPTY || errno == ENOTDIR;
+    target_name_too_long = errno == ENAMETOOLONG;
     transient_error = !existingandcare && (errno == ETXTBSY || errno == EBUSY);
 
     int e = errno;
@@ -1150,7 +1156,7 @@ bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPat
     return false;
 }
 
-bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_time_t mtime)
+bool PosixFileSystemAccess::copylocal(const LocalPath& oldname, const LocalPath& newname, m_time_t mtime)
 {
 #ifdef USE_IOS
     const string oldnamestr = adjustBasePath(oldname);
@@ -1192,6 +1198,7 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
         {
             umask(mode);
             target_exists = errno == EEXIST;
+            target_name_too_long = errno == ENAMETOOLONG;
             transient_error = errno == ETXTBSY || errno == EBUSY;
 
             int e = errno;
@@ -1241,7 +1248,6 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
     dirent* d;
     int removed;
     struct stat statbuf;
-    PosixFileSystemAccess pfsa;
 #ifdef USE_IOS
     const string namestr = adjustBasePath(name);
 #else
@@ -1359,6 +1365,8 @@ bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlre
     if (!r)
     {
         target_exists = errno == EEXIST;
+        target_name_too_long = errno == ENAMETOOLONG;
+
         if (target_exists)
         {
             if (logAlreadyExistsError)
@@ -1376,7 +1384,7 @@ bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlre
     return r;
 }
 
-bool PosixFileSystemAccess::setmtimelocal(LocalPath& name, m_time_t mtime)
+bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
 {
 #ifdef USE_IOS
     const string nameStr = adjustBasePath(name);
@@ -2026,7 +2034,6 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
     dirent* d;
     struct stat &statbuf = currentItemStat;
-    PosixFileSystemAccess pfsa;
 
     while ((d = readdir(dp)))
     {

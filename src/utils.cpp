@@ -2660,8 +2660,15 @@ void MegaClientAsyncQueue::asyncThreadLoop()
     }
 }
 
-bool islchex(const int c)
+bool islchex_high(const int c)
 {
+    // this one constrains two characters to the 0..127 range
+    return (c >= '0' && c <= '7');
+}
+
+bool islchex_low(const int c)
+{
+    // this one is the low nibble, unconstrained
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 

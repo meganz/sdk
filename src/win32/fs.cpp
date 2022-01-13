@@ -32,6 +32,68 @@
 
 namespace mega {
 
+class ScopedFileHandle
+{
+public:
+    ScopedFileHandle()
+      : mHandle(INVALID_HANDLE_VALUE)
+    {
+    }
+
+    ScopedFileHandle(HANDLE handle)
+      : mHandle(handle)
+    {
+    }
+
+    MEGA_DISABLE_COPY(ScopedFileHandle);
+
+    ScopedFileHandle(ScopedFileHandle&& other)
+      : mHandle(other.mHandle)
+    {
+        other.mHandle = INVALID_HANDLE_VALUE;
+    }
+
+    ~ScopedFileHandle()
+    {
+        if (mHandle != INVALID_HANDLE_VALUE)
+            CloseHandle(mHandle);
+    }
+
+    ScopedFileHandle& operator=(ScopedFileHandle&& rhs)
+    {
+        using std::swap;
+
+        ScopedFileHandle temp(std::move(rhs));
+
+        swap(*this, temp);
+
+        return *this;
+    }
+
+    operator bool() const
+    {
+        return mHandle != INVALID_HANDLE_VALUE;
+    }
+
+    HANDLE get() const
+    {
+        return mHandle;
+    }
+
+    void reset(HANDLE handle)
+    {
+        operator=(ScopedFileHandle(handle));
+    }
+
+    void reset()
+    {
+        operator=(ScopedFileHandle());
+    }
+
+private:
+    HANDLE mHandle;
+};
+
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, true);
@@ -739,7 +801,7 @@ bool WinFileSystemAccess::renamelocal(const LocalPath& oldnamePath, const LocalP
     return r;
 }
 
-bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePath, m_time_t)
+bool WinFileSystemAccess::copylocal(const LocalPath& oldnamePath, const LocalPath& newnamePath, m_time_t)
 {
     assert(oldnamePath.isAbsolute());
     assert(newnamePath.isAbsolute());
@@ -913,7 +975,7 @@ bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, boo
     return r;
 }
 
-bool WinFileSystemAccess::setmtimelocal(LocalPath& namePath, m_time_t mtime)
+bool WinFileSystemAccess::setmtimelocal(const LocalPath& namePath, m_time_t mtime)
 {
     assert(namePath.isAbsolute());
     FILETIME lwt;

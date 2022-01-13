@@ -181,7 +181,7 @@ public:
     // Result is undefined if this path is a "root."
     LocalPath parentPath() const;
 
-    LocalPath insertFilenameCounter(unsigned counter);
+    LocalPath insertFilenameCounter(unsigned counter) const;
 
     bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
@@ -550,7 +550,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool renamelocal(const LocalPath&, const LocalPath&, bool = true) = 0;
 
     // copy file, overwrite target, set mtime
-    virtual bool copylocal(LocalPath&, LocalPath&, m_time_t) = 0;
+    virtual bool copylocal(const LocalPath&, const LocalPath&, m_time_t) = 0;
 
     // delete file
     virtual bool unlinklocal(const LocalPath&) = 0;
@@ -565,7 +565,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     static void captimestamp(m_time_t*);
 
     // set mtime
-    virtual bool setmtimelocal(LocalPath&, m_time_t) = 0;
+    virtual bool setmtimelocal(const LocalPath&, m_time_t) = 0;
 
     // change working directory
     virtual bool chdirlocal(LocalPath&) const = 0;
@@ -625,6 +625,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual ~FileSystemAccess() { }
 
     // Get the current working directory.
+    static bool cwd_static(LocalPath& path);
     virtual bool cwd(LocalPath& path) const = 0;
 };
 

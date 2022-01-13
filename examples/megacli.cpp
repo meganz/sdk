@@ -578,9 +578,13 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
         name = *cfilename;
     }
 
-    localname = LocalPath::fromAbsolutePath(targetfolder.empty() ? "." : targetfolder);
-    auto fsType = client->fsaccess->getlocalfstype(localname);
-    localname.appendWithSeparator(LocalPath::fromRelativeName(name, *client->fsaccess, fsType), false);
+    string s = targetfolder;
+    if (s.empty()) s = ".";
+    auto fstype = client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(s));
+
+    auto ln = LocalPath::fromRelativeName(name, *client->fsaccess, fstype);
+    ln.prependWithSeparator(LocalPath::fromAbsolutePath(s));
+    localname = ln;
 }
 
 AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)
@@ -3205,6 +3209,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
+    p->Add(exec_llockfile, sequence(text("llockfile"), opt(flag("-read")), opt(flag("-write")), opt(flag("-unlock")), localFSFile()));
 #ifdef USE_FILESYSTEM
     p->Add(exec_lls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
     p->Add(exec_lpwd, sequence(text("lpwd")));
@@ -4577,6 +4582,52 @@ void exec_lcd(autocomplete::ACState& s)
     {
         cout << s.words[1].s << ": Failed" << endl;
     }
+}
+
+map<LocalPath, HANDLE> llockedFiles;
+
+void exec_llockfile(autocomplete::ACState& s)
+{
+    bool readlock = s.extractflag("-read");
+    bool writelock = s.extractflag("-write");
+    bool unlock = s.extractflag("-unlock");
+
+    if (!readlock && !writelock && !unlock)
+    {
+        readlock = true;
+        writelock = true;
+    }
+
+    LocalPath localpath = localPathArg(s.words[1].s);
+
+#ifdef WIN32
+
+    if (unlock)
+    {
+        CloseHandle(llockedFiles[localpath]);
+    }
+    else
+    {
+        string pe = localpath.platformEncoded();
+        HANDLE hFile = CreateFileW(wstring((wchar_t*)pe.data(), pe.size()/2).c_str(),
+            readlock ? GENERIC_READ : (writelock ? GENERIC_WRITE : 0),
+            0, // no sharing
+            NULL, OPEN_EXISTING, 0, NULL);
+
+        if (hFile == INVALID_HANDLE_VALUE)
+        {
+            auto err = GetLastError();
+            cout << "Error locking file: " << err;
+        }
+        else
+        {
+            llockedFiles[localpath] = hFile;
+        }
+    }
+
+#else
+    cout << " sorry, not implemented yet" << endl;
+#endif
 }
 
 #ifdef USE_FILESYSTEM
@@ -9160,9 +9211,9 @@ void exec_synclist(autocomplete::ACState& s)
 
         // Display name.
         cout << "Sync "
-            << toHandle(config.mBackupId)
-            << ": "
             << config.mName
+            << " Id: "
+            << toHandle(config.mBackupId)
             << "\n";
 
         auto cloudnode = client->nodeByHandle(config.getRemoteNode());
@@ -9194,19 +9245,17 @@ void exec_synclist(autocomplete::ACState& s)
         //         << " folder(s).\n";
         //}
         //else
-        {
-            // Display what status info we can.
-            auto msg = config.syncErrorToStr();
-            cout << "  Enabled: "
-                << config.getEnabled()
-                << "\n"
-                << "  Last Error: "
-                << msg
-                << "\n";
-        }
+
+        // Display what status info we can.
+        auto msg = config.syncErrorToStr();
+        cout << "  Enabled: "
+            << config.getEnabled()
+            << "\n"
+            << "  Last Error: "
+            << msg
+            << "\n";
 
         // Display sync type.
-
         cout << "  Type: "
             << (config.isExternal() ? "EX" : "IN")
             << "TERNAL "

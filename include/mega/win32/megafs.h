@@ -68,11 +68,11 @@ public:
     bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
-    bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
+    bool copylocal(const LocalPath&, const LocalPath&, m_time_t) override;
     bool unlinklocal(const LocalPath&) override;
     bool rmdirlocal(const LocalPath&) override;
     bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
-    bool setmtimelocal(LocalPath&, m_time_t) override;
+    bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, string&) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;

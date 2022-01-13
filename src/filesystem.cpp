@@ -50,7 +50,7 @@ int decodeEscape(UnicodeCodepointIterator<CharT>& it)
     auto tmpit = it;
     auto c1 = tmpit.get();
     auto c2 = tmpit.get();
-    if (islchex(c1) && islchex(c2))
+    if (islchex_high(c1) && islchex_low(c2))
     {
         it = tmpit;
         return hexval(c1) << 4 | hexval(c2);
@@ -107,6 +107,7 @@ UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>
 
 #endif // _WIN32
 
+// the case when the strings are over diffent character types (just uses match())
 template<typename CharT, typename CharU, typename UnaryOperation>
 int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
                UnicodeCodepointIterator<CharU> first2, bool unescaping2,
@@ -317,7 +318,17 @@ void LocalPath::normalizeAbsolute()
     assert(!localpath.empty());
     isFromRoot = true;
 
-#ifdef WIN32
+#ifdef USE_IOS
+    // iOS is a tricky case.
+    // We need to be able to use and persist absolute paths.  however on iOS app restart,
+    // our app base path may be different.  So, we only record the path beyone that app
+    // base path.   That is what the app supplies for absolute paths, that's what is persisted.
+    // Actual filesystem functions passed such an "absolute" path will prepend the app base path
+    // unless it already started with /
+    // and that's how it worked before we added the "absolute" feature to LocalPath.
+    // As a result of that though, there's nothing to adjust or check here for iOS.
+
+#elif WIN32
 
     // Add a drive separator if necessary.
     // append \ to bare Windows drive letter paths
@@ -331,7 +342,9 @@ void LocalPath::normalizeAbsolute()
 
     if (PathIsRelativeW(localpath.c_str()))
     {
-        WCHAR buffer[32768 + 10];
+        // ms: In the ANSI version of this function, the name is limited to MAX_PATH characters.
+        // ms: To extend this limit to 32,767 wide characters, call the Unicode version of the function (GetFullPathNameW), and prepend "\\?\" to the path
+        WCHAR buffer[32768];
         DWORD stringLen = GetFullPathNameW(localpath.c_str(), 32768, buffer, NULL);
         assert(stringLen < 32768);
 
@@ -349,7 +362,7 @@ void LocalPath::normalizeAbsolute()
 
     if (localpath.substr(0,2) == L"\\\\")
     {
-        // The caller aleady passed in a path that should be precise either with \\?\ or \\.\ or \\<server> etc.
+        // The caller already passed in a path that should be precise either with \\?\ or \\.\ or \\<server> etc.
         // Let's trust they know what they are doing and leave the path alone
     }
     else
@@ -361,20 +374,10 @@ void LocalPath::normalizeAbsolute()
     // convert to absolute if it isn't already
     if (!localpath.empty() && localpath[0] != localPathSeparator)
     {
-        char cCurrentPath[PATH_MAX];
-        if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
-        {
-            cCurrentPath[0] = 0;
-        }
-
-        string s(cCurrentPath);
-
-        if (!s.empty() && s.back() != localPathSeparator)
-        {
-            s.append(1, localPathSeparator);
-        }
-
-        localpath = s + localpath;
+        LocalPath lp;
+        PosixFileSystemAccess::cwd_static(lp)
+        lp.appendWithSeparator(localpath);
+        localpath = move(lp);
     }
 #endif
 
@@ -383,34 +386,45 @@ void LocalPath::normalizeAbsolute()
 
 bool LocalPath::invariant() const
 {
+#ifdef USE_IOS
+    // iOS is a tricky case.
+    // We need to be able to use and persist absolute paths.  however on iOS app restart,
+    // our app base path may be different.  So, we only record the path beyone that app
+    // base path.   That is what the app supplies for absolute paths, that's what is persisted.
+    // Actual filesystem functions passed such an "absolute" path will prepend the app base path
+    // unless it already started with /
+    // and that's how it worked before we added the "absolute" feature to LocalPath.
+    // As a result of that though, there's nothing to adjust or check here for iOS.
+#elif WIN32
     if (isFromRoot)
     {
-        assert(!localpath.empty());
-        #ifdef WIN32
-            // must contain a drive letter
-            if (localpath.find(L":") == string_type::npos) return false;
-            // must start "\\"
-            if (localpath.size() < 4) return false;
-            if (localpath.substr(0, 2) != L"\\\\") return false;
-            if (PathIsRelativeW(localpath.c_str())) return false;
-        #else
-            // must start /
-            if (localpath.size() < 1) return false;
-            if (localpath.front() != localPathSeparator) return false;
-        #endif
+        // must contain a drive letter
+        if (localpath.find(L":") == string_type::npos) return false;
+        // must start "\\"
+        if (localpath.size() < 4) return false;
+        if (localpath.substr(0, 2) != L"\\\\") return false;
+        if (PathIsRelativeW(localpath.c_str())) return false;
     }
     else
     {
-#ifdef WIN32
         // must not contain a drive letter
         if (localpath.find(L":") != string_type::npos) return false;
         // must not start "\\"
         if (localpath.size() >= 2 &&
             localpath.substr(0, 2) == L"\\\\") return false;
+     }
 #else
-        // this could contain /relative for appending etc.
-#endif
+    if (isFromRoot)
+    {
+        // must start /
+        if (localpath.size() < 1) return false;
+        if (localpath.front() != localPathSeparator) return false;
     }
+    else
+    {
+        // this could contain /relative for appending etc.
+    }
+#endif
     return true;
 }
 
@@ -433,8 +447,8 @@ bool FileSystemAccess::decodeEscape(const char* s, char& escapedChar) const
 {
     // s must be part of a null terminated c-style string
     if (s && *s == '%'
-        && islchex(s[1])
-        && islchex(s[2]))
+        && islchex_high(s[1]) // must be 0..127
+        && islchex_low(s[2]))
     {
         escapedChar = char((hexval(s[1]) << 4) | hexval(s[2]));
         return true;
@@ -553,12 +567,12 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
         assert (utf8seqsize);
         if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
         {
-            const char incompatibleChar = name->at(i);
             sprintf(buf, "%%%02x", c);
             name->replace(i, 1, buf);
-            LOG_debug << "Escape incompatible character for filesystem type "
-                      << fstypetostring(fileSystemType)
-                      << ", replace '" << incompatibleChar << "' by '" << buf << "'\n";
+            // Logging these at such a low level is too frequent and verbose
+            //LOG_debug << "Escape incompatible character for filesystem type "
+            //    << fstypetostring(fileSystemType)
+            //    << ", replace '" << char(c) << "' by '" << buf << "'\n";
         }
         i += utf8seqsize;
     }
@@ -585,7 +599,7 @@ void FileSystemAccess::unescapefsincompatible(string *name) const
             !std::iscntrl(c))
         {
             // Substitute in the decoded character.
-            name->replace(i, 3, 1, static_cast<char>(c));
+            name->replace(i, 3, 1, c);
         }
     }
 }
@@ -1132,8 +1146,18 @@ std::string LocalPath::platformEncoded() const
     // this function is typically used where we need to pass a file path to the client app, which expects utf16 in a std::string buffer
     // some other backwards compatible cases need this format also, eg. serialization
     std::string outstr;
-    outstr.resize(localpath.size() * sizeof(wchar_t));
-    memcpy(const_cast<char*>(outstr.data()), localpath.data(), localpath.size() * sizeof(wchar_t));
+
+    if (localpath.size() >= 4 && 0 == localpath.compare(0, 4, L"\\\\?\\", 4))
+    {
+        // when a path leaves LocalPath, we can remove prefix which is only needed internally
+        outstr.resize((localpath.size() - 4) * sizeof(wchar_t));
+        memcpy(const_cast<char*>(outstr.data()), localpath.data() + 4, (localpath.size() - 4) * sizeof(wchar_t));
+    }
+    else
+    {
+        outstr.resize(localpath.size() * sizeof(wchar_t));
+        memcpy(const_cast<char*>(outstr.data()), localpath.data(), localpath.size() * sizeof(wchar_t));
+    }
     return outstr;
 #else
     // for non-windows, it's just the same utf8 string we use anyway
@@ -1277,7 +1301,7 @@ LocalPath LocalPath::parentPath() const
     return subpathTo(getLeafnameByteIndex());
 }
 
-LocalPath LocalPath::insertFilenameCounter(unsigned counter)
+LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
 {
     assert(invariant());
 
@@ -1313,13 +1337,13 @@ string LocalPath::toPath() const
     string path;
     local2path(&localpath, &path);
 
-    #ifdef WIN32
+#ifdef WIN32
     if (path.size() >= 4 && 0 == path.compare(0, 4, "\\\\?\\", 4))
     {
         // when a path leaves LocalPath, we can remove prefix which is only needed internally
         path.erase(0, 4);
     }
-    #endif
+#endif
 
     return path;
 }
