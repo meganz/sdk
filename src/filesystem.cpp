@@ -1186,6 +1186,11 @@ std::string LocalPath::platformEncoded() const
 
 void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways)
 {
+#ifdef USE_IOS
+    bool originallyUsesAppBasePath = isFromRoot &&
+        (localpath.empty() || localpath.front() != localPathSeparator);
+#endif
+
     assert(!additionalPath.isFromRoot);
     if (separatorAlways || localpath.size())
     {
@@ -1197,6 +1202,17 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
     }
 
     localpath.append(additionalPath.localpath);
+
+#ifdef USE_IOS
+    if (originallyUsesAppBasePath)
+    {
+        while (!localpath.empty() && localpath.front() == localPathSeparator)
+        {
+            localpath.erase(0, 1);
+        }
+    }
+#endif
+
     assert(invariant());
 }
 
