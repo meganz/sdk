@@ -18044,16 +18044,18 @@ void NodeManager::updateCounter(const Node& n, const Node* oldParent)
     if (n.parent && n.parent->type == FILENODE)
     {
         // current version converted to previous version
-        assert(oldParent && oldParent->type != FILENODE);
-        assert(oah == nah);
-
-        auto it = mNodeCounters.find(oah);
+        auto it = mNodeCounters.find(nah);
         if (it != mNodeCounters.end())
         {
             NodeCounter &nc = it->second;
-            nc.files--;
+            if (oldParent)
+            {
+                assert(oldParent->type != FILENODE);
+                nc.files--;
+                nc.storage -= n.size;
+            }
+
             nc.versions++;
-            nc.storage -= n.size;
             nc.versionStorage += n.size;
         }
     }
