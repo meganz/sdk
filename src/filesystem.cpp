@@ -517,9 +517,9 @@ void LocalPath::normalizeAbsolute()
     if (!localpath.empty() && localpath[0] != localPathSeparator)
     {
         LocalPath lp;
-        PosixFileSystemAccess::cwd_static(lp)
-        lp.appendWithSeparator(localpath);
-        localpath = move(lp);
+        PosixFileSystemAccess::cwd_static(lp);
+        lp.appendWithSeparator(*this, false);
+        localpath = move(lp.localpath);
     }
 #endif
 
@@ -1268,10 +1268,11 @@ void LocalPath::clear()
     assert(invariant());
 }
 
-void LocalPath::erase(size_t pos, size_t count)
+void LocalPath::erase()
 {
+    // wipes the buffer clean for reuse (hopefully without any allocations)
     assert(invariant());
-    localpath.erase(pos, count);
+    localpath.erase(0, string::npos);
     assert(invariant());
 }
 

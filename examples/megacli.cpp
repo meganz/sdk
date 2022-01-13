@@ -4636,7 +4636,6 @@ void exec_lcd(autocomplete::ACState& s)
     }
 }
 
-map<LocalPath, HANDLE> llockedFiles;
 
 void exec_llockfile(autocomplete::ACState& s)
 {
@@ -4653,6 +4652,7 @@ void exec_llockfile(autocomplete::ACState& s)
     LocalPath localpath = localPathArg(s.words[1].s);
 
 #ifdef WIN32
+    static map<LocalPath, HANDLE> llockedFiles;
 
     if (unlock)
     {
