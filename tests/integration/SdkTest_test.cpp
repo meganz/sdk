@@ -5355,12 +5355,18 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_TRUE(buckets->size() > 1);
 
     ASSERT_TRUE(buckets->get(0)->getNodes()->size() > 1);
-    ASSERT_EQ(filename2, string(buckets->get(0)->getNodes()->get(0)->getName()));
-    ASSERT_EQ(filename1, string(buckets->get(0)->getNodes()->get(1)->getName()));
+
+    MegaNode* n_0_0 = buckets->get(0)->getNodes()->get(0);
+    MegaNode* n_0_1 = buckets->get(0)->getNodes()->get(1);
+    ASSERT_TRUE(filename2 == n_0_0->getName() || n_0_0->getCreationTime() == n_0_1->getCreationTime());
+    ASSERT_TRUE(filename1 == n_0_1->getName() || n_0_0->getCreationTime() == n_0_1->getCreationTime());
 
     ASSERT_TRUE(buckets->get(1)->getNodes()->size() > 1);
-    ASSERT_EQ(filename1bkp2, string(buckets->get(1)->getNodes()->get(0)->getName()));
-    ASSERT_EQ(filename1bkp1, string(buckets->get(1)->getNodes()->get(1)->getName()));
+
+    MegaNode* n_1_0 = buckets->get(1)->getNodes()->get(0);
+    MegaNode* n_1_1 = buckets->get(1)->getNodes()->get(1);
+    ASSERT_TRUE(filename1bkp2 == n_1_0->getName() || n_1_0->getCreationTime() == n_1_1->getCreationTime());
+    ASSERT_TRUE(filename1bkp1 == n_1_1->getName() || n_1_0->getCreationTime() == n_1_1->getCreationTime());
 }
 
 
