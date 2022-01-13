@@ -18040,17 +18040,20 @@ void NodeManager::updateCounter(const Node& n, const Node* oldParent)
     const Node* newAncestor = n.firstancestor();
     const NodeHandle &nah = newAncestor->nodeHandle();
 
-    // if node is a version
+    // if node is a new version
     if (n.parent && n.parent->type == FILENODE)
     {
-        // current version converted to previous version
+        // current version converted to previous version: two cases
+        // A. action by own client: response from command 1st creates the new node and later moves old version as child of new version
+        // B. action by another client: actionpacket 1st deletes the old node, later adds the new version and finally adds the old version
         auto it = mNodeCounters.find(nah);
         if (it != mNodeCounters.end())
         {
             NodeCounter &nc = it->second;
-            if (oldParent)
+            if (oldParent)  // case A: new version created by own client
             {
-                assert(oldParent->type != FILENODE);
+                assert(oldParent->type != FILENODE && oah == nah);
+                // discount the old version, previously counted as file
                 nc.files--;
                 nc.storage -= n.size;
             }
