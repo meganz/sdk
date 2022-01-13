@@ -8667,12 +8667,14 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 JSON::copystring(n->attrstring.get(), a);
                 n->setkeyfromjson(k);
 
-                // folder link access: first returned record defines root node and identity
-				// (this code used to be in Node::Node but is not suitable for session resume)
-
-                if (rootnodes.files.isUndef())
+                if (loggedIntoFolder())
                 {
-                    rootnodes.files.set6byte(h);
+                    // folder link access: first returned record defines root node and identity
+                    // (this code used to be in Node::Node but is not suitable for session resume)
+                    if (rootnodes.files.isUndef())
+                    {
+                        rootnodes.files.set6byte(h);
+                    }
 
                     if (loggedIntoWritableFolder())
                     {
