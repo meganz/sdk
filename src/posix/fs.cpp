@@ -785,6 +785,11 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
 
 bool PosixFileSystemAccess::cwd(LocalPath& path) const
 {
+    return cwd_static(path);
+}
+
+bool PosixFileSystemAccess::cwd_static(LocalPath& path)
+{
     string buf(128, '\0');
 
     while (!getcwd(&buf[0], buf.size()))

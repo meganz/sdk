@@ -727,6 +727,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual ~FileSystemAccess() { }
 
     // Get the current working directory.
+    static bool cwd_static(LocalPath& path);
     virtual bool cwd(LocalPath& path) const = 0;
 
     // Retrieve the fingerprint of the filesystem containing the specified path.

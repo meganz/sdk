@@ -898,7 +898,8 @@ inline int hexval(const int c)
     return ((c & 0xf) + (c >> 6)) | ((c >> 3) & 0x8);
 }
 
-bool islchex(const int c);
+bool islchex_high(const int c);
+bool islchex_low(const int c);
 
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
