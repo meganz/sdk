@@ -8562,7 +8562,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
 
                 // NodeManager takes n ownership
-                mNodeManager.addNode(n, notify, fetchingnodes);
+                mNodeManager.addNode(n, fetchingnodes);
 
                 if (!ISUNDEF(su))
                 {
@@ -12030,7 +12030,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    necessaryCommit = true;
                    // Add nodes from old data base structure to nodes on demand structure
                    // When all nodes are loaded we force a commit
-                   mNodeManager.addNode(n, false, true); // DB
+                   mNodeManager.addNode(n, true); // DB
                    sctable->del(id);
                 }
                 else
@@ -16763,13 +16763,10 @@ bool NodeManager::setrootnode(Node* node)
     }
 }
 
-bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
+bool NodeManager::addNode(Node *node, bool isFetching)
 {
     // 'isFetching' is true only when CommandFetchNodes is in flight and/or it has been received,
     // but it's been complemented with actionpackets. It's false when loaded from DB.
-
-    // 'notify' is false when loading nodes from API or DB. True when node is received from
-    // actionpackets and/or from response of CommandPutnodes
 
     if (!mTable)
     {
@@ -16793,7 +16790,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     // TODO nodes on demand: we should also keep in RAM the inshares (when fetching nodes)
     if (mKeepAllNodesInMemory || rootNode || isFolderLink || !isFetching)
     {
-        saveNodeInRAM(node, notify);
+        saveNodeInRAM(node);
     }
     else
     {
@@ -17793,6 +17790,9 @@ void NodeManager::notifyPurge()
             else
             {
                 it++;
+                // TODO nodes on demand: avoid to write to DB if the only change
+                // is 'changed.newnode', since the node is already written to DB
+                // when it is received from API, in 'saveNodeInRam()'
                 mTable->put(n);
             }
 
@@ -17875,15 +17875,13 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
     return nullptr;
 }
 
-void NodeManager::saveNodeInRAM(Node *node, bool notify)
+void NodeManager::saveNodeInRAM(Node *node)
 {
-    // wait for notifypurge() to dump to disk / DB
     mNodes[node->nodeHandle()] = node;
 
-    if (!notify)
-    {
-        mTable->put(node);
-    }
+    // do not wait for notifypurge() to dump to disk / DB, since
+    // some operations rely on DB queries (ie. NodeCounters)
+    mTable->put(node);
 
     // In case of folder link it isn't neccesary to add to mNodesWithMissingParent
     if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE

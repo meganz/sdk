@@ -253,7 +253,7 @@ public:
     void reset();
 
     // Take node ownership
-    bool addNode(Node* node, bool notify, bool isFetching = false);
+    bool addNode(Node* node, bool isFetching = false);
     bool updateNode(Node* node);
     // removeNode() --> it's done through notifypurge()
 
@@ -403,7 +403,7 @@ private:
     std::map<NodeHandle, node_set> mNodesWithMissingParent;
 
     Node* getNodeInRAM(NodeHandle handle);
-    void saveNodeInRAM(Node* node, bool notify);
+    void saveNodeInRAM(Node* node);
     void saveNodeInDataBase(Node* node);
     bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
