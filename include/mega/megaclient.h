@@ -362,8 +362,8 @@ public:
     // subtract the counter of 'n' (calculated from DB) from its first antecesor, which must be a rootnode
     void subtractFromRootCounter(const Node& n);
 
-    // moves the counter of 'h' from one counter ('oldRoot') to another counter ('newRoot')
-    void movedSubtreeToNewRoot(const Node& n, const NodeHandle& oldRoot, const NodeHandle& newRoot);
+    // update the counter of 'n' when its parent is updated (from 'oldParent' to 'n.parent')
+    void updateCounter(const Node& n, const Node *oldParent);
 
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;

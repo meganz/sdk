@@ -760,13 +760,7 @@ bool Node::setparent(Node* p, bool updateNodeCounters)
 
     if (updateNodeCounters)
     {
-        const Node* originalancestor = oldparent ? oldparent->firstancestor() : nullptr;
-        const NodeHandle& oah = originalancestor ? originalancestor->nodeHandle() : NodeHandle();
-
-        const Node* newancestor = firstancestor();
-        const NodeHandle &nah = newancestor->nodeHandle();
-
-        client->mNodeManager.movedSubtreeToNewRoot(*this, oah, nah);
+        client->mNodeManager.updateCounter(*this, oldparent);
     }
 
 #ifdef ENABLE_SYNC

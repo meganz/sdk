@@ -18032,25 +18032,52 @@ NodeCounter NodeManager::getCounterForSubtree(const Node& n)
     return getNodeCounter(n);
 }
 
-void NodeManager::movedSubtreeToNewRoot(const Node& n, const NodeHandle& oldRoot, const NodeHandle& newRoot)
+void NodeManager::updateCounter(const Node& n, const Node* oldParent)
 {
-    bool subTreeCalculated = false; // is the subtree available in the node's counter for old root?
-    NodeCounter nc;
+    const Node* oldAncestor = oldParent ? oldParent->firstancestor() : nullptr;
+    const NodeHandle& oah = oldAncestor ? oldAncestor->nodeHandle() : NodeHandle();
 
-    auto itOld = mNodeCounters.find(oldRoot);
-    if (itOld != mNodeCounters.end())
-    {
-        // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
-        nc = getCounterForSubtree(n);
-        itOld->second -= nc;
-        subTreeCalculated = true;
-    }
+    const Node* newAncestor = n.firstancestor();
+    const NodeHandle &nah = newAncestor->nodeHandle();
 
-    auto itNew = mNodeCounters.find(newRoot);
-    if (itNew != mNodeCounters.end())
+    // if node is a version
+    if (n.parent && n.parent->type == FILENODE)
     {
-        itNew->second += subTreeCalculated ? nc : getCounterForSubtree(n);
+        // current version converted to previous version
+        assert(oldParent && oldParent->type != FILENODE);
+        assert(oah == nah);
+
+        auto it = mNodeCounters.find(oah);
+        if (it != mNodeCounters.end())
+        {
+            NodeCounter &nc = it->second;
+            nc.files--;
+            nc.versions++;
+            nc.storage -= n.size;
+            nc.versionStorage += n.size;
+        }
     }
+    else if (oah != nah)   // node is a new file/folder, movements of file/folder between different trees
+    {
+        bool subTreeCalculated = false; // is the subtree available in the node's counter for old root?
+        NodeCounter nc;
+
+        auto itOld = mNodeCounters.find(oah);
+        if (itOld != mNodeCounters.end())
+        {
+            // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
+            nc = getCounterForSubtree(n);
+            itOld->second -= nc;
+            subTreeCalculated = true;
+        }
+
+        auto itNew = mNodeCounters.find(nah);
+        if (itNew != mNodeCounters.end())
+        {
+            itNew->second += subTreeCalculated ? nc : getCounterForSubtree(n);
+        }
+    }
+    // else -> movement inside same subtree, nothing to update
 }
 
 mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
