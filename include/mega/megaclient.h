@@ -336,7 +336,10 @@ public:
     // ===--- Node Counters ---===
 
     // returns the counter for 'node', recursively, accessing to DB
-    NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile = false);
+private:
+    NodeCounter getNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
+public:
+    NodeCounter getNodeCounter(const Node &node);
 
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
@@ -345,7 +348,7 @@ public:
     const NodeCounter* getCounter(const NodeHandle& h) const;
 
     // return the counter for 'h' (for other than rootnodes, it requires DB query)
-    NodeCounter getCounterForSubtree(const NodeHandle& h);
+    NodeCounter getCounterForSubtree(const Node& n);
 
     // return the counter for all root nodes (cloud+inbox+rubbish), without DB query
     NodeCounter getCounterOfRootNodes();
@@ -353,14 +356,14 @@ public:
     // add the counter for 'h' (it must not exist yet)
     void addCounter(const NodeHandle &h);
 
-    // create the counter for 'h' and calculate its count recursively
-    void calculateCounter(const NodeHandle& h);
+    // create the counter and calculate its count recursively
+    void calculateCounter(const Node &n);
 
     // subtract the counter of 'n' (calculated from DB) from its first antecesor, which must be a rootnode
     void subtractFromRootCounter(const Node& n);
 
     // moves the counter of 'h' from one counter ('oldRoot') to another counter ('newRoot')
-    void movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, const NodeHandle& newRoot);
+    void movedSubtreeToNewRoot(const Node& n, const NodeHandle& oldRoot, const NodeHandle& newRoot);
 
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;
@@ -1071,7 +1074,7 @@ public:
     int getNumberOfChildren(NodeHandle parentHandle);
 
     // Get sub tree info from a node
-    NodeCounter getTreeInfoFromNode(NodeHandle nodehandle);
+    NodeCounter getTreeInfoFromNode(const Node& node);
 
     // use HTTPS for all communications
     bool usehttps;

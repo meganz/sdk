@@ -2711,9 +2711,10 @@ void exec_lrenamereplace(autocomplete::ACState& s)
 
 void exec_getcloudstorageused(autocomplete::ACState&)
 {
-    m_off_t filesSize = client->mNodeManager.getNodeCounter(client->rootnodes.files).storage;
-    m_off_t rubbishSize = client->mNodeManager.getNodeCounter(client->rootnodes.rubbish).storage;
-    cout << filesSize + rubbishSize << endl;
+    m_off_t filesSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.files)).storage;
+    m_off_t inboxSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.inbox)).storage;
+    m_off_t rubbishSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.rubbish)).storage;
+    cout << filesSize + inboxSize + rubbishSize << endl;
 }
 
 void exec_getuserquota(autocomplete::ACState& s)
@@ -3175,6 +3176,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
+    p->Add(exec_nodecounter, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
 
 #ifdef ENABLE_SYNC
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
@@ -4096,6 +4098,33 @@ void exec_du(autocomplete::ACState& s)
         cout << "Total # of files: " << du.numfiles << endl;
         cout << "Total # of folders: " << du.numfolders << endl;
     }
+}
+
+void exec_nodecounter(autocomplete::ACState &s)
+{
+    Node *n;
+
+    if (s.words.size() > 1)
+    {
+        if (!(n = nodebypath(s.words[1].s.c_str())))
+        {
+            cout << s.words[1].s << ": No such file or directory" << endl;
+            return;
+        }
+    }
+    else
+    {
+        n = client->nodeByHandle(cwd);
+    }
+
+    NodeCounter nc = client->getTreeInfoFromNode(*n);
+
+    cout << "Total storage used: " << nc.storage << endl;
+    cout << "Total storage used by versions: " << nc.versionStorage << endl << endl;
+
+    cout << "Total # of files: " << nc.files << endl;
+    cout << "Total # of folders: " << nc.folders << endl;
+    cout << "Total # of versions: " << nc.versions << endl;
 }
 
 void exec_get(autocomplete::ACState& s)

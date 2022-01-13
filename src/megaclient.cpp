@@ -16328,9 +16328,9 @@ int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
     return mNodeManager.getNumberOfChildrenFromNode(parentHandle);
 }
 
-NodeCounter MegaClient::getTreeInfoFromNode(NodeHandle nodehandle)
+NodeCounter MegaClient::getTreeInfoFromNode(const Node& node)
 {
-    return mNodeManager.getCounterForSubtree(nodehandle);
+    return mNodeManager.getCounterForSubtree(node);
 }
 
 bool MegaClient::loggedIntoFolder() const
@@ -17204,7 +17204,13 @@ void NodeManager::loadTreeRecursively(const Node* node)
     }
 }
 
-NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle, bool parentIsFile)
+NodeCounter NodeManager::getNodeCounter(const Node &node)
+{
+    nodetype_t parentType = node.parent ? node.parent->type : mTable->getNodeType(node.parentHandle());
+    return getNodeCounter(node.nodeHandle(), parentType);
+}
+
+NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType)
 {
     NodeCounter nc;
     if (!mTable)
@@ -17220,14 +17226,15 @@ NodeCounter NodeManager::getNodeCounter(NodeHandle nodehandle, bool parentIsFile
     children = getChildrenHandlesFromNode(nodehandle);
     for (const NodeHandle &h : children)
     {
-        nc += getNodeCounter(h, nodeType == FILENODE);
+        nc += getNodeCounter(h, nodeType);
     }
 
     if (nodeType == FILENODE)
     {
         m_off_t nodeSize = node ? node->size : mTable->getNodeSize(nodehandle);
 
-        if (parentIsFile)
+        bool isVersion = parentType == FILENODE;
+        if (isVersion)
         {
             nc.versions++;
             nc.versionStorage += nodeSize;
@@ -17847,7 +17854,7 @@ void NodeManager::loadNodes()
             getChildren(node);
 
             // calculate node counters based on DB queries
-            calculateCounter(node->nodeHandle());
+            calculateCounter(*node);
         }
     }
 }
@@ -17992,10 +17999,15 @@ void NodeManager::addCounter(const NodeHandle &h)
     assert(ret.second);
 }
 
-void NodeManager::calculateCounter(const NodeHandle& h)
+void NodeManager::calculateCounter(const Node& n)
 {
+    NodeHandle h = n.nodeHandle();
     assert(mNodeCounters.find(h) == mNodeCounters.end());
-    mNodeCounters[h] = getNodeCounter(h);
+    // this method is called only for rootnodes and inshares, where
+    // the parent node can be FOLDERNODE (for nested inshares), or TYPE_UNKNOWN
+    // (for inshares and rootnodes). The purpose of the type is to differentiate
+    // between rootnodes, folders and files, so we can pass the own node's type
+    mNodeCounters[h] = getNodeCounter(n);
 }
 
 void NodeManager::subtractFromRootCounter(const Node& n)
@@ -18005,23 +18017,22 @@ void NodeManager::subtractFromRootCounter(const Node& n)
     auto it = mNodeCounters.find(firstValidAntecestor);
     if (it != mNodeCounters.end())
     {
-        bool parentIsFile = n.parent ? n.parent->type == FILENODE : false;
-        it->second -= getNodeCounter(n.nodeHandle(), parentIsFile);
+        it->second -= getNodeCounter(n);
     }
 }
 
-NodeCounter NodeManager::getCounterForSubtree(const NodeHandle& h)
+NodeCounter NodeManager::getCounterForSubtree(const Node& n)
 {
-    auto it = mNodeCounters.find(h);
+    auto it = mNodeCounters.find(n.nodeHandle());
     if (it != mNodeCounters.end())
     {
         return it->second;
     }
 
-    return getNodeCounter(h);
+    return getNodeCounter(n);
 }
 
-void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, const NodeHandle& newRoot)
+void NodeManager::movedSubtreeToNewRoot(const Node& n, const NodeHandle& oldRoot, const NodeHandle& newRoot)
 {
     bool subTreeCalculated = false; // is the subtree available in the node's counter for old root?
     NodeCounter nc;
@@ -18030,7 +18041,7 @@ void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& o
     if (itOld != mNodeCounters.end())
     {
         // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
-        nc = getCounterForSubtree(h);
+        nc = getCounterForSubtree(n);
         itOld->second -= nc;
         subTreeCalculated = true;
     }
@@ -18038,7 +18049,7 @@ void NodeManager::movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& o
     auto itNew = mNodeCounters.find(newRoot);
     if (itNew != mNodeCounters.end())
     {
-        itNew->second += subTreeCalculated ? nc : getCounterForSubtree(h);
+        itNew->second += subTreeCalculated ? nc : getCounterForSubtree(n);
     }
 }
 

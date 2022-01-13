@@ -7689,9 +7689,9 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
  */
 TEST_F(SdkTest, SdkNodesOnDemand)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkNodesOnDemand___";
 
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // --- Load User B as account 1
     const char *email = getenv(envVarAccount[0].c_str());
     ASSERT_NE(email, nullptr);
@@ -7891,6 +7891,15 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     // --- UserA login with session
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    // make sure that client is up to date (upon logout, recent changes might not be committed to DB,
+    // which may result on the node deleted by userB not being deleted yet for userA).
+    size_t times = 10;
+    while (times--)
+    {
+        if (lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) break;
+        std::this_thread::sleep_for(std::chrono::seconds{1});
+    }
+    ASSERT_TRUE(lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) << "Timeout expired to receive actionpackets";
 
     // --- UserA Check if find removed node by fingerprint
     fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
