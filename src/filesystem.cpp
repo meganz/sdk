@@ -375,9 +375,9 @@ void LocalPath::normalizeAbsolute()
     if (!localpath.empty() && localpath[0] != localPathSeparator)
     {
         LocalPath lp;
-        PosixFileSystemAccess::cwd_static(lp)
-        lp.appendWithSeparator(localpath);
-        localpath = move(lp);
+        PosixFileSystemAccess::cwd_static(lp);
+        lp.appendWithSeparator(*this, false);
+        localpath = move(lp.localpath);
     }
 #endif
 

@@ -126,6 +126,7 @@ public:
     PosixFileSystemAccess(int = -1);
     ~PosixFileSystemAccess();
 
+    static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
 };
 
