@@ -458,7 +458,7 @@ void LocalPath::removeTrailingSeparators()
 
 void LocalPath::normalizeAbsolute()
 {
-    isFromRoot = true;
+    assert(!localpath.empty());
 
 #ifdef USE_IOS
     // iOS is a tricky case.
@@ -469,6 +469,22 @@ void LocalPath::normalizeAbsolute()
     // unless it already started with /
     // and that's how it worked before we added the "absolute" feature to LocalPath.
     // As a result of that though, there's nothing to adjust or check here for iOS.
+    isFromRoot = true;
+
+    // In addition, for iOS, should the app try to use ".", or "./", we interpret that to mean
+    // that really it's relative to the app base path.  So we convert:
+    if (!localpath.empty() && localpath.front() == '.')
+    {
+        if (localpath.size() == 1 || localpath[1] == localPathSeparator)
+        {
+            localpath.erase(0, 1);
+            while (!localpath.empty() &&
+                    localpath.front() == localPathSeparator)
+            {
+                localpath.erase(0, 1);
+            }
+        }
+    }
 
 #elif WIN32
 
@@ -492,6 +508,8 @@ void LocalPath::normalizeAbsolute()
 
         localpath = wstring(buffer, stringLen);
     }
+
+    isFromRoot = true;
 
     // See https://docs.microsoft.com/en-us/dotnet/standard/io/file-path-formats
     // Also https://docs.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
@@ -521,6 +539,7 @@ void LocalPath::normalizeAbsolute()
         lp.appendWithSeparator(*this, false);
         localpath = move(lp.localpath);
     }
+    isFromRoot = true;
 #endif
 
     assert(invariant());
