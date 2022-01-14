@@ -19,6 +19,7 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "MEGALogLevel.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -57,7 +58,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  *
  */
-- (void)logWithTime:(NSString*)time logLevel:(NSInteger)logLevel source:(NSString *)source message:(NSString *)message;
+- (void)logWithTime:(NSString*)time logLevel:(MEGALogLevel)logLevel source:(NSString *)source message:(NSString *)message;
 
 @end
 

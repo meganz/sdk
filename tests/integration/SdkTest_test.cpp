@@ -236,7 +236,7 @@ namespace
         return true;
     }
 
-    bool createLocalFile(fs::path path, const char *name)
+    bool createLocalFile(fs::path path, const char *name, int byteSize = 0)
     {
         if (!name)
         {
@@ -249,6 +249,10 @@ namespace
 #else
         ofstream fs(fp.u8string()/*, ios::binary*/);
 #endif
+        if (byteSize)
+        {
+            fs.seekp((byteSize << 10) - 1);
+        }
         fs << name;
         return true;
     }
@@ -5147,6 +5151,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     locallogout();
     auto tracker = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    resetlastEvent();
     fetchnodes(0, maxTimeout); // auto-resumes one active backup
     // Verify the sync again
     allSyncs.reset(megaApi[0]->getSyncs());
@@ -5165,11 +5170,35 @@ TEST_F(SdkTest, SdkBackupFolder)
         }
     }
     ASSERT_EQ(found, true) << "Sync instance could not be found, after logout & login";
+    // make sure that client is up to date (upon logout, recent changes might not be committed to DB,
+    // which may result on the new node not being available yet).
+    size_t times = 10;
+    while (times--)
+    {
+        if (lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) break;
+        std::this_thread::sleep_for(std::chrono::seconds{1});
+    }
+    ASSERT_TRUE(lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) << "Timeout expired to receive actionpackets";
+
+    // Test that DeviceId was set for the newly registered backup
+    MegaSync* snc = allSyncs->get(0);
+    ASSERT_NE(snc, nullptr) << "No sync was found";
+    std::unique_ptr<MegaNode> nn(megaApi[0]->getNodeByHandle(snc->getMegaHandle()));
+    ASSERT_TRUE(nn) << "MegaNode for the new sync was not found";
+    const char* devid = nn->getDeviceId();
+    ASSERT_TRUE(devid && devid[0]) << "DeviceId was not set for the new sync";
 
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
     megaApi[0]->removeSync(allSyncs->get(0), &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
+
+    // Test that DeviceId is no longer set for the node of the former backup
+    nn.reset(megaApi[0]->getNodeByHandle(snc->getMegaHandle()));
+    ASSERT_TRUE(nn) << "MegaNode for the former sync was not found";
+    const char* devid2 = nn->getDeviceId();
+    ASSERT_TRUE(!devid2 || !devid2[0]) << "DeviceId was not removed for the former sync";
+
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
 
@@ -7238,4 +7267,99 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     Cleanup();
 }
 
+/**
+ * @brief TEST_F SdkTargetOverwriteTest
+ *
+ * Testing to upload a file into an inshare with read only privileges.
+ * API must put node into rubbish bin, instead of fail putnodes with API_EACCESS
+ */
+TEST_F(SdkTest, SdkTargetOverwriteTest)
+{
+    LOG_info << "___TEST SdkTargetOverwriteTest___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    //--- Add secondary account as contact ---
+    string message = "Hi contact. Let's share some stuff";
+    mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
+    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the source side (main account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    mApi[1].cr.reset();
+
+    //--- Create a new folder in cloud drive ---
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    char foldername1[64] = "Shared-folder";
+    MegaHandle hfolder1 = createFolder(0, foldername1, rootnode.get());
+    ASSERT_NE(hfolder1, UNDEF);
+    MegaNode *n1 = megaApi[0]->getNodeByHandle(hfolder1);
+    ASSERT_NE(n1, nullptr);
+
+    // --- Create a new outgoing share ---
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_READWRITE));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    MegaShareList *sl = megaApi[1]->getInSharesList(::MegaApi::ORDER_NONE);
+    ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
+    MegaShare *share = sl->get(0);
+
+    ASSERT_TRUE(share->getNodeHandle() == n1->getHandle())
+            << "Wrong inshare handle: " << Base64Str<MegaClient::NODEHANDLE>(share->getNodeHandle())
+            << ", expected: " << Base64Str<MegaClient::NODEHANDLE>( n1->getHandle());
+
+    ASSERT_TRUE(share->getAccess() >=::MegaShare::ACCESS_READWRITE)
+             << "Insufficient permissions: " << MegaShare::ACCESS_READWRITE  << " over created share";
+
+    // --- Create local file and start upload from secondary account into inew InShare ---
+    onTransferUpdate_progress = 0;
+    onTransferUpdate_filesize = 0;
+    mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
+    std::string fileName = std::to_string(time(nullptr));
+    ASSERT_TRUE(createLocalFile(fs::current_path(), fileName.c_str(), 1024));
+    fs::path fp = fs::current_path() / fileName;
+    megaApi[1]->startUpload(fp.u8string().c_str(), n1);
+
+    // --- Pause transfer, revoke out-share permissions for secondary account and resume transfer ---
+    megaApi[0]->pauseTransfers(true);
+    ASSERT_TRUE(!mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD]);
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    megaApi[0]->pauseTransfers(false);
+    // --- Wait for transfer completion
+    ASSERT_TRUE(waitForResponse(&mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD], 600))
+        << "Upload transfer failed after " << 600 << " seconds";
+
+    ASSERT_TRUE(mApi[1].lastTransferError == MegaError::API_OK && mApi[1].lastError == MegaError::API_OK)
+            << "Upload transfer failed with error: " << mApi[1].lastTransferError;
+
+    // --- Check that node has been created in rubbish bin ---
+    std::unique_ptr <MegaNode> n (mApi[1].megaApi->getNodeByHandle(mApi[1].h));
+    ASSERT_TRUE(n) << "Error retrieving new created node";
+
+    std::unique_ptr <MegaNode> rubbishNode (mApi[1].megaApi->getRubbishNode());
+    ASSERT_TRUE(rubbishNode) << "Error retrieving rubbish bin node";
+
+    ASSERT_TRUE(n->getParentHandle() == rubbishNode->getHandle())
+            << "Error: new node parent handle: " << Base64Str<MegaClient::NODEHANDLE>(n->getParentHandle())
+            << " doesn't match with rubbish bin node handle: " << Base64Str<MegaClient::NODEHANDLE>(rubbishNode->getHandle());
+
+    // --- Clean rubbish bin for secondary account ---
+    auto err = synchronousCleanRubbishBin(1);
+    ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
+}
 #endif
