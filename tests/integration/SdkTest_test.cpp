@@ -236,7 +236,7 @@ namespace
         return true;
     }
 
-    bool createLocalFile(fs::path path, const char *name)
+    bool createLocalFile(fs::path path, const char *name, int byteSize = 0)
     {
         if (!name)
         {
@@ -249,6 +249,10 @@ namespace
 #else
         ofstream fs(fp.u8string()/*, ios::binary*/);
 #endif
+        if (byteSize)
+        {
+            fs.seekp((byteSize << 10) - 1);
+        }
         fs << name;
         return true;
     }
@@ -7263,4 +7267,99 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     Cleanup();
 }
 
+/**
+ * @brief TEST_F SdkTargetOverwriteTest
+ *
+ * Testing to upload a file into an inshare with read only privileges.
+ * API must put node into rubbish bin, instead of fail putnodes with API_EACCESS
+ */
+TEST_F(SdkTest, SdkTargetOverwriteTest)
+{
+    LOG_info << "___TEST SdkTargetOverwriteTest___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    //--- Add secondary account as contact ---
+    string message = "Hi contact. Let's share some stuff";
+    mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
+    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the source side (main account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    mApi[1].cr.reset();
+
+    //--- Create a new folder in cloud drive ---
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    char foldername1[64] = "Shared-folder";
+    MegaHandle hfolder1 = createFolder(0, foldername1, rootnode.get());
+    ASSERT_NE(hfolder1, UNDEF);
+    MegaNode *n1 = megaApi[0]->getNodeByHandle(hfolder1);
+    ASSERT_NE(n1, nullptr);
+
+    // --- Create a new outgoing share ---
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_READWRITE));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    MegaShareList *sl = megaApi[1]->getInSharesList(::MegaApi::ORDER_NONE);
+    ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
+    MegaShare *share = sl->get(0);
+
+    ASSERT_TRUE(share->getNodeHandle() == n1->getHandle())
+            << "Wrong inshare handle: " << Base64Str<MegaClient::NODEHANDLE>(share->getNodeHandle())
+            << ", expected: " << Base64Str<MegaClient::NODEHANDLE>( n1->getHandle());
+
+    ASSERT_TRUE(share->getAccess() >=::MegaShare::ACCESS_READWRITE)
+             << "Insufficient permissions: " << MegaShare::ACCESS_READWRITE  << " over created share";
+
+    // --- Create local file and start upload from secondary account into inew InShare ---
+    onTransferUpdate_progress = 0;
+    onTransferUpdate_filesize = 0;
+    mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
+    std::string fileName = std::to_string(time(nullptr));
+    ASSERT_TRUE(createLocalFile(fs::current_path(), fileName.c_str(), 1024));
+    fs::path fp = fs::current_path() / fileName;
+    megaApi[1]->startUpload(fp.u8string().c_str(), n1);
+
+    // --- Pause transfer, revoke out-share permissions for secondary account and resume transfer ---
+    megaApi[0]->pauseTransfers(true);
+    ASSERT_TRUE(!mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD]);
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    megaApi[0]->pauseTransfers(false);
+    // --- Wait for transfer completion
+    ASSERT_TRUE(waitForResponse(&mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD], 600))
+        << "Upload transfer failed after " << 600 << " seconds";
+
+    ASSERT_TRUE(mApi[1].lastTransferError == MegaError::API_OK && mApi[1].lastError == MegaError::API_OK)
+            << "Upload transfer failed with error: " << mApi[1].lastTransferError;
+
+    // --- Check that node has been created in rubbish bin ---
+    std::unique_ptr <MegaNode> n (mApi[1].megaApi->getNodeByHandle(mApi[1].h));
+    ASSERT_TRUE(n) << "Error retrieving new created node";
+
+    std::unique_ptr <MegaNode> rubbishNode (mApi[1].megaApi->getRubbishNode());
+    ASSERT_TRUE(rubbishNode) << "Error retrieving rubbish bin node";
+
+    ASSERT_TRUE(n->getParentHandle() == rubbishNode->getHandle())
+            << "Error: new node parent handle: " << Base64Str<MegaClient::NODEHANDLE>(n->getParentHandle())
+            << " doesn't match with rubbish bin node handle: " << Base64Str<MegaClient::NODEHANDLE>(rubbishNode->getHandle());
+
+    // --- Clean rubbish bin for secondary account ---
+    auto err = synchronousCleanRubbishBin(1);
+    ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
+}
 #endif

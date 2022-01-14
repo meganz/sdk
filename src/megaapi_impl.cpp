@@ -18139,6 +18139,12 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     break;
                 }
 
+                if (parent && parent->inshare && !client->checkaccess(parent, RDWR))
+                {
+                    e = API_EACCESS;
+                    break;
+                }
+
                 string tmpString = localPath;
                 auto wLocalPath = LocalPath::fromPath(tmpString, *client->fsaccess);
 
