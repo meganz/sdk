@@ -2842,6 +2842,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::MoveTargetHasReservedName:                     return "MoveTargetHasReservedName";
         case SyncWaitReason::CantFingrprintFileYet:                         return "CantFingrprintFileYet";
         case SyncWaitReason::FolderContainsLockedFiles:                     return "FolderContainsLockedFiles";
+        case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
     }
     return "<out of range>";
 }
@@ -2852,7 +2853,8 @@ bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason r)
            r == SyncWaitReason::SymlinksNotSupported ||
            r == SyncWaitReason::FolderMatchedAgainstFile ||
            r == SyncWaitReason::UnableToLoadIgnoreFile ||
-           r == SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose;
+           r == SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose ||
+           r == SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose;
 }
 
 UploadHandle UploadHandle::next()

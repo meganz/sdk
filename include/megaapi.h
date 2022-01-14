@@ -5586,6 +5586,7 @@ class MegaSyncStall
             MoveTargetHasReservedName,
             CantFingrprintFileYet,
             FolderContainsLockedFiles,
+            LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
         };
 
         /**

@@ -1368,6 +1368,8 @@ MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
             return MegaSyncStall::SyncStallReason::CantFingrprintFileYet;
         case SyncWaitReason::FolderContainsLockedFiles:
             return MegaSyncStall::SyncStallReason::FolderContainsLockedFiles;
+        case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose:
+            return MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose;
         default:
             return MegaSyncStall::SyncStallReason::Unknown;
      }
@@ -1436,6 +1438,8 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "CantFingrprintFileYet";
         case MegaSyncStall::SyncStallReason::FolderContainsLockedFiles:
             return "FolderContainsLockedFiles";
+        case MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose:
+            return "LocalAndRemotePreviouslyUnsyncedDiffer";
         default: return "Unknown";
     }
 }

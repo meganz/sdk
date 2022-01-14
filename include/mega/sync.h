@@ -525,7 +525,6 @@ public:
     bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter);
     bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists);
-    bool resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
 

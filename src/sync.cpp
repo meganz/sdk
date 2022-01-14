@@ -6576,47 +6576,32 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     {
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXF);
 
-        // Are we dealing with an ignore file?
-        auto isIgnoreFile = row.isIgnoreFile();
-
-        // If we are, make sure we process it exclusively.
-        if (isIgnoreFile)
-            parentRow.ignoreFileChanging();
-
-        // Is the row excluded?
-        auto exclusionState =
-          parentRow.exclusionState(row.fsNode->localname,
-                                   row.fsNode->type);
-
-        // Come back later if the exclusion state is undefined.
-        if (exclusionState == ES_UNKNOWN)
-            return true;
-
-        // Don't create a node for this row unless it's included.
-        if (exclusionState == ES_EXCLUDED)
+        switch (parentRow.exclusionState(row.fsNode->localname,
+                                   row.fsNode->type))
         {
-            // Unless we're dealing with an ignore file.
-            if (isIgnoreFile)
-                return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+            case ES_UNKNOWN:
+                LOG_verbose << "Exclusion state uknown, come back later: " << logTriplet(row, fullPath);
+                return false;
 
-            return true;
+            case ES_EXCLUDED:
+                return true;
+
+            case ES_INCLUDED:
+                break;
         }
 
         // Item exists locally and remotely but we haven't synced them previously
-        // If they are equal then join them with a Localnode. Othewise report or choose greater mtime.
-        if (row.fsNode->type != row.cloudNode->type)
-        {
-            return resolve_userIntervention(row, parentRow, fullPath);
-        }
+        // If they are equal then join them with a Localnode. Othewise report to user.
+        // The original algorithm would compare mtime, and if that was equal then size/crc
 
-        if (row.fsNode->type != FILENODE || row.fsNode->fingerprint == row.cloudNode->fingerprint)
+        if (syncEqual(*row.cloudNode, *row.fsNode))
         {
             return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
         }
-
-        // When initially joining two trees together, use the old rules (pick most recent)
-        // Todo: evaluate that against asking the user as we would do for the existing-sync case
-        return resolve_pickWinner(row, parentRow, fullPath);
+        else
+        {
+            return resolve_userIntervention(row, parentRow, fullPath);
+        }
     }
     case SRT_XXF:
     {
@@ -7487,50 +7472,16 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& 
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(syncs);
 
-    monitor.waitingCloud(fullPath.cloudPath, string(), fullPath.localPath, SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
-    monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
-
-    return false;
-}
-
-bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
-{
-    assert(syncs.onSyncThread());
-    ProgressingMonitor monitor(syncs);
-
-    const FileFingerprint& cloud = row.cloudNode->fingerprint;
-    const FileFingerprint& fs = row.fsNode->fingerprint;
-
-    auto fromFS = fs.mtime > cloud.mtime
-                  || (fs.mtime == cloud.mtime
-                      && (fs.size > cloud.size
-                          || (fs.size == cloud.size && fs.crc > cloud.crc)));
-
-    // File on disk is newer than in the cloud.
-    if (fromFS)
+    if (row.syncNode)
     {
-        resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
-        row.syncNode->syncedFingerprint = cloud;
+        monitor.waitingCloud(fullPath.cloudPath, string(), fullPath.localPath, SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
+        monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
     }
     else
     {
-        resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
-        row.syncNode->syncedFingerprint = fs;
+        monitor.waitingCloud(fullPath.cloudPath, string(), fullPath.localPath, SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose);
+        monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose);
     }
-
-    // todo: is the below right?  if we set it synced, we won't upload/download?
-
-    // Consider us previously synced.
-    row.syncNode->setSyncedFsid(row.fsNode->fsid,
-                                syncs.localnodeBySyncedFsid,
-                                row.fsNode->localname,
-                                row.fsNode->cloneShortname());
-
-    row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
-
-    // Persist changes.
-    statecacheadd(row.syncNode);
-
     return false;
 }
 
