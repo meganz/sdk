@@ -70,7 +70,7 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getChildrenHandles(mega::NodeHandle, std::vector<mega::NodeHandle>&) override
+    bool getChildrenHandles(mega::NodeHandle, std::set<mega::NodeHandle>&) override
     {
         return false;
         //throw NotImplemented(__func__);

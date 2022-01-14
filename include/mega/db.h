@@ -118,7 +118,7 @@ public:
     virtual bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>&, ShareType_t shareType) = 0;
     virtual bool getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
-    virtual bool getChildrenHandles(NodeHandle parentHandle, std::vector<NodeHandle>& nodes) = 0;
+    virtual bool getChildrenHandles(NodeHandle parentHandle, std::set<NodeHandle>& nodes) = 0;
     virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
     virtual int getNumberOfChildren(NodeHandle parentHandle) = 0;
 

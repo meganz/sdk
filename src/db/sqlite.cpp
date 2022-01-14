@@ -846,7 +846,7 @@ bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::map<NodeHandl
     return result;
 }
 
-bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::vector<NodeHandle> & children)
+bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::set<NodeHandle> & children)
 {
     if (!db)
     {
@@ -862,7 +862,7 @@ bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::
             while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
             {
                 int64_t h = sqlite3_column_int64(stmt, 0);
-                children.push_back(NodeHandle().set6byte(h));
+                children.insert(NodeHandle().set6byte(h));
             }
         }
     }

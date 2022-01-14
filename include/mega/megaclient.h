@@ -407,7 +407,7 @@ private:
     void saveNodeInDataBase(Node* node);
     bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
-    std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
+    std::set<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
     // Increase node counters with a node type and values
     void increaseCounter(const Node *node, NodeHandle firstAncestorHandle);
     // Load nodes recursively and update nodeCounters

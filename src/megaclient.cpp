@@ -17153,9 +17153,9 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
     return nodes;
 }
 
-std::vector<NodeHandle> NodeManager::getChildrenHandlesFromNode(NodeHandle node)
+std::set<NodeHandle> NodeManager::getChildrenHandlesFromNode(NodeHandle node)
 {
-    std::vector<NodeHandle> nodes;
+    std::set<NodeHandle> nodes;
     if (!mTable)
     {
         assert(false);
@@ -17219,8 +17219,29 @@ NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t
     Node* node = getNodeInRAM(nodehandle);
     nodetype_t nodeType = node ? node->type : mTable->getNodeType(nodehandle);
 
-    std::vector<NodeHandle> children;
+    std::set<NodeHandle> children;
     children = getChildrenHandlesFromNode(nodehandle);
+    for (auto it = children.begin(); it != children.end();)
+    {
+        auto itNodeMap = mNodes.find(*it);
+        if (itNodeMap != mNodes.end() && itNodeMap->second->parentHandle() != nodehandle)
+        {
+            it = children.erase(it);
+        }
+        else
+        {
+            it++;
+        }
+    }
+
+    for (const auto& it : mNodeNotify)
+    {
+        if (it->parentHandle() == nodehandle)
+        {
+            children.insert(it->nodeHandle());
+        }
+    }
+
     for (const NodeHandle &h : children)
     {
         nc += getNodeCounter(h, nodeType);
