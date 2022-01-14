@@ -1040,13 +1040,13 @@ int SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
 
 m_off_t SqliteAccountState::getNodeSize(NodeHandle node)
 {
+    m_off_t size = 0;
     if (!db)
     {
-        return -1;
+        return size;
     }
 
     sqlite3_stmt *stmt;
-    m_off_t size = -1;
 
     int sqlResult = sqlite3_prepare(db, "SELECT size FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
@@ -1066,8 +1066,7 @@ m_off_t SqliteAccountState::getNodeSize(NodeHandle node)
     {
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get node counter from database: " << dbfile << err;
-        //assert(!"Unable to get node counter from database.");
-        return -1;
+        assert(!"Unable to get node counter from database.");
     }
 
     return size;
@@ -1189,7 +1188,7 @@ nodetype_t SqliteAccountState::getNodeType(NodeHandle node)
     nodetype_t nodeType = TYPE_UNKNOWN;
     if (!db)
     {
-        return TYPE_UNKNOWN;
+        return nodeType;
     }
 
     sqlite3_stmt *stmt;
