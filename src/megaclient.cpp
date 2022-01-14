@@ -16855,8 +16855,8 @@ node_list NodeManager::getChildren(const Node *parent)
     mTable->getChildren(parent->nodeHandle(), childrenMap);
 
     // get children nodes loaded in RAM (which may not be in cache yet)
-    // (upon node's creation, nodes are added to the notification queue (mNodeNotify), but
-    // they are not dumped to DB cache until the notification is done in 'notifyPurge()')
+    // (upon node's modification, nodes are added to the notification queue (mNodeNotify), but
+    // changes are not dumped to DB cache until the notification is done in 'notifyPurge()')
     for (Node* node : mNodeNotify)
     {
         if (parent->nodeHandle().eq(node->parenthandle))
@@ -17153,18 +17153,39 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
     return nodes;
 }
 
-std::set<NodeHandle> NodeManager::getChildrenHandlesFromNode(NodeHandle node)
+std::set<NodeHandle> NodeManager::getChildrenHandlesFromNode(NodeHandle nodehandle)
 {
-    std::set<NodeHandle> nodes;
+    std::set<NodeHandle> children;
     if (!mTable)
     {
         assert(false);
-        return nodes;
+        return children;
     }
 
-    mTable->getChildrenHandles(node, nodes);
+    mTable->getChildrenHandles(nodehandle, children);
 
-    return nodes;
+    for (auto it = children.begin(); it != children.end();)
+    {
+        auto itNodeMap = mNodes.find(*it);
+        if (itNodeMap != mNodes.end() && itNodeMap->second->parentHandle() != nodehandle)
+        {
+            it = children.erase(it);
+        }
+        else
+        {
+            it++;
+        }
+    }
+
+    for (const auto& it : mNodeNotify)
+    {
+        if (it->parentHandle() == nodehandle)
+        {
+            children.insert(it->nodeHandle());
+        }
+    }
+
+    return children;
 }
 
 void NodeManager::increaseCounter(const Node *node, NodeHandle firstAncestorHandle)
@@ -17221,26 +17242,6 @@ NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t
 
     std::set<NodeHandle> children;
     children = getChildrenHandlesFromNode(nodehandle);
-    for (auto it = children.begin(); it != children.end();)
-    {
-        auto itNodeMap = mNodes.find(*it);
-        if (itNodeMap != mNodes.end() && itNodeMap->second->parentHandle() != nodehandle)
-        {
-            it = children.erase(it);
-        }
-        else
-        {
-            it++;
-        }
-    }
-
-    for (const auto& it : mNodeNotify)
-    {
-        if (it->parentHandle() == nodehandle)
-        {
-            children.insert(it->nodeHandle());
-        }
-    }
 
     for (const NodeHandle &h : children)
     {
