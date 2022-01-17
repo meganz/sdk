@@ -8566,6 +8566,7 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     transfer->setMaxRetries(maxRetries);
     transfer->setAppData(appData);
     transfer->setStartFirst(startFirst);
+    transfer->setCancelToken(cancelToken);
 
     if (customName)
     {
@@ -27243,7 +27244,7 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *fsaccess, fsType), true);
              string utf8path = localpath.toPath(*fsaccess);
-             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), nullptr, this);
+             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), transfer->getCancelToken(), this);
              transferQueue.push(transferDownload);
              pendingTransfers++;
          }
