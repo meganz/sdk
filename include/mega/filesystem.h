@@ -843,6 +843,9 @@ struct MEGA_API FSNode
     }
 
     static unique_ptr<FSNode> fromFOpened(FileAccess&, const LocalPath& fullName, FileSystemAccess& fsa);
+
+    // Same as the above but useful in situations where we don't have an FA handy.
+    static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path);
 };
 
 class MEGA_API ScanService

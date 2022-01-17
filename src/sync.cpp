@@ -7322,6 +7322,16 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                     // Check for anomalous file names.
                     checkForFilenameAnomaly(fullPath, row.cloudNode->name);
 
+                    // Let the engine know the file exists, even if it hasn't detected it yet.
+                    //
+                    // This is necessary as filesystem events may be delayed.
+                    if (auto fsNode = FSNode::fromPath(fsAccess, targetPath))
+                    {
+                        parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
+                        row.fsNode = &parentRow.fsAddedSiblings.back();
+                    }
+
+                    // No longer necessary as the transfer's complete.
                     row.syncNode->resetTransfer(nullptr);
 
                     // this case is covered when we syncItem

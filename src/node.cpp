@@ -3081,6 +3081,23 @@ unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath
     return result;
 }
 
+unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath& path)
+{
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    if (!fileAccess->fopen(path, true, false))
+        return nullptr;
+
+    auto fsNode = fromFOpened(*fileAccess, path, fsAccess);
+
+    if (fsNode->type != FILENODE)
+        return fsNode;
+
+    if (!fsNode->fingerprint.genfingerprint(fileAccess.get()))
+        return nullptr;
+
+    return fsNode;
+}
 
 CloudNode::CloudNode(const Node& n)
     : name(n.displayname())
