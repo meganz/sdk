@@ -253,7 +253,7 @@ public:
     void reset();
 
     // Take node ownership
-    bool addNode(Node* node, bool notify, bool isFetching = false);
+    bool addNode(Node* node, bool isFetching = false);
     bool updateNode(Node* node);
     // removeNode() --> it's done through notifypurge()
 
@@ -264,13 +264,10 @@ public:
     Node *getNodeByHandle(NodeHandle handle);
 
     // read children from DB and load them in memory
-    node_list getChildren(Node* parent);
+    node_list getChildren(const Node *parent);
 
     // read recent nodes from DB and load them in memory
     node_vector getRecentNodes(unsigned maxcount, m_time_t since);
-
-    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
-    uint64_t getNodeCount();
 
     // Search nodes containing 'searchString' in its name
     // Returned nodes are children of 'nodeHandle' (at any level)
@@ -339,13 +336,19 @@ public:
     // ===--- Node Counters ---===
 
     // returns the counter for 'node', recursively, accessing to DB
-    NodeCounter getNodeCounter(NodeHandle node, bool parentIsFile = false);
+private:
+    NodeCounter getNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
+public:
+    NodeCounter getNodeCounter(const Node &node);
+
+    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
+    uint64_t getNodeCount();
 
     // return the counter for 'h' if available in memory. Otherwise, nullptr
     const NodeCounter* getCounter(const NodeHandle& h) const;
 
     // return the counter for 'h' (for other than rootnodes, it requires DB query)
-    NodeCounter getCounterForSubtree(const NodeHandle& h);
+    NodeCounter getCounterForSubtree(const Node& n);
 
     // return the counter for all root nodes (cloud+inbox+rubbish), without DB query
     NodeCounter getCounterOfRootNodes();
@@ -353,14 +356,14 @@ public:
     // add the counter for 'h' (it must not exist yet)
     void addCounter(const NodeHandle &h);
 
-    // update the counter for 'h' (must be available in memory, or it will be loaded)
-    void updateCounter(const NodeHandle& h);
+    // create the counter and calculate its count recursively
+    void calculateCounter(const Node &n);
 
     // subtract the counter of 'n' (calculated from DB) from its first antecesor, which must be a rootnode
     void subtractFromRootCounter(const Node& n);
 
-    // moves the counter of 'h' from one counter ('oldRoot') to another counter ('newRoot')
-    void movedSubtreeToNewRoot(const NodeHandle& h, const NodeHandle& oldRoot, const NodeHandle& newRoot);
+    // update the counter of 'n' when its parent is updated (from 'oldParent' to 'n.parent')
+    void updateCounter(const Node& n, const Node *oldParent);
 
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;
@@ -400,11 +403,19 @@ private:
     std::map<NodeHandle, node_set> mNodesWithMissingParent;
 
     Node* getNodeInRAM(NodeHandle handle);
-    void saveNodeInRAM(Node* node, bool notify);
+    void saveNodeInRAM(Node* node);
     void saveNodeInDataBase(Node* node);
     bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
-    std::vector<NodeHandle> getChildrenHandlesFromNode(NodeHandle node);
+
+    // get children handles loaded in RAM (which may not be in cache yet)
+    // (upon node's modification, nodes are added to the notification queue (mNodeNotify), but
+    // changes are not dumped to DB cache until the notification is done in 'notifyPurge()')
+    std::set<NodeHandle> getChildrenHandlesFromNode(NodeHandle nodehandle);
+    // Increase node counters with a node type and values
+    void increaseCounter(const Node *node, NodeHandle firstAncestorHandle);
+    // Load nodes recursively and update nodeCounters
+    void loadTreeRecursively(const Node *node);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
@@ -1067,7 +1078,7 @@ public:
     int getNumberOfChildren(NodeHandle parentHandle);
 
     // Get sub tree info from a node
-    NodeCounter getTreeInfoFromNode(NodeHandle nodehandle);
+    NodeCounter getTreeInfoFromNode(const Node& node);
 
     // use HTTPS for all communications
     bool usehttps;

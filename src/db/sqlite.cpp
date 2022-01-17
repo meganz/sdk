@@ -725,44 +725,6 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
     return nodeSerialized.mNode.size() ? true : false;
 }
 
-bool SqliteAccountState::getNodes(std::vector<NodeSerialized> &nodes)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    sqlite3_stmt *stmt;
-    int sqlResult = SQLITE_ERROR;
-    if ((sqlResult = sqlite3_prepare(db, "SELECT decrypted, node FROM nodes", -1, &stmt, NULL)) == SQLITE_OK)
-    {
-        while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-        {
-            NodeSerialized node;
-            node.mDecrypted = sqlite3_column_int(stmt, 0);
-
-            const void* data = sqlite3_column_blob(stmt, 1);
-            int size = sqlite3_column_bytes(stmt, 1);
-            if (data && size)
-            {
-                node.mNode = std::string(static_cast<const char*>(data), size);
-                nodes.push_back(node);
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get all nodes from database: " << dbfile << err;
-        assert(!"Unable to get all nodes from database.");
-        return false;
-    }
-
-    return true;
-}
 
 bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes)
 {
@@ -884,7 +846,7 @@ bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::map<NodeHandl
     return result;
 }
 
-bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::vector<NodeHandle> & children)
+bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::set<NodeHandle> & children)
 {
     if (!db)
     {
@@ -900,7 +862,7 @@ bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::
             while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
             {
                 int64_t h = sqlite3_column_int64(stmt, 0);
-                children.push_back(NodeHandle().set6byte(h));
+                children.insert(NodeHandle().set6byte(h));
             }
         }
     }
@@ -1078,13 +1040,13 @@ int SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
 
 m_off_t SqliteAccountState::getNodeSize(NodeHandle node)
 {
+    m_off_t size = 0;
     if (!db)
     {
-        return -1;
+        return size;
     }
 
     sqlite3_stmt *stmt;
-    m_off_t size = -1;
 
     int sqlResult = sqlite3_prepare(db, "SELECT size FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
@@ -1104,8 +1066,7 @@ m_off_t SqliteAccountState::getNodeSize(NodeHandle node)
     {
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get node counter from database: " << dbfile << err;
-        //assert(!"Unable to get node counter from database.");
-        return -1;
+        assert(!"Unable to get node counter from database.");
     }
 
     return size;
@@ -1227,7 +1188,7 @@ nodetype_t SqliteAccountState::getNodeType(NodeHandle node)
     nodetype_t nodeType = TYPE_UNKNOWN;
     if (!db)
     {
-        return TYPE_UNKNOWN;
+        return nodeType;
     }
 
     sqlite3_stmt *stmt;

@@ -742,32 +742,26 @@ bool Node::applykey()
 
 NodeCounter Node::subnodeCounts() const
 {
-    return client->getTreeInfoFromNode(nodeHandle());
+    return client->getTreeInfoFromNode(*this);
 }
 
 // returns whether node was moved
-bool Node::setparent(Node* p)
+bool Node::setparent(Node* p, bool updateNodeCounters)
 {
     if (p == parent)
     {
         return false;
     }
 
-    const Node* originalancestor = parent ? firstancestor() : nullptr;
-    const NodeHandle& oah = originalancestor ? originalancestor->nodeHandle() : NodeHandle();
-
-#ifdef ENABLE_SYNC
     Node *oldparent = parent;
-#endif
 
     parenthandle = p ? p->nodehandle : UNDEF;
     parent = p;
 
-    const Node* newancestor = firstancestor();
-    NodeHandle nah;
-    nah.set6byte(newancestor->nodehandle);
-
-    client->mNodeManager.movedSubtreeToNewRoot(nodeHandle(), oah, nah);
+    if (updateNodeCounters)
+    {
+        client->mNodeManager.updateCounter(*this, oldparent);
+    }
 
 #ifdef ENABLE_SYNC
     // if we are moving an entire sync, don't cancel GET transfers

@@ -119,8 +119,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // check if the key is present and is the correct size for this node
     bool keyApplied() const;
 
-    // change parent node association
-    bool setparent(Node*);
+    // change parent node association. updateNodeCounters is false when called from NodeManager::unserializeNode
+    bool setparent(Node*, bool updateNodeCounters = true);
 
     // follow the parent links all the way to the top
     const Node* firstancestor() const;

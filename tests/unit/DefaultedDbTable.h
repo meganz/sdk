@@ -51,11 +51,6 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    bool getNodes(std::vector<mega::NodeSerialized>&) override
-    {
-        return false;
-        //throw NotImplemented{__func__};
-    }
     bool getNodesByOrigFingerprint(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
         return false;
@@ -75,7 +70,7 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getChildrenHandles(mega::NodeHandle, std::vector<mega::NodeHandle>&) override
+    bool getChildrenHandles(mega::NodeHandle, std::set<mega::NodeHandle>&) override
     {
         return false;
         //throw NotImplemented(__func__);

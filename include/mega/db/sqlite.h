@@ -64,13 +64,11 @@ class MEGA_API SqliteAccountState : public SqliteDbTable, public DBTableNodes
 public:
     // Access to table `nodes`
     bool getNode(mega::NodeHandle nodehandle, NodeSerialized& nodeSerialized) override;
-    bool getNodes(std::vector<NodeSerialized>& nodes) override;
     bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes) override;
     bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType) override;
-
     bool getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) override;
-    bool getChildrenHandles(mega::NodeHandle parentHandle, std::vector<mega::NodeHandle> &children) override;
+    bool getChildrenHandles(mega::NodeHandle parentHandle, std::set<mega::NodeHandle> &children) override;
     bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;

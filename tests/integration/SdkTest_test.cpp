@@ -5355,12 +5355,22 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_TRUE(buckets->size() > 1);
 
     ASSERT_TRUE(buckets->get(0)->getNodes()->size() > 1);
-    ASSERT_EQ(filename2, string(buckets->get(0)->getNodes()->get(0)->getName()));
-    ASSERT_EQ(filename1, string(buckets->get(0)->getNodes()->get(1)->getName()));
+
+    MegaNode* n_0_0 = buckets->get(0)->getNodes()->get(0);
+    MegaNode* n_0_1 = buckets->get(0)->getNodes()->get(1);
+    ASSERT_TRUE(filename2 == n_0_0->getName() ||
+                (n_0_0->getCreationTime() == n_0_1->getCreationTime() && filename2 == n_0_1->getName()));
+    ASSERT_TRUE(filename1 == n_0_1->getName() ||
+                (n_0_0->getCreationTime() == n_0_1->getCreationTime() && filename1 == n_0_0->getName()));
 
     ASSERT_TRUE(buckets->get(1)->getNodes()->size() > 1);
-    ASSERT_EQ(filename1bkp2, string(buckets->get(1)->getNodes()->get(0)->getName()));
-    ASSERT_EQ(filename1bkp1, string(buckets->get(1)->getNodes()->get(1)->getName()));
+
+    MegaNode* n_1_0 = buckets->get(1)->getNodes()->get(0);
+    MegaNode* n_1_1 = buckets->get(1)->getNodes()->get(1);
+    ASSERT_TRUE(filename1bkp2 == n_1_0->getName() ||
+                (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp2 == n_1_1->getName()));
+    ASSERT_TRUE(filename1bkp1 == n_1_1->getName() ||
+                (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp1 == n_1_0->getName()));
 }
 
 
@@ -7683,9 +7693,9 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
  */
 TEST_F(SdkTest, SdkNodesOnDemand)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkNodesOnDemand___";
 
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // --- Load User B as account 1
     const char *email = getenv(envVarAccount[0].c_str());
     ASSERT_NE(email, nullptr);
@@ -7705,6 +7715,18 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     unique_ptr<MegaNode> rootnodeB(megaApi[1]->getRootNode());
     ASSERT_TRUE(rootnodeB);
     ASSERT_EQ(rootnodeA->getHandle(), rootnodeB->getHandle());
+
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
+    std::unique_ptr<MegaFolderInfo> initialFolderInfo1(mApi[0].mFolderInfo->copy());
+
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
+    std::unique_ptr<MegaFolderInfo> initialFolderInfo2(mApi[1].mFolderInfo->copy());
+
+    ASSERT_EQ(initialFolderInfo1->getNumFiles(), initialFolderInfo2->getNumFiles());
+    ASSERT_EQ(initialFolderInfo1->getNumFolders(), initialFolderInfo2->getNumFolders());
+    ASSERT_EQ(initialFolderInfo1->getCurrentSize(), initialFolderInfo2->getCurrentSize());
+    ASSERT_EQ(initialFolderInfo1->getNumVersions(), initialFolderInfo2->getNumVersions());
+    ASSERT_EQ(initialFolderInfo1->getVersionsSize(), initialFolderInfo2->getVersionsSize());
 
     // --- UserA Create tree directory ---
     // 3 Folders in level 1
@@ -7728,19 +7750,23 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     for (int i = 0; i < numberFolderLevel1; i++)
     {
+        mApi[1].nodeUpdated = false;
         std::string folderName = folderLevel1 + "_" + std::to_string(i);
         auto nodeFirstLevel = createFolder(0, folderName.c_str(), rootnodeA.get());
         ASSERT_NE(nodeFirstLevel, UNDEF);
         unique_ptr<MegaNode> folderFirstLevel(megaApi[0]->getNodeByHandle(nodeFirstLevel));
         ASSERT_TRUE(folderFirstLevel);
+        waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
 
         for (int j = 0; j < numberFolderLevel2; j++)
         {
+            mApi[1].nodeUpdated = false;
             std::string subFolder = folderLevel2 +"_" + std::to_string(i) + "_" + std::to_string(j);
             auto nodeSecondLevel = createFolder(0, subFolder.c_str(), folderFirstLevel.get());
             ASSERT_NE(nodeSecondLevel, UNDEF);
             unique_ptr<MegaNode> subFolderSecondLevel(megaApi[0]->getNodeByHandle(nodeSecondLevel));
             ASSERT_TRUE(subFolderSecondLevel);
+            waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
 
             // Save handle from folder that it's going to be request children
             if (j == numberFolderLevel2 - 2)
@@ -7756,12 +7782,14 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
             for (int k = 0; k < numberFiles; k++)
             {
+                mApi[1].nodeUpdated = false;
                 string filename2 = fileName + "_" + std::to_string(i) + "_" + std::to_string(j) + "_" + std::to_string(k);
                 string content = "test_" + std::to_string(i) + "_" + std::to_string(j) + "_" + std::to_string(k);
                 createFile(filename2, false, content);
                 ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename2.data(), subFolderSecondLevel.get())) << "Cannot upload a test file";
                 unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(mApi[0].h));
                 ASSERT_NE(nodeFile, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
+                waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
 
                 // Save fingerprint, name and handle for a file
                 if (i == (numberFolderLevel1 - 1) && j == (numberFolderLevel2 - 1) && k == (numberFiles -1))
@@ -7789,17 +7817,17 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         }
     }
 
+    accountSize += initialFolderInfo1->getCurrentSize();
+
     ASSERT_NE(nodeToRemove, INVALID_HANDLE) << "nodeToRemove is not set";
 
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
-    int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles;
+    int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles + initialFolderInfo1->getNumFiles();
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), numberTotalOfFiles) << "Incorrect number of Files";
-    int numberTotalOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1;
+    int numberTotalOfFolders = numberFolderLevel1 * numberFolderLevel2 + numberFolderLevel1 + initialFolderInfo1->getNumFolders();
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
-
-    waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
 
     // --- UserB Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
@@ -7869,6 +7897,15 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     // --- UserA login with session
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    // make sure that client is up to date (upon logout, recent changes might not be committed to DB,
+    // which may result on the node deleted by userB not being deleted yet for userA).
+    size_t times = 10;
+    while (times--)
+    {
+        if (lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) break;
+        std::this_thread::sleep_for(std::chrono::seconds{1});
+    }
+    ASSERT_TRUE(lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) << "Timeout expired to receive actionpackets";
 
     // --- UserA Check if find removed node by fingerprint
     fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
@@ -7935,4 +7972,79 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), numberTotalOfFiles - removedFolder->getNumFiles()) << "Incorrect number of Files";
     ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), numberTotalOfFolders - removedFolder->getNumFolders()) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), accountSize - removedFolder->getCurrentSize()) << "Incorrect account Size";
+}
+
+/**
+ * SdkNodesOnDemandVersions
+ * Steps:
+ *  - Configure variables to set Account2 data equal to Account1
+ *  - login in both clients
+ *  - Client 1 File and after add a modification of that file (version)
+ *  - Check Folder info of root node from client 1 and client 2
+ */
+TEST_F(SdkTest, SdkNodesOnDemandVersions)
+{
+    LOG_info << "___TEST SdkNodesOnDemandVersions";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    // --- Load User B as account 1
+    const char *email = getenv(envVarAccount[0].c_str());
+    ASSERT_NE(email, nullptr);
+    const char *pass = getenv(envVarPass[0].c_str());
+    ASSERT_NE(pass, nullptr);
+    mApi.resize(2);
+    megaApi.resize(2);
+    configureTestInstance(1, email, pass); // index 1 = User B
+    auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+    megaApi[1]->login(email, pass, loginTracker.get());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+    unique_ptr<MegaNode> rootnodeB(megaApi[1]->getRootNode());
+    ASSERT_TRUE(rootnodeB);
+    ASSERT_EQ(rootnodeA->getHandle(), rootnodeB->getHandle());
+
+    std::string fileName = "file";
+    mApi[0].nodeUpdated = false;
+    mApi[1].nodeUpdated = false;
+    string content1 = "test_1";
+    createFile(fileName, false, content1);
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, fileName.data(), rootnodeA.get())) << "Cannot upload a test file";
+    unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_NE(nodeFile, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
+    long long size1 = nodeFile->getSize();
+    waitForResponse(&mApi[0].nodeUpdated); // Wait until receive nodes updated at client 1
+    waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
+    deleteFile(fileName);
+
+    mApi[0].nodeUpdated = false;
+    mApi[1].nodeUpdated = false;
+    string content2 = "test_2";
+    createFile(fileName, false, content2);
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, fileName.data(), rootnodeA.get())) << "Cannot upload a test file";
+    nodeFile.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
+    long long size2 = nodeFile->getSize();
+    ASSERT_NE(nodeFile, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
+    waitForResponse(&mApi[0].nodeUpdated); // Wait until receive nodes updated at client 1
+    waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
+    deleteFile(fileName);
+
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
+    std::unique_ptr<MegaFolderInfo> initialFolderInfo1(mApi[0].mFolderInfo->copy());
+    ASSERT_EQ(initialFolderInfo1->getNumFiles(), 1);
+    ASSERT_EQ(initialFolderInfo1->getNumFolders(), 0);
+    ASSERT_EQ(initialFolderInfo1->getNumVersions(), 1);
+    ASSERT_EQ(initialFolderInfo1->getCurrentSize(), size2);
+    ASSERT_EQ(initialFolderInfo1->getVersionsSize(), size1);
+
+    ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(1, rootnodeB.get())) << "Cannot get Folder Info";
+    std::unique_ptr<MegaFolderInfo> initialFolderInfo2(mApi[1].mFolderInfo->copy());
+
+    ASSERT_EQ(initialFolderInfo1->getNumFiles(), initialFolderInfo2->getNumFiles());
+    ASSERT_EQ(initialFolderInfo1->getNumFolders(), initialFolderInfo2->getNumFolders());
+    ASSERT_EQ(initialFolderInfo1->getNumVersions(), initialFolderInfo2->getNumVersions());
+    ASSERT_EQ(initialFolderInfo1->getCurrentSize(), initialFolderInfo2->getCurrentSize());
+    ASSERT_EQ(initialFolderInfo1->getVersionsSize(), initialFolderInfo2->getVersionsSize());
 }
