@@ -9453,7 +9453,6 @@ void exec_syncxable(autocomplete::ACState& s)
 
     string errIdString;
     bool withError = s.extractflagparam("-error", errIdString);
-    withError;
 
     auto targetState = SyncConfig::Run;
 
