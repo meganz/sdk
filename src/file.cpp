@@ -361,11 +361,6 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
     {
         NodeHandle th = h;
 
-        // inaccessible target folder - use //bin instead
-        if (!client->nodeByHandle(th, true))
-        {
-            th = client->rootnodes.rubbish;
-        }
 
         if (syncxfer)
         {

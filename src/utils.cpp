@@ -1163,7 +1163,7 @@ bool TextChat::setFlag(bool value, uint8_t offset)
         return false;
     }
 
-    flags ^= (1U << offset);
+    flags ^= byte(1U << offset);
     changed.flags = true;
 
     return true;
