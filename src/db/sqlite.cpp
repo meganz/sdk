@@ -55,9 +55,10 @@ LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
     return path;
 }
 
-SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
+
+bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath)
 {
-    auto dbPath = databasePath(fsAccess, name, DB_VERSION);
+    dbPath = databasePath(fsAccess, name, DB_VERSION);
     auto upgraded = true;
 
     {
@@ -113,6 +114,14 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
         LOG_debug << "Using an upgraded DB: " << dbPath.toPath();
         currentDbVersion = DB_VERSION;
     }
+
+    return fsAccess.fileExistsAt(dbPath);
+}
+
+SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
+{
+    LocalPath dbPath;
+    checkDbFileAndAdjustLegacy(fsAccess, name, flags, dbPath);
 
     const string dbPathStr = dbPath.toPath();
     sqlite3* db;

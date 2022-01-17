@@ -536,8 +536,8 @@ struct StandardClient : public ::mega::MegaApp
     void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride) override;
     void catchup_result() override;
 
-    void disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result);
-    bool disableSync(handle id, SyncError error, bool enabled);
+    void disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB, PromiseBoolSP result);
+    bool disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB);
 
     template<typename ResultType, typename Callable>
     ResultType withWait(Callable&& callable, ResultType&& defaultValue = ResultType())

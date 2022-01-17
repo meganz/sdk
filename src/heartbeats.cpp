@@ -309,7 +309,7 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
     assert(syncs.onSyncThread());
 
 #ifdef DEBUG
-    handle backupId = us.mConfig.getBackupId();
+    handle backupId = us.mConfig.mBackupId;
     assert(!ISUNDEF(backupId)); // syncs are registered before adding them
 #endif
 
@@ -349,7 +349,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
     // send registration or update in case we missed it
     updateOrRegisterSync(us);
 
-    if (ISUNDEF(us.mConfig.getBackupId()))
+    if (ISUNDEF(us.mConfig.mBackupId))
     {
         LOG_warn << "Backup not registered yet. Skipping heartbeat...";
         return;
@@ -374,7 +374,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 
         hbs->mSending = true;
 
-        auto backupId = us.mConfig.getBackupId();
+        auto backupId = us.mConfig.mBackupId;
         auto status = hbs->sphbStatus();
         auto pendingUps = static_cast<uint32_t>(hbs->pendingUploads());
         auto pendingDowns = static_cast<uint32_t>(hbs->pendingDownloads());

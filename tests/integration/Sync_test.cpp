@@ -2731,17 +2731,19 @@ bool StandardClient::confirmModel(handle backupId, Model::ModelNode* mnode, cons
     }
 
     // Does this sync have a state cache?
-    if (!sync || sync->statecachename().empty())
+    if (!sync)
         return true;
+
+    string statecachename = sync->getConfig().getSyncDbStateCacheName(sync->getConfig().mLocalFingerprint,sync->getConfig().mRemoteNode, client.me);
 
     StateCacheValidator validator;
 
     // Try and load the state cache.
-    EXPECT_TRUE(validator.load(client, sync->statecachename()))
+    EXPECT_TRUE(validator.load(client, statecachename))
         << "Sync "
         << toHandle(backupId)
         << ": Unable to load state cache: "
-        << sync->statecachename();
+        << statecachename;
 
     // Does the state cache accurately reflect the LNT in memory?
     EXPECT_TRUE(validator.compare(*sync->localroot))
@@ -2825,7 +2827,7 @@ void StandardClient::catchup_result()
     resultproc.processresult(CATCHUP, error(API_OK));
 }
 
-void StandardClient::disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result)
+void StandardClient::disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB, PromiseBoolSP result)
 {
     client.syncs.disableSelectedSyncs(
         [id](SyncConfig& config, Sync*)
@@ -2835,17 +2837,18 @@ void StandardClient::disableSync(handle id, SyncError error, bool enabled, Promi
         false,
         error,
         enabled,
+        keepSyncDB,
         [result](size_t nDisabled){
             result->set_value(!!nDisabled);
         });
 }
 
-bool StandardClient::disableSync(handle id, SyncError error, bool enabled)
+bool StandardClient::disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB)
 {
     auto result =
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                         {
-                            client.disableSync(id, error, enabled, result);
+                            client.disableSync(id, error, enabled, keepSyncDB, result);
                         });
 
     return result.get();
@@ -7183,7 +7186,7 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
     ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
 
     // Disable s0.
-    ASSERT_TRUE(c0.disableSync(id0, NO_SYNC_ERROR, false));
+    ASSERT_TRUE(c0.disableSync(id0, NO_SYNC_ERROR, false, true));
 
     // Make sure s0 is disabled.
     ASSERT_TRUE(createDataFile(SYNCROOT0 / "f1", "z"));
@@ -7370,7 +7373,7 @@ TEST_F(SyncTest, RenameReplaceFolderBetweenSyncs)
     ASSERT_TRUE(c0.confirmModel_mainthread(model1.root.get(), id1));
 
     // Disable s0.
-    ASSERT_TRUE(c0.disableSync(id0, NO_SYNC_ERROR, false));
+    ASSERT_TRUE(c0.disableSync(id0, NO_SYNC_ERROR, false, true));
 
     // Make sure s0 is disabled.
     fs::create_directories(SYNCROOT0 / "d1");
@@ -9914,7 +9917,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
     ASSERT_TRUE(cb.waitFor(SyncMonitoring(id), TIMEOUT));
 
     // Disable the sync.
-    ASSERT_TRUE(cb.disableSync(id, NO_SYNC_ERROR, true));
+    ASSERT_TRUE(cb.disableSync(id, NO_SYNC_ERROR, true, true));
 
     // Make sure the sync's config is as we expect.
     {
@@ -10177,7 +10180,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
         ASSERT_TRUE(cb.waitFor(SyncMonitoring(id), TIMEOUT));
 
         // Disable the sync.
-        ASSERT_TRUE(cb.disableSync(id, NO_SYNC_ERROR, true));
+        ASSERT_TRUE(cb.disableSync(id, NO_SYNC_ERROR, true, true));
 
         // Make sure the sync was monitoring.
         {
@@ -11296,7 +11299,7 @@ TEST_F(FilterFailureFixture, ResolveBrokenIgnoreFile)
     ASSERT_TRUE(cdu->waitFor(SyncStallState(true), TIMEOUT));
 
     // Disable the stalled sync.
-    ASSERT_TRUE(cdu->disableSync(id0, NO_SYNC_ERROR, false));
+    ASSERT_TRUE(cdu->disableSync(id0, NO_SYNC_ERROR, false, true));
 
     // The engine should no longer be stalled.
     ASSERT_TRUE(cdu->waitFor(SyncStallState(false), TIMEOUT));

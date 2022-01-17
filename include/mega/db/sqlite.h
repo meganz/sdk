@@ -67,6 +67,8 @@ public:
                            const string& name,
                            const int version) const;
 
+    bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) override;
+
     SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
 
     bool probe(FileSystemAccess& fsAccess, const string& name) const override;

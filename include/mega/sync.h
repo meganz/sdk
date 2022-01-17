@@ -71,6 +71,9 @@ public:
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
         TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
+
+    enum SyncRunState { Run, Pause, Suspend, Disable };
+
     SyncConfig() = default;
 
     SyncConfig(LocalPath localPath,
@@ -89,9 +92,8 @@ public:
     bool operator==(const SyncConfig &rhs) const;
     bool operator!=(const SyncConfig &rhs) const;
 
-    // Id for the sync, also used in sync heartbeats
-    handle getBackupId() const;
-    void setBackupId(const handle& backupId);
+    // Deduced from other memebers
+    SyncRunState runState();
 
     // the local path of the sync root folder
     const LocalPath& getLocalPath() const;
@@ -181,12 +183,16 @@ public:
     // Whether recursiveSync() is called.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
     bool mTemporarilyPaused = false;
 
+    // If the database exists then its running/paused/suspended.  Not serialized.
+    bool mDatabaseExists = false;
+
+    // Name of this sync's state cache.
+    string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
+
     // How should the engine detect filesystem changes?
     ChangeDetectionMethod mChangeDetectionMethod = CDM_NOTIFICATIONS;
 
-    // How often should the engine rescan the filesystem?
-    //
-    // Only meaningful when a sync is effectively operating in periodic-scan mode.
+    // Only meaningful when a sync is in CDM_PERIODIC_SCANNING mode.
     unsigned mScanIntervalSec = 0;
 
     // enum to string conversion
@@ -228,6 +234,10 @@ struct UnifiedSync
 
     // ctor/dtor
     UnifiedSync(Syncs&, const SyncConfig&);
+
+    // Update state and signal to application
+    void changeState(syncstate_t, SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
+
 
 private:
     friend class Sync;
@@ -474,13 +484,13 @@ public:
     // Caches all synchronized LocalNode
     void cachenodes();
 
-    // Retrieve the name of this sync's state cache.
-    //
-    // Returns an empty string if this sync has no state cache.
-    const string& statecachename() const;
+    //// Retrieve the name of this sync's state cache.
+    ////
+    //// Returns an empty string if this sync has no state cache.
+    //const string& statecachename() const;
 
     // change state, signal to application
-    void changestate(syncstate_t, SyncError newSyncError, bool newEnableFlag, bool notifyApp);
+    void changestate(syncstate_t, SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
 
     //// skip duplicates and self-caused
     //bool checkValidNotification(int q, Notification& notification);
@@ -567,7 +577,7 @@ public:
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
 
-    Sync(UnifiedSync&, const string&, const LocalPath&, NodeHandle rootNodeHandle, const string& rootNodeName, bool, const string& logname);
+    Sync(UnifiedSync&, const string&, const LocalPath&, const string& rootNodeName, bool, const string& logname);
     ~Sync();
 
     // Should we synchronize this sync?
@@ -591,9 +601,9 @@ public:
     static const int FILE_UPDATE_MAX_DELAY_SECS;
     static const dstime RECENT_VERSION_INTERVAL_SECS;
 
-    // Change state to (DISABLED, BACKUP_MODIFIED).
-    // Always returns false.
-    bool backupModified();
+    //// Change state to (DISABLED, BACKUP_MODIFIED).
+    //// Always returns false.
+    //bool backupModified();
 
     // Whether this is a backup sync.
     bool isBackup() const;
@@ -629,10 +639,6 @@ private:
     // permanent lock on the debris/tmp folder
     unique_ptr<FileAccess> tmpfa;
     LocalPath tmpfaPath;
-
-    // Name of this sync's state cache.
-    string mStateCacheName;
-
 };
 
 class SyncConfigIOContext;
@@ -910,7 +916,7 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
 
     // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
+    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
@@ -924,11 +930,11 @@ struct Syncs
 
     void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
+    // get snapshots of the sync configs
     SyncConfigVector configsForDrive(const LocalPath& drive) const;
     SyncConfigVector allConfigs() const;
+    bool configById(handle backupId, SyncConfig&) const;
 
-    // updates in state & error
-    void saveSyncConfig(const SyncConfig& config);
 
     // synchronous for now as that's a constraint from the intermediate layer
     NodeHandle getSyncedNodeForLocalPath(const LocalPath&);
@@ -983,6 +989,10 @@ private:  // anything to do with loading/saving/storing configs etc is done on t
 
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
+
+    // updates in state & error
+    void saveSyncConfig(const SyncConfig& config);
+
 
 public:
 
@@ -1100,9 +1110,9 @@ private:
 
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
-        NodeHandle rootNodeHandle, const string& rootNodeName, bool inshare, bool isNetwork, const LocalPath& rootpath,
+        const string& rootNodeName, bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error, SyncError, handle)> completion, const string& logname);
-    void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
+    void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void(size_t)> completion);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
     void resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, std::function<void(error)>);
     void enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);

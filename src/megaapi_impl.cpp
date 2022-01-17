@@ -21624,7 +21624,7 @@ void MegaApiImpl::sendPendingRequests()
             bool found = false;
             client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync){
 
-                bool matched = (backupId != UNDEF && c.getBackupId() == backupId) ||
+                bool matched = (backupId != UNDEF && c.mBackupId == backupId) ||
                     (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
 
                 if (matched && sync)
@@ -21664,10 +21664,10 @@ void MegaApiImpl::sendPendingRequests()
 
             client->syncs.disableSelectedSyncs([=](SyncConfig& c, Sync* s)
                 {
-                    return (c.getBackupId() == backupId) ||
+                    return (c.mBackupId == backupId) ||
                            (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
                 },
-                false, NO_SYNC_ERROR, false,
+                false, NO_SYNC_ERROR, false, true,
                 [this, request](size_t nDisabled){
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(nDisabled ? API_OK : API_ENOENT));
                 });
@@ -24520,7 +24520,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     , mActive(sync->mActive)
     , mEnabled(sync->mEnabled)
 {
-    this->setBackupId(sync->getBackupId());
+    this->setBackupId(sync->mBackupId);
     this->localFolder = NULL;
     this->mName = NULL;
     this->setLocalFolder(sync->getLocalFolder());

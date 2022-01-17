@@ -461,7 +461,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     LOG_warn << "Existing inbound share sync or part thereof lost full access";
                     syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
                         return c.mRemoteNode == rootHandle;
-                    }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
+                    }, true, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
 
                 }
             }
@@ -477,7 +477,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     LOG_warn << "Existing inbound share sync lost full access";
                     syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
                         return c.mRemoteNode == rootHandle;
-                    }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
+                    }, true, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
                 }
             };
         }
@@ -2211,18 +2211,18 @@ void MegaClient::exec()
                     else if (e == API_ETOOMANY)
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
-#ifdef ENABLE_SYNC
-                        // Fail all syncs.
-                        // Setting flag for fail rather than disable
-                        std::promise<bool> pb;
-                        syncs.disableSelectedSyncs([](SyncConfig&, Sync* s){ return !!s; },
-                            true,
-                            TOO_MANY_ACTION_PACKETS,
-                            false,
-                            [&pb](size_t){ pb.set_value(true); });
-                        // wait for operation to complete
-                        pb.get_future().get();
-#endif
+//#ifdef ENABLE_SYNC
+//                        // Fail all syncs.
+//                        // Setting flag for fail rather than disable
+//                        std::promise<bool> pb;
+//                        syncs.disableSelectedSyncs([](SyncConfig&, Sync* s){ return !!s; },
+//                            true,
+//                            TOO_MANY_ACTION_PACKETS,
+//                            false,
+//                            [&pb](size_t){ pb.set_value(true); });
+//                        // wait for operation to complete
+//                        pb.get_future().get();
+//#endif
                         int creqtag = reqtag;
                         reqtag = fetchnodestag; // associate with ongoing request, if any
                         fetchingnodes = false;
@@ -12985,7 +12985,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
     for (auto& config : syncs.allConfigs())
     {
         // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
-        if (config.getBackupId() != excludeBackupId)
+        if (config.mBackupId != excludeBackupId)
         {
             LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
@@ -13100,7 +13100,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             // so that the app does not need to carry that burden.
             // Although it might not be required given the following test does expands the configured
             // paths to use canonical paths when checking for path collisions:
-            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getBackupId(), &syncConfig.mError);
+            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.mBackupId, &syncConfig.mError);
             if (e)
             {
                 LOG_warn << "Local path not syncable: ";
@@ -13347,7 +13347,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
         else
         {
             // if we got this far, the syncConfig is kept (in db and in memory)
-            config.setBackupId(backupId);
+            config.mBackupId = backupId;
 
             syncs.appendNewSync(config, true, notifyApp, completion, true, logname);
         }
@@ -14602,7 +14602,7 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
                 LOG_warn << "Disabling sync containing node " << n->displaypath();
                 syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
                     return c.mRemoteNode == rootHandle;
-                }, false, syncError, newEnabledFlag, nullptr);
+                }, false, syncError, newEnabledFlag, true, nullptr);
             }
         }
     }

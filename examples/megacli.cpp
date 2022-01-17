@@ -138,7 +138,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
 // converts the given sync configuration to a string
 std::string syncConfigToString(const SyncConfig& config)
 {
-    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
+    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.mBackupId));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
         description.append(" TWOWAY");
@@ -447,7 +447,7 @@ void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
 
 void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
 {
-    handle backupId = config.getBackupId();
+    handle backupId = config.mBackupId;
     if (attempted)
     {
         conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath()  << " enabled: "
@@ -3333,16 +3333,11 @@ autocomplete::ACN autocompleteSyntax()
                     text("remove"),
                     param("id")));
 
-    p->Add(exec_syncxable,
-           sequence(text("sync"),
-                    either(sequence(either(text("disable"), text("fail")),
-                                    param("id"),
-                                    opt(param("error"))),
-                           sequence(text("enable"),
-                                    param("id")))));
+    p->Add(exec_syncxable, sequence(text("sync"),
+            either(text("run"), text("pause"), text("suspend"), text("disable")),
+            opt(sequence(flag("-error"), param("errorID"))),
+            param("id")));
 
-    p->Add(exec_syncpause, sequence(text("sync"), text("pause"), param("id")));
-    p->Add(exec_syncresume, sequence(text("sync"), text("resume"), param("id")));
     p->Add(exec_syncrescan, sequence(text("sync"), text("rescan"), param("id")));
 
     p->Add(exec_syncoutput, sequence(text("sync"), text("output"),
@@ -4854,31 +4849,6 @@ void exec_syncrescan(autocomplete::ACState& s)
     Base64::atob(s.words[2].s.c_str(), (byte*)&backupId, int(sizeof(backupId)));
 
     client->syncs.setSyncsNeedFullSync(true, backupId);
-}
-
-
-void exec_syncpause(autocomplete::ACState& s)
-{
-    auto backupIdStr = s.words[2].s;
-
-    handle backupId = 0;
-    Base64::atob(backupIdStr.c_str(), (byte*)&backupId, int(sizeof(backupId)));
-
-    auto future = client->syncs.setSyncPausedByBackupId(backupId, true);
-    bool result = future.get();
-    cout << "Sync " << toHandle(backupId) << " pause success: " << result << endl;
-}
-
-void exec_syncresume(autocomplete::ACState& s)
-{
-    auto backupIdStr = s.words[2].s;
-
-    handle backupId = 0;
-    Base64::atob(backupIdStr.c_str(), (byte*)&backupId, int(sizeof(backupId)));
-
-    auto future = client->syncs.setSyncPausedByBackupId(backupId, false);
-    bool result = future.get();
-    cout << "Sync " << toHandle(backupId) << " resume success: " << result << endl;
 }
 
 #endif
@@ -9316,8 +9286,18 @@ void exec_synclist(autocomplete::ACState& s)
             << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")
             << "\n";
 
+
+        string runStateName;
+        switch (config.runState())
+        {
+        case SyncConfig::Run: runStateName = "RUNNING"; break;
+        case SyncConfig::Pause: runStateName = "PAUSED"; break;
+        case SyncConfig::Suspend: runStateName = "SUSPENDED"; break;
+        case SyncConfig::Disable: runStateName = "DISABLED"; break;
+        }
+
         // Display status info.
-        cout << "  State: "
+        cout << "  State: " << runStateName << " "
             << SyncConfig::syncstatename(config.mRunningState)
             << (config.mTemporarilyPaused ? " (paused)" : "")
             << "\n";
@@ -9471,13 +9451,55 @@ void exec_syncxable(autocomplete::ACState& s)
         return;
     }
 
-    const auto command = s.words[1].s;
+    string errIdString;
+    bool withError = s.extractflagparam("-error", errIdString);
+    withError;
+
+    auto targetState = SyncConfig::Run;
+
+    if (s.words[1].s == "run") targetState = SyncConfig::Run;
+    else if (s.words[1].s == "pause") targetState = SyncConfig::Pause;
+    else if (s.words[1].s == "suspend") targetState = SyncConfig::Suspend;
+    else if (s.words[1].s == "disable") targetState = SyncConfig::Disable;
 
     handle backupId = 0;
     Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
 
-    if (command == "enable")
+    SyncConfig config;
+    if (!client->syncs.configById(backupId, config))
     {
+        cout << "No sync found with id: " << Base64Str<sizeof(handle)>(backupId) << endl;
+        return;
+    }
+
+    auto curState = config.runState();
+
+    if (curState == targetState)
+    {
+        cout << "Sync is already in that state" << endl;
+        return;
+    }
+
+
+    switch (targetState)
+    {
+    case SyncConfig::Run:
+    case SyncConfig::Pause:
+
+        if (curState == SyncConfig::Pause)
+        {
+            auto future = client->syncs.setSyncPausedByBackupId(backupId, false);
+            bool result = future.get();
+            cout << "Sync " << toHandle(backupId) << " resume success: " << result << endl;
+            return;
+        }
+        else if (curState == SyncConfig::Run) {
+            auto future = client->syncs.setSyncPausedByBackupId(backupId, true);
+            bool result = future.get();
+            cout << "Sync " << toHandle(backupId) << " pause success: " << result << endl;
+            return;
+        }
+
         // sync enable id
         client->syncs.enableSyncByBackupId(backupId, false, true, [](error err)
             {
@@ -9494,49 +9516,33 @@ void exec_syncxable(autocomplete::ACState& s)
             }, "");
 
         return;
-    }
 
-    // sync disable id [error]
-    // sync fail id [error]
-
-    int error = NO_SYNC_ERROR;
-
-    // Has the user provided a specific error code?
-    if (s.words.size() > 3)
+    case SyncConfig::Suspend:
+    case SyncConfig::Disable:
     {
-        // Yep, use it.
-        error = atoi(s.words[3].s.c_str());
-    }
+        bool keepSyncDb = targetState == SyncConfig::Suspend;
 
-    // Disable or fail?
-    if (command == "fail")
-    {
         client->syncs.disableSelectedSyncs(
             [backupId](SyncConfig& config, Sync*)
             {
-                return config.getBackupId() == backupId;
+                return config.mBackupId == backupId;
             },
-            true, // disable is fail
-            static_cast<SyncError>(error),
-            false,
-            [](size_t nFailed){
-            cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
+            withError, // true == fail, false == disable
+            static_cast<SyncError>(withError ? atoi(errIdString.c_str()) : 0),
+            false, keepSyncDb,
+            [](size_t nDisabled){
+                if (nDisabled != 1)
+                {
+                    cout << "Disable failed! " << nDisabled << endl;
+                }
+                else
+                {
+                    cout << "Disable complete." << endl;
+                }
         });
-    }
-    else    // command == "disable"
-    {
-        client->syncs.disableSelectedSyncs(
-          [backupId](SyncConfig& config, Sync*)
-          {
-              return config.getBackupId() == backupId;
-          },
-          false,
-          static_cast<SyncError>(error),
-          false,
-          [](size_t nDisabled){
-            cout << "disablement complete. Count disabled: " << nDisabled << endl;
-          });
-    }
+        break;
+    }}
+
 }
 
 #endif // ENABLE_SYNC
