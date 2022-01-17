@@ -825,7 +825,7 @@ bool CommandGetFile::procresult(Result r)
                     else
                     {
                         assert(false);
-                        client->sendevent(99556, "Unpaired IPs received for URLs in `g` command");
+                        client->sendevent(99456, "Unpaired IPs received for URLs in `g` command");
                         LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
                     }
                 });
@@ -949,7 +949,8 @@ bool CommandSetAttr::procresult(Result r)
 // (the result is not processed directly - we rely on the server-client
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
-                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
+                                 const char* userhandle, VersioningOption vo,
+                                 vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
                                  Completion&& resultFunction)
   : mResultFunction(resultFunction)
 {
@@ -979,6 +980,32 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     if (cauth)
     {
         arg("cauth", cauth);
+    }
+
+    // "vb": when provided, it force to override the account-wide versioning behavior by the value indicated by client
+    //     vb:1 to force it on
+    //     vb:0 to force it off
+    // Dont provide it at all to rely on the account-wide setting (as of the moment the command is processed).
+    switch (vo)
+    {
+        case NoVersioning:
+            break;
+
+        case ClaimOldVersion:
+            arg("vb", 1);
+            break;
+
+        case ReplaceOldVersion:
+            arg("vb", m_off_t(0));
+            break;
+
+        case UseLocalVersioningFlag:
+            arg("vb", !client->versions_disabled);
+            vo = !client->versions_disabled ? ClaimOldVersion : ReplaceOldVersion;
+            break;
+
+        case UseServerVersioningFlag:
+            break;
     }
 
     beginarray("n");
@@ -1030,10 +1057,12 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
             arg("p", (byte*)&nn[i].parenthandle, MegaClient::NODEHANDLE);
         }
 
-        if (nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+        if (vo != NoVersioning &&
+            nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }
+        nn[i].mVersioningOption = vo;
 
         arg("t", nn[i].type);
         arg("a", (byte*)nn[i].attrstring->data(), int(nn[i].attrstring->size()));
@@ -5239,7 +5268,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
 
-                        client->putnodes(client->rootnodes.files, move(newnodes), nullptr, 0);
+                        client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0);
                     }
                     else if (havekey)
                     {
