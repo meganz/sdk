@@ -5909,8 +5909,8 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     // Create a remote name clash.
     auto* node = client.drillchildnodebyname(client.gettestbasenode(), "x/d");
     ASSERT_TRUE(!!node);
-    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node, false));
-    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node, false));
+    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node));
+    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node));
 
     // Let the client attempt to synchronize.
     waitonsyncs(TIMEOUT, &client);
@@ -5988,8 +5988,8 @@ TEST_F(SyncTest, DoesntDownloadFilesWithClashingNames)
         ASSERT_TRUE(cu.uploadFolderTree(root / "dd", node));
 
         // Upload f twice, generate clash.
-        ASSERT_TRUE(cu.uploadFile(root / "f", node, false));
-        ASSERT_TRUE(cu.uploadFile(root / "f", node, false));
+        ASSERT_TRUE(cu.uploadFile(root / "f", node));
+        ASSERT_TRUE(cu.uploadFile(root / "f", node));
 
         // Upload ff once.
         ASSERT_TRUE(cu.uploadFile(root / "ff", node));
