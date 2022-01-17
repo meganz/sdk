@@ -18282,6 +18282,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                     break;
                 }
 
+                if (parent && parent->inshare && !client->checkaccess(parent, RDWR))
+                {
+                    e = API_EACCESS;
+                    break;
+                }
+
                 string tmpString = localPath;
                 auto wLocalPath = LocalPath::fromPath(tmpString, *client->fsaccess);
 
@@ -27380,7 +27386,7 @@ StreamingBuffer::~StreamingBuffer()
     delete [] buffer;
 }
 
-void StreamingBuffer::init(m_off_t capacity)
+void StreamingBuffer::init(size_t capacity)
 {
     assert(capacity > 0);
     if (capacity > maxBufferSize)
@@ -27396,7 +27402,7 @@ void StreamingBuffer::init(m_off_t capacity)
     this->free = this->capacity;
 }
 
-unsigned int StreamingBuffer::append(const char *buf, unsigned int len)
+size_t StreamingBuffer::append(const char *buf, size_t len)
 {
     if (!buffer)
     {
@@ -27411,9 +27417,9 @@ unsigned int StreamingBuffer::append(const char *buf, unsigned int len)
     }
 
     // update the internal state
-    int currentIndex = inpos;
+    size_t currentIndex = inpos;
     inpos += len;
-    int remaining = inpos - capacity;
+    size_t remaining = inpos - capacity;
     inpos %= capacity;
     size += len;
     free -= len;
@@ -27425,7 +27431,7 @@ unsigned int StreamingBuffer::append(const char *buf, unsigned int len)
     }
     else
     {
-        int num = len - remaining;
+        size_t num = len - remaining;
         memcpy(buffer + currentIndex, buf, num);
         memcpy(buffer, buf + num, remaining);
     }
@@ -27433,17 +27439,17 @@ unsigned int StreamingBuffer::append(const char *buf, unsigned int len)
     return len;
 }
 
-unsigned int StreamingBuffer::availableData()
+size_t StreamingBuffer::availableData()
 {
     return size;
 }
 
-unsigned int StreamingBuffer::availableSpace()
+size_t StreamingBuffer::availableSpace()
 {
     return free;
 }
 
-unsigned int StreamingBuffer::availableCapacity()
+size_t StreamingBuffer::availableCapacity()
 {
     return capacity;
 }
@@ -27458,7 +27464,7 @@ uv_buf_t StreamingBuffer::nextBuffer()
 
     // prepare output buffer
     char *outbuf = buffer + outpos;
-    int len = size < maxOutputSize ? size : maxOutputSize;
+    size_t len = size < maxOutputSize ? size : maxOutputSize;
     if (outpos + len > capacity)
     {
         len = capacity - outpos;
@@ -27470,10 +27476,10 @@ uv_buf_t StreamingBuffer::nextBuffer()
     outpos %= capacity;
 
     // return the buffer
-    return uv_buf_init(outbuf, len);
+    return uv_buf_init(outbuf, (unsigned int)(len));
 }
 
-void StreamingBuffer::freeData(unsigned int len)
+void StreamingBuffer::freeData(size_t len)
 {
     // update the internal state
     free += len;
@@ -29094,13 +29100,13 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
             web << "</td><td><span class=\"text\">";
             unsigned long long bytes = child->getSize();
             if (bytes > TB)
-                web << ((unsigned long long)((100 * bytes) / TB))/100.0 << " TB";
+                web << double(((unsigned long long)((100 * bytes) / TB)))/100.0 << " TB";
             else if (bytes > GB)
-                web << ((unsigned long long)((100 * bytes) / GB))/100.0 << " GB";
+                web << double(((unsigned long long)((100 * bytes) / GB)))/100.0 << " GB";
             else if (bytes > MB)
-                web << ((unsigned long long)((100 * bytes) / MB))/100.0 << " MB";
+                web << double(((unsigned long long)((100 * bytes) / MB)))/100.0 << " MB";
             else if (bytes > KB)
-                web << ((unsigned long long)((100 * bytes) / KB))/100.0 << " KB";
+                web << double(((unsigned long long)((100 * bytes) / KB)))/100.0 << " KB";
             web << "</span>";
         }
         web << "</td></tr>";

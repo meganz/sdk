@@ -6854,6 +6854,9 @@ class MegaListener
          * The last parameter provides the result of the transfer. If the transfer finished without problems,
          * the error code will be API_OK
          *
+         * In case that we are uploading a file into an incoming share, and our write permissions over the share
+         * are revoked before the transfer has finished, API will put the node into our rubbish-bin.
+         *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          * @param error Error information

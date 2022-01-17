@@ -23,6 +23,7 @@
 #include "mega/mediafileattribute.h"
 #include <cctype>
 #include <algorithm>
+#include <functional>
 #include <future>
 #include "mega/heartbeats.h"
 
@@ -1244,6 +1245,13 @@ void MegaClient::init()
     scnotifyurl.clear();
     scsn.clear();
 
+    // initialize random client application instance ID (for detecting own
+    // actions in server-client stream)
+    resetId(sessionid, sizeof sessionid);
+
+    // initialize random API request sequence ID (server API is idempotent)
+    resetId(reqid, sizeof reqid);
+
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
     mNodeCounters = NodeCounterMap();
@@ -1371,21 +1379,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     connections[PUT] = 3;
     connections[GET] = 4;
 
-    int i;
-
-    // initialize random client application instance ID (for detecting own
-    // actions in server-client stream)
-    for (i = sizeof sessionid; i--; )
-    {
-        sessionid[i] = static_cast<char>('a' + rng.genuint32(26));
-    }
-
-    // initialize random API request sequence ID (server API is idempotent)
-    for (i = sizeof reqid; i--; )
-    {
-        reqid[i] = static_cast<char>('a' + rng.genuint32(26));
-    }
-
     reqtag = 0;
 
     badhostcs = NULL;
@@ -1424,6 +1417,14 @@ MegaClient::~MegaClient()
     delete badhostcs;
     delete dbaccess;
     LOG_debug << clientname << "~MegaClient completing";
+}
+
+void MegaClient::resetId(char *id, size_t length)
+{
+    for (size_t i = length; i--; )
+    {
+        id[i] = static_cast<char>('a' + rng.genuint32(26));
+    }
 }
 
 void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
@@ -5027,10 +5028,10 @@ bool MegaClient::procsc()
                                 sc_se();
                                 break;
 #ifdef ENABLE_CHAT
-                            case MAKENAMEID4('m', 'c', 'p', 'c'):      // fall-through
+                            case MAKENAMEID4('m', 'c', 'p', 'c'):
                             {
                                 readingPublicChat = true;
-                            }
+                            } // fall-through
                             case MAKENAMEID3('m', 'c', 'c'):
                                 // chat creation / peer's invitation / peer's removal
                                 sc_chatupdate(readingPublicChat);
@@ -8702,12 +8703,14 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 JSON::copystring(n->attrstring.get(), a);
                 n->setkeyfromjson(k);
 
-                // folder link access: first returned record defines root node and identity
-				// (this code used to be in Node::Node but is not suitable for session resume)
-
-                if (rootnodes.files.isUndef())
+                if (loggedIntoFolder())
                 {
-                    rootnodes.files.set6byte(h);
+                    // folder link access: first returned record defines root node and identity
+                    // (this code used to be in Node::Node but is not suitable for session resume)
+                    if (rootnodes.files.isUndef())
+                    {
+                        rootnodes.files.set6byte(h);
+                    }
 
                     if (loggedIntoWritableFolder())
                     {
@@ -14033,8 +14036,8 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
 
 void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion)
 {
-    auto onUserAttributesCompleted =
-      [completion = std::move(completion), configs, this](Error result)
+    auto onUserAttributesCompleted = std::bind(
+      [configs, this](std::function<void(error)>& completion, Error result)
       {
           // Do we have the attributes necessary for the sync config store?
           if (result != API_OK)
@@ -14046,7 +14049,8 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
 
           // Kick off the import.
           syncs.importSyncConfigs(configs, std::move(completion));
-      };
+      },
+      std::move(completion), std::placeholders::_1);
 
     // Make sure we have the attributes necessary for the sync config store.
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));

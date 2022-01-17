@@ -825,7 +825,7 @@ bool CommandGetFile::procresult(Result r)
                     else
                     {
                         assert(false);
-                        client->sendevent(99556, "Unpaired IPs received for URLs in `g` command");
+                        client->sendevent(99456, "Unpaired IPs received for URLs in `g` command");
                         LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
                     }
                 });

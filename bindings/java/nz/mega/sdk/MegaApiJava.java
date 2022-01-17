@@ -464,22 +464,6 @@ public class MegaApiJava {
     /****************************************************************************************************/
 
     /**
-     * Generates a hash based in the provided private key and email.
-     * <p>
-     * This is a time consuming operation (especially for low-end mobile devices). Since the resulting key is
-     * required to log in, this function allows to do this step in a separate function. You should run this function
-     * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApiJava.fastLogin().
-     *
-     * @param base64pwkey
-     *            Private key returned by MegaApiJava.getBase64PwKey().
-     * @return Base64-encoded hash.
-     * @deprecated Legacy function soon to be removed.
-     */
-    @Deprecated public String getStringHash(String base64pwkey, String inBuf) {
-        return megaApi.getStringHash(base64pwkey, inBuf);
-    }
-
-    /**
      * Get an URL to transfer the current session to the webclient
      *
      * This function creates a new session for the link so logging out in the web client won't log out
@@ -6108,88 +6092,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Submit feedback about the app.
-     * <p>
-     * The User-Agent is used to identify the app. It can be set in MegaApiJava.MegaApi().
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_REPORT_EVENT.
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_FEEDBACK. <br>
-     * - MegaRequest.getText() - Returns the comment about the app. <br>
-     * - MegaRequest.getNumber() - Returns the rating for the app.
-     *
-     * @param rating
-     *            Integer to rate the app. Valid values: from 1 to 5.
-     * @param comment
-     *            Comment about the app.
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * @deprecated This function is for internal usage of MEGA apps. This feedback
-     *             is sent to MEGA servers.
-     *
-     */
-    @Deprecated public void submitFeedback(int rating, String comment, MegaRequestListenerInterface listener) {
-        megaApi.submitFeedback(rating, comment, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Submit feedback about the app.
-     * <p>
-     * The User-Agent is used to identify the app. It can be set in MegaApiJava.MegaApi().
-     *
-     * @param rating
-     *            Integer to rate the app. Valid values: from 1 to 5.
-     * @param comment
-     *            Comment about the app.
-     * @deprecated This function is for internal usage of MEGA apps. This feedback
-     *             is sent to MEGA servers.
-     *
-     */
-    @Deprecated public void submitFeedback(int rating, String comment) {
-        megaApi.submitFeedback(rating, comment);
-    }
-
-    /**
-     * Send a debug report.
-     * <p>
-     * The User-Agent is used to identify the app. It can be set in MegaApiJava.MegaApi()
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_REPORT_EVENT
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_DEBUG. <br>
-     * - MegaRequest.getText() - Returns the debug message.
-     *
-     * @param text
-     *            Debug message
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * @deprecated This function is for internal usage of MEGA apps. This feedback
-     *             is sent to MEGA servers.
-     */
-    @Deprecated public void reportDebugEvent(String text, MegaRequestListenerInterface listener) {
-        megaApi.reportDebugEvent(text, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Send a debug report.
-     * <p>
-     * The User-Agent is used to identify the app. It can be set in MegaApiJava.MegaApi().
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_REPORT_EVENT
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getParamType() - Returns MegaApiJava.EVENT_DEBUG. <br>
-     * - MegaRequest.getText() - Returns the debug message.
-     *
-     * @param text
-     *            Debug message.
-     * @deprecated This function is for internal usage of MEGA apps. This feedback
-     *             is sent to MEGA servers.
-     */
-    @Deprecated public void reportDebugEvent(String text) {
-        megaApi.reportDebugEvent(text);
-    }
-
-    /**
      * Use HTTPS communications only
      *
      * The default behavior is to use HTTP for transfers and the persistent connection
@@ -7332,16 +7234,6 @@ public class MegaApiJava {
      */
     public ArrayList<MegaTransfer> getChildTransfers(int transferTag) {
     	return transferListToArray(megaApi.getChildTransfers(transferTag));
-    }
-
-    /**
-     * Force a loop of the SDK thread.
-     *
-     * @deprecated This function is only here for debugging purposes. It will probably
-     *             be removed in future updates.
-     */
-    @Deprecated public void update() {
-        megaApi.update();
     }
 
     /**

@@ -3418,13 +3418,13 @@ class StreamingBuffer
 public:
     StreamingBuffer();
     ~StreamingBuffer();
-    void init(m_off_t capacity);
-    unsigned int append(const char *buf, unsigned int len);
-    unsigned int availableData();
-    unsigned int availableSpace();
-    unsigned int availableCapacity();
+    void init(size_t capacity);
+    size_t append(const char *buf, size_t len);
+    size_t availableData();
+    size_t availableSpace();
+    size_t availableCapacity();
     uv_buf_t nextBuffer();
-    void freeData(unsigned int len);
+    void freeData(size_t len);
     void setMaxBufferSize(unsigned int bufferSize);
     void setMaxOutputSize(unsigned int outputSize);
 
@@ -3433,13 +3433,13 @@ public:
 
 protected:
     char *buffer;
-    unsigned int capacity;
-    unsigned int size;
-    unsigned int free;
-    unsigned int inpos;
-    unsigned int outpos;
-    unsigned int maxBufferSize;
-    unsigned int maxOutputSize;
+    size_t capacity;
+    size_t size;
+    size_t free;
+    size_t inpos;
+    size_t outpos;
+    size_t maxBufferSize;
+    size_t maxOutputSize;
 };
 
 class MegaTCPServer;
@@ -3458,7 +3458,7 @@ public:
     m_off_t bytesWritten;
     m_off_t size;
     char *lastBuffer;
-    int lastBufferLen;
+    size_t lastBufferLen;
     bool nodereceived;
     bool finished;
     bool failed;
@@ -3611,7 +3611,7 @@ public:
     std::unique_ptr<MegaTransferPrivate> transfer;
     http_parser parser;
     char *lastBuffer;
-    int lastBufferLen;
+    size_t lastBufferLen;
     bool nodereceived;
     bool failed;
     bool pause;
@@ -3904,7 +3904,7 @@ public:
     StreamingBuffer streamingBuffer;
     MegaTransferPrivate *transfer;
     char *lastBuffer;
-    int lastBufferLen;
+    size_t lastBufferLen;
     bool failed;
     int ecode;
     bool pause;
