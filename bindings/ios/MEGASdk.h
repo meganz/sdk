@@ -5940,108 +5940,124 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  */
 - (nullable MEGATransfer *)transferByTag:(NSInteger)transferTag;
-/**
- * @brief Upload a file.
- *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
- *
- * @param localPath Local path of the file.
- * @param parent Node for the file in the MEGA account.
- * @param delegate Delegate to track this transfer.
- */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
- * @brief Upload a file.
+ * @brief Upload a file to support
  *
  * If the status of the business account is expired, onTransferFinish will be called with the error
  * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
  * "Your business account is overdue, please contact your administrator."
  *
- * @param localPath Local path of the file.
- * @param parent Node for the file in the MEGA account.
+ * For folders, onTransferFinish will be called with error MEGAErrorTypeApiEArgs;
+ *
+ * @param localPath Local path of the file
+ * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+ * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+ * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent;
+- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary;
 
 /**
- * @brief Upload a file with a custom name.
+ * @brief Upload a file to support
  *
  * If the status of the business account is expired, onTransferFinish will be called with the error
  * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
  * "Your business account is overdue, please contact your administrator."
  *
- * @param localPath Local path of the file.
- * @param parent Parent node for the file in the MEGA account.
- * @param filename Custom file name for the file in MEGA.
- * @param delegate Delegate to track this transfer.
+ * For folders, onTransferFinish will be called with error MEGAErrorTypeApiEArgs;
+ *
+ * @param localPath Local path of the file
+ * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+ * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+ * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+ * @param listener MegaTransferListener to track this transfer
  */
-- (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent filename:(NSString *)filename delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
- * @brief Upload a file with a custom name.
+ * @brief Upload a file or a folder
  *
  * If the status of the business account is expired, onTransferFinish will be called with the error
  * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
  * "Your business account is overdue, please contact your administrator."
  *
- * @param localPath Local path of the file.
- * @param parent Parent node for the file in the MEGA account.
- * @param filename Custom file name for the file in MEGA.
- */
-- (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent filename:(NSString *)filename;
-
-/**
- * @brief Upload a file with a custom name.
+ * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
+ * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
+ * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
+ * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
  *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
- *
- * @param localPath Local path of the file.
- * @param parent Parent node for the file in the MEGA account.
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
- * @param delegate Delegate to track this transfer.
- */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
-
-/**
- * @brief Upload a file with a custom name.
- *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
- *
- * @param localPath Local path of the file.
- * @param parent Parent node for the file in the MEGA account.
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
- */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData;
-
-/**
- * @brief Upload a file or a folder, saving custom app data during the transfer
- *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
+ * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
  *
  * @param localPath Local path of the file or folder
  * @param parent Parent node for the file or folder in the MEGA account
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
- * related to the transfer.
+ * @param appData Custom app data to save in the MegaTransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer. If a transfer is started with exactly the same data
+ * (local path and target parent) as another one in the transfer queue, the new transfer
+ * fails with the error MEGAErrorTypeApiEExist and the appData of the new transfer is appended to
+ * the appData of the old transfer, using a '!' separator if the old transfer had already
+ * appData.
+ *  + If you don't need this param provide NULL as value
+ * @param fileName Custom file name for the file or folder in MEGA
+ *  + If you don't need this param provide NULL as value
  * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
  * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
- * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+ * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+ *  + If you don't need this param provide false as value
+ * @param startFirst puts the transfer on top of the upload queue
+ *  + If you don't need this param provide false as value
+ * @param cancelToken MEGACancelToken to be able to cancel a folder/file upload process.
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * You preserve the ownership of this param.
+ */
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(MEGACancelToken *)cancelToken;
+
+/**
+ * @brief Upload a file or a folder
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
+ * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
+ * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
+ * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
+ * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
+ *
+ * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
+ *
+ * @param localPath Local path of the file or folder
+ * @param parent Parent node for the file or folder in the MEGA account
+ * @param appData Custom app data to save in the MegaTransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer. If a transfer is started with exactly the same data
+ * (local path and target parent) as another one in the transfer queue, the new transfer
+ * fails with the error MEGAErrorTypeApiEExist and the appData of the new transfer is appended to
+ * the appData of the old transfer, using a '!' separator if the old transfer had already
+ * appData.
+ *  + If you don't need this param provide NULL as value
+ * @param fileName Custom file name for the file or folder in MEGA
+ *  + If you don't need this param provide NULL as value
+ * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+ * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+ * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+ *  + If you don't need this param provide false as value
+ * @param startFirst puts the transfer on top of the upload queue
+ *  + If you don't need this param provide false as value
+ * @param cancelToken MEGACancelToken to be able to cancel a folder/file upload process.
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * You preserve the ownership of this param.
  * @param delegate MEGATransferDelegate to track this transfer
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
- * @brief Upload a file or a folder, saving custom app data during the transfer
+ * @brief Upload a file or a folder
+ *
+ * This method should be used ONLY to share by chat a local file. In case the file
+ * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+ * this method will force a new upload from the scratch (ensuring the file attributes are set),
+ * instead of doing a remote copy.
  *
  * If the status of the business account is expired, onTransferFinish will be called with the error
  * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
@@ -6049,17 +6065,30 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * @param localPath Local path of the file or folder
  * @param parent Parent node for the file or folder in the MEGA account
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
- * related to the transfer.
+ * @param appData Custom app data to save in the MegaTransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer. If a transfer is started with exactly the same data
+ * (local path and target parent) as another one in the transfer queue, the new transfer
+ * fails with the error MEGAErrorTypeApiEExist and the appData of the new transfer is appended to
+ * the appData of the old transfer, using a '!' separator if the old transfer had already
+ * appData.
+ *  + If you don't need this param provide NULL as value
  * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
  * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
- * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+ * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+ *  + If you don't need this param provide false as value
+ * @param fileName Custom file name for the file or folder in MEGA
+ *  + If you don't need this param provide NULL as value
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
+- (void)startUploadForChatWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary fileName:(nullable NSString*)fileName;
 
 /**
- * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+ * @brief Upload a file or a folder
+ *
+ * This method should be used ONLY to share by chat a local file. In case the file
+ * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+ * this method will force a new upload from the scratch (ensuring the file attributes are set),
+ * instead of doing a remote copy.
  *
  * If the status of the business account is expired, onTransferFinish will be called with the error
  * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
@@ -6067,240 +6096,92 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * @param localPath Local path of the file or folder
  * @param parent Parent node for the file or folder in the MEGA account
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
- * related to the transfer.
+ * @param appData Custom app data to save in the MegaTransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer. If a transfer is started with exactly the same data
+ * (local path and target parent) as another one in the transfer queue, the new transfer
+ * fails with the error MEGAErrorTypeApiEExist and the appData of the new transfer is appended to
+ * the appData of the old transfer, using a '!' separator if the old transfer had already
+ * appData.
+ *  + If you don't need this param provide NULL as value
  * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
  * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
- * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+ * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+ *  + If you don't need this param provide false as value
+ * @param fileName Custom file name for the file or folder in MEGA
+ *  + If you don't need this param provide NULL as value
  * @param delegate MEGATransferDelegate to track this transfer
  */
-- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadForChatWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary fileName:(nullable NSString*)fileName delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
- * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+ * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
  *
  * If the status of the business account is expired, onTransferFinish will be called with the error
  * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
  * "Your business account is overdue, please contact your administrator."
  *
- * @param localPath Local path of the file or folder
- * @param parent Parent node for the file or folder in the MEGA account
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
- * related to the transfer.
- * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
- * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
- * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
-
- */
-- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
-
-/**
-* @brief Upload a file or a folder
-*
-* This method should be used ONLY to share by chat a local file. In case the file
-* is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
-* this method will force a new upload from the scratch (ensuring the file attributes are set),
-* instead of doing a remote copy.
-*
-* If the status of the business account is expired, onTransferFinish will be called with the error
-* code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
-* "Your business account is overdue, please contact your administrator."
-*
-* @param localPath Local path of the file
-* @param parent Parent node for the file in the MEGA account
-* @param appData Custom app data to save in the MEGATransfer object
-* The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
-* related to the transfer.
-* @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-* This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-* Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
-* @param delegate MEGATransferDelegate to track this transfer
-*
-* The custom modification time will be only applied for file transfers. If a folder
-* is transferred using this function, the custom modification time won't have any effect
-*/
-- (void)startUploadForChatWithLocalPath:(NSString *)localPath
-                                 parent:(MEGANode *)parent
-                                appData:(nullable NSString *)appData
-                      isSourceTemporary:(BOOL)isSourceTemporary
-                               delegate:(id<MEGATransferDelegate>)delegate;
-
-/**
- * @brief Download a file from MEGA.
+ * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
+ * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
+ * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
+ * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
  *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
+ * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
  *
- * @param node MEGANode that identifies the file.
- * @param localPath Destination path for the file.
+ * @param node MEGANode that identifies the file or folder
+ * @param localPath Destination path for the file or folder
  * If this path is a local folder, it must end with a '\' or '/' character and the file name
  * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
  * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MegaTransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ *  + If you don't need this param provide NULL as value
+ * @param fileName Custom file name for the file or folder in local destination
+ *  + If you don't need this param provide NULL as value
+ * @param startFirst puts the transfer on top of the download queue
+ *  + If you don't need this param provide false as value
+ * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * You preserve the ownership of this param.
+ * @param listener MegaTransferListener to track this transfer
+ */
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(MEGACancelToken *)cancelToken;
+
+/**
+ * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
  *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
+ * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
+ * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
+ * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
+ * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
+ *
+ * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
+ *
+ * @param node MEGANode that identifies the file or folder
+ * @param localPath Destination path for the file or folder
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MegaTransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ *  + If you don't need this param provide NULL as value
+ * @param fileName Custom file name for the file or folder in local destination
+ *  + If you don't need this param provide NULL as value
+ * @param startFirst puts the transfer on top of the download queue
+ *  + If you don't need this param provide false as value
+ * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * You preserve the ownership of this param.
+ * @param listener MegaTransferListener to track this transfer
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath delegate:(id<MEGATransferDelegate>)delegate;
-
-/**
- * @brief Download a file from MEGA.
- *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
- *
- * @param node MEGANode that identifies the file.
- * @param localPath Destination path for the file.
- * If this path is a local folder, it must end with a '\' or '/' character and the file name
- * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
- * one of these characters, the file will be downloaded to a file in that path.
- */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath;
-
-/**
- * @brief Download a file from MEGA.
- *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
- *
- * @param node MEGANode that identifies the file.
- * @param localPath Destination path for the file.
- * If this path is a local folder, it must end with a '\' or '/' character and the file name
- * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
- * one of these characters, the file will be downloaded to a file in that path.
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
- * related to the transfer.
- *
- * @param delegate Delegate to track this transfer.
- */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
-
-/**
- * @brief Download a file from MEGA.
- *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
- *
- * @param node MEGANode that identifies the file.
- * @param localPath Destination path for the file.
- * If this path is a local folder, it must end with a '\' or '/' character and the file name
- * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
- * one of these characters, the file will be downloaded to a file in that path.
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
- * related to the transfer.
- *
- */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData;
-
-/**
- * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
- *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
- *
- * @param node MEGANode that identifies the file.
- * @param localPath Destination path for the file.
- * If this path is a local folder, it must end with a '\' or '/' character and the file name
- * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
- * one of these characters, the file will be downloaded to a file in that path.
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
- * related to the transfer.
- *
- * @param delegate Delegate to track this transfer.
- */
-- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
-
-/**
- * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
- *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
- *
- * @param node MEGANode that identifies the file.
- * @param localPath Destination path for the file.
- * If this path is a local folder, it must end with a '\' or '/' character and the file name
- * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
- * one of these characters, the file will be downloaded to a file in that path.
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
- * related to the transfer.
- *
- */
-- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData;
-
-/**
- * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
- *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
- *
- * This method includes a mechanism to cancel a folder download process by calling
- * [MEGACancelToken cancelWithNewValue] through parameter cancelToken. This mechanish will be
- * available just between the following stages: MEGATransferStageScan and
- * MEGATransferStageProcessTransferQueue both included.
- *
- * In case we are trying to download a file, mechanism to cancel upload process by calling
- * [MEGACancelToken cancelWithNewValue] will have no effect.
- * For more information about MEGATransfer stages please refer to onTransferUpdate documentation.
- *
- * @param node MEGANode that identifies the file.
- * @param localPath Destination path for the file.
- * If this path is a local folder, it must end with a '\' or '/' character and the file name
- * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
- * one of these characters, the file will be downloaded to a file in that path.
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
- * related to the transfer.
- * @param cancelToken MEGACancelToken to be able to cancel a folder download process.
- * @param delegate Delegate to track this transfer.
- */
-- (void)startDownloadNode:(MEGANode *)node
-                localPath:(NSString *)localPath
-                  appData:(nullable NSString*)appData
-              cancelToken:(MEGACancelToken *)cancelToken
-                 delegate:(id<MEGATransferDelegate>)delegate;
-
-
-/**
- * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
- *
- * If the status of the business account is expired, onTransferFinish will be called with the error
- * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
- * "Your business account is overdue, please contact your administrator."
- *
- * This method includes a mechanism to cancel a folder download process by calling
- * [MEGACancelToken cancelWithNewValue] through parameter cancelToken. This mechanish will be
- * available just between the following stages: MEGATransferStageScan and
- * MEGATransferStageProcessTransferQueue both included.
- *
- * In case we are trying to download a file, mechanism to cancel upload process by calling
- * [MEGACancelToken cancelWithNewValue] will have no effect.
- * For more information about MEGATransfer stages please refer to onTransferUpdate documentation.
- *
- * @param node MEGANode that identifies the file.
- * @param localPath Destination path for the file.
- * If this path is a local folder, it must end with a '\' or '/' character and the file name
- * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
- * one of these characters, the file will be downloaded to a file in that path.
- * @param appData Custom app data to save in the MEGATransfer object
- * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
- * related to the transfer.
- * @param cancelToken MEGACancelToken to be able to cancel a folder download process.
- */
-- (void)startDownloadNode:(MEGANode *)node
-                localPath:(NSString *)localPath
-                  appData:(nullable NSString*)appData
-              cancelToken:(MEGACancelToken *)cancelToken;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Start an streaming download for a file in MEGA
