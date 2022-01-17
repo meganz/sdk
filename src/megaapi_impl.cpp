@@ -6840,6 +6840,7 @@ void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaReq
 
     request->setMegaStringMap(value);
     request->setParamType(type);
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10614,9 +10615,15 @@ void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
 
 void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)
 {
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+
     MegaStringMapPrivate stringMap;
     stringMap.set("h", Base64Str<MegaClient::NODEHANDLE>(nodehandle));
-    setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, &stringMap, listener);
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER);
+    request->setNodeHandle(nodehandle);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getMyBackupsFolder(MegaRequestListener *listener)
